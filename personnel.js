@@ -953,8 +953,8 @@ function updateDashboard(data){
     data.forEach(p=>{
         if(p.birth_date){ const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++; if(ry+543===cyBE)retire++; }
         if(p.license_expiry){ const dl=dayjs(p.license_expiry).diff(today,'day'); if(dl>=0&&dl<=30)lic++; }
-        if(p.appointment_date&&p.position==='ครู'&&p.academic_standing==='ไม่มีวิทยฐานะ'){
-            if(today.diff(dayjs(p.appointment_date),'year')>=4)eligible++;
+if(p.appointment_date && !['ครูอัตราจ้าง','พนักงานราชการ'].includes(p.position)){
+            if(today.diff(dayjs(p.appointment_date),'year')>=4) eligible++;
         }
         if(p.pa_status==='ผ่าน') paPass++;
         if(p.pa_status==='กำลังดำเนินการ') paProc++;
@@ -1048,12 +1048,13 @@ function renderInfoBlocks(data){
         </div>`;
     }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ไม่มีใบอนุญาตหมดใน 3 เดือน</p>';
 
+// ── Block 4: สิทธิ์ขอวิทยฐานะ (ดำรงตำแหน่งปัจจุบันมาแล้ว ≥ 4 ปี ทุกวิทยฐานะ) ──
     const eligList = data.filter(p=>{
         if(!p.appointment_date) return false;
-        const posOk = ['ครู','ครูผู้ช่วย'].includes(p.position);
-        const acadOk = !p.academic_standing || p.academic_standing==='ไม่มีวิทยฐานะ';
+        // กรองเอาเฉพาะข้าราชการครูและผู้บริหาร (ตัดครูอัตราจ้าง/พนักงานราชการออก)
+        const posOk = !['ครูอัตราจ้าง','พนักงานราชการ'].includes(p.position);
         const yearsIn = today.diff(dayjs(p.appointment_date),'year');
-        return posOk && acadOk && yearsIn>=4;
+        return posOk && yearsIn >= 4;
     }).sort((a,b)=>dayjs(a.appointment_date).diff(dayjs(b.appointment_date),'day'));
 
     const blockElig = document.getElementById('block-eligible');
