@@ -1779,7 +1779,8 @@ async function importFromExcel(event){
             const wb=XLSX.read(e.target.result,{type:'array'});
             const ws=wb.Sheets[wb.SheetNames[0]];
             // cellDates:true → XLSX return JS Date objects สำหรับ date cell
-            const rows=XLSX.utils.sheet_to_json(ws,{defval:'', cellDates:true, raw:false});
+            // raw:true + cellDates:true → date cells return JS Date object (ไม่ใช่ formatted string)
+            const rows=XLSX.utils.sheet_to_json(ws,{defval:'', cellDates:true, raw:true});
             if(!rows.length) return Swal.fire('ไฟล์ว่างเปล่า','ไม่พบข้อมูลในชีตแรก','warning');
             const foundHeaders=Object.keys(rows[0]);
 
@@ -1793,13 +1794,14 @@ async function importFromExcel(event){
             }
 
             function parseDate(val){
-                if(val === null || val === undefined || val === '' || val === '-') return null;
+                if(val === null || val === undefined || val === '' || val === '-' || val === 0) return null;
 
-                // ── JS Date object (XLSX อาจ return Date โดยตรงสำหรับ date cell) ──
+                // ── JS Date object (cellDates:true + raw:true → date cell เป็น Date object) ──
                 if(val instanceof Date){
                     if(isNaN(val.getTime())) return null;
-                    // getFullYear() คืนค่า ค.ศ. เสมอ
-                    return forceCE(val.getFullYear(), val.getMonth()+1, val.getDate());
+                    const y = val.getFullYear(), m = val.getMonth()+1, d = val.getDate();
+                    // ปี BE (>=2300) → หัก 543 → ค.ศ.
+                    return forceCE(y, m, d);
                 }
 
                 const s = String(val).trim();
@@ -1835,8 +1837,11 @@ async function importFromExcel(event){
             function gv(row,...keys){
                 for(const k of keys){
                     const v=row[k];
-                    if(v!==undefined&&v!==null&&String(v).trim()!==''&&String(v).trim()!=='-')
-                        return String(v).trim();
+                    if(v===undefined||v===null) continue;
+                    if(v instanceof Date) return v; // ส่ง Date object ตรงๆ ให้ parseDate
+                    const s=String(v).trim();
+                    if(s===''||s==='-'||s==='0') continue;
+                    return s;
                 }
                 return null;
             }
@@ -1897,7 +1902,7 @@ async function importFromExcel(event){
                     license_number:        gv(row,'เลขที่ใบอนุญาต','license_number'),
                     license_expiry:        parseDate(gv(row,'หมดอายุใบอนุญาต (พ.ศ.)','วันหมดอายุใบอนุญาตฯ (พ.ศ.)','วันหมดอายุใบอนุญาต YYYY-MM-DD','license_expiry')),
                     pa_status:             gv(row,'สถานะ PA','pa_status'),
-                    pa_docs:(()=>{ const pa={}; [2565,2566,2567,2568,2569,2570].forEach(y=>{ const v=gv(row,`ไฟล์ PA3-${y}`,`PA3-${y}`); if(v) pa[`pa_${y}`]=v; }); return Object.keys(pa).length?pa:null; })()
+                    pa_docs:(()=>{ const pa={}; [2565,2566,2567,2568,2569,2570].forEach(y=>{ const v=gv(row,`ไฟล์ PA3-${y}`,`PA3-${y}`); if(v && v!=='0' && v!==0) pa[`pa_${y}`]=v; }); return Object.keys(pa).length?pa:null; })()
                 };
             }).filter(p=>p.first_name)
 ; // payloads พร้อมแล้ว (ไม่มี id เพราะจะ match ชื่อกับแถวที่มีอยู่)
