@@ -179,6 +179,33 @@
                 url: 'personnel.html'
             },
             {
+                id: 'attendance',
+                moduleId: 'attendance',
+                title: 'ระบบเช็คชื่อหน้าเสาธง',
+                desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา',
+                icon: 'fa-solid fa-clipboard-user',
+                color: 'text-orange-500', bgIcon: 'bg-orange-100',
+                url: 'attendance_teacher.html'
+            },
+            {
+                id: 'discipline',
+                moduleId: 'discipline',
+                title: 'ระบบงานปกครอง',
+                desc: 'บันทึกพฤติกรรม, ตัดคะแนน, และออกใบเตือน',
+                icon: 'fa-solid fa-gavel',
+                color: 'text-red-500', bgIcon: 'bg-red-100',
+                url: 'behavior.html'
+            },
+            {
+                id: 'homevisit',
+                moduleId: 'homevisit',
+                title: 'ระบบเยี่ยมบ้านนักเรียน',
+                desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน',
+                icon: 'fa-solid fa-house-chimney-user',
+                color: 'text-teal-600', bgIcon: 'bg-teal-100',
+                url: 'homevisit.html'
+            },
+            {
                 id: 'guidance_admin',
                 moduleId: 'guidance', // อ้างอิง ID ในฐานข้อมูลเพื่อเช็คสถานะเปิด-ปิด
                 title: 'แนะแนว (ผู้ดูแลระบบ)',
@@ -199,45 +226,6 @@
                 // reqAdmin: true // เฉพาะครูแนะแนวที่ได้รับสิทธิ์ หรือ Super Admin
             },
             {
-                id: 'attendance',
-                moduleId: 'attendance',
-                title: 'ระบบเช็คชื่อหน้าเสาธง',
-                desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา',
-                icon: 'fa-solid fa-clipboard-user',
-                color: 'text-orange-500', bgIcon: 'bg-orange-100',
-                url: 'attendance_teacher.html'
-            },
-            {
-                id: 'discipline',
-                moduleId: 'discipline',
-                title: 'ระบบงานปกครอง',
-                desc: 'บันทึกพฤติกรรม, ตัดคะแนน, และออกใบเตือน',
-                icon: 'fa-solid fa-gavel',
-                color: 'text-red-500', bgIcon: 'bg-red-100',
-                url: 'behavior.html' // เปลี่ยนชื่อไฟล์ให้ตรงกับ Prompt ใหม่ที่คุณครูจะใช้
-            },
-            // ==========================================
-            // เพิ่มระบบใหม่ 4 ตัวด้านล่างนี้ครับ
-            // ==========================================
-            {
-                id: 'eq_assessment',
-                moduleId: 'eq',
-                title: 'ระบบประเมิน EQ',
-                desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
-                icon: 'fa-solid fa-face-smile-beam',
-                color: 'text-pink-500', bgIcon: 'bg-pink-100',
-                url: 'eq.html'
-            },
-            {
-                id: 'homevisit',
-                moduleId: 'homevisit',
-                title: 'ระบบเยี่ยมบ้านนักเรียน',
-                desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน',
-                icon: 'fa-solid fa-house-chimney-user',
-                color: 'text-teal-600', bgIcon: 'bg-teal-100',
-                url: 'homevisit.html'
-            },
-            {
                 id: 'scholarship',
                 moduleId: 'scholarship',
                 title: 'ระบบทุนการศึกษา',
@@ -254,7 +242,16 @@
                 icon: 'fa-solid fa-clipboard-question',
                 color: 'text-indigo-500', bgIcon: 'bg-indigo-100',
                 url: 'sdq.html'
-            }
+            },
+            {
+                id: 'eq_assessment',
+                moduleId: 'eq',
+                title: 'ระบบประเมิน EQ',
+                desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
+                icon: 'fa-solid fa-face-smile-beam',
+                color: 'text-pink-500', bgIcon: 'bg-pink-100',
+                url: 'eq.html'
+            },
         ];
 
         window.onload = async () => {

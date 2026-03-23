@@ -837,8 +837,8 @@ async function deletePersonnel(id, name){
 
 /* ── LOAD LIST ──────────────── */
 async function loadPersonnelList(){
+    // 🌟 1. โหลดข้อมูล "ทุกคน" มาเสมอ เพื่อเอามาทำสถิติรวมของโรงเรียน
     let query = db.from('core_personnel').select('*').order('first_name');
-    if(isTeacher() && currentUser?.id) query = query.eq('id', currentUser.id);
     const {data,error}= await query;
     if(error){ console.error(error); return; }
     allPersonnelData=data||[];
@@ -849,7 +849,10 @@ async function loadPersonnelList(){
     tbody.innerHTML='';
     const today=dayjs(), cyBE=today.year()+543;
 
-    allPersonnelData.forEach(p=>{
+    // 🌟 2. คัดกรองข้อมูลเฉพาะส่วนของ "ตาราง" (ครูเห็นแค่ตัวเอง, แอดมินเห็นทั้งหมด)
+    const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
+
+    tableData.forEach(p=>{
         const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
         const avHtml = p.avatar_url
             ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">`
@@ -887,10 +890,8 @@ async function loadPersonnelList(){
             else            licHtml=`<span class="text-slate-500 text-xs">${expStr}</span>`;
         }
 
-// เก็บ data ใน Map
         personnelMap.set(p.id, p);
 
-        // 🌟 เพิ่มเงื่อนไข: ตรวจสอบว่ามีสิทธิ์ลบหรือไม่ (ถ้าไม่มีให้ปุ่มเป็นค่าว่าง)
         const deleteBtnHtml = canDelete() 
             ? `<button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g,"\\'")}')"
                     class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ">
@@ -937,6 +938,7 @@ async function loadPersonnelList(){
         columnDefs:[{orderable:false,targets:[0,7]}],
         layout:{topStart:'pageLength',topEnd:'search',bottomStart:'info',bottomEnd:'paging'}
     });
+    // 🌟 3. อัปเดตการ์ดสถิติด้านบนโดยใช้ข้อมูล "ทุกคน"
     updateDashboard(allPersonnelData);
 }
 
@@ -998,11 +1000,13 @@ function renderInfoBlocks(data){
             <span class="ml-2 flex-shrink-0 text-sm font-bold px-2.5 py-0.5 rounded-full ${acadColors[k]||'bg-slate-100 text-slate-600'}">${acadMap[k]}</span>
         </div>`).join('') || '<p class="text-slate-400 text-sm text-center py-4 col-span-full">ไม่มีข้อมูล</p>';
 
+    // ── Block 2: ใกล้เกษียณภายใน 10 ปี (รวมปีนี้ด้วย) ──
     const retireList = data.filter(p=>{
         if(!p.birth_date) return false;
         const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
         const yearsLeft = ry - today.year();
-        return yearsLeft>0 && yearsLeft<=10;
+        // 🌟 แก้ไข: เปลี่ยนเป็น >= 0 เพื่อรวมคนที่เกษียณปีนี้ (เหลือ 0 ปี)
+        return yearsLeft >= 0 && yearsLeft <= 10;
     }).sort((a,b)=>{
         const getRetire = p=>{ const bi=dayjs(p.birth_date); let ry=bi.year()+60; if(bi.month()>8)ry++; return ry; };
         return getRetire(a)-getRetire(b);
@@ -1013,6 +1017,10 @@ function renderInfoBlocks(data){
         const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
         const yearsLeft = ry - today.year();
         const urgency = yearsLeft<=3 ? 'text-red-600 font-bold' : yearsLeft<=5 ? 'text-orange-600 font-bold' : 'text-slate-500';
+        
+        // 🌟 แก้ไขข้อความในวงเล็บให้แสดงคำว่า "ปีนี้" แทน "อีก 0 ปี"
+        const leftText = yearsLeft === 0 ? '<span class="text-red-600 font-bold">(ปีนี้)</span>' : `(อีก ${yearsLeft} ปี)`;
+
         return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition">
             <div class="flex items-center gap-2.5 min-w-0">
                 <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>
@@ -1021,7 +1029,7 @@ function renderInfoBlocks(data){
                     <p class="text-[10px] text-slate-400">${p.position||'-'} | ${p.department||'-'}</p>
                 </div>
             </div>
-            <span class="flex-shrink-0 text-xs ${urgency} ml-2">พ.ศ. ${ry+543}<br><span class="font-normal">(อีก ${yearsLeft} ปี)</span></span>
+            <span class="flex-shrink-0 text-xs ${urgency} ml-2 text-right">พ.ศ. ${ry+543}<br><span class="font-normal">${leftText}</span></span>
         </div>`;
     }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ไม่มีผู้ใกล้เกษียณใน 10 ปี</p>';
 
@@ -1076,9 +1084,12 @@ function renderInfoBlocks(data){
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel(){
-    if(!allPersonnelData.length) return Swal.fire('ไม่มีข้อมูล','','info');
+    // 🌟 คัดกรองข้อมูลก่อน Export (ครูโหลดได้แค่ของตัวเอง, แอดมินโหลดได้ทั้งหมด)
+    const exportData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
+    
+    if(!exportData.length) return Swal.fire('ไม่มีข้อมูล','','info');
     const be=iso=>isoToBE(iso)||'-';
-    const rows=allPersonnelData.map(p=>{
+    const rows=exportData.map(p=>{
         const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
         let retire='-';
         if(p.birth_date){ const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++; retire=ry+543; }

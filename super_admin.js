@@ -756,7 +756,7 @@ async function bulkDeleteStudents() {
 }
 
 // ==========================================
-// 8. ระบบนำเข้านักเรียนด้วย Excel
+// 8. ระบบนำเข้านักเรียนด้วย Excel และ Google Sheet
 // ==========================================
 function downloadStudentTemplate() {
     const ws_data = [['เลขที่', 'เลขประจำตัวนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'สถานะ']];
@@ -773,6 +773,7 @@ function triggerImportStudents() {
     document.getElementById('excelUploadStudents').click();
 }
 
+// นำเข้าผ่าน Excel Local
 async function processImportStudents(event) {
     const classId = document.getElementById('filterStudentClass').value;
     const file = event.target.files[0];
@@ -786,44 +787,193 @@ async function processImportStudents(event) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, {type: 'array'});
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-            if (rows.length === 0) throw new Error("ไม่พบข้อมูลในไฟล์ Excel");
-
-            let successCount = 0; let errorList = [];
             
-            await db.from('student_enrollments').delete().eq('classroom_id', classId);
-
-            for (let i = 0; i < rows.length; i++) {
-                const row = rows[i];
-                const stdIdCard = row['เลขประจำตัวนักเรียน']?.toString().trim();
-                const fName = row['ชื่อ']?.toString().trim();
-                
-                if (!stdIdCard || !fName) { errorList.push(`แถวที่ ${i+2}: ข้อมูลสำคัญไม่ครบ`); continue; }
-
-                const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
-                    student_id_card: stdIdCard, national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
-                    prefix: row['คำนำหน้า']?.toString().trim() || '', first_name: fName, last_name: row['นามสกุล']?.toString().trim() || ''
-                }, { onConflict: 'student_id_card' }).select('id').single();
-
-                if (stdErr) { errorList.push(`แถวที่ ${i+2}: ประวัติหลัก (${stdErr.message})`); continue; }
-
-                const { error: enrErr } = await db.from('student_enrollments').insert({
-                    student_id: stdData.id, classroom_id: classId,
-                    student_number: parseInt(row['เลขที่']) || null, status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
-                });
-
-                if (enrErr) errorList.push(`แถวที่ ${i+2}: จัดห้อง (${enrErr.message})`); else successCount++;
-            }
-
+            await insertStudentDataToDB(rows, classId);
             event.target.value = ''; 
-            if (errorList.length > 0) {
-                let errHtml = `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto mt-2 bg-red-50 p-2 border">` + errorList.map(err => `<div>- ${err}</div>`).join('') + `</div>`;
-                Swal.fire({ icon: 'warning', title: `นำเข้าสำเร็จ ${successCount} รายการ`, html: `แต่พบข้อผิดพลาด:<br>${errHtml}`, confirmButtonText: 'รับทราบ' });
-            } else { Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false }); }
-            
-            await loadStudents(); 
         } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error'); event.target.value = ''; }
     };
     reader.readAsArrayBuffer(file);
+}
+
+// นำเข้าผ่าน Google Sheet
+// นำเข้าผ่าน Google Sheet (เวอร์ชันทะลวงบล็อกและแก้คำผิด)
+async function triggerImportGoogleSheet() {
+    const classId = document.getElementById('filterStudentClass').value;
+    if (!classId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนทำการดึงข้อมูล', 'warning');
+
+    const { value: url } = await Swal.fire({
+        title: 'ดึงข้อมูลจาก Google Sheet',
+        html: `
+            <div class="text-sm text-left text-gray-600 mb-4 space-y-2 bg-green-50 p-4 rounded-xl border border-green-200">
+                <p class="font-bold text-green-800"><i class="fa-solid fa-circle-info"></i> ขั้นตอนการดึงข้อมูล:</p>
+                <ol class="list-decimal ml-5 space-y-1">
+                    <li>จัดหัวคอลัมน์ใน Sheet ให้เหมือนไฟล์ Excel ต้นแบบ</li>
+                    <li>กดปุ่ม Share (แชร์) มุมขวาบนใน Google Sheet</li>
+                    <li>ตั้งค่าการเข้าถึงเป็น <b>"Anyone with the link (ทุกคนที่มีลิงก์)"</b></li>
+                    <li>คัดลอกลิงก์นั้นมาวางในช่องด้านล่างนี้ครับ</li>
+                </ol>
+            </div>
+            <input id="swal-gsheet-url" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-green-500 font-medium" placeholder="https://docs.google.com/spreadsheets/d/...">
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonColor: '#0f9d58',
+        confirmButtonText: '<i class="fa-solid fa-cloud-arrow-down mr-1"></i> ดึงข้อมูลเลย',
+        cancelButtonText: 'ยกเลิก',
+        preConfirm: () => {
+            const link = document.getElementById('swal-gsheet-url').value.trim();
+            if (!link) Swal.showValidationMessage('กรุณาวางลิงก์ Google Sheet ก่อนครับ');
+            return link;
+        }
+    });
+
+    if (url) {
+        Swal.fire({ title: 'กำลังดึงข้อมูลจาก Google Sheet...', html: 'กรุณารอสักครู่ ระบบกำลังดึงและแปลงข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        try {
+            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            if (!match) throw new Error("รูปแบบลิงก์ Google Sheet ไม่ถูกต้องครับ");
+            const sheetId = match[1];
+
+            // 🌟 1. ใช้ API ลับของ Google เพื่อทะลวงบล็อก CORS
+            const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+
+            const response = await fetch(csvUrl);
+            if (!response.ok) throw new Error("ไม่สามารถเข้าถึงไฟล์ได้ (โปรดตรวจสอบว่าตั้ง Share เป็น Anyone with the link แล้ว)");
+            
+            const csvText = await response.text();
+            
+            // 🌟 2. แปลงข้อความ CSV เป็นตารางข้อมูล
+            const workbook = XLSX.read(csvText, {type: 'string'});
+            const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+
+            if (!rawRows || rawRows.length === 0) throw new Error("ไม่พบข้อมูลใน Google Sheet หรือรูปแบบตารางไม่ถูกต้อง");
+
+            // 🌟 3. ล้างช่องว่างในชื่อหัวคอลัมน์ให้สะอาดหมดจด
+            const rows = rawRows.map(row => {
+                let cleanRow = {};
+                for (let key in row) {
+                    // กำจัดช่องว่างที่หัวคอลัมน์และตัดเครื่องหมายคำพูด (ถ้ามี)
+                    const cleanKey = key.replace(/"/g, '').trim();
+                    cleanRow[cleanKey] = row[key];
+                }
+                return cleanRow;
+            });
+
+            await insertStudentDataToDB(rows, classId);
+            
+        } catch (err) {
+            Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        }
+    }
+}
+
+// Core Function: นำข้อมูล Array ใส่ฐานข้อมูล (ใช้ร่วมกันทั้ง Excel และ Google Sheet)
+async function insertStudentDataToDB(rows, classId) {
+    if (!rows || rows.length === 0) throw new Error("ไม่พบข้อมูลที่จะนำเข้า");
+
+    let successCount = 0; 
+    let errorList = [];
+    
+    // ล้างรายชื่อเด็กในห้องนี้ทิ้งก่อนใส่ชุดใหม่
+    await db.from('student_enrollments').delete().eq('classroom_id', classId);
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        
+        // ดึงข้อมูลโดยเผื่อกรณีพิมพ์ผิดเล็กๆ น้อยๆ
+        const stdIdCard = (row['เลขประจำตัวนักเรียน'] || row['เลขประจำตัว'] || '')?.toString().trim();
+        const fName = (row['ชื่อ'] || row['ชื่อจริง'] || '')?.toString().trim();
+        
+        if (!stdIdCard || !fName) { 
+            errorList.push(`แถวที่ ${i+2}: ขาดข้อมูลสำคัญ (เลขประจำตัว หรือ ชื่อ)`); 
+            continue; 
+        }
+
+        // อัปเดตตารางประวัติเด็ก
+        const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
+            student_id_card: stdIdCard, 
+            national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
+            prefix: row['คำนำหน้า']?.toString().trim() || '', 
+            first_name: fName, 
+            last_name: row['นามสกุล']?.toString().trim() || ''
+        }, { onConflict: 'student_id_card' }).select('id').single();
+
+        if (stdErr) { 
+            errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดประวัติ (${stdErr.message})`); 
+            continue; 
+        }
+
+        // อัปเดตตารางจัดเด็กเข้าห้อง
+        const { error: enrErr } = await db.from('student_enrollments').insert({
+            student_id: stdData.id, 
+            classroom_id: classId,
+            student_number: parseInt(row['เลขที่']) || null, 
+            status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
+        });
+
+        if (enrErr) {
+            errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`);
+        } else {
+            successCount++;
+        }
+    }
+
+    if (errorList.length > 0) {
+        let errHtml = `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto mt-2 bg-red-50 p-2 border border-red-200 rounded-lg">` + errorList.map(err => `<div>- ${err}</div>`).join('') + `</div>`;
+        Swal.fire({ icon: 'warning', title: `นำเข้าสำเร็จ ${successCount} รายการ`, html: `แต่พบข้อผิดพลาดบางส่วน:<br>${errHtml}`, confirmButtonText: 'รับทราบ' });
+    } else { 
+        Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เข้าสู่ระบบเรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false }); 
+    }
+    
+    await loadStudents(); 
+}
+
+// Core Function: นำข้อมูล Array ใส่ฐานข้อมูล (ใช้ร่วมกันทั้ง Excel และ Google Sheet)
+async function insertStudentDataToDB(rows, classId) {
+    if (rows.length === 0) throw new Error("ไม่พบข้อมูลในไฟล์ที่เลือก");
+
+    let successCount = 0; let errorList = [];
+    
+    // ล้างรายชื่อเด็กในห้องนี้ทิ้งก่อนใส่ชุดใหม่
+    await db.from('student_enrollments').delete().eq('classroom_id', classId);
+
+    for (let i = 0; i < rows.length; i++) {
+        const row = rows[i];
+        const stdIdCard = row['เลขประจำตัวนักเรียน']?.toString().trim();
+        const fName = row['ชื่อ']?.toString().trim();
+        
+        if (!stdIdCard || !fName) { errorList.push(`แถวที่ ${i+2}: ข้อมูลสำคัญไม่ครบ (ขาดเลขประจำตัว หรือ ชื่อ)`); continue; }
+
+        // อัปเดตตารางประวัติเด็ก
+        const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
+            student_id_card: stdIdCard, 
+            national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
+            prefix: row['คำนำหน้า']?.toString().trim() || '', 
+            first_name: fName, 
+            last_name: row['นามสกุล']?.toString().trim() || ''
+        }, { onConflict: 'student_id_card' }).select('id').single();
+
+        if (stdErr) { errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดประวัติหลัก (${stdErr.message})`); continue; }
+
+        // อัปเดตตารางจัดเด็กเข้าห้อง
+        const { error: enrErr } = await db.from('student_enrollments').insert({
+            student_id: stdData.id, 
+            classroom_id: classId,
+            student_number: parseInt(row['เลขที่']) || null, 
+            status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
+        });
+
+        if (enrErr) errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`); else successCount++;
+    }
+
+    if (errorList.length > 0) {
+        let errHtml = `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto mt-2 bg-red-50 p-2 border border-red-200 rounded-lg">` + errorList.map(err => `<div>- ${err}</div>`).join('') + `</div>`;
+        Swal.fire({ icon: 'warning', title: `นำเข้าสำเร็จ ${successCount} รายการ`, html: `แต่พบข้อผิดพลาดบางส่วน:<br>${errHtml}`, confirmButtonText: 'รับทราบ' });
+    } else { 
+        Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เข้าสู่ระบบเรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false }); 
+    }
+    
+    await loadStudents(); 
 }
 
 // ==========================================
