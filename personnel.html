@@ -1296,9 +1296,15 @@ function closeModal(){
 
 function isoToBE(iso){
     if(!iso) return '';
-    const d=dayjs(iso);
-    const yr = d.year() < 2300 ? d.year() + 543 : d.year();
-    return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`;
+    // ถ้า iso มีปี >= 2300 = ข้อมูลเก่าถูกเก็บเป็น พ.ศ. ในDB → หัก 543 ก่อนให้ dayjs parse
+    const parts = String(iso).split('-');
+    const storedYear = parseInt(parts[0]);
+    const correctedIso = storedYear >= 2300
+        ? `${storedYear - 543}-${parts[1]}-${parts[2]}`
+        : iso;
+    const d = dayjs(correctedIso);
+    if(!d.isValid()) return '';
+    return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${d.year()+543}`;
 }
 
 function populateForm(p){
@@ -1549,12 +1555,7 @@ function editPersonnel(id){
 }
 
 /* ── Dashboard ──────────────── */
-function isoToBE(iso){
-    if(!iso) return '';
-    const d=dayjs(iso);
-    const yr = d.year() < 2300 ? d.year() + 543 : d.year();
-    return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`;
-}
+// isoToBE defined above
 function updateDashboard(data){
     const today=dayjs(), cyBE=today.year()+543;
     let retire=0,lic=0,eligible=0,paPass=0,paProc=0;
@@ -1689,7 +1690,7 @@ function renderInfoBlocks(data){
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel(){
     if(!allPersonnelData.length) return Swal.fire('ไม่มีข้อมูล','','info');
-    const be=iso=>{ if(!iso)return'-'; const d=dayjs(iso); const yr=d.year()<2300?d.year()+543:d.year(); return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`; };
+    const be=iso=>isoToBE(iso)||'-';
     const rows=allPersonnelData.map(p=>{
         const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
         let retire='-';
@@ -1698,28 +1699,26 @@ function exportToExcel(){
         const pa=p.pa_docs||{};
         return {
             'ชื่อ - สกุล':fullName,
-            'เลขประจำตัวประชาชน':p.national_id||'-',
-            'ตำแหน่ง':p.position||'-',
-            'วิทยฐานะ':p.academic_standing||'-',
-            'อันดับ':p.rank||'-',
-            'เลขที่ตำแหน่ง':p.position_number||'-',
-            'กลุ่มสาระฯ':p.department||'-',
+            'เลขประจำตัวประชาชน':p.national_id||'',
+            'ตำแหน่ง':p.position||'',
+            'วิทยฐานะ':p.academic_standing||'',
+            'อันดับ':p.rank||'',
+            'เลขที่ตำแหน่ง':p.position_number||'',
+            'กลุ่มสาระฯ':p.department||'',
             'วันเกิด (พ.ศ.)':be(p.birth_date),
-            'ปีเกษียณ (พ.ศ.)':retire,
             'วันบรรจุรับราชการ (พ.ศ.)':be(p.government_start_date),
-            'อายุราชการ (ปี)':govY,
             'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)':be(p.appointment_date),
-            'สถานะ PA':p.pa_status||'-',
-            'เลขที่ใบอนุญาต':p.license_number||'-',
+            'สถานะ PA':p.pa_status||'',
+            'เลขที่ใบอนุญาต':p.license_number||'',
             'หมดอายุใบอนุญาต (พ.ศ.)':be(p.license_expiry),
-            'เบอร์โทร':p.phone||'-',
-            'อีเมล':p.email||'-',
-            'PA3-2565':pa.pa_2565||'-',
-            'PA3-2566':pa.pa_2566||'-',
-            'PA3-2567':pa.pa_2567||'-',
-            'PA3-2568':pa.pa_2568||'-',
-            'PA3-2569':pa.pa_2569||'-',
-            'PA3-2570':pa.pa_2570||'-',
+            'เบอร์โทร':p.phone||'',
+            'อีเมล':p.email||'',
+            'ไฟล์ PA3-2565':pa.pa_2565||'',
+            'ไฟล์ PA3-2566':pa.pa_2566||'',
+            'ไฟล์ PA3-2567':pa.pa_2567||'',
+            'ไฟล์ PA3-2568':pa.pa_2568||'',
+            'ไฟล์ PA3-2569':pa.pa_2569||'',
+            'ไฟล์ PA3-2570':pa.pa_2570||'',
         };
     });
     const ws=XLSX.utils.json_to_sheet(rows);
@@ -1731,18 +1730,42 @@ function exportToExcel(){
 
 /* ── DOWNLOAD TEMPLATE ──────── */
 function downloadTemplate(){
-    const headers=['ชื่อจริง (first_name)*','นามสกุล (last_name)*','คำนำหน้า (prefix)',
-        'เลขประจำตัวประชาชน','ตำแหน่ง','เลขที่ตำแหน่ง','วิทยฐานะ','กลุ่มสาระฯ',
-        'วันเกิด YYYY-MM-DD','วันบรรจุรับราชการ YYYY-MM-DD','วันแต่งตั้งตำแหน่งปัจจุบัน YYYY-MM-DD',
-        'สถานะ PA','เลขที่ใบอนุญาต','วันหมดอายุใบอนุญาต YYYY-MM-DD','เบอร์โทร',
-        'PA3-2565','PA3-2566','PA3-2567','PA3-2568','PA3-2569','PA3-2570'];
-    const example=['สมชาย','ใจดี','นาย','1234567890123','ครู','4301','ครูชำนาญการ','คณิตศาสตร์',
-        '1985-06-15','2010-05-01','2018-10-01','กำลังดำเนินการ','ค.12345','2027-03-31','0812345678',
-        'https://drive.google.com/...','','','','',''];
-    const ws=XLSX.utils.aoa_to_sheet([headers,example]);
-    ws['!cols']=headers.map(h=>({wch:Math.max(h.length+2,18)}));
+    // ใช้โครงสร้างเดียวกับ Export เพื่อให้ Import กลับได้เลย
+    // หมายเหตุ: คอลัมน์ 'ปีเกษียณ (พ.ศ.)' และ 'อายุราชการ (ปี)' คำนวณอัตโนมัติ ไม่ต้องกรอก
+    const headers=[
+        'ชื่อ - สกุล',
+        'เลขประจำตัวประชาชน',
+        'ตำแหน่ง',
+        'วิทยฐานะ',
+        'อันดับ',
+        'เลขที่ตำแหน่ง',
+        'กลุ่มสาระฯ',
+        'วันเกิด (พ.ศ.)',
+        'วันบรรจุรับราชการ (พ.ศ.)',
+        'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)',
+        'สถานะ PA',
+        'เลขที่ใบอนุญาต',
+        'หมดอายุใบอนุญาต (พ.ศ.)',
+        'เบอร์โทร',
+        'อีเมล',
+        'ไฟล์ PA3-2565','ไฟล์ PA3-2566','ไฟล์ PA3-2567',
+        'ไฟล์ PA3-2568','ไฟล์ PA3-2569','ไฟล์ PA3-2570'
+    ];
+    const note = [
+        '** วันที่ใส่รูปแบบ วว/ดด/ปปปป (พ.ศ.) เช่น 15/06/2528 **',
+        '','','','','','','','','','','','','','','','','','','',''
+    ];
+    const example=[
+        'นายสมชาย ใจดี','1234567890123','ครู','ครูชำนาญการ','คศ.2','4301','คณิตศาสตร์',
+        '15/06/2528','01/05/2553','01/10/2561',
+        'กำลังดำเนินการ','ค.12345','31/03/2570','0812345678','somchai@school.ac.th',
+        'https://drive.google.com/...','','','','',''
+    ];
+    const ws=XLSX.utils.aoa_to_sheet([headers, note, example]);
+    // ไฮไลต์แถว header
+    ws['!cols']=headers.map(h=>({wch:Math.max(h.length+4,20)}));
     const wb=XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb,ws,'Template');
+    XLSX.utils.book_append_sheet(wb,ws,'บุคลากร');
     XLSX.writeFile(wb,'WRK_Personnel_Template.xlsx');
 }
 
@@ -1759,33 +1782,46 @@ async function importFromExcel(event){
             if(!rows.length) return Swal.fire('ไฟล์ว่างเปล่า','ไม่พบข้อมูลในชีตแรก','warning');
             const foundHeaders=Object.keys(rows[0]);
 
+            // การันตีว่า ISO string ที่ return ออกไปเป็น ค.ศ. เสมอ
+            function forceCE(isoStr){
+                if(!isoStr) return null;
+                const y = parseInt(isoStr.split('-')[0]);
+                if(y >= 2300){
+                    const [_,mo,dd] = isoStr.split('-');
+                    return `${y-543}-${mo}-${dd}`;
+                }
+                return isoStr;
+            }
+
             function parseDate(val){
                 if(!val||String(val).trim()===''||val==='-') return null;
                 const s=String(val).trim();
 
                 // ── รูปแบบ ISO: YYYY-MM-DD ──
                 if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
-                    const y=parseInt(s); // ปีแรกของ ISO
-                    // ถ้าปีเป็น พ.ศ. (>=2300) หัก 543 กลับเป็น ค.ศ.
-                    if(y>=2300){ const[_,mo,dd]=s.split('-'); return `${y-543}-${mo}-${dd}`; }
-                    return s;
+                    return forceCE(s);
                 }
 
                 // ── รูปแบบ DD/MM/YYYY หรือ D/M/YYYY ──
                 if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
                     const[d,m,y]=s.split('/').map(Number);
-                    // ปี >= 2300 = พ.ศ. ต้องหัก 543 → ค.ศ.
                     const yr = y>=2300 ? y-543 : y;
                     return `${yr}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
                 }
 
                 // ── Excel Serial Number ──
+                // Excel เก็บวันที่เป็น serial โดย 1 = 1900-01-01
+                // ถ้า cell ถูก format เป็นวันที่ พ.ศ. Excel จะเก็บเป็น Gregorian serial ตาม ค.ศ.
+                // แต่ถ้า cell เป็น text ที่มีเลข serial = ปี พ.ศ. ให้ตรวจสอบด้วย
                 if(!isNaN(s)&&s!==''){
-                    try{
-                        const dd=XLSX.SSF.parse_date_code(Number(s));
-                        // Excel serial ให้ ค.ศ. เสมอ ไม่ต้องหัก 543
-                        if(dd&&dd.y>1900) return `${dd.y}-${String(dd.m).padStart(2,'0')}-${String(dd.d).padStart(2,'0')}`;
-                    } catch(err){}
+                    const num = Number(s);
+                    // Serial ที่สมเหตุสมผล: > 1000 (ประมาณ ค.ศ. 1900 ขึ้นไป) และ < 200000
+                    if(num > 1000 && num < 200000){
+                        try{
+                            const dd=XLSX.SSF.parse_date_code(num);
+                            if(dd&&dd.y>1900) return forceCE(`${dd.y}-${String(dd.m).padStart(2,'0')}-${String(dd.d).padStart(2,'0')}`);
+                        } catch(err){}
+                    }
                 }
                 return null;
             }
@@ -1849,11 +1885,11 @@ async function importFromExcel(event){
                     rank:                  rank||null,
                     department:            gv(row,'กลุ่มสาระการเรียนรู้','กลุ่มสาระฯ','กลุ่มสาระ','department'),
                     phone:                 phone||null,
-                    birth_date:            parseDate(gv(row,'วันเดือนปีเกิด (พ.ศ.)','วันเกิด YYYY-MM-DD','birth_date','วันเกิด')),
+                    birth_date:            parseDate(gv(row,'วันเกิด (พ.ศ.)','วันเดือนปีเกิด (พ.ศ.)','วันเกิด YYYY-MM-DD','birth_date','วันเกิด')),
                     government_start_date: parseDate(gv(row,'วันบรรจุรับราชการ (พ.ศ.)','วันบรรจุรับราชการ YYYY-MM-DD','government_start_date')),
-                    appointment_date:      parseDate(gv(row,'วันที่แต่งตั้งตำแหน่งปัจจุบัน','วันแต่งตั้งตำแหน่งปัจจุบัน YYYY-MM-DD','appointment_date')),
+                    appointment_date:      parseDate(gv(row,'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)','วันที่แต่งตั้งตำแหน่งปัจจุบัน','วันแต่งตั้งตำแหน่งปัจจุบัน YYYY-MM-DD','appointment_date')),
                     license_number:        gv(row,'เลขที่ใบอนุญาต','license_number'),
-                    license_expiry:        parseDate(gv(row,'วันหมดอายุใบอนุญาตฯ (พ.ศ.)','วันหมดอายุใบอนุญาต YYYY-MM-DD','license_expiry')),
+                    license_expiry:        parseDate(gv(row,'หมดอายุใบอนุญาต (พ.ศ.)','วันหมดอายุใบอนุญาตฯ (พ.ศ.)','วันหมดอายุใบอนุญาต YYYY-MM-DD','license_expiry')),
                     pa_status:             gv(row,'สถานะ PA','pa_status'),
                     pa_docs:(()=>{ const pa={}; [2565,2566,2567,2568,2569,2570].forEach(y=>{ const v=gv(row,`ไฟล์ PA3-${y}`,`PA3-${y}`); if(v) pa[`pa_${y}`]=v; }); return Object.keys(pa).length?pa:null; })()
                 };
