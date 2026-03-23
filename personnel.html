@@ -1778,51 +1778,57 @@ async function importFromExcel(event){
         try{
             const wb=XLSX.read(e.target.result,{type:'array'});
             const ws=wb.Sheets[wb.SheetNames[0]];
-            const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+            // cellDates:true → XLSX return JS Date objects สำหรับ date cell
+            const rows=XLSX.utils.sheet_to_json(ws,{defval:'', cellDates:true, raw:false});
             if(!rows.length) return Swal.fire('ไฟล์ว่างเปล่า','ไม่พบข้อมูลในชีตแรก','warning');
             const foundHeaders=Object.keys(rows[0]);
 
-            // การันตีว่า ISO string ที่ return ออกไปเป็น ค.ศ. เสมอ
-            function forceCE(isoStr){
-                if(!isoStr) return null;
-                const y = parseInt(isoStr.split('-')[0]);
-                if(y >= 2300){
-                    const [_,mo,dd] = isoStr.split('-');
-                    return `${y-543}-${mo}-${dd}`;
-                }
-                return isoStr;
+            // pad helper
+            const pad2 = n => String(n).padStart(2,'0');
+
+            // การันตีว่าปีเป็น ค.ศ. เสมอ (ถ้า >= 2300 = พ.ศ. → หัก 543)
+            function forceCE(y, m, d){
+                const yr = y >= 2300 ? y - 543 : y;
+                return `${yr}-${pad2(m)}-${pad2(d)}`;
             }
 
             function parseDate(val){
-                if(!val||String(val).trim()===''||val==='-') return null;
-                const s=String(val).trim();
+                if(val === null || val === undefined || val === '' || val === '-') return null;
 
-                // ── รูปแบบ ISO: YYYY-MM-DD ──
-                if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
-                    return forceCE(s);
+                // ── JS Date object (XLSX อาจ return Date โดยตรงสำหรับ date cell) ──
+                if(val instanceof Date){
+                    if(isNaN(val.getTime())) return null;
+                    // getFullYear() คืนค่า ค.ศ. เสมอ
+                    return forceCE(val.getFullYear(), val.getMonth()+1, val.getDate());
                 }
 
-                // ── รูปแบบ DD/MM/YYYY หรือ D/M/YYYY ──
-                if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
-                    const[d,m,y]=s.split('/').map(Number);
-                    const yr = y>=2300 ? y-543 : y;
-                    return `${yr}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                const s = String(val).trim();
+                if(!s || s === '-') return null;
+
+                // ── ISO: YYYY-MM-DD ──
+                const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+                if(isoMatch){
+                    return forceCE(parseInt(isoMatch[1]), parseInt(isoMatch[2]), parseInt(isoMatch[3]));
+                }
+
+                // ── DD/MM/YYYY (พ.ศ. หรือ ค.ศ.) ──
+                const dmyMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+                if(dmyMatch){
+                    return forceCE(parseInt(dmyMatch[3]), parseInt(dmyMatch[2]), parseInt(dmyMatch[1]));
                 }
 
                 // ── Excel Serial Number ──
-                // Excel เก็บวันที่เป็น serial โดย 1 = 1900-01-01
-                // ถ้า cell ถูก format เป็นวันที่ พ.ศ. Excel จะเก็บเป็น Gregorian serial ตาม ค.ศ.
-                // แต่ถ้า cell เป็น text ที่มีเลข serial = ปี พ.ศ. ให้ตรวจสอบด้วย
-                if(!isNaN(s)&&s!==''){
-                    const num = Number(s);
-                    // Serial ที่สมเหตุสมผล: > 1000 (ประมาณ ค.ศ. 1900 ขึ้นไป) และ < 200000
-                    if(num > 1000 && num < 200000){
-                        try{
-                            const dd=XLSX.SSF.parse_date_code(num);
-                            if(dd&&dd.y>1900) return forceCE(`${dd.y}-${String(dd.m).padStart(2,'0')}-${String(dd.d).padStart(2,'0')}`);
-                        } catch(err){}
-                    }
+                // serial ของ ค.ศ. 1990–2050 อยู่ในช่วง ~33239–54787
+                const num = Number(s);
+                if(!isNaN(num) && num > 20000 && num < 80000){
+                    try{
+                        const dd = XLSX.SSF.parse_date_code(num);
+                        if(dd && dd.y > 1900){
+                            return forceCE(dd.y, dd.m, dd.d);
+                        }
+                    } catch(e){}
                 }
+
                 return null;
             }
 
