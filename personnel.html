@@ -1,0 +1,1422 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบริหารจัดการบุคลากร | WRK System</title>
+    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode:'class', theme:{ extend:{ fontFamily:{ sans:['Anuphan','sans-serif'] } } } }</script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.tailwindcss.css">
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/responsive.tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.3/css/buttons.tailwindcss.css">
+    <script src="https://cdn.datatables.net/buttons/3.2.3/js/dataTables.buttons.js"></script>
+    <script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.tailwindcss.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/locale/th.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+
+    <style>
+        body { font-family:'Anuphan',sans-serif !important; background:linear-gradient(135deg,#eef2ff 0%,#f8faff 60%,#f0fdf4 100%); min-height:100vh; }
+        .swal2-popup { font-family:'Anuphan',sans-serif !important; border-radius:1rem !important; }
+        .flatpickr-calendar { font-family:'Anuphan',sans-serif !important; }
+        .glass { background:rgba(255,255,255,0.78); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,0.6); }
+
+        /* DataTables */
+        div.dt-container { color:#475569 !important; }
+        div.dt-container .dt-search input, div.dt-container .dt-length select {
+            background:#f8fafc !important; color:#334155 !important; border:1px solid #e2e8f0 !important;
+            border-radius:.75rem !important; padding:.45rem 1rem !important; outline:none !important; }
+        div.dt-container .dt-search input:focus, div.dt-container .dt-length select:focus {
+            border-color:#6366f1 !important; box-shadow:0 0 0 2px rgba(99,102,241,.15) !important; }
+        table.dataTable { border-bottom:none !important; }
+        table.dataTable>thead>tr>th { background:transparent !important; color:#64748b !important;
+            border-bottom:2px solid #f1f5f9 !important; font-weight:700 !important;
+            text-transform:uppercase; font-size:.68rem; letter-spacing:.05em; }
+        table.dataTable>tbody>tr>td { box-shadow:none !important; background:transparent !important;
+            color:#334155 !important; border-bottom:1px solid #f8fafc !important; vertical-align:middle; }
+        table.dataTable.display>tbody>tr:hover>td { background:#eef2ff !important; }
+        div.dt-container .dt-info, div.dt-container .dt-paging { color:#94a3b8 !important; font-size:.875rem !important; margin-top:.75rem !important; }
+        div.dt-container .dt-paging .dt-paging-button.current, div.dt-container .dt-paging .dt-paging-button.current:hover {
+            background:#eef2ff !important; color:#6366f1 !important; border:none !important; font-weight:700 !important; }
+
+        /* ── MODAL TABS ── */
+        .tab-pill { padding:.5rem 1.25rem; border-radius:9999px; font-size:.8rem; font-weight:700;
+            color:#94a3b8; cursor:pointer; transition:all .2s; white-space:nowrap; }
+        .tab-pill.active { background:#6366f1; color:#fff; box-shadow:0 4px 12px rgba(99,102,241,.3); }
+        .tab-panel { display:none; }
+        .tab-panel.active { display:block; animation:fadeUp .25s ease; }
+        @keyframes fadeUp { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+
+        /* ── FORM FIELD ── */
+        .field-group { display:flex; flex-direction:column; gap:.375rem; }
+        .field-label { font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:#94a3b8; }
+        .field-label.required::after { content:'*'; color:#ef4444; margin-left:.25rem; }
+        .field-input {
+            padding:.65rem .9rem; border:1.5px solid #e2e8f0; border-radius:.875rem;
+            outline:none; font-size:.875rem; transition:all .2s; background:#fff;
+            font-family:'Anuphan',sans-serif; color:#1e293b; width:100%; }
+        .field-input:focus { border-color:#6366f1; box-shadow:0 0 0 3px rgba(99,102,241,.12); }
+        .field-input.readonly { background:#f8fafc; color:#64748b; cursor:not-allowed; border-color:#f1f5f9; }
+        .field-input.auto-green { background:#f0fdf4; color:#15803d; font-weight:700; border-color:#bbf7d0; cursor:not-allowed; }
+        .field-input.auto-orange { background:#fff7ed; color:#c2410c; font-weight:700; border-color:#fed7aa; cursor:not-allowed; }
+        .field-input.auto-blue { background:#eff6ff; color:#1d4ed8; font-weight:700; border-color:#bfdbfe; cursor:not-allowed; }
+        .field-input.auto-red { background:#fef2f2; color:#b91c1c; font-weight:700; border-color:#fecaca; cursor:not-allowed; }
+        select.field-input { appearance:auto; }
+
+        /* ── SECTION HEADER ── */
+        .section-header { font-size:.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.1em;
+            color:#6366f1; border-bottom:2px solid #eef2ff; padding-bottom:.5rem; margin-bottom:1rem;
+            display:flex; align-items:center; gap:.5rem; }
+
+        /* Avatar ring */
+        .avatar-ring { width:120px; height:120px; border-radius:1.5rem; position:relative;
+            background:#6366f1; display:flex; align-items:center; justify-content:center;
+            font-size:2.5rem; font-weight:700; color:#fff; overflow:hidden; flex-shrink:0;
+            box-shadow:0 8px 24px rgba(99,102,241,.25); border:4px solid #fff; }
+        .avatar-ring img { width:100%; height:100%; object-fit:cover; }
+
+        /* Badge */
+        .badge { display:inline-flex; align-items:center; gap:.3rem; padding:.25rem .7rem;
+            border-radius:9999px; font-size:.7rem; font-weight:700; }
+        .badge-green  { background:#dcfce7; color:#15803d; }
+        .badge-orange { background:#fff7ed; color:#c2410c; }
+        .badge-red    { background:#fee2e2; color:#b91c1c; }
+        .badge-blue   { background:#eff6ff; color:#1d4ed8; }
+        .badge-gray   { background:#f1f5f9; color:#64748b; }
+    </style>
+</head>
+<body class="min-h-screen opacity-0 transition-opacity duration-300" id="mainBody">
+
+<!-- NAVBAR -->
+<nav class="bg-white/85 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 shadow-sm">
+    <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 flex justify-between h-16 items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10 w-auto" alt="Logo">
+            <div>
+                <span class="text-xl font-bold bg-gradient-to-r from-indigo-700 to-blue-600 bg-clip-text text-transparent">WRK Personnel</span>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold hidden sm:block">ระบบบริหารจัดการบุคลากร</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
+            <span id="role-badge" class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl"></span>
+            <button onclick="window.location.href='index.html'" class="h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200" title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="handleLogout()" class="h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition border border-red-200" title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt text-sm"></i>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
+
+    <!-- STAT CARDS -->
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-users"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">บุคลากรทั้งหมด</p><h3 id="stat-total" class="text-2xl font-bold text-slate-800">0</h3></div>
+        </div>
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-user-clock"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">เกษียณปีนี้</p><h3 id="stat-retire" class="text-2xl font-bold text-orange-500">0</h3></div>
+        </div>
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-id-card"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">ใบอนุญาตใกล้หมด</p><h3 id="stat-license" class="text-2xl font-bold text-red-500">0</h3></div>
+        </div>
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-medal"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">สิทธิ์ขอวิทยฐานะ</p><h3 id="stat-eligible" class="text-2xl font-bold text-green-600">0</h3></div>
+        </div>
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-file-circle-check"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">PA ผ่านแล้ว</p><h3 id="stat-pa-pass" class="text-2xl font-bold text-blue-600">0</h3></div>
+        </div>
+        <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+            <div class="h-11 w-11 bg-purple-100 text-purple-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-hourglass-half"></i></div>
+            <div><p class="text-slate-400 text-[10px] font-bold uppercase">PA กำลังดำเนินการ</p><h3 id="stat-pa-proc" class="text-2xl font-bold text-purple-600">0</h3></div>
+        </div>
+    </div>
+
+    <!-- TABLE CARD -->
+    <div class="glass rounded-3xl shadow-xl overflow-hidden border border-white/80">
+        <div class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i class="fas fa-database text-indigo-600"></i> ทะเบียนประวัติบุคลากร
+            </h2>
+            <div class="flex flex-wrap gap-2">
+                <button id="btn-template" onclick="downloadTemplate()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm">
+                    <i class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ
+                </button>
+                <input type="file" id="excel-import-input" accept=".xlsx,.xls" class="hidden" onchange="importFromExcel(event)">
+                <button id="btn-import" onclick="document.getElementById('excel-import-input').click()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100">
+                    <i class="fas fa-file-import"></i> นำเข้า Excel
+                </button>
+                <button onclick="exportToExcel()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-emerald-100">
+                    <i class="fas fa-file-export"></i> ส่งออก Excel
+                </button>
+                <button id="btn-add" onclick="openModal('add')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-200">
+                    <i class="fas fa-user-plus"></i> เพิ่มข้อมูล
+                </button>
+            </div>
+        </div>
+        <div class="p-5 bg-white/40 overflow-x-auto">
+            <table id="personnelTable" class="w-full display nowrap" style="width:100%">
+                <thead>
+                    <tr>
+                        <th class="text-left py-3 px-3">บุคลากร</th>
+                        <th class="text-left">ตำแหน่ง / วิทยฐานะ</th>
+                        <th class="text-left">กลุ่มสาระฯ</th>
+                        <th class="text-center">อายุ</th>
+                        <th class="text-center">เกษียณ พ.ศ.</th>
+                        <th class="text-center">อายุราชการ</th>
+                        <th class="text-center">PA</th>
+                        <th class="text-center">ใบอนุญาต</th>
+                        <th class="text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="main-tbody"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MODAL — ฟอร์มบันทึก/แก้ไขบุคลากร (แบบ Full-Screen)
+══════════════════════════════════════════════════════════ -->
+<div id="modal-container" class="fixed inset-0 z-50 hidden items-end md:items-center justify-center">
+    <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeModal()"></div>
+
+    <div class="relative bg-white w-full md:rounded-3xl shadow-2xl z-10 flex flex-col
+                md:max-w-6xl md:max-h-[96vh] h-full md:h-auto md:mx-4 overflow-hidden">
+
+        <!-- Modal Header -->
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex-shrink-0">
+            <div class="flex items-center gap-3">
+                <div id="modal-avatar-display" class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold overflow-hidden flex-shrink-0">?</div>
+                <div>
+                    <h3 class="text-lg font-bold" id="modal-title">บันทึกข้อมูลบุคลากร</h3>
+                    <p id="modal-subtitle" class="text-indigo-200 text-xs">กรอกข้อมูลให้ครบถ้วน</p>
+                </div>
+            </div>
+            <button onclick="closeModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+
+        <!-- Tab Pills -->
+        <div class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0">
+            <button class="tab-pill active" onclick="switchTab('tab-personal', this)">
+                <i class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว
+            </button>
+            <button class="tab-pill" onclick="switchTab('tab-position', this)">
+                <i class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ
+            </button>
+            <button class="tab-pill" onclick="switchTab('tab-service', this)">
+                <i class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ
+            </button>
+            <button class="tab-pill" onclick="switchTab('tab-license', this)">
+                <i class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA
+            </button>
+            <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)">
+                <i class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3
+            </button>
+        </div>
+
+        <!-- Form Body -->
+        <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto">
+            <input type="hidden" id="edit-id">
+            <input type="hidden" id="inp-avatar-data">
+            <!-- hidden ISO dates -->
+            <input type="hidden" id="inp-birth-iso">
+            <input type="hidden" id="inp-gov-start-iso">
+            <input type="hidden" id="inp-appoint-iso">
+            <input type="hidden" id="inp-license-exp-iso">
+
+            <div class="p-6">
+
+                <!-- ════ TAB 1: ข้อมูลส่วนตัว ════ -->
+                <div id="tab-personal" class="tab-panel active">
+                    <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+
+                        <!-- รูปภาพ -->
+                        <div class="flex flex-col items-center gap-4">
+                            <div class="section-header w-full">
+                                <i class="fas fa-image"></i> รูปประจำตัว
+                            </div>
+                            <div class="relative">
+                                <div id="avatar-display" class="avatar-ring">?</div>
+                                <label class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition">
+                                    <i class="fas fa-camera text-sm"></i>
+                                    <input type="file" id="inp-avatar" accept="image/*" class="hidden" onchange="previewAvatar(this)">
+                                </label>
+                            </div>
+                            <p class="text-[10px] text-slate-400 text-center italic">JPG, PNG ขนาดไม่เกิน 1MB<br>ระบบจะ Resize อัตโนมัติ</p>
+                            <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition">
+                                <i class="fas fa-trash-alt mr-1"></i>ลบรูป
+                            </button>
+                        </div>
+
+                        <!-- ข้อมูลส่วนตัว -->
+                        <div class="lg:col-span-3 space-y-5">
+                            <div class="section-header">
+                                <i class="fas fa-address-card"></i> ข้อมูลพื้นฐาน
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                <div class="field-group sm:col-span-2 lg:col-span-2">
+                                    <label class="field-label required">ชื่อ - สกุล (ดึงจากระบบกลาง)</label>
+                                    <select id="inp-personnel-id" required onchange="onNameSelect()" class="field-input">
+                                        <option value="">-- กรุณาเลือก --</option>
+                                    </select>
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label">เบอร์โทรศัพท์</label>
+                                    <input type="tel" id="inp-phone" placeholder="08x-xxx-xxxx" class="field-input">
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label">เลขประจำตัวประชาชน</label>
+                                    <input type="text" id="inp-cid" maxlength="13" placeholder="x-xxxx-xxxxx-xx-x" class="field-input">
+                                </div>
+                                <div class="field-group sm:col-span-2">
+                                    <label class="field-label">กลุ่มสาระการเรียนรู้</label>
+                                    <select id="sel-learning-area" class="field-input">
+                                        <option value="">-- เลือกกลุ่มสาระฯ / หน่วยงาน --</option>
+                                        <optgroup label="8 กลุ่มสาระการเรียนรู้">
+                                            <option>ภาษาไทย</option>
+                                            <option>คณิตศาสตร์</option>
+                                            <option>วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)</option>
+                                            <option>วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)</option>
+                                            <option>สังคมศึกษา ศาสนาและวัฒนธรรม</option>
+                                            <option>สุขศึกษาและพลศึกษา</option>
+                                            <option>ศิลปะ</option>
+                                            <option>การงานอาชีพ</option>
+                                            <option>ภาษาต่างประเทศ (ภาษาอังกฤษ)</option>
+                                            <option>ภาษาต่างประเทศ (ภาษาจีน)</option>
+                                        </optgroup>
+                                        <optgroup label="กิจกรรมพัฒนาผู้เรียน">
+                                            <option>แนะแนว</option>
+                                            <option>กิจกรรมนักเรียน</option>
+                                            <option>กิจกรรมเพื่อสังคมและสาธารณประโยชน์</option>
+                                        </optgroup>
+                                        <optgroup label="ฝ่ายบริหาร / สนับสนุน">
+                                            <option>ผู้อำนวยการสถานศึกษา</option>
+                                            <option>รองผู้อำนวยการกลุ่มบริหารวิชาการ</option>
+                                            <option>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</option>
+                                            <option>รองผู้อำนวยการกลุ่มบริหารงานบุคคล</option>
+                                            <option>รองผู้อำนวยการกลุ่มบริหารทั่วไป</option>
+                                            <option>งานสนับสนุนการสอน</option>
+                                        </optgroup>
+                                        <optgroup label="เจ้าหน้าที่/พนักงาน/ลูกจ้าง">
+                                            <option>เจ้าหน้าที่สำนักงาน</option>
+                                            <option>พนักงานบริการ</option>
+                                            <option>ลูกจ้าง</option>
+                                        </optgroup>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 2: ตำแหน่ง & วิทยฐานะ ════ -->
+                <div id="tab-position" class="tab-panel">
+                    <div class="section-header"><i class="fas fa-briefcase"></i> ตำแหน่งและวิทยฐานะ</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="field-group">
+                            <label class="field-label required">ตำแหน่ง</label>
+                            <select id="sel-pos" required onchange="updatePositionLogic()" class="field-input">
+                                <option value="ครูอัตราจ้าง">ครูอัตราจ้าง</option>
+                                <option value="พนักงานราชการ">พนักงานราชการ</option>
+                                <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
+                                <option value="ครู" selected>ครู</option>
+                                <option value="รองผู้อำนวยการสถานศึกษา">รองผู้อำนวยการสถานศึกษา</option>
+                                <option value="ผู้อำนวยการสถานศึกษา">ผู้อำนวยการสถานศึกษา</option>
+                            </select>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">เลขที่ตำแหน่ง</label>
+                            <input type="text" id="inp-position-number" placeholder="เช่น 4301" class="field-input">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">วิทยฐานะ</label>
+                            <select id="sel-academic" onchange="updateRankCalc()" class="field-input"></select>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">อันดับ (คำนวณอัตโนมัติ)</label>
+                            <input type="text" id="inp-rank" readonly class="field-input auto-blue">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">วันที่แต่งตั้งตำแหน่งปัจจุบัน</label>
+                            <div class="flex gap-1.5 items-center">
+                                <input type="text" id="inp-appoint" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                <button type="button" onclick="clearDate('inp-appoint','inp-appoint-iso')"
+                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">ดำรงตำแหน่งมาแล้ว (คำนวณ)</label>
+                            <input type="text" id="out-pos-duration" readonly class="field-input auto-blue">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">วันครบคุณสมบัติ (คำนวณ)</label>
+                            <input type="text" id="out-eligible" readonly class="field-input auto-green">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">เหลือเวลาอีก (คำนวณ)</label>
+                            <input type="text" id="out-pa-countdown" readonly class="field-input auto-green">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 3: ประวัติราชการ ════ -->
+                <div id="tab-service" class="tab-panel">
+                    <div class="section-header"><i class="fas fa-calendar-days"></i> ประวัติการรับราชการ</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="field-group">
+                            <label class="field-label">วันเดือนปีเกิด (พ.ศ.)</label>
+                            <div class="flex gap-1.5 items-center">
+                                <input type="text" id="inp-birth" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                <button type="button" onclick="clearDate('inp-birth','inp-birth-iso')"
+                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">อายุ (คำนวณ)</label>
+                            <input type="text" id="out-age" readonly class="field-input auto-blue">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">ปีเกษียณ พ.ศ. (คำนวณ)</label>
+                            <input type="text" id="out-retire" readonly class="field-input auto-orange">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">อายุราชการเหลืออีก (คำนวณ)</label>
+                            <input type="text" id="out-service-left" readonly class="field-input auto-orange">
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">วันบรรจุรับราชการ (พ.ศ.)</label>
+                            <div class="flex gap-1.5 items-center">
+                                <input type="text" id="inp-gov-start" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                <button type="button" onclick="clearDate('inp-gov-start','inp-gov-start-iso')"
+                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="field-group">
+                            <label class="field-label">รับราชการมาแล้ว (คำนวณ)</label>
+                            <input type="text" id="out-gov-service" readonly class="field-input auto-blue">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 4: ใบอนุญาต & PA ════ -->
+                <div id="tab-license" class="tab-panel">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- ใบอนุญาต -->
+                        <div>
+                            <div class="section-header"><i class="fas fa-id-card"></i> ใบอนุญาตประกอบวิชาชีพ</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="field-group">
+                                    <label class="field-label">เลขที่ใบอนุญาต</label>
+                                    <div class="flex gap-2">
+                                        <input type="text" id="inp-license-number" placeholder="เช่น ค.12345" class="field-input">
+                                        <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP"
+                                            class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0">
+                                            <i class="fas fa-magnifying-glass text-sm"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="field-group">
+                                    <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต (พ.ศ.)</label>
+                                    <div class="flex gap-1.5 items-center">
+                                <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                <button type="button" onclick="clearDate('inp-license-exp','inp-license-exp-iso')"
+                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
+                                    <i class="fas fa-trash-can text-xs"></i>
+                                </button>
+                            </div>
+                                </div>
+                                <div class="field-group sm:col-span-2">
+                                    <label class="field-label">สถานะใบอนุญาต (คำนวณ)</label>
+                                    <input type="text" id="out-license-status" readonly class="field-input auto-green">
+                                </div>
+                            </div>
+                        </div>
+                        <!-- PA Status -->
+                        <div>
+                            <div class="section-header"><i class="fas fa-file-circle-check"></i> สถานะ PA (Performance Agreement)</div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div class="field-group sm:col-span-2">
+                                    <label class="field-label">สถานะ PA ปัจจุบัน</label>
+                                    <select id="sel-pa-status" class="field-input">
+                                        <option value="">-- เลือกสถานะ --</option>
+                                        <option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option>
+                                        <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
+                                        <option value="ผ่าน">ผ่าน</option>
+                                        <option value="ไม่ผ่าน">ไม่ผ่าน</option>
+                                    </select>
+                                </div>
+                                <!-- อ่านข้อมูลคำนวณจาก Tab ตำแหน่ง -->
+                                <div class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
+                                    <p class="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2">สรุปข้อมูล PA (คำนวณจากวันแต่งตั้ง)</p>
+                                    <div class="grid grid-cols-2 gap-2 text-xs">
+                                        <span class="text-slate-500">วันครบคุณสมบัติ:</span><span id="pa-info-eligible" class="font-bold">-</span>
+                                        <span class="text-slate-500">เหลือเวลาอีก:</span><span id="pa-info-countdown" class="font-bold">-</span>
+                                        <span class="text-slate-500">ดำรงตำแหน่งมาแล้ว:</span><span id="pa-info-duration" class="font-bold">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ TAB 5: เอกสาร PA3 ════ -->
+                <div id="tab-pa-docs" class="tab-panel">
+                    <div class="section-header"><i class="fas fa-folder-open"></i> ไฟล์เอกสาร PA3 (Link หรือ Google Drive)</div>
+                    <div id="pa-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
+                </div>
+
+            </div><!-- end p-6 -->
+        </form>
+
+        <!-- Modal Footer -->
+        <div class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
+            <div class="text-xs text-slate-400 flex items-center gap-1">
+                <i class="fas fa-circle-info"></i>
+                <span>ช่องที่มีเครื่องหมาย <span class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span>
+            </div>
+            <div class="flex gap-3">
+                <button type="button" onclick="closeModal()" class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">ยกเลิก</button>
+                <button type="submit" form="main-form" id="btn-submit"
+                    class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2">
+                    <i class="fas fa-floppy-disk"></i> บันทึกข้อมูล
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ════════════════════════════════════════════
+     JAVASCRIPT
+════════════════════════════════════════════ -->
+<script>
+dayjs.locale('th');
+
+/* ── State ─────────────────── */
+let personnelTable = null;
+let allPersonnelData = [];
+let personnelMap = new Map(); // id → full data object
+let currentUser = null;
+
+/* ── Role Helpers ───────────── */
+// super_admin : ดู/แก้ไข/ลบ ทุกคน
+// admin       : ดู/แก้ไข ทุกคน (ลบไม่ได้)
+// teacher/อื่นๆ : ดู/แก้ไข เฉพาะตัวเอง, เพิ่ม/ลบ/Import ไม่ได้
+const isSuperAdmin = () => currentUser?.role === 'super_admin';
+const isAdmin      = () => currentUser?.role === 'admin' || isSuperAdmin();
+const isTeacher    = () => !isAdmin();
+const canEditRecord = (id) => isAdmin() || currentUser?.id === id;
+const canDelete     = ()   => isSuperAdmin();
+
+/* ── Position Logic ─────────── */
+const posLogic = {
+    "ครูอัตราจ้าง":             { academic:["ไม่มีวิทยฐานะ"], rank:"-" },
+    "พนักงานราชการ":            { academic:["ไม่มีวิทยฐานะ"], rank:"-" },
+    "ครูผู้ช่วย":               { academic:["ไม่มีวิทยฐานะ"], rank:"ครูผู้ช่วย" },
+    "ครู": {
+        academic:["ไม่มีวิทยฐานะ","ครูชำนาญการ","ครูชำนาญการพิเศษ","ครูเชี่ยวชาญ","ครูเชี่ยวชาญพิเศษ"],
+        map:{"ไม่มีวิทยฐานะ":"คศ.1","ครูชำนาญการ":"คศ.2","ครูชำนาญการพิเศษ":"คศ.3","ครูเชี่ยวชาญ":"คศ.4","ครูเชี่ยวชาญพิเศษ":"คศ.5"}
+    },
+    "รองผู้อำนวยการสถานศึกษา":{
+        academic:["รองผู้อำนวยการชำนาญการ","รองผู้อำนวยการชำนาญการพิเศษ"],
+        map:{"รองผู้อำนวยการชำนาญการ":"คศ.2","รองผู้อำนวยการชำนาญการพิเศษ":"คศ.3"}
+    },
+    "ผู้อำนวยการสถานศึกษา":{
+        academic:["ผู้อำนวยการชำนาญการพิเศษ"],
+        map:{"ผู้อำนวยการชำนาญการพิเศษ":"คศ.3"}
+    }
+};
+
+/* ── Avatar Helpers ─────────── */
+const AV_COLORS=['#6366f1','#3b82f6','#8b5cf6','#10b981','#f43f5e','#f59e0b','#06b6d4','#ec4899'];
+function avColor(n){ let h=0; for(let c of(n||'ก')) h=c.charCodeAt(0)+((h<<5)-h); return AV_COLORS[Math.abs(h)%AV_COLORS.length]; }
+function setAvatar(elId, name, url){
+    const el=document.getElementById(elId);
+    if(!el) return;
+    if(url){ el.innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.background='${avColor(name)}';this.parentElement.innerHTML='${(name||'?').charAt(0)}'">`; el.style.background=''; }
+    else { el.innerHTML=(name||'?').charAt(0); el.style.background=avColor(name); }
+}
+
+/* ── Tab Logic ──────────────── */
+function switchTab(id, btn){
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.querySelectorAll('.tab-pill').forEach(b=>b.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if(btn) btn.classList.add('active');
+    syncPaInfoPanel();
+}
+
+/* ── Bootstrap ──────────────── */
+window.onload = async () => {
+    document.getElementById('mainBody').classList.replace('opacity-0','opacity-100');
+    try {
+        const {data:{session}} = await db.auth.getSession();
+        if(!session){
+            Swal.fire({icon:'warning',title:'กรุณาเข้าสู่ระบบ',confirmButtonText:'ไปหน้าล็อกอิน'})
+                .then(()=>window.location.replace('index.html')); return;
+        }
+        const {data:profile} = await db.from('core_personnel').select('*').eq('id',session.user.id).single();
+        currentUser = profile || { id:session.user.id, first_name:session.user.email, last_name:'', prefix:'' };
+        document.getElementById('display-name').textContent =
+            profile ? `${profile.prefix||''}${profile.first_name} ${profile.last_name}` : session.user.email;
+        await loadCoreUsers();
+        await loadPersonnelList();
+        applyRoleUI();
+        renderPAInputs();
+        initFlatpickr();
+        updatePositionLogic();
+    } catch(err){ Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+};
+
+/* ── Apply Role UI ──────────── */
+function applyRoleUI(){
+    // ปุ่มเพิ่มข้อมูล (admin ขึ้นไป)
+    const btnAdd = document.getElementById('btn-add');
+    if(btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
+    // ปุ่ม Import/Template (admin ขึ้นไป)
+    const btnImport = document.getElementById('btn-import');
+    const btnTemplate = document.getElementById('btn-template');
+    if(btnImport) btnImport.style.display = isAdmin() ? '' : 'none';
+    if(btnTemplate) btnTemplate.style.display = isAdmin() ? '' : 'none';
+    // แสดง badge สิทธิ์ข้าง display-name
+    const roleLabel = isSuperAdmin() ? '🔴 Super Admin' : isAdmin() ? '🟡 Admin' : '🟢 ครูผู้สอน';
+    const badge = document.getElementById('role-badge');
+    if(badge) badge.textContent = roleLabel;
+    // ถ้าเป็นครู ล็อค dropdown ชื่อให้เป็นตัวเอง
+    if(isTeacher()){
+        const sel = document.getElementById('inp-personnel-id');
+        if(sel){
+            sel.value = currentUser.id;
+            sel.disabled = true;
+        }
+    }
+}
+
+async function handleLogout(){
+    const r = await Swal.fire({title:'ออกจากระบบ?',icon:'warning',showCancelButton:true,
+        confirmButtonColor:'#dc2626',confirmButtonText:'ออกจากระบบ',cancelButtonText:'ยกเลิก'});
+    if(r.isConfirmed){ await db.auth.signOut(); window.location.replace('index.html'); }
+}
+
+/* ── Load Users Dropdown ───── */
+async function loadCoreUsers(){
+    const {data} = await db.from('core_personnel').select('id,first_name,last_name,prefix').order('first_name');
+    const sel = document.getElementById('inp-personnel-id');
+    sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
+    (data||[]).forEach(u => sel.appendChild(new Option(`${u.prefix||''}${u.first_name} ${u.last_name}`, u.id)));
+}
+
+function onNameSelect(){
+    const sel = document.getElementById('inp-personnel-id');
+    const name = sel.options[sel.selectedIndex]?.text || '?';
+    setAvatar('avatar-display', name, null);
+    setAvatar('modal-avatar-display', name, null);
+    document.getElementById('modal-subtitle').textContent = name;
+}
+
+/* ── Flatpickr ──────────────── */
+/* ── Global helpers ── */
+function clearDate(displayId, isoId){
+    const fp = document.querySelector('#'+displayId)?._flatpickr;
+    if(fp) fp.clear();
+    const d = document.getElementById(displayId);
+    const h = document.getElementById(isoId);
+    if(d) d.value = '';
+    if(h) h.value = '';
+        updateRankCalc();
+    }
+
+    updateRankCalc();
+}
+
+function initFlatpickr(){
+
+    function updateFpYearDisplay(fp){
+        const yearEl = fp.calendarContainer?.querySelector('.cur-year');
+        if(yearEl) yearEl.value = parseInt(yearEl.value) + 543;
+    }
+
+    function makeCfg(hiddenId, displayId){
+        return {
+            locale:'th',
+            dateFormat:'d/m/Y',
+            // ปรับปีใน input เป็น พ.ศ. หลังเลือกวัน
+            onChange(dates, str){
+                if(!dates[0]) return;
+                const dd = dates[0];
+                const ceY = dd.getFullYear(), ceM = dd.getMonth()+1, ceD = dd.getDate();
+                // เก็บ ค.ศ. ใน hidden field
+                document.getElementById(hiddenId).value =
+                    `${ceY}-${String(ceM).padStart(2,'0')}-${String(ceD).padStart(2,'0')}`;
+                // แสดง พ.ศ. = ค.ศ. + 543 เสมอ (Flatpickr ทำงานใน ค.ศ.)
+                document.getElementById(displayId).value =
+                    `${String(ceD).padStart(2,'0')}/${String(ceM).padStart(2,'0')}/${ceY+543}`;
+                updateRankCalc();
+            },
+            // ปรับปีในหัวปฏิทินเป็น พ.ศ. ทันทีที่เปิด
+            onReady(dates, str, fp){
+                updateFpYearDisplay(fp);
+            },
+            // ปรับปีในหัวปฏิทินทุกครั้งที่เปลี่ยนเดือน/ปี
+            onMonthChange(dates, str, fp){ updateFpYearDisplay(fp); },
+            onYearChange(dates, str, fp){
+                // Flatpickr จะ +1 ก่อนแล้วค่อย trigger — ดึงค่าจาก input ปีตรงๆ
+                const yearEl = fp.calendarContainer?.querySelector('.cur-year');
+                if(yearEl && parseInt(yearEl.value) < 2400){
+                    yearEl.value = parseInt(yearEl.value) + 543;
+                }
+            }
+        };
+    }
+    flatpickr('#inp-birth',       makeCfg('inp-birth-iso','inp-birth'));
+    flatpickr('#inp-gov-start',   makeCfg('inp-gov-start-iso','inp-gov-start'));
+    flatpickr('#inp-appoint',     makeCfg('inp-appoint-iso','inp-appoint'));
+    flatpickr('#inp-license-exp', makeCfg('inp-license-exp-iso','inp-license-exp'));
+}
+
+/* ── Position / Rank Calc ───── */
+function updatePositionLogic(){
+    const pos=document.getElementById('sel-pos').value;
+    const acSel=document.getElementById('sel-academic');
+    acSel.innerHTML='';
+    (posLogic[pos]?.academic||['ไม่มีวิทยฐานะ']).forEach(a=>acSel.appendChild(new Option(a,a)));
+    updateRankCalc();
+}
+
+function yearsDiff(isoDate){
+    if(!isoDate) return null;
+    return dayjs().diff(dayjs(isoDate),'year');
+}
+function monthsDiff(isoDate){
+    if(!isoDate) return null;
+    return dayjs().diff(dayjs(isoDate),'month') % 12;
+}
+
+function updateRankCalc(){
+    const pos  = document.getElementById('sel-pos').value;
+    const acad = document.getElementById('sel-academic').value;
+    const rank = posLogic[pos]?.map ? (posLogic[pos].map[acad]||'-') : (posLogic[pos]?.rank||'-');
+    document.getElementById('inp-rank').value = rank;
+
+    // ── วันเกิด & เกษียณ ──
+    const birthIso = document.getElementById('inp-birth-iso').value;
+    if(birthIso){
+        const b=dayjs(birthIso);
+        const ageY=dayjs().diff(b,'year');
+        const ageM=dayjs().diff(b,'month')%12;
+        document.getElementById('out-age').value = `${ageY} ปี ${ageM} เดือน`;
+        let ry=b.year()+60; if(b.month()>8)ry++;
+        document.getElementById('out-retire').value=`พ.ศ. ${ry+543}`;
+        const yearsLeft = ry - dayjs().year();
+        document.getElementById('out-service-left').value = yearsLeft>0 ? `อีก ${yearsLeft} ปี` : 'เกษียณแล้ว';
+    }
+
+    // ── วันบรรจุ ──
+    const govIso = document.getElementById('inp-gov-start-iso').value;
+    if(govIso){
+        const gy=yearsDiff(govIso), gm=monthsDiff(govIso);
+        document.getElementById('out-gov-service').value = `${gy} ปี ${gm} เดือน`;
+    }
+
+    // ── วันแต่งตั้ง ──
+    const apptIso = document.getElementById('inp-appoint-iso').value;
+    if(apptIso){
+        const py=yearsDiff(apptIso), pm=monthsDiff(apptIso);
+        document.getElementById('out-pos-duration').value = `${py} ปี ${pm} เดือน`;
+        const eligibleDate = dayjs(apptIso).add(4,'year');
+        document.getElementById('out-eligible').value = `${eligibleDate.date().toString().padStart(2,'0')}/${(eligibleDate.month()+1).toString().padStart(2,'0')}/${eligibleDate.year()+543}`;
+        const daysLeft = eligibleDate.diff(dayjs(),'day');
+        document.getElementById('out-pa-countdown').value = daysLeft>0 ? `อีก ${Math.floor(daysLeft/365)} ปี ${Math.floor((daysLeft%365)/30)} เดือน` : 'ครบแล้ว ✅';
+    }
+
+    // ── ใบอนุญาต ──
+    const licIso = document.getElementById('inp-license-exp-iso').value;
+    if(licIso){
+        const dl=dayjs(licIso).diff(dayjs(),'day');
+        // คำนวณ ปี/เดือน/วัน แบบ exact
+        const licExp = dayjs(licIso);
+        const now    = dayjs();
+        const licY   = Math.abs(licExp.diff(now, 'year'));
+        const licM   = Math.abs(licExp.diff(now.add(licY*(dl<0?-1:1),'year'), 'month'));
+        let licStatus = '', licClass = '';
+        if(dl < 0){
+            licStatus = `❌ หมดอายุแล้ว ${licY>0?licY+' ปี ':''} ${licM} เดือน`;
+            licClass  = 'auto-red';
+        } else if(dl <= 30){
+            licStatus = `⚠️ เหลืออีก ${dl} วัน`;
+            licClass  = 'auto-red';
+        } else if(dl <= 365){
+            licStatus = `⚠️ เหลืออีก ${licM} เดือน ${dl%30} วัน`;
+            licClass  = 'auto-orange';
+        } else {
+            licStatus = `✅ เหลืออีก ${licY} ปี ${licM} เดือน`;
+            licClass  = 'auto-green';
+        }
+        document.getElementById('out-license-status').value = licStatus;
+        document.getElementById('out-license-status').className = 'field-input ' + licClass;
+    }
+
+    syncPaInfoPanel();
+}
+
+function syncPaInfoPanel(){
+    document.getElementById('pa-info-eligible').textContent = document.getElementById('out-eligible').value || '-';
+    document.getElementById('pa-info-countdown').textContent = document.getElementById('out-pa-countdown').value || '-';
+    document.getElementById('pa-info-duration').textContent = document.getElementById('out-pos-duration').value || '-';
+}
+
+/* ── PA Inputs ──────────────── */
+const PA_YEARS = [2565,2566,2567,2568,2569,2570];
+function renderPAInputs(saved={}){
+    const el=document.getElementById('pa-container');
+    el.innerHTML='';
+    PA_YEARS.forEach(y=>{
+        const v=saved[`pa_${y}`]||'';
+        el.insertAdjacentHTML('beforeend',`
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 hover:border-indigo-200 transition space-y-2">
+                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">ไฟล์ PA3 ปี ${y}</p>
+                <div class="flex gap-2">
+                    <input type="text" id="pa-${y}" value="${v}" placeholder="วาง Link Google Drive / URL"
+                        class="flex-1 text-xs p-2.5 border border-slate-200 rounded-xl outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 transition bg-white">
+                    <button type="button" onclick="previewPA(${y})"
+                        class="bg-white p-2.5 border border-slate-200 rounded-xl text-indigo-500 hover:bg-indigo-50 hover:border-indigo-300 transition" title="เปิดดู">
+                        <i class="fas fa-external-link-alt text-xs"></i>
+                    </button>
+                </div>
+            </div>`);
+    });
+}
+function previewPA(y){
+    const u=document.getElementById(`pa-${y}`).value.trim();
+    if(!u) return Swal.fire('ไม่มีลิงก์',`ยังไม่ได้ใส่ลิงก์ PA3 ปี ${y}`,'info');
+    window.open(u,'_blank');
+}
+function collectPA(){
+    const pa={};
+    PA_YEARS.forEach(y=>{ const el=document.getElementById(`pa-${y}`); if(el?.value.trim()) pa[`pa_${y}`]=el.value.trim(); });
+    return pa;
+}
+
+/* ── Avatar Preview ─────────── */
+function previewAvatar(input){
+    const file=input.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=e=>{
+        const img=new Image(); img.src=e.target.result;
+        img.onload=()=>{
+            const canvas=document.createElement('canvas');
+            const MAX=600; let sc=MAX/Math.max(img.width,img.height); if(sc>1)sc=1;
+            canvas.width=img.width*sc; canvas.height=img.height*sc;
+            canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+            const url=canvas.toDataURL('image/jpeg',0.8);
+            document.getElementById('inp-avatar-data').value=url;
+            document.getElementById('avatar-display').innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+            document.getElementById('avatar-display').style.background='';
+            document.getElementById('modal-avatar-display').innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+        };
+    };
+    reader.readAsDataURL(file);
+}
+function clearAvatar(){
+    document.getElementById('inp-avatar-data').value='';
+    const name = document.getElementById('inp-personnel-id').options[document.getElementById('inp-personnel-id').selectedIndex]?.text||'?';
+    setAvatar('avatar-display', name, null);
+}
+
+/* ── License Check ──────────── */
+function checkLicense(){
+    const num=document.getElementById('inp-license-number').value.trim();
+    if(!num) return Swal.fire('ไม่มีเลขที่','กรุณากรอกเลขที่ใบอนุญาตก่อน','info');
+    window.open(`https://www.ksp.or.th/ksp2018/license-check/?license=${encodeURIComponent(num)}`, '_blank');
+}
+
+/* ── Modal ──────────────────── */
+function resetHiddens(){
+    ['edit-id','inp-avatar-data','inp-birth-iso','inp-gov-start-iso','inp-appoint-iso','inp-license-exp-iso']
+        .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+    ['out-age','out-retire','out-service-left','out-gov-service','out-pos-duration',
+     'out-eligible','out-pa-countdown','out-license-status','inp-rank']
+        .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+function openModal(mode, data=null){
+    document.getElementById('main-form').reset();
+    resetHiddens();
+    setAvatar('avatar-display','?',null);
+    setAvatar('modal-avatar-display','?',null);
+    document.getElementById('modal-subtitle').textContent='กรอกข้อมูลให้ครบถ้วน';
+    document.getElementById('out-license-status').className='field-input auto-green';
+    updatePositionLogic();
+    renderPAInputs();
+    // reset to tab 1
+    switchTab('tab-personal', document.querySelector('.tab-pill'));
+
+    if(mode==='edit'&&data){ populateForm(data); document.getElementById('btn-submit').innerHTML='<i class="fas fa-floppy-disk"></i> อัปเดตข้อมูล'; }
+    else { document.getElementById('modal-title').textContent='บันทึกข้อมูลบุคลากร'; document.getElementById('btn-submit').innerHTML='<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล'; }
+
+    const mc=document.getElementById('modal-container');
+    mc.classList.remove('hidden'); mc.classList.add('flex');
+}
+function closeModal(){
+    const mc=document.getElementById('modal-container');
+    mc.classList.add('hidden'); mc.classList.remove('flex');
+}
+
+function isoToBE(iso){
+    if(!iso) return '';
+    const d=dayjs(iso);
+    const yr = d.year() < 2300 ? d.year() + 543 : d.year();
+    return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`;
+}
+
+function populateForm(p){
+    const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
+    document.getElementById('modal-title').textContent=`แก้ไข: ${fullName}`;
+    document.getElementById('modal-subtitle').textContent=fullName;
+    document.getElementById('edit-id').value=p.id||'';
+    document.getElementById('inp-personnel-id').value=p.id||'';
+    document.getElementById('inp-cid').value=p.national_id||'';
+    document.getElementById('inp-phone').value=p.phone||'';
+    document.getElementById('sel-learning-area').value=p.department||'';
+    document.getElementById('inp-position-number').value=p.position_number||'';
+    document.getElementById('inp-license-number').value=p.license_number||'';
+    document.getElementById('sel-pa-status').value=p.pa_status||'';
+    if(p.position) document.getElementById('sel-pos').value=p.position;
+    updatePositionLogic();
+    if(p.academic_standing) document.getElementById('sel-academic').value=p.academic_standing;
+    // setDate: parse ด้วยตนเอง + auto-correct ถ้าปีใน DB เป็น พ.ศ. (ข้อมูลเก่า)
+    const setDate=(isoId, displayId, iso)=>{
+        if(!iso) return;
+        const parts = iso.split('-');
+        let y=parseInt(parts[0]), m=parseInt(parts[1]), d=parseInt(parts[2]);
+        // ถ้าปีใน DB เป็น พ.ศ. (>= 2300) ให้แปลงกลับเป็น ค.ศ. อัตโนมัติ
+        if(y >= 2300){ y = y - 543; }
+        const ceIso = `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        // เก็บ hidden field ด้วย ค.ศ. ที่ถูกต้อง
+        document.getElementById(isoId).value = ceIso;
+        // ส่ง Flatpickr (ใช้ local Date noon เพื่อป้องกัน timezone)
+        const fpEl = document.querySelector(`#${displayId}`)._flatpickr;
+        if(fpEl){ fpEl.setDate(new Date(y, m-1, d, 12), false); }
+        // แสดง พ.ศ. = ค.ศ. + 543
+        document.getElementById(displayId).value =
+            `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y+543}`;
+    };
+    setDate('inp-birth-iso','inp-birth',p.birth_date);
+    setDate('inp-gov-start-iso','inp-gov-start',p.government_start_date);
+    setDate('inp-appoint-iso','inp-appoint',p.appointment_date);
+    setDate('inp-license-exp-iso','inp-license-exp',p.license_expiry);
+    updateRankCalc();
+    setAvatar('avatar-display', p.first_name, p.avatar_url||null);
+    setAvatar('modal-avatar-display', p.first_name, p.avatar_url||null);
+    if(p.avatar_url) document.getElementById('inp-avatar-data').value=p.avatar_url;
+    renderPAInputs(p.pa_docs||{});
+}
+
+/* ── SAVE ───────────────────── */
+async function savePersonnel(e){
+    e.preventDefault();
+    const btn=document.getElementById('btn-submit');
+    btn.disabled=true;
+    btn.innerHTML='<i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังบันทึก...';
+    try{
+        const userId  = document.getElementById('inp-personnel-id').value;
+        const editId  = document.getElementById('edit-id').value;
+        const targetId= editId||userId;
+        if(!targetId) throw new Error('กรุณาเลือกชื่อบุคลากร');
+        if(!canEditRecord(targetId)) throw new Error('คุณไม่มีสิทธิ์แก้ไขข้อมูลของบุคลากรท่านอื่น');
+
+        const payload={
+            id:                 targetId,
+            national_id:        document.getElementById('inp-cid').value.trim()||null,
+            phone:              document.getElementById('inp-phone').value.trim()||null,
+            department:         document.getElementById('sel-learning-area').value||null,
+            position:           document.getElementById('sel-pos').value,
+            position_number:    document.getElementById('inp-position-number').value.trim()||null,
+            academic_standing:  document.getElementById('sel-academic').value,
+            rank:               document.getElementById('inp-rank').value||null,
+            birth_date:         document.getElementById('inp-birth-iso').value||null,
+            government_start_date: document.getElementById('inp-gov-start-iso').value||null,
+            appointment_date:   document.getElementById('inp-appoint-iso').value||null,
+            license_number:     document.getElementById('inp-license-number').value.trim()||null,
+            license_expiry:     document.getElementById('inp-license-exp-iso').value||null,
+            pa_status:          document.getElementById('sel-pa-status').value||null,
+            pa_docs:            collectPA(),
+            avatar_url:         document.getElementById('inp-avatar-data').value||null,
+        };
+
+        // ใช้ UPDATE แทน UPSERT เพื่อไม่แตะ NOT NULL fields (email, role ฯลฯ)
+        const { id: _id, ...updatePayload } = payload;
+        const {error}=await db.from('core_personnel').update(updatePayload).eq('id', targetId);
+        if(error) throw error;
+
+        await Swal.fire({icon:'success',title:'บันทึกสำเร็จ!',timer:1600,showConfirmButton:false});
+        closeModal();
+        await loadPersonnelList();
+    } catch(err){
+        Swal.fire('เกิดข้อผิดพลาด',err.message,'error');
+    } finally {
+        btn.disabled=false;
+        btn.innerHTML='<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล';
+    }
+}
+
+/* ── DELETE ─────────────────── */
+async function deletePersonnel(id, name){
+    if(!canDelete()) return Swal.fire('ไม่มีสิทธิ์','เฉพาะ Super Admin เท่านั้นที่สามารถลบข้อมูลได้','warning');
+    const r=await Swal.fire({
+        title:`ลบข้อมูล "${name}"?`,
+        html:'<span class="text-sm text-red-500">ข้อมูลบุคลากรจะถูกล้าง (บัญชีผู้ใช้ยังคงอยู่)</span>',
+        icon:'warning',showCancelButton:true,confirmButtonColor:'#dc2626',
+        confirmButtonText:'ลบข้อมูล',cancelButtonText:'ยกเลิก'
+    });
+    if(!r.isConfirmed) return;
+    const {error}=await db.from('core_personnel').update({
+        national_id:null,phone:null,department:null,position:null,position_number:null,
+        academic_standing:null,rank:null,birth_date:null,government_start_date:null,
+        appointment_date:null,license_number:null,license_expiry:null,
+        pa_status:null,pa_docs:null,avatar_url:null
+    }).eq('id',id);
+    if(error) return Swal.fire('ผิดพลาด',error.message,'error');
+    Swal.fire({icon:'success',title:'ลบข้อมูลแล้ว',timer:1400,showConfirmButton:false});
+    await loadPersonnelList();
+}
+
+/* ── LOAD LIST ──────────────── */
+async function loadPersonnelList(){
+    // ครูทั่วไปเห็นเฉพาะข้อมูลตัวเอง
+    let query = db.from('core_personnel').select('*').order('first_name');
+    if(isTeacher() && currentUser?.id) query = query.eq('id', currentUser.id);
+    const {data,error}= await query;
+    if(error){ console.error(error); return; }
+    allPersonnelData=data||[];
+
+    if(personnelTable){ personnelTable.destroy(); personnelTable=null; }
+    personnelMap.clear(); // reset map ทุกครั้งที่โหลดใหม่
+    const tbody=document.getElementById('main-tbody');
+    tbody.innerHTML='';
+    const today=dayjs(), cyBE=today.year()+543;
+
+    allPersonnelData.forEach(p=>{
+        const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
+        const avHtml = p.avatar_url
+            ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">`
+            : `<div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>`;
+
+        // อายุ
+        const ageY = p.birth_date ? dayjs().diff(dayjs(p.birth_date),'year') : null;
+
+        // เกษียณ
+        let retireHtml='<span class="text-slate-400 text-xs">-</span>';
+        if(p.birth_date){
+            const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
+            const rBE=ry+543;
+            retireHtml=rBE===cyBE
+                ?`<span class="badge badge-orange">⚠️ ${rBE}</span>`
+                :`<span class="text-slate-600 text-sm">${rBE}</span>`;
+        }
+
+        // อายุราชการ
+        let govHtml='<span class="text-slate-400 text-xs">-</span>';
+        if(p.government_start_date){
+            const gy=yearsDiff(p.government_start_date);
+            govHtml=`<span class="text-slate-600 text-sm">${gy} ปี</span>`;
+        }
+
+        // PA
+        const paMap={'ผ่าน':'badge-blue','กำลังดำเนินการ':'badge-orange','ไม่ผ่าน':'badge-red','ยังไม่ดำเนินการ':'badge-gray'};
+        const paHtml=p.pa_status
+            ?`<span class="badge ${paMap[p.pa_status]||'badge-gray'}">${p.pa_status}</span>`
+            :`<span class="text-slate-300 text-xs">-</span>`;
+
+        // ใบอนุญาต
+        let licHtml='<span class="text-slate-400 text-xs">-</span>';
+        if(p.license_expiry){
+            const dl=dayjs(p.license_expiry).diff(today,'day');
+            const expStr=isoToBE(p.license_expiry);
+            if(dl<0)        licHtml=`<span class="badge badge-red">หมดแล้ว</span>`;
+            else if(dl<=30) licHtml=`<span class="badge badge-red">⚠️ ${dl} วัน</span>`;
+            else if(dl<=90) licHtml=`<span class="badge badge-orange">${expStr}</span>`;
+            else            licHtml=`<span class="text-slate-500 text-xs">${expStr}</span>`;
+        }
+
+        // เก็บ data ใน Map แล้วส่งแค่ id ไปยัง editPersonnel (ป้องกัน HTML attr overflow)
+        personnelMap.set(p.id, p);
+        tbody.insertAdjacentHTML('beforeend',`
+            <tr class="hover:bg-indigo-50/40 transition-colors">
+                <td class="py-3 px-3">
+                    <div class="flex items-center gap-3">
+                        ${avHtml}
+                        <div>
+                            <p class="font-semibold text-slate-800 text-sm leading-tight">${fullName}</p>
+                            <p class="text-[10px] text-slate-400">${p.national_id||'ไม่มีข้อมูล'}</p>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <p class="text-sm font-medium text-slate-700">${p.position||'-'}</p>
+                    <p class="text-xs text-indigo-600 font-medium">${p.academic_standing||''}</p>
+                    <p class="text-[10px] text-slate-400">${p.rank||''} ${p.position_number?'| เลขที่ '+p.position_number:''}</p>
+                </td>
+                <td><span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-medium">${p.department||'-'}</span></td>
+                <td class="text-center text-sm">${ageY!=null?`${ageY} ปี`:'-'}</td>
+                <td class="text-center">${retireHtml}</td>
+                <td class="text-center">${govHtml}</td>
+                <td class="text-center">${paHtml}</td>
+                <td class="text-center">${licHtml}</td>
+                <td class="text-center">
+                    <div class="flex items-center justify-center gap-1">
+                        <button onclick='editPersonnel("${p.id}")'
+                            class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข">
+                            <i class="fas fa-pen text-xs"></i>
+                        </button>
+                        <button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g,"\\'")}')"
+                            class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ">
+                            <i class="fas fa-trash text-xs"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>`);
+    });
+
+    personnelTable=new DataTable('#personnelTable',{
+        language:{url:'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'},
+        responsive:true, scrollX:true, pageLength:25,
+        columnDefs:[{orderable:false,targets:[0,8]}],
+        layout:{topStart:'pageLength',topEnd:'search',bottomStart:'info',bottomEnd:'paging'}
+    });
+    updateDashboard(allPersonnelData);
+}
+
+function editPersonnel(id){
+    const data = personnelMap.get(id);
+    if(!data) return Swal.fire('ไม่พบข้อมูล','','warning');
+    openModal('edit', data);
+}
+
+/* ── Dashboard ──────────────── */
+function isoToBE(iso){
+    if(!iso) return '';
+    const d=dayjs(iso);
+    const yr = d.year() < 2300 ? d.year() + 543 : d.year();
+    return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`;
+}
+function updateDashboard(data){
+    const today=dayjs(), cyBE=today.year()+543;
+    let retire=0,lic=0,eligible=0,paPass=0,paProc=0;
+    data.forEach(p=>{
+        if(p.birth_date){ const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++; if(ry+543===cyBE)retire++; }
+        if(p.license_expiry){ const dl=dayjs(p.license_expiry).diff(today,'day'); if(dl>=0&&dl<=30)lic++; }
+        if(p.appointment_date&&p.position==='ครู'&&p.academic_standing==='ไม่มีวิทยฐานะ'){
+            if(today.diff(dayjs(p.appointment_date),'year')>=4)eligible++;
+        }
+        if(p.pa_status==='ผ่าน') paPass++;
+        if(p.pa_status==='กำลังดำเนินการ') paProc++;
+    });
+    document.getElementById('stat-total').textContent=data.length;
+    document.getElementById('stat-retire').textContent=retire;
+    document.getElementById('stat-license').textContent=lic;
+    document.getElementById('stat-eligible').textContent=eligible;
+    document.getElementById('stat-pa-pass').textContent=paPass;
+    document.getElementById('stat-pa-proc').textContent=paProc;
+}
+
+/* ── EXPORT EXCEL ───────────── */
+function exportToExcel(){
+    if(!allPersonnelData.length) return Swal.fire('ไม่มีข้อมูล','','info');
+    const be=iso=>{ if(!iso)return'-'; const d=dayjs(iso); const yr=d.year()<2300?d.year()+543:d.year(); return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${yr}`; };
+    const rows=allPersonnelData.map(p=>{
+        const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
+        let retire='-';
+        if(p.birth_date){ const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++; retire=ry+543; }
+        const govY = p.government_start_date ? dayjs().diff(dayjs(p.government_start_date),'year') : '-';
+        const pa=p.pa_docs||{};
+        return {
+            'ชื่อ - สกุล':fullName,
+            'เลขประจำตัวประชาชน':p.national_id||'-',
+            'ตำแหน่ง':p.position||'-',
+            'วิทยฐานะ':p.academic_standing||'-',
+            'อันดับ':p.rank||'-',
+            'เลขที่ตำแหน่ง':p.position_number||'-',
+            'กลุ่มสาระฯ':p.department||'-',
+            'วันเกิด (พ.ศ.)':be(p.birth_date),
+            'ปีเกษียณ (พ.ศ.)':retire,
+            'วันบรรจุรับราชการ (พ.ศ.)':be(p.government_start_date),
+            'อายุราชการ (ปี)':govY,
+            'วันแต่งตั้งตำแหน่งปัจจุบัน (พ.ศ.)':be(p.appointment_date),
+            'สถานะ PA':p.pa_status||'-',
+            'เลขที่ใบอนุญาต':p.license_number||'-',
+            'หมดอายุใบอนุญาต (พ.ศ.)':be(p.license_expiry),
+            'เบอร์โทร':p.phone||'-',
+            'อีเมล':p.email||'-',
+            'PA3-2565':pa.pa_2565||'-',
+            'PA3-2566':pa.pa_2566||'-',
+            'PA3-2567':pa.pa_2567||'-',
+            'PA3-2568':pa.pa_2568||'-',
+            'PA3-2569':pa.pa_2569||'-',
+            'PA3-2570':pa.pa_2570||'-',
+        };
+    });
+    const ws=XLSX.utils.json_to_sheet(rows);
+    ws['!cols']=Object.keys(rows[0]).map(k=>({wch:Math.max(k.length+2,16)}));
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'บุคลากร');
+    XLSX.writeFile(wb,`WRK_Personnel_${new Date().toLocaleDateString('th-TH').replace(/\//g,'-')}.xlsx`);
+}
+
+/* ── DOWNLOAD TEMPLATE ──────── */
+function downloadTemplate(){
+    const headers=['ชื่อจริง (first_name)*','นามสกุล (last_name)*','คำนำหน้า (prefix)',
+        'เลขประจำตัวประชาชน','ตำแหน่ง','เลขที่ตำแหน่ง','วิทยฐานะ','กลุ่มสาระฯ',
+        'วันเกิด YYYY-MM-DD','วันบรรจุรับราชการ YYYY-MM-DD','วันแต่งตั้งตำแหน่งปัจจุบัน YYYY-MM-DD',
+        'สถานะ PA','เลขที่ใบอนุญาต','วันหมดอายุใบอนุญาต YYYY-MM-DD','เบอร์โทร',
+        'PA3-2565','PA3-2566','PA3-2567','PA3-2568','PA3-2569','PA3-2570'];
+    const example=['สมชาย','ใจดี','นาย','1234567890123','ครู','4301','ครูชำนาญการ','คณิตศาสตร์',
+        '1985-06-15','2010-05-01','2018-10-01','กำลังดำเนินการ','ค.12345','2027-03-31','0812345678',
+        'https://drive.google.com/...','','','','',''];
+    const ws=XLSX.utils.aoa_to_sheet([headers,example]);
+    ws['!cols']=headers.map(h=>({wch:Math.max(h.length+2,18)}));
+    const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,ws,'Template');
+    XLSX.writeFile(wb,'WRK_Personnel_Template.xlsx');
+}
+
+/* ── IMPORT FROM EXCEL ──────── */
+async function importFromExcel(event){
+    const file=event.target.files[0]; if(!file) return;
+    event.target.value='';
+    const reader=new FileReader();
+    reader.onload=async(e)=>{
+        try{
+            const wb=XLSX.read(e.target.result,{type:'array'});
+            const ws=wb.Sheets[wb.SheetNames[0]];
+            const rows=XLSX.utils.sheet_to_json(ws,{defval:''});
+            if(!rows.length) return Swal.fire('ไฟล์ว่างเปล่า','ไม่พบข้อมูลในชีตแรก','warning');
+            const foundHeaders=Object.keys(rows[0]);
+
+            function parseDate(val){
+                if(!val||String(val).trim()===''||val==='-') return null;
+                const s=String(val).trim();
+
+                // ── รูปแบบ ISO: YYYY-MM-DD ──
+                if(/^\d{4}-\d{2}-\d{2}$/.test(s)){
+                    const y=parseInt(s); // ปีแรกของ ISO
+                    // ถ้าปีเป็น พ.ศ. (>=2300) หัก 543 กลับเป็น ค.ศ.
+                    if(y>=2300){ const[_,mo,dd]=s.split('-'); return `${y-543}-${mo}-${dd}`; }
+                    return s;
+                }
+
+                // ── รูปแบบ DD/MM/YYYY หรือ D/M/YYYY ──
+                if(/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)){
+                    const[d,m,y]=s.split('/').map(Number);
+                    // ปี >= 2300 = พ.ศ. ต้องหัก 543 → ค.ศ.
+                    const yr = y>=2300 ? y-543 : y;
+                    return `${yr}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                }
+
+                // ── Excel Serial Number ──
+                if(!isNaN(s)&&s!==''){
+                    try{
+                        const dd=XLSX.SSF.parse_date_code(Number(s));
+                        // Excel serial ให้ ค.ศ. เสมอ ไม่ต้องหัก 543
+                        if(dd&&dd.y>1900) return `${dd.y}-${String(dd.m).padStart(2,'0')}-${String(dd.d).padStart(2,'0')}`;
+                    } catch(err){}
+                }
+                return null;
+            }
+
+            function gv(row,...keys){
+                for(const k of keys){
+                    const v=row[k];
+                    if(v!==undefined&&v!==null&&String(v).trim()!==''&&String(v).trim()!=='-')
+                        return String(v).trim();
+                }
+                return null;
+            }
+
+            function splitFullName(full){
+                if(!full) return {prefix:'',first_name:'',last_name:''};
+                const pfx=['นางสาว','นาย','นาง','ด.ช.','ด.ญ.'];
+                let prefix='', name=String(full).trim();
+                for(const p of pfx){ if(name.startsWith(p)){prefix=p; name=name.slice(p.length).trim(); break;} }
+                const parts=name.split(/\s+/);
+                return {prefix, first_name:parts[0]||'', last_name:parts.slice(1).join(' ')||''};
+            }
+
+            const payloads=rows.map(row=>{
+                let prefix='',first_name='',last_name='';
+                const combined=gv(row,'ชื่อ - สกุล','ชื่อ-สกุล','ชื่อ-นามสกุล','full_name');
+                if(combined){
+                    const sp=splitFullName(combined);
+                    prefix=sp.prefix; first_name=sp.first_name; last_name=sp.last_name;
+                } else {
+                    prefix    =gv(row,'คำนำหน้า (prefix)','prefix','คำนำหน้า')||'';
+                    first_name=gv(row,'ชื่อจริง (first_name)*','first_name','ชื่อจริง','ชื่อ')||'';
+                    last_name =gv(row,'นามสกุล (last_name)*','last_name','นามสกุล')||'';
+                }
+
+                let position='',academic_standing='',position_number='',rank='';
+                const posRaw=gv(row,'ตำแหน่งวิทยฐานะตำแหน่งเลขที่อันดับ','ตำแหน่ง/วิทยฐานะ');
+                if(posRaw){
+                    const posMap=['ผู้อำนวยการสถานศึกษา','รองผู้อำนวยการสถานศึกษา','ครู','ครูผู้ช่วย','พนักงานราชการ','ครูอัตราจ้าง'];
+                    for(const p of posMap){ if(posRaw.includes(p)){position=p;break;} }
+                    if(!position) position=posRaw;
+                    const acadMap=['ครูชำนาญการพิเศษ','ครูชำนาญการ','ครูเชี่ยวชาญพิเศษ','ครูเชี่ยวชาญ','ผู้อำนวยการชำนาญการพิเศษ','รองผู้อำนวยการชำนาญการพิเศษ','รองผู้อำนวยการชำนาญการ'];
+                    for(const a of acadMap){ if(posRaw.includes(a)){academic_standing=a;break;} }
+                    const nm=posRaw.match(/\d{4,6}/); if(nm) position_number=nm[0];
+                    const rm=posRaw.match(/คศ\.?\s*\d/); if(rm) rank=rm[0].replace(/[.\s]/g,'');
+                }
+                position         =gv(row,'ตำแหน่ง','position')||position;
+                academic_standing=gv(row,'วิทยฐานะ','academic_standing')||academic_standing;
+                position_number  =gv(row,'เลขที่ตำแหน่ง','position_number')||position_number;
+                rank             =gv(row,'อันดับ','rank')||rank;
+
+                let phone='';
+                const pr=gv(row,'เบอร์โทรศัพท์อายุ','เบอร์โทรศัพท์','เบอร์โทร','phone');
+                if(pr){ const m=pr.match(/0\d[\d\s-]{7,}/); phone=m?m[0].replace(/[\s-]/g,''):pr.split(/\s+/)[0]; }
+
+                return {
+                    first_name,last_name,prefix,
+                    national_id:           gv(row,'เลขประจำตัวประชาชน','national_id'),
+                    position:              position||null,
+                    position_number:       position_number||null,
+                    academic_standing:     academic_standing||null,
+                    rank:                  rank||null,
+                    department:            gv(row,'กลุ่มสาระการเรียนรู้','กลุ่มสาระฯ','กลุ่มสาระ','department'),
+                    phone:                 phone||null,
+                    birth_date:            parseDate(gv(row,'วันเดือนปีเกิด (พ.ศ.)','วันเกิด YYYY-MM-DD','birth_date','วันเกิด')),
+                    government_start_date: parseDate(gv(row,'วันบรรจุรับราชการ (พ.ศ.)','วันบรรจุรับราชการ YYYY-MM-DD','government_start_date')),
+                    appointment_date:      parseDate(gv(row,'วันที่แต่งตั้งตำแหน่งปัจจุบัน','วันแต่งตั้งตำแหน่งปัจจุบัน YYYY-MM-DD','appointment_date')),
+                    license_number:        gv(row,'เลขที่ใบอนุญาต','license_number'),
+                    license_expiry:        parseDate(gv(row,'วันหมดอายุใบอนุญาตฯ (พ.ศ.)','วันหมดอายุใบอนุญาต YYYY-MM-DD','license_expiry')),
+                    pa_status:             gv(row,'สถานะ PA','pa_status'),
+                    pa_docs:(()=>{ const pa={}; [2565,2566,2567,2568,2569,2570].forEach(y=>{ const v=gv(row,`ไฟล์ PA3-${y}`,`PA3-${y}`); if(v) pa[`pa_${y}`]=v; }); return Object.keys(pa).length?pa:null; })()
+                };
+            }).filter(p=>p.first_name)
+; // payloads พร้อมแล้ว (ไม่มี id เพราะจะ match ชื่อกับแถวที่มีอยู่)
+
+            if(!payloads.length){
+                return Swal.fire({
+                    title:'ไม่พบข้อมูลที่ใช้ได้',
+                    html:`<div class="text-left text-sm"><p class="text-red-500 font-bold mb-2">ระบบไม่สามารถอ่านคอลัมน์ชื่อได้</p>
+                    <p class="text-slate-500 text-xs mb-1">Header ที่พบในไฟล์ (${foundHeaders.length} คอลัมน์):</p>
+                    <pre class="text-xs bg-slate-100 p-2 rounded-lg overflow-auto max-h-32 text-slate-600">${foundHeaders.join('\n')}</pre>
+                    <p class="text-indigo-500 text-xs mt-2">💡 ดาวน์โหลดไฟล์ต้นแบบเพื่อดูรูปแบบ header ที่ถูกต้อง</p></div>`,
+                    icon:'warning',confirmButtonText:'รับทราบ'
+                });
+            }
+
+            // ── โหลดรายชื่อที่มีอยู่แล้วใน DB เพื่อ match ──
+            Swal.fire({title:'กำลังเตรียมข้อมูล...',allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+            const {data:existingList} = await db.from('core_personnel').select('id,first_name,last_name,prefix');
+            Swal.close();
+
+            // สร้าง lookup map: "ชื่อ นามสกุล" → id
+            const nameMap = {};
+            (existingList||[]).forEach(p=>{
+                const key1 = `${p.first_name}|${p.last_name}`.toLowerCase();
+                const key2 = `${p.prefix||''}${p.first_name}|${p.last_name}`.toLowerCase();
+                nameMap[key1] = p.id;
+                nameMap[key2] = p.id;
+            });
+
+            // แบ่ง payloads → matched (UPDATE) vs unmatched
+            const matched   = [];
+            const unmatched = [];
+            payloads.forEach(p=>{
+                const key1 = `${p.first_name}|${p.last_name}`.toLowerCase();
+                const key2 = `${p.prefix}${p.first_name}|${p.last_name}`.toLowerCase();
+                const id   = nameMap[key1] || nameMap[key2];
+                if(id){ matched.push({...p, id}); }
+                else   { unmatched.push(p); }
+            });
+
+            // ── ยืนยัน ──
+            const confirmRes = await Swal.fire({
+                title:`พบข้อมูล ${payloads.length} รายการ`,
+                html:`<div class="text-left text-sm space-y-2">
+                    <div class="flex gap-3">
+                        <div class="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                            <p class="text-2xl font-bold text-green-600">${matched.length}</p>
+                            <p class="text-xs text-green-700 font-bold">จับคู่ชื่อพบ → อัปเดต</p>
+                        </div>
+                        <div class="flex-1 bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                            <p class="text-2xl font-bold text-amber-600">${unmatched.length}</p>
+                            <p class="text-xs text-amber-700 font-bold">ไม่พบในระบบ → ข้ามไป</p>
+                        </div>
+                    </div>
+                    ${unmatched.length>0?`<p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg">⚠️ รายชื่อที่ไม่พบ: ${unmatched.slice(0,5).map(p=>`${p.prefix}${p.first_name} ${p.last_name}`).join(', ')}${unmatched.length>5?` ...และอีก ${unmatched.length-5} คน`:''}</p>`:''}
+                    ${matched.length>0?`<p class="text-xs text-slate-400">ตัวอย่าง: <b>${matched[0].prefix}${matched[0].first_name} ${matched[0].last_name}</b> | ${matched[0].position||'-'} | ${matched[0].academic_standing||'-'}</p>`:''}
+                </div>`,
+                icon:'question',showCancelButton:true,
+                confirmButtonColor:'#6366f1',
+                confirmButtonText: matched.length>0 ? `อัปเดต ${matched.length} รายการ` : 'ไม่มีรายการที่จะอัปเดต',
+                cancelButtonText:'ยกเลิก'
+            });
+            if(!confirmRes.isConfirmed || matched.length===0) return;
+
+            // ── UPDATE ทีละ record ──
+            Swal.fire({title:`กำลังอัปเดต 0/${matched.length}...`,allowOutsideClick:false,showConfirmButton:false,didOpen:()=>Swal.showLoading()});
+            let success=0, failed=0, errors=[];
+
+            for(let i=0; i<matched.length; i++){
+                const p = matched[i];
+                const {id, first_name, last_name, prefix, ...updateData} = p;
+                // อัปเดต Swal progress ทุก 10 รายการ
+                if(i%10===0) Swal.update({title:`กำลังอัปเดต ${i}/${matched.length}...`});
+                const {error} = await db.from('core_personnel').update(updateData).eq('id', id);
+                if(error){ failed++; errors.push(`${prefix}${first_name} ${last_name}: ${error.message}`); }
+                else      { success++; }
+            }
+            Swal.close();
+
+            let html=`<div class="text-left text-sm space-y-1">
+                <p class="text-green-600 font-bold">✅ อัปเดตสำเร็จ: ${success} รายการ</p>
+                ${failed>0?`<p class="text-red-500 font-bold">❌ ล้มเหลว: ${failed} รายการ</p>
+                <details><summary class="text-xs cursor-pointer text-slate-400">ดูรายละเอียด error</summary>
+                <pre class="text-xs text-red-400 mt-1 max-h-24 overflow-y-auto">${errors.slice(0,15).join('\n')}</pre></details>`:''}
+                ${unmatched.length>0?`<p class="text-amber-600 text-xs mt-2">⚠️ ไม่พบในระบบ (ข้ามไป): ${unmatched.length} รายการ — ต้องสร้างบัญชีก่อนด้วย import_tool.html</p>`:''}
+            </div>`;
+            await Swal.fire({icon:failed===0?'success':'warning',title:'ผลการนำเข้า',html});
+            await loadPersonnelList();
+        } catch(err){ Swal.close(); Swal.fire('เกิดข้อผิดพลาด',err.message,'error'); }
+    };
+    reader.readAsArrayBuffer(file);
+}
+</script>
+</body>
+</html>

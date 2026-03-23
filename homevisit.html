@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบเยี่ยมบ้านนักเรียน | WRK System</title>
+    
+    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+          integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <!-- Leaflet.js v1.9.4 (แผนที่ GPS เยี่ยมบ้าน) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin="">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV/XN/WLEg="
+            crossorigin=""></script>
+
+    <!-- Flatpickr (ปฏิทินช่องวันที่) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+    <!-- jQuery v3.7.1 (ต้องมาก่อน Thailand.js) -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+            integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+            crossorigin="anonymous"></script>
+
+    <!-- Flatpickr JS + Thai Locale -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
+
+    <!-- jquery.Thailand.js (Auto-complete ที่อยู่) -->
+    <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/typeahead/typeahead.bundle.js"></script>
+    <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/JQL.min.js"></script>
+    <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Anuphan', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body { 
+            background: linear-gradient(135deg, #e0f2fe 0%, #f8fafc 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            background: rgba(255, 255, 255, 0.7); 
+            backdrop-filter: blur(12px); 
+            border: 1px solid rgba(255, 255, 255, 0.4); 
+        }
+        .student-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="text-slate-800 pb-10">
+
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-blue-100 px-4 py-3 shadow-sm">
+        <div class="max-w-5xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10">
+                <div>
+                    <h1 class="font-bold text-blue-900 leading-tight">WRK System</h1>
+                    <p class="text-[10px] text-blue-600 uppercase tracking-widest">Home Visit Module</p>
+                </div>
+            </div>
+            <div id="teacher-profile" class="text-right hidden sm:block">
+                <p id="teacher-name" class="font-semibold text-sm text-slate-700">กำลังโหลด...</p>
+                <p id="room-info" class="text-xs text-blue-500 italic">ตรวจสอบข้อมูลชั้นเรียน</p>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-5xl mx-auto px-4 mt-6 space-y-6">
+        
+        <section class="glass p-6 rounded-3xl shadow-sm relative overflow-hidden">
+            <div class="relative z-10">
+                <h2 class="text-xl font-bold text-slate-800 mb-1">ความคืบหน้าการเยี่ยมบ้าน</h2>
+                <div class="flex items-end gap-2 mb-4">
+                    <span id="percent-val" class="text-4xl font-bold text-blue-600">0%</span>
+                    <span class="text-slate-400 text-sm mb-1 pb-1">บันทึกสำเร็จแล้ว</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-3 mb-2 overflow-hidden">
+                    <div id="progress-bar" class="bg-blue-600 h-full transition-all duration-1000" style="width: 0%"></div>
+                </div>
+                <p class="text-xs text-slate-500">
+                    เยี่ยมแล้ว <span id="visited-count" class="font-bold text-slate-700">0</span> 
+                    จากทั้งหมด <span id="total-count" class="font-bold text-slate-700">0</span> คน
+                </p>
+            </div>
+            <i class="fa-solid fa-house-circle-check absolute -right-4 -bottom-4 text-blue-50/50 text-9xl"></i>
+        </section>
+
+        <div class="flex justify-between items-center px-2">
+            <h3 class="font-bold text-lg"><i class="fa-solid fa-users-viewfinder mr-2 text-blue-600"></i>รายชื่อนักเรียนในที่ปรึกษา</h3>
+            <button onclick="refreshData()" class="text-blue-600 text-sm hover:underline"><i class="fa-solid fa-rotate mr-1"></i>รีเฟรช</button>
+        </div>
+
+        <div id="student-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div class="col-span-full py-10 text-center text-slate-400 italic">
+                <i class="fa-solid fa-circle-notch animate-spin text-2xl mb-2"></i>
+                <p>กำลังดึงข้อมูลนักเรียนจากฐานข้อมูล...</p>
+            </div>
+        </div>
+
+    </main>
+
+    <div id="visitModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-[100]">
+        <div class="bg-white w-full max-w-xl rounded-[2rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
+            <div class="bg-blue-600 p-6 text-white relative">
+                <button onclick="closeModal()" class="absolute right-6 top-6 text-white/80 hover:text-white text-xl">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <p class="text-blue-100 text-xs uppercase tracking-widest mb-1">บันทึกข้อมูลรายบุคคล</p>
+                <h3 id="modal-student-name" class="text-2xl font-bold">ชื่อ-นามสกุล นักเรียน</h3>
+            </div>
+
+            <form id="homeVisitForm" class="p-8 space-y-5 max-h-[70vh] overflow-y-auto">
+                <input type="hidden" id="field_enrollment_id">
+                
+                <div class="group relative">
+                    <label class="block text-xs font-bold text-slate-500 uppercase mb-2 ml-1">พิกัดบ้านนักเรียน (GPS)</label>
+                    <div class="flex gap-2">
+                        <div class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm text-slate-600 flex items-center">
+                            <i class="fa-solid fa-location-dot mr-2 text-red-500"></i>
+                            <span id="gps-display">ยังไม่ได้ระบุพิกัด</span>
+                        </div>
+                        <button type="button" onclick="getLocation()" class="bg-slate-800 text-white px-5 rounded-2xl hover:bg-black transition">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </button>
+                    </div>
+                    <input type="hidden" id="field_lat">
+                    <input type="hidden" id="field_lng">
+                </div>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase ml-1">สภาพบ้าน</label>
+                        <select id="field_housing" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="มั่นคง">มั่นคง (ตึก/ปูน)</option>
+                            <option value="กึ่งถาวร">กึ่งถาวร (ไม้)</option>
+                            <option value="ทรุดโทรม">ทรุดโทรม</option>
+                        </select>
+                    </div>
+                    <div class="space-y-2">
+                        <label class="block text-xs font-bold text-slate-500 uppercase ml-1">สถานะครอบครัว</label>
+                        <select id="field_family_status" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="อยู่ด้วยกัน">อยู่ด้วยกัน</option>
+                            <option value="หย่าร้าง">หย่าร้าง</option>
+                            <option value="แยกกันอยู่">แยกกันอยู่</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <label class="block text-xs font-bold text-slate-500 uppercase ml-1">รายได้ครอบครัว (บาท/เดือน)</label>
+                    <input type="number" id="field_income" class="w-full bg-slate-50 border border-slate-200 rounded-2xl p-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="0.00">
+                </div>
+
+                <div class="p-5 bg-orange-50 rounded-3xl border border-orange-100">
+                    <p class="text-xs font-bold text-orange-700 uppercase mb-3"><i class="fa-solid fa-triangle-exclamation mr-1"></i> ประเมินความเสี่ยง</p>
+                    <div class="grid grid-cols-1 gap-3">
+                        <label class="flex items-center gap-3 bg-white p-3 rounded-xl border border-orange-200 cursor-pointer">
+                            <input type="checkbox" id="field_risk_travel" class="w-5 h-5 rounded accent-orange-600">
+                            <span class="text-sm">การเดินทางลำบาก/เสี่ยงภัย</span>
+                        </label>
+                        <label class="flex items-center gap-3 bg-white p-3 rounded-xl border border-orange-200 cursor-pointer">
+                            <input type="checkbox" id="field_risk_substance" class="w-5 h-5 rounded accent-orange-600">
+                            <span class="text-sm">ชุมชนมีปัญหาสารเสพติด</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="pt-4">
+                    <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold text-lg shadow-lg shadow-blue-200 hover:bg-blue-700 hover:-translate-y-1 transition duration-300">
+                        ยืนยันการบันทึกข้อมูล
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+let currentTeacher = null;
+        let currentClassroom = null;
+
+        // Initial Load (อิงจากระบบส่วนกลาง)
+        window.onload = async () => {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) {
+                Swal.fire('Session Expired', 'กรุณาเข้าสู่ระบบใหม่อีกครั้ง', 'warning')
+                    .then(() => window.location.href = 'index.html');
+                return;
+            }
+            initSystem(session.user.id);
+        };
+
+        async function initSystem(userId) {
+            // 1. ดึงข้อมูลครูที่ล็อกอิน
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', userId).single();
+            if (!profile) return window.location.href = 'index.html';
+            
+            currentTeacher = profile;
+            document.getElementById('teacher-name').innerText = `${profile.prefix || 'ครู'}${profile.first_name} ${profile.last_name}`;
+
+            // 2. ค้นหาห้องเรียนที่ครูคนนี้เป็น "ครูที่ปรึกษา" (เช็คจาก adviser 1 หรือ 2)
+            const { data: classrooms, error } = await db.from('core_classrooms')
+                .select('*')
+                .or(`adviser_id_1.eq.${userId},adviser_id_2.eq.${userId}`)
+                .order('academic_year', { ascending: false })
+                .limit(1); // ยึดห้องของปีการศึกษาล่าสุด
+
+            if (classrooms && classrooms.length > 0) {
+                currentClassroom = classrooms[0];
+                document.getElementById('room-info').innerText = `ชั้น ม.${currentClassroom.grade_level}/${currentClassroom.room_number}`;
+                loadStudents(currentClassroom.id);
+            } else {
+                document.getElementById('room-info').innerText = 'ไม่พบข้อมูลชั้นเรียน';
+                document.getElementById('student-grid').innerHTML = '<div class="col-span-full py-10 text-center text-red-500 font-bold"><i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i><br>คุณยังไม่ได้รับมอบหมายให้เป็นครูที่ปรึกษา<br><span class="text-sm text-gray-500">(กรุณาติดต่อแอดมินเพื่อตั้งค่าในระบบส่วนกลาง)</span></div>';
+            }
+        }
+
+async function loadStudents(classroomId) {
+            // ดึงรายชื่อนักเรียนในห้อง + เช็คว่าเคยเยี่ยมบ้านไปหรือยัง
+            const { data: students, error } = await db.from('student_enrollments')
+                .select(`
+                    id, student_number,
+                    core_students (first_name, last_name, prefix),
+                    home_visits (id)
+                `)
+                .eq('classroom_id', classroomId)
+                .order('student_number');
+
+            // 🛑 [เพิ่มใหม่] ถ้าเกิด Error ให้แสดงข้อความแทนการโหลดค้าง
+            if (error) {
+                console.error("Database Error:", error);
+                document.getElementById('student-grid').innerHTML = `
+                    <div class="col-span-full py-10 text-center text-red-500 font-bold">
+                        <i class="fa-solid fa-triangle-exclamation text-3xl mb-3"></i><br>
+                        เกิดข้อผิดพลาดในการดึงข้อมูล: ${error.message}<br>
+                        <span class="text-sm font-normal text-gray-500 mt-2 block">แนะนำให้ไปกดปุ่ม Reload schema cache ในเมนู API ของ Supabase ครับ</span>
+                    </div>`;
+                return;
+            }
+
+            const grid = document.getElementById('student-grid');
+            grid.innerHTML = '';
+            let visitedCount = 0;
+
+            students.forEach(s => {
+                const hasVisited = s.home_visits && s.home_visits.length > 0;
+                if (hasVisited) visitedCount++;
+
+                const card = document.createElement('div');
+                card.className = `student-card glass p-5 rounded-[2rem] flex flex-col justify-between transition cursor-pointer ${hasVisited ? 'border-green-200 bg-green-50/30' : ''}`;
+                card.onclick = () => openVisitForm(s);
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center font-bold text-blue-600 text-lg">
+                            ${s.student_number || '-'}
+                        </div>
+                        ${hasVisited ? 
+                            '<span class="bg-green-100 text-green-700 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter"><i class="fa-solid fa-check mr-1"></i> เยี่ยมแล้ว</span>' : 
+                            '<span class="bg-slate-100 text-slate-400 text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-tighter">ยังไม่ได้เยี่ยม</span>'}
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400">ชื่อ-นามสกุล</p>
+                        <p class="font-bold text-slate-800">${s.core_students.prefix || ''}${s.core_students.first_name} ${s.core_students.last_name}</p>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Update Dashboard สรุปความคืบหน้า
+            const total = students.length;
+            const percent = total > 0 ? Math.round((visitedCount / total) * 100) : 0;
+            document.getElementById('percent-val').innerText = percent + '%';
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('visited-count').innerText = visitedCount;
+            document.getElementById('total-count').innerText = total;
+        }
+
+        // ปุ่มรีเฟรช
+        function refreshData() {
+            if(currentClassroom) {
+                document.getElementById('student-grid').innerHTML = '<div class="col-span-full py-10 text-center text-slate-400"><i class="fa-solid fa-circle-notch animate-spin text-2xl mb-2"></i><p>กำลังรีเฟรชข้อมูล...</p></div>';
+                loadStudents(currentClassroom.id);
+            }
+        }
+
+        // ระบบ GPS
+        function getLocation() {
+            const display = document.getElementById('gps-display');
+            if (navigator.geolocation) {
+                display.innerHTML = '<i class="fa-solid fa-spinner animate-spin"></i> กำลังระบุพิกัด...';
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    document.getElementById('field_lat').value = pos.coords.latitude;
+                    document.getElementById('field_lng').value = pos.coords.longitude;
+                    display.innerText = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                    Swal.fire({ icon: 'success', title: 'ดึงพิกัดสำเร็จ', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
+                }, (err) => {
+                    display.innerText = 'ไม่สามารถดึงพิกัดได้ (อาจไม่ได้เปิด GPS)';
+                    Swal.fire('ข้อผิดพลาด', 'กรุณาอนุญาตให้เบราว์เซอร์เข้าถึงตำแหน่ง (Location)', 'warning');
+                });
+            }
+        }
+
+        // ระบบ Modal
+        function openVisitForm(student) {
+            document.getElementById('modal-student-name').innerText = `${student.core_students.prefix || ''}${student.core_students.first_name} ${student.core_students.last_name}`;
+            document.getElementById('field_enrollment_id').value = student.id;
+            
+            // ถ้าเคยเยี่ยมแล้ว จะให้ซ่อนปุ่มบันทึก หรือ แจ้งเตือนว่าเยี่ยมไปแล้วก็ได้
+            const hasVisited = student.home_visits && student.home_visits.length > 0;
+            if (hasVisited) {
+                Swal.fire('แจ้งเตือน', 'นักเรียนคนนี้ได้รับการบันทึกเยี่ยมบ้านไปแล้วครับ', 'info');
+                return; // ไม่เปิดฟอร์มถ้าเยี่ยมแล้ว (ป้องกันบันทึกซ้ำ)
+            }
+            
+            document.getElementById('visitModal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('visitModal').classList.add('hidden');
+            document.getElementById('homeVisitForm').reset();
+            document.getElementById('gps-display').innerText = 'ยังไม่ได้ระบุพิกัด';
+        }
+
+        // ระบบบันทึกลงฐานข้อมูล
+        document.getElementById('homeVisitForm').onsubmit = async (e) => {
+            e.preventDefault();
+            
+            const enrollment_id = document.getElementById('field_enrollment_id').value;
+            const lat = document.getElementById('field_lat').value;
+            const lng = document.getElementById('field_lng').value;
+            
+            if (!lat || !lng) {
+                return Swal.fire('แจ้งเตือน', 'กรุณากดปุ่มเพื่อดึงพิกัด GPS ก่อนบันทึกครับ', 'warning');
+            }
+
+            Swal.fire({
+                title: 'ยืนยันการบันทึก?',
+                text: "ข้อมูลเยี่ยมบ้านจะถูกบันทึกเข้าระบบส่วนกลาง",
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                confirmButtonText: 'บันทึกข้อมูล'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                    
+                    try {
+                        const { error } = await db.from('home_visits').insert({
+                            enrollment_id: enrollment_id,
+                            teacher_id: currentTeacher.id,
+                            lat: lat,
+                            lng: lng,
+                            housing: document.getElementById('field_housing').value,
+                            family_status: document.getElementById('field_family_status').value,
+                            income: document.getElementById('field_income').value || 0,
+                            risk_travel: document.getElementById('field_risk_travel').checked,
+                            risk_substance: document.getElementById('field_risk_substance').checked
+                        });
+
+                        if (error) throw error;
+
+                        Swal.fire('สำเร็จ!', 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อยแล้ว', 'success');
+                        closeModal();
+                        refreshData(); // โหลดข้อมูลใหม่เพื่อเปลี่ยนสถานะเป็น "เยี่ยมแล้ว" ทันที
+                    } catch (err) {
+                        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>

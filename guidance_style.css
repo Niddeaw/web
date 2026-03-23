@@ -1,0 +1,168 @@
+/* ==========================================
+   ไฟล์ style.css (อัปเดตแก้ปัญหาการตรึงแถว 100%)
+   ========================================== */
+
+body { background-color: #f3f4f6; }
+
+/* ปรับแต่ง Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* บังคับ SweetAlert ให้ใช้ฟอนต์ Anuphan */
+.swal2-popup { font-family: 'Anuphan', sans-serif !important; border-radius: 1rem !important; }
+
+/* =========================================
+   ส่วนที่ 1: โครงสร้างตารางและการตรึง (Sticky)
+   ========================================= */
+
+/* 1. จัดการกรอบตารางให้เลื่อนได้ */
+.table-responsive {
+    max-height: 60vh;
+    overflow-y: auto;
+    overflow-x: auto;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    position: relative;
+    background-color: #ffffff;
+}
+
+/* 2. โครงสร้างตาราง (ห้ามใช้ border-collapse: collapse เด็ดขาด) */
+table {
+    border-collapse: separate !important; 
+    border-spacing: 0;
+    width: 100%;
+    min-width: max-content; /* ป้องกันตารางบีบตัว */
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* ใส่พื้นหลังทึบให้ทุกช่อง เพื่อไม่ให้ตัวอักษรซ้อนทับกันเวลาเลื่อน */
+th, td {
+    padding: 8px 12px;
+    background-color: #ffffff; 
+    border-bottom: 1px solid #e2e8f0;
+    border-right: 1px solid #e2e8f0;
+    text-align: center;
+}
+
+/* 3. ตรึงหัวตารางให้อยู่ด้านบนเสมอ (Top Header) */
+thead {
+    position: sticky;
+    top: 0;
+    z-index: 20; /* ให้อยู่เหนือเนื้อหาตารางปกติ */
+}
+thead th {
+    background-color: #dbeafe !important; /* สีฟ้าอ่อน */
+    color: #0369a1;
+    font-weight: 600;
+    border-bottom: 1px solid #bae6fd;
+}
+
+/* 4. ตรึงคอลัมน์ซ้ายสุด (Left Columns) */
+
+/* 4.1 คอลัมน์ "เลขที่" */
+.col-no {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 15 !important; /* ต้องอยู่เหนือข้อมูล แต่อยู่ใต้หัวตาราง */
+    background-color: #f8fafc !important; /* สีเทาอ่อนแยกจากข้อมูลปกติ */
+    width: 50px;
+    min-width: 50px;
+    max-width: 50px;
+}
+
+/* 4.2 คอลัมน์ "ชื่อ-สกุล" */
+.col-name {
+    position: sticky !important;
+    left: 50px !important; /* ต้องเท่ากับความกว้างของ col-no เป๊ะๆ */
+    z-index: 15 !important;
+    background-color: #f8fafc !important;
+    width: 220px;
+    min-width: 220px;
+    max-width: 220px;
+    text-align: left !important;
+    border-right: 2px solid #94a3b8 !important; /* เส้นหนาแบ่งเขตว่าถูกตรึงอยู่ */
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* 5. จุดตัดมุมซ้ายบน (เลขที่/ชื่อ ในแถบหัวตาราง) */
+thead .col-no, 
+thead .col-name {
+    z-index: 30 !important; /* Layer สูงสุด จะได้ไม่ถูกใครทับ */
+    background-color: #bae6fd !important; /* ฟ้าเข้มขึ้นนิดนึงให้ดูมีมิติ */
+}
+
+/* สีพิเศษสำหรับช่องสรุปผล */
+.table-summary { background-color: #fef9c3 !important; font-weight: bold; }
+
+
+/* =========================================
+   ส่วนที่ 2: สไตล์ UI (Tabs, Inputs, Selects)
+   ========================================= */
+
+/* สไตล์ Tabs */
+.tab-btn { padding: 12px 24px; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; transition: all 0.2s; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.tab-btn:hover { color: #007bff; background-color: #f8fafc; }
+.tab-btn.active { color: #007bff; border-bottom-color: #007bff; background-color: white; }
+.tab-content { display: none; }
+.tab-content.active { display: block; animation: fadeIn 0.3s ease-in-out; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Input ภายในตาราง (ช่องคะแนน) */
+input[type=number] { width: 50px; padding: 4px; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; transition: border-color 0.2s;}
+input[type=number]:focus { border-color: #007bff; box-shadow: 0 0 0 2px rgba(0,123,255,0.2); }
+input[type=number]::-webkit-inner-spin-button, 
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+/* Dropdown สถานะในตาราง */
+select.tiny-select { padding: 4px; border: 1px solid #cbd5e1; border-radius: 4px; font-weight: 500; transition: all 0.2s; cursor: pointer; outline: none;}
+select.tiny-select[data-val="มา"], select.tiny-select[data-val="1"] { color: #16a34a; background: #f0fdf4; border-color: #bbf7d0;}
+select.tiny-select[data-val="ป่วย"] { color: #2563eb; background: #eff6ff; border-color: #bfdbfe;} /* สีฟ้า */
+select.tiny-select[data-val="ลา"] { color: #ca8a04; background: #fefce8; border-color: #fef08a;} /* สีส้มเหลือง */
+select.tiny-select[data-val="ขาด"], select.tiny-select[data-val="0"] { color: #dc2626; background: #fef2f2; border-color: #fecaca;} /* สีแดง */
+
+/* =========================================
+   ส่วนที่ 3: ระบบพิมพ์เอกสาร PDF (Web to Print)
+   ========================================= */
+
+@media print {
+    /* ซ่อนทุกอย่างบนหน้าเว็บ */
+    body * { visibility: hidden; }
+    
+    /* แสดงเฉพาะพื้นที่ปริ้นท์ */
+    #print-area, #print-area * { visibility: visible; }
+    #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+
+    /* ตั้งค่าหน้ากระดาษ A4 แนวตั้ง */
+    @page { size: A4 portrait; margin: 12mm 10mm; }
+
+    /* ตัดหน้ากระดาษ */
+    .page-break { page-break-after: always; }
+
+    /* สไตล์ตารางสำหรับปริ้นท์ */
+    .print-table { width: 100%; border-collapse: collapse; font-size: 11pt; }
+    .print-table th, .print-table td { border: 1px solid #000; padding: 3px; text-align: center; }
+    .print-table th { background-color: #fff; font-weight: bold; }
+    
+    /* สไตล์สำหรับตารางที่ข้อมูลเยอะๆ (หน้า 3, 4) */
+    .print-table-small { font-size: 8.5pt; }
+    .print-table-small th, .print-table-small td { padding: 2px; }
+    
+    /* ข้อความแนวตั้ง (สำหรับหัวตาราง) */
+    .txt-vertical {
+        writing-mode: vertical-rl;
+        transform: rotate(180deg);
+        white-space: nowrap;
+        padding: 5px 0;
+    }
+    
+    /* ลบเงาและสีพื้นหลังที่ไม่จำเป็น */
+    * { background: transparent !important; box-shadow: none !important; color: #000 !important; }
+}
+
+/* คลาสสำหรับพื้นที่ปริ้นท์ (ซ่อนตอนใช้งานปกติ) */
+.print-area-container { display: none; }
+@media print { .print-area-container { display: block; } }
