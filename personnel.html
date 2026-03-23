@@ -119,6 +119,9 @@
         <div class="flex items-center gap-2">
             <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
             <span id="role-badge" class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl"></span>
+            <button id="btn-settings" onclick="openSettings()" class="hidden h-9 w-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200" title="ตั้งค่าระบบ">
+                <i class="fas fa-gear text-sm"></i>
+            </button>
             <button onclick="window.location.href='index.html'" class="h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200" title="กลับหน้าหลัก">
                 <i class="fas fa-house text-sm"></i>
             </button>
@@ -159,6 +162,54 @@
         </div>
     </div>
 
+    <!-- INFO BLOCKS: วิทยฐานะ / เกษียณ / ใบอนุญาต / PA ──────── -->
+    <div id="info-blocks-section" class="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
+
+        <!-- Block 1: วิทยฐานะ -->
+        <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+            <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white">
+                <i class="fas fa-graduation-cap"></i>
+                <h3 class="font-bold text-sm">จำนวนครูจำแนกตามวิทยฐานะ</h3>
+            </div>
+            <div id="block-academic" class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2 min-h-[80px]">
+                <div class="text-slate-400 text-sm col-span-full text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+            </div>
+        </div>
+
+        <!-- Block 2: ใกล้เกษียณ 10 ปี -->
+        <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+            <div class="px-5 py-4 bg-orange-500 flex items-center gap-2 text-white">
+                <i class="fas fa-user-clock"></i>
+                <h3 class="font-bold text-sm">10 คนใกล้เกษียณ (ภายใน 10 ปี)</h3>
+            </div>
+            <div id="block-retire" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+            </div>
+        </div>
+
+        <!-- Block 3: ใบอนุญาตใกล้หมด 3 เดือน -->
+        <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+            <div class="px-5 py-4 bg-red-500 flex items-center gap-2 text-white">
+                <i class="fas fa-id-card"></i>
+                <h3 class="font-bold text-sm">ใบอนุญาตหมดภายใน 3 เดือน</h3>
+            </div>
+            <div id="block-license" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+            </div>
+        </div>
+
+        <!-- Block 4: สิทธิ์ขอวิทยฐานะ -->
+        <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+            <div class="px-5 py-4 bg-green-600 flex items-center gap-2 text-white">
+                <i class="fas fa-medal"></i>
+                <h3 class="font-bold text-sm">ผู้มีสิทธิ์ขอยื่นวิทยฐานะ (ครบ 4 ปี)</h3>
+            </div>
+            <div id="block-eligible" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
+                <div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- TABLE CARD -->
     <div class="glass rounded-3xl shadow-xl overflow-hidden border border-white/80">
         <div class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
@@ -191,7 +242,6 @@
                         <th class="text-center">อายุ</th>
                         <th class="text-center">เกษียณ พ.ศ.</th>
                         <th class="text-center">อายุราชการ</th>
-                        <th class="text-center">PA</th>
                         <th class="text-center">ใบอนุญาต</th>
                         <th class="text-center">จัดการ</th>
                     </tr>
@@ -261,20 +311,48 @@
                     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
                         <!-- รูปภาพ -->
-                        <div class="flex flex-col items-center gap-4">
+                        <div class="flex flex-col items-center gap-3">
                             <div class="section-header w-full">
                                 <i class="fas fa-image"></i> รูปประจำตัว
                             </div>
-                            <div class="relative">
+
+                            <!-- Preview -->
+                            <div class="relative inline-block">
                                 <div id="avatar-display" class="avatar-ring">?</div>
-                                <label class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-9 w-9 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition">
-                                    <i class="fas fa-camera text-sm"></i>
+                                <!-- Badge แจ้งรอ upload -->
+                                <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                                    รอ Upload
+                                </div>
+                                <label class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition" title="อัปโหลดจากเครื่อง">
+                                    <i class="fas fa-camera text-xs"></i>
                                     <input type="file" id="inp-avatar" accept="image/*" class="hidden" onchange="previewAvatar(this)">
                                 </label>
                             </div>
-                            <p class="text-[10px] text-slate-400 text-center italic">JPG, PNG ขนาดไม่เกิน 1MB<br>ระบบจะ Resize อัตโนมัติ</p>
-                            <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition">
-                                <i class="fas fa-trash-alt mr-1"></i>ลบรูป
+
+                            <!-- URL / Google Drive link -->
+                            <div class="w-full space-y-1.5">
+                                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วางลิงค์รูปภาพ</p>
+                                <div class="flex gap-1.5">
+                                    <input type="text" id="inp-avatar-url"
+                                        placeholder="https://... หรือ Drive link"
+                                        class="field-input flex-1 text-xs min-w-0"
+                                        oninput="applyAvatarUrl(this.value)">
+                                    <button type="button" onclick="applyAvatarUrl(document.getElementById('inp-avatar-url').value)"
+                                        class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition" title="ใช้ลิงค์นี้">
+                                        <i class="fas fa-check text-xs"></i>
+                                    </button>
+                                </div>
+                                <p class="text-[9px] text-slate-400 italic leading-tight">รองรับ URL ตรง, Google Drive Share Link<br>หรืออัปโหลดไฟล์ผ่านปุ่มกล้อง</p>
+                            </div>
+
+                            <!-- Upload จะเกิดอัตโนมัติเมื่อกดบันทึกข้อมูล -->
+                            <p class="text-[9px] text-slate-400 italic text-center leading-tight">
+                                <i class="fas fa-info-circle text-indigo-400"></i>
+                                รูปจะอัปโหลดไป Google Drive<br>อัตโนมัติเมื่อกด "บันทึกข้อมูล"
+                            </p>
+
+                            <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1">
+                                <i class="fas fa-trash-alt"></i> ลบรูป
                             </button>
                         </div>
 
@@ -521,6 +599,72 @@
     </div>
 </div>
 
+<!-- ════ SETTINGS MODAL (Admin / Super Admin) ════ -->
+<div id="settings-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettings()"></div>
+    <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-xl overflow-hidden">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-700 text-white">
+            <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-gear"></i> ตั้งค่าระบบบุคลากร</h3>
+            <button onclick="closeSettings()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+
+            <!-- เปิด-ปิดระบบ -->
+            <div class="bg-slate-50 rounded-2xl p-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="font-bold text-slate-700 text-sm">สถานะระบบบุคลากร</p>
+                        <p class="text-xs text-slate-400">ปิดระบบเพื่อป้องกันการแก้ไขข้อมูลชั่วคราว</p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="set-sys-active" class="sr-only peer" onchange="saveSetting('is_active', this.checked)">
+                        <div class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Google Drive Folder ID -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fab fa-google-drive text-emerald-600"></i> Google Drive Folder ID (สำหรับรูปประจำตัว)
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" id="set-drive-folder-id" placeholder="เช่น 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74" class="field-input flex-1 text-sm">
+                    <button onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)"
+                        class="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0">
+                        <i class="fas fa-floppy-disk"></i> บันทึก
+                    </button>
+                </div>
+                <p class="text-[10px] text-slate-400">Folder ID อยู่ใน URL: drive.google.com/drive/folders/<b>FOLDER_ID</b></p>
+            </div>
+
+            <!-- OAuth Client ID -->
+            <div class="space-y-2">
+                <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <i class="fab fa-google text-blue-600"></i> Google OAuth Client ID
+                </label>
+                <div class="flex gap-2">
+                    <input type="text" id="set-oauth-client-id" placeholder="xxxx.apps.googleusercontent.com" class="field-input flex-1 text-sm">
+                    <button onclick="saveSetting('oauth_client_id', document.getElementById('set-oauth-client-id').value)"
+                        class="px-4 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0">
+                        <i class="fas fa-floppy-disk"></i> บันทึก
+                    </button>
+                </div>
+                <p class="text-[10px] text-slate-400">สร้างได้ที่ <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-500 underline">Google Cloud Console</a></p>
+            </div>
+
+            <!-- ค่าที่บันทึกอยู่ -->
+            <div id="settings-status" class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 hidden">
+                <p class="text-xs font-bold text-indigo-600 mb-2"><i class="fas fa-circle-info mr-1"></i> ค่าที่บันทึกในระบบ</p>
+                <div id="settings-status-content" class="text-xs text-indigo-700 space-y-1"></div>
+            </div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <button onclick="closeSettings()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
+        </div>
+    </div>
+</div>
+
 <!-- ════════════════════════════════════════════
      JAVASCRIPT
 ════════════════════════════════════════════ -->
@@ -597,6 +741,7 @@ window.onload = async () => {
         await loadCoreUsers();
         await loadPersonnelList();
         applyRoleUI();
+        await loadSettings(); // โหลด settings ไว้ใช้ทั่วระบบ
         renderPAInputs();
         initFlatpickr();
         updatePositionLogic();
@@ -608,6 +753,12 @@ function applyRoleUI(){
     // ปุ่มเพิ่มข้อมูล (admin ขึ้นไป)
     const btnAdd = document.getElementById('btn-add');
     if(btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
+    // ปุ่ม Settings เฉพาะ admin ขึ้นไป
+    const btnSettings = document.getElementById('btn-settings');
+    if(btnSettings) btnSettings.style.display = isAdmin() ? 'flex' : 'none';
+    // Info blocks เฉพาะ admin ขึ้นไป
+    const infoBlocks = document.getElementById('info-blocks-section');
+    if(infoBlocks) infoBlocks.classList.toggle('hidden', !isAdmin());
     // ปุ่ม Import/Template (admin ขึ้นไป)
     const btnImport = document.getElementById('btn-import');
     const btnTemplate = document.getElementById('btn-template');
@@ -625,6 +776,58 @@ function applyRoleUI(){
             sel.disabled = true;
         }
     }
+}
+
+/* ── Settings (Admin/SuperAdmin) ── */
+let sysSettings = {};
+
+async function loadSettings(){
+    const {data} = await db.from('core_system_modules').select('*').eq('module_id','personnel').single();
+    if(data){
+        sysSettings = data.settings || {};
+        document.getElementById('set-sys-active').checked = data.is_active !== false;
+        document.getElementById('set-drive-folder-id').value = sysSettings.drive_folder_id || '';
+        document.getElementById('set-oauth-client-id').value = sysSettings.oauth_client_id  || '';
+        // แสดง status
+        const lines = [];
+        if(sysSettings.drive_folder_id) lines.push(`<p>📁 Drive Folder ID: <code class="bg-white px-1 rounded">${sysSettings.drive_folder_id}</code></p>`);
+        if(sysSettings.oauth_client_id)  lines.push(`<p>🔑 OAuth Client ID: <code class="bg-white px-1 rounded">${sysSettings.oauth_client_id.slice(0,30)}...</code></p>`);
+        if(lines.length){
+            document.getElementById('settings-status').classList.remove('hidden');
+            document.getElementById('settings-status-content').innerHTML = lines.join('');
+        }
+        // เก็บ settings ไว้ใช้ทั่วไป
+        window._personnelSettings = sysSettings;
+    }
+}
+
+async function saveSetting(key, value){
+    const newSettings = { ...(sysSettings||{}), [key]: value };
+    const updates = key === 'is_active'
+        ? { is_active: value, updated_at: new Date().toISOString() }
+        : { settings: newSettings, updated_at: new Date().toISOString() };
+
+    const {error} = await db.from('core_system_modules').update(updates).eq('module_id','personnel');
+    if(error) return Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
+
+    if(key !== 'is_active') sysSettings = newSettings;
+    window._personnelSettings = sysSettings;
+
+    const Toast = Swal.mixin({ toast:true, position:'bottom-end', showConfirmButton:false, timer:2000, timerProgressBar:true });
+    Toast.fire({ icon:'success', title:`บันทึก ${key==='is_active'?'สถานะระบบ':key==='drive_folder_id'?'Folder ID':'OAuth Client ID'} สำเร็จ` });
+    await loadSettings();
+}
+
+function openSettings(){
+    const modal = document.getElementById('settings-modal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    loadSettings();
+}
+function closeSettings(){
+    const modal = document.getElementById('settings-modal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
 }
 
 async function handleLogout(){
@@ -649,7 +852,6 @@ function onNameSelect(){
     document.getElementById('modal-subtitle').textContent = name;
 }
 
-/* ── Flatpickr ──────────────── */
 /* ── Global helpers ── */
 function clearDate(displayId, isoId){
     const fp = document.querySelector('#'+displayId)?._flatpickr;
@@ -658,11 +860,11 @@ function clearDate(displayId, isoId){
     const h = document.getElementById(isoId);
     if(d) d.value = '';
     if(h) h.value = '';
-        updateRankCalc();
-    }
+    updateRankCalc();
+}
 
+/* ── Flatpickr ──────────────── */
 function initFlatpickr(){
-
     function updateFpYearDisplay(fp){
         const yearEl = fp.calendarContainer?.querySelector('.cur-year');
         if(yearEl) yearEl.value = parseInt(yearEl.value) + 543;
@@ -830,29 +1032,225 @@ function collectPA(){
 }
 
 /* ── Avatar Preview ─────────── */
+/* ── ฟังก์ชัน Google Drive URL helper ── */
+function parseDriveUrl(url){
+    if(!url||!url.trim()) return null;
+    url = url.trim();
+    // Google Drive share link: https://drive.google.com/file/d/FILE_ID/view
+    let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+    if(m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+    // Drive open link: https://drive.google.com/open?id=FILE_ID
+    m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if(m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+    // Drive uc link: https://drive.google.com/uc?id=FILE_ID
+    m = url.match(/\/uc\?.*id=([a-zA-Z0-9_-]+)/);
+    if(m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
+    // URL ตรงๆ (http/https)
+    if(url.startsWith('http')) return url;
+    return null;
+}
+
+function applyAvatarUrl(rawUrl){
+    const url = parseDriveUrl(rawUrl);
+    if(!url){ return; }
+    document.getElementById('inp-avatar-data').value = url;
+    document.getElementById('inp-avatar-url').value = rawUrl; // คืนค่าเดิม
+    const el = document.getElementById('avatar-display');
+    el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;"
+        onerror="this.parentElement.innerHTML=this.parentElement.dataset.init; Swal.fire('โหลดรูปไม่ได้','ลิงค์ไม่ถูกต้องหรือรูปเป็น Private','warning');">`;
+    el.style.background='';
+    document.getElementById('modal-avatar-display').innerHTML =
+        `<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+}
+
+// เก็บไฟล์รูปไว้ชั่วคราว (รอ upload ตอน save)
+let _pendingAvatarFile = null;
+
 function previewAvatar(input){
-    const file=input.files[0]; if(!file) return;
-    const reader=new FileReader();
-    reader.onload=e=>{
-        const img=new Image(); img.src=e.target.result;
-        img.onload=()=>{
-            const canvas=document.createElement('canvas');
-            const MAX=600; let sc=MAX/Math.max(img.width,img.height); if(sc>1)sc=1;
-            canvas.width=img.width*sc; canvas.height=img.height*sc;
+    const file = input.files[0]; if(!file) return;
+    _pendingAvatarFile = file; // เก็บไฟล์รอ upload
+
+    const reader = new FileReader();
+    reader.onload = e => {
+        const img = new Image(); img.src = e.target.result;
+        img.onload = () => {
+            // Resize เพื่อ preview เท่านั้น ไม่เก็บลง DB
+            const canvas = document.createElement('canvas');
+            const MAX = 600; let sc = MAX/Math.max(img.width,img.height); if(sc>1)sc=1;
+            canvas.width = img.width*sc; canvas.height = img.height*sc;
             canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
-            const url=canvas.toDataURL('image/jpeg',0.8);
-            document.getElementById('inp-avatar-data').value=url;
-            document.getElementById('avatar-display').innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;">`;
+            const previewUrl = canvas.toDataURL('image/jpeg',0.8);
+
+            // แสดง preview เท่านั้น — ยังไม่เขียนลง inp-avatar-data
+            document.getElementById('avatar-display').innerHTML=`<img src="${previewUrl}" style="width:100%;height:100%;object-fit:cover;">`;
             document.getElementById('avatar-display').style.background='';
-            document.getElementById('modal-avatar-display').innerHTML=`<img src="${url}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+            document.getElementById('modal-avatar-display').innerHTML=`<img src="${previewUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:12px;">`;
+            document.getElementById('inp-avatar-url').value='';
+            document.getElementById('inp-avatar-data').value=''; // ล้างค่าเก่า
+
+            // แสดง badge ว่ารอ upload
+            const badge = document.getElementById('avatar-upload-badge');
+            if(badge){ badge.classList.remove('hidden'); }
         };
     };
     reader.readAsDataURL(file);
 }
+
 function clearAvatar(){
     document.getElementById('inp-avatar-data').value='';
+    document.getElementById('inp-avatar-url').value='';
     const name = document.getElementById('inp-personnel-id').options[document.getElementById('inp-personnel-id').selectedIndex]?.text||'?';
     setAvatar('avatar-display', name, null);
+}
+
+
+/* ── License Check
+/* ── Upload Avatar to Google Drive ── */
+
+async function _googleSignIn(clientId){
+    if(!window.google?.accounts?.oauth2){
+        await new Promise(resolve => {
+            const s = document.createElement('script');
+            s.src = 'https://accounts.google.com/gsi/client';
+            s.onload = resolve;
+            document.head.appendChild(s);
+        });
+    }
+    const tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: (response) => {
+            if(response.access_token){
+                window._googleAccessToken = response.access_token;
+                Swal.fire({icon:'success', title:'ล็อกอิน Google สำเร็จ!', timer:1200, showConfirmButton:false});
+            } else {
+                Swal.fire('ยกเลิก','ไม่ได้ล็อกอิน Google','warning');
+            }
+        }
+    });
+    tokenClient.requestAccessToken();
+}
+
+/* ── Upload file to Google Drive ── */
+async function uploadFileToDrive(file, personId){
+    const settings = window._personnelSettings || {};
+    const folderId = settings.drive_folder_id;
+    const clientId = settings.oauth_client_id;
+
+    if(!folderId || !clientId){
+        Swal.fire({
+            icon:'info', title:'ยังไม่ตั้งค่า Google Drive',
+            html:`<p class="text-sm text-slate-600">กรุณาไปที่ <b>⚙️ ตั้งค่าระบบ</b> แล้วระบุ<br>
+                  <b>Folder ID</b> และ <b>OAuth Client ID</b> ก่อนอัปโหลดรูป</p>`,
+            confirmButtonText:'ไปตั้งค่า',
+            showCancelButton:true, cancelButtonText:'ยกเลิก'
+        }).then(r=>{ if(r.isConfirmed) openSettings(); });
+        return null;
+    }
+
+    // ขอ Google Access Token ถ้ายังไม่มี
+    let token = window._googleAccessToken;
+    if(!token){
+        token = await requestGoogleToken(clientId);
+        if(!token) return null;
+    }
+
+    Swal.fire({title:'กำลังอัปโหลดรูปไป Google Drive...', allowOutsideClick:false, showConfirmButton:false, didOpen:()=>Swal.showLoading()});
+    try{
+        // Resize ไฟล์ก่อน upload
+        const resizedBlob = await resizeImageBlob(file, 600);
+        const fileName = `avatar_${personId}_${Date.now()}.jpg`;
+
+        const form = new FormData();
+        form.append('metadata', new Blob([JSON.stringify({name:fileName, parents:[folderId]})], {type:'application/json'}));
+        form.append('file', resizedBlob, fileName);
+
+        const uploadRes = await fetch(
+            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+            { method:'POST', headers:{ Authorization:`Bearer ${token}` }, body:form }
+        );
+
+        if(uploadRes.status===401){
+            window._googleAccessToken = null;
+            token = await requestGoogleToken(clientId);
+            if(!token) throw new Error('Google authentication failed');
+            // retry
+            const retryForm = new FormData();
+            retryForm.append('metadata', new Blob([JSON.stringify({name:fileName, parents:[folderId]})], {type:'application/json'}));
+            retryForm.append('file', resizedBlob, fileName);
+            const retryRes = await fetch(
+                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
+                { method:'POST', headers:{ Authorization:`Bearer ${token}` }, body:retryForm }
+            );
+            if(!retryRes.ok) throw new Error((await retryRes.json()).error?.message||'Upload failed');
+            const retryData = await retryRes.json();
+            await setDrivePublic(retryData.id, token);
+            Swal.close();
+            return `https://drive.google.com/thumbnail?id=${retryData.id}&sz=w400`;
+        }
+
+        if(!uploadRes.ok) throw new Error((await uploadRes.json()).error?.message||'Upload failed');
+        const fileData = await uploadRes.json();
+        await setDrivePublic(fileData.id, token);
+        Swal.close();
+        return `https://drive.google.com/thumbnail?id=${fileData.id}&sz=w400`;
+
+    } catch(err){
+        Swal.close();
+        console.error('Drive upload error:', err);
+        return null;
+    }
+}
+
+async function setDrivePublic(fileId, token){
+    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+        method:'POST',
+        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
+        body: JSON.stringify({ role:'reader', type:'anyone' })
+    });
+}
+
+async function resizeImageBlob(file, maxSize){
+    return new Promise(resolve=>{
+        const reader = new FileReader();
+        reader.onload = e=>{
+            const img = new Image(); img.src = e.target.result;
+            img.onload = ()=>{
+                const canvas = document.createElement('canvas');
+                let sc = maxSize/Math.max(img.width,img.height); if(sc>1)sc=1;
+                canvas.width=img.width*sc; canvas.height=img.height*sc;
+                canvas.getContext('2d').drawImage(img,0,0,canvas.width,canvas.height);
+                canvas.toBlob(blob=>resolve(blob),'image/jpeg',0.85);
+            };
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+function requestGoogleToken(clientId){
+    return new Promise(resolve=>{
+        if(!window.google?.accounts?.oauth2){
+            const s=document.createElement('script');
+            s.src='https://accounts.google.com/gsi/client';
+            s.onload=()=>doRequestToken(clientId, resolve);
+            document.head.appendChild(s);
+        } else { doRequestToken(clientId, resolve); }
+    });
+}
+
+function doRequestToken(clientId, resolve){
+    const client = google.accounts.oauth2.initTokenClient({
+        client_id: clientId,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback(response){
+            if(response.access_token){
+                window._googleAccessToken = response.access_token;
+                resolve(response.access_token);
+            } else { resolve(null); }
+        },
+        error_callback(){ resolve(null); }
+    });
+    client.requestAccessToken({prompt:'consent'});
 }
 
 /* ── License Check ──────────── */
@@ -864,7 +1262,9 @@ function checkLicense(){
 
 /* ── Modal ──────────────────── */
 function resetHiddens(){
-    ['edit-id','inp-avatar-data','inp-birth-iso','inp-gov-start-iso','inp-appoint-iso','inp-license-exp-iso']
+    _pendingAvatarFile = null; // ล้างไฟล์รอ upload
+    const badge=document.getElementById('avatar-upload-badge'); if(badge) badge.classList.add('hidden');
+    ['edit-id','inp-avatar-data','inp-avatar-url','inp-birth-iso','inp-gov-start-iso','inp-appoint-iso','inp-license-exp-iso']
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
     ['out-age','out-retire','out-service-left','out-gov-service','out-pos-duration',
      'out-eligible','out-pa-countdown','out-license-status','inp-rank']
@@ -940,7 +1340,10 @@ function populateForm(p){
     updateRankCalc();
     setAvatar('avatar-display', p.first_name, p.avatar_url||null);
     setAvatar('modal-avatar-display', p.first_name, p.avatar_url||null);
-    if(p.avatar_url) document.getElementById('inp-avatar-data').value=p.avatar_url;
+    if(p.avatar_url){
+        document.getElementById('inp-avatar-data').value=p.avatar_url;
+        document.getElementById('inp-avatar-url').value=p.avatar_url;
+    }
     renderPAInputs(p.pa_docs||{});
 }
 
@@ -956,6 +1359,27 @@ async function savePersonnel(e){
         const targetId= editId||userId;
         if(!targetId) throw new Error('กรุณาเลือกชื่อบุคลากร');
         if(!canEditRecord(targetId)) throw new Error('คุณไม่มีสิทธิ์แก้ไขข้อมูลของบุคลากรท่านอื่น');
+
+        // ถ้ามีไฟล์รูปรอ upload → อัปโหลดไป Drive ก่อน
+        if(_pendingAvatarFile){
+            const driveUrl = await uploadFileToDrive(_pendingAvatarFile, targetId);
+            if(driveUrl){
+                document.getElementById('inp-avatar-data').value = driveUrl;
+                document.getElementById('inp-avatar-url').value = driveUrl;
+                _pendingAvatarFile = null;
+                const badge = document.getElementById('avatar-upload-badge');
+                if(badge) badge.classList.add('hidden');
+            } else {
+                // ถ้า upload ไม่สำเร็จ ถามว่าจะบันทึกแบบไม่มีรูปไหม
+                const r = await Swal.fire({
+                    title:'Upload รูปไม่สำเร็จ',
+                    html:'<p class="text-sm">อัปโหลดรูปไปยัง Google Drive ไม่สำเร็จ<br>ต้องการบันทึกข้อมูลโดยไม่มีรูปภาพหรือไม่?</p>',
+                    icon:'warning', showCancelButton:true,
+                    confirmButtonText:'บันทึกแบบไม่มีรูป', cancelButtonText:'ยกเลิก'
+                });
+                if(!r.isConfirmed){ btn.disabled=false; btn.innerHTML='<i class="fas fa-floppy-disk"></i> บันทึกข้อมูล'; return; }
+            }
+        }
 
         const payload={
             id:                 targetId,
@@ -1093,7 +1517,6 @@ async function loadPersonnelList(){
                 <td class="text-center text-sm">${ageY!=null?`${ageY} ปี`:'-'}</td>
                 <td class="text-center">${retireHtml}</td>
                 <td class="text-center">${govHtml}</td>
-                <td class="text-center">${paHtml}</td>
                 <td class="text-center">${licHtml}</td>
                 <td class="text-center">
                     <div class="flex items-center justify-center gap-1">
@@ -1113,7 +1536,7 @@ async function loadPersonnelList(){
     personnelTable=new DataTable('#personnelTable',{
         language:{url:'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'},
         responsive:true, scrollX:true, pageLength:25,
-        columnDefs:[{orderable:false,targets:[0,8]}],
+        columnDefs:[{orderable:false,targets:[0,7]}],
         layout:{topStart:'pageLength',topEnd:'search',bottomStart:'info',bottomEnd:'paging'}
     });
     updateDashboard(allPersonnelData);
@@ -1150,6 +1573,117 @@ function updateDashboard(data){
     document.getElementById('stat-eligible').textContent=eligible;
     document.getElementById('stat-pa-pass').textContent=paPass;
     document.getElementById('stat-pa-proc').textContent=paProc;
+    renderInfoBlocks(data);
+}
+
+/* ── Info Blocks ─────────────── */
+function renderInfoBlocks(data){
+    const today = dayjs();
+
+    // ── Block 1: วิทยฐานะ ──
+    const acadMap = {};
+    data.forEach(p=>{
+        const k = p.academic_standing || 'ไม่มีวิทยฐานะ';
+        acadMap[k] = (acadMap[k]||0) + 1;
+    });
+    const acadOrder = ['ไม่มีวิทยฐานะ','ครูผู้ช่วย','ครูชำนาญการ','ครูชำนาญการพิเศษ','ครูเชี่ยวชาญ','ครูเชี่ยวชาญพิเศษ',
+        'รองผู้อำนวยการชำนาญการ','รองผู้อำนวยการชำนาญการพิเศษ','ผู้อำนวยการชำนาญการพิเศษ'];
+    const acadColors = {
+        'ไม่มีวิทยฐานะ':'bg-slate-100 text-slate-600',
+        'ครูผู้ช่วย':'bg-sky-100 text-sky-700',
+        'ครูชำนาญการ':'bg-blue-100 text-blue-700',
+        'ครูชำนาญการพิเศษ':'bg-indigo-100 text-indigo-700',
+        'ครูเชี่ยวชาญ':'bg-violet-100 text-violet-700',
+        'ครูเชี่ยวชาญพิเศษ':'bg-purple-100 text-purple-700',
+        'รองผู้อำนวยการชำนาญการ':'bg-amber-100 text-amber-700',
+        'รองผู้อำนวยการชำนาญการพิเศษ':'bg-orange-100 text-orange-700',
+        'ผู้อำนวยการชำนาญการพิเศษ':'bg-rose-100 text-rose-700',
+    };
+    // เพิ่มรายการที่ไม่อยู่ใน order list
+    Object.keys(acadMap).forEach(k=>{ if(!acadOrder.includes(k)) acadOrder.push(k); });
+    const blockAcad = document.getElementById('block-academic');
+    blockAcad.innerHTML = acadOrder.filter(k=>acadMap[k]).map(k=>`
+        <div class="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2">
+            <span class="text-xs font-medium text-slate-600 truncate">${k}</span>
+            <span class="ml-2 flex-shrink-0 text-sm font-bold px-2.5 py-0.5 rounded-full ${acadColors[k]||'bg-slate-100 text-slate-600'}">${acadMap[k]}</span>
+        </div>`).join('') || '<p class="text-slate-400 text-sm text-center py-4 col-span-full">ไม่มีข้อมูล</p>';
+
+    // ── Block 2: ใกล้เกษียณภายใน 10 ปี ──
+    const retireList = data.filter(p=>{
+        if(!p.birth_date) return false;
+        const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
+        const yearsLeft = ry - today.year();
+        return yearsLeft>0 && yearsLeft<=10;
+    }).sort((a,b)=>{
+        const getRetire = p=>{ const bi=dayjs(p.birth_date); let ry=bi.year()+60; if(bi.month()>8)ry++; return ry; };
+        return getRetire(a)-getRetire(b);
+    }).slice(0,10);
+
+    const blockRetire = document.getElementById('block-retire');
+    blockRetire.innerHTML = retireList.length ? retireList.map(p=>{
+        const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
+        const yearsLeft = ry - today.year();
+        const urgency = yearsLeft<=3 ? 'text-red-600 font-bold' : yearsLeft<=5 ? 'text-orange-600 font-bold' : 'text-slate-500';
+        return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-700 truncate">${p.prefix||''}${p.first_name} ${p.last_name}</p>
+                    <p class="text-[10px] text-slate-400">${p.position||'-'} | ${p.department||'-'}</p>
+                </div>
+            </div>
+            <span class="flex-shrink-0 text-xs ${urgency} ml-2">พ.ศ. ${ry+543}<br><span class="font-normal">(อีก ${yearsLeft} ปี)</span></span>
+        </div>`;
+    }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ไม่มีผู้ใกล้เกษียณใน 10 ปี</p>';
+
+    // ── Block 3: ใบอนุญาตหมดภายใน 3 เดือน ──
+    const licList = data.filter(p=>{
+        if(!p.license_expiry) return false;
+        const dl = dayjs(p.license_expiry).diff(today,'day');
+        return dl>=0 && dl<=90;
+    }).sort((a,b)=>dayjs(a.license_expiry).diff(dayjs(b.license_expiry),'day'));
+
+    const blockLic = document.getElementById('block-license');
+    blockLic.innerHTML = licList.length ? licList.map(p=>{
+        const dl = dayjs(p.license_expiry).diff(today,'day');
+        const urgency = dl<=30 ? 'text-red-600 font-bold' : 'text-orange-600 font-bold';
+        const expStr = isoToBE(p.license_expiry);
+        return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-700 truncate">${p.prefix||''}${p.first_name} ${p.last_name}</p>
+                    <p class="text-[10px] text-slate-400">เลขที่: ${p.license_number||'-'}</p>
+                </div>
+            </div>
+            <span class="flex-shrink-0 text-xs ${urgency} ml-2 text-right">หมด ${expStr}<br><span class="font-normal">(เหลือ ${dl} วัน)</span></span>
+        </div>`;
+    }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ไม่มีใบอนุญาตหมดใน 3 เดือน</p>';
+
+    // ── Block 4: สิทธิ์ขอวิทยฐานะ (แต่งตั้งมาแล้ว ≥ 4 ปี ตำแหน่งครู วิทยฐานะยังไม่มี) ──
+    const eligList = data.filter(p=>{
+        if(!p.appointment_date) return false;
+        const posOk = ['ครู','ครูผู้ช่วย'].includes(p.position);
+        const acadOk = !p.academic_standing || p.academic_standing==='ไม่มีวิทยฐานะ';
+        const yearsIn = today.diff(dayjs(p.appointment_date),'year');
+        return posOk && acadOk && yearsIn>=4;
+    }).sort((a,b)=>dayjs(a.appointment_date).diff(dayjs(b.appointment_date),'day'));
+
+    const blockElig = document.getElementById('block-eligible');
+    blockElig.innerHTML = eligList.length ? eligList.map(p=>{
+        const yearsIn = today.diff(dayjs(p.appointment_date),'year');
+        const monthsIn = today.diff(dayjs(p.appointment_date).add(yearsIn,'year'),'month');
+        return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2.5 min-w-0">
+                <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>
+                <div class="min-w-0">
+                    <p class="text-sm font-semibold text-slate-700 truncate">${p.prefix||''}${p.first_name} ${p.last_name}</p>
+                    <p class="text-[10px] text-slate-400">${p.position||'-'} | ${p.department||'-'}</p>
+                </div>
+            </div>
+            <span class="flex-shrink-0 text-xs text-green-700 font-bold ml-2 text-right">ดำรงตำแหน่ง<br>${yearsIn} ปี ${monthsIn} เดือน</span>
+        </div>`;
+    }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ยังไม่มีผู้ครบคุณสมบัติ</p>';
 }
 
 /* ── EXPORT EXCEL ───────────── */
