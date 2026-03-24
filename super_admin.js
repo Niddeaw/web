@@ -142,6 +142,7 @@ const MASTER_MODULES = [
     { module_id: 'guidance',    module_name: 'ระบบ ปพ.5 - แนะแนว',         is_active: true },
     { module_id: 'homevisit',   module_name: 'ระบบเยี่ยมบ้านนักเรียน',     is_active: true },
     { module_id: 'personnel',   module_name: 'ระบบบริหารจัดการบุคลากร',    is_active: true },
+    { module_id: 'leave',       module_name: 'ระบบการลา',    is_active: true },
     { module_id: 'scholarship', module_name: 'ระบบทุนการศึกษา',            is_active: true },
     { module_id: 'sdq',         module_name: 'ระบบประเมิน SDQ',            is_active: true },
 ];
