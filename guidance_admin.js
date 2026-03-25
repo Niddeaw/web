@@ -57,28 +57,15 @@ async function checkAuth() {
         await loadSystemSettings();
         await loadMonitoringData();
 
+// ตรวจสอบสิทธิ์ว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด
         const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', session.user.id).single();
         if (isGui) {
-            addTeacherSwitchButton();
+            const btnAdmin = document.getElementById('btnAdminMode');
+            if (btnAdmin) btnAdmin.classList.remove('hidden');
         }
 
     } else {
         window.location.replace('index.html');
-    }
-}
-
-function addTeacherSwitchButton() {
-    const headerActions = document.querySelector('.flex.items-center.gap-2.md\\:gap-4');
-    if(headerActions && !document.getElementById('btnSwitchTeacher')) {
-        const btn = document.createElement('button');
-        btn.id = 'btnSwitchTeacher';
-        btn.className = 'bg-indigo-600 hover:bg-indigo-700 text-white px-3 md:px-4 py-1.5 rounded-lg text-sm font-bold flex items-center gap-2 transition-colors';
-        btn.innerHTML = '<i class="fa-solid fa-user-pen"></i> <span class="hidden md:inline">โหมดครูผู้สอน</span>';
-        btn.onclick = () => {
-            localStorage.setItem('activeMode', 'teacher');
-            window.location.replace('guidance_teacher.html');
-        };
-        headerActions.insertBefore(btn, headerActions.children[1]); 
     }
 }
 

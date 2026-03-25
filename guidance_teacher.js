@@ -48,30 +48,18 @@ async function checkAuth() {
         document.getElementById('dashboardMain').classList.remove('hidden');
         document.getElementById('dashboardMain').classList.add('flex');
         
-        await initDashboard(session.user.id, profile);
+await initDashboard(session.user.id, profile);
 
+        // แสดงปุ่มสลับโหมด ถ้าเป็น Admin
         if (isGuidanceAdmin) {
-            addAdminSwitchButton();
+            const btnAdmin = document.getElementById('btnAdminMode');
+            if (btnAdmin) btnAdmin.classList.remove('hidden');
         }
     } else { 
         window.location.replace('index.html'); 
     }
 }
-
-function addAdminSwitchButton() {
-    let headerRightMenu = document.querySelector('#dashboardView .flex.items-center.gap-2.mt-3');
-    if(headerRightMenu && !document.getElementById('btnSwitchAdmin')) {
-        const btn = document.createElement('button');
-        btn.id = 'btnSwitchAdmin';
-        btn.className = 'text-sm font-bold text-purple-700 hover:text-purple-800 transition-colors flex items-center gap-1.5 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-lg border border-purple-200';
-        btn.innerHTML = '<i class="fa-solid fa-user-shield"></i> <span class="hidden md:inline">โหมดแอดมิน</span>';
-        btn.onclick = () => {
-            localStorage.removeItem('activeMode');
-            window.location.replace('guidance_admin.html');
-        };
-        headerRightMenu.insertBefore(btn, headerRightMenu.firstChild);
-    }
-}
+// (ลบฟังก์ชัน addAdminSwitchButton ทิ้งไปได้เลยครับ)
 
 function handleLogout() {
     Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })

@@ -19,7 +19,7 @@ let moduleSettings = { check_only_weekdays: true, lock_future_dates: true, enfor
 
 let missingDatesList = [];
 let checkedDatesList = []; 
-let currentManagedGrades = []; // เก็บสิทธิ์ว่าดูแลระดับชั้นไหนบ้าง
+let currentManagedGrades = []; 
 
 const statusStyles = {
     'มา': { active: 'active-มา', inactive: 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 hover:shadow-md' },
@@ -60,17 +60,6 @@ async function checkAuth() {
     
     let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name}`;
 
-    if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
-        currentViewRole = 'admin';
-        $('#role-switch-btn').removeClass('hidden');
-        $('#admin-settings-btn').removeClass('hidden');
-        
-        if (actualUserRole === 'super_admin') {
-            $('#super-admin-section').removeClass('hidden');
-            loadAllTeachersForSelect();
-        }
-    }
-
     const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
     if (schoolInfo) {
         currentSchoolInfo = schoolInfo;
@@ -102,17 +91,43 @@ async function checkAuth() {
 
     let managedGrades = headInfo ? headInfo.map(h => h.grade_level) : [];
     
-    // 🟢 โค้ดที่ต้องแทรกเพิ่ม
     currentManagedGrades = managedGrades; 
     if (currentManagedGrades.length > 0) $('#btn-grade-overview').removeClass('hidden');
     else $('#btn-grade-overview').addClass('hidden');
-    // ----------------------
-
 
     if (managedGrades.length > 0) {
         userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ${managedGrades.join(', ')}</span>`;
     }
     $('#user-display').html(userDisplayText);
+
+    // 🌟 จัดการปุ่มสลับโหมดและสิทธิ์ Admin
+    if (actualUserRole === 'admin' || actualUserRole === 'super_admin' || managedGrades.length > 0) {
+        
+        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+            currentViewRole = 'admin';
+            $('#admin-settings-btn').removeClass('hidden').addClass('flex');
+            
+            if (actualUserRole === 'super_admin') {
+                $('#super-admin-section').removeClass('hidden');
+                loadAllTeachersForSelect();
+            }
+        } else {
+            currentViewRole = 'teacher'; 
+        }
+
+        const toggleBtn = document.getElementById('btnAdminMode');
+        if (toggleBtn) {
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.classList.add('flex');
+            if (currentViewRole === 'admin') {
+                toggleBtn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+                toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
+            } else {
+                toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
+                toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
+            }
+        }
+    }
 
     const { data: allClassrooms } = await db.from('core_classrooms')
         .select('*')
@@ -198,7 +213,6 @@ async function loadStudentList(classroomId) {
 
     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังดึงข้อมูล...</td></tr>');
 
-    // 🟢 ดึงข้อมูล student_id_card จากฐานข้อมูล
     const { data: enrollments } = await db.from('student_enrollments')
         .select(`student_id, student_number, core_students (prefix, first_name, last_name, student_id_card)`)
         .eq('classroom_id', classroomId).order('student_number', { ascending: true });
@@ -280,7 +294,6 @@ function renderTable(enrollments) {
         const currentStatus = attendanceData[item.student_id] || '';
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
         
-        // 🟢 ฝังค่า student_id_card ลงใน data-student-code เพื่อให้ PDF ดึงไปใช้
         const row = `
             <tr data-student-id="${item.student_id}" data-student-code="${std?.student_id_card || '-'}" class="hover:bg-blue-50/50 transition-colors border-b border-slate-50">
                 <td class="px-6 py-4 font-bold text-slate-400 text-center">${item.student_number}</td>
@@ -580,7 +593,6 @@ async function generatePDFReport() {
     $('#student-list tr[data-student-id]').each(function() {
         studentsList.push({
             no: $(this).find('td').eq(0).text().trim(),
-            // 🟢 ดึงข้อมูลจาก attribute data-student-code อย่างถูกต้อง
             studentCode: $(this).data('student-code'), 
             name: $(this).find('td').eq(1).text().replace(' (คลิกชื่อเพื่อดูประวัติ)', '').trim(),
             status: attendanceData[$(this).data('student-id')] || 'ยังไม่เช็ค'
@@ -805,16 +817,25 @@ async function saveAdminSettings() {
     }
 }
 
+// 🌟 ฟังก์ชันสลับโหมด (แค่เปลี่ยนหน้าตาปุ่ม เพราะสิทธิ์เข้าถึงห้องเรียนดึงไว้แล้ว)
 function toggleRoleView() {
+    const toggleBtn = document.getElementById('btnAdminMode');
+    
     if (currentViewRole === 'admin') {
         currentViewRole = 'teacher';
-        $('#current-role-text').text('มุมมอง: ครู');
-        $('#admin-settings-btn').addClass('hidden');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
+            toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
+        }
+        $('#admin-settings-btn').addClass('hidden').removeClass('flex');
         Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: 'เปลี่ยนเป็นมุมมองครู', showConfirmButton: false, timer: 1500 });
     } else {
         currentViewRole = 'admin';
-        $('#current-role-text').text('มุมมอง: Admin');
-        $('#admin-settings-btn').removeClass('hidden');
+        if (toggleBtn) {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+            toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
+        }
+        $('#admin-settings-btn').removeClass('hidden').addClass('flex');
         Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: 'เปลี่ยนเป็นมุมมอง Admin', showConfirmButton: false, timer: 1500 });
     }
 }
@@ -976,7 +997,6 @@ async function removeGradeHead(recordId) {
 // 🟢 ส่วนการทำงานของ "หัวหน้าระดับชั้น" (Dashboard ภาพรวม)
 // ==========================================
 
-// 🟢 อัปเดตฟังก์ชัน openGradeOverview (เวอร์ชันแก้ไข Data Type: ข้อความ ม.2 เทียบกับ ตัวเลข 2)
 async function openGradeOverview() {
     if (!currentManagedGrades || currentManagedGrades.length === 0) {
         Swal.fire('ไม่พบสิทธิ์', 'คุณไม่มีสิทธิ์เข้าถึงภาพรวมระดับชั้น', 'error');
@@ -991,7 +1011,6 @@ async function openGradeOverview() {
     $('#grade-overview-tbody').html('<tr><td colspan="8" class="py-10"><i class="fas fa-spinner fa-spin text-3xl text-purple-500"></i><p class="mt-2 text-slate-500 font-bold">กำลังประมวลผลข้อมูลระดับชั้น...</p></td></tr>');
 
     try {
-        // 1. ดึงห้องเรียนทั้งหมดของปี/เทอมปัจจุบัน
         const { data: allRooms, error: roomError } = await db.from('core_classrooms')
             .select('*')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -1001,20 +1020,15 @@ async function openGradeOverview() {
 
         if (roomError) throw roomError;
 
-        // 🟢 หัวใจสำคัญ: แปลงสิทธิ์จาก "ม.2" ให้เป็นตัวเลข "2" เพื่อให้ตรงกับฐานข้อมูล
         const managedNumbers = currentManagedGrades.map(g => {
-            const match = String(g).match(/\d+/); // ดึงเฉพาะตัวเลขออกมา
+            const match = String(g).match(/\d+/); 
             return match ? match[0] : null;
         }).filter(n => n !== null);
 
-        // 🟢 กรองห้องเรียน: เทียบเลขระดับชั้น
         const rooms = allRooms.filter(r => {
-            const roomGradeStr = String(r.grade_level); // แปลงเลข 2 เป็น "2"
+            const roomGradeStr = String(r.grade_level); 
             return managedNumbers.includes(roomGradeStr);
         });
-
-        console.log("Managed Numbers:", managedNumbers);
-        console.log("Filtered Rooms:", rooms);
 
         if (rooms.length === 0) {
             $('#grade-overview-tbody').html(`<tr><td colspan="8" class="py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในระดับที่ท่านดูแล<br><small>สิทธิ์: ${currentManagedGrades.join(', ')} | DB Grade: ${allRooms[0]?.grade_level || 'N/A'}</small></td></tr>`);
@@ -1023,7 +1037,6 @@ async function openGradeOverview() {
 
         const roomIds = rooms.map(r => r.id);
 
-        // 2. ดึงจำนวนนักเรียน และข้อมูลการเช็คชื่อ
         const [enrollRes, attendRes] = await Promise.all([
             db.from('student_enrollments').select('classroom_id').in('classroom_id', roomIds),
             db.from('homeroom_attendance').select('classroom_id, status').in('classroom_id', roomIds).eq('check_date', checkDate)
@@ -1041,7 +1054,6 @@ async function openGradeOverview() {
             }
         });
 
-        // 3. สร้าง HTML ตาราง (ใส่ "ม." กลับเข้าไปข้างหน้าเลขระดับชั้นเพื่อให้สวยงาม)
         let html = '';
         let gTotal = 0, gP = 0, gA = 0, gL = 0, gLe = 0, gS = 0;
 
@@ -1093,7 +1105,6 @@ function closeGradeOverview() {
     $('#grade-overview-modal').addClass('hidden');
 }
 
-// 🟢 --- ฟังก์ชันพิมพ์รายงานระดับชั้น (เวอร์ชันสมบูรณ์: สรุปรายชื่อต่อกัน และจัดหน้า 10-15 ห้อง) ---
 async function exportGradeOverviewPDF() {
     Swal.fire({ title: 'กำลังสร้างรายงาน...', text: 'กรุณารอซักครู่...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     
@@ -1107,7 +1118,6 @@ async function exportGradeOverviewPDF() {
     const headTeacherName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
 
     try {
-        // 1. ดึงห้องเรียนเฉพาะปี/เทอมปัจจุบัน
         const { data: allRooms } = await db.from('core_classrooms')
             .select('*')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -1123,7 +1133,6 @@ async function exportGradeOverviewPDF() {
         const targetRoomIds = targetRooms.map(r => r.id);
         const roomMap = {}; targetRooms.forEach(r => roomMap[r.id] = `ม.${r.grade_level}/${r.room_number}`);
 
-        // 2. ดึงข้อมูลนักเรียนและ Attendance
         const [enrollRes, attendRes] = await Promise.all([
             db.from('student_enrollments').select(`student_id, student_number, classroom_id, core_students(student_id_card, prefix, first_name, last_name)`).in('classroom_id', targetRoomIds),
             db.from('homeroom_attendance').select('student_id, classroom_id, status').in('classroom_id', targetRoomIds).eq('check_date', checkDate)
@@ -1132,7 +1141,6 @@ async function exportGradeOverviewPDF() {
         const students = enrollRes.data || [];
         const attendance = attendRes.data || [];
 
-        // แบ่งหน้าตารางสรุป (15 ห้องแรกหน้าเดียว / ถ้าเกินตัดทุก 10)
         const roomsPerPage = targetRooms.length > 15 ? 10 : 15;
         const roomChunks = [];
         for (let i = 0; i < targetRooms.length; i += roomsPerPage) {
@@ -1141,7 +1149,6 @@ async function exportGradeOverviewPDF() {
 
         let htmlContent = `<div style="font-family: 'Anuphan', sans-serif; color: #333; background: white;">`;
 
-        // 📄 ส่วนที่ 1: ตารางสรุปภาพรวมห้องเรียน
         let gTotal=0, gP=0, gA=0, gLa=0, gLe=0, gS=0;
         roomChunks.forEach((chunk, index) => {
             const isLastChunk = index === roomChunks.length - 1;
@@ -1219,7 +1226,6 @@ async function exportGradeOverviewPDF() {
             htmlContent += `</div>`;
         });
 
-        // 📄 ส่วนที่ 2: สรุปรายชื่อแยกประเภท (แสดงต่อเนื่องกันในหน้าใหม่)
         let exceptionHtml = '';
         const statuses = ['ขาด', 'สาย', 'ลา', 'ป่วย'];
         
