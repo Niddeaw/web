@@ -66,46 +66,6 @@
             style="animation-delay: 2s;"></div>
     </div>
 
-    <div id="loginView" class="hidden absolute inset-0 z-50 flex items-center justify-center p-4">
-        <div class="glass-panel p-10 rounded-3xl shadow-2xl w-full max-w-md text-center relative overflow-hidden">
-            <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-blue-600 to-indigo-600"></div>
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo"
-                class="w-24 h-24 mx-auto mb-4 object-contain drop-shadow-md">
-            <h2 class="text-2xl font-bold text-gray-800 mb-1">Central Portal</h2>
-            <p class="text-gray-500 mb-8 text-sm font-medium">เข้าสู่ระบบบริหารจัดการสถานศึกษา</p>
-
-            <form onsubmit="handleLogin(event)" class="space-y-5 text-left">
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">อีเมลผู้ใช้งาน</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i
-                                class="fa-solid fa-envelope text-gray-400"></i></div>
-                        <input type="email" id="email" required placeholder="name@wrk.ac.th"
-                            class="w-full pl-11 pr-4 py-3 rounded-xl border border-gray-200 bg-white/70 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-1">รหัสผ่าน</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i
-                                class="fa-solid fa-lock text-gray-400"></i></div>
-                        <input type="password" id="password" required placeholder="เลขประชาชน 13 หลัก"
-                            class="w-full pl-11 pr-12 py-3 rounded-xl border border-gray-200 bg-white/70 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none transition-all tracking-wider">
-                        <button type="button" onclick="togglePassword()"
-                            class="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-blue-600 outline-none transition-colors"><i
-                                id="eye-icon" class="fa-solid fa-eye"></i></button>
-                    </div>
-                </div>
-                <div class="pt-2">
-                    <button type="submit" id="loginBtn"
-                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 rounded-xl shadow-md transition-all flex justify-center items-center gap-2">
-                        <i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-
     <div id="portalView" class="hidden flex-1 flex flex-col z-10">
         <header
             class="glass-panel sticky top-0 z-20 px-6 py-4 shadow-sm border-b border-white/50 flex justify-between items-center">
@@ -185,10 +145,9 @@
         let activeModules = [];
         let userAdminModules = [];
 
-        // 🌟 1. เพิ่มตัวแปรเก็บสถานะว่าตอนนี้อยู่แท็บไหน (เริ่มต้นที่แท็บวิชาการ)
+        // ตัวแปรเก็บสถานะว่าตอนนี้อยู่แท็บไหน (เริ่มต้นที่แท็บวิชาการ)
         let currentCategory = 'academic';
 
-        // 🌟 2. อัปเดต ALL_APPS โดยใส่ property "category" ให้ครบทุกตัว
         const ALL_APPS = [
             // --- 📚 กลุ่มบริหารวิชาการ ---
             {
@@ -227,11 +186,11 @@
                 title: 'ระบบเช็คชื่อหน้าเสาธง', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา',
                 icon: 'fa-solid fa-clipboard-user', color: 'text-orange-500', bgIcon: 'bg-orange-100', url: 'attendance_teacher.html'
             },
-{
+            {
                 id: 'discipline', category: 'general', moduleId: 'behavior', 
                 title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, และออกใบเตือน', 
                 icon: 'fa-solid fa-gavel', color: 'text-red-500', bgIcon: 'bg-red-100', 
-                url: 'behavior_teacher.html' // เปลี่ยนตรงนี้
+                url: 'behavior_teacher.html' 
             },
             {
                 id: 'homevisit', category: 'general', moduleId: 'homevisit',
@@ -255,65 +214,37 @@
             document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         };
 
-        function togglePassword() {
-            const pwd = document.getElementById('password');
-            const icon = document.getElementById('eye-icon');
-            if (pwd.type === 'password') { pwd.type = 'text'; icon.className = 'fa-solid fa-eye-slash'; }
-            else { pwd.type = 'password'; icon.className = 'fa-solid fa-eye'; }
-        }
-
         async function checkAuth() {
-            const { data: { session } } = await db.auth.getSession();
-            if (session) {
-                document.getElementById('loginView').classList.add('hidden');
-                document.getElementById('portalView').classList.remove('hidden');
-
-                // โหลดข้อมูลโปรไฟล์
-                const { data: profile, error } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-
-                if (error || !profile) {
-                    await db.auth.signOut();
-                    Swal.fire('เซสชันไม่ถูกต้อง', 'ไม่พบข้อมูลบุคลากรในระบบ กรุณาล็อกอินใหม่อีกครั้ง', 'warning').then(() => {
-                        window.location.reload();
-                    });
-                    return;
-                }
-
-                currentUser = profile;
-
-                // โหลดข้อมูลสิทธิ์ Admin ระบบย่อย
-                const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
-                userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
-
-                // โหลดสถานะ เปิด-ปิด ระบบจากส่วนกลาง
-                const { data: sysMods } = await db.from('core_system_modules').select('module_id, is_active');
-                activeModules = sysMods || [];
-
-                updateUI();
-                renderAppCards();
-            } else {
-                document.getElementById('portalView').classList.add('hidden');
-                document.getElementById('loginView').classList.remove('hidden');
+            const { data: { session }, error } = await db.auth.getSession();
+            
+            // 🌟 เด้งไปหน้า login.html ถ้ายังไม่เข้าระบบ
+            if (error || !session) {
+                window.location.replace('login.html');
+                return;
             }
-        }
 
-        async function handleLogin(e) {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            const btn = document.getElementById('loginBtn');
+            document.getElementById('portalView').classList.remove('hidden');
 
-            btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังตรวจสอบ...';
-            btn.disabled = true;
+            const { data: profile, error: profileError } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
 
-            const { error } = await db.auth.signInWithPassword({ email, password });
-            if (error) {
-                Swal.fire('เข้าสู่ระบบล้มเหลว', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง', 'error');
-                btn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> เข้าสู่ระบบ';
-                btn.disabled = false;
-            } else {
-                checkAuth();
+            if (profileError || !profile) {
+                await db.auth.signOut();
+                Swal.fire('เซสชันไม่ถูกต้อง', 'ไม่พบข้อมูลบุคลากรในระบบ กรุณาล็อกอินใหม่อีกครั้ง', 'warning').then(() => {
+                    window.location.replace('login.html');
+                });
+                return;
             }
+
+            currentUser = profile;
+
+            const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
+            userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
+
+            const { data: sysMods } = await db.from('core_system_modules').select('module_id, is_active');
+            activeModules = sysMods || [];
+
+            updateUI();
+            renderAppCards();
         }
 
         function handleLogout() {
@@ -322,7 +253,7 @@
                     if (result.isConfirmed) {
                         localStorage.removeItem('activeMode');
                         await db.auth.signOut();
-                        window.location.reload();
+                        window.location.replace('login.html'); // 🌟 เด้งไปหน้า login
                     }
                 });
         }
@@ -334,7 +265,6 @@
             let roleText = 'ครูผู้สอน (Teacher)';
             if (currentUser.role === 'super_admin') {
                 roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
-                // 🌟 [เพิ่มใหม่] สั่งให้ปุ่มตั้งค่าส่วนกลางแสดงขึ้นมา
                 document.getElementById('btnSuperAdmin').classList.remove('hidden');
             }
             else if (currentUser.role === 'admin') {
@@ -344,27 +274,19 @@
             document.getElementById('userRole').innerText = roleText;
         }
 
-        // 🌟 3. เพิ่มฟังก์ชันสลับ Tab
         function switchMainTab(category, btnElement) {
             currentCategory = category;
-
-            // ล้างสีปุ่มทั้งหมด
             document.querySelectorAll('.main-tab-btn').forEach(btn => {
                 btn.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm";
             });
-
-            // ระบายสีปุ่มที่ถูกกด
             btnElement.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md";
-
-            renderAppCards(); // วาดการ์ดใหม่
+            renderAppCards(); 
         }
 
-        // 🌟 4. แก้ไขฟังก์ชัน renderAppCards ให้กรองตาม Category
         function renderAppCards() {
             const grid = document.getElementById('appGrid');
             grid.innerHTML = '';
 
-            // กรองเฉพาะแอปที่ตรงกับแท็บปัจจุบัน
             const appsToShow = ALL_APPS.filter(app => app.category === currentCategory);
 
             if (appsToShow.length === 0) {

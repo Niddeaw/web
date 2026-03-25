@@ -6,84 +6,65 @@
     <title>คะแนนของฉัน | WRK System</title>
     <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
     <style>body { font-family: 'Anuphan', sans-serif; }</style>
 </head>
 <body class="bg-blue-600 min-h-screen p-4 flex flex-col items-center">
     <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden mt-4">
-        <div class="p-6 text-center border-b border-slate-100">
+        <div class="p-6 text-center border-b border-slate-100 relative">
+            <button onclick="logout()" class="absolute top-4 right-4 text-slate-400 hover:text-red-500 bg-slate-50 p-2 rounded-full transition">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
             <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-16 mx-auto mb-3">
             <h2 id="display_name" class="text-xl font-bold text-slate-800">กำลังโหลด...</h2>
-            <p id="display_sid" class="text-sm text-slate-500"></p>
+            <p id="display_sid" class="text-sm text-slate-500 font-bold bg-slate-100 inline-block px-3 py-1 rounded-full mt-2"></p>
         </div>
-
-        <div class="p-8 bg-blue-50 text-center">
-            <p class="text-blue-600 text-sm font-bold mb-1 uppercase tracking-wider">คะแนนความประพฤติปัจจุบัน</p>
-            <h1 id="total_score" class="text-7xl font-black text-blue-700">--</h1>
+        <div class="p-6 bg-slate-50 text-center border-b border-slate-100">
+            <p class="text-sm text-slate-500 font-bold uppercase tracking-wider mb-2">คะแนนความประพฤติปัจจุบัน</p>
+            <h1 id="total_score" class="text-6xl font-black text-blue-600 drop-shadow-sm">--</h1>
         </div>
-
         <div class="p-6">
-            <h3 class="font-bold text-slate-700 mb-4 flex items-center">
-                <i class="fas fa-history mr-2 text-blue-500"></i> ประวัติการบันทึก
-            </h3>
-            <div id="history_list" class="space-y-4 max-h-80 overflow-y-auto pr-2">
-                </div>
-        </div>
-
-        <div class="p-4 bg-slate-50 text-center">
-            <button onclick="logout()" class="text-slate-400 text-xs hover:text-red-500 transition">
-                <i class="fas fa-sign-out-alt mr-1"></i> ออกจากระบบ
-            </button>
+            <h3 class="font-bold text-slate-800 mb-4 flex items-center"><i class="fas fa-history text-blue-500 mr-2"></i>ประวัติการบันทึก</h3>
+            <div id="history_list" class="space-y-3 max-h-80 overflow-y-auto pr-2">
+                <p class="text-center text-slate-400 text-sm py-4">กำลังดึงข้อมูล...</p>
+            </div>
         </div>
     </div>
 
     <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="config.js"></script>
     <script>
-        const studentId = localStorage.getItem('student_id');
-        if (!studentId) window.location.href = 'login_student.html';
+        $(document).ready(() => {
+            const stId = localStorage.getItem('student_id');
+            if(!stId) { window.location.href = 'login_student.html'; return; }
+            $('#display_name').text(localStorage.getItem('student_name'));
+            $('#display_sid').text('รหัส: ' + localStorage.getItem('student_sid'));
+            loadMyData(stId);
+        });
 
-        $(document).ready(() => loadStudentDashboard());
+        async function loadMyData(id) {
+            const { data, error } = await db.from('behavior_logs')
+                .select('*, behavior_criteria(title, category)')
+                .eq('student_id', id).order('created_at', {ascending: false});
 
-        async function loadStudentDashboard() {
-            // ดึงข้อมูลนักเรียนและ logs ทั้งหมด
-            const { data: student, error } = await supabase
-                .from('core_students')
-                .select(`
-                    first_name, last_name, student_id_card, prefix,
-                    behavior_logs ( 
-                        score_change, 
-                        description, 
-                        created_at, 
-                        behavior_criteria ( title, category ) 
-                    )
-                `)
-                .eq('id', studentId)
-                .single();
-
-            if (student) {
-                $('#display_name').text(`${student.prefix}${student.first_name} ${student.last_name}`);
-                $('#display_sid').text(`เลขประจำตัว: ${student.student_id_card}`);
-
+            if(!error) {
                 let score = 100;
                 let html = '';
-
-                if (student.behavior_logs.length > 0) {
-                    // เรียงจากใหม่ไปเก่า
-                    const sortedLogs = student.behavior_logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                    
-                    sortedLogs.forEach(log => {
+                
+                if(data && data.length > 0) {
+                    data.forEach(log => {
                         score += log.score_change;
                         const isPositive = log.score_change > 0;
                         html += `
-                            <div class="flex items-start gap-3 border-l-4 ${isPositive ? 'border-green-500' : 'border-red-500'} bg-slate-50 p-3 rounded-r-xl">
+                            <div class="flex items-start gap-3 border-l-4 ${isPositive ? 'border-green-500' : 'border-red-500'} bg-white shadow-sm border border-slate-100 p-3 rounded-r-xl">
                                 <div class="flex-1">
                                     <p class="text-sm font-bold text-slate-800">${log.behavior_criteria.title}</p>
                                     <p class="text-[11px] text-slate-500">${log.description || 'ไม่มีรายละเอียด'}</p>
                                     <p class="text-[10px] text-slate-400 mt-1">${new Date(log.created_at).toLocaleDateString('th-TH', {day:'numeric', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit'})} น.</p>
                                 </div>
-                                <div class="text-sm font-bold ${isPositive ? 'text-green-600' : 'text-red-600'}">
+                                <div class="text-sm font-black ${isPositive ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'} px-2 py-1 rounded-lg">
                                     ${isPositive ? '+' : ''}${log.score_change}
                                 </div>
                             </div>
@@ -94,13 +75,14 @@
                 }
 
                 $('#total_score').text(score);
+                $('#total_score').removeClass('text-blue-600').addClass(score < 50 ? 'text-red-600' : (score >= 100 ? 'text-green-600' : 'text-orange-500'));
                 $('#history_list').html(html);
             }
         }
 
         function logout() {
-            localStorage.clear();
-            window.location.href = 'login_student.html';
+            localStorage.removeItem('student_id'); localStorage.removeItem('student_name'); localStorage.removeItem('student_sid');
+            window.location.href = 'index.html';
         }
     </script>
 </body>

@@ -9,7 +9,7 @@
     <style>body { font-family: 'Anuphan', sans-serif; background: #f8fafc; }</style>
 </head>
 <body class="p-4 md:p-8 text-slate-800">
-    <div class="max-w-4xl mx-auto">
+    <div class="max-w-5xl mx-auto">
         <button onclick="history.back()" class="mb-4 text-slate-500 hover:text-blue-600 font-bold transition flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
             <i class="fas fa-arrow-left"></i> กลับหน้าก่อนหน้า
         </button>
@@ -36,24 +36,16 @@
                     <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
                         <i class="fa-solid fa-clock-rotate-left text-blue-500"></i> ประวัติการบันทึกทั้งหมด
                     </h3>
-                    <button onclick="exportSingleExcel()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-100 transition shadow-sm flex items-center gap-2">
-                        <i class="fas fa-file-excel"></i> ส่งออกข้อมูล
-                    </button>
                 </div>
 
                 <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 text-slate-600 border-b border-slate-100">
-                            <tr>
-                                <th class="p-4 font-bold">วันที่/เวลา</th>
-                                <th class="p-4 font-bold">รายการ</th>
-                                <th class="p-4 font-bold">รายละเอียด</th>
-                                <th class="p-4 text-center font-bold">คะแนน</th>
-                                <th class="p-4 font-bold">ผู้บันทึก</th>
-                            </tr>
+                            <tr id="table_headers">
+                                </tr>
                         </thead>
                         <tbody id="history_body" class="divide-y divide-slate-100">
-                            <tr><td colspan="5" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                            <tr><td colspan="7" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -61,44 +53,103 @@
         </div>
     </div>
 
+    <div id="editModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl">
+            <h2 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-pen mr-3 text-yellow-500"></i>แก้ไขรายการบันทึก</h2>
+            <div class="space-y-4">
+                <input type="hidden" id="edit_log_id">
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">รายการเกณฑ์</label>
+                    <select id="edit_criteria" onchange="updateEditScore()" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none bg-white focus:border-yellow-500 transition"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">คะแนน (ใส่เครื่องหมาย + หรือ - ให้ถูกต้อง)</label>
+                    <input type="number" id="edit_score" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none text-center font-bold text-lg focus:border-yellow-500 transition">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-gray-700 mb-1">รายละเอียดเพิ่มเติม</label>
+                    <textarea id="edit_desc" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-yellow-500 transition" rows="2"></textarea>
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeEditModal()" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600 hover:bg-gray-200 transition">ยกเลิก</button>
+                    <button onclick="saveEditLog()" class="flex-1 py-3 rounded-xl bg-yellow-500 text-white font-bold hover:bg-yellow-600 shadow-md transition">บันทึกการแก้ไข</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    
     <script src="config.js"></script>
     
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const stId = urlParams.get('id');
+        
         let currentLogs = [];
+        let criteriaList = [];
+        
+        let currentUserId = null; // ID ของคนที่ล็อกอินอยู่
+        let isSuperAdmin = false; // เช็คว่าเป็น Super Admin ไหม (มีสิทธิ์ลบ)
+        let isFullAdmin = false;  // เช็คว่าเป็น Admin (มองเห็นผู้บันทึกและหลักฐาน)
 
-        $(document).ready(() => {
+        $(document).ready(async () => {
             if(!stId) return history.back();
+            await checkRole();
+            await loadCriteria();
             loadHistory();
         });
 
-        async function loadHistory() {
-            // 🌟 เปลี่ยนจาก supabase เป็น db
-            const { data: student, error } = await db
-                .from('core_students')
-                .select(`
-                    *,
-                    behavior_logs (
-                        *,
-                        behavior_criteria ( title ),
-                        core_personnel ( first_name, last_name )
-                    ),
-                    student_enrollments ( core_classrooms ( grade_level, room_number ) )
-                `)
-                .eq('id', stId)
-                .single();
-
-            if (error) {
-                $('#st_name').text("เกิดข้อผิดพลาด");
-                $('#history_body').html(`<tr><td colspan="5" class="p-8 text-center text-red-500">${error.message}</td></tr>`);
-                return;
+        async function checkRole() {
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                currentUserId = session.user.id;
+                
+                const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+                if (profile && profile.role === 'super_admin') {
+                    isSuperAdmin = true;
+                    isFullAdmin = true;
+                }
+                
+                // ตรวจสอบสิทธิ์หัวหน้าระดับ (ดูข้อมูลได้ แต่ลบไม่ได้)
+                const { data: gh } = await db.from('behavior_grade_heads').select('id').eq('teacher_id', session.user.id).maybeSingle();
+                if (gh) isFullAdmin = true;
             }
+            
+            // วาดส่วนหัวของตาราง
+            let headers = `
+                <th class="p-4 font-bold">วันที่/เวลา</th>
+                <th class="p-4 font-bold">รายการ</th>
+                <th class="p-4 font-bold">รายละเอียด</th>
+                <th class="p-4 text-center font-bold">คะแนน</th>`;
+            
+            if (isFullAdmin) {
+                headers += `
+                <th class="p-4 font-bold text-center">หลักฐาน</th>
+                <th class="p-4 font-bold">ผู้บันทึก</th>`;
+            }
+            
+            if (currentUserId) {
+                headers += `<th class="p-4 font-bold text-center">จัดการ</th>`;
+            }
+            
+            $('#table_headers').html(headers);
+        }
+
+        async function loadCriteria() {
+            const { data } = await db.from('behavior_criteria').select('*');
+            if (data) criteriaList = data;
+        }
+
+        async function loadHistory() {
+            const { data: student, error } = await db.from('core_students').select(`
+                    *,
+                    behavior_logs ( *, behavior_criteria ( title, category ), core_personnel ( first_name, last_name ) ),
+                    student_enrollments ( core_classrooms ( grade_level, room_number ) )
+                `).eq('id', stId).single();
+
+            if (error) { $('#st_name').text("เกิดข้อผิดพลาด"); return; }
 
             if (student) {
                 $('#st_name').text(`${student.prefix || ''}${student.first_name} ${student.last_name}`);
@@ -114,45 +165,128 @@
 
                     currentLogs.forEach(log => {
                         total += log.score_change;
-                        html += `
-                            <tr class="hover:bg-slate-50 transition-colors">
+                        
+                        html += `<tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
                                 <td class="p-4 text-slate-500">${new Date(log.created_at).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</td>
                                 <td class="p-4 font-bold text-slate-700">${log.behavior_criteria?.title || '-'}</td>
                                 <td class="p-4 text-slate-500 text-xs">${log.description || '-'}</td>
                                 <td class="p-4 text-center font-black text-lg ${log.score_change > 0 ? 'text-green-600 bg-green-50/50' : 'text-red-600 bg-red-50/50'}">
                                     ${log.score_change > 0 ? '+' : ''}${log.score_change}
-                                </td>
-                                <td class="p-4 text-xs text-slate-500 font-medium">${log.core_personnel?.first_name || '-'}</td>
-                            </tr>
-                        `;
+                                </td>`;
+                                
+                        if (isFullAdmin) {
+                            html += `<td class="p-4 text-center text-xs">
+                                        ${log.evidence_url ? `<a href="${log.evidence_url}" target="_blank" class="text-blue-500 hover:text-blue-700 font-bold underline"><i class="fas fa-image"></i> ดูรูป</a>` : '<span class="text-slate-300">-</span>'}
+                                     </td>
+                                     <td class="p-4 text-xs text-slate-500 font-medium">${log.core_personnel?.first_name || '-'}</td>`;
+                        }
+                        
+                        // คอลัมน์จัดการ
+                        if (currentUserId) {
+                            let canEdit = isSuperAdmin || log.recorder_id === currentUserId; // ผู้บันทึก หรือ Super Admin แก้ได้
+                            let canDelete = isSuperAdmin; // เฉพาะ Super Admin ลบได้
+                            
+                            html += `<td class="p-4 text-center whitespace-nowrap">`;
+                            if (canEdit) {
+                                html += `<button onclick="openEditModal('${log.id}')" class="text-slate-400 hover:text-yellow-600 bg-slate-50 hover:bg-yellow-50 px-2 py-1 rounded-lg transition mr-1" title="แก้ไข"><i class="fas fa-pen"></i></button>`;
+                            }
+                            if (canDelete) {
+                                html += `<button onclick="deleteLog('${log.id}')" class="text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 px-2 py-1 rounded-lg transition" title="ลบ"><i class="fas fa-trash"></i></button>`;
+                            }
+                            if (!canEdit && !canDelete) {
+                                html += `<span class="text-slate-300 text-xs">-</span>`;
+                            }
+                            html += `</td>`;
+                        }
+                        html += `</tr>`;
                     });
                 }
 
                 $('#st_score').text(total);
-                $('#history_body').html(html || '<tr><td colspan="5" class="p-8 text-center text-slate-400">ไม่พบประวัติการบันทึกความประพฤติ</td></tr>');
+                let colSpan = 4;
+                if (isFullAdmin) colSpan += 2;
+                if (currentUserId) colSpan += 1;
+                $('#history_body').html(html || `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400">ไม่พบประวัติการบันทึกความประพฤติ</td></tr>`);
             }
         }
 
-        function exportSingleExcel() {
-            if (currentLogs.length === 0) {
-                alert('ไม่มีข้อมูลให้ส่งออก');
-                return;
-            }
-            const exportData = currentLogs.map(l => ({
-                'วันที่': new Date(l.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-                'รายการ': l.behavior_criteria?.title || '-',
-                'รายละเอียด': l.description || '-',
-                'คะแนน': l.score_change,
-                'ผู้บันทึก': l.core_personnel?.first_name || '-'
-            }));
-            const ws = XLSX.utils.json_to_sheet(exportData);
+        // ==========================================
+        // ระบบแก้ไขและลบข้อมูล
+        // ==========================================
+        function openEditModal(logId) {
+            const log = currentLogs.find(l => l.id === logId);
+            if (!log) return;
             
-            // ปรับความกว้างคอลัมน์ Excel ให้สวยงาม
-            ws['!cols'] = [{wch: 20}, {wch: 30}, {wch: 30}, {wch: 10}, {wch: 20}];
+            $('#edit_log_id').val(log.id);
+            
+            let html = '<option value="">-- เลือกรายการ --</option>';
+            criteriaList.forEach(c => {
+                const selected = c.id === log.criteria_id ? 'selected' : '';
+                html += `<option value="${c.id}" data-score="${c.category === 'negative' ? -c.default_score : c.default_score}" ${selected}>${c.title} (${c.category === 'negative' ? '-' : '+'}${c.default_score})</option>`;
+            });
+            
+            $('#edit_criteria').html(html);
+            $('#edit_score').val(log.score_change);
+            $('#edit_desc').val(log.description);
+            
+            $('#editModal').removeClass('hidden').addClass('flex');
+        }
 
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "History");
-            XLSX.writeFile(wb, `ประวัติคะแนน_${stId}.xlsx`);
+        function updateEditScore() {
+            $('#edit_score').val($('#edit_criteria option:selected').data('score'));
+        }
+
+        function closeEditModal() {
+            $('#editModal').addClass('hidden').removeClass('flex');
+        }
+
+        async function saveEditLog() {
+            const logId = $('#edit_log_id').val();
+            const criteriaId = $('#edit_criteria').val();
+            const score = parseInt($('#edit_score').val());
+            const desc = $('#edit_desc').val();
+            
+            if (!criteriaId || isNaN(score)) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
+            
+            Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+            
+            const { error } = await db.from('behavior_logs').update({
+                criteria_id: criteriaId,
+                score_change: score,
+                description: desc
+            }).eq('id', logId);
+            
+            if (!error) {
+                Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
+                closeEditModal();
+                loadHistory(); // โหลดตารางใหม่
+            } else {
+                Swal.fire('ผิดพลาด', error.message, 'error');
+            }
+        }
+
+        async function deleteLog(logId) {
+            const { isConfirmed } = await Swal.fire({
+                title: 'ยืนยันการลบ?',
+                text: 'หากลบแล้วจะไม่สามารถกู้คืนได้ และคะแนนรวมจะถูกคำนวณใหม่ทันที',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'ใช่, ลบเลย',
+                cancelButtonText: 'ยกเลิก'
+            });
+            
+            if (isConfirmed) {
+                Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                const { error } = await db.from('behavior_logs').delete().eq('id', logId);
+                
+                if (!error) {
+                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadHistory(); // โหลดตารางและคะแนนใหม่
+                } else {
+                    Swal.fire('ผิดพลาด', error.message, 'error');
+                }
+            }
         }
     </script>
 </body>

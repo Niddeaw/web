@@ -132,7 +132,7 @@
             font-family: 'Anuphan', sans-serif !important;
             font-size: .875rem !important;
             padding: .5rem !important;
-            z-index: 9999 !important; /* กันโดน Modal ทับ */
+            z-index: 9999 !important; 
         }
         .select2-search__field {
             border-radius: .5rem !important;
@@ -171,17 +171,25 @@
                 <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold hidden sm:block">ระบบบริหารจัดการบุคลากร</p>
             </div>
         </div>
-        <div class="flex items-center gap-2">
-            <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
-            <span id="role-badge" class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1.5 rounded-xl"></span>
-            <button id="btn-settings" onclick="openSettings()" class="hidden h-9 w-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200" title="ตั้งค่าระบบ">
-                <i class="fas fa-gear text-sm"></i>
+        
+        <div class="flex items-center gap-2 md:gap-3">
+            <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full"></span>
+            <span id="role-badge" class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm"></span>
+            
+            <button id="btn-settings" onclick="openSettings()" class="hidden h-10 px-3 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm" title="ตั้งค่าระบบ">
+                <i class="fas fa-gear sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">ตั้งค่า</span>
             </button>
-            <button onclick="window.location.href='index.html'" class="h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200" title="กลับหน้าหลัก">
+            
+            <button id="btnAdminMode" onclick="toggleRoleView()" class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm" title="สลับโหมด">
+                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+            </button>
+
+            <button onclick="window.location.href='index.html'" class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm" title="กลับหน้าหลัก">
                 <i class="fas fa-house text-sm"></i>
             </button>
-            <button onclick="handleLogout()" class="h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-100 transition border border-red-200" title="ออกจากระบบ">
-                <i class="fas fa-sign-out-alt text-sm"></i>
+
+            <button onclick="handleLogout()" class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm" title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
             </button>
         </div>
     </div>
