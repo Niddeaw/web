@@ -76,7 +76,6 @@ window.onload = async () => {
         await loadCoreUsers();
         await loadSettings(); 
 
-        // ตรวจสอบสิทธิ์แอดมินที่แท้จริง
         const localAdmins = window._personnelSettings?.local_admins || [];
         actualIsAdmin = (currentUser.role === 'admin' || currentUser.role === 'super_admin' || localAdmins.includes(currentUser.id));
         
@@ -164,7 +163,7 @@ function toggleRoleView() {
         Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: 'เปลี่ยนเป็นมุมมอง Admin', showConfirmButton: false, timer: 1500 });
     }
     applyRoleUI();
-    loadPersonnelList(); // รีโหลดตารางใหม่
+    loadPersonnelList();
 }
 
 /* ── Settings (Admin/SuperAdmin) ── */
@@ -176,10 +175,10 @@ async function loadSettings(){
         sysSettings = data.settings || {};
         document.getElementById('set-sys-active').checked = data.is_active !== false;
         document.getElementById('set-drive-folder-id').value = sysSettings.drive_folder_id || '';
-        document.getElementById('set-oauth-client-id').value = sysSettings.oauth_client_id  || '';
+        document.getElementById('set-gas-url').value = sysSettings.gas_url  || '';
         const lines = [];
         if(sysSettings.drive_folder_id) lines.push(`<p>📁 Drive Folder ID: <code class="bg-white px-1 rounded">${sysSettings.drive_folder_id}</code></p>`);
-        if(sysSettings.oauth_client_id)  lines.push(`<p>🔑 OAuth Client ID: <code class="bg-white px-1 rounded">${sysSettings.oauth_client_id.slice(0,30)}...</code></p>`);
+        if(sysSettings.gas_url)  lines.push(`<p>☁️ GAS URL: <code class="bg-white px-1 rounded">${sysSettings.gas_url.slice(0,30)}...</code></p>`);
         if(lines.length){
             document.getElementById('settings-status').classList.remove('hidden');
             document.getElementById('settings-status-content').innerHTML = lines.join('');
@@ -201,7 +200,7 @@ async function saveSetting(key, value){
     window._personnelSettings = sysSettings;
 
     const Toast = Swal.mixin({ toast:true, position:'bottom-end', showConfirmButton:false, timer:2000, timerProgressBar:true });
-    Toast.fire({ icon:'success', title:`บันทึก ${key==='is_active'?'สถานะระบบ':key==='drive_folder_id'?'Folder ID':key==='oauth_client_id'?'OAuth Client ID':'แอดมินระบบ'} สำเร็จ` });
+    Toast.fire({ icon:'success', title:`บันทึก ${key==='is_active'?'สถานะระบบ':key==='drive_folder_id'?'Folder ID':key==='gas_url'?'GAS URL':'แอดมินระบบ'} สำเร็จ` });
     await loadSettings();
 }
 
@@ -228,10 +227,7 @@ function renderLocalAdmins() {
     }
 
     if(sel) {
-        $(sel).select2({
-            width: '100%',
-            dropdownParent: $('#settings-modal')
-        });
+        $(sel).select2({ width: '100%', dropdownParent: $('#settings-modal') });
     }
 
     listEl.innerHTML = '';
@@ -286,10 +282,7 @@ async function loadCoreUsers(){
     sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
     (data||[]).forEach(u => sel.appendChild(new Option(`${u.prefix||''}${u.first_name} ${u.last_name}`, u.id)));
 
-    $('#inp-personnel-id').select2({
-        width: '100%',
-        dropdownParent: $('#modal-container') 
-    });
+    $('#inp-personnel-id').select2({ width: '100%', dropdownParent: $('#modal-container') });
 }
 
 function onNameSelect(){
@@ -317,28 +310,22 @@ function initFlatpickr(){
         const yearEl = fp.calendarContainer?.querySelector('.cur-year');
         if(yearEl) yearEl.value = parseInt(yearEl.value) + 543;
     }
-
     function makeCfg(hiddenId, displayId){
         return {
-            locale:'th',
-            dateFormat:'d/m/Y',
+            locale:'th', dateFormat:'d/m/Y',
             onChange(dates, str){
                 if(!dates[0]) return;
                 const dd = dates[0];
                 const ceY = dd.getFullYear(), ceM = dd.getMonth()+1, ceD = dd.getDate();
-                document.getElementById(hiddenId).value =
-                    `${ceY}-${String(ceM).padStart(2,'0')}-${String(ceD).padStart(2,'0')}`;
-                document.getElementById(displayId).value =
-                    `${String(ceD).padStart(2,'0')}/${String(ceM).padStart(2,'0')}/${ceY+543}`;
+                document.getElementById(hiddenId).value = `${ceY}-${String(ceM).padStart(2,'0')}-${String(ceD).padStart(2,'0')}`;
+                document.getElementById(displayId).value = `${String(ceD).padStart(2,'0')}/${String(ceM).padStart(2,'0')}/${ceY+543}`;
                 updateRankCalc();
             },
             onReady(dates, str, fp){ updateFpYearDisplay(fp); },
             onMonthChange(dates, str, fp){ updateFpYearDisplay(fp); },
             onYearChange(dates, str, fp){
                 const yearEl = fp.calendarContainer?.querySelector('.cur-year');
-                if(yearEl && parseInt(yearEl.value) < 2400){
-                    yearEl.value = parseInt(yearEl.value) + 543;
-                }
+                if(yearEl && parseInt(yearEl.value) < 2400){ yearEl.value = parseInt(yearEl.value) + 543; }
             }
         };
     }
@@ -357,14 +344,8 @@ function updatePositionLogic(){
     updateRankCalc();
 }
 
-function yearsDiff(isoDate){
-    if(!isoDate) return null;
-    return dayjs().diff(dayjs(isoDate),'year');
-}
-function monthsDiff(isoDate){
-    if(!isoDate) return null;
-    return dayjs().diff(dayjs(isoDate),'month') % 12;
-}
+function yearsDiff(isoDate){ if(!isoDate) return null; return dayjs().diff(dayjs(isoDate),'year'); }
+function monthsDiff(isoDate){ if(!isoDate) return null; return dayjs().diff(dayjs(isoDate),'month') % 12; }
 
 function updateRankCalc(){
     const pos  = document.getElementById('sel-pos').value;
@@ -552,103 +533,12 @@ function clearAvatar(){
     setAvatar('avatar-display', name, null);
 }
 
-/* ── Upload Avatar to Google Drive ── */
-async function _googleSignIn(clientId){
-    if(!window.google?.accounts?.oauth2){
-        await new Promise(resolve => {
-            const s = document.createElement('script');
-            s.src = 'https://accounts.google.com/gsi/client';
-            s.onload = resolve;
-            document.head.appendChild(s);
-        });
-    }
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback: (response) => {
-            if(response.access_token){
-                window._googleAccessToken = response.access_token;
-                Swal.fire({icon:'success', title:'ล็อกอิน Google สำเร็จ!', timer:1200, showConfirmButton:false});
-            } else {
-                Swal.fire('ยกเลิก','ไม่ได้ล็อกอิน Google','warning');
-            }
-        }
-    });
-    tokenClient.requestAccessToken();
-}
-
-async function uploadFileToDrive(file, personId){
-    const settings = window._personnelSettings || {};
-    const folderId = settings.drive_folder_id;
-    const clientId = settings.oauth_client_id;
-
-    if(!folderId || !clientId){
-        Swal.fire({
-            icon:'info', title:'ยังไม่ตั้งค่า Google Drive',
-            html:`<p class="text-sm text-slate-600">กรุณาไปที่ <b>⚙️ ตั้งค่าระบบ</b> แล้วระบุ<br>
-                  <b>Folder ID</b> และ <b>OAuth Client ID</b> ก่อนอัปโหลดรูป</p>`,
-            confirmButtonText:'ไปตั้งค่า',
-            showCancelButton:true, cancelButtonText:'ยกเลิก'
-        }).then(r=>{ if(r.isConfirmed) openSettings(); });
-        return null;
-    }
-
-    let token = window._googleAccessToken;
-    if(!token){
-        token = await requestGoogleToken(clientId);
-        if(!token) return null;
-    }
-
-    Swal.fire({title:'กำลังอัปโหลดรูปไป Google Drive...', allowOutsideClick:false, showConfirmButton:false, didOpen:()=>Swal.showLoading()});
-    try{
-        const resizedBlob = await resizeImageBlob(file, 600);
-        const fileName = `avatar_${personId}_${Date.now()}.jpg`;
-
-        const form = new FormData();
-        form.append('metadata', new Blob([JSON.stringify({name:fileName, parents:[folderId]})], {type:'application/json'}));
-        form.append('file', resizedBlob, fileName);
-
-        const uploadRes = await fetch(
-            'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
-            { method:'POST', headers:{ Authorization:`Bearer ${token}` }, body:form }
-        );
-
-        if(uploadRes.status===401){
-            window._googleAccessToken = null;
-            token = await requestGoogleToken(clientId);
-            if(!token) throw new Error('Google authentication failed');
-            const retryForm = new FormData();
-            retryForm.append('metadata', new Blob([JSON.stringify({name:fileName, parents:[folderId]})], {type:'application/json'}));
-            retryForm.append('file', resizedBlob, fileName);
-            const retryRes = await fetch(
-                'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink',
-                { method:'POST', headers:{ Authorization:`Bearer ${token}` }, body:retryForm }
-            );
-            if(!retryRes.ok) throw new Error((await retryRes.json()).error?.message||'Upload failed');
-            const retryData = await retryRes.json();
-            await setDrivePublic(retryData.id, token);
-            Swal.close();
-            return `https://drive.google.com/thumbnail?id=${retryData.id}&sz=w400`;
-        }
-
-        if(!uploadRes.ok) throw new Error((await uploadRes.json()).error?.message||'Upload failed');
-        const fileData = await uploadRes.json();
-        await setDrivePublic(fileData.id, token);
-        Swal.close();
-        return `https://drive.google.com/thumbnail?id=${fileData.id}&sz=w400`;
-
-    } catch(err){
-        Swal.close();
-        console.error('Drive upload error:', err);
-        return null;
-    }
-}
-
-async function setDrivePublic(fileId, token){
-    await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
-        method:'POST',
-        headers:{ Authorization:`Bearer ${token}`, 'Content-Type':'application/json' },
-        body: JSON.stringify({ role:'reader', type:'anyone' })
+/* ── Upload Avatar to Google Drive via GAS ── */
+function blobToBase64(blob) {
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.readAsDataURL(blob);
     });
 }
 
@@ -669,30 +559,56 @@ async function resizeImageBlob(file, maxSize){
     });
 }
 
-function requestGoogleToken(clientId){
-    return new Promise(resolve=>{
-        if(!window.google?.accounts?.oauth2){
-            const s=document.createElement('script');
-            s.src='https://accounts.google.com/gsi/client';
-            s.onload=()=>doRequestToken(clientId, resolve);
-            document.head.appendChild(s);
-        } else { doRequestToken(clientId, resolve); }
-    });
-}
+async function uploadFileToDrive(file, personId){
+    const settings = window._personnelSettings || {};
+    const folderId = settings.drive_folder_id;
+    const gasUrl = settings.gas_url;
 
-function doRequestToken(clientId, resolve){
-    const client = google.accounts.oauth2.initTokenClient({
-        client_id: clientId,
-        scope: 'https://www.googleapis.com/auth/drive.file',
-        callback(response){
-            if(response.access_token){
-                window._googleAccessToken = response.access_token;
-                resolve(response.access_token);
-            } else { resolve(null); }
-        },
-        error_callback(){ resolve(null); }
-    });
-    client.requestAccessToken({prompt:'consent'});
+    if(!folderId || !gasUrl){
+        Swal.fire({
+            icon:'info', title:'ยังไม่ตั้งค่าระบบอัปโหลด',
+            html:`<p class="text-sm text-slate-600">กรุณาไปที่ <b>⚙️ ตั้งค่าระบบ</b> แล้วระบุ<br>
+                  <b>Folder ID</b> และ <b>GAS URL</b> ก่อนอัปโหลดรูป</p>`,
+            confirmButtonText:'ไปตั้งค่า',
+            showCancelButton:true, cancelButtonText:'ยกเลิก'
+        }).then(r=>{ if(r.isConfirmed) openSettings(); });
+        return null;
+    }
+
+    Swal.fire({title:'กำลังย่อและอัปโหลดรูปไป Google Drive...', allowOutsideClick:false, showConfirmButton:false, didOpen:()=>Swal.showLoading()});
+    try{
+        const resizedBlob = await resizeImageBlob(file, 600);
+        const base64Data = await blobToBase64(resizedBlob);
+        const fileName = `avatar_${personId}_${Date.now()}.jpg`;
+
+        const response = await fetch(gasUrl, {
+            method: "POST",
+            body: JSON.stringify({
+                base64: base64Data,
+                fileName: fileName,
+                folderId: folderId
+            })
+        });
+        
+        const resData = await response.json();
+        if(resData.status === "success") {
+            Swal.close();
+            // ดึง File ID มาทำเป็น Thumbnail 
+            const match = resData.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+            const fileId = match ? match[1] : null;
+            if(fileId) {
+                return `https://drive.google.com/thumbnail?id=${fileId}&sz=w400`;
+            }
+            return resData.url;
+        } else {
+            throw new Error(resData.message);
+        }
+    } catch(err){
+        Swal.close();
+        console.error('Drive upload error:', err);
+        Swal.fire('อัปโหลดไม่สำเร็จ', 'ตรวจสอบการเชื่อมต่อ GAS หรือสิทธิ์โฟลเดอร์', 'error');
+        return null;
+    }
 }
 
 /* ── License Check ──────────── */
@@ -715,9 +631,7 @@ function resetHiddens(){
 
 function openModal(mode, data=null){
     document.getElementById('main-form').reset();
-    
     $('#inp-personnel-id').val('').trigger('change'); 
-
     resetHiddens();
     setAvatar('avatar-display','?',null);
     setAvatar('modal-avatar-display','?',null);
@@ -742,9 +656,7 @@ function isoToBE(iso){
     if(!iso) return '';
     const parts = String(iso).split('-');
     const storedYear = parseInt(parts[0]);
-    const correctedIso = storedYear >= 2300
-        ? `${storedYear - 543}-${parts[1]}-${parts[2]}`
-        : iso;
+    const correctedIso = storedYear >= 2300 ? `${storedYear - 543}-${parts[1]}-${parts[2]}` : iso;
     const d = dayjs(correctedIso);
     if(!d.isValid()) return '';
     return `${String(d.date()).padStart(2,'0')}/${String(d.month()+1).padStart(2,'0')}/${d.year()+543}`;
@@ -777,8 +689,7 @@ function populateForm(p){
         document.getElementById(isoId).value = ceIso;
         const fpEl = document.querySelector(`#${displayId}`)._flatpickr;
         if(fpEl){ fpEl.setDate(new Date(y, m-1, d, 12), false); }
-        document.getElementById(displayId).value =
-            `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y+543}`;
+        document.getElementById(displayId).value = `${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y+543}`;
     };
     setDate('inp-birth-iso','inp-birth',p.birth_date);
     setDate('inp-gov-start-iso','inp-gov-start',p.government_start_date);
@@ -894,7 +805,6 @@ async function loadPersonnelList(){
     tbody.innerHTML='';
     const today=dayjs(), cyBE=today.year()+543;
 
-    // เลือกข้อมูลมาวาดตาราง (ถ้าอยู่ในโหมดครู ให้วาดเฉพาะของตัวเอง)
     const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
 
     tableData.forEach(p=>{
@@ -909,9 +819,7 @@ async function loadPersonnelList(){
         if(p.birth_date){
             const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
             const rBE=ry+543;
-            retireHtml=rBE===cyBE
-                ?`<span class="badge badge-orange">⚠️ ${rBE}</span>`
-                :`<span class="text-slate-600 text-sm">${rBE}</span>`;
+            retireHtml=rBE===cyBE ?`<span class="badge badge-orange">⚠️ ${rBE}</span>` :`<span class="text-slate-600 text-sm">${rBE}</span>`;
         }
 
         let govHtml='<span class="text-slate-400 text-xs">-</span>';
@@ -921,9 +829,7 @@ async function loadPersonnelList(){
         }
 
         const paMap={'ผ่าน':'badge-blue','กำลังดำเนินการ':'badge-orange','ไม่ผ่าน':'badge-red','ยังไม่ดำเนินการ':'badge-gray'};
-        const paHtml=p.pa_status
-            ?`<span class="badge ${paMap[p.pa_status]||'badge-gray'}">${p.pa_status}</span>`
-            :`<span class="text-slate-300 text-xs">-</span>`;
+        const paHtml=p.pa_status ?`<span class="badge ${paMap[p.pa_status]||'badge-gray'}">${p.pa_status}</span>` :`<span class="text-slate-300 text-xs">-</span>`;
 
         let licHtml='<span class="text-slate-400 text-xs">-</span>';
         if(p.license_expiry){
@@ -938,10 +844,7 @@ async function loadPersonnelList(){
         personnelMap.set(p.id, p);
 
         const deleteBtnHtml = canDelete() 
-            ? `<button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g,"\\'")}')"
-                    class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ">
-                    <i class="fas fa-trash text-xs"></i>
-               </button>` 
+            ? `<button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g,"\\'")}')" class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ"><i class="fas fa-trash text-xs"></i></button>` 
             : '';
 
         tbody.insertAdjacentHTML('beforeend',`
@@ -967,10 +870,7 @@ async function loadPersonnelList(){
                 <td class="text-center">${licHtml}</td>
                 <td class="text-center">
                     <div class="flex items-center justify-center gap-1">
-                        <button onclick='editPersonnel("${p.id}")'
-                            class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข">
-                            <i class="fas fa-pen text-xs"></i>
-                        </button>
+                        <button onclick='editPersonnel("${p.id}")' class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
                         ${deleteBtnHtml}
                     </div>
                 </td>
@@ -1122,7 +1022,6 @@ function renderInfoBlocks(data){
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel(){
-    // คัดกรองข้อมูลก่อนส่งออก (ครูโหลดได้เฉพาะข้อมูลตัวเอง)
     const exportData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
     
     if(!exportData.length) return Swal.fire('ไม่มีข้อมูล','','info');
@@ -1190,10 +1089,7 @@ function downloadTemplate(){
     for(let r=0; r<totalRows; r++){
         dateCols.forEach(ci=>{
             const addr = XLSX.utils.encode_cell({r, c:ci});
-            if(ws[addr]){
-                ws[addr].t = 's'; 
-                ws[addr].z = '@'; 
-            }
+            if(ws[addr]){ ws[addr].t = 's'; ws[addr].z = '@'; }
         });
     }
 
@@ -1202,7 +1098,7 @@ function downloadTemplate(){
     XLSX.writeFile(wb,'WRK_Personnel_Template.xlsx');
 }
 
-/* ── processImportRows: shared logic สำหรับทั้ง Excel และ Google Sheets ── */
+/* ── processImportRows: shared logic ── */
 async function processImportRows(rows, foundHeaders){
     const pad2 = n => String(n).padStart(2,'0');
 

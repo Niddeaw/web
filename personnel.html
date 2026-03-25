@@ -225,7 +225,6 @@
     </div>
 
     <div id="info-blocks-section" class="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
-
         <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
             <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white">
                 <i class="fas fa-graduation-cap"></i>
@@ -331,21 +330,11 @@
         </div>
 
         <div class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0">
-            <button class="tab-pill active" onclick="switchTab('tab-personal', this)">
-                <i class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว
-            </button>
-            <button class="tab-pill" onclick="switchTab('tab-position', this)">
-                <i class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ
-            </button>
-            <button class="tab-pill" onclick="switchTab('tab-service', this)">
-                <i class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ
-            </button>
-            <button class="tab-pill" onclick="switchTab('tab-license', this)">
-                <i class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA
-            </button>
-            <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)">
-                <i class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3
-            </button>
+            <button class="tab-pill active" onclick="switchTab('tab-personal', this)"><i class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว</button>
+            <button class="tab-pill" onclick="switchTab('tab-position', this)"><i class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ</button>
+            <button class="tab-pill" onclick="switchTab('tab-service', this)"><i class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ</button>
+            <button class="tab-pill" onclick="switchTab('tab-license', this)"><i class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA</button>
+            <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)"><i class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
         </div>
 
         <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto">
@@ -357,61 +346,39 @@
             <input type="hidden" id="inp-license-exp-iso">
 
             <div class="p-6">
-
                 <div id="tab-personal" class="tab-panel active">
                     <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
-
                         <div class="flex flex-col items-center gap-3">
-                            <div class="section-header w-full">
-                                <i class="fas fa-image"></i> รูปประจำตัว
-                            </div>
-
+                            <div class="section-header w-full"><i class="fas fa-image"></i> รูปประจำตัว</div>
                             <div class="relative inline-block">
                                 <div id="avatar-display" class="avatar-ring">?</div>
-                                <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-                                    รอ Upload
-                                </div>
+                                <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">รอ Upload</div>
                                 <label class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition" title="อัปโหลดจากเครื่อง">
                                     <i class="fas fa-camera text-xs"></i>
                                     <input type="file" id="inp-avatar" accept="image/*" class="hidden" onchange="previewAvatar(this)">
                                 </label>
                             </div>
-
                             <div class="w-full space-y-1.5">
                                 <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วางลิงค์รูปภาพ</p>
                                 <div class="flex gap-1.5">
-                                    <input type="text" id="inp-avatar-url"
-                                        placeholder="https://... หรือ Drive link"
-                                        class="field-input flex-1 text-xs min-w-0"
-                                        oninput="applyAvatarUrl(this.value)">
-                                    <button type="button" onclick="applyAvatarUrl(document.getElementById('inp-avatar-url').value)"
-                                        class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition" title="ใช้ลิงค์นี้">
+                                    <input type="text" id="inp-avatar-url" placeholder="https://... หรือ Drive link" class="field-input flex-1 text-xs min-w-0" oninput="applyAvatarUrl(this.value)">
+                                    <button type="button" onclick="applyAvatarUrl(document.getElementById('inp-avatar-url').value)" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition" title="ใช้ลิงค์นี้">
                                         <i class="fas fa-check text-xs"></i>
                                     </button>
                                 </div>
                                 <p class="text-[9px] text-slate-400 italic leading-tight">รองรับ URL ตรง, Google Drive Share Link<br>หรืออัปโหลดไฟล์ผ่านปุ่มกล้อง</p>
                             </div>
-
                             <p class="text-[9px] text-slate-400 italic text-center leading-tight">
-                                <i class="fas fa-info-circle text-indigo-400"></i>
-                                รูปจะอัปโหลดไป Google Drive<br>อัตโนมัติเมื่อกด "บันทึกข้อมูล"
+                                <i class="fas fa-info-circle text-indigo-400"></i> รูปจะถูกย่อขนาดและอัปโหลดไป Google Drive<br>อัตโนมัติเมื่อกด "บันทึกข้อมูล"
                             </p>
-
-                            <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1">
-                                <i class="fas fa-trash-alt"></i> ลบรูป
-                            </button>
+                            <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1"><i class="fas fa-trash-alt"></i> ลบรูป</button>
                         </div>
-
                         <div class="lg:col-span-3 space-y-5">
-                            <div class="section-header">
-                                <i class="fas fa-address-card"></i> ข้อมูลพื้นฐาน
-                            </div>
+                            <div class="section-header"><i class="fas fa-address-card"></i> ข้อมูลพื้นฐาน</div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                 <div class="field-group sm:col-span-2 lg:col-span-2">
                                     <label class="field-label required">ชื่อ - สกุล (ดึงจากระบบกลาง)</label>
-                                    <select id="inp-personnel-id" required onchange="onNameSelect()" class="field-input">
-                                        <option value="">-- กรุณาเลือก --</option>
-                                    </select>
+                                    <select id="inp-personnel-id" required onchange="onNameSelect()" class="field-input"><option value="">-- กรุณาเลือก --</option></select>
                                 </div>
                                 <div class="field-group">
                                     <label class="field-label">เบอร์โทรศัพท์</label>
@@ -426,34 +393,16 @@
                                     <select id="sel-learning-area" class="field-input">
                                         <option value="">-- เลือกกลุ่มสาระฯ / หน่วยงาน --</option>
                                         <optgroup label="8 กลุ่มสาระการเรียนรู้">
-                                            <option>ภาษาไทย</option>
-                                            <option>คณิตศาสตร์</option>
-                                            <option>วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)</option>
-                                            <option>วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)</option>
-                                            <option>สังคมศึกษา ศาสนาและวัฒนธรรม</option>
-                                            <option>สุขศึกษาและพลศึกษา</option>
-                                            <option>ศิลปะ</option>
-                                            <option>การงานอาชีพ</option>
-                                            <option>ภาษาต่างประเทศ (ภาษาอังกฤษ)</option>
-                                            <option>ภาษาต่างประเทศ (ภาษาจีน)</option>
+                                            <option>ภาษาไทย</option><option>คณิตศาสตร์</option><option>วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)</option><option>วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)</option><option>สังคมศึกษา ศาสนาและวัฒนธรรม</option><option>สุขศึกษาและพลศึกษา</option><option>ศิลปะ</option><option>การงานอาชีพ</option><option>ภาษาต่างประเทศ (ภาษาอังกฤษ)</option><option>ภาษาต่างประเทศ (ภาษาจีน)</option>
                                         </optgroup>
                                         <optgroup label="กิจกรรมพัฒนาผู้เรียน">
-                                            <option>แนะแนว</option>
-                                            <option>กิจกรรมนักเรียน</option>
-                                            <option>กิจกรรมเพื่อสังคมและสาธารณประโยชน์</option>
+                                            <option>แนะแนว</option><option>กิจกรรมนักเรียน</option><option>กิจกรรมเพื่อสังคมและสาธารณประโยชน์</option>
                                         </optgroup>
                                         <optgroup label="ฝ่ายบริหาร / สนับสนุน">
-                                            <option>ผู้อำนวยการสถานศึกษา</option>
-                                            <option>รองผู้อำนวยการกลุ่มบริหารวิชาการ</option>
-                                            <option>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</option>
-                                            <option>รองผู้อำนวยการกลุ่มบริหารงานบุคคล</option>
-                                            <option>รองผู้อำนวยการกลุ่มบริหารทั่วไป</option>
-                                            <option>งานสนับสนุนการสอน</option>
+                                            <option>ผู้อำนวยการสถานศึกษา</option><option>รองผู้อำนวยการกลุ่มบริหารวิชาการ</option><option>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</option><option>รองผู้อำนวยการกลุ่มบริหารงานบุคคล</option><option>รองผู้อำนวยการกลุ่มบริหารทั่วไป</option><option>งานสนับสนุนการสอน</option>
                                         </optgroup>
                                         <optgroup label="เจ้าหน้าที่/พนักงาน/ลูกจ้าง">
-                                            <option>เจ้าหน้าที่สำนักงาน</option>
-                                            <option>พนักงานบริการ</option>
-                                            <option>ลูกจ้าง</option>
+                                            <option>เจ้าหน้าที่สำนักงาน</option><option>พนักงานบริการ</option><option>ลูกจ้าง</option>
                                         </optgroup>
                                     </select>
                                 </div>
@@ -468,12 +417,7 @@
                         <div class="field-group">
                             <label class="field-label required">ตำแหน่ง</label>
                             <select id="sel-pos" required onchange="updatePositionLogic()" class="field-input">
-                                <option value="ครูอัตราจ้าง">ครูอัตราจ้าง</option>
-                                <option value="พนักงานราชการ">พนักงานราชการ</option>
-                                <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
-                                <option value="ครู" selected>ครู</option>
-                                <option value="รองผู้อำนวยการสถานศึกษา">รองผู้อำนวยการสถานศึกษา</option>
-                                <option value="ผู้อำนวยการสถานศึกษา">ผู้อำนวยการสถานศึกษา</option>
+                                <option value="ครูอัตราจ้าง">ครูอัตราจ้าง</option><option value="พนักงานราชการ">พนักงานราชการ</option><option value="ครูผู้ช่วย">ครูผู้ช่วย</option><option value="ครู" selected>ครู</option><option value="รองผู้อำนวยการสถานศึกษา">รองผู้อำนวยการสถานศึกษา</option><option value="ผู้อำนวยการสถานศึกษา">ผู้อำนวยการสถานศึกษา</option>
                             </select>
                         </div>
                         <div class="field-group">
@@ -492,10 +436,7 @@
                             <label class="field-label">วันที่แต่งตั้งตำแหน่งปัจจุบัน</label>
                             <div class="flex gap-1.5 items-center">
                                 <input type="text" id="inp-appoint" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                <button type="button" onclick="clearDate('inp-appoint','inp-appoint-iso')"
-                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
-                                    <i class="fas fa-trash-can text-xs"></i>
-                                </button>
+                                <button type="button" onclick="clearDate('inp-appoint','inp-appoint-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                             </div>
                         </div>
                         <div class="field-group">
@@ -520,10 +461,7 @@
                             <label class="field-label">วันเดือนปีเกิด (พ.ศ.)</label>
                             <div class="flex gap-1.5 items-center">
                                 <input type="text" id="inp-birth" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                <button type="button" onclick="clearDate('inp-birth','inp-birth-iso')"
-                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
-                                    <i class="fas fa-trash-can text-xs"></i>
-                                </button>
+                                <button type="button" onclick="clearDate('inp-birth','inp-birth-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                             </div>
                         </div>
                         <div class="field-group">
@@ -542,10 +480,7 @@
                             <label class="field-label">วันบรรจุรับราชการ (พ.ศ.)</label>
                             <div class="flex gap-1.5 items-center">
                                 <input type="text" id="inp-gov-start" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                <button type="button" onclick="clearDate('inp-gov-start','inp-gov-start-iso')"
-                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
-                                    <i class="fas fa-trash-can text-xs"></i>
-                                </button>
+                                <button type="button" onclick="clearDate('inp-gov-start','inp-gov-start-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                             </div>
                         </div>
                         <div class="field-group">
@@ -564,21 +499,15 @@
                                     <label class="field-label">เลขที่ใบอนุญาต</label>
                                     <div class="flex gap-2">
                                         <input type="text" id="inp-license-number" placeholder="เช่น ค.12345" class="field-input">
-                                        <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP"
-                                            class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0">
-                                            <i class="fas fa-magnifying-glass text-sm"></i>
-                                        </button>
+                                        <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP" class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0"><i class="fas fa-magnifying-glass text-sm"></i></button>
                                     </div>
                                 </div>
                                 <div class="field-group">
                                     <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต (พ.ศ.)</label>
                                     <div class="flex gap-1.5 items-center">
-                                <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                <button type="button" onclick="clearDate('inp-license-exp','inp-license-exp-iso')"
-                                    class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่">
-                                    <i class="fas fa-trash-can text-xs"></i>
-                                </button>
-                            </div>
+                                        <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                        <button type="button" onclick="clearDate('inp-license-exp','inp-license-exp-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
+                                    </div>
                                 </div>
                                 <div class="field-group sm:col-span-2">
                                     <label class="field-label">สถานะใบอนุญาต (คำนวณ)</label>
@@ -592,11 +521,7 @@
                                 <div class="field-group sm:col-span-2">
                                     <label class="field-label">สถานะ PA ปัจจุบัน</label>
                                     <select id="sel-pa-status" class="field-input">
-                                        <option value="">-- เลือกสถานะ --</option>
-                                        <option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option>
-                                        <option value="กำลังดำเนินการ">กำลังดำเนินการ</option>
-                                        <option value="ผ่าน">ผ่าน</option>
-                                        <option value="ไม่ผ่าน">ไม่ผ่าน</option>
+                                        <option value="">-- เลือกสถานะ --</option><option value="ยังไม่ดำเนินการ">ยังไม่ดำเนินการ</option><option value="กำลังดำเนินการ">กำลังดำเนินการ</option><option value="ผ่าน">ผ่าน</option><option value="ไม่ผ่าน">ไม่ผ่าน</option>
                                     </select>
                                 </div>
                                 <div class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
@@ -617,17 +542,14 @@
                     <div id="pa-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
                 </div>
 
-            </div></form>
+            </div>
+        </form>
 
         <div class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
-            <div class="text-xs text-slate-400 flex items-center gap-1">
-                <i class="fas fa-circle-info"></i>
-                <span>ช่องที่มีเครื่องหมาย <span class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span>
-            </div>
+            <div class="text-xs text-slate-400 flex items-center gap-1"><i class="fas fa-circle-info"></i><span>ช่องที่มีเครื่องหมาย <span class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span></div>
             <div class="flex gap-3">
                 <button type="button" onclick="closeModal()" class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">ยกเลิก</button>
-                <button type="submit" form="main-form" id="btn-submit"
-                    class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2">
+                <button type="submit" form="main-form" id="btn-submit" class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2">
                     <i class="fas fa-floppy-disk"></i> บันทึกข้อมูล
                 </button>
             </div>
@@ -657,14 +579,14 @@
                 </div>
             </div>
 
-            <div class="space-y-2">
+            <div class="space-y-2 pt-4 border-t border-slate-100">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <i class="fab fa-google-drive text-emerald-600"></i> Google Drive Folder ID (สำหรับรูปประจำตัว)
+                    <i class="fab fa-google-drive text-emerald-600"></i> Google Drive Folder ID (ที่เก็บรูป)
                 </label>
                 <div class="flex gap-2">
                     <input type="text" id="set-drive-folder-id" placeholder="เช่น 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74" class="field-input flex-1 text-sm">
                     <button onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)"
-                        class="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0">
+                        class="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-emerald-200">
                         <i class="fas fa-floppy-disk"></i> บันทึก
                     </button>
                 </div>
@@ -673,16 +595,16 @@
 
             <div class="space-y-2">
                 <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                    <i class="fab fa-google text-blue-600"></i> Google OAuth Client ID
+                    <i class="fas fa-cloud-upload-alt text-blue-600"></i> Google Apps Script URL (Web App)
                 </label>
                 <div class="flex gap-2">
-                    <input type="text" id="set-oauth-client-id" placeholder="xxxx.apps.googleusercontent.com" class="field-input flex-1 text-sm">
-                    <button onclick="saveSetting('oauth_client_id', document.getElementById('set-oauth-client-id').value)"
-                        class="px-4 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0">
+                    <input type="text" id="set-gas-url" placeholder="https://script.google.com/macros/s/..." class="field-input flex-1 text-sm">
+                    <button onclick="saveSetting('gas_url', document.getElementById('set-gas-url').value)"
+                        class="px-4 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-blue-200">
                         <i class="fas fa-floppy-disk"></i> บันทึก
                     </button>
                 </div>
-                <p class="text-[10px] text-slate-400">สร้างได้ที่ <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="text-blue-500 underline">Google Cloud Console</a></p>
+                <p class="text-[10px] text-slate-400">นำ URL จากการ Deploy Web App ของ Google Apps Script มาใส่</p>
             </div>
 
             <div class="space-y-2 pt-4 border-t border-slate-100">
@@ -690,12 +612,8 @@
                     <i class="fas fa-user-shield text-purple-600"></i> กำหนดแอดมินจัดการระบบบุคลากร (เฉพาะระบบนี้)
                 </label>
                 <div class="flex gap-2">
-                    <select id="sel-add-local-admin" class="field-input flex-1 text-sm">
-                        <option value="">-- เลือกครู / บุคลากร --</option>
-                    </select>
-                    <button onclick="addLocalAdmin()" class="px-4 h-10 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-purple-200">
-                        <i class="fas fa-plus"></i> เพิ่ม
-                    </button>
+                    <select id="sel-add-local-admin" class="field-input flex-1 text-sm"><option value="">-- เลือกครู / บุคลากร --</option></select>
+                    <button onclick="addLocalAdmin()" class="px-4 h-10 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-purple-200"><i class="fas fa-plus"></i> เพิ่ม</button>
                 </div>
                 <div id="list-local-admins" class="mt-3 space-y-2 max-h-40 overflow-y-auto"></div>
             </div>

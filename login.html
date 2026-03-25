@@ -12,34 +12,121 @@
     
     <style>
         body {
-            font-family: 'Anuphan', sans-serif; background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-            min-height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden;
+            font-family: 'Anuphan', sans-serif;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            padding: 1.5rem; 
         }
+
         .container-auth {
-            position: relative; width: 100%; max-w: 900px; min-height: 550px; background-color: #fff;
-            border-radius: 2rem; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15); overflow: hidden;
+            position: relative;
+            width: 100%;
+            max-width: 900px; 
+            min-height: 550px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 2.5rem; 
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
         }
-        .form-container { position: absolute; top: 0; height: 100%; transition: all 0.6s ease-in-out; display: flex; flex-direction: column; justify-content: center; padding: 0 3rem; }
-        .teacher-container { left: 0; width: 50%; z-index: 2; }
-        .container-auth.right-panel-active .teacher-container { transform: translateX(100%); }
-        .student-container { left: 0; width: 50%; opacity: 0; z-index: 1; }
-        .container-auth.right-panel-active .student-container { transform: translateX(100%); opacity: 1; z-index: 5; animation: show 0.6s; }
-        @keyframes show { 0%, 49.99% { opacity: 0; z-index: 1; } 50%, 100% { opacity: 1; z-index: 5; } }
-        .overlay-container { position: absolute; top: 0; left: 50%; width: 50%; height: 100%; overflow: hidden; transition: transform 0.6s ease-in-out; z-index: 100; }
-        .container-auth.right-panel-active .overlay-container { transform: translateX(-100%); }
+
+        .form-container {
+            position: absolute;
+            top: 0;
+            height: 100%;
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            text-align: center;
+            padding: 0 4rem; 
+        }
+
+        .teacher-container {
+            left: 0;
+            width: 50%;
+            z-index: 2;
+        }
+        .container-auth.right-panel-active .teacher-container {
+            transform: translateX(100%);
+        }
+
+        .student-container {
+            left: 0;
+            width: 50%;
+            opacity: 0;
+            z-index: 1;
+        }
+        .container-auth.right-panel-active .student-container {
+            transform: translateX(100%);
+            opacity: 1;
+            z-index: 5;
+            animation: show 0.6s;
+        }
+
+        @keyframes show {
+            0%, 49.99% { opacity: 0; z-index: 1; }
+            50%, 100% { opacity: 1; z-index: 5; }
+        }
+
+        .overlay-container {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 50%;
+            height: 100%;
+            overflow: hidden;
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 100;
+        }
+        .container-auth.right-panel-active .overlay-container {
+            transform: translateX(-100%);
+        }
+
         .overlay {
-            background: linear-gradient(135deg, #2563eb, #4f46e5); background-repeat: no-repeat; background-size: cover;
-            background-position: 0 0; color: #FFFFFF; position: relative; left: -100%; height: 100%; width: 200%;
-            transform: translateX(0); transition: transform 0.6s ease-in-out;
+            background: linear-gradient(135deg, #1d4ed8, #4f46e5); 
+            background-repeat: no-repeat;
+            background-size: cover;
+            background-position: 0 0;
+            color: #FFFFFF;
+            position: relative;
+            left: -100%;
+            height: 100%;
+            width: 200%;
+            transform: translateX(0);
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        .container-auth.right-panel-active .overlay { transform: translateX(50%); }
-        .overlay-panel { position: absolute; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 0 40px; text-align: center; top: 0; height: 100%; width: 50%; transform: translateX(0); transition: transform 0.6s ease-in-out; }
+        .container-auth.right-panel-active .overlay {
+            transform: translateX(50%);
+        }
+
+        .overlay-panel {
+            position: absolute;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            padding: 0 40px;
+            text-align: center;
+            top: 0;
+            height: 100%;
+            width: 50%;
+            transform: translateX(0);
+            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
         .overlay-left { transform: translateX(-20%); }
         .container-auth.right-panel-active .overlay-left { transform: translateX(0); }
         .overlay-right { right: 0; transform: translateX(0); }
         .container-auth.right-panel-active .overlay-right { transform: translateX(20%); }
+
         @media (max-width: 768px) {
-            .container-auth { min-height: 100vh; border-radius: 0; }
+            .container-auth { min-height: 80vh; border-radius: 2rem; max-width: 100%; }
             .form-container { width: 100%; padding: 0 2rem; }
             .teacher-container { width: 100%; }
             .student-container { width: 100%; display: none; opacity: 1; }
@@ -55,29 +142,32 @@
         
         <div class="form-container student-container bg-white">
             <div class="text-center mb-6">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-16 mx-auto mb-3">
-                <h1 class="text-2xl font-bold text-blue-900">เช็คคะแนนของฉัน</h1>
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
+                <h1 class="text-2xl font-black text-blue-900 leading-tight">เช็คคะแนนของฉัน</h1>
                 <p class="text-slate-500 text-sm mt-1">เข้าสู่ระบบสำหรับนักเรียน</p>
             </div>
-            <div class="space-y-4">
+            
+            <div class="space-y-4 w-full max-w-sm mx-auto">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">เลขประจำตัวนักเรียน (5 หลัก)</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">เลขประจำตัวนักเรียน (5 หลัก)</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-user text-slate-400"></i></div>
                         <input type="text" id="s_id" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all text-sm" placeholder="ระบุเลขประจำตัว">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">เลขประจำตัวประชาชน (13 หลัก)</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">เลขประจำตัวประชาชน (13 หลัก)</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-id-card text-slate-400"></i></div>
                         <input type="password" id="s_idc" class="w-full pl-10 pr-12 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all text-sm" placeholder="ระบุรหัสผ่าน">
                         <button type="button" onclick="togglePwd('s_idc', 'eye_s')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-blue-600 outline-none"><i class="fas fa-eye" id="eye_s"></i></button>
                     </div>
                 </div>
-                <button onclick="handleStudentLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl mt-2 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
+                
+                <button onclick="handleStudentLogin()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl mt-3 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบนักเรียน
                 </button>
+                
                 <button onclick="document.getElementById('container').classList.remove('right-panel-active')" class="md:hidden w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl mt-2 transition-all text-sm">
                     กลับไปโหมดคุณครู
                 </button>
@@ -86,29 +176,32 @@
 
         <div class="form-container teacher-container bg-white">
             <div class="text-center mb-6">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-16 mx-auto mb-3">
-                <h1 class="text-2xl font-bold text-indigo-900">WRK System</h1>
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
+                <h1 class="text-2xl font-black text-indigo-900 leading-tight">WRK Portal</h1>
                 <p class="text-slate-500 text-sm mt-1">เข้าสู่ระบบบุคลากรทางการศึกษา</p>
             </div>
-            <div class="space-y-4">
+            
+            <div class="space-y-4 w-full max-w-sm mx-auto">
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">อีเมลผู้ใช้งาน (Email)</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">อีเมลผู้ใช้งาน (Email)</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-envelope text-slate-400"></i></div>
                         <input type="email" id="t_email" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 transition-all text-sm" placeholder="example@school.ac.th">
                     </div>
                 </div>
                 <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1">รหัสผ่าน (Password)</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">รหัสผ่าน (Password)</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-lock text-slate-400"></i></div>
                         <input type="password" id="t_pwd" class="w-full pl-10 pr-12 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 transition-all text-sm" placeholder="ระบุรหัสผ่าน">
                         <button type="button" onclick="togglePwd('t_pwd', 'eye_t')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-indigo-600 outline-none"><i class="fas fa-eye" id="eye_t"></i></button>
                     </div>
                 </div>
-                <button onclick="handleTeacherLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-2 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
+                
+                <button onclick="handleTeacherLogin()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-3 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบคุณครู
                 </button>
+
                 <button onclick="document.getElementById('container').classList.add('right-panel-active')" class="md:hidden w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl mt-2 transition-all text-sm">
                     นักเรียนเช็คคะแนน กดที่นี่
                 </button>
@@ -118,18 +211,19 @@
         <div class="overlay-container hidden md:block">
             <div class="overlay">
                 <div class="overlay-panel overlay-left">
-                    <i class="fas fa-chalkboard-teacher text-5xl mb-4 text-white/90"></i>
-                    <h1 class="text-3xl font-bold mb-2">บุคลากร/แอดมิน?</h1>
-                    <p class="text-sm font-medium text-blue-100 mb-6">กรุณาเข้าสู่ระบบในโหมดของคุณครู เพื่อจัดการข้อมูลระบบของโรงเรียน</p>
-                    <button class="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-bold py-2.5 px-8 rounded-full transition-colors" id="btn-show-teacher">
+                    <i class="fas fa-chalkboard-teacher text-5xl mb-5 text-white/90"></i>
+                    <h1 class="text-3xl font-black mb-3">บุคลากร/แอดมิน?</h1>
+                    <p class="text-sm font-medium text-blue-100 mb-8 max-w-[280px]">กรุณาเข้าสู่ระบบในโหมดของคุณครู เพื่อจัดการข้อมูลระบบของโรงเรียน</p>
+                    <button class="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-bold py-3 px-10 rounded-full transition-colors" id="btn-show-teacher">
                         สลับเป็นโหมดคุณครู
                     </button>
                 </div>
+                
                 <div class="overlay-panel overlay-right">
-                    <i class="fas fa-user-graduate text-5xl mb-4 text-white/90"></i>
-                    <h1 class="text-3xl font-bold mb-2">เช็คคะแนนพฤติกรรม?</h1>
-                    <p class="text-sm font-medium text-indigo-100 mb-6">สำหรับนักเรียน กดปุ่มด้านล่างเพื่อสลับไปยังหน้าเข้าสู่ระบบของนักเรียน</p>
-                    <button class="border-2 border-white text-white hover:bg-white hover:text-indigo-600 font-bold py-2.5 px-8 rounded-full transition-colors" id="btn-show-student">
+                    <i class="fas fa-user-graduate text-5xl mb-5 text-white/90"></i>
+                    <h1 class="text-3xl font-black mb-3">เช็คคะแนนพฤติกรรม?</h1>
+                    <p class="text-sm font-medium text-indigo-100 mb-8 max-w-[280px]">สำหรับนักเรียน กดปุ่มด้านล่างเพื่อสลับไปยังหน้าเข้าสู่ระบบของนักเรียน</p>
+                    <button class="border-2 border-white text-white hover:bg-white hover:text-indigo-600 font-bold py-3 px-10 rounded-full transition-colors" id="btn-show-student">
                         สลับเป็นโหมดนักเรียน
                     </button>
                 </div>
@@ -143,49 +237,64 @@
     <script src="config.js"></script>
     
     <script>
-        // ตรวจสอบถ้าเคยล็อกอินแล้ว ให้พุ่งไป index เลย
-        $(document).ready(async () => {
-            const { data: { session } } = await db.auth.getSession();
-            if (session) window.location.replace('index.html');
-        });
-
         const container = document.getElementById('container');
-        document.getElementById('btn-show-student').addEventListener('click', () => container.classList.add("right-panel-active"));
-        document.getElementById('btn-show-teacher').addEventListener('click', () => container.classList.remove("right-panel-active"));
+        document.getElementById('btn-show-student').addEventListener('click', () => {
+            container.classList.add("right-panel-active");
+        });
+        document.getElementById('btn-show-teacher').addEventListener('click', () => {
+            container.classList.remove("right-panel-active");
+        });
 
         function togglePwd(inputId, iconId) {
             const input = document.getElementById(inputId);
             const icon = document.getElementById(iconId);
             if (input.type === 'password') {
-                input.type = 'text'; icon.classList.replace('fa-eye', 'fa-eye-slash'); icon.classList.add('text-indigo-500');
+                input.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash', 'text-indigo-500');
             } else {
-                input.type = 'password'; icon.classList.replace('fa-eye-slash', 'fa-eye'); icon.classList.remove('text-indigo-500');
+                input.type = 'password';
+                icon.classList.remove('fa-eye-slash', 'text-indigo-500');
+                icon.classList.add('fa-eye');
             }
         }
 
+        // ==============================
+        // 🌟 ระบบ Login นักเรียน
+        // ==============================
         async function handleStudentLogin() {
             const sid = $('#s_id').val().trim();
             const idc = $('#s_idc').val().trim();
-            if(!sid || !idc) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบ', 'warning');
+            
+            if(!sid || !idc) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบทั้ง 2 ช่อง', 'warning');
 
             Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-            const { data, error } = await db.from('core_students').select('id, prefix, first_name, last_name').eq('student_id_card', sid).eq('national_id', idc).maybeSingle();
+            // 🌟 แก้ไขคอลัมน์ 13 หลักเป็น national_id ให้ตรงกับโครงสร้างฐานข้อมูล
+            const { data, error } = await db.from('core_students')
+                .select('id, prefix, first_name, last_name')
+                .eq('student_id_card', sid)
+                .eq('national_id', idc) 
+                .maybeSingle();
 
             if (data) {
                 localStorage.setItem('student_id', data.id);
                 localStorage.setItem('student_name', `${data.prefix || ''}${data.first_name} ${data.last_name}`);
                 localStorage.setItem('student_sid', sid);
-                window.location.replace('behavior_student.html'); 
+                window.location.href = 'behavior_student.html'; 
             } else {
-                Swal.fire('ไม่พบข้อมูล', 'รหัสนักเรียนหรือเลขประชาชนไม่ถูกต้อง', 'error');
+                Swal.fire('ไม่พบข้อมูล', 'รหัสนักเรียนหรือเลขประจำตัวประชาชนไม่ถูกต้อง', 'error');
             }
         }
 
+        // ==============================
+        // 🌟 ระบบ Login ครู/บุคลากร
+        // ==============================
         async function handleTeacherLogin() {
             const email = $('#t_email').val().trim();
             const password = $('#t_pwd').val().trim();
-            if (!email || !password) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบ', 'warning');
+
+            if (!email || !password) return Swal.fire('แจ้งเตือน', 'กรุณากรอกอีเมลและรหัสผ่านให้ครบ', 'warning');
 
             Swal.fire({ title: 'กำลังเข้าสู่ระบบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -195,7 +304,9 @@
                 Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง', 'error');
             } else {
                 Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
-                setTimeout(() => { window.location.replace('index.html'); }, 1000); // 🌟 เด้งไปหน้า Central Portal
+                setTimeout(() => {
+                    window.location.href = 'index.html'; 
+                }, 1000);
             }
         }
 
