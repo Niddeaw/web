@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ตั้งค่าเกณฑ์คะแนน | WRK System</title>
+    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    
+    <style>
+        body { font-family: 'Anuphan', sans-serif; background: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="p-4 md:p-6 min-h-screen text-slate-800">
+    <div class="max-w-5xl mx-auto">
+        
+        <div class="flex justify-between items-center mb-6 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i class="fas fa-cog text-blue-600"></i> ตั้งค่าเกณฑ์คะแนนความประพฤติ
+            </h2>
+            <button onclick="history.back()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold transition-colors">
+                <i class="fas fa-arrow-left mr-1"></i> ย้อนกลับ
+            </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <div class="glass p-6 rounded-3xl shadow-sm border border-slate-200 h-fit">
+                <h3 id="form_title" class="font-bold mb-4 text-blue-800 border-b pb-2"><i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มเกณฑ์ใหม่</h3>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-bold text-slate-600 mb-1">ชื่อรายการความประพฤติ</label>
+                        <input type="text" id="crit_title" class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 ring-blue-500 outline-none" placeholder="เช่น มาสาย, จิตอาสา">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-600 mb-1">ประเภท</label>
+                        <select id="crit_category" class="w-full border border-slate-300 rounded-xl p-2.5 outline-none bg-white">
+                            <option value="positive">เพิ่มคะแนน (ทำความดี)</option>
+                            <option value="negative">หักคะแนน (ผิดระเบียบ)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-slate-600 mb-1">คะแนนมาตรฐาน</label>
+                        <input type="number" id="crit_score" class="w-full border border-slate-300 rounded-xl p-2.5 outline-none" placeholder="5">
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button id="btn_save" onclick="saveCriteria()" class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-colors">
+                            บันทึกเกณฑ์
+                        </button>
+                        <button id="btn_cancel_edit" onclick="cancelEdit()" class="hidden flex-1 bg-gray-100 text-gray-600 py-2.5 rounded-xl font-bold hover:bg-gray-200 shadow-sm transition-colors border border-gray-200">
+                            ยกเลิก
+                        </button>
+                    </div>
+                </div>
+                
+                <h3 class="font-bold mt-8 mb-3 text-green-700 border-b pb-2"><i class="fas fa-file-excel mr-1"></i> จัดการด้วย Excel</h3>
+                
+                <div class="flex flex-col gap-2">
+                    <button onclick="downloadTemplate()" class="w-full border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 py-2.5 rounded-xl font-bold transition text-sm flex items-center justify-center gap-2">
+                        <i class="fas fa-download"></i> โหลดไฟล์ต้นแบบ (Template)
+                    </button>
+                    
+                    <input type="file" id="excel_file" accept=".xlsx, .xls" class="hidden" onchange="importExcel(this)">
+                    <button onclick="document.getElementById('excel_file').click()" class="w-full bg-emerald-600 text-white py-2.5 rounded-xl hover:bg-emerald-700 font-bold transition shadow-md text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-file-import"></i> นำเข้าเกณฑ์จาก Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="lg:col-span-2 glass p-6 rounded-3xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-4 border-b pb-2">
+                    <h3 class="font-bold text-slate-800"><i class="fa-solid fa-list-check mr-1"></i> รายการเกณฑ์ทั้งหมด</h3>
+                    <button onclick="exportCriteria()" class="text-sm bg-white border border-slate-300 text-slate-600 font-bold px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-1.5 shadow-sm">
+                        <i class="fas fa-file-export"></i> ส่งออก
+                    </button>
+                </div>
+                <div class="overflow-x-auto max-h-[600px]">
+                    <table class="w-full text-left border-collapse text-sm">
+                        <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                            <tr class="text-slate-600">
+                                <th class="p-3 font-bold">ชื่อรายการ</th>
+                                <th class="p-3 font-bold text-center">ประเภท</th>
+                                <th class="p-3 font-bold text-center w-20">คะแนน</th>
+                                <th class="p-3 font-bold text-center w-24">จัดการ</th> </tr>
+                        </thead>
+                        <tbody id="criteria_list" class="divide-y divide-slate-100 bg-white">
+                            <tr><td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลด...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="config.js"></script>
+    
+    <script>
+        let currentEditId = null; // 🌟 ตัวแปรเก็บสถานะการแก้ไข
+
+        $(document).ready(async () => {
+            await checkAuth();
+            await loadCriteria();
+        });
+
+        async function checkAuth() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) { history.back(); return; }
+
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+            const { data: moduleAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
+
+            if (profile.role !== 'super_admin' && !moduleAdmin) {
+                await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
+                history.back();
+            }
+        }
+
+        async function loadCriteria() {
+            const { data, error } = await db.from('behavior_criteria').select('*').order('created_at', {ascending: false});
+            
+            if (error) {
+                $('#criteria_list').html(`<tr><td colspan="4" class="text-center py-8 text-red-500">Error: ${error.message}</td></tr>`);
+                return;
+            }
+
+            let html = '';
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    const isPos = item.category === 'positive';
+                    const safeTitle = item.title.replace(/'/g, "\\'"); // ป้องกัน error ตัวอักษรพิเศษ
+                    html += `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="p-3 font-bold text-slate-700">${item.title}</td>
+                            <td class="p-3 text-center">
+                                <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${isPos ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}">
+                                    ${isPos ? 'ทำความดี' : 'ผิดระเบียบ'}
+                                </span>
+                            </td>
+                            <td class="p-3 text-center font-black ${isPos ? 'text-green-600' : 'text-red-600'} text-base">
+                                ${isPos ? '+' : '-'}${item.default_score}
+                            </td>
+                            <td class="p-3 text-center whitespace-nowrap">
+                                <button onclick="editCriteria('${item.id}', '${safeTitle}', '${item.category}', ${item.default_score})" class="text-slate-300 hover:text-yellow-600 hover:bg-yellow-50 p-2 rounded-lg transition-colors mr-1" title="แก้ไข"><i class="fas fa-pen"></i></button>
+                                <button onclick="deleteCriteria('${item.id}')" class="text-slate-300 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="ลบ"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>
+                    `;
+                });
+            } else {
+                html = '<tr><td colspan="4" class="text-center py-8 text-gray-400">ยังไม่มีรายการเกณฑ์ความประพฤติ</td></tr>';
+            }
+            $('#criteria_list').html(html);
+        }
+
+        // 🌟 ฟังก์ชันเมื่อกดปุ่มแก้ไข
+        function editCriteria(id, title, category, score) {
+            currentEditId = id;
+            $('#crit_title').val(title);
+            $('#crit_category').val(category);
+            $('#crit_score').val(score);
+            
+            // ปรับหน้าตา UI ฟอร์ม
+            $('#form_title').html('<i class="fa-solid fa-pen-to-square mr-1 text-yellow-500"></i> แก้ไขเกณฑ์').removeClass('text-blue-800').addClass('text-yellow-600');
+            $('#btn_save').text('อัปเดตเกณฑ์').removeClass('bg-blue-600 hover:bg-blue-700').addClass('bg-yellow-500 hover:bg-yellow-600');
+            $('#btn_cancel_edit').removeClass('hidden');
+            
+            // โฟกัสไปที่ช่องชื่อ
+            $('#crit_title').focus();
+        }
+
+        // 🌟 ฟังก์ชันเมื่อกดยกเลิกการแก้ไข
+        function cancelEdit() {
+            currentEditId = null;
+            $('#crit_title').val('');
+            $('#crit_score').val('');
+            $('#crit_category').val('positive');
+            
+            // คืนค่าหน้าตา UI ฟอร์มกลับเป็นโหมดเพิ่ม
+            $('#form_title').html('<i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มเกณฑ์ใหม่').removeClass('text-yellow-600').addClass('text-blue-800');
+            $('#btn_save').text('บันทึกเกณฑ์').removeClass('bg-yellow-500 hover:bg-yellow-600').addClass('bg-blue-600 hover:bg-blue-700');
+            $('#btn_cancel_edit').addClass('hidden');
+        }
+
+        async function saveCriteria() {
+            const payload = {
+                title: $('#crit_title').val().trim(),
+                category: $('#crit_category').val(),
+                default_score: parseInt($('#crit_score').val())
+            };
+
+            if(!payload.title || isNaN(payload.default_score)) {
+                return Swal.fire('แจ้งเตือน', 'กรุณากรอกชื่อรายการและคะแนนให้ครบถ้วน', 'warning');
+            }
+
+            Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+            if (currentEditId) {
+                // 🌟 โหมดอัปเดต (แก้ไข)
+                const { error } = await db.from('behavior_criteria').update(payload).eq('id', currentEditId);
+                if(!error) {
+                    Swal.fire({ icon: 'success', title: 'อัปเดตเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false });
+                    cancelEdit(); // ล้างฟอร์ม
+                    loadCriteria(); // โหลดตารางใหม่
+                } else {
+                    Swal.fire('ผิดพลาด', error.message, 'error');
+                }
+            } else {
+                // โหมดเพิ่มใหม่ (เดิม)
+                const { error } = await db.from('behavior_criteria').insert([payload]);
+                if(!error) {
+                    Swal.fire({ icon: 'success', title: 'เพิ่มเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false });
+                    cancelEdit(); // ล้างฟอร์ม
+                    loadCriteria(); // โหลดตารางใหม่
+                } else {
+                    Swal.fire('ผิดพลาด', error.message, 'error');
+                }
+            }
+        }
+
+        function downloadTemplate() {
+            const ws_data = [
+                ['title', 'category', 'default_score'],
+                ['มาโรงเรียนสาย', 'negative', 5],
+                ['ทะเลาะวิวาท', 'negative', 20],
+                ['เก็บของได้นำส่งคืน', 'positive', 10],
+                ['จิตอาสาช่วยเหลืองานโรงเรียน', 'positive', 15]
+            ];
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            ws['!cols'] = [{wch: 30}, {wch: 15}, {wch: 15}];
+            
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Criteria");
+            XLSX.writeFile(wb, "ต้นแบบ_นำเข้าเกณฑ์ความประพฤติ.xlsx");
+        }
+
+        async function importExcel(input) {
+            const file = input.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, {type: 'array'});
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet);
+
+                    if(rows.length === 0) throw new Error("ไม่พบข้อมูลในไฟล์ Excel");
+
+                    Swal.fire({ title: 'กำลังนำเข้า...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+                    const validRows = rows.filter(r => r.title && r.category && r.default_score).map(r => ({
+                        title: r.title.toString().trim(),
+                        category: r.category.toString().trim().toLowerCase(),
+                        default_score: parseInt(r.default_score)
+                    }));
+
+                    const { error } = await db.from('behavior_criteria').insert(validRows);
+                    
+                    if(!error) {
+                        Swal.fire({ icon: 'success', title: `นำเข้าสำเร็จ ${validRows.length} รายการ!`, timer: 1500, showConfirmButton: false });
+                        loadCriteria();
+                    } else {
+                        throw error;
+                    }
+                } catch (err) {
+                    Swal.fire('ผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error');
+                }
+                input.value = ''; 
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        async function deleteCriteria(id) {
+            const { isConfirmed } = await Swal.fire({
+                title: 'ยืนยันการลบ?',
+                html: "ข้อมูลบันทึกความประพฤติเก่าที่อ้างอิงเกณฑ์นี้ <br><b class='text-red-500'>จะถูกลบไปด้วย (เพื่อความถูกต้องของฐานข้อมูล)</b>",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'ลบข้อมูล'
+            });
+
+            if(isConfirmed) {
+                Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                const { error } = await db.from('behavior_criteria').delete().eq('id', id);
+                if(!error) {
+                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadCriteria();
+                } else {
+                    Swal.fire('ผิดพลาด', error.message, 'error');
+                }
+            }
+        }
+
+        async function exportCriteria() {
+            const { data } = await db.from('behavior_criteria').select('title, category, default_score');
+            if(!data || data.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
+            
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Criteria");
+            XLSX.writeFile(wb, "รายการเกณฑ์ความประพฤติ.xlsx");
+        }
+    </script>
+</body>
+</html>

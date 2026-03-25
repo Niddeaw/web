@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ครูที่ปรึกษา | ระบบงานปกครอง</title>
+    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.tailwindcss.css">
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="config.js"></script>
+
+    <style>
+        body { font-family: 'Anuphan', sans-serif; background-color: #f8fafc; }
+        .glass { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.4); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+        
+        /* ปรับสไตล์ตารางให้เข้ากับ Glassmorphism */
+        div.dt-container { color: #475569 !important; }
+        div.dt-container .dt-search input, div.dt-container .dt-length select {
+            background-color: rgba(255,255,255,0.8) !important; color: #334155 !important; border: 1px solid #e2e8f0 !important; border-radius: 0.75rem !important; padding: 0.5rem 1rem !important; outline: none !important;
+        }
+        div.dt-container .dt-search input:focus { border-color: #ef4444 !important; box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15) !important; }
+        table.dataTable { border-bottom: none !important; background: transparent !important; }
+        table.dataTable > thead > tr > th { background-color: #fef2f2 !important; color: #991b1b !important; border-bottom: 2px solid #fecaca !important; font-weight: 700 !important; }
+        table.dataTable > tbody > tr > td { box-shadow: none !important; background-color: rgba(255,255,255,0.6) !important; color: #334155 !important; border-bottom: 1px solid #f8fafc !important; }
+        table.dataTable.display > tbody > tr:hover > td { background-color: #fef2f2 !important; }
+        div.dt-container .dt-paging .dt-paging-button.current { background-color: #dc2626 !important; color: #ffffff !important; border: none !important; border-radius: 0.5rem !important;}
+        
+        /* บังคับฟอนต์ให้ SweetAlert */
+        .swal2-popup { font-family: 'Anuphan', sans-serif !important; border-radius: 1.5rem !important; }
+        /* 🌟 บังคับธีมสว่าง (Light Theme) ให้ DataTables ป้องกันการตีกับ Dark Mode ของเครื่อง */
+        div.dt-container { color: #475569 !important; }
+        div.dt-container .dt-search input,
+        div.dt-container .dt-length select {
+            background-color: #ffffff !important;
+            color: #374151 !important;
+            border: 1px solid #d1d5db !important;
+            border-radius: 0.5rem !important;
+            padding: 0.375rem 0.75rem !important;
+            outline: none !important;
+        }
+        div.dt-container .dt-search input:focus,
+        div.dt-container .dt-length select:focus {
+            border-color: #3b82f6 !important;
+            box-shadow: 0 0 0 1px #3b82f6 !important;
+        }
+        table.dataTable { border-bottom: none !important; }
+        table.dataTable > thead > tr > th {
+            background-color: #f1f5f9 !important;
+            color: #64748b !important;
+            border-bottom: 2px solid #e2e8f0 !important;
+        }
+        table.dataTable > tbody > tr > td {
+            box-shadow: none !important;
+            background-color: #ffffff !important;
+            color: #374151 !important;
+            border-bottom: 1px solid #f3f4f6 !important;
+        }
+        table.dataTable.display > tbody > tr:nth-child(odd) > td {
+            background-color: #f9fafb !important;
+        }
+        table.dataTable.display > tbody > tr:hover > td {
+            background-color: #eff6ff !important;
+        }
+        div.dt-container .dt-info,
+        div.dt-container .dt-paging {
+            color: #6b7280 !important;
+            font-size: 0.875rem !important;
+            margin-top: 1rem !important;
+        }
+        div.dt-container .dt-paging .dt-paging-button.current {
+            background-color: #2563eb !important;
+            color: #ffffff !important;
+            border: none !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-10">
+
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-red-100 px-4 md:px-6 py-3 shadow-sm flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain hidden md:block">
+            <div>
+                <h1 class="font-bold text-red-900 leading-tight text-lg flex items-center gap-2">
+                    <i class="fa-solid fa-gavel md:hidden"></i> ระบบงานปกครอง
+                </h1>
+                <div class="text-[10px] md:text-xs text-red-600 font-bold flex items-center gap-1">
+                    ครูที่ปรึกษา: <span id="my_room" class="bg-red-100 px-2 py-0.5 rounded-full text-red-700">กำลังโหลด...</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 md:gap-3">
+            <span id="user_display" class="text-sm font-bold text-slate-600 mr-2 hidden md:inline"></span>
+            
+            <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'" class="hidden bg-purple-50 text-purple-700 border border-purple-200 hover:bg-purple-100 px-3 py-1.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-user-shield"></i> <span class="hidden sm:inline">โหมดแอดมิน</span>
+            </button>
+
+            <button onclick="window.location.href='index.html'" class="bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100 px-3 py-1.5 rounded-xl text-sm font-bold transition-colors shadow-sm flex items-center gap-1.5">
+                <i class="fa-solid fa-house"></i> <span class="hidden sm:inline">หน้าหลัก</span>
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-6xl mx-auto px-4 mt-8">
+        
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                <i class="fa-solid fa-users text-red-600"></i> รายชื่อนักเรียนในความดูแล
+            </h3>
+            <button onclick="exportTeacherExcel()" class="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center justify-center gap-2">
+                <i class="fas fa-file-excel"></i> ส่งออกข้อมูล Excel
+            </button>
+        </div>
+
+        <div class="glass p-6 rounded-3xl">
+            <table id="teacherTable" class="w-full text-sm display nowrap">
+                <thead>
+                    <tr>
+                        <th class="py-3 px-4 text-left">เลขที่</th>
+                        <th class="py-3 px-4 text-left">เลขประจำตัว</th>
+                        <th class="py-3 px-4 text-left">ชื่อ-นามสกุล</th>
+                        <th class="py-3 px-4 text-center">คะแนนปัจจุบัน</th>
+                        <th class="py-3 px-4 text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="teacherBody">
+                    <tr><td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </main>
+
+    <script>
+        let myClassroom = null;
+        let studentData = [];
+
+        $(document).ready(async () => {
+            await checkAuth();
+        });
+
+        async function checkAuth() {
+            Swal.fire({ title: 'กำลังตรวจสอบข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+            
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) { window.location.replace('index.html'); return; }
+
+            // 1. ตรวจสอบข้อมูลครู
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).maybeSingle();
+            $('#user_display').text(`ครู${profile.first_name}`);
+            
+            // 2. เช็คสิทธิ์ว่าเป็น Admin แฝงมาหรือไม่
+            let isAdmin = (profile.role === 'super_admin');
+            const { data: modAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
+            if(modAdmin) isAdmin = true;
+            if(isAdmin) $('#btnAdminMode').removeClass('hidden');
+
+            // 3. หาห้องเรียนที่ครูท่านนี้เป็นที่ปรึกษา
+            const { data: classroom } = await db.from('core_classrooms').select('*').or(`adviser_id_1.eq.${session.user.id},adviser_id_2.eq.${session.user.id}`).maybeSingle();
+            
+            if (!classroom) {
+                Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุให้เป็นครูที่ปรึกษาในระบบส่วนกลาง', 'info').then(() => {
+                    window.location.replace('index.html');
+                });
+                return;
+            }
+            
+            myClassroom = classroom;
+            $('#my_room').text(`ม.${classroom.grade_level}/${classroom.room_number}`);
+            
+            // เมื่อผ่านเงื่อนไขครบ โหลดข้อมูลนักเรียน
+            await loadMyStudents();
+        }
+
+        async function loadMyStudents() {
+            // ดึงข้อมูลการจัดห้องเรียน + ประวัติคะแนนความประพฤติ
+            const { data: enrolls } = await db.from('student_enrollments')
+                .select(`
+                    student_number,
+                    core_students ( 
+                        id, 
+                        student_id_card, 
+                        prefix, 
+                        first_name, 
+                        last_name, 
+                        behavior_logs ( score_change ) 
+                    )
+                `)
+                .eq('classroom_id', myClassroom.id)
+                .order('student_number', { ascending: true });
+
+            if(enrolls) {
+                studentData = enrolls.map(item => {
+                    const s = item.core_students;
+                    // คำนวณคะแนนสุทธิ (เริ่มที่ 100)
+                    const totalScore = 100 + (s.behavior_logs?.reduce((sum, l) => sum + l.score_change, 0) || 0);
+                    return {
+                        no: item.student_number || '-',
+                        sid: s.student_id_card || '-',
+                        name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                        score: totalScore,
+                        id: s.id
+                    };
+                });
+            }
+
+            // Render ลง DataTable (Tailwind)
+            $('#teacherTable').DataTable({
+                data: studentData.map(s => [
+                    `<div class="text-center font-bold text-gray-600">${s.no}</div>`, 
+                    `<div class="font-medium text-gray-700">${s.sid}</div>`, 
+                    `<div class="font-bold text-blue-800">${s.name}</div>`, 
+                    `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
+                    `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm flex items-center justify-center gap-1.5 mx-auto"><i class="fas fa-eye"></i> ประวัติ</button></div>`
+                ]),
+                destroy: true,
+                responsive: true,
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                pageLength: 50
+            });
+            Swal.close();
+        }
+
+        function exportTeacherExcel() {
+            if(studentData.length === 0) return Swal.fire('แจ้งเตือน', 'ยังไม่มีรายชื่อนักเรียนในห้องนี้', 'warning');
+            
+            const exportData = studentData.map(s => ({
+                'เลขที่': s.no,
+                'เลขประจำตัว': s.sid,
+                'ชื่อ-นามสกุล': s.name,
+                'คะแนนปัจจุบัน': s.score
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "ข้อมูลความประพฤติ");
+            XLSX.writeFile(wb, `คะแนนความประพฤติ_ม.${myClassroom.grade_level}_${myClassroom.room_number}.xlsx`);
+        }
+
+        function viewHistory(id) {
+            // กระโดดไปดูประวัติรายบุคคล
+            location.href = `student_history.html?id=${id}`;
+        }
+    </script>
+</body>
+</html>

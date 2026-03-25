@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ประวัตินักเรียนรายคน | WRK System</title>
+    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <style>body { font-family: 'Anuphan', sans-serif; background: #f8fafc; }</style>
+</head>
+<body class="p-4 md:p-8 text-slate-800">
+    <div class="max-w-4xl mx-auto">
+        <button onclick="history.back()" class="mb-4 text-slate-500 hover:text-blue-600 font-bold transition flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
+            <i class="fas fa-arrow-left"></i> กลับหน้าก่อนหน้า
+        </button>
+
+        <div class="bg-white/80 backdrop-blur-md rounded-3xl shadow-xl overflow-hidden border border-white">
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white flex flex-col md:flex-row justify-between items-center gap-6">
+                <div class="flex items-center gap-4">
+                    <div class="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-4xl border border-white/30 shadow-inner">
+                        <i class="fas fa-user-graduate"></i>
+                    </div>
+                    <div>
+                        <h1 id="st_name" class="text-2xl font-bold">กำลังโหลดข้อมูล...</h1>
+                        <p id="st_info" class="text-blue-100 mt-1"></p>
+                    </div>
+                </div>
+                <div class="text-center bg-white/10 px-6 py-4 rounded-2xl backdrop-blur-md border border-white/20 shadow-inner">
+                    <p class="text-xs uppercase font-bold text-blue-100 tracking-wider mb-1">คะแนนปัจจุบัน</p>
+                    <h2 id="st_score" class="text-5xl font-black">--</h2>
+                </div>
+            </div>
+
+            <div class="p-6 md:p-8">
+                <div class="flex justify-between items-center mb-6">
+                    <h3 class="font-bold text-slate-800 text-lg flex items-center gap-2">
+                        <i class="fa-solid fa-clock-rotate-left text-blue-500"></i> ประวัติการบันทึกทั้งหมด
+                    </h3>
+                    <button onclick="exportSingleExcel()" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-4 py-2 rounded-xl text-sm font-bold hover:bg-emerald-100 transition shadow-sm flex items-center gap-2">
+                        <i class="fas fa-file-excel"></i> ส่งออกข้อมูล
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100">
+                    <table class="w-full text-sm text-left">
+                        <thead class="bg-slate-50 text-slate-600 border-b border-slate-100">
+                            <tr>
+                                <th class="p-4 font-bold">วันที่/เวลา</th>
+                                <th class="p-4 font-bold">รายการ</th>
+                                <th class="p-4 font-bold">รายละเอียด</th>
+                                <th class="p-4 text-center font-bold">คะแนน</th>
+                                <th class="p-4 font-bold">ผู้บันทึก</th>
+                            </tr>
+                        </thead>
+                        <tbody id="history_body" class="divide-y divide-slate-100">
+                            <tr><td colspan="5" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <script src="config.js"></script>
+    
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const stId = urlParams.get('id');
+        let currentLogs = [];
+
+        $(document).ready(() => {
+            if(!stId) return history.back();
+            loadHistory();
+        });
+
+        async function loadHistory() {
+            // 🌟 เปลี่ยนจาก supabase เป็น db
+            const { data: student, error } = await db
+                .from('core_students')
+                .select(`
+                    *,
+                    behavior_logs (
+                        *,
+                        behavior_criteria ( title ),
+                        core_personnel ( first_name, last_name )
+                    ),
+                    student_enrollments ( core_classrooms ( grade_level, room_number ) )
+                `)
+                .eq('id', stId)
+                .single();
+
+            if (error) {
+                $('#st_name').text("เกิดข้อผิดพลาด");
+                $('#history_body').html(`<tr><td colspan="5" class="p-8 text-center text-red-500">${error.message}</td></tr>`);
+                return;
+            }
+
+            if (student) {
+                $('#st_name').text(`${student.prefix || ''}${student.first_name} ${student.last_name}`);
+                const classroom = student.student_enrollments && student.student_enrollments.length > 0 ? student.student_enrollments[0].core_classrooms : null;
+                const roomTxt = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : 'ยังไม่จัดห้อง';
+                $('#st_info').text(`เลขประจำตัว: ${student.student_id_card || '-'} | ชั้น ${roomTxt}`);
+
+                let total = 100;
+                let html = '';
+                
+                if (student.behavior_logs && student.behavior_logs.length > 0) {
+                    currentLogs = student.behavior_logs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+
+                    currentLogs.forEach(log => {
+                        total += log.score_change;
+                        html += `
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="p-4 text-slate-500">${new Date(log.created_at).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</td>
+                                <td class="p-4 font-bold text-slate-700">${log.behavior_criteria?.title || '-'}</td>
+                                <td class="p-4 text-slate-500 text-xs">${log.description || '-'}</td>
+                                <td class="p-4 text-center font-black text-lg ${log.score_change > 0 ? 'text-green-600 bg-green-50/50' : 'text-red-600 bg-red-50/50'}">
+                                    ${log.score_change > 0 ? '+' : ''}${log.score_change}
+                                </td>
+                                <td class="p-4 text-xs text-slate-500 font-medium">${log.core_personnel?.first_name || '-'}</td>
+                            </tr>
+                        `;
+                    });
+                }
+
+                $('#st_score').text(total);
+                $('#history_body').html(html || '<tr><td colspan="5" class="p-8 text-center text-slate-400">ไม่พบประวัติการบันทึกความประพฤติ</td></tr>');
+            }
+        }
+
+        function exportSingleExcel() {
+            if (currentLogs.length === 0) {
+                alert('ไม่มีข้อมูลให้ส่งออก');
+                return;
+            }
+            const exportData = currentLogs.map(l => ({
+                'วันที่': new Date(l.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+                'รายการ': l.behavior_criteria?.title || '-',
+                'รายละเอียด': l.description || '-',
+                'คะแนน': l.score_change,
+                'ผู้บันทึก': l.core_personnel?.first_name || '-'
+            }));
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            
+            // ปรับความกว้างคอลัมน์ Excel ให้สวยงาม
+            ws['!cols'] = [{wch: 20}, {wch: 30}, {wch: 30}, {wch: 10}, {wch: 20}];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "History");
+            XLSX.writeFile(wb, `ประวัติคะแนน_${stId}.xlsx`);
+        }
+    </script>
+</body>
+</html>
