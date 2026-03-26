@@ -364,18 +364,21 @@
                         <div class="flex flex-wrap gap-2">
                             <button onclick="downloadStudentTemplate()"
                                 class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold shadow-sm hover:bg-gray-50"><i
-                                    class="fa-solid fa-download text-gray-500 mr-1"></i> โหลดไฟล์ต้นแบบ</button>
+                                    class="fa-solid fa-download text-gray-500 mr-1"></i> โหลดเทมเพลต</button>
                             <input type="file" id="excelUploadStudents" accept=".xlsx, .xls" class="hidden"
                                 onchange="processImportStudents(event)">
                             <button onclick="triggerImportStudents()"
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i
-                                    class="fa-solid fa-file-excel"></i> นำเข้า (Excel)</button>
+                                    class="fa-solid fa-file-excel"></i> นำเข้า</button>
                             <button onclick="triggerImportGoogleSheet()"
                                 class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i
                                     class="fa-brands fa-google"></i> ดึงจาก Google Sheet</button>
                             <button onclick="openAddStudentModal()"
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i
                                     class="fa-solid fa-user-plus"></i> เพิ่มรายคน</button>
+<button onclick="checkDuplicateStudents()" class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-rose-200">
+    <i class="fas fa-users-slash"></i> เช็คชื่อซ้ำซ้อน
+</button>
                         </div>
                     </div>
 
@@ -664,6 +667,21 @@
         </div>
     </div>
 
+    <div id="modal-duplicates" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeDuplicateModal()"></div>
+    <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-red-500 text-white">
+            <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users-slash"></i> ตรวจสอบนักเรียนซ้ำซ้อน</h3>
+            <button onclick="closeDuplicateModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+            <div id="duplicate-content">กำลังตรวจสอบ...</div>
+        </div>
+        <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
+            <button onclick="closeDuplicateModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิดหน้าต่าง</button>
+        </div>
+    </div>
+</div>
     <script src="super_admin.js"></script>
 
 </body>

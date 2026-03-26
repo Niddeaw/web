@@ -1206,3 +1206,142 @@ async function toggleModuleAdminRole(moduleId, moduleName, isGranted) {
         manageModuleAdmins(currentModuleAdminUserId, document.getElementById('ma_teacher_name').innerText);
     }
 }
+
+// 🌟 1. ฟังก์ชันค้นหาเด็กซ้ำ
+async function checkDuplicateStudents() {
+    Swal.fire({title:'กำลังสแกนฐานข้อมูล...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false});
+
+    try {
+        // ดึงปีการศึกษาปัจจุบัน
+        const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        if(!schoolInfo) throw new Error('ไม่พบข้อมูลปีการศึกษา');
+
+        // ดึงรายชื่อการจัดห้องทั้งหมด พร้อมข้อมูลเด็กและห้องเรียน
+        const { data: enrolls, error } = await db.from('student_enrollments').select(`
+            id, student_number,
+            core_students ( id, student_id_card, prefix, first_name, last_name ),
+            core_classrooms ( id, grade_level, room_number, academic_year, semester )
+        `);
+
+        if(error) throw error;
+
+        // กรองเอาเฉพาะข้อมูลของเทอมปัจจุบัน
+        const currentEnrolls = enrolls.filter(e => 
+            e.core_classrooms && 
+            e.core_classrooms.academic_year === schoolInfo.current_academic_year && 
+            e.core_classrooms.semester === schoolInfo.current_semester &&
+            e.core_students // ต้องมีข้อมูลเด็ก
+        );
+
+        // จัดกลุ่มตาม ID เด็ก
+        const studentMap = {};
+        currentEnrolls.forEach(e => {
+            const sid = e.core_students.id;
+            if(!studentMap[sid]) studentMap[sid] = [];
+            studentMap[sid].push(e);
+        });
+
+        // คัดเฉพาะคนที่มีชื่อมากกว่า 1 ห้อง
+        const duplicates = Object.values(studentMap).filter(arr => arr.length > 1);
+
+        Swal.close();
+
+        if(duplicates.length === 0) {
+            return Swal.fire({icon: 'success', title: 'ยอดเยี่ยม!', text: 'ไม่พบนักเรียนที่มีรายชื่อซ้ำซ้อนในเทอมปัจจุบันครับ'});
+        }
+
+        // วาดตารางแสดงผล
+        let html = `
+        <div class="bg-rose-50 text-rose-700 p-4 rounded-2xl mb-4 text-sm border border-rose-200 shadow-sm flex gap-3 items-start">
+            <i class="fas fa-exclamation-triangle text-xl mt-0.5"></i>
+            <div>
+                <p class="font-bold text-base">พบนักเรียนมีรายชื่อซ้ำซ้อน ${duplicates.length} คน</p>
+                <p class="text-rose-600 mt-1">ระบบพบนักเรียนที่มีรายชื่อผูกอยู่กับหลายห้องในเทอมปัจจุบัน กรุณาลบรายชื่อออกจากห้องที่ผิดครับ</p>
+            </div>
+        </div>
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+            <table class="w-full text-sm text-left border-collapse">
+                <thead class="bg-slate-100 text-slate-600">
+                    <tr>
+                        <th class="p-3 border-b font-bold w-1/4">เลขประจำตัว</th>
+                        <th class="p-3 border-b font-bold w-1/3">ชื่อ-นามสกุล</th>
+                        <th class="p-3 border-b font-bold">ห้องเรียนที่มีชื่ออยู่</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+        `;
+
+        duplicates.forEach(arr => {
+            const stu = arr[0].core_students;
+            html += `
+            <tr class="hover:bg-slate-50 transition">
+                <td class="p-3 align-top font-medium text-slate-600">${stu.student_id_card || '-'}</td>
+                <td class="p-3 align-top font-bold text-blue-700">${stu.prefix||''}${stu.first_name} ${stu.last_name}</td>
+                <td class="p-3 align-top">
+                    <div class="space-y-2">
+            `;
+            // ลูปแสดงห้องเรียนที่เด็กคนนี้ไปโผล่
+            arr.forEach(enroll => {
+                const cr = enroll.core_classrooms;
+                html += `
+                        <div class="flex items-center justify-between bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm">
+                            <span class="font-bold text-slate-700"><i class="fas fa-door-open text-slate-400 mr-1"></i> ม.${cr.grade_level}/${cr.room_number} <span class="text-xs text-slate-400 font-normal ml-1">(เลขที่ ${enroll.student_number||'-'})</span></span>
+                            <button onclick="removeDuplicateEnrollment('${enroll.id}')" class="text-xs font-bold bg-red-50 text-red-600 border border-red-100 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg transition shadow-sm">
+                                <i class="fas fa-trash-alt mr-1"></i> ลบออก
+                            </button>
+                        </div>
+                `;
+            });
+            html += `
+                    </div>
+                </td>
+            </tr>
+            `;
+        });
+
+        html += `</tbody></table></div>`;
+        
+        document.getElementById('duplicate-content').innerHTML = html;
+        document.getElementById('modal-duplicates').classList.remove('hidden');
+        document.getElementById('modal-duplicates').classList.add('flex');
+
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
+
+// 🌟 2. ฟังก์ชันปิด Modal
+function closeDuplicateModal() {
+    document.getElementById('modal-duplicates').classList.add('hidden');
+    document.getElementById('modal-duplicates').classList.remove('flex');
+}
+
+// 🌟 3. ฟังก์ชันลบรายชื่อออกจากห้อง
+async function removeDuplicateEnrollment(enrollId) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบรายชื่อ?',
+        html: '<p class="text-sm text-red-500">รายชื่อนี้จะถูกนำออกจากห้องเรียนนี้เท่านั้น<br>(ข้อมูลประวัติเด็กยังอยู่ครบ)</p>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ลบรายชื่อนี้',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if(isConfirmed) {
+        Swal.fire({title: 'กำลังลบ...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false});
+        const { error } = await db.from('student_enrollments').delete().eq('id', enrollId);
+        
+        if(error) {
+            Swal.fire('ผิดพลาด', error.message, 'error');
+        } else {
+            Swal.fire({icon: 'success', title: 'ลบเรียบร้อย', timer: 1500, showConfirmButton: false});
+            
+            // สั่งให้สแกนใหม่เพื่อรีเฟรชหน้าต่าง Modal
+            checkDuplicateStudents();
+            
+            // รีเฟรชตารางรายชื่อด้านหลังให้เป็นข้อมูลล่าสุดด้วย
+            loadStudents(); 
+        }
+    }
+}
