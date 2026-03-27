@@ -353,15 +353,178 @@ function renderTable() {
     });
 }
 
-// 🌟 ฟังก์ชันเตรียมสร้าง PDF
-function printLeavePDF(id) {
-    Swal.fire({
-        icon: 'info',
-        title: 'ระบบพิมพ์ใบลา',
-        text: 'กำลังอยู่ในขั้นตอนพัฒนาฟังก์ชันออกเอกสาร PDF ครับ (ข้อมูลผู้ลงนามถูกบันทึกเตรียมไว้ในระบบแล้ว)',
-        confirmButtonColor: '#4f46e5'
-    });
-    // โค้ดดึงข้อมูลมาวาด PDF ด้วย pdfMake/jsPDF จะอยู่ตรงนี้ในอนาคตครับ
+// 🌟 ฟังก์ชันพิมพ์ใบลา PDF (สำหรับครูและแอดมิน)
+async function printLeavePDF(id) {
+    Swal.fire({ title: 'กำลังเตรียมเอกสาร...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false });
+    
+    try {
+        // 1. ดึงข้อมูลใบลาและข้อมูลผู้ลา
+        const { data: leave, error } = await db.from('leave_requests')
+            .select('*, core_personnel(*)')
+            .eq('id', id)
+            .single();
+        if (error) throw error;
+
+        // 2. ดึงข้อมูลโรงเรียน (ชื่อ ผอ. และชื่อโรงเรียน)
+        const { data: school } = await db.from('core_school_info').select('*').single();
+        const directorName = school?.director_name || '...................................................';
+        const schoolName = school?.school_name || 'โรงเรียน........................';
+
+        // 3. ดึงสถิติการลาในปีงบประมาณนี้ (นับเฉพาะที่อนุมัติหรือรออนุมัติ ก่อนหน้าใบนี้)
+        const { data: stats } = await db.from('leave_requests')
+            .select('type, total_days')
+            .eq('personnel_id', leave.personnel_id)
+            .eq('fiscal_year', leave.fiscal_year)
+            .neq('status', 'ไม่อนุมัติ')
+            .lte('created_at', leave.created_at);
+
+        let sick = 0, personal = 0, maternity = 0;
+        if (stats) {
+            stats.forEach(s => {
+                if (s.type === 'ลาป่วย') sick += s.total_days;
+                if (s.type === 'ลากิจส่วนตัว') personal += s.total_days;
+                if (s.type.includes('คลอด')) maternity += s.total_days;
+            });
+        }
+
+        // จัดรูปแบบตัวแปรต่างๆ ให้พร้อมแสดงใน PDF
+        const p = leave.core_personnel;
+        const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+        const position = `${p.position || 'ครู'}${p.academic_standing ? ' วิทยฐานะ' + p.academic_standing : ''}`;
+
+        const formatDate = (isoString) => {
+            if (!isoString) return '....................';
+            const d = new Date(isoString);
+            const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+        };
+
+        const writeDate = new Date(leave.created_at);
+        const strWriteDate = `วันที่ ${writeDate.getDate()} เดือน ${['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'][writeDate.getMonth()]} พ.ศ. ${writeDate.getFullYear() + 543}`;
+
+        const priorSick = sick - (leave.type === 'ลาป่วย' ? leave.total_days : 0);
+        const priorPersonal = personal - (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0);
+        const priorMat = maternity - (leave.type.includes('คลอด') ? leave.total_days : 0);
+
+        // 4. สร้าง HTML สำหรับสั่งปริ้น (แบบฟอร์มราชการ)
+        const html = `
+        <!DOCTYPE html>
+        <html lang="th">
+        <head>
+            <meta charset="UTF-8">
+            <title>ใบลา_${p.first_name}_${leave.start_date}</title>
+            <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
+            <style>
+                @page { size: A4 portrait; margin: 20mm 20mm; }
+                body { font-family: 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.5; color: #000; background: #fff; margin: 0; }
+                .container { width: 100%; max-width: 800px; margin: 0 auto; }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .font-bold { font-weight: 700; }
+                .header-title { font-size: 20pt; font-weight: bold; text-align: center; margin-bottom: 20px; }
+                .indent { text-indent: 2.5rem; }
+                .mt-1 { margin-top: 5px; } .mt-2 { margin-top: 10px; } .mt-4 { margin-top: 20px; } .mt-8 { margin-top: 40px; }
+                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14pt; }
+                th, td { border: 1px solid #000; padding: 4px 8px; text-align: center; }
+                th { font-weight: bold; background-color: #f9f9f9 !important; -webkit-print-color-adjust: exact; }
+                .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+                .sig-box { text-align: center; margin-top: 20px; }
+                .dot-line { border-bottom: 1px dotted #000; display: inline-block; min-width: 50px; text-align: center; }
+                
+                /* ซ่อนปุ่มปริ้นตอนพิมพ์จริง */
+                @media print { .no-print { display: none !important; } body { font-size: 15pt; } }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="no-print text-center mt-4 mb-8">
+                    <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 10px 20px; font-size: 16pt; border-radius: 8px; cursor: pointer; font-family: 'Sarabun';">🖨️ คลิกเพื่อพิมพ์ (หรือบันทึกเป็น PDF)</button>
+                </div>
+
+                <div class="header-title">แบบฟอร์มใบ${leave.type}</div>
+                
+                <div class="text-right">
+                    เขียนที่ <span class="dot-line" style="width: 200px;">${schoolName}</span><br>
+                    ${strWriteDate}
+                </div>
+                
+                <div class="mt-4">
+                    <b>เรื่อง</b> <span class="dot-line" style="width: 300px;">ขอ${leave.type}</span><br>
+                    <b>เรียน</b> ผู้อำนวยการ${schoolName}
+                </div>
+
+                <div class="mt-4 indent">
+                    ข้าพเจ้า <span class="dot-line" style="width: 250px;">${fullName}</span> 
+                    ตำแหน่ง <span class="dot-line" style="width: 200px;">${position}</span>
+                </div>
+                <div class="mt-1">
+                    สังกัดกลุ่มสาระการเรียนรู้ <span class="dot-line" style="width: 250px;">${p.department || '...................................'}</span>
+                    ขอ${leave.type} เนื่องจาก <span class="dot-line" style="width: 250px;">${leave.reason}</span> 
+                </div>
+                <div class="mt-1">
+                    ตั้งแต่วันที่ <span class="dot-line" style="width: 150px;">${formatDate(leave.start_date)}</span> 
+                    ถึงวันที่ <span class="dot-line" style="width: 150px;">${formatDate(leave.end_date)}</span> 
+                    มีกำหนด <span class="dot-line" style="width: 50px;">${leave.total_days}</span> วัน
+                </div>
+                <div class="mt-1">
+                    ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ <span class="dot-line" style="width: 500px;">.............................................................................................</span>
+                </div>
+
+                <div class="grid-2 mt-8">
+                    <div>
+                        <b style="font-size: 14pt;">สถิติการลาในปีงบประมาณนี้</b>
+                        <table>
+                            <tr><th>ประเภทการลา</th><th>ลามาแล้ว<br>(วัน)</th><th>ลาครั้งนี้<br>(วัน)</th><th>รวมเป็น<br>(วัน)</th></tr>
+                            <tr><td>ลาป่วย</td><td>${priorSick}</td><td>${leave.type === 'ลาป่วย' ? leave.total_days : 0}</td><td>${sick}</td></tr>
+                            <tr><td>ลากิจส่วนตัว</td><td>${priorPersonal}</td><td>${leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0}</td><td>${personal}</td></tr>
+                            <tr><td>ลาคลอด/ภริยา</td><td>${priorMat}</td><td>${leave.type.includes('คลอด') ? leave.total_days : 0}</td><td>${maternity}</td></tr>
+                        </table>
+                    </div>
+                    
+                    <div class="sig-box">
+                        (ลงชื่อ).........................................................ผู้ขอลา<br>
+                        ( <span class="dot-line" style="width: 200px;">${fullName}</span> )<br>
+                        วันที่......./......./.......
+                    </div>
+                </div>
+
+                <div class="grid-2 mt-8" style="gap: 20px;">
+                    <div class="sig-box">
+                        <b>ความเห็นของผู้บังคับบัญชาชั้นต้น</b><br>
+                        ........................................................................<br>
+                        ........................................................................<br>
+                        <br>
+                        (ลงชื่อ).........................................................<br>
+                        (.........................................................)<br>
+                        ตำแหน่ง.........................................................<br>
+                        วันที่......./......./.......
+                    </div>
+                    <div class="sig-box">
+                        <b>คำสั่ง / การอนุมัติ</b><br>
+                        [ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต<br>
+                        ........................................................................<br>
+                        <br>
+                        (ลงชื่อ).........................................................<br>
+                        ( <span class="dot-line" style="width: 200px;">${directorName}</span> )<br>
+                        ผู้อำนวยการ${schoolName}<br>
+                        วันที่......./......./.......
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+        `;
+
+        // เปิดหน้าต่างใหม่แล้วเขียน HTML ลงไปเพื่อสั่งพิมพ์
+        const printWindow = window.open('', '_blank');
+        printWindow.document.open();
+        printWindow.document.write(html);
+        printWindow.document.close();
+        
+        Swal.close();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 }
 
 async function updateStatus(id, newStatus) {
