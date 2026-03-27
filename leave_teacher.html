@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบการลา | WRK System</title>
+    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.tailwindcss.css">
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+
+    <style>
+        body { font-family:'Anuphan',sans-serif; background:linear-gradient(135deg,#eef2ff 0%,#f8faff 60%,#f0fdf4 100%); min-height:100vh; }
+        .glass { background:rgba(255,255,255,0.85); backdrop-filter:blur(12px); border:1px solid rgba(255,255,255,0.5); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
+        
+        /* 🌟 DataTables Light Theme Override & ซ่อน Scrollbar */
+        div.dt-container { color: #334155 !important; }
+        div.dt-container .dt-search input, div.dt-container .dt-length select {
+            background: #ffffff !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 0.75rem !important; padding: 0.4rem 1rem !important; outline: none !important;
+        }
+        div.dt-container .dt-search input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 2px rgba(99,102,241,0.15) !important; }
+        table.dataTable { border-collapse: collapse !important; border-bottom: none !important; width: 100% !important; }
+        table.dataTable thead th { background-color: #f8fafc !important; color: #475569 !important; border-bottom: 2px solid #e2e8f0 !important; font-weight: 700; padding: 12px 16px !important; }
+        table.dataTable tbody td { background-color: #ffffff !important; border-bottom: 1px solid #f1f5f9 !important; padding: 12px 16px !important; }
+        table.dataTable.display > tbody > tr:hover > * { background-color: #f8fafc !important; }
+        .dataTables_wrapper .dataTables_scrollBody { border-bottom: none !important; overflow-x: hidden !important; }
+    </style>
+</head>
+<body class="opacity-0 transition-opacity duration-300 pb-10" id="mainBody">
+
+<nav class="glass sticky top-0 z-40 border-b border-slate-200">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 flex justify-between h-16 items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10 w-auto" alt="Logo">
+            <div>
+                <span class="text-xl font-bold bg-gradient-to-r from-rose-500 to-orange-500 bg-clip-text text-transparent">WRK Leave</span>
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold hidden sm:block">ระบบการลาออนไลน์</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2 md:gap-3">
+            <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">กำลังโหลด...</span>
+            <span id="fiscal-badge" class="hidden md:block text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 px-3 py-1.5 rounded-full shadow-sm">ปีงบประมาณ ...</span>
+            
+            <button id="btnAdminMode" onclick="window.location.href='leave_admin.html'" class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm" title="สลับโหมด">
+                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+            </button>
+
+            <button onclick="window.location.href='index.html'" class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm" title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="handleLogout()" class="bg-red-50 text-red-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-red-100 transition shadow-sm" title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </div>
+</nav>
+
+<div class="max-w-7xl mx-auto px-4 py-8 space-y-6">
+    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="glass p-5 rounded-3xl border-b-4 border-b-blue-500 hover:-translate-y-1 transition transform duration-300">
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-head-side-cough text-blue-500 mr-1"></i> สถิติลาป่วย (รอบนี้)</p>
+            <h3 class="text-3xl font-black text-blue-600"><span id="stat-sick">0</span><span class="text-base font-medium ml-1 text-slate-500">วัน</span></h3>
+            <p class="text-[10px] text-slate-400 mt-1">ระเบียบ: ไม่เกิน 60 วัน/ปีงบประมาณ</p>
+        </div>
+        <div class="glass p-5 rounded-3xl border-b-4 border-b-orange-500 hover:-translate-y-1 transition transform duration-300">
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-briefcase text-orange-500 mr-1"></i> สถิติลากิจ (รอบนี้)</p>
+            <h3 class="text-3xl font-black text-orange-600"><span id="stat-personal">0</span><span class="text-base font-medium ml-1 text-slate-500">วัน</span></h3>
+            <p class="text-[10px] text-slate-400 mt-1">ระเบียบ: ไม่เกิน 45 วัน/ปีงบประมาณ</p>
+        </div>
+        <div class="glass p-5 rounded-3xl border-b-4 border-b-rose-500 hover:-translate-y-1 transition transform duration-300">
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-baby text-rose-500 mr-1"></i> ลาคลอด / ลาดูแลภริยา</p>
+            <h3 class="text-3xl font-black text-rose-600"><span id="stat-maternity">0</span><span class="text-base font-medium ml-1 text-slate-500">วัน</span></h3>
+            <p class="text-[10px] text-slate-400 mt-1">คลอด: 90 วัน | ดูแล: 15 วันทำการ</p>
+        </div>
+        <div class="glass p-5 rounded-3xl border-b-4 border-b-emerald-500 hover:-translate-y-1 transition transform duration-300">
+            <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-check-to-slot text-emerald-500 mr-1"></i> รวมจำนวนครั้ง (รอบนี้)</p>
+            <h3 class="text-3xl font-black text-emerald-600"><span id="stat-times">0</span><span class="text-base font-medium ml-1 text-slate-500">ครั้ง</span></h3>
+            <p class="text-[10px] text-slate-400 mt-1">นับรวมการลาทุกประเภท</p>
+        </div>
+    </div>
+
+    <div class="glass rounded-3xl p-6">
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
+            <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-list-ul text-rose-500 mr-2"></i> ประวัติการลาของคุณ</h2>
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button onclick="exportExcel()" class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                    <i class="fas fa-file-excel"></i> ส่งออก Excel
+                </button>
+                <button onclick="openLeaveModal()" class="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-rose-200 transition flex items-center justify-center gap-2">
+                    <i class="fas fa-plus"></i> เขียนใบลา
+                </button>
+            </div>
+        </div>
+
+        <div class="w-full">
+            <table id="leaveTable" class="w-full text-left text-sm display nowrap">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-600">
+                        <th class="text-center rounded-tl-xl">วันที่บันทึก</th>
+                        <th>ประเภทการลา</th>
+                        <th>ตั้งแต่วันที่ - ถึงวันที่</th>
+                        <th class="text-center">จำนวน (วัน)</th>
+                        <th class="text-center">จำนวน (ครั้ง)</th>
+                        <th>สาเหตุ</th>
+                        <th class="text-center">สถานะ</th>
+                        <th class="text-center rounded-tr-xl">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody id="tb-leave" class="divide-y divide-slate-100"></tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div id="leaveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeLeaveModal()"></div>
+    <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-orange-500 text-white">
+            <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-pen-nib"></i> แบบฟอร์มขออนุญาตลา</h3>
+            <button type="button" onclick="closeLeaveModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+        </div>
+        
+        <form id="leaveForm" onsubmit="saveLeave(event)" class="p-6 overflow-y-auto space-y-4">
+            <input type="hidden" id="leave_id">
+            
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">ประเภทการลา *</label>
+                <select id="leave_type" required onchange="updateLeaveGuide()" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 bg-white transition text-sm font-medium">
+                    <option value="">-- กรุณาเลือกประเภท --</option>
+                    <option value="ลาป่วย">ลาป่วย</option>
+                    <option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option>
+                    <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                    <option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+                </select>
+            </div>
+
+            <div id="leave_guide" class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl flex gap-2 items-start font-medium"></div>
+
+            <div>
+                <label class="block text-sm font-bold text-slate-700 mb-1">เนื่องจาก (สาเหตุ) *</label>
+                <input type="text" id="leave_reason" required placeholder="เช่น เป็นไข้หวัด, ติดต่อราชการ" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm">
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่ *</label>
+                    <input type="text" id="start_date" required placeholder="เลือกวันที่..." class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
+                    <input type="hidden" id="start_date_iso">
+                </div>
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label>
+                    <input type="text" id="end_date" required placeholder="เลือกวันที่..." class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
+                    <input type="hidden" id="end_date_iso">
+                </div>
+            </div>
+
+            <div class="bg-rose-50 border border-rose-200 p-4 rounded-xl flex justify-between items-center">
+                <span class="font-bold text-rose-800 text-sm">รวมระยะเวลาลา (คำนวณอัตโนมัติ):</span>
+                <div class="text-2xl font-black text-rose-600"><span id="calc_days">0</span> <span class="text-sm font-bold text-rose-800">วัน</span></div>
+            </div>
+            
+            <div class="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onclick="closeLeaveModal()" class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ยกเลิก</button>
+                <button type="submit" id="btn-submit" class="px-8 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold shadow-lg shadow-rose-200 transition flex items-center gap-2"><i class="fas fa-paper-plane"></i> ส่งใบลา</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="leave_teacher.js"></script>
+
+</body>
+</html>

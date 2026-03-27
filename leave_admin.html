@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - ระบบการลา | WRK System</title>
+    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
+    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.tailwindcss.css">
+    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
+    
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+
+    <style>
+        body { font-family: 'Anuphan', sans-serif; background: #f8fafc; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.6); }
+        .sidebar-active { border-right: 4px solid #4f46e5; background: #eff6ff; color: #4f46e5; font-weight: bold; }
+        
+        /* Select2 Tailwind Override */
+        .select2-container .select2-selection--single { height: 42px !important; border: 1px solid #e2e8f0 !important; border-radius: 0.75rem !important; display: flex !important; align-items: center !important; padding-left: 0.5rem !important; font-family: 'Anuphan', sans-serif !important; }
+        .select2-container--default .select2-selection--single .select2-selection__arrow { height: 40px !important; right: 8px !important; }
+        
+        /* DataTables Light Theme Override & ซ่อน Scrollbar */
+        div.dt-container { color: #334155 !important; }
+        div.dt-container .dt-search input, div.dt-container .dt-length select {
+            background: #ffffff !important; border: 1px solid #e2e8f0 !important;
+            border-radius: 0.75rem !important; padding: 0.4rem 1rem !important; outline: none !important;
+        }
+        div.dt-container .dt-search input:focus { border-color: #6366f1 !important; box-shadow: 0 0 0 2px rgba(99,102,241,0.15) !important; }
+        table.dataTable { border-collapse: collapse !important; border-bottom: none !important; width: 100% !important; }
+        table.dataTable thead th { background-color: #f8fafc !important; color: #475569 !important; border-bottom: 2px solid #e2e8f0 !important; font-weight: 700; padding: 12px 16px !important; }
+        table.dataTable tbody td { background-color: #ffffff !important; border-bottom: 1px solid #f1f5f9 !important; padding: 12px 16px !important; }
+        table.dataTable.display > tbody > tr:hover > * { background-color: #f8fafc !important; }
+        .dataTables_wrapper .dataTables_scrollBody { border-bottom: none !important; overflow-x: hidden !important; }
+    </style>
+</head>
+<body class="flex min-h-screen opacity-0 transition-opacity duration-300 bg-slate-50" id="mainBody">
+
+    <aside id="sidebar" class="w-64 bg-white shadow-xl fixed h-full z-40 hidden md:flex flex-col border-r border-slate-200 transition-all duration-300">
+        <div class="p-6 flex items-center justify-between border-b border-slate-100 relative">
+            <div class="flex items-center gap-3 overflow-hidden">
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 flex-shrink-0 drop-shadow-sm" alt="Logo">
+                <div class="sidebar-text">
+                    <h2 class="font-black text-indigo-900 text-lg leading-tight whitespace-nowrap">WRK System</h2>
+                    <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Leave Admin</div>
+                </div>
+            </div>
+            <button onclick="toggleSidebar()" class="absolute -right-3 top-8 bg-white border border-slate-200 shadow-sm w-6 h-6 rounded-full flex items-center justify-center text-slate-400 hover:text-indigo-600 z-50 transition-colors">
+                <i class="fas fa-chevron-left text-[10px]" id="sidebar-icon"></i>
+            </button>
+        </div>
+
+        <nav class="mt-4 flex-1">
+            <button onclick="switchTab('dashboard')" class="w-full flex items-center px-6 py-4 text-slate-600 hover:bg-slate-50 transition sidebar-item sidebar-active" id="btn-dashboard" title="แดชบอร์ดสรุปผล">
+                <i class="fas fa-chart-pie w-6 text-lg flex-shrink-0 text-center"></i> 
+                <span class="sidebar-text ml-3 whitespace-nowrap font-medium">แดชบอร์ดสรุปผล</span>
+            </button>
+            <button onclick="switchTab('manage-leave')" class="w-full flex items-center px-6 py-4 text-slate-600 hover:bg-slate-50 transition sidebar-item" id="btn-manage-leave" title="จัดการรายการลา">
+                <i class="fas fa-list-check w-6 text-lg flex-shrink-0 text-center"></i> 
+                <span class="sidebar-text ml-3 whitespace-nowrap font-medium">จัดการรายการลา</span>
+            </button>
+            <button onclick="switchTab('settings')" class="w-full flex items-center px-6 py-4 text-slate-600 hover:bg-slate-50 transition sidebar-item" id="btn-settings" title="ตั้งค่าระบบ & แอดมิน">
+                <i class="fas fa-sliders w-6 text-lg flex-shrink-0 text-center"></i> 
+                <span class="sidebar-text ml-3 whitespace-nowrap font-medium">ตั้งค่าระบบ & แอดมิน</span>
+            </button>
+        </nav>
+    </aside>
+
+    <main id="main-content" class="flex-1 md:ml-64 p-4 md:p-8 overflow-x-hidden transition-all duration-300">
+        
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4 bg-white p-4 rounded-2xl shadow-sm border border-slate-200">
+            <div class="flex items-center gap-3">
+                <button onclick="window.location.href='leave_teacher.html'" class="h-10 px-4 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition font-bold text-sm flex items-center gap-2">
+                    <i class="fas fa-arrow-left"></i> กลับหน้าครู
+                </button>
+                <h1 id="page-title" class="text-xl font-bold text-slate-800">แดชบอร์ดสรุปผล</h1>
+            </div>
+            <div class="flex items-center gap-3 px-4 py-2 rounded-xl bg-indigo-50 border border-indigo-100">
+                <div class="text-right">
+                    <p id="admin-name" class="text-sm font-bold text-indigo-900">กำลังโหลด...</p>
+                    <p id="admin-role" class="text-[10px] font-bold text-indigo-500 uppercase tracking-wider"></p>
+                </div>
+                <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white shadow-sm">
+                    <i class="fas fa-user-shield"></i>
+                </div>
+            </div>
+        </header>
+
+        <section id="tab-dashboard" class="tab-content">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="font-bold text-slate-700 text-lg"><i class="fas fa-calendar-day text-indigo-500 mr-2"></i> ข้อมูลประจำ <span id="dash-fiscal-badge" class="text-indigo-600">ปี...</span></h2>
+                <button onclick="loadDashboardStats()" class="text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 font-bold text-slate-600"><i class="fas fa-sync-alt mr-1"></i> รีเฟรช</button>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">ลาป่วย (รวม)</p>
+                    <h3 id="total-sick" class="text-3xl font-black text-blue-600">0 <span class="text-sm font-medium text-slate-500">วัน</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-orange-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">ลากิจ (รวม)</p>
+                    <h3 id="total-personal" class="text-3xl font-black text-orange-600">0 <span class="text-sm font-medium text-slate-500">วัน</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">รอการอนุมัติ</p>
+                    <h3 id="total-pending" class="text-3xl font-black text-rose-600">0 <span class="text-sm font-medium text-slate-500">รายการ</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">บุคลากรที่ลารอบนี้</p>
+                    <h3 id="total-people" class="text-3xl font-black text-emerald-600">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6 rounded-2xl shadow-sm">
+                <h3 class="font-bold text-rose-600 mb-4 border-b border-slate-100 pb-2"><i class="fas fa-bell mr-2"></i>แจ้งเตือน: บุคลากรที่ใช้วันลาใกล้ครบกำหนด (เสี่ยงเกินเกณฑ์)</h3>
+                <div id="alert-zone" class="space-y-2 max-h-80 overflow-y-auto pr-2">
+                    <div class="text-center text-slate-400 py-4 text-sm">กำลังตรวจสอบข้อมูล...</div>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-manage-leave" class="tab-content hidden">
+            <div class="glass-panel p-6 rounded-2xl shadow-sm">
+                <div class="flex flex-col md:flex-row justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="exportLeaveReport()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition shadow-sm text-sm flex items-center gap-2">
+                            <i class="fas fa-file-excel"></i> ส่งออก (Excel)
+                        </button>
+                        <input type="file" id="import-excel" accept=".xlsx,.xls" class="hidden" onchange="importLeaveExcel(event)">
+                        <button id="btn-import-excel" onclick="document.getElementById('import-excel').click()" class="hidden bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-amber-600 transition shadow-sm text-sm items-center gap-2">
+                            <i class="fas fa-file-import"></i> นำเข้า (Excel)
+                        </button>
+                    </div>
+                    
+                    <div class="w-full md:w-72">
+                        <select id="filter-personnel" class="w-full" onchange="filterTableByPerson()">
+                            <option value="">-- ดูข้อมูลทุกคน --</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="w-full">
+                    <table id="adminLeaveTable" class="w-full text-left text-sm display nowrap">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600">
+                                <th class="text-center w-10">รหัส</th>
+                                <th>ชื่อบุคลากร</th>
+                                <th>ประเภท</th>
+                                <th>ช่วงวันที่ลา</th>
+                                <th class="text-center">จำนวน (วัน)</th>
+                                <th class="text-center">จำนวน (ครั้ง)</th>
+                                <th class="text-center">สถานะ</th>
+                                <th class="text-center w-40">จัดการ/อนุมัติ</th> </tr>
+                        </thead>
+                        <tbody id="tb-admin-leave"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <section id="tab-settings" class="tab-content hidden">
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                
+                <div class="glass-panel p-6 rounded-2xl shadow-sm h-fit">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-blue-800"><i class="fas fa-sliders mr-2"></i>ตั้งค่าระบบและผู้ลงนาม</h3>
+                        <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">Super Admin เท่านั้น</span>
+                    </div>
+                    
+                    <form id="systemSettingsForm" onsubmit="saveSystemSettings(event)" class="space-y-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">ปีงบประมาณปัจจุบัน (พ.ศ.) *</label>
+                                <input type="number" id="fiscal_year" required class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-blue-700">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">รอบการประเมินปัจจุบัน *</label>
+                                <select id="evaluation_round" required class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 bg-white font-bold text-blue-700">
+                                    <option value="1">ครั้งที่ 1 (1 ต.ค. - 31 มี.ค.)</option>
+                                    <option value="2">ครั้งที่ 2 (1 เม.ย. - 30 ก.ย.)</option>
+                                </select>
+                            </div>
+                        </div>
+
+<div class="border-t border-slate-100 pt-4 space-y-4">
+    <h4 class="text-sm font-bold text-slate-800"><i class="fas fa-file-signature text-blue-500 mr-2"></i>ผู้ลงนามในใบลา (สำหรับการพิมพ์ PDF)</h4>
+    
+    <div>
+        <label class="block text-sm font-bold text-slate-700 mb-1">ผู้รับผิดชอบการลา (เจ้าหน้าที่/ธุรการ) <span class="text-rose-500">*ต้องเลือก</span></label>
+        <select id="sign_leave_admin" class="w-full select2-personnel">
+            <option value="">-- เลือกผู้รับผิดชอบ --</option>
+        </select>
+    </div>
+    
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <label class="block text-xs font-bold text-slate-500 mb-1">รองผู้อำนวยการกลุ่มบริหารงานบุคคล (ดึงจากส่วนกลาง)</label>
+            <div id="display_hr_deputy" class="font-bold text-slate-700 text-sm">กำลังโหลด...</div>
+        </div>
+        <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+            <label class="block text-xs font-bold text-slate-500 mb-1">ผู้อำนวยการโรงเรียน (ดึงจากส่วนกลาง)</label>
+            <div id="display_director" class="font-bold text-slate-700 text-sm">กำลังโหลด...</div>
+        </div>
+    </div>
+</div>
+                        
+                        <div class="pt-4">
+                            <button type="submit" id="btn-save-settings" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed">
+                                <i class="fas fa-save mr-2"></i> บันทึกการตั้งค่าระบบ
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="glass-panel p-6 rounded-2xl shadow-sm h-fit" id="superadmin-only-section">
+                    <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-purple-800"><i class="fas fa-user-shield mr-2"></i>ผู้ดูแลระบบการลา (Module Admins)</h3>
+                        <span class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200">Super Admin เท่านั้น</span>
+                    </div>
+                    <div class="flex flex-col sm:flex-row gap-3 mb-4">
+                        <div class="flex-1">
+                            <select id="select-new-admin" class="w-full select2-personnel">
+                                <option value="">-- พิมพ์ค้นหาชื่อบุคลากร --</option>
+                            </select>
+                        </div>
+                        <button onclick="addModuleAdmin()" id="btn-add-admin" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed h-[42px]">
+                            <i class="fas fa-plus"></i> แต่งตั้ง
+                        </button>
+                    </div>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-purple-50 text-purple-800 sticky top-0">
+                                <tr>
+                                    <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
+                                    <th class="p-3 text-center font-bold w-20">ถอดถอน</th>
+                                </tr>
+                            </thead>
+                            <tbody id="admin-list" class="divide-y divide-slate-100 bg-white">
+                                <tr><td colspan="2" class="p-4 text-center text-slate-400">กำลังโหลด...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const main = document.getElementById('main-content');
+            const texts = document.querySelectorAll('.sidebar-text');
+            const icon = document.getElementById('sidebar-icon');
+            
+            if (sidebar.classList.contains('w-64')) {
+                sidebar.classList.replace('w-64', 'w-20');
+                main.classList.replace('md:ml-64', 'md:ml-20');
+                texts.forEach(t => t.classList.add('hidden'));
+                icon.classList.replace('fa-chevron-left', 'fa-chevron-right');
+            } else {
+                sidebar.classList.replace('w-20', 'w-64');
+                main.classList.replace('md:ml-20', 'md:ml-64');
+                texts.forEach(t => t.classList.remove('hidden'));
+                icon.classList.replace('fa-chevron-right', 'fa-chevron-left');
+            }
+        }
+    </script>
+
+    <script src="leave_admin.js"></script>
+</body>
+</html>
