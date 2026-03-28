@@ -1345,3 +1345,169 @@ async function removeDuplicateEnrollment(enrollId) {
         }
     }
 }
+
+// ==========================================
+// 🌟 ระบบค้นหานักเรียนอิสระ (ค้นหาทั้งระบบ / จัดการเด็กตกหล่น)
+// ==========================================
+function openGlobalStudentSearch() {
+    Swal.fire({
+        title: 'ค้นหาและจัดการนักเรียนทั้งระบบ',
+        html: '<p class="text-sm text-gray-500 mb-4">ค้นหาเพื่อแก้ไขชื่อ, ย้ายห้อง หรือลบนักเรียนที่ซ้ำซ้อน</p>',
+        input: 'text',
+        inputPlaceholder: 'พิมพ์ชื่อ, นามสกุล หรือเลขประจำตัว...',
+        showCancelButton: true,
+        confirmButtonColor: '#9333ea',
+        confirmButtonText: '<i class="fas fa-search"></i> ค้นหา',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => {
+            if (!value) return 'กรุณาพิมพ์คำค้นหาด้วยครับ!';
+        }
+    }).then((result) => {
+        if (result.isConfirmed && result.value) {
+            searchGlobalStudents(result.value.trim());
+        }
+    });
+}
+
+async function searchGlobalStudents(keyword) {
+    Swal.fire({ title: 'กำลังค้นหา...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    // ค้นหานักเรียน (ดึง semester และ academic_year มาด้วย)
+    const { data: students, error } = await db.from('core_students')
+        .select(`
+            id, student_id_card, first_name, last_name,
+            student_enrollments ( id, core_classrooms (id, grade_level, room_number, academic_year, semester) )
+        `)
+        .or(`student_id_card.ilike.%${keyword}%,first_name.ilike.%${keyword}%,last_name.ilike.%${keyword}%`)
+        .limit(50);
+
+    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+    if (!students || students.length === 0) return Swal.fire('ไม่พบข้อมูล', `ไม่พบนักเรียนที่ตรงกับคำว่า "${keyword}"`, 'info');
+
+    // โหลดห้องเรียนทั้งหมดเพื่อทำ Dropdown (ดึงเทอมและปีการศึกษา และเรียงจากเทอมล่าสุดขึ้นก่อน)
+    const { data: classrooms } = await db.from('core_classrooms')
+        .select('id, grade_level, room_number, semester, academic_year')
+        .order('academic_year', { ascending: false })
+        .order('semester', { ascending: false })
+        .order('grade_level', { ascending: true })
+        .order('room_number', { ascending: true });
+    
+    let html = `
+    <div class="overflow-x-auto max-h-[60vh] text-left">
+        <table class="w-full text-sm border-collapse">
+            <thead class="bg-gray-100 sticky top-0 z-10">
+                <tr>
+                    <th class="p-2 border border-gray-300">รหัส</th>
+                    <th class="p-2 border border-gray-300">ชื่อ - นามสกุล</th>
+                    <th class="p-2 border border-gray-300 text-center">ห้องปัจจุบัน</th>
+                    <th class="p-2 border border-gray-300 text-center">เปลี่ยนห้อง</th>
+                    <th class="p-2 border border-gray-300 text-center">ลบ</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    students.forEach(s => {
+        // หา enrollment ล่าสุด
+        const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null; 
+        const currentRoomId = enroll && enroll.core_classrooms ? enroll.core_classrooms.id : '';
+        
+        // 🌟 ปรับการแสดงผล "ห้องปัจจุบัน" ให้มีเทอมและปีการศึกษา
+        let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
+        if (enroll && enroll.core_classrooms) {
+            const c = enroll.core_classrooms;
+            const term = c.semester || '-';
+            const year = c.academic_year || '-';
+            roomText = `<span class="font-bold text-indigo-700">ม.${c.grade_level}/${c.room_number}</span><br><span class="text-[10px] text-gray-500">(เทอม${term}/${year})</span>`;
+        }
+        
+        const enrollId = enroll ? enroll.id : '';
+
+        // 🌟 ปรับ Dropdown เปลี่ยนห้อง ให้แสดง (เทอม/ปีการศึกษา)
+        let selectHtml = `<select onchange="changeStudentGlobalRoom('${s.id}', '${enrollId}', this.value)" class="border border-gray-300 rounded p-1 w-full outline-none text-xs focus:border-indigo-500">`;
+        if(!currentRoomId) selectHtml += `<option value="" selected>-- เลือกห้องเพื่อเพิ่ม --</option>`;
+        else selectHtml += `<option value="">-- ถอดออกจากห้อง --</option>`;
+        
+        if (classrooms) {
+            classrooms.forEach(c => {
+                const isSelected = c.id === currentRoomId ? 'selected' : '';
+                const term = c.semester || '-';
+                const year = c.academic_year || '-';
+                // รูปแบบ: ม.5/4 (เทอม1/2569)
+                selectHtml += `<option value="${c.id}" ${isSelected}>ม.${c.grade_level}/${c.room_number} (เทอม${term}/${year})</option>`;
+            });
+        }
+        selectHtml += `</select>`;
+
+        html += `
+            <tr class="hover:bg-purple-50 transition-colors">
+                <td class="p-2 border border-gray-300 font-medium text-gray-700 whitespace-nowrap">${s.student_id_card}</td>
+                <td class="p-2 border border-gray-300 min-w-[150px]">
+                    <input type="text" id="fname_${s.id}" value="${s.first_name}" class="border rounded p-1 w-full text-xs mb-1 outline-none focus:border-purple-500" placeholder="ชื่อ">
+                    <input type="text" id="lname_${s.id}" value="${s.last_name}" class="border rounded p-1 w-full text-xs outline-none focus:border-purple-500" placeholder="นามสกุล">
+                    <button onclick="saveGlobalStudentName('${s.id}')" class="w-full mt-1 text-[10px] bg-purple-100 text-purple-700 py-1 rounded hover:bg-purple-200 font-bold transition-colors"><i class="fas fa-save"></i> บันทึกชื่อ</button>
+                </td>
+                <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${roomText}</td>
+                <td class="p-2 border border-gray-300 text-center min-w-[180px]">${selectHtml}</td>
+                <td class="p-2 border border-gray-300 text-center">
+                    <button onclick="deleteGlobalStudent('${s.id}', '${s.first_name}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8 rounded-full transition-colors shadow-sm"><i class="fas fa-trash"></i></button>
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `</tbody></table></div>`;
+
+    Swal.fire({
+        title: 'ผลการค้นหานักเรียน',
+        html: html,
+        width: '1000px', // ขยายหน้าต่างออกนิดนึงเพื่อรองรับชื่อเทอมที่ยาวขึ้น
+        showConfirmButton: false,
+        showCancelButton: true,
+        cancelButtonText: 'ปิดหน้าต่าง'
+    });
+}
+
+// 🌟 ฟังก์ชันย่อยสำหรับแก้ไขและลบ
+async function saveGlobalStudentName(studentId) {
+    const fname = document.getElementById(`fname_${studentId}`).value.trim();
+    const lname = document.getElementById(`lname_${studentId}`).value.trim();
+    
+    if(!fname || !lname) return Swal.fire({toast: true, position: 'top-end', title: 'กรุณากรอกชื่อและสกุล', icon: 'warning', showConfirmButton: false, timer: 1500});
+    
+    const { error } = await db.from('core_students').update({ first_name: fname, last_name: lname }).eq('id', studentId);
+    if(error) Swal.fire({toast: true, position: 'top-end', title: 'อัปเดตชื่อผิดพลาด', icon: 'error', showConfirmButton: false, timer: 1500});
+    else Swal.fire({toast: true, position: 'top-end', title: 'อัปเดตชื่อสำเร็จ', icon: 'success', showConfirmButton: false, timer: 1500});
+}
+
+async function changeStudentGlobalRoom(studentId, currentEnrollId, newRoomId) {
+    Swal.fire({title: 'กำลังอัปเดตห้องเรียน...', allowOutsideClick: false, didOpen: ()=>Swal.showLoading()});
+    try {
+        if (!newRoomId) {
+            if (currentEnrollId) await db.from('student_enrollments').delete().eq('id', currentEnrollId);
+        } else {
+            if (currentEnrollId) await db.from('student_enrollments').update({ classroom_id: newRoomId }).eq('id', currentEnrollId);
+            else await db.from('student_enrollments').insert({ student_id: studentId, classroom_id: newRoomId });
+        }
+        Swal.fire({icon: 'success', title: 'อัปเดตห้องเรียนสำเร็จ', text: 'กรุณาค้นหาใหม่อีกครั้งเพื่อดูความเปลี่ยนแปลง', timer: 2000, showConfirmButton: false});
+        if(typeof loadStudents === 'function') loadStudents(); 
+    } catch(err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+}
+
+async function deleteGlobalStudent(studentId, name) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบถาวร?',
+        html: `<p class="text-sm text-red-500">คุณกำลังลบ <b>${name}</b> ออกจากระบบ<br>ข้อมูลการเข้าเรียน, พฤติกรรม <b>จะถูกลบทั้งหมด</b></p>`,
+        icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบข้อมูลถาวร'
+    });
+    
+    if(isConfirmed) {
+        Swal.fire({title: 'กำลังลบ...', allowOutsideClick: false, didOpen: ()=>Swal.showLoading()});
+        const { error } = await db.from('core_students').delete().eq('id', studentId);
+        if(!error) {
+            Swal.fire({icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false});
+            const row = document.getElementById(`fname_${studentId}`).closest('tr');
+            if(row) row.remove();
+        } else Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+}

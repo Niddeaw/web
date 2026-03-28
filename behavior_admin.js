@@ -77,23 +77,58 @@ async function loadCriteria() {
     if (data) criteriaList = data;
 }
 
+
 async function initStudentTable() {
-    const { data: students } = await db.from('core_students').select(`
-        id, student_id_card, first_name, last_name,
-        student_enrollments ( core_classrooms (grade_level, room_number) ),
-        behavior_logs ( score_change, behavior_criteria(category) )
-    `);
+    // แสดงหน้าต่างโหลดข้อมูลค้างไว้ เพราะเด็ก 3000 คนอาจจะใช้เวลา 2-3 วินาที
+    Swal.fire({ title: 'กำลังโหลดข้อมูลนักเรียน...', text: 'กรุณารอสักครู่', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-    if (!students) return;
+    let allFetchedStudents = [];
+    let from = 0;
+    const limit = 1000;
 
-    let filteredStudents = students;
-    if (currentUser.role !== 'super_admin' && currentUser.managedGrades.length > 0) {
-        filteredStudents = students.filter(s => {
+    // 🌟 วนลูปดึงข้อมูลทีละ 1,000 แถว จนกว่าจะหมด 🌟
+    while (true) {
+        const { data, error } = await db.from('core_students').select(`
+            id, student_id_card, first_name, last_name,
+            student_enrollments ( core_classrooms (grade_level, room_number) ),
+            behavior_logs ( score_change, behavior_criteria(category) )
+        `).range(from, from + limit - 1);
+
+        if (error) {
+            console.error('Error fetching students:', error);
+            Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลนักเรียนได้', 'error');
+            return;
+        }
+
+        if (data && data.length > 0) {
+            allFetchedStudents = allFetchedStudents.concat(data); // นำข้อมูลมาต่อกัน
+        }
+
+        // ถ้าดึงมาได้น้อยกว่า 1,000 แสดงว่าหมดตารางแล้ว ให้ออกจากลูป
+        if (!data || data.length < limit) {
+            break; 
+        }
+        
+        from += limit; // ขยับจุดเริ่มต้นไปอีก 1000
+    }
+
+    if (allFetchedStudents.length === 0) {
+        Swal.close();
+        return;
+    }
+
+    // 🌟 เข้าสู่กระบวนการกรองข้อมูล (ลอจิกเดิมของคุณครู) 🌟
+    let filteredStudents = allFetchedStudents;
+    
+    // เช็คสิทธิ์การมองเห็นตามระดับชั้นที่รับผิดชอบ
+    if (currentUser && currentUser.role !== 'super_admin' && currentUser.managedGrades && currentUser.managedGrades.length > 0) {
+        filteredStudents = allFetchedStudents.filter(s => {
             const enroll = s.student_enrollments?.[0];
-            return enroll && currentUser.managedGrades.includes(enroll.core_classrooms.grade_level);
+            return enroll && enroll.core_classrooms && currentUser.managedGrades.includes(enroll.core_classrooms.grade_level);
         });
     }
 
+    // 🌟 คำนวณคะแนนพฤติกรรม 🌟
     allStudents = filteredStudents.map(s => {
         const totalScore = 100 + (s.behavior_logs?.reduce((sum, log) => sum + log.score_change, 0) || 0);
         const posCount = s.behavior_logs?.filter(l => l.score_change > 0).length || 0;
@@ -101,13 +136,19 @@ async function initStudentTable() {
         const enroll = s.student_enrollments?.[0];
         
         return {
-            id: s.id, sid: s.student_id_card, name: `${s.first_name} ${s.last_name}`,
+            id: s.id, 
+            sid: s.student_id_card, 
+            name: `${s.first_name} ${s.last_name}`,
             room: enroll && enroll.core_classrooms ? `${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-',
-            score: totalScore, pos: posCount, neg: negCount
+            score: totalScore, 
+            pos: posCount, 
+            neg: negCount
         };
     });
 
+    // วาดตารางและปิดกล่องโหลด
     renderTable(allStudents);
+    Swal.close();
 }
 
 function renderTable(data) {
@@ -270,175 +311,198 @@ async function saveBehaviorRecord() {
 }
 
 // ==========================================
-// 🌟 ฟังก์ชัน นำเข้าข้อมูลประวัติเก่าจากระบบ Excel 🌟
+// 🌟 ฟังก์ชัน นำเข้าข้อมูลประวัติเก่าจาก Google Sheet 🌟
 // ==========================================
-async function importOldHistory(input) {
-    const file = input.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
-
-            const dataRows = rows.filter(r => {
-                const stdCode = String(r['รหัสนักเรียน'] || '').trim();
-                return stdCode !== '' && stdCode !== 'รหัสนักเรียน*';
-            });
-
-            if (dataRows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ (ตรวจสอบว่าใส่รหัสนักเรียนในคอลัมน์ A แล้ว)');
-
-            Swal.fire({ 
-                title: `พบ ${dataRows.length} รายการ กำลังประมวลผล...`, 
-                didOpen: () => Swal.showLoading(), 
-                allowOutsideClick: false 
-            });
-
-            // ── 1. ดึงข้อมูลนักเรียนทั้งหมด (แก้ปัญหา Limit 1000) ──
-            const { data: studentsList, error: stuErr } = await db
-                .from('core_students')
-                .select('id, student_id_card')
-                .limit(10000); // ใส่ limit ให้เกินจำนวนนักเรียนทั้งโรงเรียน
-            if (stuErr) throw stuErr;
-
-            const studentMap = {};
-            (studentsList || []).forEach(s => { 
-                studentMap[String(s.student_id_card).trim()] = s.id; 
-            });
-
-            // ── 2. จัดการ Criteria แบบ Bulk (ลด N+1 Query) ──
-            const criteriaCache = new Map(); // เก็บ Title -> ID
-            (criteriaList || []).forEach(c => criteriaCache.set(c.title.trim(), c.id));
-
-            const uniqueNewCriteria = new Map(); // รายการใหม่ที่ต้องสร้าง Title -> Default Score
-            
-            dataRows.forEach(row => {
-                const title = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
-                const scoreChange = parseInt(String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, ''));
-                if (!criteriaCache.has(title) && !isNaN(scoreChange) && scoreChange !== 0) {
-                    uniqueNewCriteria.set(title, scoreChange);
-                }
-            });
-
-            // สร้าง Criteria ใหม่ทีเดียว (ถ้ามี)
-            if (uniqueNewCriteria.size > 0) {
-                const criteriaToInsert = Array.from(uniqueNewCriteria.entries()).map(([title, score]) => ({
-                    title: title,
-                    category: score >= 0 ? 'positive' : 'negative',
-                    default_score: Math.abs(score) || 5
-                }));
-
-                const { data: newCriteriaRecords, error: critErr } = await db
-                    .from('behavior_criteria')
-                    .insert(criteriaToInsert)
-                    .select();
-                
-                if (critErr) throw critErr;
-
-                // อัปเดต Cache และ Global criteriaList
-                newCriteriaRecords.forEach(c => {
-                    criteriaCache.set(c.title, c.id);
-                    if (Array.isArray(criteriaList)) criteriaList.push(c);
-                });
+async function importFromGoogleSheet() {
+    const { value: url } = await Swal.fire({
+        title: 'นำเข้าจาก Google Sheet',
+        html: '<p class="text-sm text-slate-500 mb-2">กรุณาวางลิงก์ Google Sheet ที่ต้องการนำเข้า<br><span class="text-rose-500 font-bold">*อย่าลืมตั้งค่าแชร์ไฟล์เป็น "ทุกคนที่มีลิงก์" (Viewer)*</span></p>',
+        input: 'url',
+        inputPlaceholder: 'https://docs.google.com/spreadsheets/d/...',
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b',
+        confirmButtonText: '<i class="fas fa-cloud-download-alt mr-2"></i> ดึงข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => {
+            if (!value || !value.includes('docs.google.com/spreadsheets')) {
+                return 'กรุณาใส่ลิงก์ Google Sheet ให้ถูกต้อง';
             }
-
-            // ── helper: แปลงวันที่ ──
-            function parseDateTime(raw) {
-                if (!raw || String(raw).trim() === '') return new Date().toISOString();
-                const s = String(raw).trim();
-                const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
-                if (m) {
-                    let [, d, mo, y, hr = '12', mn = '0'] = m;
-                    if (parseInt(y) > 2400) y = parseInt(y) - 543;
-                    const dt = new Date(parseInt(y), parseInt(mo) - 1, parseInt(d), parseInt(hr), parseInt(mn));
-                    if (!isNaN(dt.getTime())) return dt.toISOString();
-                }
-                const dt2 = new Date(s);
-                return !isNaN(dt2.getTime()) ? dt2.toISOString() : new Date().toISOString();
-            }
-
-            // ── 3. เตรียมข้อมูลและตรวจสอบความถูกต้อง ──
-            const logsToInsert = [];
-            const errors = [];
-
-            for (const row of dataRows) {
-                const stdCode  = String(row['รหัสนักเรียน'] || '').trim();
-                const title    = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
-                const scoreRaw = String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, '');
-                let scoreChange = parseInt(scoreRaw);
-
-                if (isNaN(scoreChange) || scoreChange === 0) {
-                    errors.push(`รหัส ${stdCode}: คะแนน "${row['คะแนน']}" ไม่ถูกต้อง`);
-                    continue;
-                }
-
-                const stdUuid = studentMap[stdCode];
-                if (!stdUuid) {
-                    errors.push(`ไม่พบรหัสนักเรียน: ${stdCode}`);
-                    continue;
-                }
-
-                const criteriaId = criteriaCache.get(title);
-                if (!criteriaId) {
-                    errors.push(`เกิดข้อผิดพลาดในการดึง Criteria: ${title}`);
-                    continue;
-                }
-
-                const desc = String(row['รายละเอียด'] || '').trim();
-                const recorder = String(row['ผู้บันทึก'] || '').trim();
-                const fullDesc = [desc, recorder ? `ผู้บันทึกเดิม: ${recorder}` : ''].filter(Boolean).join(' | ');
-
-                logsToInsert.push({
-                    student_id:    stdUuid,
-                    criteria_id:   criteriaId,
-                    score_change:  scoreChange,
-                    description:   fullDesc || null,
-                    evidence_url:  String(row['หลักฐาน (URL)'] || row['หลักฐาน'] || '').trim() || null,
-                    created_at:    parseDateTime(row['วันที่/เวลา']),
-                    recorder_id:   currentUser.id,
-                    academic_year: schoolInfo.current_academic_year,
-                    semester:      schoolInfo.current_semester
-                });
-            }
-
-            if (logsToInsert.length === 0) {
-                const errMsg = errors.slice(0, 5).join('\n');
-                Swal.fire('ไม่พบข้อมูลที่ใช้ได้', errMsg || 'ตรวจสอบรหัสนักเรียนและคะแนน', 'error');
-                return;
-            }
-
-            // ── 4. บันทึกเป็น batch ──
-            const BATCH = 100;
-            let success = 0;
-            for (let i = 0; i < logsToInsert.length; i += BATCH) {
-                const batchData = logsToInsert.slice(i, i + BATCH);
-                const { error } = await db.from('behavior_logs').insert(batchData);
-                if (error) throw error;
-                success += batchData.length;
-            }
-
-            const skipCount = dataRows.length - logsToInsert.length;
-            await Swal.fire({
-                icon: 'success',
-                title: 'นำเข้าสำเร็จ!',
-                html: `<p>บันทึก <b>${success}</b> รายการ</p>
-                       ${skipCount > 0 ? `<p class="text-sm text-amber-600 mt-1">ข้าม ${skipCount} รายการ (ไม่พบรหัส/คะแนนผิด)</p>` : ''}
-                       ${errors.length > 0 ? `<details class="mt-2 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error</summary>
-                       <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0,10).join('\n')}</pre></details>` : ''}`
-            });
-            
-            input.value = '';
-            initStudentTable();
-            loadDashboard();
-
-        } catch (err) {
-            Swal.fire('เกิดข้อผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error');
-            input.value = '';
         }
-    };
-    reader.readAsArrayBuffer(file);
+    });
+
+    if (!url) return;
+
+    // ดึง Sheet ID ออกมาจากลิงก์ URL
+    const match = url.match(/\/d\/(.*?)(\/|$)/);
+    if (!match || !match[1]) {
+        return Swal.fire('ผิดพลาด', 'ไม่พบรหัส Sheet ID จากลิงก์', 'error');
+    }
+    const sheetId = match[1];
+    
+    // แปลงลิงก์เพื่อสั่งให้ Google ส่งไฟล์กลับมาเป็น CSV
+    const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
+
+    try {
+        Swal.fire({ title: 'กำลังดึงข้อมูลจาก Google Sheet...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+        // ดึงข้อมูลผ่าน Fetch API
+        const response = await fetch(csvUrl);
+        if (!response.ok) throw new Error('ไม่สามารถเข้าถึงไฟล์ได้ กรุณาตรวจสอบว่าเปิดการแชร์ไฟล์เป็นสาธารณะ (Anyone with the link) แล้วหรือยัง');
+        
+        const csvText = await response.text();
+        
+        // แปลง CSV Text เป็น JSON ด้วย SheetJS (XLSX) ที่เรามีโหลดไว้อยู่แล้ว
+        const wb = XLSX.read(csvText, { type: 'string', raw: false });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
+
+        // ส่งข้อมูลเข้าสู่กระบวนการประมวลผลฐานข้อมูล
+        await processImportData(rows);
+
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
+
+// ฟังก์ชันสำหรับประมวลผลข้อมูลและบันทึกลงฐานข้อมูล (ย้ายลอจิกเดิมมาไว้ที่นี่)
+async function processImportData(rows) {
+    const dataRows = rows.filter(r => {
+        const stdCode = String(r['รหัสนักเรียน'] || '').trim();
+        return stdCode !== '' && stdCode !== 'รหัสนักเรียน*';
+    });
+
+    if (dataRows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ (ตรวจสอบว่ามีคอลัมน์ "รหัสนักเรียน" หรือไม่)');
+
+    Swal.fire({ 
+        title: `พบข้อมูล ${dataRows.length} รายการ`,
+        text: 'กำลังประมวลผลและตรวจสอบรหัสนักเรียน...',
+        didOpen: () => Swal.showLoading(), 
+        allowOutsideClick: false 
+    });
+
+    // ── 1. ดึงข้อมูลนักเรียนทั้งหมด ──
+    const { data: studentsList, error: stuErr } = await db.from('core_students').select('id, student_id_card').limit(10000);
+    if (stuErr) throw stuErr;
+
+    const studentMap = {};
+    (studentsList || []).forEach(s => { studentMap[String(s.student_id_card).trim()] = s.id; });
+
+    // ── 2. จัดการ Criteria (หัวข้อความผิด/ความดี) แบบ Bulk ──
+    const criteriaCache = new Map();
+    (criteriaList || []).forEach(c => criteriaCache.set(c.title.trim(), c.id));
+
+    const uniqueNewCriteria = new Map();
+    
+    dataRows.forEach(row => {
+        const title = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
+        const scoreChange = parseInt(String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, ''));
+        if (!criteriaCache.has(title) && !isNaN(scoreChange) && scoreChange !== 0) {
+            uniqueNewCriteria.set(title, scoreChange);
+        }
+    });
+
+    // ถ้ามีหัวข้อใหม่ ให้สร้างหัวข้อลงตารางก่อน
+    if (uniqueNewCriteria.size > 0) {
+        const criteriaToInsert = Array.from(uniqueNewCriteria.entries()).map(([title, score]) => ({
+            title: title,
+            category: score >= 0 ? 'positive' : 'negative',
+            default_score: Math.abs(score) || 5
+        }));
+
+        const { data: newCriteriaRecords, error: critErr } = await db.from('behavior_criteria').insert(criteriaToInsert).select();
+        if (critErr) throw critErr;
+
+        newCriteriaRecords.forEach(c => {
+            criteriaCache.set(c.title, c.id);
+            if (Array.isArray(criteriaList)) criteriaList.push(c);
+        });
+    }
+
+    // ฟังก์ชันแปลงวันที่
+    function parseDateTime(raw) {
+        if (!raw || String(raw).trim() === '') return new Date().toISOString();
+        const s = String(raw).trim();
+        const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+        if (m) {
+            let [, d, mo, y, hr = '12', mn = '0'] = m;
+            if (parseInt(y) > 2400) y = parseInt(y) - 543;
+            const dt = new Date(parseInt(y), parseInt(mo) - 1, parseInt(d), parseInt(hr), parseInt(mn));
+            if (!isNaN(dt.getTime())) return dt.toISOString();
+        }
+        const dt2 = new Date(s);
+        return !isNaN(dt2.getTime()) ? dt2.toISOString() : new Date().toISOString();
+    }
+
+    // ── 3. เตรียมข้อมูลและบันทึก ──
+    const logsToInsert = [];
+    const errors = [];
+
+    for (const row of dataRows) {
+        const stdCode  = String(row['รหัสนักเรียน'] || '').trim();
+        const title    = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
+        const scoreRaw = String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, '');
+        let scoreChange = parseInt(scoreRaw);
+
+        if (isNaN(scoreChange) || scoreChange === 0) {
+            errors.push(`รหัส ${stdCode}: คะแนน "${row['คะแนน']}" ไม่ถูกต้อง`);
+            continue;
+        }
+
+        const stdUuid = studentMap[stdCode];
+        if (!stdUuid) {
+            errors.push(`ไม่พบรหัสนักเรียน: ${stdCode}`);
+            continue;
+        }
+
+        const criteriaId = criteriaCache.get(title);
+        if (!criteriaId) continue;
+
+        const desc = String(row['รายละเอียด'] || '').trim();
+        const recorder = String(row['ผู้บันทึก'] || '').trim();
+        const fullDesc = [desc, recorder ? `ผู้บันทึกเดิม: ${recorder}` : ''].filter(Boolean).join(' | ');
+
+        logsToInsert.push({
+            student_id:    stdUuid,
+            criteria_id:   criteriaId,
+            score_change:  scoreChange,
+            description:   fullDesc || null,
+            evidence_url:  String(row['หลักฐาน (URL)'] || row['หลักฐาน'] || '').trim() || null,
+            created_at:    parseDateTime(row['วันที่/เวลา']),
+            recorder_id:   currentUser.id,
+            academic_year: schoolInfo.current_academic_year,
+            semester:      schoolInfo.current_semester
+        });
+    }
+
+    if (logsToInsert.length === 0) {
+        const errMsg = errors.slice(0, 5).join('\n');
+        Swal.fire('ไม่พบข้อมูลที่ใช้ได้', errMsg || 'ตรวจสอบรหัสนักเรียนและคะแนน', 'error');
+        return;
+    }
+
+    // ── 4. บันทึกลง Supabase เป็น Batch ──
+    const BATCH = 100;
+    let success = 0;
+    for (let i = 0; i < logsToInsert.length; i += BATCH) {
+        const batchData = logsToInsert.slice(i, i + BATCH);
+        const { error } = await db.from('behavior_logs').insert(batchData);
+        if (error) throw error;
+        success += batchData.length;
+    }
+
+    const skipCount = dataRows.length - logsToInsert.length;
+    await Swal.fire({
+        icon: 'success',
+        title: 'นำเข้าสำเร็จ!',
+        html: `<p>บันทึก <b>${success}</b> รายการ</p>
+               ${skipCount > 0 ? `<p class="text-sm text-amber-600 mt-1">ข้าม ${skipCount} รายการ (ไม่พบรหัส/คะแนนผิด)</p>` : ''}
+               ${errors.length > 0 ? `<details class="mt-2 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error</summary>
+               <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0,10).join('\n')}</pre></details>` : ''}`
+    });
+    
+    // รีเฟรชตารางหลังนำเข้าเสร็จ
+    initStudentTable();
+    loadDashboard();
 }
 
 function filterByScore(type) {

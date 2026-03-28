@@ -349,7 +349,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mt-6">
+                <!-- <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mt-6">
                     <div
                         class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
                         <div class="flex items-center gap-3">
@@ -376,9 +376,14 @@
                             <button onclick="openAddStudentModal()"
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i
                                     class="fa-solid fa-user-plus"></i> เพิ่มรายคน</button>
-<button onclick="checkDuplicateStudents()" class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-rose-200">
-    <i class="fas fa-users-slash"></i> เช็คชื่อซ้ำซ้อน
-</button>
+                            <button onclick="checkDuplicateStudents()"
+                                class="bg-rose-500 hover:bg-rose-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-rose-200">
+                                <i class="fas fa-users-slash"></i> เช็คชื่อซ้ำซ้อน
+                            </button>
+                            <button onclick="openGlobalStudentSearch()"
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
+                                <i class="fa-solid fa-magnifying-glass"></i> ค้นหา/แก้ไขอิสระ
+                            </button>
                         </div>
                     </div>
 
@@ -423,7 +428,93 @@
                             </tbody>
                         </table>
                     </div>
+                </div> -->
+
+<div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mt-6">
+    
+    <div class="p-5 border-b border-gray-200 bg-slate-50">
+        <div class="flex flex-col xl:flex-row justify-between gap-5 items-start xl:items-center">
+            
+            <div class="flex items-center gap-3 w-full xl:w-auto bg-white p-2.5 rounded-xl border border-indigo-100 shadow-sm">
+                <div class="flex items-center justify-center bg-indigo-100 text-indigo-600 h-10 w-10 rounded-lg">
+                    <i class="fa-solid fa-users text-lg"></i>
                 </div>
+                <div class="pr-2">
+                    <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">รายชื่อแยกตามห้อง</label>
+                    <select id="filterStudentClass" onchange="loadStudents()" class="border-none bg-transparent outline-none font-bold text-blue-700 w-full md:w-56 cursor-pointer text-sm p-0 m-0">
+                        <option value="">-- เลือกห้องเรียน --</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap gap-2 w-full xl:w-auto xl:justify-end">
+                <div class="flex gap-2 w-full sm:w-auto border-r-0 sm:border-r border-gray-200 sm:pr-2">
+                    <button onclick="downloadStudentTemplate()" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors" title="โหลดเทมเพลต Excel">
+                        <i class="fa-solid fa-download text-gray-500"></i>
+                    </button>
+                    <input type="file" id="excelUploadStudents" accept=".xlsx, .xls" class="hidden" onchange="processImportStudents(event)">
+                    <button onclick="triggerImportStudents()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
+                        <i class="fa-solid fa-file-excel"></i> นำเข้า Excel
+                    </button>
+                    <button onclick="triggerImportGoogleSheet()" class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
+                        <i class="fa-brands fa-google"></i> ดึงจาก Sheet
+                    </button>
+                </div>
+
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button onclick="openAddStudentModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
+                        <i class="fa-solid fa-user-plus"></i> เพิ่ม 1 คน
+                    </button>
+                    <button onclick="checkDuplicateStudents()" class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm flex-1 sm:flex-none justify-center">
+                        <i class="fas fa-users-slash"></i> เช็คชื่อซ้ำ
+                    </button>
+                    <button onclick="openGlobalStudentSearch()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
+                        <i class="fa-solid fa-magnifying-glass"></i> ค้นหาอิสระ
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="p-4 w-full relative">
+        
+        <div id="bulk-action-bar" class="hidden flex flex-col sm:flex-row items-center justify-between mb-4 bg-yellow-50 border border-yellow-200 p-3 rounded-xl shadow-sm transition-all gap-3">
+            <div class="text-sm font-bold text-gray-700 flex items-center">
+                <i class="fa-solid fa-check-double text-green-600 mr-2 text-lg"></i>
+                เลือกไว้ <span id="selected-count" class="text-blue-700 text-lg mx-1">0</span> คน
+            </div>
+            <div class="flex gap-2 w-full sm:w-auto">
+                <button onclick="bulkMoveStudents()" class="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
+                    <i class="fa-solid fa-truck-arrow-right"></i> ย้ายห้อง
+                </button>
+                <button onclick="bulkDeleteStudents()" class="flex-1 sm:flex-none justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
+                    <i class="fa-solid fa-trash-can"></i> ลบที่เลือก
+                </button>
+            </div>
+        </div>
+
+        <table id="studentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+            <thead>
+                <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                    <th class="py-3 px-4 w-10 text-center">
+                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded cursor-pointer focus:ring-blue-500">
+                    </th>
+                    <th class="py-3 px-4 w-16 text-center">เลขที่</th>
+                    <th class="py-3 px-4">เลขประจำตัว / เลข ปชช.</th>
+                    <th class="py-3 px-4">ชื่อ-สกุล</th>
+                    <th class="py-3 px-4 text-center">สถานะ</th>
+                    <th class="py-3 px-4 text-center">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody id="tb-students">
+                <tr>
+                    <td colspan="6" class="text-center py-8 text-gray-400">กรุณาเลือกห้องเรียนเพื่อดูรายชื่อ</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
             </div>
 
         </div>
@@ -668,20 +759,26 @@
     </div>
 
     <div id="modal-duplicates" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
-    <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeDuplicateModal()"></div>
-    <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-        <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-red-500 text-white">
-            <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users-slash"></i> ตรวจสอบนักเรียนซ้ำซ้อน</h3>
-            <button onclick="closeDuplicateModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
-            <div id="duplicate-content">กำลังตรวจสอบ...</div>
-        </div>
-        <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
-            <button onclick="closeDuplicateModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิดหน้าต่าง</button>
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeDuplicateModal()"></div>
+        <div
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-red-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users-slash"></i>
+                    ตรวจสอบนักเรียนซ้ำซ้อน</h3>
+                <button onclick="closeDuplicateModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
+                <div id="duplicate-content">กำลังตรวจสอบ...</div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
+                <button onclick="closeDuplicateModal()"
+                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิดหน้าต่าง</button>
+            </div>
         </div>
     </div>
-</div>
     <script src="super_admin.js"></script>
 
 </body>
