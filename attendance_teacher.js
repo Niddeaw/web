@@ -1295,3 +1295,231 @@ async function exportGradeOverviewPDF() {
 }
 
 async function logout() { await db.auth.signOut(); window.location.href = "index.html"; }
+
+// ฟังก์ชันสำหรับเปิดหน้าต่างประวัติการเช็คชื่อ
+async function openHistoryModal() {
+    const classroomId = $('#classroom-select').val();
+    const className = $('#classroom-select option:selected').text();
+    if (!classroomId) return;
+
+    Swal.fire({ title: 'กำลังโหลดประวัติ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const { data } = await db.from('homeroom_attendance')
+        .select('check_date, status')
+        .eq('classroom_id', classroomId)
+        .order('check_date', { ascending: false });
+    Swal.close();
+
+    if (!data || data.length === 0) {
+        return Swal.fire('ไม่มีข้อมูล', `ยังไม่มีการเช็คชื่อของ ${className}`, 'info');
+    }
+
+    // สรุปรายวัน
+    const byDate = {};
+    data.forEach(r => {
+        if (!byDate[r.check_date]) byDate[r.check_date] = { มา:0, ขาด:0, สาย:0, ลา:0, ป่วย:0 };
+        byDate[r.check_date][r.status] = (byDate[r.check_date][r.status]||0) + 1;
+    });
+
+    const rows = Object.entries(byDate).map(([date, s]) => `
+        <tr class="border-b border-slate-100 hover:bg-slate-50">
+            <td class="py-2 px-3 text-sm">${formatThaiDateFull(date)}</td>
+            <td class="py-2 px-3 text-center text-green-600 font-bold">${s['มา']||0}</td>
+            <td class="py-2 px-3 text-center text-rose-600 font-bold">${s['ขาด']||0}</td>
+            <td class="py-2 px-3 text-center text-orange-500 font-bold">${s['สาย']||0}</td>
+            <td class="py-2 px-3 text-center text-yellow-600 font-bold">${s['ลา']||0}</td>
+            <td class="py-2 px-3 text-center text-blue-600 font-bold">${s['ป่วย']||0}</td>
+        </tr>`).join('');
+
+    Swal.fire({
+        title: `ประวัติการเช็คชื่อ: ${className}`,
+        width: 640,
+        html: `<div class="overflow-auto max-h-80">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-100 sticky top-0">
+                    <tr>
+                        <th class="py-2 px-3">วันที่</th>
+                        <th class="py-2 px-3 text-center text-green-600">มา</th>
+                        <th class="py-2 px-3 text-center text-rose-600">ขาด</th>
+                        <th class="py-2 px-3 text-center text-orange-500">สาย</th>
+                        <th class="py-2 px-3 text-center text-yellow-600">ลา</th>
+                        <th class="py-2 px-3 text-center text-blue-600">ป่วย</th>
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#64748b'
+    });
+}
+
+// ==========================================
+// ล้างข้อมูลการเช็คชื่อ — รองรับทั้งครูและแอดมิน
+// ครู: เฉพาะห้องที่ตัวเองเป็นครูที่ปรึกษา
+// แอดมิน: เลือกห้องใดก็ได้
+// ==========================================
+async function clearAttendanceData() {
+    const isAdmin = (actualUserRole === 'super_admin' || actualUserRole === 'admin');
+
+    // ── สร้างตัวเลือกห้องเรียน ──
+    let classroomOptions = [];
+    if (isAdmin) {
+        Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+        const { data, error } = await db.from('core_classrooms')
+            .select('id, grade_level, room_number, semester, academic_year')
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false })
+            .order('grade_level', { ascending: true })
+            .order('room_number', { ascending: true });
+            // .select('id, grade_level, room_number')
+            // .order('grade_level').order('room_number');
+        Swal.close();
+        if (error || !data) return Swal.fire('ผิดพลาด', 'โหลดห้องเรียนไม่ได้', 'error');
+        classroomOptions = data.map(r => ({ id: r.id, label: `ม.${r.grade_level}/${r.room_number}(${r.semester}/${r.academic_year})` }));
+    } else {
+        // ดึงรายการห้องจาก dropdown ที่ load ไว้แล้ว (เฉพาะห้องที่ครูมีสิทธิ์)
+        $('#classroom-select option').each(function() {
+            if ($(this).val()) classroomOptions.push({ id: $(this).val(), label: $(this).text() });
+        });
+        if (classroomOptions.length === 0)
+            return Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้เป็นครูที่ปรึกษาห้องใด', 'warning');
+    }
+
+    const roomSelectHtml = classroomOptions.length === 1
+        ? `<input type="hidden" id="clr-room-id" value="${classroomOptions[0].id}">
+           <div class="p-2 bg-rose-50 border border-rose-200 rounded-lg text-center font-bold text-rose-700 mb-3">
+             <i class="fas fa-lock mr-1"></i> ห้อง: ${classroomOptions[0].label}
+           </div>`
+        : `<select id="clr-room-id" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm mb-3 outline-none focus:border-rose-500">
+             <option value="">-- เลือกห้องเรียน --</option>
+             ${classroomOptions.map(r => `<option value="${r.id}">${r.label}</option>`).join('')}
+           </select>`;
+
+    const currentClassroomId = $('#classroom-select').val();
+    const currentDate = $('#check-date').val();
+
+    // ── เปิด popup เลือกห้อง + โหมด + วันที่ ──
+    const { value: form } = await Swal.fire({
+        title: '<i class="fas fa-trash-alt text-rose-500 mr-2"></i>ล้างข้อมูลการเช็คชื่อ',
+        width: 520,
+        html: `
+        <div class="text-left text-sm space-y-3 mt-2">
+            <div>
+                <label class="font-bold text-slate-600 block mb-1">1. ห้องเรียน</label>
+                ${roomSelectHtml}
+            </div>
+            <div>
+                <label class="font-bold text-slate-600 block mb-1">2. รูปแบบการล้าง</label>
+                <div class="flex gap-2">
+                    <label class="flex-1 flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:border-rose-400 transition has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                        <input type="radio" name="clr-mode" value="single" checked> <span class="font-bold text-slate-700">ทีละวัน</span>
+                    </label>
+                    <label class="flex-1 flex items-center gap-2 border border-slate-200 rounded-lg p-2.5 cursor-pointer hover:border-rose-400 transition has-[:checked]:border-rose-500 has-[:checked]:bg-rose-50">
+                        <input type="radio" name="clr-mode" value="range"> <span class="font-bold text-slate-700">ช่วงหลายวัน</span>
+                    </label>
+                </div>
+            </div>
+            <div id="clr-single-section">
+                <label class="font-bold text-slate-600 block mb-1">3. เลือกวันที่ต้องการล้าง</label>
+                <input type="date" id="clr-single-date" value="${currentDate}"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-rose-500">
+            </div>
+            <div id="clr-range-section" class="hidden">
+                <label class="font-bold text-slate-600 block mb-1">3. เลือกช่วงวันที่</label>
+                <input type="text" id="clr-range-date"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-rose-500"
+                    placeholder="คลิกเพื่อเลือกช่วงวันที่...">
+            </div>
+            <p class="text-[10px] text-rose-500 font-bold bg-rose-50 p-2 rounded-lg">⚠️ ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้</p>
+        </div>`,
+        didOpen: () => {
+            // toggle single/range
+            document.querySelectorAll('input[name="clr-mode"]').forEach(radio => {
+                radio.addEventListener('change', e => {
+                    if (e.target.value === 'single') {
+                        document.getElementById('clr-single-section').classList.remove('hidden');
+                        document.getElementById('clr-range-section').classList.add('hidden');
+                    } else {
+                        document.getElementById('clr-single-section').classList.add('hidden');
+                        document.getElementById('clr-range-section').classList.remove('hidden');
+                        flatpickr('#clr-range-date', { mode: 'range', dateFormat: 'Y-m-d', locale: 'th' });
+                    }
+                });
+            });
+        },
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: '<i class="fas fa-arrow-right mr-1"></i> ถัดไป',
+        cancelButtonText: 'ยกเลิก',
+        preConfirm: () => {
+            const roomId = document.getElementById('clr-room-id').value;
+            const mode = document.querySelector('input[name="clr-mode"]:checked').value;
+            const roomLabel = document.getElementById('clr-room-id').tagName === 'SELECT'
+                ? document.querySelector('#clr-room-id option:checked')?.text
+                : classroomOptions[0]?.label;
+
+            if (!roomId) return Swal.showValidationMessage('กรุณาเลือกห้องเรียน');
+
+            let startDate, endDate;
+            if (mode === 'single') {
+                startDate = document.getElementById('clr-single-date').value;
+                endDate = startDate;
+                if (!startDate) return Swal.showValidationMessage('กรุณาเลือกวันที่');
+            } else {
+                const rangeVal = document.getElementById('clr-range-date').value;
+                if (!rangeVal) return Swal.showValidationMessage('กรุณาเลือกช่วงวันที่');
+                const parts = rangeVal.split(' to ');
+                startDate = parts[0]; endDate = parts[1] || parts[0];
+            }
+            return { roomId, roomLabel, startDate, endDate };
+        }
+    });
+
+    if (!form) return;
+
+    const dateDisplay = form.startDate === form.endDate
+        ? formatThaiDateFull(form.startDate)
+        : `${formatThaiDateFull(form.startDate)} ถึง ${formatThaiDateFull(form.endDate)}`;
+
+    const confirm = await Swal.fire({
+        title: 'ยืนยันการล้างข้อมูล?',
+        html: `<div class="text-sm text-left space-y-1">
+            <p>ห้องเรียน: <b class="text-rose-700">${form.roomLabel}</b></p>
+            <p>วันที่: <b class="text-rose-700">${dateDisplay}</b></p>
+            <p class="text-xs text-slate-500 mt-2">ข้อมูลจะหายถาวร ไม่สามารถกู้คืนได้</p>
+        </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> ลบถาวร',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังล้างข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        // ── Bug Fix: ตารางถูกต้องคือ homeroom_attendance ──
+        const { error } = await db.from('homeroom_attendance')
+            .delete()
+            .eq('classroom_id', form.roomId)
+            .gte('check_date', form.startDate)
+            .lte('check_date', form.endDate);
+
+        if (error) throw error;
+
+        await Swal.fire({
+            icon: 'success', title: 'ล้างข้อมูลสำเร็จ!',
+            html: `<p class="text-sm">ลบข้อมูลการเช็คชื่อของ <b>${form.roomLabel}</b><br>วันที่ <b>${dateDisplay}</b> เรียบร้อยแล้ว</p>`,
+            timer: 2500, showConfirmButton: true
+        });
+
+        // ── Bug Fix: เรียก loadStudentList ไม่ใช่ loadRoomData ──
+        loadStudentList(currentClassroomId);
+        loadClassroomOverview(currentClassroomId);
+
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
