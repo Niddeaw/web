@@ -793,6 +793,99 @@ async function deletePersonnel(id, name){
 }
 
 /* ── LOAD LIST ──────────────── */
+// async function loadPersonnelList(){
+//     let query = db.from('core_personnel').select('*').order('first_name');
+//     const {data,error}= await query;
+//     if(error){ console.error(error); return; }
+//     allPersonnelData=data||[];
+
+//     if(personnelTable){ personnelTable.destroy(); personnelTable=null; }
+//     personnelMap.clear(); 
+//     const tbody=document.getElementById('main-tbody');
+//     tbody.innerHTML='';
+//     const today=dayjs(), cyBE=today.year()+543;
+
+//     const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
+
+//     tableData.forEach(p=>{
+//         const fullName=`${p.prefix||''}${p.first_name} ${p.last_name}`;
+//         const avHtml = p.avatar_url
+//             ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">`
+//             : `<div style="width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name||'?').charAt(0)}</div>`;
+
+//         const ageY = p.birth_date ? dayjs().diff(dayjs(p.birth_date),'year') : null;
+
+//         let retireHtml='<span class="text-slate-400 text-xs">-</span>';
+//         if(p.birth_date){
+//             const b=dayjs(p.birth_date); let ry=b.year()+60; if(b.month()>8)ry++;
+//             const rBE=ry+543;
+//             retireHtml=rBE===cyBE ?`<span class="badge badge-orange">⚠️ ${rBE}</span>` :`<span class="text-slate-600 text-sm">${rBE}</span>`;
+//         }
+
+//         let govHtml='<span class="text-slate-400 text-xs">-</span>';
+//         if(p.government_start_date){
+//             const gy=yearsDiff(p.government_start_date);
+//             govHtml=`<span class="text-slate-600 text-sm">${gy} ปี</span>`;
+//         }
+
+//         const paMap={'ผ่าน':'badge-blue','กำลังดำเนินการ':'badge-orange','ไม่ผ่าน':'badge-red','ยังไม่ดำเนินการ':'badge-gray'};
+//         const paHtml=p.pa_status ?`<span class="badge ${paMap[p.pa_status]||'badge-gray'}">${p.pa_status}</span>` :`<span class="text-slate-300 text-xs">-</span>`;
+
+//         let licHtml='<span class="text-slate-400 text-xs">-</span>';
+//         if(p.license_expiry){
+//             const dl=dayjs(p.license_expiry).diff(today,'day');
+//             const expStr=isoToBE(p.license_expiry);
+//             if(dl<0)        licHtml=`<span class="badge badge-red">หมดแล้ว</span>`;
+//             else if(dl<=30) licHtml=`<span class="badge badge-red">⚠️ ${dl} วัน</span>`;
+//             else if(dl<=90) licHtml=`<span class="badge badge-orange">${expStr}</span>`;
+//             else            licHtml=`<span class="text-slate-500 text-xs">${expStr}</span>`;
+//         }
+
+//         personnelMap.set(p.id, p);
+
+//         const deleteBtnHtml = canDelete() 
+//             ? `<button onclick="deletePersonnel('${p.id}','${fullName.replace(/'/g,"\\'")}')" class="h-8 w-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition flex items-center justify-center" title="ลบ"><i class="fas fa-trash text-xs"></i></button>` 
+//             : '';
+
+//         tbody.insertAdjacentHTML('beforeend',`
+//             <tr class="hover:bg-indigo-50/40 transition-colors">
+//                 <td class="py-3 px-3">
+//                     <div class="flex items-center gap-3">
+//                         ${avHtml}
+//                         <div>
+//                             <p class="font-semibold text-slate-800 text-sm leading-tight">${fullName}</p>
+//                             <p class="text-[10px] text-slate-400">${p.national_id||'ไม่มีข้อมูล'}</p>
+//                             <p class="text-[10px] text-slate-400">${p.email||'ไม่มีอีเมล'}</p>
+//                         </div>
+//                     </div>
+//                 </td>
+//                 <td>
+//                     <p class="text-sm font-medium text-slate-700">${p.position||'-'}</p>
+//                     <p class="text-xs text-indigo-600 font-medium">${p.academic_standing||''}</p>
+//                     <p class="text-[10px] text-slate-400">${p.rank||''} ${p.position_number?'| เลขที่ '+p.position_number:''}</p>
+//                 </td>
+//                 <td><span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-medium">${p.department||'-'}</span></td>
+//                 <td class="text-center text-sm">${ageY!=null?`${ageY} ปี`:'-'}</td>
+//                 <td class="text-center">${retireHtml}</td>
+//                 <td class="text-center">${govHtml}</td>
+//                 <td class="text-center">${licHtml}</td>
+//                 <td class="text-center">
+//                     <div class="flex items-center justify-center gap-1">
+//                         <button onclick='editPersonnel("${p.id}")' class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
+//                         ${deleteBtnHtml}
+//                     </div>
+//                 </td>
+//             </tr>`);
+//     });
+
+//     personnelTable=new DataTable('#personnelTable',{
+//         language:{url:'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'},
+//         responsive:true, scrollX:true, pageLength:25,
+//         columnDefs:[{orderable:false,targets:[0,7]}],
+//         layout:{topStart:'pageLength',topEnd:'search',bottomStart:'info',bottomEnd:'paging'}
+//     });
+//     updateDashboard(allPersonnelData);
+// }
 async function loadPersonnelList(){
     let query = db.from('core_personnel').select('*').order('first_name');
     const {data,error}= await query;
@@ -855,6 +948,7 @@ async function loadPersonnelList(){
                         <div>
                             <p class="font-semibold text-slate-800 text-sm leading-tight">${fullName}</p>
                             <p class="text-[10px] text-slate-400">${p.national_id||'ไม่มีข้อมูล'}</p>
+                            <p class="text-[10px] text-slate-400">${p.email||'ไม่มีอีเมล'}</p>
                         </div>
                     </div>
                 </td>
