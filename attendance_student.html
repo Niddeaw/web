@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>เช็คชื่อของฉัน | WRK System</title>
+
+    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
+          integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
+          crossorigin="anonymous" referrerpolicy="no-referrer">
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"
+            integrity="sha256-/JqT3SQfawRcv/BIHPThkBvs0OEvtFFmqPF/lYI/Cxo="
+            crossorigin="anonymous"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="config.js"></script>
+
+    <style>
+        body {
+            font-family: 'Anuphan', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            border-radius: 1.5rem;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+
+<body class="min-h-screen text-slate-800 pb-10">
+    <nav class="glass-panel mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-emerald-600 p-2.5 rounded-xl text-white shadow-lg shadow-emerald-200">
+                <i class="fas fa-user-graduate text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-emerald-900 uppercase tracking-tight">My Attendance</h1>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">ประวัติการเช็คชื่อของฉัน</p>
+            </div>
+        </div>
+        
+        <div class="flex items-center gap-2">
+            <div class="text-right hidden md:block mr-2">
+                <span id="user-display" class="block text-sm font-bold text-slate-700">กำลังโหลด...</span>
+            </div>
+            
+            <button onclick="window.location.href='student_index.html'" class="h-10 w-10 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm" title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="logout()" class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm" title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-4 lg:p-6 space-y-6">
+        <!-- ข้อมูลส่วนตัว -->
+        <div class="glass-panel p-6 shadow-xl">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="text-2xl font-black text-emerald-800" id="student-name">--</h2>
+                    <p class="text-sm text-slate-500 mt-1">
+                        <span class="font-bold">ชั้น:</span> <span id="student-class" class="text-slate-700">--</span> 
+                        <span class="mx-2">|</span> 
+                        <span class="font-bold">เลขที่:</span> <span id="student-no" class="text-slate-700">--</span>
+                        <span class="mx-2">|</span> 
+                        <span class="font-bold">เลขประจำตัว:</span> <span id="student-code" class="text-slate-700">--</span>
+                    </p>
+                </div>
+                <button onclick="exportMyPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all flex items-center gap-2">
+                    <i class="fas fa-print"></i> พิมพ์ประวัติ (PDF)
+                </button>
+            </div>
+        </div>
+
+        <!-- สรุปสถิติ -->
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
+            <div class="glass-panel p-4 bg-green-50/80 text-center border-green-200">
+                <p class="text-xs text-green-600 font-bold">มาเรียน</p>
+                <p class="text-3xl font-black text-green-700" id="count-present">0</p>
+            </div>
+            <div class="glass-panel p-4 bg-rose-50/80 text-center border-rose-200">
+                <p class="text-xs text-rose-600 font-bold">ขาด</p>
+                <p class="text-3xl font-black text-rose-700" id="count-absent">0</p>
+            </div>
+            <div class="glass-panel p-4 bg-orange-50/80 text-center border-orange-200">
+                <p class="text-xs text-orange-600 font-bold">สาย</p>
+                <p class="text-3xl font-black text-orange-700" id="count-late">0</p>
+            </div>
+            <div class="glass-panel p-4 bg-yellow-50/80 text-center border-yellow-200">
+                <p class="text-xs text-yellow-600 font-bold">ลา</p>
+                <p class="text-3xl font-black text-yellow-700" id="count-leave">0</p>
+            </div>
+            <div class="glass-panel p-4 bg-blue-50/80 text-center border-blue-200">
+                <p class="text-xs text-blue-600 font-bold">ป่วย</p>
+                <p class="text-3xl font-black text-blue-700" id="count-sick">0</p>
+            </div>
+        </div>
+
+        <!-- ตารางประวัติ -->
+        <div class="glass-panel overflow-hidden shadow-2xl border-white">
+            <div class="overflow-x-auto min-h-[300px]">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50/50 text-slate-400 border-b border-slate-100">
+                            <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em]">วันที่</th>
+                            <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-center">สถานะ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list" class="divide-y divide-slate-50">
+                        <tr>
+                            <td colspan="2" class="px-6 py-20 text-center">
+                                <i class="fas fa-spinner fa-spin text-3xl text-emerald-200 mb-3"></i>
+                                <p class="text-slate-400 font-medium tracking-wide">กำลังโหลดข้อมูล...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <script src="attendance_student.js"></script>
+</body>
+</html>

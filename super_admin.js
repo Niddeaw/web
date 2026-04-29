@@ -2,65 +2,57 @@
 // ไฟล์ super_admin.js (จัดการข้อมูลส่วนกลาง)
 // ==========================================
 
-let globalPersonnelList = []; 
+let globalPersonnelList = [];
 let currentEditClassId = null;
-let currentModuleAdminUserId = null; // สำหรับระบบจัดการสิทธิ์
+let currentModuleAdminUserId = null;
+let currentEditServiceId = null; // สำหรับฟอร์ม Micro-services
+let currentEditPersonnelId = null; // 👈 เพิ่มบรรทัดนี้
 
-// เริ่มต้นการทำงานเมื่อโหลดหน้าเว็บ
 window.onload = async () => {
-    await checkAuth(); // เรียกฟังก์ชันเช็คสิทธิ์ก่อนเป็นอันดับแรก
+    await checkAuth();
 };
 
 // ==========================================
-// ระบบตรวจสอบสิทธิ์ (Authentication & Security)
+// ระบบตรวจสอบสิทธิ์
 // ==========================================
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (session) {
         const { data: profile } = await db.from('core_personnel').select('role, first_name, last_name').eq('id', session.user.id).single();
-        
-        // ถ้าไม่มีสิทธิ์ ให้เด้งกลับไปหน้าล็อกอิน (หน้าเว็บจะมืดอยู่ ไม่มีใครเห็นข้อมูล)
-        if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) { 
-            window.location.replace('index.html'); 
-            return; 
+        if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+            window.location.replace('index.html');
+            return;
         }
-        
-        // 🌟 เช็คสิทธิ์ผ่านแล้ว ให้แสดงหน้าเว็บขึ้นมา
-        const mainBody = document.getElementById('mainBody');
-        if (mainBody) mainBody.classList.replace('opacity-0', 'opacity-100');
-
-        // แสดงชื่อแอดมินมุมขวาบน
-        const nameDisplay = document.getElementById('adminNameDisplay');
-        if (nameDisplay) nameDisplay.innerText = `แอดมิน: ${profile.first_name} ${profile.last_name}`;
-        
-        // โหลดข้อมูลต่างๆ ของ Super Admin
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         await loadSchoolInfo();
-        await loadSystemModules();
+        await loadMicroServices(); // เปลี่ยนจาก loadSystemModules
         await loadPersonnel();
-    } else { 
-        window.location.replace('index.html'); 
+    } else {
+        window.location.replace('index.html');
     }
 }
 
 function handleLogout() {
     Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
-    .then(async (result) => { 
-        if (result.isConfirmed) { 
-            await db.auth.signOut(); 
-            window.location.replace('index.html'); 
-        } 
-    });
+        .then(async (result) => {
+            if (result.isConfirmed) {
+                await db.auth.signOut();
+                window.location.replace('index.html');
+            }
+        });
 }
 
 // ==========================================
-// 1. ระบบจัดการเมนู (Menu Switching)
+// 1. ระบบจัดการเมนู
 // ==========================================
+// เปลี่ยนฟังก์ชัน switchMenu เดิมเป็นโค้ดนี้ครับ
 function switchMenu(menuId) {
     document.getElementById('menu-school').classList.add('hidden');
     document.getElementById('menu-personnel').classList.add('hidden');
     document.getElementById('menu-students').classList.add('hidden');
-    
-    const btns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students'];
+    document.getElementById('menu-student-portal').classList.add('hidden');
+
+    const btns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal'];
     btns.forEach(id => {
         const btn = document.getElementById(id);
         if (btn) btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800 font-medium transition-all";
@@ -69,31 +61,36 @@ function switchMenu(menuId) {
     document.getElementById(menuId).classList.remove('hidden');
     const activeBtn = document.getElementById('btn-' + menuId);
     if (activeBtn) activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
-    
+
     const titles = {
         'menu-school': '<i class="fa-solid fa-gear text-gray-500 mr-2"></i>ข้อมูลโรงเรียนและการตั้งค่าระบบ',
         'menu-personnel': '<i class="fa-solid fa-address-book text-gray-500 mr-2"></i>จัดการบุคลากรและข้าราชการครู',
-        'menu-students': '<i class="fa-solid fa-users-rectangle text-gray-500 mr-2"></i>จัดการห้องเรียนและรายชื่อนักเรียน'
+        'menu-students': '<i class="fa-solid fa-users-rectangle text-gray-500 mr-2"></i>จัดการห้องเรียนและรายชื่อนักเรียน',
+        'menu-student-portal': '<i class="fa-solid fa-graduation-cap text-gray-500 mr-2"></i>ตั้งค่าระบบสำหรับนักเรียน (Student Portal)'
     };
     document.getElementById('pageTitle').innerHTML = titles[menuId];
 
+    // 🌟 เรียกโหลดข้อมูลตามเมนูที่กด
+    if (menuId === 'menu-school') {
+        loadSchoolInfo();
+        loadMicroServices(); 
+    }
     if (menuId === 'menu-students') loadClassrooms();
+    if (menuId === 'menu-student-portal') loadStudentModules();
 }
 
 // ==========================================
-// 2. ข้อมูลโรงเรียนและการตั้งค่าระบบ
+// 2. ข้อมูลโรงเรียน
 // ==========================================
 async function loadSchoolInfo() {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         const { data, error } = await db.from('core_school_info').select('*').eq('id', 1).single();
-        if (error && error.code !== 'PGRST116') throw error; 
-        
+        if (error && error.code !== 'PGRST116') throw error;
         if (data) {
             document.getElementById('inp_current_year').value = data.current_academic_year || (new Date().getFullYear() + 543).toString();
             document.getElementById('inp_current_term').value = data.current_semester || '1';
-            document.getElementById('inp_term_start_date').value = data.term_start_date || ''; 
-            
+            document.getElementById('inp_term_start_date').value = data.term_start_date || '';
             document.getElementById('inp_school').value = data.school_name || '';
             document.getElementById('inp_dir').value = data.director_name || '';
             document.getElementById('inp_dep_acad').value = data.deputy_academic || '';
@@ -108,7 +105,6 @@ async function loadSchoolInfo() {
 async function saveSchoolInfo(e) {
     e.preventDefault();
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
     const updates = {
         current_academic_year: document.getElementById('inp_current_year').value.trim(),
         current_semester: document.getElementById('inp_current_term').value,
@@ -121,88 +117,232 @@ async function saveSchoolInfo(e) {
         deputy_general: document.getElementById('inp_dep_gen').value.trim(),
         updated_at: new Date().toISOString()
     };
-
     try {
         const { error } = await db.from('core_school_info').update(updates).eq('id', 1);
         if (error) throw error;
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', text: 'อัปเดตข้อมูลโรงเรียนและการตั้งค่าระบบเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-    } catch (err) { console.error(err); Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', text: 'อัปเดตข้อมูลโรงเรียนเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
 // ==========================================
-// 3. จัดการระบบย่อย (Modules)
+// 3. จัดการระบบย่อย (Micro-services) แบบเต็ม + ลากวาง
 // ==========================================
-
-// รายการ Module ทั้งหมดที่ระบบรองรับ (Master List)
-// เพิ่ม module ใหม่ที่นี่เพียงที่เดียว — ระบบจะ auto-seed ลง DB อัตโนมัติ
 const MASTER_MODULES = [
-    { module_id: 'attendance',  module_name: 'ระบบเช็คชื่อนักเรียน',       is_active: true },
-    { module_id: 'behavior',    module_name: 'ระบบคะแนนความประพฤติ',        is_active: true },
-    { module_id: 'eq',          module_name: 'ระบบประเมิน EQ',              is_active: true },
-    { module_id: 'guidance',    module_name: 'ระบบ ปพ.5 - แนะแนว',         is_active: true },
-    { module_id: 'homevisit',   module_name: 'ระบบเยี่ยมบ้านนักเรียน',     is_active: true },
-    { module_id: 'personnel',   module_name: 'ระบบบริหารจัดการบุคลากร',    is_active: true },
-    { module_id: 'leave_teacher',       module_name: 'ระบบการลา',    is_active: true },
-    { module_id: 'scholarship', module_name: 'ระบบทุนการศึกษา',            is_active: true },
-    { module_id: 'sdq',         module_name: 'ระบบประเมิน SDQ',            is_active: true },
+    { module_id: 'attendance', title: 'ระบบเช็คชื่อนักเรียน', category: 'academic', icon: 'fa-solid fa-clipboard-user', description: 'เช็คชื่อนักเรียนรายวัน', url: 'attendance.html', display_order: 1, is_active: true, icon_bg_color: '#3b82f6', icon_text_color: '#ffffff' },
+    { module_id: 'behavior', title: 'ระบบคะแนนความประพฤติ', category: 'academic', icon: 'fa-solid fa-star', description: 'บันทึกคะแนนความประพฤติ', url: 'behavior_teacher.html', display_order: 2, is_active: true, icon_bg_color: '#ef4444', icon_text_color: '#ffffff' },
+    { module_id: 'eq', title: 'ระบบประเมิน EQ', category: 'academic', icon: 'fa-solid fa-brain', description: 'แบบประเมินความฉลาดทางอารมณ์', url: 'eq.html', display_order: 3, is_active: true, icon_bg_color: '#ec4899', icon_text_color: '#ffffff' },
+    { module_id: 'guidance', title: 'ระบบ ปพ.5 - แนะแนว', category: 'academic', icon: 'fa-solid fa-compass', description: 'บันทึกกิจกรรมแนะแนว ปพ.5', url: 'guidance_teacher.html', display_order: 4, is_active: true, icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
+    { module_id: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', category: 'academic', icon: 'fa-solid fa-house-chimney', description: 'บันทึกข้อมูลการเยี่ยมบ้าน', url: 'homevisit.html', display_order: 5, is_active: true, icon_bg_color: '#14b8a6', icon_text_color: '#ffffff' },
+    { module_id: 'personnel', title: 'ระบบบริหารจัดการบุคลากร', category: 'personnel', icon: 'fa-solid fa-id-card', description: 'ข้อมูลครูและบุคลากร', url: 'personnel.html', display_order: 1, is_active: true, icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' },
+    { module_id: 'leave', title: 'ระบบการลา', category: 'personnel', icon: 'fa-solid fa-envelope-open-text', description: 'ระบบลาสำหรับครู', url: 'leave_teacher.html', display_order: 2, is_active: true, icon_bg_color: '#f43f5e', icon_text_color: '#ffffff' },
+    { module_id: 'scholarship', title: 'ระบบทุนการศึกษา', category: 'budget', icon: 'fa-solid fa-hand-holding-heart', description: 'จัดการทุนการศึกษา', url: 'scholarship.html', display_order: 1, is_active: true, icon_bg_color: '#eab308', icon_text_color: '#ffffff' },
+    { module_id: 'sdq', title: 'ระบบประเมิน SDQ', category: 'general', icon: 'fa-solid fa-clipboard-list', description: 'แบบประเมิน SDQ', url: 'sdq.html', display_order: 1, is_active: true, icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
 ];
 
-async function loadSystemModules() {
-    const tbody = document.getElementById('modules-list');
+async function loadMicroServices() {
+    const tbody = document.getElementById('micro-modules-list');
     try {
-        // โหลด module ที่มีอยู่ใน DB
-        const { data: existing, error } = await db.from('core_system_modules').select('module_id');
-        if (error) throw error;
-
+        // 1. Seed
+        const { data: existing, error: fetchErr } = await db.from('core_system_modules').select('module_id');
+        if (fetchErr) throw fetchErr;
         const existingIds = new Set((existing || []).map(m => m.module_id));
-
-        // หา module ที่ยังไม่มีใน DB แล้ว upsert เพิ่มเข้าไป (auto-seed)
         const missing = MASTER_MODULES.filter(m => !existingIds.has(m.module_id));
         if (missing.length > 0) {
             const { error: seedErr } = await db.from('core_system_modules').upsert(
-                missing.map(m => ({ ...m, updated_at: new Date().toISOString() })),
+                missing.map(m => ({
+                    module_id: m.module_id,
+                    module_name: m.title,
+                    description: m.description,
+                    icon: m.icon,
+                    url: m.url,
+                    category: m.category,
+                    display_order: m.display_order,
+                    is_active: m.is_active,
+                    icon_bg_color: m.icon_bg_color,
+                    icon_text_color: m.icon_text_color,
+                    updated_at: new Date().toISOString()
+                })),
                 { onConflict: 'module_id' }
             );
-            if (seedErr) console.warn('Auto-seed modules warning:', seedErr.message);
+            if (seedErr) console.warn('Seed warning:', seedErr.message);
         }
 
-        // โหลดใหม่หลัง seed
-        const { data, error: fetchErr } = await db.from('core_system_modules').select('*').order('module_id');
-        if (fetchErr) throw fetchErr;
+        // 2. Load all
+        const { data, error } = await db.from('core_system_modules').select('*')
+            .order('category', { ascending: true }).order('display_order', { ascending: true });
+        if (error) throw error;
+
+        const categoryMap = {
+            academic: 'กลุ่มบริหารวิชาการ',
+            budget: 'กลุ่มบริหารงบประมาณ',
+            personnel: 'กลุ่มบริหารงานบุคคล',
+            general: 'กลุ่มบริหารทั่วไป'
+        };
 
         if (data && data.length > 0) {
             tbody.innerHTML = data.map(mod => `
-                <tr class="hover:bg-blue-50 transition-colors">
-                    <td class="py-3 px-4 font-mono text-gray-500 text-sm">${mod.module_id}</td>
+                <tr data-module-id="${mod.module_id}" class="hover:bg-blue-50 transition-colors">
+                    <td class="py-3 px-2 text-center drag-handle text-gray-400 hover:text-gray-600">
+                        <i class="fa-solid fa-grip-vertical"></i>
+                    </td>
+                    <td class="py-3 px-4 text-center">
+                        <div style="background-color:${mod.icon_bg_color || '#e2e8f0'}; color:${mod.icon_text_color || '#475569'};" class="w-10 h-10 rounded-full flex items-center justify-center mx-auto">
+                            <i class="${mod.icon || 'fa-solid fa-gear'} text-lg"></i>
+                        </div>
+                    </td>
                     <td class="py-3 px-4 font-bold text-gray-700">${mod.module_name}</td>
+                    <td class="py-3 px-4">
+                        <span class="px-2 py-1 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700">
+                            ${categoryMap[mod.category] || mod.category}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-gray-500 text-sm">${mod.description || '-'}</td>
                     <td class="py-3 px-4 text-center">
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" class="sr-only peer" ${mod.is_active ? 'checked' : ''} onchange="toggleModuleStatus('${mod.module_id}', this.checked)">
+                            <input type="checkbox" class="sr-only peer" ${mod.is_active ? 'checked' : ''} onchange="toggleMicroService('${mod.module_id}', this.checked)">
                             <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                         </label>
                     </td>
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <button onclick="editMicroService('${mod.module_id}')" class="text-blue-600 hover:text-blue-800 font-bold px-2"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteMicroService('${mod.module_id}')" class="text-red-600 hover:text-red-800 font-bold px-2"><i class="fa-solid fa-trash"></i></button>
+                    </td>
                 </tr>
             `).join('');
+
+            // Make sortable
+            new Sortable(tbody, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: async function (evt) {
+                    const rows = evt.from.querySelectorAll('tr');
+                    const updates = [];
+                    rows.forEach((row, index) => {
+                        const moduleId = row.getAttribute('data-module-id');
+                        if (moduleId) updates.push({ module_id: moduleId, display_order: index + 1 });
+                    });
+                    for (let u of updates) {
+                        await db.from('core_system_modules').update({ display_order: u.display_order }).eq('module_id', u.module_id);
+                    }
+                    loadMicroServices(); // refresh
+                }
+            });
         } else {
-            tbody.innerHTML = '<tr><td colspan="3" class="text-center py-8 text-red-400">ไม่พบรายชื่อระบบย่อยในฐานข้อมูล</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">ไม่พบรายการระบบย่อย</td></tr>';
         }
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500">Error: ${err.message}</td></tr>`;
     }
 }
 
-async function toggleModuleStatus(moduleId, isChecked) {
+async function toggleMicroService(moduleId, isChecked) {
     try {
-        const { error } = await db.from('core_system_modules')
-            .update({ is_active: isChecked, updated_at: new Date().toISOString() })
-            .eq('module_id', moduleId);
-
+        const { error } = await db.from('core_system_modules').update({ is_active: isChecked, updated_at: new Date().toISOString() }).eq('module_id', moduleId);
         if (error) throw error;
         const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 2000 });
-        Toast.fire({ icon: isChecked ? 'success' : 'warning', title: isChecked ? 'เปิดใช้งานระบบเรียบร้อย' : 'ปิดระบบชั่วคราวแล้ว' });
-    } catch (err) { console.error(err); Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); loadSystemModules(); }
+        Toast.fire({ icon: isChecked ? 'success' : 'warning', title: isChecked ? 'เปิดใช้งานระบบแล้ว' : 'ปิดระบบชั่วคราว' });
+    } catch (err) {
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        loadMicroServices();
+    }
 }
+
+function clearMicroServiceForm() {
+    document.getElementById('microServiceForm').reset();
+    document.getElementById('ms_id').value = '';
+    document.getElementById('ms_module_key').disabled = false;
+    document.getElementById('ms_icon_bg').value = '#3b82f6';
+    document.getElementById('ms_icon_bg_text').value = '#3b82f6';
+    document.getElementById('ms_icon_text').value = '#ffffff';
+    document.getElementById('ms_icon_text_text').value = '#ffffff';
+    currentEditServiceId = null;
+}
+
+async function editMicroService(moduleId) {
+    try {
+        const { data, error } = await db.from('core_system_modules').select('*').eq('module_id', moduleId).single();
+        if (error) throw error;
+        document.getElementById('ms_id').value = data.id;
+        document.getElementById('ms_module_key').value = data.module_id;
+        document.getElementById('ms_module_key').disabled = true;
+        document.getElementById('ms_title').value = data.module_name;
+        document.getElementById('ms_description').value = data.description || '';
+        document.getElementById('ms_category').value = data.category || 'academic';
+        document.getElementById('ms_icon').value = data.icon || '';
+        document.getElementById('ms_icon_bg').value = data.icon_bg_color || '#3b82f6';
+        document.getElementById('ms_icon_bg_text').value = data.icon_bg_color || '#3b82f6';
+        document.getElementById('ms_icon_text').value = data.icon_text_color || '#ffffff';
+        document.getElementById('ms_icon_text_text').value = data.icon_text_color || '#ffffff';
+        document.getElementById('ms_url').value = data.url || '';
+        document.getElementById('ms_display_order').value = data.display_order || 0;
+        document.getElementById('ms_is_active').checked = data.is_active;
+        currentEditServiceId = moduleId;
+    } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+}
+
+async function saveMicroService(e) {
+    e.preventDefault();
+    const formData = {
+        module_id: document.getElementById('ms_module_key').value.trim(),
+        module_name: document.getElementById('ms_title').value.trim(),
+        description: document.getElementById('ms_description').value.trim(),
+        category: document.getElementById('ms_category').value,
+        icon: document.getElementById('ms_icon').value.trim(),
+        icon_bg_color: document.getElementById('ms_icon_bg_text').value.trim() || '#3b82f6',
+        icon_text_color: document.getElementById('ms_icon_text_text').value.trim() || '#ffffff',
+        url: document.getElementById('ms_url').value.trim(),
+        display_order: parseInt(document.getElementById('ms_display_order').value) || 0,
+        is_active: document.getElementById('ms_is_active').checked,
+        updated_at: new Date().toISOString()
+    };
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        if (currentEditServiceId) {
+            const { error } = await db.from('core_system_modules').update(formData).eq('module_id', currentEditServiceId);
+            if (error) throw error;
+        } else {
+            const { data: check } = await db.from('core_system_modules').select('module_id').eq('module_id', formData.module_id).maybeSingle();
+            if (check) throw new Error('Module Key นี้มีอยู่แล้ว');
+            const { error } = await db.from('core_system_modules').insert([formData]);
+            if (error) throw error;
+        }
+        clearMicroServiceForm();
+        loadMicroServices();
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+    } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+}
+
+async function deleteMicroService(moduleId) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        html: `ต้องการลบระบบ <b>${moduleId}</b> ออกจากฐานข้อมูลใช่หรือไม่?`,
+        icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบเลย'
+    });
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const { error } = await db.from('core_system_modules').delete().eq('module_id', moduleId);
+        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+        else { loadMicroServices(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
+    }
+}
+
+// Sync color inputs
+document.addEventListener('DOMContentLoaded', () => {
+    const msBgColor = document.getElementById('ms_icon_bg');
+    const msBgText = document.getElementById('ms_icon_bg_text');
+    const msTextColor = document.getElementById('ms_icon_text');
+    const msTextText = document.getElementById('ms_icon_text_text');
+    if (msBgColor && msBgText) {
+        msBgColor.addEventListener('input', () => { msBgText.value = msBgColor.value; });
+        msBgText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(msBgText.value)) msBgColor.value = msBgText.value; });
+    }
+    if (msTextColor && msTextText) {
+        msTextColor.addEventListener('input', () => { msTextText.value = msTextColor.value; });
+        msTextText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(msTextText.value)) msTextColor.value = msTextText.value; });
+    }
+});
 
 // ==========================================
 // 4. ระบบจัดการบุคลากร (Personnel)
@@ -213,10 +353,10 @@ async function loadPersonnel() {
 
         const { data, error } = await db.from('core_personnel').select('*').order('first_name');
         const tbody = document.getElementById('tb-personnel');
-        
+
         if (error) throw error;
 
-        globalPersonnelList = data || []; 
+        globalPersonnelList = data || [];
 
         if (data && data.length > 0) {
             tbody.innerHTML = data.map((p, index) => {
@@ -249,23 +389,23 @@ async function loadPersonnel() {
                 `;
             }).join('');
         } else {
-            tbody.innerHTML = ''; 
+            tbody.innerHTML = '';
         }
 
         // 🌟 เปลี่ยนจาก responsive เป็น scrollX เพื่อให้ตารางเลื่อนซ้าย-ขวาได้ และไม่ซ่อนปุ่มจัดการ
         $('#personnelTable').DataTable({
             scrollX: true,
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, 
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 10,
             lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "ทั้งหมด"]],
-            order: [], 
-            columnDefs: [ { orderable: false, targets: -1 } ], 
+            order: [],
+            columnDefs: [{ orderable: false, targets: -1 }],
             destroy: true
         });
 
-    } catch (err) { 
-        console.error(err); 
-        document.getElementById('tb-personnel').innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`; 
+    } catch (err) {
+        console.error(err);
+        document.getElementById('tb-personnel').innerHTML = `<tr><td colspan="7" class="text-center py-8 text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`;
     }
 }
 
@@ -275,7 +415,7 @@ function downloadPersonnelTemplate() {
         ['teacher1@school.com', '123456', '1234567890123', 'นาย', 'เรียนดี', 'มีชัย', 'ครู', 'ครูชำนาญการ', 'วิทยาศาสตร์และเทคโนโลยี', 'teacher']
     ];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    ws['!cols'] = [{wch: 25}, {wch: 20}, {wch: 20}, {wch: 10}, {wch: 20}, {wch: 20}, {wch: 25}, {wch: 25}, {wch: 35}, {wch: 20}];
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 25 }, { wch: 35 }, { wch: 20 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อบุคลากร");
     XLSX.writeFile(wb, "ต้นแบบนำเข้าบุคลากร.xlsx");
@@ -317,7 +457,7 @@ async function editPersonnel(id) {
     const { data, error } = await db.from('core_personnel').select('*').eq('id', id).single();
     Swal.close();
 
-    if(data) {
+    if (data) {
         document.getElementById('p_national_id').value = data.national_id || '';
         document.getElementById('p_prefix').value = data.prefix || '';
         document.getElementById('p_first_name').value = data.first_name || '';
@@ -351,11 +491,11 @@ async function savePersonnel(e) {
         national_id: nationalId, prefix: prefix, first_name: fName, last_name: lName,
         position: position, academic_standing: academic, department: department, role: role
     }).eq('id', currentEditPersonnelId);
-    
+
     if (error) return Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
 
     closePersonnelModal();
-    await loadPersonnel(); 
+    await loadPersonnel();
     Swal.fire({ icon: 'success', title: 'อัปเดตข้อมูลสำเร็จ!', timer: 1500, showConfirmButton: false });
 }
 
@@ -369,7 +509,7 @@ async function deletePersonnel(id, name) {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { data, error } = await db.rpc('admin_delete_user', { p_user_id: id });
-        if (error || (data && !data.success)) { Swal.fire('ลบข้อมูลไม่สำเร็จ', error?.message || data?.message, 'error'); } 
+        if (error || (data && !data.success)) { Swal.fire('ลบข้อมูลไม่สำเร็จ', error?.message || data?.message, 'error'); }
         else { await loadPersonnel(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ!', timer: 1500, showConfirmButton: false }); }
     }
 }
@@ -392,7 +532,7 @@ async function resetTeacherPassword(teacherId, teacherName) {
 
     if (newPassword) {
         Swal.fire({ title: 'กำลังดำเนินการ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-        
+
         try {
             // ส่งรหัสผ่านใหม่ที่แอดมินพิมพ์ ไปให้ Database อัปเดต
             const { data, error } = await db.rpc('admin_reset_password', {
@@ -401,7 +541,7 @@ async function resetTeacherPassword(teacherId, teacherName) {
             });
 
             if (error) throw error;
-            
+
             Swal.fire('สำเร็จ!', `ตั้งรหัสผ่านใหม่ให้ครู ${teacherName} เป็น <b>${newPassword}</b> เรียบร้อยแล้ว`, 'success');
         } catch (err) {
             console.error(err);
@@ -420,7 +560,7 @@ async function loadClassrooms() {
         const { data, error } = await db.from('core_classrooms')
             .select(`*, adv1:core_personnel!adviser_id_1(first_name, last_name), adv2:core_personnel!adviser_id_2(first_name, last_name)`)
             .order('academic_year', { ascending: false }).order('semester', { ascending: true }).order('grade_level', { ascending: true }).order('room_number', { ascending: true });
-        
+
         if (error) throw error;
 
         const tbody = document.getElementById('tb-classrooms');
@@ -431,7 +571,7 @@ async function loadClassrooms() {
             tbody.innerHTML = data.map(cls => {
                 const adv1 = cls.adv1 ? `${cls.adv1.first_name} ${cls.adv1.last_name}` : '<span class="text-red-500 text-sm">ยังไม่ระบุ</span>';
                 const adv2 = cls.adv2 ? `${cls.adv2.first_name} ${cls.adv2.last_name}` : '<span class="text-gray-400 italic">-</span>';
-                
+
                 select.innerHTML += `<option value="${cls.id}">ม.${cls.grade_level}/${cls.room_number} (เทอม ${cls.semester}/${cls.academic_year})</option>`;
 
                 return `
@@ -450,20 +590,23 @@ async function loadClassrooms() {
         } else { tbody.innerHTML = ''; }
 
         // 🌟 เปลี่ยนจาก responsive เป็น scrollX
-        $('#classroomsTable').DataTable({ 
-            scrollX: true, 
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, 
-            pageLength: 10, 
-            destroy: true 
+        $('#classroomsTable').DataTable({
+            scrollX: true,
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            pageLength: 10,
+            destroy: true
         });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
+// ==========================================
+// ส่วนของการเปิด Modal สร้างห้องเรียนใหม่
+// ==========================================
 function openClassModal() {
-    currentEditClassId = null; 
+    currentEditClassId = null;
     document.getElementById('classForm').reset();
     document.getElementById('modalClassTitle').innerHTML = '<i class="fa-solid fa-chalkboard text-blue-600 mr-2"></i>เพิ่มห้องเรียนใหม่';
-    
+
     const adv1 = document.getElementById('c_adv1');
     const adv2 = document.getElementById('c_adv2');
     let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
@@ -472,13 +615,27 @@ function openClassModal() {
 
     document.getElementById('c_year').value = (new Date().getFullYear() + 543).toString();
     document.getElementById('c_term').value = '1';
+    
     document.getElementById('classroomModal').classList.remove('hidden');
+
+    // 🌟 เปิดใช้งาน Select2 สำหรับดรอปดาวน์ครูที่ปรึกษา
+    $('#c_adv1, #c_adv2').select2({
+        dropdownParent: $('#classroomModal'), // ให้ Dropdown ลอยอยู่บน Modal
+        placeholder: "-- พิมพ์เพื่อค้นหาชื่อครู --",
+        allowClear: true
+    });
+    
+    // เคลียร์ค่า Select2 เมื่อเปิดฟอร์มใหม่
+    $('#c_adv1, #c_adv2').val('').trigger('change');
 }
 
+// ==========================================
+// ส่วนของการเปิด Modal แก้ไขห้องเรียนเดิม
+// ==========================================
 function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
-    currentEditClassId = id; 
+    currentEditClassId = id;
     document.getElementById('modalClassTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-yellow-600 mr-2"></i>แก้ไขข้อมูลห้องเรียน';
-    
+
     const adv1El = document.getElementById('c_adv1');
     const adv2El = document.getElementById('c_adv2');
     let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
@@ -490,12 +647,32 @@ function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
     document.getElementById('c_grade').value = grade;
     document.getElementById('c_room').value = room;
     document.getElementById('c_plan').value = plan;
-    adv1El.value = adv1; adv2El.value = adv2; 
 
     document.getElementById('classroomModal').classList.remove('hidden');
+
+    // 🌟 เปิดใช้งาน Select2 และดึงค่าครูที่ปรึกษาเดิมมาแสดง
+    $('#c_adv1, #c_adv2').select2({
+        dropdownParent: $('#classroomModal'),
+        placeholder: "-- พิมพ์เพื่อค้นหาชื่อครู --",
+        allowClear: true
+    });
+    
+    // เซ็ตค่าให้กับ Select2
+    $('#c_adv1').val(adv1).trigger('change');
+    $('#c_adv2').val(adv2).trigger('change');
 }
 
-function closeClassModal() { document.getElementById('classroomModal').classList.add('hidden'); }
+// ==========================================
+// ส่วนของการปิด Modal
+// ==========================================
+function closeClassModal() { 
+    document.getElementById('classroomModal').classList.add('hidden'); 
+    
+    // 🌟 ทำลาย Select2 ทิ้งเมื่อปิด Modal เพื่อป้องกันบั๊กเมื่อเปิดใหม่
+    if ($('#c_adv1').hasClass("select2-hidden-accessible")) {
+        $('#c_adv1, #c_adv2').select2('destroy');
+    }
+}
 
 async function saveClassroom(e) {
     e.preventDefault();
@@ -522,7 +699,7 @@ async function saveClassroom(e) {
             }).eq('id', currentEditClassId);
             if (error) throw error;
         }
-        
+
         closeClassModal(); await loadClassrooms();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
@@ -534,7 +711,7 @@ async function deleteClassroom(id, name) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { error } = await db.from('core_classrooms').delete().eq('id', id);
         if (error) Swal.fire('ผิดพลาด', error.message, 'error');
-        else { await loadClassrooms(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false}); }
+        else { await loadClassrooms(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
     }
 }
 
@@ -544,7 +721,7 @@ async function deleteClassroom(id, name) {
 async function loadStudents() {
     const classId = document.getElementById('filterStudentClass').value;
     const tbody = document.getElementById('tb-students');
-    
+
     document.getElementById('bulk-action-bar').classList.add('hidden');
     if (document.getElementById('selectAll')) document.getElementById('selectAll').checked = false;
 
@@ -564,7 +741,7 @@ async function loadStudents() {
 
         if (data && data.length > 0) {
             tbody.innerHTML = data.map((enr) => {
-                let std = enr.core_students; 
+                let std = enr.core_students;
                 let stBadge = enr.status === 'เรียนปกติ' ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>' : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status}</span>`;
                 const safeFname = std.first_name ? std.first_name.replace(/'/g, "\\'") : '';
                 const safeLname = std.last_name ? std.last_name.replace(/'/g, "\\'") : '';
@@ -590,12 +767,12 @@ async function loadStudents() {
         } else { tbody.innerHTML = ''; }
 
         // 🌟 เปลี่ยนจาก responsive เป็น scrollX
-        $('#studentsTable').DataTable({ 
-            scrollX: true, 
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, 
-            pageLength: 50, 
-            columnDefs: [ { orderable: false, targets: [0, 5] } ], 
-            destroy: true 
+        $('#studentsTable').DataTable({
+            scrollX: true,
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            pageLength: 50,
+            columnDefs: [{ orderable: false, targets: [0, 5] }],
+            destroy: true
         });
         Swal.close();
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
@@ -620,7 +797,7 @@ function editSingleStudent(id, number, student_id, national_id, prefix, fname, l
     document.getElementById('s_fname').value = fname;
     document.getElementById('s_lname').value = lname;
     document.getElementById('s_status').value = status;
-    
+
     document.getElementById('modalStudentTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-yellow-600 mr-2"></i>แก้ไขข้อมูลนักเรียน';
     document.getElementById('studentDetailModal').classList.remove('hidden');
 }
@@ -630,8 +807,8 @@ function closeStudentModal() { document.getElementById('studentDetailModal').cla
 async function saveSingleStudent(e) {
     e.preventDefault();
     const classId = document.getElementById('filterStudentClass').value;
-    const enrollmentId = document.getElementById('s_id').value; 
-    
+    const enrollmentId = document.getElementById('s_id').value;
+
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
@@ -643,7 +820,7 @@ async function saveSingleStudent(e) {
             last_name: document.getElementById('s_lname').value
         }, { onConflict: 'student_id_card' }).select().single();
 
-        if(stdErr) throw stdErr;
+        if (stdErr) throw stdErr;
 
         if (!enrollmentId) {
             await db.from('student_enrollments').insert({
@@ -657,7 +834,7 @@ async function saveSingleStudent(e) {
                 status: document.getElementById('s_status').value
             }).eq('id', enrollmentId);
         }
-        
+
         closeStudentModal(); await loadStudents();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
@@ -669,7 +846,7 @@ async function deleteSingleStudent(id, fname) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { error } = await db.from('student_enrollments').delete().eq('id', id);
         if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-        else { await loadStudents(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false}); }
+        else { await loadStudents(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
     }
 }
 
@@ -686,7 +863,7 @@ function toggleSelectAll() {
 function updateSelectedCount() {
     const selectedCount = document.querySelectorAll('.student-chk:checked').length;
     document.getElementById('selected-count').innerText = selectedCount;
-    
+
     if (selectedCount > 0) {
         document.getElementById('bulk-action-bar').classList.remove('hidden');
     } else {
@@ -703,9 +880,9 @@ async function bulkMoveStudents() {
     const selectObj = document.getElementById('filterStudentClass');
     let optionsHtml = '<select id="targetClassId" class="w-full border border-gray-300 rounded-lg px-4 py-3 mt-4 text-gray-700 outline-none focus:border-indigo-500">';
     optionsHtml += '<option value="">-- กรุณาเลือกระดับชั้น/ห้องปลายทาง --</option>';
-    
-    for(let i=1; i < selectObj.options.length; i++) {
-        if(selectObj.options[i].value !== currentClassId && selectObj.options[i].value !== "") {
+
+    for (let i = 1; i < selectObj.options.length; i++) {
+        if (selectObj.options[i].value !== currentClassId && selectObj.options[i].value !== "") {
             optionsHtml += `<option value="${selectObj.options[i].value}">${selectObj.options[i].text}</option>`;
         }
     }
@@ -727,8 +904,8 @@ async function bulkMoveStudents() {
         try {
             const { error } = await db.from('student_enrollments').update({ classroom_id: targetId }).in('id', selectedIds);
             if (error) throw error;
-            
-            await loadStudents(); 
+
+            await loadStudents();
             Swal.fire({ icon: 'success', title: 'ย้ายห้องสำเร็จ!', text: `จำนวน ${selectedIds.length} คน`, timer: 2000, showConfirmButton: false });
         } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
     }
@@ -749,8 +926,8 @@ async function bulkDeleteStudents() {
         try {
             const { error } = await db.from('student_enrollments').delete().in('id', selectedIds);
             if (error) throw error;
-            
-            await loadStudents(); 
+
+            await loadStudents();
             Swal.fire({ icon: 'success', title: 'ลบสำเร็จ!', text: `จำนวน ${selectedIds.length} คน`, timer: 1500, showConfirmButton: false });
         } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
     }
@@ -762,7 +939,7 @@ async function bulkDeleteStudents() {
 function downloadStudentTemplate() {
     const ws_data = [['เลขที่', 'เลขประจำตัวนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'สถานะ']];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    ws['!cols'] = [{wch: 10}, {wch: 20}, {wch: 20}, {wch: 15}, {wch: 25}, {wch: 25}, {wch: 15}];
+    ws['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 15 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อนักเรียน");
     XLSX.writeFile(wb, "ต้นแบบรายชื่อนักเรียน.xlsx");
@@ -783,14 +960,14 @@ async function processImportStudents(event) {
     Swal.fire({ title: 'กำลังนำเข้ารายชื่อ...', html: 'ระบบกำลังประมวลผลแยกข้อมูล<br><span class="text-sm text-red-500">*ห้ามปิดหน้าต่างนี้*</span>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const reader = new FileReader();
-    reader.onload = async function(e) {
+    reader.onload = async function (e) {
         try {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
+            const workbook = XLSX.read(data, { type: 'array' });
             const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-            
+
             await insertStudentDataToDB(rows, classId);
-            event.target.value = ''; 
+            event.target.value = '';
         } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error'); event.target.value = ''; }
     };
     reader.readAsArrayBuffer(file);
@@ -840,11 +1017,11 @@ async function triggerImportGoogleSheet() {
 
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error("ไม่สามารถเข้าถึงไฟล์ได้ (โปรดตรวจสอบว่าตั้ง Share เป็น Anyone with the link แล้ว)");
-            
+
             const csvText = await response.text();
-            
+
             // 🌟 2. แปลงข้อความ CSV เป็นตารางข้อมูล
-            const workbook = XLSX.read(csvText, {type: 'string'});
+            const workbook = XLSX.read(csvText, { type: 'string' });
             const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
             if (!rawRows || rawRows.length === 0) throw new Error("ไม่พบข้อมูลใน Google Sheet หรือรูปแบบตารางไม่ถูกต้อง");
@@ -861,7 +1038,7 @@ async function triggerImportGoogleSheet() {
             });
 
             await insertStudentDataToDB(rows, classId);
-            
+
         } catch (err) {
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
         }
@@ -872,48 +1049,48 @@ async function triggerImportGoogleSheet() {
 async function insertStudentDataToDB(rows, classId) {
     if (!rows || rows.length === 0) throw new Error("ไม่พบข้อมูลที่จะนำเข้า");
 
-    let successCount = 0; 
+    let successCount = 0;
     let errorList = [];
-    
+
     // ล้างรายชื่อเด็กในห้องนี้ทิ้งก่อนใส่ชุดใหม่
     await db.from('student_enrollments').delete().eq('classroom_id', classId);
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        
+
         // ดึงข้อมูลโดยเผื่อกรณีพิมพ์ผิดเล็กๆ น้อยๆ
         const stdIdCard = (row['เลขประจำตัวนักเรียน'] || row['เลขประจำตัว'] || '')?.toString().trim();
         const fName = (row['ชื่อ'] || row['ชื่อจริง'] || '')?.toString().trim();
-        
-        if (!stdIdCard || !fName) { 
-            errorList.push(`แถวที่ ${i+2}: ขาดข้อมูลสำคัญ (เลขประจำตัว หรือ ชื่อ)`); 
-            continue; 
+
+        if (!stdIdCard || !fName) {
+            errorList.push(`แถวที่ ${i + 2}: ขาดข้อมูลสำคัญ (เลขประจำตัว หรือ ชื่อ)`);
+            continue;
         }
 
         // อัปเดตตารางประวัติเด็ก
         const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
-            student_id_card: stdIdCard, 
+            student_id_card: stdIdCard,
             national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
-            prefix: row['คำนำหน้า']?.toString().trim() || '', 
-            first_name: fName, 
+            prefix: row['คำนำหน้า']?.toString().trim() || '',
+            first_name: fName,
             last_name: row['นามสกุล']?.toString().trim() || ''
         }, { onConflict: 'student_id_card' }).select('id').single();
 
-        if (stdErr) { 
-            errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดประวัติ (${stdErr.message})`); 
-            continue; 
+        if (stdErr) {
+            errorList.push(`แถวที่ ${i + 2}: ข้อผิดพลาดประวัติ (${stdErr.message})`);
+            continue;
         }
 
         // อัปเดตตารางจัดเด็กเข้าห้อง
         const { error: enrErr } = await db.from('student_enrollments').insert({
-            student_id: stdData.id, 
+            student_id: stdData.id,
             classroom_id: classId,
-            student_number: parseInt(row['เลขที่']) || null, 
+            student_number: parseInt(row['เลขที่']) || null,
             status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
         });
 
         if (enrErr) {
-            errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`);
+            errorList.push(`แถวที่ ${i + 2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`);
         } else {
             successCount++;
         }
@@ -922,59 +1099,11 @@ async function insertStudentDataToDB(rows, classId) {
     if (errorList.length > 0) {
         let errHtml = `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto mt-2 bg-red-50 p-2 border border-red-200 rounded-lg">` + errorList.map(err => `<div>- ${err}</div>`).join('') + `</div>`;
         Swal.fire({ icon: 'warning', title: `นำเข้าสำเร็จ ${successCount} รายการ`, html: `แต่พบข้อผิดพลาดบางส่วน:<br>${errHtml}`, confirmButtonText: 'รับทราบ' });
-    } else { 
-        Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เข้าสู่ระบบเรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false }); 
-    }
-    
-    await loadStudents(); 
-}
-
-// Core Function: นำข้อมูล Array ใส่ฐานข้อมูล (ใช้ร่วมกันทั้ง Excel และ Google Sheet)
-async function insertStudentDataToDB(rows, classId) {
-    if (rows.length === 0) throw new Error("ไม่พบข้อมูลในไฟล์ที่เลือก");
-
-    let successCount = 0; let errorList = [];
-    
-    // ล้างรายชื่อเด็กในห้องนี้ทิ้งก่อนใส่ชุดใหม่
-    await db.from('student_enrollments').delete().eq('classroom_id', classId);
-
-    for (let i = 0; i < rows.length; i++) {
-        const row = rows[i];
-        const stdIdCard = row['เลขประจำตัวนักเรียน']?.toString().trim();
-        const fName = row['ชื่อ']?.toString().trim();
-        
-        if (!stdIdCard || !fName) { errorList.push(`แถวที่ ${i+2}: ข้อมูลสำคัญไม่ครบ (ขาดเลขประจำตัว หรือ ชื่อ)`); continue; }
-
-        // อัปเดตตารางประวัติเด็ก
-        const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
-            student_id_card: stdIdCard, 
-            national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
-            prefix: row['คำนำหน้า']?.toString().trim() || '', 
-            first_name: fName, 
-            last_name: row['นามสกุล']?.toString().trim() || ''
-        }, { onConflict: 'student_id_card' }).select('id').single();
-
-        if (stdErr) { errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดประวัติหลัก (${stdErr.message})`); continue; }
-
-        // อัปเดตตารางจัดเด็กเข้าห้อง
-        const { error: enrErr } = await db.from('student_enrollments').insert({
-            student_id: stdData.id, 
-            classroom_id: classId,
-            student_number: parseInt(row['เลขที่']) || null, 
-            status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
-        });
-
-        if (enrErr) errorList.push(`แถวที่ ${i+2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`); else successCount++;
+    } else {
+        Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เข้าสู่ระบบเรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false });
     }
 
-    if (errorList.length > 0) {
-        let errHtml = `<div class="text-left text-sm text-red-600 max-h-40 overflow-y-auto mt-2 bg-red-50 p-2 border border-red-200 rounded-lg">` + errorList.map(err => `<div>- ${err}</div>`).join('') + `</div>`;
-        Swal.fire({ icon: 'warning', title: `นำเข้าสำเร็จ ${successCount} รายการ`, html: `แต่พบข้อผิดพลาดบางส่วน:<br>${errHtml}`, confirmButtonText: 'รับทราบ' });
-    } else { 
-        Swal.fire({ icon: 'success', title: 'นำเข้ารายชื่อสำเร็จ!', text: `จำนวน ${successCount} คน เข้าสู่ระบบเรียบร้อยแล้ว`, timer: 2000, showConfirmButton: false }); 
-    }
-    
-    await loadStudents(); 
+    await loadStudents();
 }
 
 // ==========================================
@@ -982,7 +1111,7 @@ async function insertStudentDataToDB(rows, classId) {
 // ==========================================
 async function copyToTerm2() {
     Swal.fire({ title: 'กำลังตรวจสอบระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     try {
         const { data: sysSettings } = await db.from('core_school_info').select('*').eq('id', 1).single();
         const currentYear = sysSettings.current_academic_year;
@@ -1017,7 +1146,7 @@ async function copyToTerm2() {
 
         for (let destClass of destClasses) {
             const sourceClass = sourceClasses.find(c => c.grade_level === destClass.grade_level && c.room_number === destClass.room_number);
-            
+
             if (sourceClass) {
                 const { data: students } = await db.from('student_enrollments').select('student_id, student_number, status').eq('classroom_id', sourceClass.id);
                 const { data: existing } = await db.from('student_enrollments').select('student_id').eq('classroom_id', destClass.id);
@@ -1053,7 +1182,7 @@ async function copyToTerm2() {
 
 async function promoteStudents() {
     Swal.fire({ title: 'กำลังตรวจสอบระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     try {
         const { data: sysSettings } = await db.from('core_school_info').select('*').eq('id', 1).single();
         const currentYear = sysSettings.current_academic_year;
@@ -1090,9 +1219,9 @@ async function promoteStudents() {
         for (let destClass of destClasses) {
             if (destClass.grade_level === 1 || destClass.grade_level === 4) continue;
 
-            const sourceGrade = destClass.grade_level - 1; 
+            const sourceGrade = destClass.grade_level - 1;
             const sourceClass = sourceClasses.find(c => c.grade_level === sourceGrade && c.room_number === destClass.room_number);
-            
+
             if (sourceClass) {
                 const { data: students } = await db.from('student_enrollments').select('student_id, student_number, status').eq('classroom_id', sourceClass.id);
                 const { data: existing } = await db.from('student_enrollments').select('student_id').eq('classroom_id', destClass.id);
@@ -1137,18 +1266,18 @@ async function manageModuleAdmins(userId, userName) {
     currentModuleAdminUserId = userId;
     document.getElementById('ma_teacher_name').innerText = userName;
     document.getElementById('moduleAdminModal').classList.remove('hidden');
-    
+
     Swal.fire({ title: 'กำลังโหลดข้อมูลสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     try {
         const { data: modules, error: modErr } = await db.from('core_system_modules').select('*').order('module_id');
         if (modErr) throw modErr;
-        
+
         const { data: userAdmins, error: uaErr } = await db.from('core_module_admins').select('module_id').eq('user_id', userId);
         if (uaErr) throw uaErr;
-        
+
         const authorizedModules = userAdmins ? userAdmins.map(ua => ua.module_id) : [];
-        
+
         const container = document.getElementById('ma_modules_list');
         if (modules && modules.length > 0) {
             container.innerHTML = modules.map(mod => {
@@ -1179,7 +1308,7 @@ async function manageModuleAdmins(userId, userName) {
 
 async function toggleModuleAdminRole(moduleId, moduleName, isGranted) {
     if (!currentModuleAdminUserId) return;
-    
+
     try {
         if (isGranted) {
             const { error } = await db.from('core_module_admins').insert({
@@ -1187,7 +1316,7 @@ async function toggleModuleAdminRole(moduleId, moduleName, isGranted) {
                 module_id: moduleId
             });
             if (error) throw error;
-            
+
             const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 });
             Toast.fire({ icon: 'success', title: `แต่งตั้งให้เป็นแอดมินระบบ ${moduleName} แล้ว` });
         } else {
@@ -1196,7 +1325,7 @@ async function toggleModuleAdminRole(moduleId, moduleName, isGranted) {
                 .eq('user_id', currentModuleAdminUserId)
                 .eq('module_id', moduleId);
             if (error) throw error;
-            
+
             const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 });
             Toast.fire({ icon: 'warning', title: `ถอดสิทธิ์แอดมินระบบ ${moduleName} แล้ว` });
         }
@@ -1209,12 +1338,12 @@ async function toggleModuleAdminRole(moduleId, moduleName, isGranted) {
 
 // 🌟 1. ฟังก์ชันค้นหาเด็กซ้ำ
 async function checkDuplicateStudents() {
-    Swal.fire({title:'กำลังสแกนฐานข้อมูล...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false});
+    Swal.fire({ title: 'กำลังสแกนฐานข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
         // ดึงปีการศึกษาปัจจุบัน
         const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
-        if(!schoolInfo) throw new Error('ไม่พบข้อมูลปีการศึกษา');
+        if (!schoolInfo) throw new Error('ไม่พบข้อมูลปีการศึกษา');
 
         // ดึงรายชื่อการจัดห้องทั้งหมด พร้อมข้อมูลเด็กและห้องเรียน
         const { data: enrolls, error } = await db.from('student_enrollments').select(`
@@ -1223,12 +1352,12 @@ async function checkDuplicateStudents() {
             core_classrooms ( id, grade_level, room_number, academic_year, semester )
         `);
 
-        if(error) throw error;
+        if (error) throw error;
 
         // กรองเอาเฉพาะข้อมูลของเทอมปัจจุบัน
-        const currentEnrolls = enrolls.filter(e => 
-            e.core_classrooms && 
-            e.core_classrooms.academic_year === schoolInfo.current_academic_year && 
+        const currentEnrolls = enrolls.filter(e =>
+            e.core_classrooms &&
+            e.core_classrooms.academic_year === schoolInfo.current_academic_year &&
             e.core_classrooms.semester === schoolInfo.current_semester &&
             e.core_students // ต้องมีข้อมูลเด็ก
         );
@@ -1237,7 +1366,7 @@ async function checkDuplicateStudents() {
         const studentMap = {};
         currentEnrolls.forEach(e => {
             const sid = e.core_students.id;
-            if(!studentMap[sid]) studentMap[sid] = [];
+            if (!studentMap[sid]) studentMap[sid] = [];
             studentMap[sid].push(e);
         });
 
@@ -1246,8 +1375,8 @@ async function checkDuplicateStudents() {
 
         Swal.close();
 
-        if(duplicates.length === 0) {
-            return Swal.fire({icon: 'success', title: 'ยอดเยี่ยม!', text: 'ไม่พบนักเรียนที่มีรายชื่อซ้ำซ้อนในเทอมปัจจุบันครับ'});
+        if (duplicates.length === 0) {
+            return Swal.fire({ icon: 'success', title: 'ยอดเยี่ยม!', text: 'ไม่พบนักเรียนที่มีรายชื่อซ้ำซ้อนในเทอมปัจจุบันครับ' });
         }
 
         // วาดตารางแสดงผล
@@ -1276,7 +1405,7 @@ async function checkDuplicateStudents() {
             html += `
             <tr class="hover:bg-slate-50 transition">
                 <td class="p-3 align-top font-medium text-slate-600">${stu.student_id_card || '-'}</td>
-                <td class="p-3 align-top font-bold text-blue-700">${stu.prefix||''}${stu.first_name} ${stu.last_name}</td>
+                <td class="p-3 align-top font-bold text-blue-700">${stu.prefix || ''}${stu.first_name} ${stu.last_name}</td>
                 <td class="p-3 align-top">
                     <div class="space-y-2">
             `;
@@ -1285,7 +1414,7 @@ async function checkDuplicateStudents() {
                 const cr = enroll.core_classrooms;
                 html += `
                         <div class="flex items-center justify-between bg-white border border-slate-200 p-2.5 rounded-xl shadow-sm">
-                            <span class="font-bold text-slate-700"><i class="fas fa-door-open text-slate-400 mr-1"></i> ม.${cr.grade_level}/${cr.room_number} <span class="text-xs text-slate-400 font-normal ml-1">(เลขที่ ${enroll.student_number||'-'})</span></span>
+                            <span class="font-bold text-slate-700"><i class="fas fa-door-open text-slate-400 mr-1"></i> ม.${cr.grade_level}/${cr.room_number} <span class="text-xs text-slate-400 font-normal ml-1">(เลขที่ ${enroll.student_number || '-'})</span></span>
                             <button onclick="removeDuplicateEnrollment('${enroll.id}')" class="text-xs font-bold bg-red-50 text-red-600 border border-red-100 hover:bg-red-500 hover:text-white px-3 py-1.5 rounded-lg transition shadow-sm">
                                 <i class="fas fa-trash-alt mr-1"></i> ลบออก
                             </button>
@@ -1300,7 +1429,7 @@ async function checkDuplicateStudents() {
         });
 
         html += `</tbody></table></div>`;
-        
+
         document.getElementById('duplicate-content').innerHTML = html;
         document.getElementById('modal-duplicates').classList.remove('hidden');
         document.getElementById('modal-duplicates').classList.add('flex');
@@ -1328,20 +1457,20 @@ async function removeDuplicateEnrollment(enrollId) {
         cancelButtonText: 'ยกเลิก'
     });
 
-    if(isConfirmed) {
-        Swal.fire({title: 'กำลังลบ...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false});
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
         const { error } = await db.from('student_enrollments').delete().eq('id', enrollId);
-        
-        if(error) {
+
+        if (error) {
             Swal.fire('ผิดพลาด', error.message, 'error');
         } else {
-            Swal.fire({icon: 'success', title: 'ลบเรียบร้อย', timer: 1500, showConfirmButton: false});
-            
+            Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', timer: 1500, showConfirmButton: false });
+
             // สั่งให้สแกนใหม่เพื่อรีเฟรชหน้าต่าง Modal
             checkDuplicateStudents();
-            
+
             // รีเฟรชตารางรายชื่อด้านหลังให้เป็นข้อมูลล่าสุดด้วย
-            loadStudents(); 
+            loadStudents();
         }
     }
 }
@@ -1391,7 +1520,7 @@ async function searchGlobalStudents(keyword) {
         .order('semester', { ascending: false })
         .order('grade_level', { ascending: true })
         .order('room_number', { ascending: true });
-    
+
     let html = `
     <div class="overflow-x-auto max-h-[60vh] text-left">
         <table class="w-full text-sm border-collapse">
@@ -1409,9 +1538,9 @@ async function searchGlobalStudents(keyword) {
 
     students.forEach(s => {
         // หา enrollment ล่าสุด
-        const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null; 
+        const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null;
         const currentRoomId = enroll && enroll.core_classrooms ? enroll.core_classrooms.id : '';
-        
+
         // 🌟 ปรับการแสดงผล "ห้องปัจจุบัน" ให้มีเทอมและปีการศึกษา
         let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
         if (enroll && enroll.core_classrooms) {
@@ -1420,14 +1549,14 @@ async function searchGlobalStudents(keyword) {
             const year = c.academic_year || '-';
             roomText = `<span class="font-bold text-indigo-700">ม.${c.grade_level}/${c.room_number}</span><br><span class="text-[10px] text-gray-500">(เทอม${term}/${year})</span>`;
         }
-        
+
         const enrollId = enroll ? enroll.id : '';
 
         // 🌟 ปรับ Dropdown เปลี่ยนห้อง ให้แสดง (เทอม/ปีการศึกษา)
         let selectHtml = `<select onchange="changeStudentGlobalRoom('${s.id}', '${enrollId}', this.value)" class="border border-gray-300 rounded p-1 w-full outline-none text-xs focus:border-indigo-500">`;
-        if(!currentRoomId) selectHtml += `<option value="" selected>-- เลือกห้องเพื่อเพิ่ม --</option>`;
+        if (!currentRoomId) selectHtml += `<option value="" selected>-- เลือกห้องเพื่อเพิ่ม --</option>`;
         else selectHtml += `<option value="">-- ถอดออกจากห้อง --</option>`;
-        
+
         if (classrooms) {
             classrooms.forEach(c => {
                 const isSelected = c.id === currentRoomId ? 'selected' : '';
@@ -1472,16 +1601,16 @@ async function searchGlobalStudents(keyword) {
 async function saveGlobalStudentName(studentId) {
     const fname = document.getElementById(`fname_${studentId}`).value.trim();
     const lname = document.getElementById(`lname_${studentId}`).value.trim();
-    
-    if(!fname || !lname) return Swal.fire({toast: true, position: 'top-end', title: 'กรุณากรอกชื่อและสกุล', icon: 'warning', showConfirmButton: false, timer: 1500});
-    
+
+    if (!fname || !lname) return Swal.fire({ toast: true, position: 'top-end', title: 'กรุณากรอกชื่อและสกุล', icon: 'warning', showConfirmButton: false, timer: 1500 });
+
     const { error } = await db.from('core_students').update({ first_name: fname, last_name: lname }).eq('id', studentId);
-    if(error) Swal.fire({toast: true, position: 'top-end', title: 'อัปเดตชื่อผิดพลาด', icon: 'error', showConfirmButton: false, timer: 1500});
-    else Swal.fire({toast: true, position: 'top-end', title: 'อัปเดตชื่อสำเร็จ', icon: 'success', showConfirmButton: false, timer: 1500});
+    if (error) Swal.fire({ toast: true, position: 'top-end', title: 'อัปเดตชื่อผิดพลาด', icon: 'error', showConfirmButton: false, timer: 1500 });
+    else Swal.fire({ toast: true, position: 'top-end', title: 'อัปเดตชื่อสำเร็จ', icon: 'success', showConfirmButton: false, timer: 1500 });
 }
 
 async function changeStudentGlobalRoom(studentId, currentEnrollId, newRoomId) {
-    Swal.fire({title: 'กำลังอัปเดตห้องเรียน...', allowOutsideClick: false, didOpen: ()=>Swal.showLoading()});
+    Swal.fire({ title: 'กำลังอัปเดตห้องเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         if (!newRoomId) {
             if (currentEnrollId) await db.from('student_enrollments').delete().eq('id', currentEnrollId);
@@ -1489,9 +1618,9 @@ async function changeStudentGlobalRoom(studentId, currentEnrollId, newRoomId) {
             if (currentEnrollId) await db.from('student_enrollments').update({ classroom_id: newRoomId }).eq('id', currentEnrollId);
             else await db.from('student_enrollments').insert({ student_id: studentId, classroom_id: newRoomId });
         }
-        Swal.fire({icon: 'success', title: 'อัปเดตห้องเรียนสำเร็จ', text: 'กรุณาค้นหาใหม่อีกครั้งเพื่อดูความเปลี่ยนแปลง', timer: 2000, showConfirmButton: false});
-        if(typeof loadStudents === 'function') loadStudents(); 
-    } catch(err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+        Swal.fire({ icon: 'success', title: 'อัปเดตห้องเรียนสำเร็จ', text: 'กรุณาค้นหาใหม่อีกครั้งเพื่อดูความเปลี่ยนแปลง', timer: 2000, showConfirmButton: false });
+        if (typeof loadStudents === 'function') loadStudents();
+    } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
 }
 
 async function deleteGlobalStudent(studentId, name) {
@@ -1500,14 +1629,299 @@ async function deleteGlobalStudent(studentId, name) {
         html: `<p class="text-sm text-red-500">คุณกำลังลบ <b>${name}</b> ออกจากระบบ<br>ข้อมูลการเข้าเรียน, พฤติกรรม <b>จะถูกลบทั้งหมด</b></p>`,
         icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบข้อมูลถาวร'
     });
-    
-    if(isConfirmed) {
-        Swal.fire({title: 'กำลังลบ...', allowOutsideClick: false, didOpen: ()=>Swal.showLoading()});
+
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { error } = await db.from('core_students').delete().eq('id', studentId);
-        if(!error) {
-            Swal.fire({icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false});
+        if (!error) {
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
             const row = document.getElementById(`fname_${studentId}`).closest('tr');
-            if(row) row.remove();
+            if (row) row.remove();
         } else Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+}
+
+// ==========================================
+// 10. ระบบจัดการ Student Portal Modules
+// ==========================================
+let currentEditStudentModuleId = null;
+
+async function loadStudentModules() {
+    const tbody = document.getElementById('student-modules-list');
+    if (!tbody) return;
+    try {
+        const { data, error } = await db.from('student_portal_modules')
+            .select('*')
+            .order('display_order', { ascending: true });
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+            tbody.innerHTML = data.map(mod => `
+                <tr data-id="${mod.id}" class="hover:bg-gray-50 transition-colors">
+                    <!-- 🌟 เพิ่มคอลัมน์ Drag Handle -->
+                    <td class="py-3 px-2 text-center drag-handle text-gray-400 hover:text-gray-600 cursor-grab">
+                        <i class="fa-solid fa-grip-vertical"></i>
+                    </td>
+                    <td class="py-3 px-4 text-lg text-gray-600"><i class="${mod.icon}"></i></td>
+                    <td class="py-3 px-4 font-bold text-gray-700">${mod.title}</td>
+                    <td class="py-3 px-4 text-blue-600 underline truncate max-w-[200px]">${mod.url}</td>
+                    <td class="py-3 px-4 text-center">
+                        <span class="px-2 py-1 text-xs font-bold rounded-full ${mod.is_active ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                            ${mod.is_active ? 'เปิด' : 'ปิด'}
+                        </span>
+                    </td>
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <button onclick="editStudentModule('${mod.id}')" class="text-blue-600 hover:text-blue-800 font-bold px-2"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteStudentModule('${mod.id}')" class="text-red-600 hover:text-red-800 font-bold px-2"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+
+            // 🌟 ใช้งาน SortableJS สำหรับลาก-วาง
+            new Sortable(tbody, {
+                handle: '.drag-handle',
+                animation: 150,
+                onEnd: async function (evt) {
+                    const rows = evt.from.querySelectorAll('tr');
+                    const updates = [];
+                    // อ่านค่าไอดีและลำดับใหม่ของแต่ละแถว
+                    rows.forEach((row, index) => {
+                        const id = row.getAttribute('data-id');
+                        if (id) updates.push({ id: id, display_order: index + 1 });
+                    });
+                    
+                    // นำลำดับใหม่ไปบันทึกลง Database
+                    for (let u of updates) {
+                        await db.from('student_portal_modules')
+                                .update({ display_order: u.display_order })
+                                .eq('id', u.id);
+                    }
+                    // รีโหลดตารางให้แสดงผลข้อมูลที่ถูกต้อง
+                    loadStudentModules(); 
+                }
+            });
+
+        } else {
+            // แก้ไข colspan เป็น 6 เพราะเราเพิ่มคอลัมน์มา 1 คอลัมน์
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ยังไม่มีระบบสำหรับนักเรียน</td></tr>';
+        }
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-red-500">Error: ${err.message}</td></tr>`;
+    }
+}
+
+function clearStudentModuleForm() {
+    document.getElementById('studentModuleForm').reset();
+    document.getElementById('sm_id').value = '';
+    document.getElementById('sm_icon_bg').value = '#3b82f6';
+    document.getElementById('sm_icon_bg_text').value = '#3b82f6';
+    document.getElementById('sm_icon_text').value = '#ffffff';
+    document.getElementById('sm_icon_text_text').value = '#ffffff';
+    currentEditStudentModuleId = null;
+}
+
+async function editStudentModule(id) {
+    try {
+        const { data, error } = await db.from('student_portal_modules').select('*').eq('id', id).single();
+        if (error) throw error;
+        document.getElementById('sm_id').value = data.id;
+        document.getElementById('sm_module_key').value = data.module_key;
+        document.getElementById('sm_title').value = data.title;
+        document.getElementById('sm_description').value = data.description || '';
+        document.getElementById('sm_icon').value = data.icon;
+        document.getElementById('sm_icon_bg').value = data.icon_bg_color || '#3b82f6';
+        document.getElementById('sm_icon_bg_text').value = data.icon_bg_color || '#3b82f6';
+        document.getElementById('sm_icon_text').value = data.icon_text_color || '#ffffff';
+        document.getElementById('sm_icon_text_text').value = data.icon_text_color || '#ffffff';
+        document.getElementById('sm_url').value = data.url;
+        document.getElementById('sm_is_active').checked = data.is_active;
+        document.getElementById('sm_target_blank').checked = data.target_blank || false;
+        document.getElementById('sm_display_order').value = data.display_order || 0;
+        currentEditStudentModuleId = id;
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function saveStudentModule(e) {
+    e.preventDefault();
+    const formData = {
+        module_key: document.getElementById('sm_module_key').value.trim(),
+        title: document.getElementById('sm_title').value.trim(),
+        description: document.getElementById('sm_description').value.trim(),
+        icon: document.getElementById('sm_icon').value.trim(),
+        icon_bg_color: document.getElementById('sm_icon_bg_text').value.trim() || '#3b82f6',
+        icon_text_color: document.getElementById('sm_icon_text_text').value.trim() || '#ffffff',
+
+        url: document.getElementById('sm_url').value.trim(),
+        is_active: document.getElementById('sm_is_active').checked,
+        target_blank: document.getElementById('sm_target_blank').checked,
+        display_order: parseInt(document.getElementById('sm_display_order').value) || 0
+    };
+
+    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        if (currentEditStudentModuleId) {
+            const { error } = await db.from('student_portal_modules').update(formData).eq('id', currentEditStudentModuleId);
+            if (error) throw error;
+        } else {
+            const { error } = await db.from('student_portal_modules').insert([formData]);
+            if (error) throw error;
+        }
+        clearStudentModuleForm();
+        loadStudentModules();
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function deleteStudentModule(id) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: 'ระบบนี้จะหายไปจากหน้าของนักเรียนทันที',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ลบ'
+    });
+    if (isConfirmed) {
+        const { error } = await db.from('student_portal_modules').delete().eq('id', id);
+        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+        else {
+            loadStudentModules();
+            Swal.fire('ลบสำเร็จ', '', 'success');
+        }
+    }
+}
+
+// โหลดครั้งแรกเมื่อเปิดหน้า (ถ้าเปิดเมนู student-portal อยู่แล้ว)
+document.addEventListener('DOMContentLoaded', () => {
+    // เผื่อเปิดค้างไว้
+});
+
+// Sync color inputs
+document.addEventListener('DOMContentLoaded', () => {
+    const bgColor = document.getElementById('sm_icon_bg');
+    const bgText = document.getElementById('sm_icon_bg_text');
+    const textColor = document.getElementById('sm_icon_text');
+    const textText = document.getElementById('sm_icon_text_text');
+
+    if (bgColor && bgText) {
+        bgColor.addEventListener('input', () => { bgText.value = bgColor.value; });
+        bgText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(bgText.value)) bgColor.value = bgText.value; });
+    }
+    if (textColor && textText) {
+        textColor.addEventListener('input', () => { textText.value = textColor.value; });
+        textText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(textText.value)) textColor.value = textText.value; });
+    }
+});
+
+// ==========================================
+// 🌟 ระบบตั้งค่าหัวหน้ากลุ่มสาระการเรียนรู้
+// ==========================================
+const DEPARTMENTS = [
+    { id: 'dept_thai', name: 'ภาษาไทย' },
+    { id: 'dept_math', name: 'คณิตศาสตร์' },
+    { id: 'dept_sci', name: 'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)' },
+    { id: 'dept_tech', name: 'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)' },
+    { id: 'dept_soc', name: 'สังคมศึกษา ศาสนา และวัฒนธรรม' },
+    { id: 'dept_health', name: 'สุขศึกษาและพลศึกษา' },
+    { id: 'dept_art', name: 'ศิลปะ' },
+    { id: 'dept_career', name: 'การงานอาชีพ' },
+    { id: 'dept_lang', name: 'ภาษาต่างประเทศ (ภาษาอังกฤษ)' },
+    { id: 'dept_chinese', name: 'ภาษาต่างประเทศ (ภาษาจีน)' },
+    { id: 'dept_guidance', name: 'แนะแนว' }
+];
+
+async function openDeptHeadModal() {
+    const container = document.getElementById('dept_heads_container');
+    container.innerHTML = '';
+
+    // 1. สร้าง Option รายชื่อบุคลากรทั้งหมด
+    let optionsHtml = '<option value="">-- ไม่ระบุ / ว่าง --</option>';
+    globalPersonnelList.forEach(p => {
+        optionsHtml += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || 'ไม่ระบุ'})</option>`;
+    });
+
+    // 2. วาดช่อง Dropdown 8 กลุ่มสาระ
+    DEPARTMENTS.forEach(dept => {
+        container.innerHTML += `
+            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <label class="block text-sm font-bold text-gray-800 mb-2">
+                    <i class="fa-solid fa-layer-group text-blue-500 mr-1"></i> ${dept.name}
+                </label>
+                <select id="${dept.id}" class="select2-dept-head w-full">
+                    ${optionsHtml}
+                </select>
+            </div>
+        `;
+    });
+
+    document.getElementById('deptHeadModal').classList.remove('hidden');
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+
+    try {
+        // 3. ดึงข้อมูลหัวหน้าเดิมจาก Database
+        const { data, error } = await db.from('core_department_heads').select('*');
+        if (!error && data) {
+            data.forEach(row => {
+                const select = document.getElementById(row.department_id);
+                if (select) select.value = row.personnel_id;
+            });
+        }
+
+        // 4. เปิดใช้งาน Select2 (พิมพ์ค้นหาได้)
+        $('.select2-dept-head').select2({
+            dropdownParent: $('#deptHeadModal'),
+            placeholder: "พิมพ์เพื่อค้นหาชื่อครู...",
+            allowClear: true
+        });
+
+        Swal.close();
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+function closeDeptHeadModal() {
+    document.getElementById('deptHeadModal').classList.add('hidden');
+    // ทำลาย Select2 เพื่อป้องกันบั๊กเมื่อเปิดปิด Modal ซ้ำ
+    if ($('.select2-dept-head').hasClass("select2-hidden-accessible")) {
+        $('.select2-dept-head').select2('destroy');
+    }
+}
+
+async function saveDeptHeads(e) {
+    e.preventDefault();
+    Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const updates = [];
+    DEPARTMENTS.forEach(dept => {
+        const selectVal = document.getElementById(dept.id).value;
+        if (selectVal) {
+            updates.push({ 
+                department_id: dept.id, 
+                department_name: dept.name, 
+                personnel_id: selectVal 
+            });
+        }
+    });
+
+    try {
+        // เคลียร์ข้อมูลเดิมทิ้งทั้งหมด แล้วบันทึกชุดใหม่เข้าไป (ลบคนที่ไม่ระบุออกไปด้วย)
+        await db.from('core_department_heads').delete().neq('department_id', 'dummy_value');
+
+        if (updates.length > 0) {
+            const { error } = await db.from('core_department_heads').insert(updates);
+            if (error) throw error;
+        }
+
+        closeDeptHeadModal();
+        Swal.fire({ icon: 'success', title: 'แต่งตั้งหัวหน้ากลุ่มสาระเรียบร้อย!', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }

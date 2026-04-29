@@ -151,14 +151,26 @@
         const ALL_APPS = [
             // --- 📚 กลุ่มบริหารวิชาการ ---
             {
-                id: 'guidance_admin', category: 'academic', moduleId: 'guidance',
-                title: 'แนะแนว (ผู้ดูแลระบบ)', desc: 'จัดห้องสอน, ตั้งค่ารายวิชา, สรุปข้อมูล ปพ.5 ทั้งระบบ',
-                icon: 'fa-solid fa-user-shield', color: 'text-emerald-600', bgIcon: 'bg-emerald-100', url: 'guidance_admin.html', reqAdmin: true
+                id: 'guidance_admin',
+                category: 'academic',
+                moduleId: 'guidance',  // ✔️ ตรงกับ core_system_modules.module_id
+                title: 'แนะแนว (ผู้ดูแลระบบ)',
+                desc: 'ตั้งค่ารายวิชา, จัดห้องสอน, สรุปข้อมูล ปพ.5',
+                icon: 'fa-solid fa-user-shield',
+                color: 'text-emerald-600',
+                bgIcon: 'bg-emerald-100',
+                url: 'guidance_admin.html',
+                reqAdmin: true          // เฉพาะ admin
             },
             {
-                id: 'guidance_teacher', category: 'academic', moduleId: 'guidance',
-                title: 'ปพ.5 กิจกรรมแนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ (สำหรับครูผู้สอน)',
-                icon: 'fa-solid fa-compass', color: 'text-blue-600', bgIcon: 'bg-blue-100', url: 'guidance_teacher.html'
+                id: 'guidance_teacher',
+                category: 'academic',
+                moduleId: 'guidance',  // ✔️ เดียวกัน แต่คนละ entry
+                title: 'ปพ.5 กิจกรรมแนะแนว',
+                desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ',
+                icon: 'fa-solid fa-compass',
+                url: 'guidance_teacher.html',
+                reqAdmin: false
             },
 
             // --- 💰 กลุ่มบริหารงบประมาณ ---
@@ -175,8 +187,8 @@
                 icon: 'fa-solid fa-id-card', color: 'text-violet-600', bgIcon: 'bg-violet-100', url: 'personnel.html'
             },
             {
-                id: 'leave_system', category: 'personnel', moduleId: 'leave', 
-                title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร', 
+                id: 'leave_system', category: 'personnel', moduleId: 'leave',
+                title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร',
                 icon: 'fa-solid fa-envelope-open-text', color: 'text-rose-500', bgIcon: 'bg-rose-100', url: 'leave_teacher.html'
             },
 
@@ -187,10 +199,10 @@
                 icon: 'fa-solid fa-clipboard-user', color: 'text-orange-500', bgIcon: 'bg-orange-100', url: 'attendance_teacher.html'
             },
             {
-                id: 'discipline', category: 'general', moduleId: 'behavior', 
-                title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน', 
-                icon: 'fa-solid fa-gavel', color: 'text-red-500', bgIcon: 'bg-red-100', 
-                url: 'behavior_teacher.html' 
+                id: 'discipline', category: 'general', moduleId: 'behavior',
+                title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน',
+                icon: 'fa-solid fa-gavel', color: 'text-red-500', bgIcon: 'bg-red-100',
+                url: 'behavior_teacher.html'
             },
             {
                 id: 'homevisit', category: 'general', moduleId: 'homevisit',
@@ -216,7 +228,7 @@
 
         async function checkAuth() {
             const { data: { session }, error } = await db.auth.getSession();
-            
+
             // 🌟 เด้งไปหน้า login.html ถ้ายังไม่เข้าระบบ
             if (error || !session) {
                 window.location.replace('login.html');
@@ -240,9 +252,23 @@
             const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
-            const { data: sysMods } = await db.from('core_system_modules').select('module_id, is_active');
-            activeModules = sysMods || [];
+            // --- 🌟 เปลี่ยนเป็นโค้ดชุดนี้แทน ---
+const { data: allCustomModules } = await db.from('core_system_modules')
+    .select('*')
+    .order('display_order', { ascending: true });
 
+window.moduleOverrides = {};
+activeModules = []; // ล้างค่าเดิมก่อน
+
+if (allCustomModules) {
+    allCustomModules.forEach(m => {
+        window.moduleOverrides[m.module_id] = m;
+        // จัดเก็บตัวที่เปิดใช้งานเอาไว้ใน activeModules ด้วยเลย
+        if (m.is_active) {
+            activeModules.push({ module_id: m.module_id, is_active: m.is_active });
+        }
+    });
+}
             updateUI();
             renderAppCards();
         }
@@ -280,35 +306,92 @@
                 btn.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm";
             });
             btnElement.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md";
-            renderAppCards(); 
+            renderAppCards();
         }
 
         function renderAppCards() {
             const grid = document.getElementById('appGrid');
             grid.innerHTML = '';
 
-            const appsToShow = ALL_APPS.filter(app => app.category === currentCategory);
+            // เตรียมข้อมูลโมดูลที่กำหนดเอง (Override map)
+            const overrides = window.moduleOverrides || {};
+
+            // รวบรวมแอปจาก ALL_APPS + โมดูลที่เพิ่มเข้ามาใหม่จาก DB
+            let appsToDisplay = [];
+
+            // 1. เพิ่มแอปที่อยู่ใน ALL_APPS (ปรับแต่งด้วย override)
+            ALL_APPS.forEach(app => {
+                if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
+
+                const modOverride = overrides[app.moduleId];
+                const finalApp = { ...app }; // clone
+
+if (modOverride) {
+    // ให้เปลี่ยนสีและไอคอนได้ตามปกติ
+    finalApp.icon = modOverride.icon || app.icon;
+    finalApp.bgIcon = ''; 
+    finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0'; 
+    finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
+    finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+
+    // 🌟 เพิ่มเงื่อนไขนี้: ป้องกันการเขียนทับแอปที่มีหลายสิทธิ์ (เช่น guidance_admin กับ guidance_teacher)
+    if (app.id === app.moduleId) {
+        finalApp.url = modOverride.url || app.url;
+        finalApp.desc = modOverride.description || app.desc;
+        finalApp.title = modOverride.module_name || app.title;
+    }
+} else {
+                    // ไม่มี override → ใช้ค่าเดิมจาก ALL_APPS
+                    finalApp.iconBgColor = '#e2e8f0'; // สีพื้นหลังไอคอน (default)
+                    finalApp.iconTextColor = '#4a5568'; // สีตัวไอคอน (default)
+                    finalApp.isActive = activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+                }
+
+                appsToDisplay.push(finalApp);
+            });
+
+            // 2. เพิ่มโมดูลใหม่จาก DB ที่ไม่มีใน ALL_APPS
+            Object.values(overrides).forEach(mod => {
+                // ถ้ามี module_id นี้ใน ALL_APPS แล้ว ข้าม (ใช้ override ด้านบนแล้ว)
+                const alreadyExists = ALL_APPS.some(app => app.moduleId === mod.module_id);
+                if (alreadyExists) return;
+
+                // สร้าง app object ใหม่
+                const newApp = {
+                    id: mod.module_id,
+                    category: mod.category || 'general',
+                    moduleId: mod.module_id,
+                    title: mod.module_name,
+                    desc: mod.description || '',
+                    icon: mod.icon || 'fa-solid fa-cube',
+                    iconBgColor: mod.icon_bg_color || '#e2e8f0',
+                    iconTextColor: mod.icon_text_color || '#4a5568',
+                    url: mod.url || '#',
+                    isActive: mod.is_active !== false,
+                    reqAdmin: false,
+                    reqSuperAdmin: false
+                };
+                appsToDisplay.push(newApp);
+            });
+
+            // 3. กรองตามหมวดหมู่ปัจจุบัน
+            const appsToShow = appsToDisplay.filter(app => app.category === currentCategory);
 
             if (appsToShow.length === 0) {
-                grid.innerHTML = '<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>ยังไม่มีระบบในกลุ่มบริหารงานนี้</div>';
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>ยังไม่มีระบบในกลุ่มบริหารงานนี้</div>`;
                 return;
             }
 
+            // 4. สร้างการ์ด
             appsToShow.forEach(app => {
-                if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
-
                 let isLocked = false;
                 let lockReason = '';
 
-                if (app.moduleId) {
-                    const mod = activeModules.find(m => m.module_id === app.moduleId);
-                    if (mod && mod.is_active === false) {
-                        isLocked = true;
-                        lockReason = 'ปิดปรับปรุงระบบชั่วคราว';
-                    }
-                }
-
-                if (!isLocked && app.reqAdmin) {
+                // ตรวจสอบสิทธิ์การเข้าใช้งาน
+                if (!app.isActive) {
+                    isLocked = true;
+                    lockReason = 'ปิดปรับปรุงระบบชั่วคราว';
+                } else if (app.reqAdmin) {
                     const hasAccess = (currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId);
                     if (!hasAccess) {
                         isLocked = true;
@@ -332,21 +415,24 @@
                     badgeHtml = `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-200 flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> เปิดใช้งาน</span>`;
                 }
 
+                // ใช้ inline style สำหรับไอคอน หากมีการตั้งค่าสีจาก DB
+                const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
+
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : app.bgIcon + ' ' + app.color} flex items-center justify-center text-2xl shadow-inner">
-                            <i class="${app.icon}"></i>
-                        </div>
-                        ${badgeHtml}
-                    </div>
-                    <div class="flex-1">
-                        <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
-                        <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
-                    </div>
-                    <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
-                        ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
-                    </div>
-                `;
+            <div class="flex justify-between items-start mb-4">
+                <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
+                    <i class="${app.icon}"></i>
+                </div>
+                ${badgeHtml}
+            </div>
+            <div class="flex-1">
+                <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
+                <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
+            </div>
+            <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
+                ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
+            </div>
+        `;
 
                 grid.appendChild(card);
             });
