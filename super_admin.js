@@ -168,8 +168,11 @@ async function loadMicroServices() {
         }
 
         // 2. Load all
+        // const { data, error } = await db.from('core_system_modules').select('*')
+        //     .order('category', { ascending: true }).order('display_order', { ascending: true });
+        // 🌟 โค้ดใหม่: ให้เรียงตามลำดับที่เราลากวางเพียงอย่างเดียว
         const { data, error } = await db.from('core_system_modules').select('*')
-            .order('category', { ascending: true }).order('display_order', { ascending: true });
+            .order('display_order', { ascending: true });
         if (error) throw error;
 
         const categoryMap = {
@@ -210,7 +213,7 @@ async function loadMicroServices() {
                 </tr>
             `).join('');
 
-            // Make sortable
+// Make sortable
             new Sortable(tbody, {
                 handle: '.drag-handle',
                 animation: 150,
@@ -221,9 +224,18 @@ async function loadMicroServices() {
                         const moduleId = row.getAttribute('data-module-id');
                         if (moduleId) updates.push({ module_id: moduleId, display_order: index + 1 });
                     });
+                    
+                    // 🌟 เพิ่มแจ้งเตือนว่ากำลังบันทึก
+                    const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false });
+                    Toast.fire({ icon: 'info', title: 'กำลังบันทึกลำดับ...' });
+
                     for (let u of updates) {
                         await db.from('core_system_modules').update({ display_order: u.display_order }).eq('module_id', u.module_id);
                     }
+                    
+                    // 🌟 แจ้งเตือนเมื่อเสร็จสิ้น
+                    Toast.fire({ icon: 'success', title: 'บันทึกลำดับสำเร็จ!', timer: 1500 });
+                    
                     loadMicroServices(); // refresh
                 }
             });

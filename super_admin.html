@@ -13,7 +13,7 @@
     <script>
         tailwind.config = { darkMode: 'class' }
     </script>
-    
+
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
         integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
         crossorigin="anonymous" referrerpolicy="no-referrer">
@@ -22,7 +22,7 @@
     <!-- Select2 (สำหรับ Dropdown ค้นหาชื่อ) -->
     <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    
+
     <!-- DataTables -->
     <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
     <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
@@ -204,33 +204,32 @@
                     </form>
                 </div>
 
-                <!-- ตารางแสดงระบบย่อย (ลาก-วางได้) -->
-                <div class="overflow-x-auto">
-                    <table class="w-full text-left text-sm border-collapse">
-                        <thead>
-                            <tr class="bg-gray-50 text-gray-600 border-b">
-                                <th class="py-3 px-2 w-8"></th> <!-- drag handle -->
-                                <th class="py-3 px-4">ไอคอน</th>
-                                <th class="py-3 px-4">ชื่อระบบ</th>
-                                <th class="py-3 px-4">กลุ่มงาน</th>
-                                <th class="py-3 px-4">คำอธิบาย</th>
-                                <th class="py-3 px-4 text-center">สถานะ</th>
-                                <th class="py-3 px-4 text-center">จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="micro-modules-list" class="divide-y divide-gray-100">
-                            <tr>
-                                <td colspan="7" class="text-center py-8 text-gray-400">กำลังโหลด...</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
                 <!-- ✅ ฟอร์ม + ตารางจัดการ Micro-services (ใหม่) -->
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
                         <i class="fa-solid fa-toggle-on text-emerald-600"></i> จัดการระบบย่อย (Micro‑services)
                     </h3>
-
+                    <!-- ตารางแสดงระบบย่อย (ลาก-วางได้) -->
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-600 border-b">
+                                    <th class="py-3 px-2 w-8"></th> <!-- drag handle -->
+                                    <th class="py-3 px-4">ไอคอน</th>
+                                    <th class="py-3 px-4">ชื่อระบบ</th>
+                                    <th class="py-3 px-4">กลุ่มงาน</th>
+                                    <th class="py-3 px-4">คำอธิบาย</th>
+                                    <th class="py-3 px-4 text-center">สถานะ</th>
+                                    <th class="py-3 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="micro-modules-list" class="divide-y divide-gray-100">
+                                <tr>
+                                    <td colspan="7" class="text-center py-8 text-gray-400">กำลังโหลด...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                     <div class="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-6">
                         <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i>
                             เพิ่ม/แก้ไขระบบย่อย</h4>
