@@ -2,58 +2,14 @@
 <html lang="th">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Central Portal - ระบบบริหารจัดการสถานศึกษา</title>
-    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css"
-        integrity="sha512-Evv84Mr4kqVGRNSgIGL/F/aIDqQb7xQ2vcrdIwxfjThSH8CSR7PBEakCr51Ck+w+/U6swU2Im1vVX0SVk9ABhg=="
-        crossorigin="anonymous" referrerpolicy="no-referrer">
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
 
-    <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Anuphan', 'sans-serif'] } } } }
-    </script>
-
-    <style>
-        body {
-            font-family: 'Anuphan', sans-serif;
-            background-color: #f3f4f6;
-            overflow-x: hidden;
-        }
-
-        .glass-panel {
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .app-card {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .app-card:hover:not(.locked) {
-            transform: translateY(-5px);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        }
-
-        .locked {
-            filter: grayscale(100%);
-            opacity: 0.7;
-            cursor: not-allowed;
-        }
-    </style>
 </head>
 
 <body class="text-gray-800 min-h-screen flex flex-col relative opacity-0 transition-opacity duration-500" id="mainBody">
@@ -150,18 +106,6 @@
 
         const ALL_APPS = [
             // --- 📚 กลุ่มบริหารวิชาการ ---
-            // {
-            //     id: 'guidance_admin',
-            //     category: 'academic',
-            //     moduleId: 'guidance',  // ✔️ ตรงกับ core_system_modules.module_id
-            //     title: 'แนะแนว (ผู้ดูแลระบบ)',
-            //     desc: 'ตั้งค่ารายวิชา, จัดห้องสอน, สรุปข้อมูล ปพ.5',
-            //     icon: 'fa-solid fa-user-shield',
-            //     color: 'text-emerald-600',
-            //     bgIcon: 'bg-emerald-100',
-            //     url: 'guidance_admin.html',
-            //     reqAdmin: true          // เฉพาะ admin
-            // },
             {
                 id: 'guidance_teacher',
                 category: 'academic',
@@ -212,12 +156,12 @@
             {
                 id: 'sdq_assessment', category: 'general', moduleId: 'sdq',
                 title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
-                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq.html'
+                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
             },
             {
                 id: 'eq_assessment', category: 'general', moduleId: 'eq',
                 title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
-                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq.html'
+                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
             }
         ];
 
@@ -253,22 +197,26 @@
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
             // --- 🌟 เปลี่ยนเป็นโค้ดชุดนี้แทน ---
-const { data: allCustomModules } = await db.from('core_system_modules')
-    .select('*')
-    .order('display_order', { ascending: true });
+            const { data: allCustomModules } = await db.from('core_system_modules')
+                .select('*')
+                .order('display_order', { ascending: true });
 
-window.moduleOverrides = {};
-activeModules = []; // ล้างค่าเดิมก่อน
+            window.moduleOverrides = {};
+            activeModules = []; // ล้างค่าเดิมก่อน
 
-if (allCustomModules) {
-    allCustomModules.forEach(m => {
-        window.moduleOverrides[m.module_id] = m;
-        // จัดเก็บตัวที่เปิดใช้งานเอาไว้ใน activeModules ด้วยเลย
-        if (m.is_active) {
-            activeModules.push({ module_id: m.module_id, is_active: m.is_active });
-        }
-    });
-}
+            if (allCustomModules) {
+                allCustomModules.forEach(m => {
+                    window.moduleOverrides[m.module_id] = m;
+                    // จัดเก็บตัวที่เปิดใช้งานเอาไว้ใน activeModules ด้วยเลย
+                    if (m.is_active) {
+                        activeModules.push({
+                            module_id: m.module_id,
+                            is_active: m.is_active,
+                            target_blank: m.target_blank // 🌟 1. เพิ่มบรรทัดนี้เข้ามาครับ!
+                        });
+                    }
+                });
+            }
             updateUI();
             renderAppCards();
         }
@@ -326,25 +274,31 @@ if (allCustomModules) {
                 const modOverride = overrides[app.moduleId];
                 const finalApp = { ...app }; // clone
 
-if (modOverride) {
-    // ให้เปลี่ยนสีและไอคอนได้ตามปกติ
-    finalApp.icon = modOverride.icon || app.icon;
-    finalApp.bgIcon = ''; 
-    finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0'; 
-    finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
-    finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+                if (modOverride) {
+                    // ให้เปลี่ยนสีและไอคอนได้ตามปกติ
+                    finalApp.icon = modOverride.icon || app.icon;
+                    finalApp.bgIcon = '';
+                    finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0';
+                    finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
+                    finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
 
-    // 🌟 เพิ่มเงื่อนไขนี้: ป้องกันการเขียนทับแอปที่มีหลายสิทธิ์ (เช่น guidance_admin กับ guidance_teacher)
-    if (app.id === app.moduleId) {
-        finalApp.url = modOverride.url || app.url;
-        finalApp.desc = modOverride.description || app.desc;
-        finalApp.title = modOverride.module_name || app.title;
-    }
-} else {
+                    // 🌟 1. ดึงค่า target_blank มาใส่ใน finalApp
+                    finalApp.target_blank = modOverride.target_blank || false;
+
+                    // 🌟 ป้องกันการเขียนทับแอปที่มีหลายสิทธิ์ (เช่น guidance_admin กับ guidance_teacher)
+                    if (app.id === app.moduleId) {
+                        finalApp.url = modOverride.url || app.url;
+                        finalApp.desc = modOverride.description || app.desc;
+                        finalApp.title = modOverride.module_name || app.title;
+                    }
+                } else {
                     // ไม่มี override → ใช้ค่าเดิมจาก ALL_APPS
                     finalApp.iconBgColor = '#e2e8f0'; // สีพื้นหลังไอคอน (default)
                     finalApp.iconTextColor = '#4a5568'; // สีตัวไอคอน (default)
                     finalApp.isActive = activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+
+                    // 🌟 กำหนดค่าตั้งต้นหากไม่มี override
+                    finalApp.target_blank = false;
                 }
 
                 appsToDisplay.push(finalApp);
@@ -369,7 +323,9 @@ if (modOverride) {
                     url: mod.url || '#',
                     isActive: mod.is_active !== false,
                     reqAdmin: false,
-                    reqSuperAdmin: false
+                    reqSuperAdmin: false,
+                    // 🌟 2. ดึงค่า target_blank สำหรับโมดูลที่สร้างใหม่
+                    target_blank: mod.target_blank || false
                 };
                 appsToDisplay.push(newApp);
             });
@@ -405,7 +361,14 @@ if (modOverride) {
                 if (isLocked) {
                     card.onclick = () => Swal.fire('ไม่สามารถเข้าใช้งานได้', lockReason, 'warning');
                 } else {
-                    card.onclick = () => window.location.href = app.url;
+                    card.onclick = () => {
+                        // 🌟 ตอนนี้ app.target_blank จะมีค่าส่งมาแน่นอนแล้วครับ
+                        if (app.target_blank === true || app.target_blank === 'true') {
+                            window.open(app.url, '_blank');
+                        } else {
+                            window.location.href = app.url;
+                        }
+                    };
                 }
 
                 let badgeHtml = '';
@@ -419,20 +382,20 @@ if (modOverride) {
                 const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
 
                 card.innerHTML = `
-            <div class="flex justify-between items-start mb-4">
-                <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
-                    <i class="${app.icon}"></i>
-                </div>
-                ${badgeHtml}
-            </div>
-            <div class="flex-1">
-                <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
-                <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
-            </div>
-            <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
-                ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
-            </div>
-        `;
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
+                            <i class="${app.icon}"></i>
+                        </div>
+                        ${badgeHtml}
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
+                        <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
+                        ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
+                    </div>
+                `;
 
                 grid.appendChild(card);
             });

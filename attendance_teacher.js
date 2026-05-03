@@ -58,7 +58,7 @@ async function checkAuth() {
     currentUser = personnel;
     actualUserRole = personnel.role;
 
-    let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name}`;
+    let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name} ${personnel.last_name}`;
 
     const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
     if (schoolInfo) {

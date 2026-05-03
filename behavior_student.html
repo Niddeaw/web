@@ -2,18 +2,13 @@
 <html lang="th">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>คะแนนของฉัน | WRK System</title>
-    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-        body {
-            font-family: 'Anuphan', sans-serif;
-        }
-    </style>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
+
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-blue-600 min-h-screen p-4 flex flex-col items-center">
@@ -45,9 +40,6 @@
         </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
     <script>
         $(document).ready(() => {
             const stId = localStorage.getItem('student_id');

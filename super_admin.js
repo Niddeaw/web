@@ -130,13 +130,13 @@ async function saveSchoolInfo(e) {
 const MASTER_MODULES = [
     { module_id: 'attendance', title: 'ระบบเช็คชื่อนักเรียน', category: 'academic', icon: 'fa-solid fa-clipboard-user', description: 'เช็คชื่อนักเรียนรายวัน', url: 'attendance.html', display_order: 1, is_active: true, icon_bg_color: '#3b82f6', icon_text_color: '#ffffff' },
     { module_id: 'behavior', title: 'ระบบคะแนนความประพฤติ', category: 'academic', icon: 'fa-solid fa-star', description: 'บันทึกคะแนนความประพฤติ', url: 'behavior_teacher.html', display_order: 2, is_active: true, icon_bg_color: '#ef4444', icon_text_color: '#ffffff' },
-    { module_id: 'eq', title: 'ระบบประเมิน EQ', category: 'academic', icon: 'fa-solid fa-brain', description: 'แบบประเมินความฉลาดทางอารมณ์', url: 'eq.html', display_order: 3, is_active: true, icon_bg_color: '#ec4899', icon_text_color: '#ffffff' },
+    { module_id: 'eq', title: 'ระบบประเมิน EQ', category: 'academic', icon: 'fa-solid fa-brain', description: 'แบบประเมินความฉลาดทางอารมณ์', url: 'eq_admin.html', display_order: 3, is_active: true, icon_bg_color: '#ec4899', icon_text_color: '#ffffff' },
     { module_id: 'guidance', title: 'ระบบ ปพ.5 - แนะแนว', category: 'academic', icon: 'fa-solid fa-compass', description: 'บันทึกกิจกรรมแนะแนว ปพ.5', url: 'guidance_teacher.html', display_order: 4, is_active: true, icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
     { module_id: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', category: 'academic', icon: 'fa-solid fa-house-chimney', description: 'บันทึกข้อมูลการเยี่ยมบ้าน', url: 'homevisit.html', display_order: 5, is_active: true, icon_bg_color: '#14b8a6', icon_text_color: '#ffffff' },
     { module_id: 'personnel', title: 'ระบบบริหารจัดการบุคลากร', category: 'personnel', icon: 'fa-solid fa-id-card', description: 'ข้อมูลครูและบุคลากร', url: 'personnel.html', display_order: 1, is_active: true, icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' },
     { module_id: 'leave', title: 'ระบบการลา', category: 'personnel', icon: 'fa-solid fa-envelope-open-text', description: 'ระบบลาสำหรับครู', url: 'leave_teacher.html', display_order: 2, is_active: true, icon_bg_color: '#f43f5e', icon_text_color: '#ffffff' },
     { module_id: 'scholarship', title: 'ระบบทุนการศึกษา', category: 'budget', icon: 'fa-solid fa-hand-holding-heart', description: 'จัดการทุนการศึกษา', url: 'scholarship.html', display_order: 1, is_active: true, icon_bg_color: '#eab308', icon_text_color: '#ffffff' },
-    { module_id: 'sdq', title: 'ระบบประเมิน SDQ', category: 'general', icon: 'fa-solid fa-clipboard-list', description: 'แบบประเมิน SDQ', url: 'sdq.html', display_order: 1, is_active: true, icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
+    { module_id: 'sdq', title: 'ระบบประเมิน SDQ', category: 'general', icon: 'fa-solid fa-clipboard-list', description: 'แบบประเมิน SDQ', url: 'sdq_admin.html', display_order: 1, is_active: true, icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
 ];
 
 async function loadMicroServices() {
@@ -168,8 +168,6 @@ async function loadMicroServices() {
         }
 
         // 2. Load all
-        // const { data, error } = await db.from('core_system_modules').select('*')
-        //     .order('category', { ascending: true }).order('display_order', { ascending: true });
         // 🌟 โค้ดใหม่: ให้เรียงตามลำดับที่เราลากวางเพียงอย่างเดียว
         const { data, error } = await db.from('core_system_modules').select('*')
             .order('display_order', { ascending: true });
@@ -213,7 +211,7 @@ async function loadMicroServices() {
                 </tr>
             `).join('');
 
-// Make sortable
+            // Make sortable
             new Sortable(tbody, {
                 handle: '.drag-handle',
                 animation: 150,
@@ -269,6 +267,7 @@ function clearMicroServiceForm() {
     document.getElementById('ms_icon_bg_text').value = '#3b82f6';
     document.getElementById('ms_icon_text').value = '#ffffff';
     document.getElementById('ms_icon_text_text').value = '#ffffff';
+    document.getElementById('ms_target_blank').checked = false; // 🌟 เคลียร์ค่า Checkbox ให้เป็น false
     currentEditServiceId = null;
 }
 
@@ -290,6 +289,7 @@ async function editMicroService(moduleId) {
         document.getElementById('ms_url').value = data.url || '';
         document.getElementById('ms_display_order').value = data.display_order || 0;
         document.getElementById('ms_is_active').checked = data.is_active;
+        document.getElementById('ms_target_blank').checked = data.target_blank || false; // 🌟 ดึงค่ามาแสดง
         currentEditServiceId = moduleId;
     } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
 }
@@ -307,6 +307,7 @@ async function saveMicroService(e) {
         url: document.getElementById('ms_url').value.trim(),
         display_order: parseInt(document.getElementById('ms_display_order').value) || 0,
         is_active: document.getElementById('ms_is_active').checked,
+        target_blank: document.getElementById('ms_target_blank').checked, // 🌟 ส่งค่าไปบันทึกลง Database
         updated_at: new Date().toISOString()
     };
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -569,10 +570,21 @@ async function loadClassrooms() {
     try {
         if ($.fn.DataTable.isDataTable('#classroomsTable')) $('#classroomsTable').DataTable().destroy();
 
-        const { data, error } = await db.from('core_classrooms')
-            .select(`*, adv1:core_personnel!adviser_id_1(first_name, last_name), adv2:core_personnel!adviser_id_2(first_name, last_name)`)
-            .order('academic_year', { ascending: false }).order('semester', { ascending: true }).order('grade_level', { ascending: true }).order('room_number', { ascending: true });
+        // 🌟 1. ดึงข้อมูลปีการศึกษาและภาคเรียนปัจจุบันจากระบบส่วนกลาง
+        const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        const currentYear = schoolInfo ? schoolInfo.current_academic_year : '';
+        const currentTerm = schoolInfo ? schoolInfo.current_semester : '';
 
+        // 🌟 2. กรองข้อมูลให้แสดงเฉพาะเทอมปัจจุบัน
+        let query = db.from('core_classrooms')
+            .select(`*, adv1:core_personnel!adviser_id_1(first_name, last_name), adv2:core_personnel!adviser_id_2(first_name, last_name)`)
+            .order('grade_level', { ascending: true })
+            .order('room_number', { ascending: true });
+
+        if (currentYear) query = query.eq('academic_year', currentYear);
+        if (currentTerm) query = query.eq('semester', currentTerm);
+
+        const { data, error } = await query;
         if (error) throw error;
 
         const tbody = document.getElementById('tb-classrooms');
@@ -599,9 +611,10 @@ async function loadClassrooms() {
                     </td>
                 </tr>`;
             }).join('');
-        } else { tbody.innerHTML = ''; }
+        } else { 
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลห้องเรียนในภาคเรียนปัจจุบัน</td></tr>'; 
+        }
 
-        // 🌟 เปลี่ยนจาก responsive เป็น scrollX
         $('#classroomsTable').DataTable({
             scrollX: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
@@ -664,11 +677,12 @@ function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
 
     // 🌟 เปิดใช้งาน Select2 และดึงค่าครูที่ปรึกษาเดิมมาแสดง
     $('#c_adv1, #c_adv2').select2({
-        dropdownParent: $('#classroomModal'),
+        dropdownParent: $('#classroomModal'), // แนะนำให้ใช้ classroomModal ครับ
         placeholder: "-- พิมพ์เพื่อค้นหาชื่อครู --",
-        allowClear: true
+        allowClear: true,
+        width: '100%' // 🌟 เพิ่มบรรทัดนี้ เพื่อป้องกันบั๊กช่องค้นหาขนาดผิดเพี้ยน
     });
-    
+
     // เซ็ตค่าให้กับ Select2
     $('#c_adv1').val(adv1).trigger('change');
     $('#c_adv2').val(adv2).trigger('change');
@@ -1937,3 +1951,72 @@ async function saveDeptHeads(e) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
+
+// ==========================================
+// 🌟 ระบบจัดการ Sidebar (ย่อ-ขยาย) และ Theme
+// ==========================================
+let isSidebarCollapsed = false;
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const texts = document.querySelectorAll('.sidebar-text');
+    
+    isSidebarCollapsed = !isSidebarCollapsed;
+    
+    if (isSidebarCollapsed) {
+        sidebar.classList.remove('w-64');
+        sidebar.classList.add('w-20'); // ขนาดตอนย่อ
+        texts.forEach(txt => txt.classList.add('hidden'));
+    } else {
+        sidebar.classList.remove('w-20');
+        sidebar.classList.add('w-64'); // ขนาดตอนขยาย
+        texts.forEach(txt => txt.classList.remove('hidden'));
+    }
+}
+
+// ==========================================
+// 🌟 ระบบจัดการ Theme และปุ่มสลับโหมด
+// ==========================================
+function toggleThemeManually() {
+    const html = document.documentElement;
+    const isDark = html.classList.contains('dark');
+    const newTheme = isDark ? 'light' : 'dark';
+    
+    changeTheme(newTheme);
+}
+
+function changeTheme(theme) {
+    const html = document.documentElement;
+    const btnIcon = document.querySelector('#theme-toggle-btn i');
+    
+    html.classList.add('theme-transitioning');
+    
+    if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+        html.classList.add('dark');
+        if (btnIcon) {
+            btnIcon.classList.remove('fa-moon');
+            btnIcon.classList.add('fa-sun', 'text-amber-500'); // เปลี่ยนไอคอนเป็นพระอาทิตย์สีเหลือง
+        }
+    } else {
+        html.classList.remove('dark');
+        if (btnIcon) {
+            btnIcon.classList.remove('fa-sun', 'text-amber-500');
+            btnIcon.classList.add('fa-moon'); // คืนค่าเป็นพระจันทร์
+        }
+    }
+    
+    setTimeout(() => html.classList.remove('theme-transitioning'), 80);
+    localStorage.setItem('super_admin_theme', theme);
+}
+
+// ทำงานอัตโนมัติเมื่อโหลดหน้าเว็บ
+document.addEventListener('DOMContentLoaded', () => {
+    const savedTheme = localStorage.getItem('super_admin_theme') || 'auto';
+    
+    // ✅ เรียกใช้ฟังก์ชันเปลี่ยนธีมได้เลย ไม่ต้องเซ็ตค่าให้ select แล้ว
+    changeTheme(savedTheme);
+
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+        if (localStorage.getItem('super_admin_theme') === 'auto') changeTheme('auto');
+    });
+});

@@ -23,6 +23,7 @@ window.addEventListener('load', async () => {
         .select('id, grade_level, room_number')
         .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
         .eq('academic_year', si?.current_academic_year)
+        .eq('semester', si?.current_semester) /* 🌟 เพิ่มบรรทัดนี้: กรองเฉพาะภาคเรียนปัจจุบัน */
         .order('grade_level').order('room_number');
 
     const sel = document.getElementById('sel-classroom');

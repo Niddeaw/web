@@ -1,0 +1,340 @@
+/* =========================================================
+   WRK System - Clean & Modern Theme
+========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap');
+
+:root {
+    --color-bg-body: #f1f5f9;
+    /* พื้นหลังหลักสีเทาอ่อน */
+    --color-surface: #ffffff;
+    /* พื้นหลังการ์ดสีขาว */
+    --color-border: #e2e8f0;
+    --color-text-main: #1e293b;
+    --color-text-muted: #64748b;
+    --color-primary: #21BCFF;
+    --color-primary-hover: #1C69A8;
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+}
+
+html.dark {
+    --color-bg-body: #0f172a;
+    --color-surface: #1e293b;
+    --color-border: #334155;
+    --color-text-main: #f8fafc;
+    --color-text-muted: #94a3b8;
+    --color-primary: #1C69A8;
+    --color-primary-hover: #42D3F2;
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+}
+
+body {
+    background-color: var(--color-bg-body);
+    color: var(--color-text-main);
+    font-family: 'Anuphan', sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+/* =========================================================
+   UI Components
+========================================================= */
+/* Glass / Card Components */
+.glass,
+.card,
+.bg-white,
+.bg-slate-800 {
+    background-color: var(--color-surface) !important;
+    border-color: var(--color-border) !important;
+    box-shadow: var(--shadow-card) !important;
+    transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+
+/* Sidebar Styles */
+#sidebar {
+    background-color: var(--color-surface);
+    border-right: 1px solid var(--color-border);
+}
+
+.sidebar-text h1 {
+    color: var(--color-text-main);
+}
+
+.sidebar-text div {
+    color: var(--color-text-muted);
+}
+
+/* Navigation Buttons in Sidebar */
+nav button {
+    color: var(--color-text-muted) !important;
+    transition: all 0.2s ease;
+}
+
+nav button:hover {
+    background-color: var(--color-bg-body) !important;
+    color: var(--color-text-main) !important;
+}
+
+nav button.bg-blue-600 {
+    /* Active state */
+    background-color: var(--color-primary) !important;
+    color: #ffffff !important;
+    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2) !important;
+}
+
+/* Form Inputs */
+input,
+select,
+textarea {
+    background-color: var(--color-surface);
+    color: var(--color-text-main);
+    border: 1px solid var(--color-border);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+    border-color: var(--color-primary) !important;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+    outline: none;
+}
+
+html.dark input,
+html.dark select,
+html.dark textarea {
+    background-color: var(--color-bg-body);
+}
+
+/* DataTables Integration */
+div.dt-container {
+    color: var(--color-text-main) !important;
+}
+
+table.dataTable>thead>tr>th {
+    background-color: var(--color-bg-body) !important;
+    color: var(--color-text-muted) !important;
+    border-bottom: 2px solid var(--color-border) !important;
+}
+
+table.dataTable>tbody>tr>td {
+    background-color: var(--color-surface) !important;
+    color: var(--color-text-main) !important;
+    border-bottom: 1px solid var(--color-border) !important;
+}
+
+table.dataTable.display>tbody>tr:hover>td,
+table.dataTable.display>tbody>tr:hover>* {
+    background-color: var(--color-bg-body) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--color-text-muted);
+    border-radius: 10px;
+    opacity: 0.5;
+}
+
+/* ── MODAL TABS ── */
+.tab-pill {
+    padding: .5rem 1.25rem;
+    border-radius: 9999px;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all .2s;
+    white-space: nowrap;
+}
+
+.tab-pill.active {
+    background: #6366f1;
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(99, 102, 241, .3);
+}
+
+.tab-panel {
+    display: none;
+}
+
+.tab-panel.active {
+    display: block;
+    animation: fadeUp .25s ease;
+}
+
+@keyframes fadeUp {
+    from {
+        opacity: 0;
+        transform: translateY(6px)
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0)
+    }
+}
+
+/* ── FORM FIELD ── */
+.field-group {
+    display: flex;
+    flex-direction: column;
+    gap: .375rem;
+}
+
+.field-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    color: #94a3b8;
+}
+
+.field-label.required::after {
+    content: '*';
+    color: #ef4444;
+    margin-left: .25rem;
+}
+
+.field-input {
+    padding: .65rem .9rem;
+    border: 1.5px solid #e2e8f0;
+    border-radius: .875rem;
+    outline: none;
+    font-size: .875rem;
+    transition: all .2s;
+    background: #fff;
+    font-family: 'Anuphan', sans-serif;
+    color: #1e293b;
+    width: 100%;
+}
+
+.field-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
+}
+
+.field-input.readonly {
+    background: #f8fafc;
+    color: #64748b;
+    cursor: not-allowed;
+    border-color: #f1f5f9;
+}
+
+.field-input.auto-green {
+    background: #f0fdf4;
+    color: #15803d;
+    font-weight: 700;
+    border-color: #bbf7d0;
+    cursor: not-allowed;
+}
+
+.field-input.auto-orange {
+    background: #fff7ed;
+    color: #c2410c;
+    font-weight: 700;
+    border-color: #fed7aa;
+    cursor: not-allowed;
+}
+
+.field-input.auto-blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 700;
+    border-color: #bfdbfe;
+    cursor: not-allowed;
+}
+
+.field-input.auto-red {
+    background: #fef2f2;
+    color: #b91c1c;
+    font-weight: 700;
+    border-color: #fecaca;
+    cursor: not-allowed;
+}
+
+select.field-input {
+    appearance: auto;
+}
+
+/* ── SECTION HEADER ── */
+.section-header {
+    font-size: .75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: #6366f1;
+    border-bottom: 2px solid #eef2ff;
+    padding-bottom: .5rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+}
+
+/* Avatar ring */
+.avatar-ring {
+    width: 120px;
+    height: 120px;
+    border-radius: 1.5rem;
+    position: relative;
+    background: #6366f1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: 700;
+    color: #fff;
+    overflow: hidden;
+    flex-shrink: 0;
+    box-shadow: 0 8px 24px rgba(99, 102, 241, .25);
+    border: 4px solid #fff;
+}
+
+.avatar-ring img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Badge */
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .25rem .7rem;
+    border-radius: 9999px;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.badge-green {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.badge-orange {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.badge-red {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.badge-blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.badge-gray {
+    background: #f1f5f9;
+    color: #64748b;
+}

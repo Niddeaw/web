@@ -1,51 +1,14 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ผู้ดูแลระบบ ปพ.5 | WRK System</title>
-    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-    
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
-    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
-    <script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
-    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.4/css/responsive.tailwindcss.css">
-    <script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
-
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
-    <link rel="stylesheet" href="guidance_style.css"> 
-    <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Anuphan', 'sans-serif'] }, colors: { brand: { 50: '#f0f9ff', 600: '#007bff', 700: '#0056b3' } } } } }
-    </script>
-    <style>
-        /* DataTables ธีมสว่าง ให้เข้ากับหน้ากระจก */
-        div.dt-container { color: #475569 !important; }
-        div.dt-container .dt-search input, div.dt-container .dt-length select {
-            background-color: rgba(255,255,255,0.8) !important; color: #334155 !important; border: 1px solid #e2e8f0 !important; border-radius: 0.75rem !important; padding: 0.5rem 1rem !important; outline: none !important;
-        }
-        div.dt-container .dt-search input:focus { border-color: #3b82f6 !important; box-shadow: 0 0 0 2px rgba(59,130,246,0.15) !important; }
-        table.dataTable { border-bottom: none !important; background: transparent !important; }
-        table.dataTable > thead > tr > th { background-color: rgba(241, 245, 249, 0.8) !important; color: #64748b !important; border-bottom: 2px solid #e2e8f0 !important; font-weight: 700 !important; }
-        table.dataTable > tbody > tr > td { box-shadow: none !important; background-color: rgba(255,255,255,0.6) !important; color: #334155 !important; border-bottom: 1px solid #f8fafc !important; }
-        table.dataTable.display > tbody > tr:hover > td { background-color: #eff6ff !important; }
-        div.dt-container .dt-info, div.dt-container .dt-paging { color: #6b7280 !important; font-size: 0.875rem !important; margin-top: 0.75rem !important; }
-        div.dt-container .dt-paging .dt-paging-button.current { background-color: #2563eb !important; color: #ffffff !important; border: none !important; }
-    </style>
+    <link rel="stylesheet" href="style.css">
+
 </head>
 <body class="text-slate-800 flex flex-col min-h-screen pb-10">
 

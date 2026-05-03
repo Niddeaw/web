@@ -46,6 +46,7 @@ async function loadClassrooms() {
     const grade = document.getElementById('sel-grade').value;
     let q = db.from('core_classrooms').select('id, grade_level, room_number')
         .eq('academic_year', schoolInfo?.current_academic_year)
+        .eq('semester', schoolInfo?.current_semester) /* 🌟 เพิ่มบรรทัดนี้: กรองเฉพาะภาคเรียนปัจจุบัน */
         .order('grade_level').order('room_number');
     if (grade) q = q.eq('grade_level', grade);
 

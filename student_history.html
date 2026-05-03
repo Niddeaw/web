@@ -1,12 +1,15 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <meta charset="UTF-8">
+
     <title>ประวัตินักเรียนรายคน | WRK System</title>
-    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <style>body { font-family: 'Anuphan', sans-serif; background: #f8fafc; }</style>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
+
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    
 </head>
 <body class="p-4 md:p-8 text-slate-800">
     <div class="max-w-5xl mx-auto">
@@ -77,12 +80,7 @@
             </div>
         </div>
     </div>
-
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
-    
+   
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const stId = urlParams.get('id');

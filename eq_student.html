@@ -1,149 +1,152 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ประเมิน EQ | WRK System</title>
-<link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="config.js"></script>
-<script src="eq_data.js"></script>
-<style>
-body { font-family: 'Anuphan', sans-serif; background: linear-gradient(135deg,#eff6ff,#f5f3ff,#fdf4ff); min-height:100vh; }
-.glass { background:rgba(255,255,255,.85); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.6); }
-.choice-btn { transition:all .25s; border:2px solid transparent; }
-.choice-btn:hover { transform:translateY(-2px); }
-.choice-btn.selected-1 { background:#fef2f2; border-color:#ef4444; color:#b91c1c; }
-.choice-btn.selected-2 { background:#fffbeb; border-color:#f59e0b; color:#92400e; }
-.choice-btn.selected-3 { background:#f0fdf4; border-color:#22c55e; color:#15803d; }
-.progress-bar { transition: width .5s ease; }
-.swal2-popup { font-family:'Anuphan',sans-serif !important; border-radius:1.5rem !important; }
-@keyframes fadeUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-.fade-up { animation: fadeUp .35s ease; }
-</style>
+    <title>ประเมิน EQ | WRK System</title>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
+
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="config.js"></script>
+    <script src="eq_data.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="min-h-screen pb-10">
 
-<!-- NAVBAR -->
-<nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
-    <div class="flex items-center gap-3">
-        <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
-        <div>
-            <p class="font-bold text-indigo-900 text-base leading-tight">แบบประเมิน EQ</p>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ความฉลาดทางอารมณ์</p>
-        </div>
-    </div>
-    <div class="flex items-center gap-2">
-        <span id="std-name" class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl"></span>
-        
-        <a href="student_index.html" title="กลับหน้าหลัก" class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center transition-colors">
-            <i class="fas fa-home text-sm"></i>
-        </a>
-
-        <button onclick="logout()" title="ออกจากระบบ" class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors">
-            <i class="fas fa-sign-out-alt text-sm"></i>
-        </button>
-    </div>
-</nav>
-
-<!-- MAIN CONTAINER -->
-<div class="max-w-2xl mx-auto px-4 pt-8" id="main-container">
-    <!-- Loading -->
-    <div id="view-loading" class="text-center py-20">
-        <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-400 mb-4"></i>
-        <p class="text-slate-500">กำลังตรวจสอบข้อมูล...</p>
-    </div>
-
-    <!-- Assessment View -->
-    <div id="view-assessment" class="hidden fade-up">
-        <div class="glass rounded-3xl shadow-2xl overflow-hidden">
-            <!-- Header -->
-            <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                <div class="flex justify-between items-center mb-3">
-                    <span class="text-xs font-bold uppercase tracking-widest opacity-70">ข้อที่</span>
-                    <span id="q-counter" class="text-sm font-bold bg-white/20 px-3 py-1 rounded-full">1 / 52</span>
-                </div>
-                <div class="w-full bg-white/20 rounded-full h-2 mb-4">
-                    <div id="progress-bar" class="bg-white rounded-full h-2 progress-bar" style="width:0%"></div>
-                </div>
-                <!-- Timer -->
-                <div id="timer-section" class="flex items-center gap-2 text-xs opacity-80">
-                    <i class="fas fa-clock"></i>
-                    <span id="timer-text">กรุณารอ <span id="timer-count">10</span> วินาที</span>
-                </div>
-            </div>
-
-            <!-- Question -->
-            <div class="p-6 sm:p-8">
-                <div class="mb-4 text-xs font-bold text-indigo-500 uppercase tracking-widest" id="q-dim-label"></div>
-                <p class="text-xl font-bold text-slate-800 mb-8 leading-relaxed" id="q-text"></p>
-
-                <!-- Choices -->
-                <div class="space-y-3" id="choices-container">
-                    <button data-val="1" onclick="selectChoice(1)" class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                        <div class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center font-bold flex-shrink-0">1</div>
-                        <span class="font-semibold text-slate-700">ไม่จริง</span>
-                    </button>
-                    <button data-val="2" onclick="selectChoice(2)" class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                        <div class="w-10 h-10 rounded-xl bg-amber-100 text-amber-500 flex items-center justify-center font-bold flex-shrink-0">2</div>
-                        <span class="font-semibold text-slate-700">จริงบางครั้ง</span>
-                    </button>
-                    <button data-val="3" onclick="selectChoice(3)" class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                        <div class="w-10 h-10 rounded-xl bg-green-100 text-green-500 flex items-center justify-center font-bold flex-shrink-0">3</div>
-                        <span class="font-semibold text-slate-700">จริงเสมอ</span>
-                    </button>
-                </div>
-
-                <!-- Navigation -->
-                <div class="flex justify-between mt-8 gap-3">
-                    <button id="btn-prev" onclick="prevQuestion()" class="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition disabled:opacity-40">
-                        <i class="fas fa-arrow-left"></i> ย้อนกลับ
-                    </button>
-                    <button id="btn-next" onclick="nextQuestion()" disabled class="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed">
-                        ถัดไป <i class="fas fa-arrow-right"></i>
-                    </button>
-                </div>
+    <!-- NAVBAR -->
+    <nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
+            <div>
+                <p class="font-bold text-indigo-900 text-base leading-tight">แบบประเมิน EQ</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ความฉลาดทางอารมณ์</p>
             </div>
         </div>
-        <p class="text-center text-xs text-slate-400 mt-4">คำตอบของคุณจะถูกบันทึกอัตโนมัติ</p>
-    </div>
+        <div class="flex items-center gap-2">
+            <span id="std-name"
+                class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl"></span>
 
-    <!-- Result View -->
-    <div id="view-result" class="hidden fade-up space-y-4">
-        <div class="glass rounded-3xl shadow-xl p-6 text-center">
-            <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i class="fas fa-brain text-white text-3xl"></i>
-            </div>
-            <h2 class="text-2xl font-bold text-slate-800">ผลการประเมิน EQ</h2>
-            <p id="res-name" class="text-slate-500 text-sm mt-1"></p>
-            <div class="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl" id="res-total-badge">
-                <i class="fas fa-star"></i>
-                <span class="font-bold text-lg" id="res-total-score"></span>
-                <span class="text-sm opacity-80">/ 156 คะแนน</span>
-            </div>
-            <p class="text-sm font-bold mt-2" id="res-total-level"></p>
-        </div>
+            <a href="student_index.html" title="กลับหน้าหลัก"
+                class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center transition-colors">
+                <i class="fas fa-home text-sm"></i>
+            </a>
 
-        <!-- Dimension scores -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="res-dims"></div>
-
-        <!-- Actions -->
-        <div class="flex flex-col sm:flex-row gap-3">
-            <button onclick="printResult()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
-                <i class="fas fa-print"></i> พิมพ์ผล PDF
+            <button onclick="logout()" title="ออกจากระบบ"
+                class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors">
+                <i class="fas fa-sign-out-alt text-sm"></i>
             </button>
         </div>
+    </nav>
 
-        <!-- Hidden PDF content -->
-        <div id="pdf-content" class="hidden"></div>
+    <!-- MAIN CONTAINER -->
+    <div class="max-w-2xl mx-auto px-4 pt-8" id="main-container">
+        <!-- Loading -->
+        <div id="view-loading" class="text-center py-20">
+            <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-400 mb-4"></i>
+            <p class="text-slate-500">กำลังตรวจสอบข้อมูล...</p>
+        </div>
+
+        <!-- Assessment View -->
+        <div id="view-assessment" class="hidden fade-up">
+            <div class="glass rounded-3xl shadow-2xl overflow-hidden">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold uppercase tracking-widest opacity-70">ข้อที่</span>
+                        <span id="q-counter" class="text-sm font-bold bg-white/20 px-3 py-1 rounded-full">1 / 52</span>
+                    </div>
+                    <div class="w-full bg-white/20 rounded-full h-2 mb-4">
+                        <div id="progress-bar" class="bg-white rounded-full h-2 progress-bar" style="width:0%"></div>
+                    </div>
+                    <!-- Timer -->
+                    <div id="timer-section" class="flex items-center gap-2 text-xs opacity-80">
+                        <i class="fas fa-clock"></i>
+                        <span id="timer-text">กรุณารอ <span id="timer-count">10</span> วินาที</span>
+                    </div>
+                </div>
+
+                <!-- Question -->
+                <div class="p-6 sm:p-8">
+                    <div class="mb-4 text-xs font-bold text-indigo-500 uppercase tracking-widest" id="q-dim-label">
+                    </div>
+                    <p class="text-xl font-bold text-slate-800 mb-8 leading-relaxed" id="q-text"></p>
+
+                    <!-- Choices -->
+                    <div class="space-y-3" id="choices-container">
+                        <button data-val="1" onclick="selectChoice(1)"
+                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
+                            <div
+                                class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center font-bold flex-shrink-0">
+                                1</div>
+                            <span class="font-semibold text-slate-700">ไม่จริง</span>
+                        </button>
+                        <button data-val="2" onclick="selectChoice(2)"
+                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
+                            <div
+                                class="w-10 h-10 rounded-xl bg-amber-100 text-amber-500 flex items-center justify-center font-bold flex-shrink-0">
+                                2</div>
+                            <span class="font-semibold text-slate-700">จริงบางครั้ง</span>
+                        </button>
+                        <button data-val="3" onclick="selectChoice(3)"
+                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
+                            <div
+                                class="w-10 h-10 rounded-xl bg-green-100 text-green-500 flex items-center justify-center font-bold flex-shrink-0">
+                                3</div>
+                            <span class="font-semibold text-slate-700">จริงเสมอ</span>
+                        </button>
+                    </div>
+
+                    <!-- Navigation -->
+                    <div class="flex justify-between mt-8 gap-3">
+                        <button id="btn-prev" onclick="prevQuestion()"
+                            class="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition disabled:opacity-40">
+                            <i class="fas fa-arrow-left"></i> ย้อนกลับ
+                        </button>
+                        <button id="btn-next" onclick="nextQuestion()" disabled
+                            class="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed">
+                            ถัดไป <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <p class="text-center text-xs text-slate-400 mt-4">คำตอบของคุณจะถูกบันทึกอัตโนมัติ</p>
+        </div>
+
+        <!-- Result View -->
+        <div id="view-result" class="hidden fade-up space-y-4">
+            <div class="glass rounded-3xl shadow-xl p-6 text-center">
+                <div
+                    class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-brain text-white text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">ผลการประเมิน EQ</h2>
+                <p id="res-name" class="text-slate-500 text-sm mt-1"></p>
+                <div class="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl" id="res-total-badge">
+                    <i class="fas fa-star"></i>
+                    <span class="font-bold text-lg" id="res-total-score"></span>
+                    <span class="text-sm opacity-80">/ 156 คะแนน</span>
+                </div>
+                <p class="text-sm font-bold mt-2" id="res-total-level"></p>
+            </div>
+
+            <!-- Dimension scores -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="res-dims"></div>
+
+            <!-- Actions -->
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button onclick="printResult()"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
+                    <i class="fas fa-print"></i> พิมพ์ผล PDF
+                </button>
+            </div>
+
+            <!-- Hidden PDF content -->
+            <div id="pdf-content" class="hidden"></div>
+        </div>
     </div>
-</div>
 
-<script src="eq_student.js"></script>
+    <script src="eq_student.js"></script>
 </body>
+
 </html>

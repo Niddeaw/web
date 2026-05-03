@@ -1,100 +1,95 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EQ ครูที่ปรึกษา | WRK System</title>
-<link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-<link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-<link rel="stylesheet" href="https://cdn.datatables.net/2.3.7/css/dataTables.tailwindcss.css">
-<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-<script src="https://cdn.datatables.net/2.3.7/js/dataTables.js"></script>
-<script src="https://cdn.datatables.net/2.3.7/js/dataTables.tailwindcss.js"></script>
-<script src="https://cdn.datatables.net/responsive/3.0.4/js/dataTables.responsive.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.2.3/js/dataTables.buttons.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="config.js"></script>
-<script src="eq_data.js"></script>
-<style>
-body { font-family:'Anuphan',sans-serif; background:linear-gradient(135deg,#f0fdf4,#eff6ff); min-height:100vh; }
-.glass { background:rgba(255,255,255,.85); backdrop-filter:blur(16px); border:1px solid rgba(255,255,255,.6); }
-.swal2-popup { font-family:'Anuphan',sans-serif !important; border-radius:1.5rem !important; }
-div.dt-container .dt-search input, div.dt-container .dt-length select { background:#f8fafc !important; border:1px solid #e2e8f0 !important; border-radius:.75rem !important; outline:none !important; }
-table.dataTable>thead>tr>th { background:#f0fdf4 !important; color:#166534 !important; border-bottom:2px solid #bbf7d0 !important; font-weight:700 !important; text-transform:uppercase; font-size:.68rem; }
-table.dataTable>tbody>tr>td { background:#fff !important; border-bottom:1px solid #f8fafc !important; vertical-align:middle; }
-table.dataTable.display>tbody>tr:hover>td { background:#f0fdf4 !important; }
-</style>
+
+    <title>EQ ครูที่ปรึกษา | WRK System</title>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
+
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="config.js"></script>
+    <script src="eq_data.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
+
 <body class="min-h-screen pb-10">
 
-<nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
-    <div class="flex items-center gap-3">
-        <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
-        <div>
-            <p class="font-bold text-green-900 text-base leading-tight">EQ — ครูที่ปรึกษา</p>
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ผลการประเมินนักเรียนในห้องเรียน</p>
+    <nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
+            <div>
+                <p class="font-bold text-green-900 text-base leading-tight">EQ — ครูที่ปรึกษา</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                    ผลการประเมินนักเรียนในห้องเรียน</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="user-display"
+                class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
+            <button onclick="window.location.href='index.html'"
+                class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="handleLogout()"
+                class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center">
+                <i class="fas fa-sign-out-alt text-sm"></i>
+            </button>
+        </div>
+    </nav>
+
+    <div class="max-w-screen-xl mx-auto px-4 py-6 space-y-5">
+
+        <!-- Filter bar -->
+        <div class="glass rounded-2xl p-4 flex flex-wrap gap-3 items-end">
+            <div class="flex-1 min-w-[180px]">
+                <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">ห้องเรียน</label>
+                <select id="sel-classroom"
+                    class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-green-500"></select>
+            </div>
+            <button onclick="loadResults()"
+                class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
+                <i class="fas fa-search"></i> ดูผล
+            </button>
+            <button onclick="exportExcel()"
+                class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
+                <i class="fas fa-file-excel"></i> ส่งออก Excel
+            </button>
+        </div>
+
+        <!-- Stats cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stat-cards"></div>
+
+        <!-- Table -->
+        <div class="glass rounded-3xl shadow-xl overflow-hidden">
+            <div class="p-5 border-b border-slate-100">
+                <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-table text-green-600"></i> รายชื่อนักเรียนและผลการประเมิน
+                </h2>
+            </div>
+            <div class="p-4 overflow-x-auto">
+                <table id="eq-table" class="w-full display nowrap" style="width:100%">
+                    <thead>
+                        <tr>
+                            <th>เลขที่</th>
+                            <th>ชื่อ-สกุล</th>
+                            <th>ตระหนักรู้ตนเอง</th>
+                            <th>ควบคุมตนเอง</th>
+                            <th>สร้างแรงจูงใจ</th>
+                            <th>เห็นใจผู้อื่น</th>
+                            <th>ทักษะสัมพันธภาพ</th>
+                            <th>รวม</th>
+                            <th>ระดับ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eq-tbody"></tbody>
+                </table>
+            </div>
         </div>
     </div>
-    <div class="flex items-center gap-2">
-        <span id="user-display" class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
-        <button onclick="window.location.href='index.html'" class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-            <i class="fas fa-house text-sm"></i>
-        </button>
-        <button onclick="handleLogout()" class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center">
-            <i class="fas fa-sign-out-alt text-sm"></i>
-        </button>
-    </div>
-</nav>
 
-<div class="max-w-screen-xl mx-auto px-4 py-6 space-y-5">
-
-    <!-- Filter bar -->
-    <div class="glass rounded-2xl p-4 flex flex-wrap gap-3 items-end">
-        <div class="flex-1 min-w-[180px]">
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1 block">ห้องเรียน</label>
-            <select id="sel-classroom" class="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-green-500"></select>
-        </div>
-        <button onclick="loadResults()" class="bg-green-600 hover:bg-green-700 text-white px-5 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
-            <i class="fas fa-search"></i> ดูผล
-        </button>
-        <button onclick="exportExcel()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
-            <i class="fas fa-file-excel"></i> ส่งออก Excel
-        </button>
-    </div>
-
-    <!-- Stats cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="stat-cards"></div>
-
-    <!-- Table -->
-    <div class="glass rounded-3xl shadow-xl overflow-hidden">
-        <div class="p-5 border-b border-slate-100">
-            <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                <i class="fas fa-table text-green-600"></i> รายชื่อนักเรียนและผลการประเมิน
-            </h2>
-        </div>
-        <div class="p-4 overflow-x-auto">
-            <table id="eq-table" class="w-full display nowrap" style="width:100%">
-                <thead>
-                    <tr>
-                        <th>เลขที่</th><th>ชื่อ-สกุล</th>
-                        <th>ตระหนักรู้ตนเอง</th><th>ควบคุมตนเอง</th>
-                        <th>สร้างแรงจูงใจ</th><th>เห็นใจผู้อื่น</th>
-                        <th>ทักษะสัมพันธภาพ</th><th>รวม</th><th>ระดับ</th><th>จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody id="eq-tbody"></tbody>
-            </table>
-        </div>
-    </div>
-</div>
-
-<script src="eq_teacher.js"></script>
+    <script src="eq_teacher.js"></script>
 </body>
+
 </html>
