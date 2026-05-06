@@ -239,21 +239,37 @@ function renderTable() {
     });
 }
 
+// ==========================================
+// ฟังก์ชันเปิด-ปิด Modal (ต้องอยู่นอก $(document).ready เสมอ)
+// ==========================================
 function openLeaveModal() {
     document.getElementById('leaveForm').reset();
     document.getElementById('leave_id').value = '';
     document.getElementById('start_date_iso').value = '';
     document.getElementById('end_date_iso').value = '';
     document.getElementById('calc_days').innerText = '0';
-    $('#start_date')[0]._flatpickr.clear();
-    $('#end_date')[0]._flatpickr.clear();
+    
+    // เคลียร์ค่าที่อยู่และเบอร์โทร
+    document.getElementById('contact_address').value = '';
+    document.getElementById('phone_number').value = '';
+
+    // ล้างค่าปฏิทิน Flatpickr
+    if ($('#start_date')[0] && $('#start_date')[0]._flatpickr) {
+        $('#start_date')[0]._flatpickr.clear();
+    }
+    if ($('#end_date')[0] && $('#end_date')[0]._flatpickr) {
+        $('#end_date')[0]._flatpickr.clear();
+    }
+    
     $('#leave_guide').addClass('hidden');
     
+    // แสดง Modal
     document.getElementById('leaveModal').classList.remove('hidden');
     document.getElementById('leaveModal').classList.add('flex');
 }
 
 function closeLeaveModal() {
+    // ซ่อน Modal
     document.getElementById('leaveModal').classList.add('hidden');
     document.getElementById('leaveModal').classList.remove('flex');
 }
@@ -268,6 +284,10 @@ function editLeave(id) {
     document.getElementById('start_date_iso').value = l.start_date;
     document.getElementById('end_date_iso').value = l.end_date;
     document.getElementById('calc_days').innerText = l.total_days;
+
+    // 🌟 โหลดค่าที่อยู่และเบอร์โทรมาแสดง
+    document.getElementById('contact_address').value = l.contact_address || '';
+    document.getElementById('phone_number').value = l.phone_number || '';
 
     const setFp = (iso, idDisplay) => {
         const parts = iso.split('-'); 
@@ -284,6 +304,9 @@ function editLeave(id) {
     document.getElementById('leaveModal').classList.add('flex');
 }
 
+// // ==========================================
+// อัปเดตฟังก์ชัน Save ลง Supabase
+// ==========================================
 async function saveLeave(e) {
     e.preventDefault();
     const id = $('#leave_id').val();
@@ -292,6 +315,10 @@ async function saveLeave(e) {
     const startDate = $('#start_date_iso').val();
     const endDate = $('#end_date_iso').val();
     const totalDays = parseInt($('#calc_days').text());
+    
+    // 🌟 ดึงข้อมูลที่อยู่และเบอร์โทร
+    const contactAddress = $('#contact_address').val().trim();
+    const phoneNumber = $('#phone_number').val().trim();
 
     if(totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
 
@@ -304,6 +331,8 @@ async function saveLeave(e) {
         start_date: startDate,
         end_date: endDate,
         total_days: totalDays,
+        contact_address: contactAddress, // 🌟 ส่งเข้า DB
+        phone_number: phoneNumber,       // 🌟 ส่งเข้า DB
         fiscal_year: systemSettings.fiscal_year,
         eval_round: systemSettings.eval_round,
         status: 'รออนุมัติ',
@@ -336,7 +365,7 @@ async function deleteLeave(id) {
 }
 
 // ==========================================
-// 5. ส่งออก Excel
+// อัปเดตฟังก์ชันส่งออก Excel ให้มีข้อมูลการติดต่อ
 // ==========================================
 function exportExcel() {
     if(allMyLeaves.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
@@ -353,35 +382,65 @@ function exportExcel() {
         'จำนวน (วัน)': l.status === 'ไม่อนุมัติ' ? 0 : l.total_days, 
         'จำนวน (ครั้ง)': l.status === 'ไม่อนุมัติ' ? 0 : 1, 
         'สาเหตุ': l.reason,
+        'ที่อยู่ติดต่อ': l.contact_address || '-', // 🌟 เพิ่มใน Excel
+        'เบอร์โทรศัพท์': l.phone_number || '-',     // 🌟 เพิ่มใน Excel
         'สถานะ': l.status,
         'เหตุผล (กรณีไม่อนุมัติ)': l.reject_comment || ''
     }));
 
     const ws = XLSX.utils.json_to_sheet(exportData);
-    ws['!cols'] = [{wch:15}, {wch:12}, {wch:12}, {wch:20}, {wch:15}, {wch:15}, {wch:12}, {wch:12}, {wch:35}, {wch:15}, {wch:30}];
+    ws['!cols'] = [{wch:15}, {wch:12}, {wch:12}, {wch:20}, {wch:15}, {wch:15}, {wch:12}, {wch:12}, {wch:35}, {wch:35}, {wch:15}, {wch:15}, {wch:30}];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ประวัติการลา");
     XLSX.writeFile(wb, `ประวัติการลา_${currentProfile.first_name}.xlsx`);
 }
 
-// 🌟 ฟังก์ชันพิมพ์ใบลา PDF (สำหรับครูและแอดมิน)
+// ==========================================
+// 🌟 ฟังก์ชันพิมพ์ใบลา PDF (ด้วย GAS + Slides) ที่อัปเดตแล้ว
+// ==========================================
 async function printLeavePDF(id) {
-    Swal.fire({ title: 'กำลังเตรียมเอกสาร...', didOpen: ()=>Swal.showLoading(), allowOutsideClick: false });
-    
-    try {
-        // 1. ดึงข้อมูลใบลาและข้อมูลผู้ลา
-        const { data: leave, error } = await db.from('leave_requests')
-            .select('*, core_personnel(*)')
-            .eq('id', id)
-            .single();
-        if (error) throw error;
+    if (!systemSettings.gas_url || !systemSettings.slide_template_id) {
+        return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณาระบุ GAS URL และ Slide ID ในเมนู "ตั้งค่าระบบ" (ผ่านแอดมิน) ก่อนใช้งาน', 'warning');
+    }
 
-        // 2. ดึงข้อมูลโรงเรียน (ชื่อ ผอ. และชื่อโรงเรียน)
+    Swal.fire({
+        title: 'กำลังสร้างไฟล์ PDF...',
+        html: 'ระบบกำลังดึงข้อมูลและประมวลผลผ่านระบบส่วนกลาง<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>',
+        didOpen: () => Swal.showLoading(),
+        allowOutsideClick: false
+    });
+
+    try {
+        const { data: leave, error } = await db.from('leave_requests').select('*, core_personnel(*)').eq('id', id).single();
+        if (error) throw error;
+        const p = leave.core_personnel;
+
         const { data: school } = await db.from('core_school_info').select('*').single();
         const directorName = school?.director_name || '...................................................';
-        const schoolName = school?.school_name || 'โรงเรียน........................';
+        const schoolName = school?.school_name || '........................';
+        const deputyAcademicName = school?.deputy_academic || '...................................................';
 
-        // 3. ดึงสถิติการลาในปีงบประมาณนี้ (นับเฉพาะที่อนุมัติหรือรออนุมัติ ก่อนหน้าใบนี้)
+        let commanderName = '...................................................';
+        let commanderPosition = `หัวหน้ากลุ่มสาระการเรียนรู้${p.department || ''}`;
+        
+        // ใช้ optional chaining (?.) เพื่อป้องกัน Error หาก position มีค่าเป็น null
+        const isHeadOfDepartment = p.position?.includes('หัวหน้า');
+
+        if (isHeadOfDepartment) {
+            commanderName = deputyAcademicName;
+            commanderPosition = 'รองผู้อำนวยการกลุ่มบริหารวิชาการ';
+        } else {
+            const { data: headPerson } = await db.from('core_personnel')
+                .select('prefix, first_name, last_name')
+                .eq('department', p.department)
+                .ilike('position', '%หัวหน้า%') 
+                .maybeSingle();
+
+            if (headPerson) {
+                commanderName = `${headPerson.prefix || ''}${headPerson.first_name} ${headPerson.last_name}`;
+            }
+        }
+
         const { data: stats } = await db.from('leave_requests')
             .select('type, total_days')
             .eq('personnel_id', leave.personnel_id)
@@ -390,21 +449,17 @@ async function printLeavePDF(id) {
             .lte('created_at', leave.created_at);
 
         let sick = 0, personal = 0, maternity = 0;
-        if (stats) {
-            stats.forEach(s => {
-                if (s.type === 'ลาป่วย') sick += s.total_days;
-                if (s.type === 'ลากิจส่วนตัว') personal += s.total_days;
-                if (s.type.includes('คลอด')) maternity += s.total_days;
-            });
-        }
+        if (stats) stats.forEach(s => {
+            if (s.type === 'ลาป่วย') sick += s.total_days;
+            if (s.type === 'ลากิจส่วนตัว') personal += s.total_days;
+            if (s.type.includes('คลอด')) maternity += s.total_days;
+        });
 
-        // จัดรูปแบบตัวแปรต่างๆ ให้พร้อมแสดงใน PDF
-        const p = leave.core_personnel;
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const position = `${p.position || 'ครู'}${p.academic_standing ? ' วิทยฐานะ' + p.academic_standing : ''}`;
 
         const formatDate = (isoString) => {
-            if (!isoString) return '....................';
+            if (!isoString) return '-';
             const d = new Date(isoString);
             const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
             return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
@@ -417,123 +472,83 @@ async function printLeavePDF(id) {
         const priorPersonal = personal - (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0);
         const priorMat = maternity - (leave.type.includes('คลอด') ? leave.total_days : 0);
 
-        // 4. สร้าง HTML สำหรับสั่งปริ้น (แบบฟอร์มราชการ)
-        const html = `
-        <!DOCTYPE html>
-        <html lang="th">
-        <head>
-            <meta charset="UTF-8">
-            <title>ใบลา_${p.first_name}_${leave.start_date}</title>
-            <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700&display=swap" rel="stylesheet">
-            <style>
-                @page { size: A4 portrait; margin: 20mm 20mm; }
-                body { font-family: 'Sarabun', sans-serif; font-size: 16pt; line-height: 1.5; color: #000; background: #fff; margin: 0; }
-                .container { width: 100%; max-width: 800px; margin: 0 auto; }
-                .text-center { text-align: center; }
-                .text-right { text-align: right; }
-                .font-bold { font-weight: 700; }
-                .header-title { font-size: 20pt; font-weight: bold; text-align: center; margin-bottom: 20px; }
-                .indent { text-indent: 2.5rem; }
-                .mt-1 { margin-top: 5px; } .mt-2 { margin-top: 10px; } .mt-4 { margin-top: 20px; } .mt-8 { margin-top: 40px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 14pt; }
-                th, td { border: 1px solid #000; padding: 4px 8px; text-align: center; }
-                th { font-weight: bold; background-color: #f9f9f9 !important; -webkit-print-color-adjust: exact; }
-                .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
-                .sig-box { text-align: center; margin-top: 20px; }
-                .dot-line { border-bottom: 1px dotted #000; display: inline-block; min-width: 50px; text-align: center; }
+        const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+        const sDate = new Date(leave.start_date);
+        const startDay = sDate.getDate().toString();
+        const startMonth = thMonths[sDate.getMonth()];
+        const startYear = (sDate.getFullYear() + 543).toString();
+
+        const wDate = new Date(leave.created_at);
+        const writeDay = wDate.getDate().toString();
+        const writeMonth = thMonths[wDate.getMonth()];
+        const writeYear = (wDate.getFullYear() + 543).toString();
+
+        const eDate = new Date(leave.end_date);
+        const endDay = eDate.getDate().toString();
+        const endMonth = thMonths[eDate.getMonth()];
+        const endYear = (eDate.getFullYear() + 543).toString();
+
+        const payload = {
+            templateId: systemSettings.slide_template_id,
+            fileName: `ใบลา_${p.first_name}_${leave.start_date.replace(/-/g, '')}`,
+            replacements: {
+                "{{W_DAY}}": writeDay,
+                "{{W_MONTH}}": writeMonth,
+                "{{W_YEAR}}": writeYear,
+                "{{START_D}}": startDay,
+                "{{START_M}}": startMonth,
+                "{{START_Y}}": startYear,
+                "{{END_D}}": endDay,
+                "{{END_M}}": endMonth,
+                "{{END_Y}}": endYear,
+                "{{WRITE_DATE}}": strWriteDate,
+                "{{SCHOOL_NAME}}": schoolName,
+                "{{LEAVE_TYPE}}": leave.type,
+                "{{FULL_NAME}}": fullName,
+                "{{POSITION}}": position,
+                "{{DEPARTMENT}}": p.department || '-',
+                "{{REASON}}": leave.reason,
+                "{{START_DATE}}": formatDate(leave.start_date),
+                "{{END_DATE}}": formatDate(leave.end_date),
+                "{{TOTAL_DAYS}}": leave.total_days.toString(),
                 
-                /* ซ่อนปุ่มปริ้นตอนพิมพ์จริง */
-                @media print { .no-print { display: none !important; } body { font-size: 15pt; } }
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="no-print text-center mt-4 mb-8">
-                    <button onclick="window.print()" style="background: #2563eb; color: white; border: none; padding: 10px 20px; font-size: 16pt; border-radius: 8px; cursor: pointer; font-family: 'Sarabun';">🖨️ คลิกเพื่อพิมพ์ (หรือบันทึกเป็น PDF)</button>
-                </div>
+                // 🌟 เพิ่มข้อมูลติดต่อเข้าไปใน Payload ส่งให้ GAS
+                "{{CONTACT_ADDRESS}}": leave.contact_address || '-',
+                "{{PHONE_NUMBER}}": leave.phone_number || '-',
 
-                <div class="header-title">แบบฟอร์มใบ${leave.type}</div>
-                
-                <div class="text-right">
-                    เขียนที่ <span class="dot-line" style="width: 200px;">${schoolName}</span><br>
-                    ${strWriteDate}
-                </div>
-                
-                <div class="mt-4">
-                    <b>เรื่อง</b> <span class="dot-line" style="width: 300px;">ขอ${leave.type}</span><br>
-                    <b>เรียน</b> ผู้อำนวยการ${schoolName}
-                </div>
+                "{{COMMANDER_NAME}}": commanderName,
+                "{{COMMANDER_POSITION}}": commanderPosition,
+                "{{STAT_SICK_PRIOR}}": priorSick.toString(),
+                "{{STAT_SICK_NOW}}": (leave.type === 'ลาป่วย' ? leave.total_days : 0).toString(),
+                "{{STAT_SICK_TOTAL}}": sick.toString(),
+                "{{STAT_PERS_PRIOR}}": priorPersonal.toString(),
+                "{{STAT_PERS_NOW}}": (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0).toString(),
+                "{{STAT_PERS_TOTAL}}": personal.toString(),
+                "{{STAT_MAT_PRIOR}}": priorMat.toString(),
+                "{{STAT_MAT_NOW}}": (leave.type.includes('คลอด') ? leave.total_days : 0).toString(),
+                "{{STAT_MAT_TOTAL}}": maternity.toString(),
+                "{{DIRECTOR_NAME}}": directorName
+            }
+        };
 
-                <div class="mt-4 indent">
-                    ข้าพเจ้า <span class="dot-line" style="width: 250px;">${fullName}</span> 
-                    ตำแหน่ง <span class="dot-line" style="width: 200px;">${position}</span>
-                </div>
-                <div class="mt-1">
-                    สังกัดกลุ่มสาระการเรียนรู้ <span class="dot-line" style="width: 250px;">${p.department || '...................................'}</span>
-                    ขอ${leave.type} เนื่องจาก <span class="dot-line" style="width: 250px;">${leave.reason}</span> 
-                </div>
-                <div class="mt-1">
-                    ตั้งแต่วันที่ <span class="dot-line" style="width: 150px;">${formatDate(leave.start_date)}</span> 
-                    ถึงวันที่ <span class="dot-line" style="width: 150px;">${formatDate(leave.end_date)}</span> 
-                    มีกำหนด <span class="dot-line" style="width: 50px;">${leave.total_days}</span> วัน
-                </div>
-                <div class="mt-1">
-                    ในระหว่างลาจะติดต่อข้าพเจ้าได้ที่ <span class="dot-line" style="width: 500px;">.............................................................................................</span>
-                </div>
+        const response = await fetch(systemSettings.gas_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
 
-                <div class="grid-2 mt-8">
-                    <div>
-                        <b style="font-size: 14pt;">สถิติการลาในปีงบประมาณนี้</b>
-                        <table>
-                            <tr><th>ประเภทการลา</th><th>ลามาแล้ว<br>(วัน)</th><th>ลาครั้งนี้<br>(วัน)</th><th>รวมเป็น<br>(วัน)</th></tr>
-                            <tr><td>ลาป่วย</td><td>${priorSick}</td><td>${leave.type === 'ลาป่วย' ? leave.total_days : 0}</td><td>${sick}</td></tr>
-                            <tr><td>ลากิจส่วนตัว</td><td>${priorPersonal}</td><td>${leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0}</td><td>${personal}</td></tr>
-                            <tr><td>ลาคลอด/ภริยา</td><td>${priorMat}</td><td>${leave.type.includes('คลอด') ? leave.total_days : 0}</td><td>${maternity}</td></tr>
-                        </table>
-                    </div>
-                    
-                    <div class="sig-box">
-                        (ลงชื่อ).........................................................ผู้ขอลา<br>
-                        ( <span class="dot-line" style="width: 200px;">${fullName}</span> )<br>
-                        วันที่......./......./.......
-                    </div>
-                </div>
+        const result = await response.json();
 
-                <div class="grid-2 mt-8" style="gap: 20px;">
-                    <div class="sig-box">
-                        <b>ความเห็นของผู้บังคับบัญชาชั้นต้น</b><br>
-                        ........................................................................<br>
-                        ........................................................................<br>
-                        <br>
-                        (ลงชื่อ).........................................................<br>
-                        (.........................................................)<br>
-                        ตำแหน่ง.........................................................<br>
-                        วันที่......./......./.......
-                    </div>
-                    <div class="sig-box">
-                        <b>คำสั่ง / การอนุมัติ</b><br>
-                        [ &nbsp; ] อนุญาต &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] ไม่อนุญาต<br>
-                        ........................................................................<br>
-                        <br>
-                        (ลงชื่อ).........................................................<br>
-                        ( <span class="dot-line" style="width: 200px;">${directorName}</span> )<br>
-                        ผู้อำนวยการ${schoolName}<br>
-                        วันที่......./......./.......
-                    </div>
-                </div>
-            </div>
-        </body>
-        </html>
-        `;
+        if (result.status === 'success' && result.url) {
+            Swal.close();
+            window.open(result.url, '_blank');
+        } else {
+            throw new Error(result.message || 'ประมวลผล PDF ไม่สำเร็จ');
+        }
 
-        // เปิดหน้าต่างใหม่แล้วเขียน HTML ลงไปเพื่อสั่งพิมพ์
-        const printWindow = window.open('', '_blank');
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-        
-        Swal.close();
     } catch (err) {
+        console.error(err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
