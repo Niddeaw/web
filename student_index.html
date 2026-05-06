@@ -8,8 +8,6 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
-    <!-- Font Awesome 7 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/7.2.0/css/all.min.css">
     <!-- AOS Library -->
     <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
@@ -166,18 +164,60 @@
             renderSystems();
         }
 
+        // function renderSystems() {
+        //     const grid = document.getElementById('systems-grid');
+        //     grid.innerHTML = '';
+        //     if (!portalModules.length) {
+        //         grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-400">...</div>`;
+        //         return;
+        //     }
+        //     portalModules.forEach(mod => {
+        //         const card = document.createElement('div');
+        //         card.className = `card-system glass rounded-2xl p-6 border border-slate-200/70 cursor-pointer transition-all duration-300`;
+        //         card.setAttribute('data-aos', 'zoom-in-up');
+        //         card.setAttribute('data-aos-delay', '50');
+        //         card.onclick = () => {
+        //             if (mod.target_blank) {
+        //                 window.open(mod.url, '_blank');
+        //             } else {
+        //                 window.location.href = mod.url;
+        //             }
+        //         };
+        //         card.innerHTML = `
+        //         <div class="flex items-start justify-between mb-4">
+        //             <div class="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg"
+        //  style="background-color: ${mod.icon_bg_color || '#3b82f6'}; color: ${mod.icon_text_color || '#ffffff'};">
+        //                 <i class="${icon} text-2xl" style="color: ${mod.icon_text_color || '#ffffff'};"></i>
+        //             </div>
+        //             <span class="px-2.5 py-1 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded-full">
+        //                 <i class="fas fa-circle text-[6px]"></i> เปิดใช้งาน
+        //             </span>
+        //         </div>
+        //         <h3 class="text-lg font-bold text-slate-800 mb-2">${mod.title}</h3>
+        //         <p class="text-sm text-slate-600">${mod.description || ''}</p>
+        //         <div class="pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600">
+        //             <i class="fas fa-arrow-right mr-1"></i> เข้าใช้งาน
+        //         </div>
+        //     `; // ใช้โครงสร้างเดิม
+        //         grid.appendChild(card);
+        //     });
+        // }
+
+        // ฟังก์ชัน render เมนูระบบต่างๆ
         function renderSystems() {
             const grid = document.getElementById('systems-grid');
             grid.innerHTML = '';
+
             if (!portalModules.length) {
-                grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-400">...</div>`;
+                grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-400"><i class="fa-solid fa-box-open text-4xl mb-3 block"></i>ยังไม่มีระบบที่เปิดใช้งาน</div>`;
                 return;
             }
-            portalModules.forEach(mod => {
+
+            portalModules.forEach((mod, index) => {
                 const card = document.createElement('div');
-                card.className = `card-system glass rounded-2xl p-6 border border-slate-200/70 cursor-pointer transition-all duration-300`;
+                card.className = 'glass p-6 rounded-3xl shadow-sm border border-slate-200/70 hover:shadow-lg transition-all duration-300 group cursor-pointer relative overflow-hidden';
                 card.setAttribute('data-aos', 'zoom-in-up');
-                card.setAttribute('data-aos-delay', '50');
+                card.setAttribute('data-aos-delay', String(index * 50));
                 card.onclick = () => {
                     if (mod.target_blank) {
                         window.open(mod.url, '_blank');
@@ -185,26 +225,31 @@
                         window.location.href = mod.url;
                     }
                 };
+
+                const bgColor = mod.icon_bg_color || '#3b82f6';
+                const textColor = mod.icon_text_color || '#ffffff';
+                const iconClass = mod.icon || 'fa-solid fa-cube';
+
                 card.innerHTML = `
-                <div class="flex items-start justify-between mb-4">
-                    <div class="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg"
-         style="background-color: ${mod.icon_bg_color || '#3b82f6'}; color: ${mod.icon_text_color || '#ffffff'};">
-                        <i class="${icon} text-2xl" style="color: ${mod.icon_text_color || '#ffffff'};"></i>
+                    <div class="flex items-start justify-between mb-4">
+                        <div class="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300"
+                            style="background-color: ${bgColor};">
+                            <i class="${iconClass} text-2xl" style="color: ${textColor};"></i>
+                        </div>
+                        <span class="px-2.5 py-1 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded-full flex items-center gap-1">
+                            <i class="fas fa-circle text-[6px]"></i> เปิดใช้งาน
+                        </span>
                     </div>
-                    <span class="px-2.5 py-1 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded-full">
-                        <i class="fas fa-circle text-[6px]"></i> เปิดใช้งาน
-                    </span>
-                </div>
-                <h3 class="text-lg font-bold text-slate-800 mb-2">${mod.title}</h3>
-                <p class="text-sm text-slate-600">${mod.description || ''}</p>
-                <div class="pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600">
-                    <i class="fas fa-arrow-right mr-1"></i> เข้าใช้งาน
-                </div>
-            `; // ใช้โครงสร้างเดิม
+                    <h3 class="text-lg font-bold text-slate-800 mb-2">${mod.title}</h3>
+                    <p class="text-sm text-slate-600 leading-relaxed">${mod.description || ''}</p>
+                    <div class="mt-4 pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600">
+                        <i class="fas fa-arrow-right mr-1"></i> เข้าใช้งาน
+                    </div>
+                `;
                 grid.appendChild(card);
             });
         }
-
+        
         // ฟังก์ชัน logout
         async function handleLogout() {
             const result = await Swal.fire({

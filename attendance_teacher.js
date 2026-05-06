@@ -41,13 +41,18 @@ function formatThaiDateFull(dateStr) {
 }
 
 $(document).ready(async () => {
-    $('#check-date').val(new Date().toISOString().split('T')[0]);
+    // 🌟 1. แก้บั๊กวันที่: ดึงวันที่ปัจจุบันแบบ Local Time (โซนเวลาไทย)
+    const today = new Date();
+    const localDateStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+
+    $('#check-date').val(localDateStr); // ยัดค่าใส่วันที่
+
     await checkAuth();
 
-    $('#classroom-select').on('change', function () { loadStudentList(this.value); });
-    $('#check-date').on('change', function () { loadStudentList($('#classroom-select').val()); });
+    $('#check-date').on('change', function () {
+        loadStudentList($('#classroom-select').val());
+    });
 });
-
 async function checkAuth() {
     const { data: { user }, error: authError } = await db.auth.getUser();
     if (authError || !user) { window.location.href = "index.html"; return; }
@@ -154,28 +159,78 @@ async function checkAuth() {
         return;
     }
 
-    $('#classroom-select').empty();
+    const selectEl = document.getElementById('classroom-select');
+    selectEl.innerHTML = ''; // เคลียร์ค่าเดิม
+
     classrooms.forEach(cls => {
-        $('#classroom-select').append(`<option value="${cls.id}">ชั้น ${cls.grade_level}/${cls.room_number}</option>`);
+        const option = document.createElement('option');
+        option.value = cls.id;
+        option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
+        selectEl.appendChild(option);
     });
 
-    loadStudentList(classrooms[0].id);
-}
+    // 🌟 1. เช็คและทำลาย Tom Select ตัวเก่า (ป้องกัน Error พังซ้อนกันเวลาโหลดซ้ำ)
+    if (window.classroomTomSelect) {
+        window.classroomTomSelect.destroy();
+    }
 
-function applyDateConstraints() {
-    const todayStr = new Date().toISOString().split('T')[0];
-    const dateInput = $('#check-date');
-    if (moduleSettings.enforce_term_start && termStartDate) dateInput.attr('min', termStartDate);
-    else dateInput.removeAttr('min');
+    // 🌟 2. แปลงกล่องเลือกห้องเรียนเป็น Tom Select
+    window.classroomTomSelect = new TomSelect(selectEl, {
+        placeholder: '-- เลือกห้องเรียน --',
+        searchField: ['text'], // ให้ค้นหาจากชื่อห้องได้
+        // ไม่ใส่ plugin clear_button เพราะบังคับว่าต้องมีห้องที่เลือกอยู่เสมอ
+    });
 
-    if (moduleSettings.lock_future_dates) {
-        if (termEndDate && new Date(todayStr) > new Date(termEndDate)) dateInput.attr('max', termEndDate);
-        else dateInput.attr('max', todayStr);
-    } else {
-        dateInput.attr('max', termEndDate || '');
+    // 🌟 3. ผูก Event เมื่อมีการเปลี่ยนห้องเรียน ให้ดึงข้อมูลนักเรียนใหม่
+    window.classroomTomSelect.on('change', function (val) {
+        if (val) {
+            loadStudentList(val);
+        }
+    });
+
+    // โหลดรายชื่อนักเรียนห้องแรกตอนเข้าหน้าเว็บ
+    if (classrooms.length > 0) {
+        loadStudentList(classrooms[0].id);
     }
 }
 
+function applyDateConstraints() {
+    // 🌟 1. ดึงวันปัจจุบันเป็น Local Time (เวลาไทย) เสมอ
+    const today = new Date();
+    const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+    
+    let minDateVal = null;
+    let maxDateVal = null;
+
+    // 🌟 2. คำนวณวันต่ำสุด (Min Date)
+    if (moduleSettings.enforce_term_start && termStartDate) {
+        minDateVal = termStartDate;
+    }
+
+    // 🌟 3. คำนวณวันสูงสุด (Max Date)
+    if (moduleSettings.lock_future_dates) {
+        if (termEndDate && new Date(todayStr) > new Date(termEndDate)) {
+            maxDateVal = termEndDate;
+        } else {
+            maxDateVal = todayStr; // ล็อกไม่ให้เลือกวันอนาคต (ใช้วันนี้เป็นสูงสุด)
+        }
+    } else {
+        maxDateVal = termEndDate || null;
+    }
+
+    // 🌟 4. อัปเดตตั้งค่าไปที่ Flatpickr โดยตรง (สำคัญมาก)
+    const dateInputNode = document.querySelector('#check-date');
+    if (dateInputNode && dateInputNode._flatpickr) {
+        // หาก Flatpickr ทำงานแล้ว ให้เซ็ตค่าผ่านคำสั่ง set()
+        dateInputNode._flatpickr.set('minDate', minDateVal);
+        dateInputNode._flatpickr.set('maxDate', maxDateVal);
+    } else {
+        // สำรองไว้เผื่อฟังก์ชันนี้ถูกเรียกก่อน Flatpickr โหลด
+        const $dateInput = $('#check-date');
+        minDateVal ? $dateInput.attr('min', minDateVal) : $dateInput.removeAttr('min');
+        maxDateVal ? $dateInput.attr('max', maxDateVal) : $dateInput.removeAttr('max');
+    }
+}
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
 
@@ -880,24 +935,62 @@ async function deleteHoliday(id) {
 
 let allTeachersList = [];
 
+// async function loadAllTeachersForSelect() {
+//     const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
+//     if (personnel) {
+//         allTeachersList = personnel;
+//         const select = $('#head-teacher-select');
+
+//         select.empty();
+//         select.append('<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>');
+
+//         personnel.forEach(p => {
+//             select.append(`<option value="${p.id}">${p.prefix || ''}${p.first_name} ${p.last_name}</option>`);
+//         });
+
+//         select.select2({
+//             placeholder: "-- พิมพ์ชื่อเพื่อค้นหา --",
+//             allowClear: true,
+//             width: '100%',
+//             dropdownParent: $('#admin-modal')
+//         });
+//     }
+// }
+
+// ประกาศตัวแปร Global ไว้เก็บ Instance เพื่อให้เราสั่งเคลียร์/ทำลาย ทิ้งได้เมื่อโหลดข้อมูลใหม่
+window.headTeacherTomSelect = null;
+
 async function loadAllTeachersForSelect() {
-    const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
+    const { data: personnel } = await db.from('core_personnel')
+        .select('id, prefix, first_name, last_name')
+        .order('first_name');
+
     if (personnel) {
-        allTeachersList = personnel;
-        const select = $('#head-teacher-select');
+        allTeachersList = personnel; // เก็บตัวแปร Global ไว้ใช้งานที่อื่นตามโค้ดเดิมของคุณ
 
-        select.empty();
-        select.append('<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>');
+        const selectEl = document.getElementById('head-teacher-select');
 
+        // 1. ล้างค่าเดิมและสร้าง Option ว่างเปล่าอันแรก
+        selectEl.innerHTML = '<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>';
+
+        // 2. วนลูปสร้าง Option
         personnel.forEach(p => {
-            select.append(`<option value="${p.id}">${p.prefix || ''}${p.first_name} ${p.last_name}</option>`);
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.text = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+            selectEl.appendChild(option);
         });
 
-        select.select2({
+        // 🌟 3. ตรวจสอบว่าเคยสร้าง Tom Select ไว้หรือยัง ถ้าเคยแล้วให้ทำลายทิ้งก่อน (ป้องกัน Error)
+        if (window.headTeacherTomSelect) {
+            window.headTeacherTomSelect.destroy();
+        }
+
+        // 🌟 4. เรียกใช้งาน Tom Select
+        window.headTeacherTomSelect = new TomSelect(selectEl, {
             placeholder: "-- พิมพ์ชื่อเพื่อค้นหา --",
-            allowClear: true,
-            width: '100%',
-            dropdownParent: $('#admin-modal')
+            allowEmptyOption: true,
+            plugins: ['clear_button'], // เทียบเท่า allowClear: true ของ Select2
         });
     }
 }
@@ -1366,7 +1459,7 @@ async function clearAttendanceData() {
     let classroomOptions = [];
     if (isAdmin) {
         Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-// 🌟 โค้ดใหม่: เพิ่ม .eq() เพื่อกรองเฉพาะเทอมปัจจุบัน
+        // 🌟 โค้ดใหม่: เพิ่ม .eq() เพื่อกรองเฉพาะเทอมปัจจุบัน
         const { data, error } = await db.from('core_classrooms')
             .select('id, grade_level, room_number, semester, academic_year')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
