@@ -624,82 +624,128 @@ async function loadClassrooms() {
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
+// เพิ่มฟังก์ชันโหลดรายชื่อครูกรณีจำเป็น
+async function ensurePersonnelListLoaded() {
+  if (globalPersonnelList.length === 0) {
+    const { data, error } = await db.from('core_personnel')
+      .select('id, first_name, last_name, department')
+      .order('first_name');
+    if (error) throw error;
+    globalPersonnelList = data || [];
+  }
+}
+
 // ==========================================
 // ส่วนของการเปิด Modal สร้างห้องเรียนใหม่
 // ==========================================
-function openClassModal() {
-    currentEditClassId = null;
-    document.getElementById('classForm').reset();
-    document.getElementById('modalClassTitle').innerHTML = '<i class="fa-solid fa-chalkboard text-blue-600 mr-2"></i>เพิ่มห้องเรียนใหม่';
-
-    const adv1 = document.getElementById('c_adv1');
-    const adv2 = document.getElementById('c_adv2');
-    let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
-    globalPersonnelList.forEach(p => { options += `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`; });
-    adv1.innerHTML = options; adv2.innerHTML = options;
-
-    document.getElementById('c_year').value = (new Date().getFullYear() + 543).toString();
-    document.getElementById('c_term').value = '1';
-    
-    document.getElementById('classroomModal').classList.remove('hidden');
-
-    // 🌟 เปิดใช้งาน Select2 สำหรับดรอปดาวน์ครูที่ปรึกษา
-    $('#c_adv1, #c_adv2').select2({
-        dropdownParent: $('#classroomModal'), // ให้ Dropdown ลอยอยู่บน Modal
-        placeholder: "-- พิมพ์เพื่อค้นหาชื่อครู --",
-        allowClear: true
-    });
-    
-    // เคลียร์ค่า Select2 เมื่อเปิดฟอร์มใหม่
-    $('#c_adv1, #c_adv2').val('').trigger('change');
-}
-
 // ==========================================
-// ส่วนของการเปิด Modal แก้ไขห้องเรียนเดิม
+// 🌟 Tom Select สำหรับ Modal ห้องเรียน
 // ==========================================
-function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
-    currentEditClassId = id;
-    document.getElementById('modalClassTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-yellow-600 mr-2"></i>แก้ไขข้อมูลห้องเรียน';
+function initAdviserSelect2() {
+  const adv1 = document.getElementById('c_adv1');
+  const adv2 = document.getElementById('c_adv2');
+  // ลบ instance เดิมถ้ามี
+  if (adv1.tomselect) adv1.tomselect.destroy();
+  if (adv2.tomselect) adv2.tomselect.destroy();
 
-    const adv1El = document.getElementById('c_adv1');
-    const adv2El = document.getElementById('c_adv2');
-    let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
-    globalPersonnelList.forEach(p => { options += `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`; });
-    adv1El.innerHTML = options; adv2El.innerHTML = options;
-
-    document.getElementById('c_year').value = year;
-    document.getElementById('c_term').value = semester || '1';
-    document.getElementById('c_grade').value = grade;
-    document.getElementById('c_room').value = room;
-    document.getElementById('c_plan').value = plan;
-
-    document.getElementById('classroomModal').classList.remove('hidden');
-
-    // 🌟 เปิดใช้งาน Select2 และดึงค่าครูที่ปรึกษาเดิมมาแสดง
-    $('#c_adv1, #c_adv2').select2({
-        dropdownParent: $('#classroomModal'), // แนะนำให้ใช้ classroomModal ครับ
-        placeholder: "-- พิมพ์เพื่อค้นหาชื่อครู --",
-        allowClear: true,
-        width: '100%' // 🌟 เพิ่มบรรทัดนี้ เพื่อป้องกันบั๊กช่องค้นหาขนาดผิดเพี้ยน
-    });
-
-    // เซ็ตค่าให้กับ Select2
-    $('#c_adv1').val(adv1).trigger('change');
-    $('#c_adv2').val(adv2).trigger('change');
-}
-
-// ==========================================
-// ส่วนของการปิด Modal
-// ==========================================
-function closeClassModal() { 
-    document.getElementById('classroomModal').classList.add('hidden'); 
-    
-    // 🌟 ทำลาย Select2 ทิ้งเมื่อปิด Modal เพื่อป้องกันบั๊กเมื่อเปิดใหม่
-    if ($('#c_adv1').hasClass("select2-hidden-accessible")) {
-        $('#c_adv1, #c_adv2').select2('destroy');
+  new TomSelect(adv1, {
+    placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
+    allowEmptyOption: true,
+    render: {
+      no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
     }
+  });
+  new TomSelect(adv2, {
+    placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
+    allowEmptyOption: true,
+    render: {
+      no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
+    }
+  });
 }
 
+// เปิด Modal เพิ่มห้องเรียนใหม่
+async function openClassModal() {
+  currentEditClassId = null;
+  document.getElementById('classForm').reset();
+  document.getElementById('modalClassTitle').innerHTML = 'เพิ่มห้องเรียนใหม่';
+
+  try {
+    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading() });
+    await ensurePersonnelListLoaded();
+    Swal.close();
+  } catch (err) {
+    Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดรายชื่อครูได้', 'error');
+    return;
+  }
+
+  // สร้าง options สำหรับ select
+  const adv1El = document.getElementById('c_adv1');
+  const adv2El = document.getElementById('c_adv2');
+  let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
+  globalPersonnelList.forEach(p => {
+    options += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || ''})</option>`;
+  });
+  adv1El.innerHTML = options;
+  adv2El.innerHTML = options;
+
+  document.getElementById('c_year').value = (new Date().getFullYear() + 543).toString();
+  document.getElementById('c_term').value = '1';
+  document.getElementById('classroomModal').classList.remove('hidden');
+
+  initAdviserSelect2(); // สร้าง Tom Select
+  // Clear ค่าเริ่มต้น
+  adv1El.tomselect?.clear();
+  adv2El.tomselect?.clear();
+}
+
+// แก้ไขห้องเรียน
+async function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
+  currentEditClassId = id;
+  document.getElementById('modalClassTitle').innerHTML = 'แก้ไขห้องเรียน';
+
+  try {
+    Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
+    await ensurePersonnelListLoaded();
+    Swal.close();
+  } catch (err) {
+    Swal.fire('ผิดพลาด', err.message, 'error');
+    return;
+  }
+
+  const adv1El = document.getElementById('c_adv1');
+  const adv2El = document.getElementById('c_adv2');
+  let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
+  globalPersonnelList.forEach(p => {
+    options += `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`;
+  });
+  adv1El.innerHTML = options;
+  adv2El.innerHTML = options;
+
+  document.getElementById('c_year').value = year;
+  document.getElementById('c_term').value = semester || '1';
+  document.getElementById('c_grade').value = grade;
+  document.getElementById('c_room').value = room;
+  document.getElementById('c_plan').value = plan;
+  document.getElementById('classroomModal').classList.remove('hidden');
+
+  initAdviserSelect2(); // สร้าง Tom Select พร้อมตัวเลือก
+  // ตั้งค่าเดิม
+  if (adv1) adv1El.tomselect?.setValue(adv1);
+  else adv1El.tomselect?.clear();
+  if (adv2) adv2El.tomselect?.setValue(adv2);
+  else adv2El.tomselect?.clear();
+}
+
+function closeClassModal() {
+  document.getElementById('classroomModal').classList.add('hidden');
+  const adv1 = document.getElementById('c_adv1');
+  const adv2 = document.getElementById('c_adv2');
+  if (adv1?.tomselect) adv1.tomselect.destroy();
+  if (adv2?.tomselect) adv2.tomselect.destroy();
+}
+
+// บันทึกห้องเรียน
 async function saveClassroom(e) {
     e.preventDefault();
     const year = document.getElementById('c_year').value.trim();
@@ -1861,63 +1907,66 @@ const DEPARTMENTS = [
     { id: 'dept_guidance', name: 'แนะแนว' }
 ];
 
+// ==========================================
+// 🌟 Tom Select สำหรับ Modal แต่งตั้งหัวหน้ากลุ่มสาระ
+// ==========================================
 async function openDeptHeadModal() {
-    const container = document.getElementById('dept_heads_container');
-    container.innerHTML = '';
+  const container = document.getElementById('dept_heads_container');
+  container.innerHTML = '';
 
-    // 1. สร้าง Option รายชื่อบุคลากรทั้งหมด
-    let optionsHtml = '<option value="">-- ไม่ระบุ / ว่าง --</option>';
-    globalPersonnelList.forEach(p => {
-        optionsHtml += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || 'ไม่ระบุ'})</option>`;
-    });
+  let optionsHtml = '<option value="">-- ไม่ระบุ / ว่าง --</option>';
+  globalPersonnelList.forEach(p => {
+    optionsHtml += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || 'ไม่ระบุ'})</option>`;
+  });
 
-    // 2. วาดช่อง Dropdown 8 กลุ่มสาระ
-    DEPARTMENTS.forEach(dept => {
-        container.innerHTML += `
-            <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                <label class="block text-sm font-bold text-gray-800 mb-2">
-                    <i class="fa-solid fa-layer-group text-blue-500 mr-1"></i> ${dept.name}
-                </label>
-                <select id="${dept.id}" class="select2-dept-head w-full">
-                    ${optionsHtml}
-                </select>
-            </div>
-        `;
-    });
+  DEPARTMENTS.forEach(dept => {
+    container.innerHTML += `
+      <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+        <label class="block text-sm font-bold text-gray-800 mb-2">
+          <i class="fa-solid fa-layer-group text-blue-500 mr-1"></i> ${dept.name}
+        </label>
+        <select id="${dept.id}" class="select2-dept-head w-full">
+          ${optionsHtml}
+        </select>
+      </div>
+    `;
+  });
 
-    document.getElementById('deptHeadModal').classList.remove('hidden');
-    Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+  document.getElementById('deptHeadModal').classList.remove('hidden');
+  Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
 
-    try {
-        // 3. ดึงข้อมูลหัวหน้าเดิมจาก Database
-        const { data, error } = await db.from('core_department_heads').select('*');
-        if (!error && data) {
-            data.forEach(row => {
-                const select = document.getElementById(row.department_id);
-                if (select) select.value = row.personnel_id;
-            });
-        }
-
-        // 4. เปิดใช้งาน Select2 (พิมพ์ค้นหาได้)
-        $('.select2-dept-head').select2({
-            dropdownParent: $('#deptHeadModal'),
-            placeholder: "พิมพ์เพื่อค้นหาชื่อครู...",
-            allowClear: true
-        });
-
-        Swal.close();
-    } catch (err) {
-        console.error(err);
-        Swal.fire('ผิดพลาด', err.message, 'error');
+  try {
+    const { data, error } = await db.from('core_department_heads').select('*');
+    if (!error && data) {
+      data.forEach(row => {
+        const select = document.getElementById(row.department_id);
+        if (select) select.value = row.personnel_id;
+      });
     }
+
+    // เริ่มต้น Tom Select ทุกอัน
+    document.querySelectorAll('.select2-dept-head').forEach(el => {
+      new TomSelect(el, {
+        placeholder: 'พิมพ์เพื่อค้นหาชื่อครู...',
+        allowEmptyOption: true,
+        render: {
+          no_results: function () { return 'ไม่พบครู'; }
+        }
+      });
+    });
+
+    Swal.close();
+  } catch (err) {
+    console.error(err);
+    Swal.fire('ผิดพลาด', err.message, 'error');
+  }
 }
 
 function closeDeptHeadModal() {
-    document.getElementById('deptHeadModal').classList.add('hidden');
-    // ทำลาย Select2 เพื่อป้องกันบั๊กเมื่อเปิดปิด Modal ซ้ำ
-    if ($('.select2-dept-head').hasClass("select2-hidden-accessible")) {
-        $('.select2-dept-head').select2('destroy');
-    }
+  document.getElementById('deptHeadModal').classList.add('hidden');
+  document.querySelectorAll('.select2-dept-head').forEach(el => {
+    if (el.tomselect) el.tomselect.destroy();
+  });
 }
 
 async function saveDeptHeads(e) {

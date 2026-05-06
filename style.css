@@ -338,3 +338,100 @@ select.field-input {
     background: #f1f5f9;
     color: #64748b;
 }
+
+/* ──────────── TOM SELECT OVERRIDES ──────────── */
+/* กล่องควบคุม (ตัว input) */
+.ts-wrapper .ts-control {
+  background-color: var(--color-surface);
+  border: 1.5px solid var(--color-border);
+  color: var(--color-text-main);
+  border-radius: 0.875rem;       /* ให้มนเท่ากับ .field-input */
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  font-family: 'Anuphan', sans-serif;
+}
+
+/* ตอน focus */
+.ts-wrapper.focus .ts-control {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  outline: none;
+}
+
+/* Dropdown list */
+.ts-dropdown {
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  margin-top: 0.25rem;
+  box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1);
+  color: var(--color-text-main);
+}
+
+/* แต่ละตัวเลือก */
+.ts-dropdown .option {
+  color: var(--color-text-main);
+  padding: 0.55rem 1rem;
+  font-size: 0.9rem;
+}
+
+/* ตัวเลือกที่กำลัง hover */
+.ts-dropdown .option.active {
+  background-color: var(--color-primary);
+  color: white;
+}
+
+/* ตัวเลือกที่ถูกเลือกแล้ว */
+.ts-dropdown .option.selected {
+  background-color: var(--color-bg-body);
+  color: var(--color-primary);
+  font-weight: 600;
+}
+
+/* Placeholder */
+.ts-wrapper .ts-control > .item {
+  color: var(--color-text-muted);
+}
+
+/* ลูกศร dropdown */
+.ts-wrapper .ts-control::after {
+  border-color: var(--color-text-muted) transparent transparent transparent;
+  border-width: 5px 5px 0 5px;
+}
+
+/* ปุ่ม clear (X) */
+.ts-wrapper .ts-control .clear-button {
+  color: var(--color-text-muted);
+  transition: color 0.2s;
+}
+.ts-wrapper .ts-control .clear-button:hover {
+  color: #ef4444;
+}
+
+/* ── TOM SELECT CUSTOM THEME ── */
+.ts-control {
+    border: 1.5px solid #e2e8f0;
+    border-radius: .875rem;
+    padding: .65rem .9rem;
+    font-family: 'Anuphan', sans-serif;
+    background: #fff;
+    min-height: 42px;
+}
+.ts-control.focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
+}
+.ts-dropdown {
+    border-radius: .875rem;
+    border: 1px solid #e2e8f0;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    font-family: 'Anuphan', sans-serif;
+    z-index: 99999 !important; /* การันตีว่าต้องอยู่บนสุด */
+}
+.ts-dropdown .active {
+    background-color: #e0e7ff !important;
+    color: #4f46e5 !important;
+}

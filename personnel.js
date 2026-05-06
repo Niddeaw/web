@@ -130,19 +130,25 @@ function applyRoleUI(){
     const badge = document.getElementById('role-badge');
     if(badge) badge.textContent = roleLabel;
 
-    if(isTeacher()){
-        const sel = document.getElementById('inp-personnel-id');
-        if(sel){
-            sel.value = currentUser.id;
-            sel.disabled = true;
-            $('#inp-personnel-id').trigger('change'); 
+    // 🔥 เปลี่ยนจาก jQuery เป็น TomSelect API
+    const sel = document.getElementById('inp-personnel-id');
+    if(sel){
+        if(isTeacher()){
+            if(sel.tomselect) {
+                sel.tomselect.setValue(currentUser.id);
+                sel.tomselect.disable();
+            } else {
+                sel.value = currentUser.id;
+                sel.disabled = true;
+            }
+        } else {
+            if(sel.tomselect) {
+                sel.tomselect.enable();
+            } else {
+                sel.disabled = false;
+            }
         }
-    } else {
-        const sel = document.getElementById('inp-personnel-id');
-        if(sel){
-            sel.disabled = false;
-            $('#inp-personnel-id').trigger('change'); 
-        }
+        onNameSelect();
     }
 }
 
@@ -210,7 +216,14 @@ function openSettings(){
     modal.classList.add('flex');
     loadSettings().then(() => renderLocalAdmins());
 }
+
+/* ── Settings (Admin/SuperAdmin) ── */
 function closeSettings(){
+    const sel = document.getElementById('sel-add-local-admin');
+    // ทำลาย Tom Select เพื่อล้างค่าเวลาเปิด Modal ใหม่
+    if(sel && sel.tomselect) {
+        sel.tomselect.destroy();
+    }
     const modal = document.getElementById('settings-modal');
     modal.classList.add('hidden');
     modal.classList.remove('flex');
@@ -222,12 +235,20 @@ function renderLocalAdmins() {
     if(!listEl) return;
     
     const sel = document.getElementById('sel-add-local-admin');
+    
+    // คัดลอกข้อมูลและติดตั้ง Tom Select 
     if(sel && sel.options.length <= 1 && document.getElementById('inp-personnel-id').options.length > 1) {
+        if(sel.tomselect) sel.tomselect.destroy();
         sel.innerHTML = document.getElementById('inp-personnel-id').innerHTML;
+        sel.value = '';
     }
 
-    if(sel) {
-        $(sel).select2({ width: '100%', dropdownParent: $('#settings-modal') });
+    if(sel && !sel.tomselect) {
+        new TomSelect(sel, {
+            create: false,
+            placeholder: '-- เลือกครู / บุคลากร --',
+            dropdownParent: 'body' // ทะลุ Z-index ของ Modal ได้อย่างสมบูรณ์
+        });
     }
 
     listEl.innerHTML = '';
@@ -259,7 +280,13 @@ async function addLocalAdmin() {
     admins.push(uid);
     await saveSetting('local_admins', admins);
     renderLocalAdmins();
-    sel.value = '';
+    
+    // ล้างค่า Tom Select หลังจากเพิ่มสำเร็จ
+    if(sel.tomselect) {
+        sel.tomselect.clear();
+    } else {
+        sel.value = '';
+    }
 }
 
 async function removeLocalAdmin(uid) {
@@ -279,10 +306,19 @@ async function handleLogout(){
 async function loadCoreUsers(){
     const {data} = await db.from('core_personnel').select('id,first_name,last_name,prefix').order('first_name');
     const sel = document.getElementById('inp-personnel-id');
+    
+    // ทำลายของเก่าทิ้งถ้ามีการโหลดซ้ำ
+    if(sel.tomselect) sel.tomselect.destroy();
+    
     sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
     (data||[]).forEach(u => sel.appendChild(new Option(`${u.prefix||''}${u.first_name} ${u.last_name}`, u.id)));
 
-    $('#inp-personnel-id').select2({ width: '100%', dropdownParent: $('#modal-container') });
+    // ติดตั้ง Tom Select แทนที่ Select2
+    new TomSelect('#inp-personnel-id', {
+        create: false,
+        placeholder: '-- กรุณาเลือก --',
+        dropdownParent: 'body' 
+    });
 }
 
 function onNameSelect(){
@@ -629,9 +665,18 @@ function resetHiddens(){
         .forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
 }
 
+/* ── Modal ──────────────────── */
 function openModal(mode, data=null){
     document.getElementById('main-form').reset();
-    $('#inp-personnel-id').val('').trigger('change'); 
+    
+    // เคลียร์ค่า Tom Select
+    const sel = document.getElementById('inp-personnel-id');
+    if(sel && sel.tomselect) {
+        sel.tomselect.clear(true); // ใส่ true เพื่อป้องกันไม่ให้มันทริกเกอร์ onchange โดยไม่จำเป็น
+    } else if(sel) {
+        sel.value = '';
+    }
+    
     resetHiddens();
     setAvatar('avatar-display','?',null);
     setAvatar('modal-avatar-display','?',null);
@@ -647,6 +692,7 @@ function openModal(mode, data=null){
     const mc=document.getElementById('modal-container');
     mc.classList.remove('hidden'); mc.classList.add('flex');
 }
+
 function closeModal(){
     const mc=document.getElementById('modal-container');
     mc.classList.add('hidden'); mc.classList.remove('flex');
@@ -667,6 +713,15 @@ function populateForm(p){
     document.getElementById('modal-title').textContent=`แก้ไข: ${fullName}`;
     document.getElementById('modal-subtitle').textContent=fullName;
     document.getElementById('edit-id').value=p.id||'';
+    
+    // สั่งให้ Tom Select เลือกค่า
+    const sel = document.getElementById('inp-personnel-id');
+    if(sel && sel.tomselect) {
+        sel.tomselect.setValue(p.id||'');
+    } else if(sel) {
+        sel.value = p.id||'';
+    }
+    onNameSelect();
     
     document.getElementById('inp-personnel-id').value=p.id||'';
     $('#inp-personnel-id').trigger('change'); 

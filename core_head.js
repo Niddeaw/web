@@ -18,7 +18,7 @@ const coreHeadHTML = `
               primary: {
                 50: '#eef2ff',
                 100: '#e0e7ff',
-                500: '#11e8e0', // โทนสีหลักตามภาพ
+                500: '#11e8e0',
                 600: '#25d8f5',
                 700: '#6ac4f6',
               }
@@ -39,6 +39,9 @@ const coreHeadHTML = `
     <!-- Flatpickr CSS -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
+    <!-- Tom Select CSS (แทน Select2) -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+
     <!-- jQuery (ต้องโหลดก่อน DataTables) -->
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 
@@ -51,19 +54,19 @@ const coreHeadHTML = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdn.datatables.net/buttons/3.2.3/js/buttons.html5.min.js"></script>
 
-    <!-- Flatpickr, SheetJS, HTML2PDF, Supabase, SweetAlert2, Select2, SortableJS, DayJS, ChartJS -->
+    <!-- Flatpickr, SheetJS, HTML2PDF, Supabase, SweetAlert2, Tom Select, SortableJS, DayJS, ChartJS -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <!-- Tom Select JS (แทน Select2) -->
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/locale/th.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 `;
 
-// ใช้ document.write เพื่อแทรกโค้ดแบบ Synchronous (บังคับให้เบราว์เซอร์โหลดไฟล์เหล่านี้ให้เสร็จก่อนรันโค้ดอื่นๆ)
 document.write(coreHeadHTML);
