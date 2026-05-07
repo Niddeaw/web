@@ -49,9 +49,23 @@ $(document).ready(async () => {
 
     await checkAuth();
 
-    $('#check-date').on('change', function () {
-        loadStudentList($('#classroom-select').val());
-    });
+    // 🌟 ดักจับเมื่อมีการเปลี่ยนวันที่ หรือเผลอกด "ล้างค่า"
+$('#check-date').on('change', async function() {
+    let selectedDate = $(this).val();
+
+    // 🛠️ แก้ปัญหา 1: ถ้าผู้ใช้กด "ล้างค่า" จนเป็นค่าว่าง ให้บังคับเด้งกลับมาเป็น "วันนี้" อัตโนมัติ
+    if (!selectedDate) {
+        const d = new Date();
+        const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        $(this).val(todayStr);
+        selectedDate = todayStr;
+    }
+
+    // เมื่อวันที่ถูกต้องแล้ว ให้โหลดข้อมูลใหม่ (หากมีการเลือกห้องเรียนไว้แล้ว)
+    if ($('#classroom-select').val()) {
+        await loadStudentList($('#classroom-select').val()); 
+    }
+});
 });
 async function checkAuth() {
     const { data: { user }, error: authError } = await db.auth.getUser();
@@ -198,16 +212,18 @@ function applyDateConstraints() {
     // 🌟 1. ดึงวันปัจจุบันเป็น Local Time (เวลาไทย) เสมอ
     const today = new Date();
     const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    
+
     let minDateVal = null;
     let maxDateVal = null;
 
-    // 🌟 2. คำนวณวันต่ำสุด (Min Date)
+    // 🌟 2. คำนวณวันต่ำสุด (Min Date) - เช็คย้อนหลัง
     if (moduleSettings.enforce_term_start && termStartDate) {
-        minDateVal = termStartDate;
+        minDateVal = termStartDate; // ถ้าแอดมินเปิดบังคับ จะย้อนได้ลึกสุดแค่วันเปิดเทอม
+    } else {
+        minDateVal = null; // ถ้าแอดมินปิดบังคับ จะเช็คย้อนหลังได้อิสระ (ไม่จำกัด)
     }
 
-    // 🌟 3. คำนวณวันสูงสุด (Max Date)
+    // 🌟 3. คำนวณวันสูงสุด (Max Date) - ล็อคห้ามเช็คล่วงหน้า
     if (moduleSettings.lock_future_dates) {
         if (termEndDate && new Date(todayStr) > new Date(termEndDate)) {
             maxDateVal = termEndDate;
@@ -218,7 +234,7 @@ function applyDateConstraints() {
         maxDateVal = termEndDate || null;
     }
 
-    // 🌟 4. อัปเดตตั้งค่าไปที่ Flatpickr โดยตรง (สำคัญมาก)
+    // 🌟 4. อัปเดตตั้งค่าไปที่ Flatpickr
     const dateInputNode = document.querySelector('#check-date');
     if (dateInputNode && dateInputNode._flatpickr) {
         // หาก Flatpickr ทำงานแล้ว ให้เซ็ตค่าผ่านคำสั่ง set()
@@ -231,6 +247,7 @@ function applyDateConstraints() {
         maxDateVal ? $dateInput.attr('max', maxDateVal) : $dateInput.removeAttr('max');
     }
 }
+
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
 
@@ -281,6 +298,7 @@ async function loadStudentList(classroomId) {
 
     renderTable(enrollments);
     updateStats();
+    updateDashboard(); // ← เพิ่มบรรทัดนี้
 }
 
 async function loadClassroomOverview(classroomId) {
@@ -368,6 +386,7 @@ function renderTable(enrollments) {
             </tr>
         `;
         tbody.append(row);
+        updateDashboard();
     });
 }
 
@@ -384,6 +403,7 @@ async function updateAttendance(studentId, status) {
     if (!error) {
         attendanceData[studentId] = status;
         updateStats();
+        updateDashboard(); // ← เพิ่มบรรทัดนี้
 
         const row = $(`tr[data-student-id="${studentId}"]`);
         row.find('button').each(function () {
@@ -1621,4 +1641,108 @@ async function clearAttendanceData() {
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
+}
+
+// ==========================================
+// 🟢 แดชบอร์ดสรุปการเช็คชื่อประจำวัน
+// ==========================================
+
+function updateDashboard() {
+    const checkDate = $('#check-date').val();
+    const thaiDate = formatThaiDateFull(checkDate);
+    const total = $('#student-list tr[data-student-id]').length;
+
+    if (total === 0) {
+        $('#daily-dashboard').addClass('hidden');
+        return;
+    }
+    $('#daily-dashboard').removeClass('hidden');
+
+    // ── รวบรวมข้อมูลจาก attendanceData ──
+    const counts = { มา: 0, ขาด: 0, สาย: 0, ลา: 0, ป่วย: 0 };
+    Object.values(attendanceData).forEach(s => {
+        if (counts[s] !== undefined) counts[s]++;
+    });
+
+    const checkedCount = Object.keys(attendanceData).length;
+    const isChecked = checkedCount > 0;
+
+    // ── การ์ดสถานะหลัก ──
+    const card = $('#dashboard-status-card');
+    const icon = $('#dashboard-status-icon');
+    const label = $('#dashboard-status-label');
+
+    card.removeClass('bg-rose-50 border-rose-200 bg-emerald-50 border-emerald-200 bg-amber-50 border-amber-200');
+
+    if (!isChecked) {
+        card.addClass('bg-rose-50 border-rose-200');
+        icon.html('<i class="fas fa-circle-exclamation text-rose-500 text-2xl"></i>').removeClass('bg-emerald-100 bg-amber-100').addClass('bg-rose-100');
+        label.html('<span class="text-rose-600">⚠️ วันนี้ยังไม่ได้เช็คชื่อ</span>');
+    } else if (checkedCount < total) {
+        card.addClass('bg-amber-50 border-amber-200');
+        icon.html('<i class="fas fa-clock text-amber-500 text-2xl"></i>').removeClass('bg-rose-100 bg-emerald-100').addClass('bg-amber-100');
+        label.html(`<span class="text-amber-700">⏳ เช็คชื่อแล้ว ${checkedCount}/${total} คน</span>`);
+    } else {
+        card.addClass('bg-emerald-50 border-emerald-200');
+        icon.html('<i class="fas fa-circle-check text-emerald-500 text-2xl"></i>').removeClass('bg-rose-100 bg-amber-100').addClass('bg-emerald-100');
+        label.html('<span class="text-emerald-700">✅ เช็คชื่อครบแล้ววันนี้</span>');
+    }
+    $('#dashboard-status-date').text(`ประจำวัน ${thaiDate}`);
+
+    // ── ตัวเลขสรุป ──
+    $('#ds-present').text(counts['มา'] || 0);
+    $('#ds-absent').text(counts['ขาด'] || 0);
+    $('#ds-late').text(counts['สาย'] || 0);
+    $('#ds-leave').text(counts['ลา'] || 0);
+    $('#ds-sick').text(counts['ป่วย'] || 0);
+
+    if (!isChecked) {
+        $('#dashboard-exception-section').addClass('hidden');
+        return;
+    }
+    $('#dashboard-exception-section').removeClass('hidden');
+
+    // ── สร้าง chip รายชื่อ ──
+    function buildChips(statusKey, listId, sectionId, badgeId, chipClass) {
+        const section = $(`#${sectionId}`);
+        const list = $(`#${listId}`);
+        list.empty();
+
+        const students = [];
+        $('#student-list tr[data-student-id]').each(function () {
+            const sid = $(this).data('student-id');
+            if (attendanceData[sid] === statusKey) {
+                students.push({
+                    no: $(this).find('td').eq(0).text().trim(),
+                    code: $(this).data('student-code') || '–',
+                    name: $(this).find('td').eq(1).text().trim()
+                });
+            }
+        });
+
+        if (students.length === 0) {
+            section.addClass('hidden');
+            return;
+        }
+        section.removeClass('hidden');
+        $(`#${badgeId}`).text(`${students.length} คน`);
+
+        students.forEach(s => {
+            list.append(`
+                <div class="${chipClass} rounded-xl px-3 py-2 text-xs font-bold shadow-sm border flex flex-col gap-0.5 min-w-[90px]">
+                    <span class="text-[10px] font-black opacity-60">เลขที่ ${s.no} | ${s.code}</span>
+                    <span class="truncate max-w-[160px]">${s.name}</span>
+                </div>
+            `);
+        });
+    }
+
+    buildChips('ขาด', 'ds-absent-list', 'ds-absent-section', 'ds-absent-badge',
+        'bg-rose-50 text-rose-700 border-rose-200');
+    buildChips('สาย', 'ds-late-list', 'ds-late-section', 'ds-late-badge',
+        'bg-orange-50 text-orange-700 border-orange-200');
+    buildChips('ลา', 'ds-leave-list', 'ds-leave-section', 'ds-leave-badge',
+        'bg-yellow-50 text-yellow-700 border-yellow-200');
+    buildChips('ป่วย', 'ds-sick-list', 'ds-sick-section', 'ds-sick-badge',
+        'bg-blue-50 text-blue-700 border-blue-200');
 }
