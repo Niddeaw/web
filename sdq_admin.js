@@ -16,35 +16,52 @@ $(document).ready(async function () {
 // ==========================================
 // 🔐 ตรวจสอบสิทธิ์ผู้ดูแลระบบ
 // ==========================================
+// ==========================================
+// แก้ไขฟังก์ชัน checkAuthAdmin() ใน sdq_admin.js
+// ==========================================
+
 async function checkAuthAdmin() {
-    const { data: { session }, error } = await db.auth.getSession();
-    if (error || !session) {
+    // ใช้ getUser() แทน getSession() เพื่อความเชื่อถือได้หลัง redirect
+    const { data: { user }, error: authError } = await db.auth.getUser();
+
+    if (authError || !user) {
         window.location.href = 'login.html';
-        return;
+        return false;
     }
 
-    const user = session.user;
-
-    // 1. เช็ค role จากตารางกลาง
-    const { data: personnel } = await db.from('core_personnel')
+    // ดึงข้อมูลบุคลากร
+    const { data: personnel, error: pError } = await db
+        .from('core_personnel')
         .select('*')
         .eq('id', user.id)
         .single();
 
-    if (personnel && personnel.role === 'super_admin') return true;
+    if (pError || !personnel) {
+        await Swal.fire('ไม่พบข้อมูลผู้ใช้งาน', 'บัญชีนี้อาจไม่มีสิทธิ์ในระบบ', 'error');
+        window.location.href = 'login.html';
+        return false;
+    }
 
-    // 2. เช็คสิทธิ์ระดับ Module (core_module_admins)
-    const { data: moduleAdmin } = await db.from('core_module_admins')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('module_id', 'sdq')
-        .single();
+    const adminRoles = ['admin', 'super_admin'];
+    const teacherRoles = ['teacher'];
 
-    if (moduleAdmin) return true;
+    if (adminRoles.includes(personnel.role)) {
+        // ✅ แอดมิน → เข้าได้ปกติ
+        adminInfo = personnel; // หรือชื่อตัวแปร global ที่ใช้ใน sdq_admin.js
+        $('#user-display').text(`${personnel.first_name} ${personnel.last_name}`);
+        return true;
 
-    // ไม่มีสิทธิ์
-    Swal.fire('ปฏิเสธการเข้าถึง', 'คุณไม่มีสิทธิ์เป็นผู้ดูแลระบบโมดูลนี้', 'error')
-        .then(() => window.location.href = 'index.html');
+    } else if (teacherRoles.includes(personnel.role)) {
+        // 🔀 ครู (ไม่ใช่แอดมิน) → เด้งไป sdq_teacher.html แทน
+        window.location.href = 'sdq_teacher.html';
+        return false;
+
+    } else {
+        // ❌ ไม่มีสิทธิ์เลย → กลับ login
+        await Swal.fire('ปฏิเสธการเข้าถึง', 'คุณไม่มีสิทธิ์เข้าใช้งานระบบนี้', 'error');
+        window.location.href = 'login.html';
+        return false;
+    }
 }
 
 // ==========================================

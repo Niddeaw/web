@@ -48,6 +48,28 @@ body {
     transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
 }
 
+/* ค้นหาและแก้ไขคลาส .glass-panel */
+.glass-panel {
+    /* เปลี่ยนจาก rgba แบบโปร่งใส เป็นสีทึบ */
+    background-color: var(--color-surface) !important; 
+    
+    /* ยกเลิกเอฟเฟกต์เบลอที่ทำให้มองทะลุได้ */
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    
+    /* เพิ่มเงาเล็กน้อยเพื่อให้เห็นขอบเขตชัดเจนเมื่อเลื่อนทับเนื้อหา */
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+    
+    /* มั่นใจว่าอยู่ชั้นบนสุด */
+    z-index: 50; 
+}
+
+/* กรณีใช้ Navbar ที่เป็น sticky ให้พื้นหลังทึบด้วย */
+nav.sticky, header.sticky {
+    background-color: var(--color-surface) !important;
+    opacity: 1 !important;
+}
+
 /* Sidebar Styles */
 #sidebar {
     background-color: var(--color-surface);
