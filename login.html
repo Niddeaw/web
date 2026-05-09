@@ -140,6 +140,7 @@
 
     <div class="container-auth" id="container">
         
+        <!-- ฟอร์มนักเรียน -->
         <div class="form-container student-container bg-white">
             <div class="text-center mb-6">
                 <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
@@ -152,6 +153,7 @@
                     <label class="block text-xs font-bold text-slate-700 mb-1 text-left">เลขประจำตัวนักเรียน (5 หลัก)</label>
                     <div class="relative">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-user text-slate-400"></i></div>
+                        <!-- ✅ id="s_id" ตรงกับ jQuery selector #s_id ด้านล่าง -->
                         <input type="text" id="s_id" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all text-sm" placeholder="ระบุเลขประจำตัว">
                     </div>
                 </div>
@@ -174,6 +176,7 @@
             </div>
         </div>
 
+        <!-- ฟอร์มครู -->
         <div class="form-container teacher-container bg-white">
             <div class="text-center mb-6">
                 <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
@@ -260,35 +263,39 @@
         }
 
         // ==============================
-        // 🌟 ระบบ Login นักเรียน
+        // 🎓 ระบบ Login นักเรียน (Supabase Auth)
         // ==============================
         async function handleStudentLogin() {
+            // ✅ แก้ไข: ใช้ #s_id ให้ตรงกับ input id="s_id"
             const sid = $('#s_id').val().trim();
             const idc = $('#s_idc').val().trim();
-            
-            if(!sid || !idc) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบทั้ง 2 ช่อง', 'warning');
 
-            Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+            if (!sid || !idc) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบทั้ง 2 ช่อง', 'warning');
 
-            // 🌟 แก้ไขคอลัมน์ 13 หลักเป็น national_id ให้ตรงกับโครงสร้างฐานข้อมูล
-            const { data, error } = await db.from('core_students')
-                .select('id, prefix, first_name, last_name')
-                .eq('student_id_card', sid)
-                .eq('national_id', idc) 
-                .maybeSingle();
+            Swal.fire({ title: 'กำลังเข้าสู่ระบบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-            if (data) {
-                localStorage.setItem('student_id', data.id);
-                localStorage.setItem('student_name', `${data.prefix || ''}${data.first_name} ${data.last_name}`);
-                localStorage.setItem('student_sid', sid);
-                window.location.href = 'student_index.html'; 
+            // ✅ ใช้ Supabase Auth signInWithPassword (ไม่ต้องใช้ localStorage)
+            // รูปแบบ email ที่ลงทะเบียนไว้ใน Supabase Auth: ${sid}@wrk.ac.th
+            const fakeEmail = `${sid}@wrk.ac.th`;
+
+            const { data, error } = await db.auth.signInWithPassword({
+                email: fakeEmail,
+                password: idc
+            });
+
+            if (error) {
+                Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'รหัสนักเรียนหรือรหัสผ่านไม่ถูกต้อง', 'error');
             } else {
-                Swal.fire('ไม่พบข้อมูล', 'รหัสนักเรียนหรือเลขประจำตัวประชาชนไม่ถูกต้อง', 'error');
+                // ✅ Supabase จัดการ session ให้อัตโนมัติ ไม่ต้อง setItem เอง
+                Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
+                setTimeout(() => {
+                    window.location.href = 'student_index.html';
+                }, 1000);
             }
         }
 
         // ==============================
-        // 🌟 ระบบ Login ครู/บุคลากร
+        // 👩‍🏫 ระบบ Login ครู/บุคลากร (Supabase Auth)
         // ==============================
         async function handleTeacherLogin() {
             const email = $('#t_email').val().trim();
@@ -305,13 +312,14 @@
             } else {
                 Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
                 setTimeout(() => {
-                    window.location.href = 'index.html'; 
+                    window.location.href = 'index.html';
                 }, 1000);
             }
         }
 
-        $('#s_idc').keypress(function(e) { if(e.which == 13) handleStudentLogin(); });
-        $('#t_pwd').keypress(function(e) { if(e.which == 13) handleTeacherLogin(); });
+        // Enter key shortcuts
+        $('#s_idc').keypress(function(e) { if (e.which == 13) handleStudentLogin(); });
+        $('#t_pwd').keypress(function(e) { if (e.which == 13) handleTeacherLogin(); });
     </script>
 </body>
 </html>

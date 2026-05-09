@@ -16,11 +16,11 @@
         <div class="p-6 text-center border-b border-slate-100 relative">
             <a href="student_index.html"
                 class="absolute top-4 left-4 text-slate-400 hover:text-indigo-600 bg-slate-50 p-2 h-10 w-10 flex items-center justify-center rounded-full transition">
-                <i class="fa-solid fa-house-user"></i>
+                <i class="fas fa-home"></i>
             </a>
             <button onclick="logout()"
                 class="absolute top-4 right-4 text-slate-400 hover:text-red-500 bg-slate-50 p-2 rounded-full transition">
-                <i class="fa-solid fa-power-off"></i>
+                <i class="fa-solid fa-sign-out-alt"></i>
             </button>
             <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-16 mx-auto mb-3">
             <h2 id="display_name" class="text-xl font-bold text-slate-800">กำลังโหลด...</h2>
@@ -41,53 +41,127 @@
     </div>
 
     <script>
-        $(document).ready(() => {
-            const stId = localStorage.getItem('student_id');
-            if (!stId) { window.location.href = 'login_student.html'; return; }
-            $('#display_name').text(localStorage.getItem('student_name'));
-            $('#display_sid').text('รหัส: ' + localStorage.getItem('student_sid'));
-            loadMyData(stId);
+        let studentProfile = null;
+
+        $(document).ready(async () => {
+            await checkAuth();
         });
 
-        async function loadMyData(id) {
-            const { data, error } = await db.from('behavior_logs')
-                .select('*, behavior_criteria(title, category)')
-                .eq('student_id', id).order('created_at', { ascending: false });
+        async function checkAuth() {
+            Swal.fire({
+                title: 'กำลังโหลดข้อมูล...',
+                didOpen: () => Swal.showLoading(),
+                allowOutsideClick: false
+            });
 
-            if (!error) {
-                let score = 100;
-                let html = '';
+            // 1. ตรวจสอบ Session จาก Supabase
+            const { data: { session }, error: authError } = await db.auth.getSession();
 
-                if (data && data.length > 0) {
-                    data.forEach(log => {
-                        score += log.score_change;
-                        const isPositive = log.score_change > 0;
-                        html += `
-                            <div class="flex items-start gap-3 border-l-4 ${isPositive ? 'border-green-500' : 'border-red-500'} bg-white shadow-sm border border-slate-100 p-3 rounded-r-xl">
-                                <div class="flex-1">
-                                    <p class="text-sm font-bold text-slate-800">${log.behavior_criteria.title}</p>
-                                    <p class="text-[11px] text-slate-500">${log.description || 'ไม่มีรายละเอียด'}</p>
-                                    <p class="text-[10px] text-slate-400 mt-1">${new Date(log.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} น.</p>
-                                </div>
-                                <div class="text-sm font-black ${isPositive ? 'text-green-600 bg-green-50' : 'text-red-600 bg-red-50'} px-2 py-1 rounded-lg">
-                                    ${isPositive ? '+' : ''}${log.score_change}
-                                </div>
-                            </div>
-                        `;
-                    });
-                } else {
-                    html = '<p class="text-center text-slate-400 text-sm py-4">ยังไม่มีประวัติการบันทึก</p>';
-                }
-
-                $('#total_score').text(score);
-                $('#total_score').removeClass('text-blue-600').addClass(score < 50 ? 'text-red-600' : (score >= 100 ? 'text-green-600' : 'text-orange-500'));
-                $('#history_list').html(html);
+            if (authError || !session) {
+                window.location.replace('login.html');
+                return;
             }
+
+            // 2. ดึงเลขประจำตัวจาก Email (sid@student.wrk)
+            const sidFromEmail = session.user.email.split('@')[0];
+
+            // 3. ดึงข้อมูลโปรไฟล์และประวัติคะแนนความประพฤติ (Join ตารางที่เกี่ยวข้อง)
+            const { data: student, error: dbError } = await db.from('core_students')
+                .select(`
+                *,
+                student_enrollments (
+                    core_classrooms (grade_level, room_number)
+                ),
+                behavior_logs (
+                    *,
+                    behavior_criteria (title)
+                )
+            `)
+                .eq('student_id_card', sidFromEmail)
+                .single();
+
+            if (dbError || !student) {
+                Swal.fire('ไม่พบข้อมูล', 'ไม่สามารถดึงข้อมูลโปรไฟล์ของคุณได้', 'error')
+                    .then(() => logout());
+                return;
+            }
+
+            studentProfile = student;
+            updateUI();
+            Swal.close();
         }
 
-        function logout() {
-            localStorage.removeItem('student_id'); localStorage.removeItem('student_name'); localStorage.removeItem('student_sid');
-            window.location.href = 'index.html';
+        function updateUI() {
+            const s = studentProfile;
+
+            // แสดงข้อมูลพื้นฐาน
+            $('#student_name').text(`${s.prefix || ''}${s.first_name} ${s.last_name}`);
+            $('#student_id_card').text(s.student_id_card);
+
+            // แสดงห้องเรียน
+            if (s.student_enrollments?.[0]?.core_classrooms) {
+                const cls = s.student_enrollments[0].core_classrooms;
+                $('#student_room').text(`ม.${cls.grade_level}/${cls.room_number}`);
+            }
+
+            // คำนวณคะแนนและแสดงประวัติ
+            let score = 100;
+            let html = '';
+
+            if (s.behavior_logs && s.behavior_logs.length > 0) {
+                // เรียงลำดับตามวันที่ล่าสุด
+                const sortedLogs = s.behavior_logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+                sortedLogs.forEach(log => {
+                    score += log.score_change;
+                    const isPositive = log.score_change > 0;
+
+                    html += `
+                    <div class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 mb-3">
+                        <div class="w-10 h-10 rounded-full flex items-center justify-center ${isPositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
+                            <i class="fa-solid ${isPositive ? 'fa-plus' : 'fa-minus'}"></i>
+                        </div>
+                        <div class="flex-1">
+                            <p class="font-bold text-slate-800">${log.behavior_criteria?.title || 'ไม่ได้ระบุหัวข้อ'}</p>
+                            <p class="text-[11px] text-slate-500">${log.description || 'ไม่มีรายละเอียด'}</p>
+                            <p class="text-[10px] text-slate-400 mt-1">${new Date(log.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} น.</p>
+                        </div>
+                        <div class="text-sm font-black ${isPositive ? 'text-green-600' : 'text-red-600'}">
+                            ${isPositive ? '+' : ''}${log.score_change}
+                        </div>
+                    </div>
+                `;
+                });
+            } else {
+                html = '<div class="py-10 text-center text-slate-400 text-sm">ยังไม่มีประวัติการบันทึก</div>';
+            }
+
+            // อัปเดตคะแนนรวม
+            $('#total_score').text(score);
+            $('#total_score').removeClass('text-blue-600 text-red-600 text-green-600 text-orange-500');
+
+            if (score < 50) $('#total_score').addClass('text-red-600');
+            else if (score >= 100) $('#total_score').addClass('text-green-600');
+            else $('#total_score').addClass('text-orange-500');
+
+            $('#history_list').html(html);
+        }
+
+        async function logout() {
+            const result = await Swal.fire({
+                title: 'ออกจากระบบ?',
+                text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#ef4444',
+                confirmButtonText: 'ออกจากระบบ',
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (result.isConfirmed) {
+                await db.auth.signOut();
+                window.location.replace('login.html');
+            }
         }
     </script>
 </body>

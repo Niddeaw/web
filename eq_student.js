@@ -12,98 +12,120 @@ let timerSeconds = EQ_DELAY_DEFAULT;
 let canProceed = false;
 let delaySeconds = EQ_DELAY_DEFAULT;
 
-/* ── INIT ─────────────────────────────────────────── */
+/* ── INIT (ปรับปรุงเป็น Supabase Auth 100%) ─────────────────────────────────────────── */
 window.addEventListener('load', async () => {
-    // รับ student จาก localStorage (จาก login_student.html)
-    const studentId = localStorage.getItem('student_id');
-    const studentName = localStorage.getItem('student_name');
+    Swal.fire({
+        title: 'กำลังเตรียมระบบประเมิน...',
+        didOpen: () => Swal.showLoading(),
+        allowOutsideClick: false
+    });
 
-    if (!studentId) {
-        Swal.fire('กรุณาเข้าสู่ระบบ', '', 'warning').then(() => window.location.href = 'login.html');
-        return;
-    }
+    try {
+        // 1. ตรวจสอบ Session จาก Supabase
+        const { data: { session }, error: authError } = await db.auth.getSession();
 
-    document.getElementById('std-name').textContent = studentName || '';
-
-    // โหลด school info
-    const { data: si } = await db.from('core_school_info').select('*').single();
-    schoolInfo = si;
-
-    // โหลด delay setting
-    if (si) {
-        const { data: setting } = await db.from('eq_settings')
-            .select('delay_seconds')
-            .eq('academic_year', si.current_academic_year)
-            .eq('semester', si.current_semester)
-            .maybeSingle();
-        if (setting) delaySeconds = setting.delay_seconds;
-    }
-
-    // โหลดข้อมูลนักเรียน
-    const { data: std } = await db.from('core_students')
-        .select('id, prefix, first_name, last_name')
-        .eq('id', studentId).single();
-    currentStudent = std;
-
-    // หา classroom
-    if (si) {
-        const { data: enroll } = await db.from('student_enrollments')
-            .select('classroom_id')
-            .eq('student_id', studentId)
-            .maybeSingle();
-        currentClassroomId = enroll?.classroom_id || null;
-    }
-
-    // ตรวจสอบว่าทำเสร็จแล้วหรือยัง
-    if (si) {
-        const { data: done } = await db.from('eq_assessments')
-            .select('*')
-            .eq('student_id', studentId)
-            .eq('academic_year', si.current_academic_year)
-            .eq('semester', si.current_semester)
-            .maybeSingle();
-
-        if (done) {
-            showResult(done);
+        if (authError || !session) {
+            Swal.fire('กรุณาเข้าสู่ระบบ', 'ไม่พบการยืนยันตัวตน หรือเซสชันหมดอายุ', 'warning')
+                .then(() => window.location.href = 'login.html');
             return;
         }
 
-        // ตรวจสอบฉบับร่าง
+        // 2. ดึงเลขประจำตัวจาก Email (sid@student.wrk)
+        const sidFromEmail = session.user.email.split('@')[0];
+
+        // 3. โหลดข้อมูลเบื้องต้นของโรงเรียน (Academic Year/Semester)
+        const { data: si } = await db.from('core_school_info').select('*').single();
+        schoolInfo = si;
+
+        // 4. โหลดข้อมูลนักเรียนและห้องเรียนปัจจุบัน
+        const { data: std, error: stdError } = await db.from('core_students')
+            .select(`
+                *,
+                student_enrollments ( classroom_id )
+            `)
+            .eq('student_id_card', sidFromEmail)
+            .single();
+
+        if (stdError || !std) {
+            Swal.fire('ไม่พบข้อมูลนักเรียน', 'โปรดติดต่อครูที่ปรึกษาเพื่อตรวจสอบรายชื่อในระบบ', 'error')
+                .then(() => window.location.href = 'student_index.html');
+            return;
+        }
+
+        // เซ็ตตัวแปร Global
+        currentStudent = std;
+        currentClassroomId = std.student_enrollments?.[0]?.classroom_id;
+
+        // แสดงชื่อนักเรียนบนหน้าจอ
+        const fullName = `${std.prefix || ''}${std.first_name} ${std.last_name}`;
+        document.getElementById('std-name').textContent = fullName;
+
+        // 5. โหลดการตั้งค่าหน่วงเวลา (EQ Delay) จากฐานข้อมูล
+        if (si) {
+            const { data: setting } = await db.from('eq_settings')
+                .select('delay_seconds')
+                .eq('academic_year', si.current_academic_year)
+                .eq('semester', si.current_semester)
+                .maybeSingle();
+            
+            if (setting) delaySeconds = setting.delay_seconds;
+            else delaySeconds = EQ_DELAY_DEFAULT;
+        }
+
+        // 6. ตรวจสอบว่าเคยทำประเมินส่งไปแล้วหรือยัง
+        const isSubmitted = await checkExistingResult();
+        if (isSubmitted) return; // ถ้าส่งแล้ว โค้ดจะหยุดแค่นี้และเด้งกลับหน้าแรก
+
+        // 🌟 7. โหลด Draft (ถ้ามี) เผื่อเด็กทำค้างไว้
         const { data: draft } = await db.from('eq_drafts')
             .select('*')
-            .eq('student_id', studentId)
+            .eq('student_id', currentStudent.id)
             .eq('academic_year', si.current_academic_year)
             .eq('semester', si.current_semester)
             .maybeSingle();
 
-        if (draft && Object.keys(draft.answers || {}).length > 0) {
-            const cont = await Swal.fire({
-                title: 'ทำค้างไว้',
-                html: `<p class="text-sm">คุณทำค้างไว้ถึงข้อที่ <b class="text-indigo-600">${draft.current_question}</b><br>ต้องการทำต่อจากข้อเดิมไหม?</p>`,
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonText: 'ทำต่อจากข้อเดิม',
-                cancelButtonText: 'เริ่มใหม่',
-                confirmButtonColor: '#6366f1',
-            });
-            if (cont.isConfirmed) {
-                answers = draft.answers || {};
-                currentQ = draft.current_question || 1;
-            } else {
-                // ลบ draft เก่า
-                await db.from('eq_drafts').delete()
-                    .eq('student_id', studentId)
-                    .eq('academic_year', si.current_academic_year)
-                    .eq('semester', si.current_semester);
-                answers = {}; currentQ = 1;
-            }
+        if (draft && draft.answers) {
+            answers = draft.answers;
+            currentQ = draft.current_question || 1;
         }
-    }
 
-    document.getElementById('view-loading').classList.add('hidden');
-    document.getElementById('view-assessment').classList.remove('hidden');
-    renderQuestion();
+        // 🌟 8. ซ่อนหน้าโหลดของ HTML และแสดงหน้าข้อสอบ
+        const viewLoading = document.getElementById('view-loading');
+        if (viewLoading) viewLoading.classList.add('hidden'); // ซ่อน "กำลังตรวจสอบข้อมูล..."
+        
+        const viewAssessment = document.getElementById('view-assessment');
+        if (viewAssessment) viewAssessment.classList.remove('hidden'); // แสดงข้อสอบ
+
+        // 🌟 9. วาดข้อสอบและปิด Loading แบบ Pop-up
+        renderQuestion();
+        Swal.close();
+
+    } catch (err) {
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 });
+
+// ฟังก์ชันตรวจสอบผลการประเมินเดิม
+async function checkExistingResult() {
+    if (!currentStudent || !schoolInfo) return false;
+
+    // ตรวจสอบจากตาราง eq_assessments ว่ามีข้อมูลภาคเรียนนี้หรือยัง
+    const { data: exist } = await db.from('eq_assessments')
+        .select('id')
+        .eq('student_id', currentStudent.id)
+        .eq('academic_year', schoolInfo.current_academic_year)
+        .eq('semester', schoolInfo.current_semester)
+        .maybeSingle();
+
+    if (exist) {
+        // ถ้าเคยทำแล้ว บล็อกไม่ให้ทำซ้ำ
+        await Swal.fire('ทำประเมินแล้ว', 'คุณได้ส่งผลการประเมิน EQ ของภาคเรียนนี้เรียบร้อยแล้ว', 'info');
+        window.location.href = 'student_index.html';
+        return true;
+    }
+    return false;
+}
 
 /* ── RENDER QUESTION ────────────────────────────────── */
 function renderQuestion() {
@@ -119,7 +141,7 @@ function renderQuestion() {
     const prev = answers[`q${currentQ}`];
     document.querySelectorAll('.choice-btn').forEach(btn => {
         const v = parseInt(btn.dataset.val);
-        btn.className = `choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left ${prev === v ? `selected-${v}` : ''}`;
+        btn.className = `choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left transition-all ${prev === v ? `selected-${v} ring-2 ring-blue-500` : 'hover:bg-blue-50'}`;
     });
 
     // prev button
@@ -143,7 +165,10 @@ function startTimer() {
     timerSeconds = delaySeconds;
     const section = document.getElementById('timer-section');
     const countEl = document.getElementById('timer-count');
-    const textEl = document.getElementById('timer-text');
+    
+    // ตรวจสอบว่ามี element เหล่านี้หรือไม่
+    if (!section || !countEl) return;
+
     section.classList.remove('hidden');
     countEl.textContent = timerSeconds;
 
@@ -160,7 +185,8 @@ function startTimer() {
 }
 
 function enableNext() {
-    document.getElementById('btn-next').disabled = false;
+    const btn = document.getElementById('btn-next');
+    if(btn) btn.disabled = false;
 }
 
 /* ── SELECT CHOICE ─────────────────────────────────── */
@@ -168,7 +194,7 @@ function selectChoice(val) {
     answers[`q${currentQ}`] = val;
     document.querySelectorAll('.choice-btn').forEach(btn => {
         const v = parseInt(btn.dataset.val);
-        btn.className = `choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left ${v === val ? `selected-${v}` : ''}`;
+        btn.className = `choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left transition-all ${v === val ? `selected-${v} ring-2 ring-blue-500` : 'hover:bg-blue-50'}`;
     });
     if (canProceed) enableNext();
     saveDraft();
@@ -179,8 +205,12 @@ function prevQuestion() {
     if (currentQ <= 1) return;
     clearInterval(timerInterval);
     currentQ--;
-    document.getElementById('view-assessment').classList.add('fade-up');
-    setTimeout(() => document.getElementById('view-assessment').classList.remove('fade-up'), 400);
+    
+    const viewAssessment = document.getElementById('view-assessment');
+    if(viewAssessment) {
+        viewAssessment.classList.add('fade-up');
+        setTimeout(() => viewAssessment.classList.remove('fade-up'), 400);
+    }
     renderQuestion();
 }
 
@@ -222,6 +252,7 @@ async function submitAssessment() {
 
     Swal.fire({ title: 'กำลังบันทึกผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
+    // *หมายเหตุ: ต้องมีฟังก์ชัน buildAssessmentPayload อยู่ในสคริปต์หลัก (config หรือ core)
     const payload = buildAssessmentPayload(
         currentStudent.id, currentClassroomId,
         schoolInfo.current_academic_year, schoolInfo.current_semester,
@@ -234,7 +265,7 @@ async function submitAssessment() {
 
     if (error) { Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error'); return; }
 
-    // ลบ draft
+    // ลบ draft เมื่อส่งสำเร็จ
     await db.from('eq_drafts').delete()
         .eq('student_id', currentStudent.id)
         .eq('academic_year', schoolInfo.current_academic_year)
@@ -246,14 +277,11 @@ async function submitAssessment() {
 
 /* ── SHOW RESULT ─────────────────────────────────────── */
 function showResult(data) {
-    document.getElementById('view-loading').classList.add('hidden');
     document.getElementById('view-assessment').classList.add('hidden');
     document.getElementById('view-result').classList.remove('hidden');
 
-    const fullName = currentStudent
-        ? `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`
-        : localStorage.getItem('student_name') || '';
-
+    // 🌟 เปลี่ยนจาก localStorage มาใช้ currentStudent
+    const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
     document.getElementById('res-name').textContent = fullName;
 
     const totalLevel = data.level_total;
@@ -293,7 +321,9 @@ function showResult(data) {
 async function printResult() {
     Swal.fire({ title: 'กำลังสร้าง PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    const studentId = localStorage.getItem('student_id');
+    // 🌟 ลบการใช้ localStorage เปลี่ยนเป็น currentStudent.id
+    const studentId = currentStudent.id; 
+    
     const { data } = await db.from('eq_assessments')
         .select('*').eq('student_id', studentId)
         .eq('academic_year', schoolInfo.current_academic_year)
@@ -302,9 +332,8 @@ async function printResult() {
     Swal.close();
     if (!data) return;
 
-    const fullName = currentStudent
-        ? `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`
-        : localStorage.getItem('student_name');
+    // 🌟 ลบการใช้ localStorage เปลี่ยนเป็นใช้ currentStudent 
+    const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
 
     generateEQPdf(data, fullName);
 }
@@ -328,7 +357,7 @@ function generateEQPdf(data, fullName) {
         </div>
         <div style="background:#f8fafc;border-radius:12px;padding:16px;margin-bottom:20px">
             <p style="margin:0;font-size:14px"><b>ชื่อ-สกุล:</b> ${fullName}</p>
-            <p style="margin:4px 0 0;font-size:13px;color:#64748b">ประเมินเมื่อ: ${new Date(data.completed_at).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'})}</p>
+            <p style="margin:4px 0 0;font-size:13px;color:#64748b">ประเมินเมื่อ: ${new Date(data.completed_at || new Date()).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'})}</p>
         </div>
         <div style="text-align:center;background:${data.level_total==='สูงกว่าเกณฑ์'?'#dcfce7':data.level_total==='ตามเกณฑ์'?'#dbeafe':'#fee2e2'};border-radius:12px;padding:20px;margin-bottom:20px">
             <p style="font-size:28px;font-weight:900;color:${data.level_total==='สูงกว่าเกณฑ์'?'#15803d':data.level_total==='ตามเกณฑ์'?'#1d4ed8':'#b91c1c'};margin:0">${data.score_total} <span style="font-size:16px;font-weight:400;color:#64748b">/ 156 คะแนน</span></p>
@@ -355,9 +384,21 @@ function generateEQPdf(data, fullName) {
     }).from(el).save();
 }
 
+/* ── LOGOUT ─────────────────────────────────────────── */
 async function logout() {
-    localStorage.removeItem('student_id');
-    localStorage.removeItem('student_name');
-    localStorage.removeItem('student_sid');
-    window.location.href = 'index.html';
+    // 🌟 เปลี่ยนจาก localStorage เป็นการ Sign out ผ่าน Supabase
+    const result = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonText: 'ออกจากระบบ'
+    });
+
+    if (result.isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
 }

@@ -114,17 +114,17 @@
         let currentStudent = null;
         let portalModules = [];
 
-        // ✅ เพิ่ม Event Listener ตรงนี้
         window.addEventListener('load', async () => {
             await checkAuth();
         });
 
+        // ✅ ตรวจสอบ session จาก Supabase Auth แทน localStorage
         async function checkAuth() {
-            const studentId = localStorage.getItem('student_id');
-            const studentName = localStorage.getItem('student_name');
-            const studentSid = localStorage.getItem('student_sid');
+            // ดึง session ปัจจุบันจาก Supabase
+            const { data: { session }, error: sessionError } = await db.auth.getSession();
 
-            if (!studentId || !studentName) {
+            if (!session) {
+                // ไม่มี session → redirect กลับหน้า login
                 Swal.fire({
                     icon: 'warning',
                     title: 'กรุณาเข้าสู่ระบบ',
@@ -136,26 +136,47 @@
                 return;
             }
 
-            // แสดงข้อมูลนักเรียน
-            document.getElementById('student-name').textContent = studentName;
-            document.getElementById('student-id').textContent = studentSid ? `รหัส: ${studentSid}` : '';
+            // ✅ ดึง SID จาก email ที่ใช้ login (รูปแบบ: ${sid}@wrk.ac.th)
+            const userEmail = session.user.email;
+            const studentSid = userEmail.split('@')[0];
 
-            // โหลดข้อมูลนักเรียนจาก DB (ไม่จำเป็นต้องใช้แล้ว ถ้าไม่แสดงที่อื่น)
-            const { data: student } = await db.from('core_students')
+            // โหลดข้อมูลนักเรียนจาก DB โดยใช้ student_id_card (SID)
+            const { data: student, error: studentError } = await db
+                .from('core_students')
                 .select('*')
-                .eq('id', studentId)
+                .eq('student_id_card', studentSid)
                 .single();
+
+            if (studentError || !student) {
+                // หาข้อมูลนักเรียนไม่เจอ → ให้ออกจากระบบ
+                await db.auth.signOut();
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่พบข้อมูลนักเรียน',
+                    text: 'กรุณาติดต่อครูผู้ดูแลระบบ',
+                    confirmButtonColor: '#3b82f6'
+                }).then(() => {
+                    window.location.href = 'login.html';
+                });
+                return;
+            }
+
             currentStudent = student;
 
+            // ✅ แสดงชื่อ/รหัสนักเรียนจากข้อมูลฐานข้อมูล (ไม่จาก localStorage)
+            const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
+            document.getElementById('student-name').textContent = fullName;
+            document.getElementById('student-id').textContent = `รหัส: ${studentSid}`;
+
             // โหลด modules จาก DB
-            const { data: modules, error } = await db
+            const { data: modules, error: modulesError } = await db
                 .from('student_portal_modules')
                 .select('*')
                 .eq('is_active', true)
                 .order('display_order', { ascending: true });
 
-            if (error) {
-                console.error('Load modules error:', error);
+            if (modulesError) {
+                console.error('Load modules error:', modulesError);
                 portalModules = [];
             } else {
                 portalModules = modules || [];
@@ -163,45 +184,6 @@
 
             renderSystems();
         }
-
-        // function renderSystems() {
-        //     const grid = document.getElementById('systems-grid');
-        //     grid.innerHTML = '';
-        //     if (!portalModules.length) {
-        //         grid.innerHTML = `<div class="col-span-full text-center py-12 text-slate-400">...</div>`;
-        //         return;
-        //     }
-        //     portalModules.forEach(mod => {
-        //         const card = document.createElement('div');
-        //         card.className = `card-system glass rounded-2xl p-6 border border-slate-200/70 cursor-pointer transition-all duration-300`;
-        //         card.setAttribute('data-aos', 'zoom-in-up');
-        //         card.setAttribute('data-aos-delay', '50');
-        //         card.onclick = () => {
-        //             if (mod.target_blank) {
-        //                 window.open(mod.url, '_blank');
-        //             } else {
-        //                 window.location.href = mod.url;
-        //             }
-        //         };
-        //         card.innerHTML = `
-        //         <div class="flex items-start justify-between mb-4">
-        //             <div class="h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg"
-        //  style="background-color: ${mod.icon_bg_color || '#3b82f6'}; color: ${mod.icon_text_color || '#ffffff'};">
-        //                 <i class="${icon} text-2xl" style="color: ${mod.icon_text_color || '#ffffff'};"></i>
-        //             </div>
-        //             <span class="px-2.5 py-1 bg-emerald-100 text-emerald-600 text-[10px] font-bold rounded-full">
-        //                 <i class="fas fa-circle text-[6px]"></i> เปิดใช้งาน
-        //             </span>
-        //         </div>
-        //         <h3 class="text-lg font-bold text-slate-800 mb-2">${mod.title}</h3>
-        //         <p class="text-sm text-slate-600">${mod.description || ''}</p>
-        //         <div class="pt-3 border-t border-slate-100 flex items-center text-xs font-bold text-blue-600">
-        //             <i class="fas fa-arrow-right mr-1"></i> เข้าใช้งาน
-        //         </div>
-        //     `; // ใช้โครงสร้างเดิม
-        //         grid.appendChild(card);
-        //     });
-        // }
 
         // ฟังก์ชัน render เมนูระบบต่างๆ
         function renderSystems() {
@@ -249,8 +231,8 @@
                 grid.appendChild(card);
             });
         }
-        
-        // ฟังก์ชัน logout
+
+        // ✅ ออกจากระบบด้วย Supabase Auth แทน localStorage.removeItem
         async function handleLogout() {
             const result = await Swal.fire({
                 title: 'ออกจากระบบ?',
@@ -264,9 +246,8 @@
             });
 
             if (result.isConfirmed) {
-                localStorage.removeItem('student_id');
-                localStorage.removeItem('student_name');
-                localStorage.removeItem('student_sid');
+                // ✅ ใช้ Supabase signOut แทนการลบ localStorage
+                await db.auth.signOut();
 
                 Swal.fire({
                     icon: 'success',

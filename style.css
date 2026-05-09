@@ -435,3 +435,7 @@ select.field-input {
     background-color: #e0e7ff !important;
     color: #4f46e5 !important;
 }
+
+canvas {
+    max-width: 100%;
+}

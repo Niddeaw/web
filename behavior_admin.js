@@ -1,78 +1,30 @@
 let currentUser = null;
 let schoolInfo = null;
-let systemConfig = null;
+let systemConfig = null; 
 let allStudents = [];
 let criteriaList = [];
 let table = null;
 
-let studentTomSelect = null;
-let criteriaTomSelect = null;
-
-$(document).ready(async function () {
+$(document).ready(async function() {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     await checkAuth();
     await loadSchoolInfo();
     await loadSystemConfig();
-
-    // 1. ปรับปรุงการค้นหานักเรียน (ดึงระดับชั้น/ห้อง)
-    studentTomSelect = new TomSelect("#selected_student_id", {
-        valueField: 'id',
-        labelField: 'name_display',
-        searchField: ['student_id_card', 'first_name', 'last_name'],
-        load: async function (query, callback) {
-            if (query.length < 2) return callback();
-
-            // ดึงข้อมูลนักเรียนพร้อม Join student_enrollments และ core_classrooms
-            const { data, error } = await db.from('core_students')
-                .select(`
-                id, student_id_card, first_name, last_name,
-                student_enrollments!inner(
-                    core_classrooms!inner(grade_level, room_number)
-                )
-            `)
-                .or(`student_id_card.ilike.%${query}%,first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
-                .limit(10);
-
-            const results = data ? data.map(s => {
-                const enroll = s.student_enrollments?.[0]?.core_classrooms;
-                const roomInfo = enroll ? `[ม.${enroll.grade_level}/${enroll.room_number}]` : '[ไม่มีข้อมูลห้อง]';
-                return {
-                    id: s.id,
-                    name_display: `${s.student_id_card} - ${s.first_name} ${s.last_name} ${roomInfo}`,
-                    student_id_card: s.student_id_card,
-                    first_name: s.first_name,
-                    last_name: s.last_name,
-                    room_text: roomInfo
-                };
-            }) : [];
-            callback(results);
-        },
-        render: {
-            option: function (item, escape) {
-                return `<div class="p-2 border-b border-slate-50">
-                        <span class="font-bold text-blue-600">${escape(item.student_id_card)}</span> - 
-                        ${escape(item.first_name)} ${escape(item.last_name)} 
-                        <span class="text-slate-400 text-xs ml-2">${escape(item.room_text)}</span>
-                    </div>`;
-            }
-        }
-    });
-
     await loadCriteria();
     await initStudentTable();
     loadDashboard();
-
-    $('#evidence_file').change(function (e) {
+    
+    $('#evidence_file').change(function(e) {
         const file = e.target.files[0];
         if (file) {
             const reader = new FileReader();
-            reader.onload = function (e) { $('#evidence_preview').attr('src', e.target.result).removeClass('hidden'); }
+            reader.onload = function(e) { $('#evidence_preview').attr('src', e.target.result).removeClass('hidden'); }
             reader.readAsDataURL(file);
         } else {
             $('#evidence_preview').addClass('hidden');
         }
     });
-
+    
     Swal.close();
 });
 
@@ -81,26 +33,26 @@ async function checkAuth() {
     if (!session) { window.location.replace('index.html'); return; }
 
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-
+    
     const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
-
+    
     currentUser = profile;
     currentUser.managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
-    if (profile.role === 'super_admin') {
+    if(profile.role === 'super_admin') {
         $('#btn_settings').removeClass('hidden').addClass('flex');
         $('#btn_import_old').removeClass('hidden').addClass('flex'); // 🌟 เปิดปุ่มให้เฉพาะ Superuser
         $('#role_label').text('Superuser');
     } else {
         $('#role_label').text(`Admin หัวหน้าระดับชั้นมัธยมศึกษาปีที่ ${currentUser.managedGrades.join(', ')}`);
     }
-
+    
     if (profile.role !== 'super_admin' && currentUser.managedGrades.length === 0) {
-        window.location.replace('behavior_teacher.html');
+        window.location.replace('behavior_teacher.html'); 
         return;
     }
 
-
+    
     // 🌟 แก้ไขแสดงชื่อ-นามสกุลเต็ม
     $('#user_display').html(`ครู${profile.first_name} ${profile.last_name}`);
 }
@@ -120,82 +72,11 @@ async function loadSystemConfig() {
     systemConfig = data || null;
 }
 
-// 2. ระบบโหลดเกณฑ์คะแนน
-let allCriteriaRaw = [];
-
 async function loadCriteria() {
-    // ดึงข้อมูลเกณฑ์ทั้งหมด (ยังไม่ต้องให้ Database เรียงให้)
     const { data } = await db.from('behavior_criteria').select('*');
-    
-    allCriteriaRaw = data || [];
-    
-    // 🔴 1. เรียงลำดับข้อมูลด้วย Natural Sort (ให้ 1, 2, 10, 11 เรียงถูกต้องตามตัวเลข)
-    allCriteriaRaw.sort((a, b) => a.title.localeCompare(b.title, 'th', { numeric: true }));
-    
-    // ตั้งค่า Tom Select สำหรับเกณฑ์
-    criteriaTomSelect = new TomSelect("#criteria_select", {
-        valueField: 'id',
-        labelField: 'text',
-        searchField: 'text',
-        // 🔴 2. บังคับให้ Tom Select เรียงตามลำดับเป๊ะๆ ตามที่เราโยนเข้าไป (ไม่เรียงตามตัวอักษรเอง)
-        sortField: [{ field: '$order' }],
-        onChange: function(value) {
-            if(!value) { $('#score_input').val(''); return; }
-            const selected = allCriteriaRaw.find(c => c.id === value);
-            if(selected) {
-                $('#score_input').val(selected.category === 'negative' ? -selected.default_score : selected.default_score);
-            }
-        }
-    });
-
-    // เริ่มต้นกรองที่ 'positive' (ทำความดี) เป็นค่าพื้นฐาน
-    filterCriteriaByCategory('positive');
+    if (data) criteriaList = data;
 }
 
-// 3. ฟังก์ชันกรองเกณฑ์ตามประเภท (ทำความดี / ผิดระเบียบ)
-function filterCriteriaByCategory(category) {
-    // ตกแต่ง UI ปุ่ม Toggle
-    $('input[name="type_toggle"]').parent().removeClass('bg-white shadow-sm ring-2 ring-blue-500').addClass('bg-transparent');
-    $(`input[name="type_toggle"][value="${category}"]`).parent().addClass('bg-white shadow-sm ring-2 ring-blue-500');
-
-    // กรองข้อมูลจาก allCriteriaRaw (ที่เรียงลำดับตัวเลขไว้ถูกต้องแล้ว)
-    const filtered = allCriteriaRaw.filter(c => c.category === category);
-    
-    const options = filtered.map(c => ({
-        id: c.id,
-        text: `${c.title} (${c.category === 'negative' ? '-' : '+'}${c.default_score})`,
-    }));
-
-    if (criteriaTomSelect) {
-        criteriaTomSelect.clear();
-        criteriaTomSelect.clearOptions();
-        criteriaTomSelect.addOptions(options); // ใส่ Options เข้าไปในลำดับ 1, 2, 3...
-        criteriaTomSelect.refreshOptions(false);
-    }
-}
-
-// 4. แก้ไขฟังก์ชันตอนเปิด Modal ให้รับค่า type (positive/negative)
-function openRecordModal(type = 'positive') { 
-    $('#recordModal').removeClass('hidden').addClass('flex'); 
-    
-    // เคลียร์ค่าค้นหานักเรียนใน Tom Select
-    if(studentTomSelect) { 
-        studentTomSelect.clear(); 
-        studentTomSelect.clearOptions(); 
-    }
-    
-    // 🔴 เช็ค Radio Button ตามประเภทที่กดปุ่มเข้ามาอัตโนมัติ
-    $(`input[name="type_toggle"][value="${type}"]`).prop('checked', true);
-    
-    // เรียกฟังก์ชันกรองเกณฑ์คะแนนตามประเภทที่ส่งมา
-    filterCriteriaByCategory(type);
-
-    // เคลียร์ค่าฟอร์มอื่นๆ
-    $('#score_input').val('');
-    $('#description_text').val('');
-    $('#evidence_file').val('');
-    $('#evidence_preview').addClass('hidden');
-}
 
 async function initStudentTable() {
     // แสดงหน้าต่างโหลดข้อมูลค้างไว้ เพราะเด็ก 3000 คนอาจจะใช้เวลา 2-3 วินาที
@@ -225,9 +106,9 @@ async function initStudentTable() {
 
         // ถ้าดึงมาได้น้อยกว่า 1,000 แสดงว่าหมดตารางแล้ว ให้ออกจากลูป
         if (!data || data.length < limit) {
-            break;
+            break; 
         }
-
+        
         from += limit; // ขยับจุดเริ่มต้นไปอีก 1000
     }
 
@@ -238,7 +119,7 @@ async function initStudentTable() {
 
     // 🌟 เข้าสู่กระบวนการกรองข้อมูล (ลอจิกเดิมของคุณครู) 🌟
     let filteredStudents = allFetchedStudents;
-
+    
     // เช็คสิทธิ์การมองเห็นตามระดับชั้นที่รับผิดชอบ
     if (currentUser && currentUser.role !== 'super_admin' && currentUser.managedGrades && currentUser.managedGrades.length > 0) {
         filteredStudents = allFetchedStudents.filter(s => {
@@ -253,14 +134,14 @@ async function initStudentTable() {
         const posCount = s.behavior_logs?.filter(l => l.score_change > 0).length || 0;
         const negCount = s.behavior_logs?.filter(l => l.score_change < 0).length || 0;
         const enroll = s.student_enrollments?.[0];
-
+        
         return {
-            id: s.id,
-            sid: s.student_id_card,
+            id: s.id, 
+            sid: s.student_id_card, 
             name: `${s.first_name} ${s.last_name}`,
             room: enroll && enroll.core_classrooms ? `${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-',
-            score: totalScore,
-            pos: posCount,
+            score: totalScore, 
+            pos: posCount, 
             neg: negCount
         };
     });
@@ -272,16 +153,18 @@ async function initStudentTable() {
 
 function renderTable(data) {
     if ($.fn.DataTable.isDataTable('#studentTable')) $('#studentTable').DataTable().destroy();
-
+    
     table = $('#studentTable').DataTable({
         data: data.map(s => [
-            `<span class="font-medium text-slate-700">${s.sid}</span>`,
-            `<span class="font-bold text-blue-800">${s.name}</span>`,
-            `<span class="text-slate-600">ม.${s.room}</span>`,
+            `<span class="font-medium text-slate-700">${s.sid}</span>`, 
+            `<span class="font-bold text-blue-800">${s.name}</span>`, 
+            `<span class="text-slate-600">ม.${s.room}</span>`, 
             `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
             `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
         ]),
-        responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+        responsive: true, 
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        
     });
 }
 
@@ -292,52 +175,52 @@ function loadDashboard() {
     $('#stat_low').text(allStudents.filter(s => s.score < 50).length);
 }
 
-// async function searchStudent(val) {
-//     if (val.length < 2) { $('#search_results').hide(); return; }
-//     const matched = allStudents.filter(s => s.sid.includes(val) || s.name.includes(val)).slice(0, 5);
-//     let html = '';
-//     matched.forEach(s => {
-//         html += `<div onclick="selectStudent('${s.id}', '${s.sid} - ${s.name}')" class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">${s.sid} - ${s.name} (ม.${s.room})</div>`;
-//     });
-//     $('#search_results').html(html).show();
-// }
+async function searchStudent(val) {
+    if(val.length < 2) { $('#search_results').hide(); return; }
+    const matched = allStudents.filter(s => s.sid.includes(val) || s.name.includes(val)).slice(0, 5);
+    let html = '';
+    matched.forEach(s => {
+        html += `<div onclick="selectStudent('${s.id}', '${s.sid} - ${s.name}')" class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">${s.sid} - ${s.name} (ม.${s.room})</div>`;
+    });
+    $('#search_results').html(html).show();
+}
 
-// function selectStudent(id, info) {
-//     $('#selected_student_id').val(id);
-//     $('#selected_student_name').text(`นักเรียนที่เลือก: ${info}`);
-//     $('#selected_student_info').removeClass('hidden').addClass('flex');
-//     $('#search_results').hide(); $('#search_student').val('');
-// }
+function selectStudent(id, info) {
+    $('#selected_student_id').val(id);
+    $('#selected_student_name').text(`นักเรียนที่เลือก: ${info}`);
+    $('#selected_student_info').removeClass('hidden').addClass('flex');
+    $('#search_results').hide(); $('#search_student').val('');
+}
 
 function clearSelectedStudent() {
     $('#selected_student_id').val('');
     $('#selected_student_info').addClass('hidden').removeClass('flex');
 }
 
-// function openRecordModal(type = 'all') { 
-//     $('#recordModal').removeClass('hidden').addClass('flex'); 
-//     let html = '<option value="">-- เลือกรายการความประพฤติ --</option>';
-//     let filteredCriteria = criteriaList;
+function openRecordModal(type = 'all') { 
+    $('#recordModal').removeClass('hidden').addClass('flex'); 
+    let html = '<option value="">-- เลือกรายการความประพฤติ --</option>';
+    let filteredCriteria = criteriaList;
+    
+    if (type !== 'all') {
+        filteredCriteria = criteriaList.filter(c => c.category === type);
+        if (type === 'positive') $('#modalTitle').html('<i class="fas fa-plus-circle mr-3 text-green-600"></i>เพิ่มคะแนน (ทำความดี)');
+        else $('#modalTitle').html('<i class="fas fa-minus-circle mr-3 text-red-600"></i>ตัดคะแนน (ผิดระเบียบ)');
+    } else {
+        $('#modalTitle').html('<i class="fas fa-edit mr-3 text-blue-600"></i>บันทึกความประพฤติ');
+    }
 
-//     if (type !== 'all') {
-//         filteredCriteria = criteriaList.filter(c => c.category === type);
-//         if (type === 'positive') $('#modalTitle').html('<i class="fas fa-plus-circle mr-3 text-green-600"></i>เพิ่มคะแนน (ทำความดี)');
-//         else $('#modalTitle').html('<i class="fas fa-minus-circle mr-3 text-red-600"></i>ตัดคะแนน (ผิดระเบียบ)');
-//     } else {
-//         $('#modalTitle').html('<i class="fas fa-edit mr-3 text-blue-600"></i>บันทึกความประพฤติ');
-//     }
+    filteredCriteria.forEach(c => {
+        html += `<option value="${c.id}" data-score="${c.category === 'negative' ? -c.default_score : c.default_score}">${c.title} (${c.category === 'negative' ? '-' : '+'}${c.default_score})</option>`;
+    });
+    
+    $('#criteria_select').html(html);
+    $('#score_input').val('');
+}
 
-//     filteredCriteria.forEach(c => {
-//         html += `<option value="${c.id}" data-score="${c.category === 'negative' ? -c.default_score : c.default_score}">${c.title} (${c.category === 'negative' ? '-' : '+'}${c.default_score})</option>`;
-//     });
-
-//     $('#criteria_select').html(html);
-//     $('#score_input').val('');
-// }
-
-// function updateDefaultScore() { $('#score_input').val($('#criteria_select option:selected').data('score')); }
-function closeRecordModal() {
-    $('#recordModal').addClass('hidden').removeClass('flex');
+function updateDefaultScore() { $('#score_input').val($('#criteria_select option:selected').data('score')); }
+function closeRecordModal() { 
+    $('#recordModal').addClass('hidden').removeClass('flex'); 
     $('#evidence_file').val(''); $('#evidence_preview').addClass('hidden');
 }
 
@@ -355,7 +238,7 @@ async function resizeImage(file, maxWidth = 1000) {
                 if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
                 canvas.width = width; canvas.height = height;
                 canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.8);
+                canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.8); 
             };
         };
     });
@@ -364,7 +247,7 @@ async function resizeImage(file, maxWidth = 1000) {
 function blobToBase64(blob) {
     return new Promise((resolve) => {
         const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onloadend = () => resolve(reader.result.split(',')[1]); 
         reader.readAsDataURL(blob);
     });
 }
@@ -374,8 +257,8 @@ async function saveBehaviorRecord() {
     const criteriaId = $('#criteria_select').val();
     const score = parseInt($('#score_input').val());
     const fileInput = $('#evidence_file')[0].files[0];
-
-    if (!studentId || !criteriaId || isNaN(score)) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
+    
+    if(!studentId || !criteriaId || isNaN(score)) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
 
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -385,25 +268,25 @@ async function saveBehaviorRecord() {
         if (!systemConfig || !systemConfig.gas_url || !systemConfig.drive_folder_id) {
             return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'แอดมินยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive API', 'error');
         }
-
+        
         try {
             Swal.fire({ title: 'กำลังย่อขนาดและอัปโหลดรูปภาพ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
+            
             const resizedBlob = await resizeImage(fileInput);
             const base64Data = await blobToBase64(resizedBlob);
-
+            
             const response = await fetch(systemConfig.gas_url, {
                 method: "POST",
                 body: JSON.stringify({
                     base64: base64Data,
                     fileName: `behavior_${studentId}_${Date.now()}.jpg`,
-                    folderId: systemConfig.drive_folder_id
+                    folderId: systemConfig.drive_folder_id 
                 })
             });
             const resData = await response.json();
-            if (resData.status === "success") finalImageUrl = resData.url;
+            if(resData.status === "success") finalImageUrl = resData.url;
             else throw new Error(resData.message);
-
+            
         } catch (err) {
             console.error("Upload Error: ", err);
             return Swal.fire('อัปโหลดรูปไม่สำเร็จ', 'โปรดตรวจสอบการเชื่อมต่อ API ของ Google', 'error');
@@ -419,7 +302,7 @@ async function saveBehaviorRecord() {
         academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester
     }]);
 
-    if (!error) {
+    if(!error) {
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
         clearSelectedStudent();
         $('#criteria_select').val(''); $('#score_input').val(''); $('#description_text').val('');
@@ -457,7 +340,7 @@ async function importFromGoogleSheet() {
         return Swal.fire('ผิดพลาด', 'ไม่พบรหัส Sheet ID จากลิงก์', 'error');
     }
     const sheetId = match[1];
-
+    
     // แปลงลิงก์เพื่อสั่งให้ Google ส่งไฟล์กลับมาเป็น CSV
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
 
@@ -467,9 +350,9 @@ async function importFromGoogleSheet() {
         // ดึงข้อมูลผ่าน Fetch API
         const response = await fetch(csvUrl);
         if (!response.ok) throw new Error('ไม่สามารถเข้าถึงไฟล์ได้ กรุณาตรวจสอบว่าเปิดการแชร์ไฟล์เป็นสาธารณะ (Anyone with the link) แล้วหรือยัง');
-
+        
         const csvText = await response.text();
-
+        
         // แปลง CSV Text เป็น JSON ด้วย SheetJS (XLSX) ที่เรามีโหลดไว้อยู่แล้ว
         const wb = XLSX.read(csvText, { type: 'string', raw: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
@@ -492,11 +375,11 @@ async function processImportData(rows) {
 
     if (dataRows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ (ตรวจสอบว่ามีคอลัมน์ "รหัสนักเรียน" หรือไม่)');
 
-    Swal.fire({
+    Swal.fire({ 
         title: `พบข้อมูล ${dataRows.length} รายการ`,
         text: 'กำลังประมวลผลและตรวจสอบรหัสนักเรียน...',
-        didOpen: () => Swal.showLoading(),
-        allowOutsideClick: false
+        didOpen: () => Swal.showLoading(), 
+        allowOutsideClick: false 
     });
 
     // ── 1. ดึงข้อมูลนักเรียนทั้งหมด ──
@@ -511,7 +394,7 @@ async function processImportData(rows) {
     (criteriaList || []).forEach(c => criteriaCache.set(c.title.trim(), c.id));
 
     const uniqueNewCriteria = new Map();
-
+    
     dataRows.forEach(row => {
         const title = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
         const scoreChange = parseInt(String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, ''));
@@ -557,8 +440,8 @@ async function processImportData(rows) {
     const errors = [];
 
     for (const row of dataRows) {
-        const stdCode = String(row['รหัสนักเรียน'] || '').trim();
-        const title = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
+        const stdCode  = String(row['รหัสนักเรียน'] || '').trim();
+        const title    = String(row['รายการ'] || 'ประวัติจากระบบเก่า (นำเข้า)').trim();
         const scoreRaw = String(row['คะแนน'] || '0').replace(/[^0-9+\-]/g, '');
         let scoreChange = parseInt(scoreRaw);
 
@@ -581,15 +464,15 @@ async function processImportData(rows) {
         const fullDesc = [desc, recorder ? `ผู้บันทึกเดิม: ${recorder}` : ''].filter(Boolean).join(' | ');
 
         logsToInsert.push({
-            student_id: stdUuid,
-            criteria_id: criteriaId,
-            score_change: scoreChange,
-            description: fullDesc || null,
-            evidence_url: String(row['หลักฐาน (URL)'] || row['หลักฐาน'] || '').trim() || null,
-            created_at: parseDateTime(row['วันที่/เวลา']),
-            recorder_id: currentUser.id,
+            student_id:    stdUuid,
+            criteria_id:   criteriaId,
+            score_change:  scoreChange,
+            description:   fullDesc || null,
+            evidence_url:  String(row['หลักฐาน (URL)'] || row['หลักฐาน'] || '').trim() || null,
+            created_at:    parseDateTime(row['วันที่/เวลา']),
+            recorder_id:   currentUser.id,
             academic_year: schoolInfo.current_academic_year,
-            semester: schoolInfo.current_semester
+            semester:      schoolInfo.current_semester
         });
     }
 
@@ -616,9 +499,9 @@ async function processImportData(rows) {
         html: `<p>บันทึก <b>${success}</b> รายการ</p>
                ${skipCount > 0 ? `<p class="text-sm text-amber-600 mt-1">ข้าม ${skipCount} รายการ (ไม่พบรหัส/คะแนนผิด)</p>` : ''}
                ${errors.length > 0 ? `<details class="mt-2 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error</summary>
-               <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0, 10).join('\n')}</pre></details>` : ''}`
+               <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0,10).join('\n')}</pre></details>` : ''}`
     });
-
+    
     // รีเฟรชตารางหลังนำเข้าเสร็จ
     initStudentTable();
     loadDashboard();
@@ -626,16 +509,16 @@ async function processImportData(rows) {
 
 function filterByScore(type) {
     let filtered = [];
-    if (type === 'positive') filtered = allStudents.filter(s => s.pos > 0);
-    else if (type === 'negative') filtered = allStudents.filter(s => s.neg > 0);
-    else if (type === 'high') filtered = allStudents.filter(s => s.score > 100);
-    else if (type === 'low') filtered = allStudents.filter(s => s.score < 50);
+    if(type === 'positive') filtered = allStudents.filter(s => s.pos > 0);
+    else if(type === 'negative') filtered = allStudents.filter(s => s.neg > 0);
+    else if(type === 'high') filtered = allStudents.filter(s => s.score > 100);
+    else if(type === 'low') filtered = allStudents.filter(s => s.score < 50);
     renderTable(filtered);
 }
 
 function filterCustomScore(mode) {
     const val = parseInt($('#filter_score_val').val());
-    if (isNaN(val)) return;
+    if(isNaN(val)) return;
     renderTable(allStudents.filter(s => mode === 'more' ? s.score > val : s.score < val));
 }
 

@@ -35,79 +35,191 @@ const sdqQuestions = [
     { id: 25, text: "ทำงานจนเสร็จ มีความตั้งใจ", cat: "hyper", reverse: true } // Reverse
 ];
 
-$(document).ready(async function() {
+$(document).ready(async () => {
+    // 1. ตรวจสอบ Auth และดึงข้อมูล
     await checkStudentAuth();
-    await fetchCoreInfo();
+
+    // 2. ค่อยๆ แสดงหน้าเว็บขึ้นมา
+    setTimeout(() => $('#mainBody').removeClass('opacity-0'), 100);
 });
 
+// 🌟 ฟังก์ชันตรวจสอบสิทธิ์และดึงข้อมูลนักเรียน (ฉบับแก้ไขอาการค้าง)
 async function checkStudentAuth() {
-    const { data: { user } } = await db.auth.getUser();
-    if (!user) {
-        window.location.href = 'login.html';
-        return;
+    try {
+        // 1. ตรวจสอบ Session จาก Supabase
+        const { data: { session }, error: authError } = await db.auth.getSession();
+        if (authError || !session) {
+            window.location.href = 'login.html';
+            return;
+        }
+
+        // 2. ดึงข้อมูลปีการศึกษาปัจจุบัน (สำคัญมาก: ต้องมีค่าก่อนทำขั้นตอนอื่น)
+        const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
+        currentSchoolInfo = schoolInfo;
+
+        // 3. ดึงเลขประจำตัวจาก Email (sid@student.wrk)
+        const sidFromEmail = session.user.email.split('@')[0];
+
+        // 4. ดึงข้อมูลนักเรียนและห้องเรียน
+        const { data: studentData, error: stdError } = await db
+            .from('core_students')
+            .select(`
+                *,
+                student_enrollments (
+                    id, student_number, academic_year, classroom_id,
+                    core_classrooms (grade_level, room_number)
+                )
+            `)
+            .eq('student_id_card', sidFromEmail)
+            .single();
+
+        if (stdError || !studentData) throw new Error("ไม่พบข้อมูลนักเรียนในฐานข้อมูล");
+
+        // เซ็ตตัวแปร Global
+        currentUser = studentData;
+
+        // 5. หาข้อมูลการลงทะเบียน (Enrollment) ของปีการศึกษาปัจจุบัน
+        if (studentData.student_enrollments && studentData.student_enrollments.length > 0) {
+            currentEnrollment = studentData.student_enrollments.find(
+                e => e.academic_year === currentSchoolInfo.current_academic_year
+            ) || studentData.student_enrollments[0];
+        }
+
+        // 🌟 6. อัปเดตข้อมูลลงบนหน้าจอ (แถบด้านบน)
+        const fullName = `${studentData.prefix || ''}${studentData.first_name} ${studentData.last_name}`;
+        const userInfoEl = document.getElementById('userInfoDisplay');
+        if (userInfoEl) {
+            let roomText = '';
+            if (currentEnrollment && currentEnrollment.core_classrooms) {
+                const cls = currentEnrollment.core_classrooms;
+                roomText = ` (ม.${cls.grade_level}/${cls.room_number})`;
+            }
+            userInfoEl.textContent = `${fullName}${roomText}`;
+        }
+
+        // 🌟 7. ปิดหน้าโหลด แล้วโชว์ "หน้าเลือกบทบาท"
+        const viewLoading = document.getElementById('view-loading');
+        if (viewLoading) viewLoading.classList.add('hidden');
+
+        // แสดงหน้าเลือกผู้ประเมิน
+        const roleSelection = document.getElementById('role-selection');
+        if (roleSelection) roleSelection.classList.remove('hidden');
+
+        Swal.close();
+
+    } catch (err) {
+        console.error("Auth Error:", err);
+        Swal.fire('พบข้อผิดพลาด', err.message, 'error');
     }
-    
-    // ดึงข้อมูลนักเรียนและห้องเรียนปัจจุบัน (Single Source of Truth)
-    const { data: studentData, error } = await db
-        .from('core_students')
-        .select(`
-            id, first_name, last_name, prefix,
-            student_enrollments (id, student_number, core_classrooms(grade_level, room_number))
-        `)
-        .eq('id', user.id)
-        .single();
-        
-    if (error || !studentData) {
-        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลนักเรียนในระบบ', 'error');
-        return;
-    }
-    
-    currentUser = studentData;
-    // ดึง enrollment ล่าสุด (สมมติว่า index 0 คือปีปัจจุบัน จัดเรียงจาก API หลัก)
-    currentEnrollment = studentData.student_enrollments[0];
-    const room = currentEnrollment.core_classrooms;
-    
-    $('#userInfoDisplay').text(`${studentData.prefix}${studentData.first_name} ${studentData.last_name} | ม.${room.grade_level}/${room.room_number} เลขที่ ${currentEnrollment.student_number}`);
 }
 
-async function fetchCoreInfo() {
-    const { data } = await db.from('core_school_info').select('*').single();
-    currentSchoolInfo = data;
-}
-
-async function checkExistingResult() {
-    const { data, error } = await db
-        .from('sdq_assessments')
-        .select('*')
-        .eq('student_id', currentUser.id)
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester);
-        
-    if (data && data.length > 0) {
-        renderResult(data[0]);
-    } else {
-        Swal.fire('ข้อมูล', 'ยังไม่มีประวัติการทำแบบประเมินในเทอมนี้', 'info');
-    }
-}
-
-function startSDQ(role) {
-    activeRole = role;
+/* ── ฟังก์ชันเริ่มทำแบบประเมิน (คลิกจากหน้าเลือกบทบาท) ── */
+async function startSDQ(role) {
+    activeRole = role; // กำหนดค่าบทบาท 'student' หรือ 'parent'
     $('#roleSelection').hide();
+    // พอเลือกบทบาทเสร็จ ให้เรียกฟังก์ชันตรวจสอบประวัติ
+    await checkExistingAssessment();
     $('#sdqForm').removeClass('hidden');
     renderQuestion();
+}
+
+
+// 🌟 ฟังก์ชันตรวจสอบว่าเคยทำประเมินในเทอมนี้ไปหรือยัง
+async function checkExistingAssessment() {
+    Swal.fire({ title: 'กำลังตรวจสอบข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { data: exist } = await db.from('sdq_assessments')
+            .select('*')
+            .eq('student_id', currentUser.id)
+            .eq('academic_year', currentSchoolInfo.current_academic_year)
+            .eq('semester', currentSchoolInfo.current_semester)
+            .eq('assessor_type', activeRole)
+            .maybeSingle();
+
+        Swal.close();
+
+        if (exist) {
+            const result = await Swal.fire({
+                title: 'คุณเคยประเมินแล้ว!',
+                text: `ระบบพบผลการประเมิน SDQ (ในฐานะ${activeRole === 'parent' ? 'ผู้ปกครอง' : 'นักเรียน'}) ของเทอมนี้แล้ว`,
+                icon: 'info',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-chart-pie mr-1"></i> ดูผลประเมิน',
+                cancelButtonText: '<i class="fas fa-redo mr-1"></i> ทำใหม่',
+                confirmButtonColor: '#4f46e5',
+                cancelButtonColor: '#f59e0b',
+                allowOutsideClick: false
+            });
+
+            if (result.isConfirmed) {
+                $('#roleSelection').addClass('hidden');
+                $('#sdqForm').addClass('hidden');
+                $('#welcomeSection').hide();
+                $('#resultView').removeClass('hidden');
+
+                if (typeof renderSDQResult === 'function') {
+                    renderSDQResult(exist);
+                } else {
+                    renderResult(exist);
+                }
+
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
+                answers = {};
+                currentQIndex = 0;
+                $('#roleSelection').addClass('hidden');
+                $('#sdqForm').removeClass('hidden');
+                renderQuestion();
+            }
+        } else {
+            $('#roleSelection').addClass('hidden');
+            $('#sdqForm').removeClass('hidden');
+            renderQuestion();
+        }
+    } catch (err) {
+        console.error("Check Exist Error:", err);
+        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถตรวจสอบข้อมูลเดิมได้', 'error');
+    }
+}
+
+function renderSDQResult(data) {
+    $('#roleSelection, #sdqForm, #welcomeSection').hide();
+    $('#resultView').removeClass('hidden');
+    renderResult(data);
+}
+
+/* ── ฟังก์ชันดูผลย้อนหลัง (คลิกลิงก์ด้านล่าง) ── */
+async function checkExistingResult() {
+    // เด้งให้เลือกก่อนว่าจะดูผลของใคร
+    const { value: role } = await Swal.fire({
+        title: 'เลือกผลประเมินที่ต้องการดู',
+        input: 'select',
+        inputOptions: {
+            'student': 'นักเรียนประเมินตนเอง',
+            'parent': 'ผู้ปกครองประเมินนักเรียน'
+        },
+        inputPlaceholder: 'เลือกบทบาท...',
+        showCancelButton: true,
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    // ถ้าเด็กเลือกแล้วกดตกลง
+    if (role) {
+        activeRole = role;
+        await checkExistingAssessment(); // ใช้ฟังก์ชันเช็คประวัติที่เรามีอยู่แล้วดึงข้อมูลมาให้เลย
+    }
 }
 
 function renderQuestion() {
     const q = sdqQuestions[currentQIndex];
     $('#questionText').text(`${q.id}. ${q.text}`);
-    
-    // อัปเดต Progress
+
     const percent = Math.round(((currentQIndex) / 25) * 100);
     $('#progressBar').css('width', `${percent}%`);
     $('#progressText').text(`ข้อที่ ${currentQIndex + 1} / 25`);
     $('#percentText').text(`${percent}%`);
-    
-    // เคลียร์ Radio
+
     $('input[name="sdqChoice"]').prop('checked', false);
     if (answers[q.id] !== undefined) {
         $(`#choice${answers[q.id]}`).prop('checked', true);
@@ -116,9 +228,8 @@ function renderQuestion() {
         $('#btnNext').addClass('hidden');
     }
 
-    // จัดการปุ่ม
     $('#btnPrev').toggleClass('hidden', currentQIndex === 0);
-    
+
     if (currentQIndex === 24 && answers[q.id] !== undefined) {
         $('#btnSubmit').removeClass('hidden');
         $('#btnNext').addClass('hidden');
@@ -128,16 +239,21 @@ function renderQuestion() {
 }
 
 function selectAnswer(val) {
-    answers[sdqQuestions[currentQIndex].id] = val;
+    const currentQ = sdqQuestions[currentQIndex];
+    answers[currentQ.id] = parseInt(val);
+
+    // อัปเดต UI ทันที
     $('#btnNext').removeClass('hidden');
-    if(currentQIndex === 24) {
+
+    if (currentQIndex === 24) {
         $('#btnSubmit').removeClass('hidden');
         $('#btnNext').addClass('hidden');
     } else {
-        // Auto-next for UX
+        // เลื่อนไปข้อถัดไปอัตโนมัติหลังจากเลือกคำตอบ
         setTimeout(() => navQuestion(1), 300);
     }
 }
+
 
 function navQuestion(step) {
     currentQIndex += step;
@@ -150,25 +266,27 @@ async function submitAssessment() {
         return;
     }
 
-    Swal.fire({ title: 'กำลังคำนวณผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+        title: 'กำลังคำนวณและบันทึกผล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
-    // 1. คำนวณคะแนน
     let scores = { emotional: 0, conduct: 0, hyper: 0, peer: 0, prosocial: 0 };
-    
+
     sdqQuestions.forEach(q => {
-        let val = answers[q.id];
+        let val = parseInt(answers[q.id]) || 0;
         if (q.reverse) {
-            val = val === 0 ? 2 : (val === 2 ? 0 : 1); // กลับคะแนน
+            val = val === 0 ? 2 : (val === 2 ? 0 : 1);
         }
         scores[q.cat] += val;
     });
 
     const totalScore = scores.emotional + scores.conduct + scores.hyper + scores.peer;
 
-    // 2. เตรียมข้อมูลบันทึกลง DB
     const payload = {
         student_id: currentUser.id,
-        enrollment_id: currentEnrollment.id,
+        enrollment_id: currentEnrollment?.id,
         academic_year: currentSchoolInfo.current_academic_year,
         semester: currentSchoolInfo.current_semester,
         assessor_type: activeRole,
@@ -180,37 +298,41 @@ async function submitAssessment() {
         total_difficulty_score: totalScore
     };
 
-    // ใส่คะแนนรายข้อ q1-q25
-    for(let i=1; i<=25; i++) { payload[`q${i}`] = answers[i]; }
+    for (let i = 1; i <= 25; i++) {
+        payload[`q${i}`] = answers[i] || 0;
+    }
 
-    // 3. บันทึก (ใช้ Upsert เพื่อให้ทำซ้ำ/แก้ไขได้)
-    const { error } = await db.from('sdq_assessments').upsert(payload, { onConflict: 'enrollment_id, assessor_type' });
+    const { error } = await db.from('sdq_assessments').upsert(payload, {
+        onConflict: 'enrollment_id, assessor_type'
+    });
 
-    Swal.close();
+    if (!currentEnrollment?.id) {
+        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลการลงทะเบียนนักเรียน', 'error');
+        return;
+    }
+    payload.enrollment_id = currentEnrollment.id;
+
     if (error) {
-        Swal.fire('Error', 'เกิดข้อผิดพลาดในการบันทึกข้อมูล: ' + error.message, 'error');
+        Swal.fire('Error', 'เกิดข้อผิดพลาด: ' + error.message, 'error');
     } else {
+        Swal.close();
         renderResult(payload);
     }
 }
-
-// ในไฟล์ sdq_student.js ค้นหาฟังก์ชัน renderResult แล้วแทนที่ด้วยโค้ดนี้
 
 function renderResult(data) {
     $('#roleSelection, #sdqForm, #welcomeSection').hide();
     $('#resultView').removeClass('hidden');
 
-    // เกณฑ์การแปลผล (ปรับสีให้เข้ากับ Tailwind ธีม)
     const getRiskLevel = (score, type) => {
-        if(type === 'total') return score <= 15 ? ['ปกติ', 'bg-emerald-50 border-emerald-200 text-emerald-700', 'text-emerald-600'] 
-                                : score <= 18 ? ['เสี่ยง', 'bg-amber-50 border-amber-200 text-amber-700', 'text-amber-500'] 
-                                : ['มีปัญหา', 'bg-rose-50 border-rose-200 text-rose-700', 'text-rose-600'];
+        if (type === 'total') return score <= 15 ? ['ปกติ', 'bg-emerald-50 border-emerald-200 text-emerald-700', 'text-emerald-600']
+            : score <= 18 ? ['เสี่ยง', 'bg-amber-50 border-amber-200 text-amber-700', 'text-amber-500']
+                : ['มีปัญหา', 'bg-rose-50 border-rose-200 text-rose-700', 'text-rose-600'];
         return ['ปกติ', 'bg-slate-50', 'text-slate-700'];
     };
 
     const totalStatus = getRiskLevel(data.total_difficulty_score, 'total');
 
-    // อัปเดต UI รายด้าน (ใช้สไตล์การ์ดเล็ก)
     $('#scoreDetails').html(`
         <div class="p-4 border border-slate-100 bg-slate-50 rounded-xl flex justify-between items-center">
             <span class="text-sm font-bold text-slate-600">ด้านอารมณ์</span>
@@ -230,7 +352,6 @@ function renderResult(data) {
         </div>
     `);
 
-    // อัปเดตกล่องคะแนนรวม
     $('#totalScoreCard').attr('class', `mt-6 p-6 rounded-2xl border-2 text-center ${totalStatus[1]}`);
     $('#totalScoreCard').html(`
         <div class="text-sm font-bold opacity-80 uppercase tracking-wide mb-2">คะแนนรวมความยากลำบาก</div>
@@ -238,16 +359,18 @@ function renderResult(data) {
         <div class="inline-block px-4 py-1.5 bg-white/60 rounded-full text-sm font-bold mt-2 shadow-sm ${totalStatus[2]}">
             ผลการประเมิน: ${totalStatus[0]}
         </div>
+        <div class="text-xs text-slate-400 mt-3">*ประเมินในฐานะ: ${data.assessor_type === 'parent' ? 'ผู้ปกครอง' : 'นักเรียน'}</div>
     `);
 }
 
 function exportToPDF() {
     const element = document.getElementById('printArea');
+    const roleName = activeRole === 'parent' ? 'Parent' : 'Student';
     const opt = {
-        margin: 0.5,
-        filename: `SDQ_${currentUser.first_name}_${currentSchoolInfo.current_academic_year}.pdf`,
+        margin: [0.5, 0.5, 0.5, 0.5], // Top, Left, Bottom, Right
+        filename: `SDQ_${currentUser.first_name}_${roleName}_${currentSchoolInfo.current_academic_year}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2 },
+        html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
     };
     html2pdf().set(opt).from(element).save();

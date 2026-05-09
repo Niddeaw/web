@@ -29,7 +29,8 @@
             </div>
         </div>
         <div class="flex items-center gap-2 md:gap-3">
-            <span id="user_display" class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
+            <span id="user_display"
+                class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
 
             <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
                 class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm">
@@ -60,7 +61,7 @@
         </div>
 
         <div class="glass p-6 rounded-3xl">
-            <table id="teacherTable" class="w-full text-sm display nowrap">
+            <table id="teacherTable" class="w-full text-sm">
                 <thead>
                     <tr>
                         <th class="py-3 px-4 text-left">เลขที่</th>
@@ -147,7 +148,23 @@
                     `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
                     `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
                 ]),
-                destroy: true, responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, pageLength: 50
+                destroy: true,
+                // 🌟 1. ตั้งค่าการกดขยายข้อมูล
+                responsive: {
+                    details: {
+                        type: 'column',
+                        target: 'tr' // ให้ผู้ใช้สามารถกดที่ใดก็ได้ในแถวเพื่อกางข้อมูลที่ซ่อนอยู่ออกมา
+                    }
+                },
+
+                // 🌟 2. จัดลำดับความสำคัญของคอลัมน์ (1 = สำคัญสุด ห้ามซ่อน)
+                columnDefs: [
+                    { responsivePriority: 1, targets: 2 }, // ลำดับ 1: คอลัมน์ "ชื่อ-นามสกุล"
+                    { responsivePriority: 2, targets: 4 }, // ลำดับ 2: คอลัมน์ "ปุ่มจัดการ"
+                    { responsivePriority: 3, targets: 0 }, // ลำดับ 3: คอลัมน์ "เลขที่"
+                ],
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                pageLength: 50,
             });
             Swal.close();
         }

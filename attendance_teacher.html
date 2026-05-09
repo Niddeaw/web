@@ -14,8 +14,7 @@
 
 <body class="min-h-screen text-slate-800 pb-10">
 
-    <nav
-        class="bg-white border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
+    <nav class="bg-white border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
         <div class="flex items-center gap-3">
             <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
                 <i class="fas fa-calendar-check text-xl"></i>
@@ -108,6 +107,7 @@
                 </div>
             </div>
         </div>
+
         <div class="flex flex-col sm:flex-row gap-3 justify-between items-center">
             <div class="flex flex-wrap gap-2 w-full sm:w-auto">
                 <button onclick="markAllAs('มา')"
@@ -150,95 +150,6 @@
                         id="stat-absent">0</span></span>
             </div>
         </div>
-
-        <!-- ✅ แดชบอร์ดสรุปการเช็คชื่อประจำวัน -->
-        <div id="daily-dashboard" class="hidden px-4 pb-4">
-
-            <!-- การ์ดสถานะหลัก -->
-            <div id="dashboard-status-card"
-                class="rounded-2xl p-4 mb-4 flex items-center gap-4 shadow-sm border transition-all duration-300">
-                <div id="dashboard-status-icon"
-                    class="text-4xl w-14 h-14 flex items-center justify-center rounded-2xl flex-shrink-0"></div>
-                <div>
-                    <p id="dashboard-status-label" class="text-sm font-bold uppercase tracking-wider"></p>
-                    <p id="dashboard-status-date" class="text-xs text-slate-500 mt-0.5"></p>
-                </div>
-            </div>
-
-            <!-- การ์ดสรุปตัวเลข -->
-            <div class="grid grid-cols-5 gap-2 mb-4" id="dashboard-summary-cards">
-                <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-center">
-                    <p class="text-[10px] font-black text-emerald-600 uppercase tracking-wider mb-1">มา</p>
-                    <p id="ds-present" class="text-2xl font-black text-emerald-700">–</p>
-                </div>
-                <div class="bg-rose-50 border border-rose-100 rounded-xl p-3 text-center">
-                    <p class="text-[10px] font-black text-rose-600 uppercase tracking-wider mb-1">ขาด</p>
-                    <p id="ds-absent" class="text-2xl font-black text-rose-700">–</p>
-                </div>
-                <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 text-center">
-                    <p class="text-[10px] font-black text-orange-500 uppercase tracking-wider mb-1">สาย</p>
-                    <p id="ds-late" class="text-2xl font-black text-orange-600">–</p>
-                </div>
-                <div class="bg-yellow-50 border border-yellow-100 rounded-xl p-3 text-center">
-                    <p class="text-[10px] font-black text-yellow-600 uppercase tracking-wider mb-1">ลา</p>
-                    <p id="ds-leave" class="text-2xl font-black text-yellow-700">–</p>
-                </div>
-                <div class="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
-                    <p class="text-[10px] font-black text-blue-600 uppercase tracking-wider mb-1">ป่วย</p>
-                    <p id="ds-sick" class="text-2xl font-black text-blue-700">–</p>
-                </div>
-            </div>
-
-            <!-- รายชื่อนักเรียนที่ไม่ได้มา (ซ่อนเมื่อยังไม่เช็ค) -->
-            <div id="dashboard-exception-section" class="hidden space-y-3">
-
-                <!-- ขาด -->
-                <div id="ds-absent-section" class="hidden">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-1.5 h-5 bg-rose-500 rounded-full"></span>
-                        <h4 class="text-sm font-black text-rose-700">นักเรียนที่ขาด</h4>
-                        <span id="ds-absent-badge"
-                            class="ml-auto bg-rose-100 text-rose-700 text-[10px] font-black px-2 py-0.5 rounded-full"></span>
-                    </div>
-                    <div id="ds-absent-list" class="flex flex-wrap gap-2"></div>
-                </div>
-
-                <!-- สาย -->
-                <div id="ds-late-section" class="hidden">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-1.5 h-5 bg-orange-400 rounded-full"></span>
-                        <h4 class="text-sm font-black text-orange-600">นักเรียนที่มาสาย</h4>
-                        <span id="ds-late-badge"
-                            class="ml-auto bg-orange-100 text-orange-600 text-[10px] font-black px-2 py-0.5 rounded-full"></span>
-                    </div>
-                    <div id="ds-late-list" class="flex flex-wrap gap-2"></div>
-                </div>
-
-                <!-- ลา -->
-                <div id="ds-leave-section" class="hidden">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-1.5 h-5 bg-yellow-400 rounded-full"></span>
-                        <h4 class="text-sm font-black text-yellow-700">นักเรียนที่ลา</h4>
-                        <span id="ds-leave-badge"
-                            class="ml-auto bg-yellow-100 text-yellow-700 text-[10px] font-black px-2 py-0.5 rounded-full"></span>
-                    </div>
-                    <div id="ds-leave-list" class="flex flex-wrap gap-2"></div>
-                </div>
-
-                <!-- ป่วย -->
-                <div id="ds-sick-section" class="hidden">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="w-1.5 h-5 bg-blue-400 rounded-full"></span>
-                        <h4 class="text-sm font-black text-blue-700">นักเรียนที่ป่วย</h4>
-                        <span id="ds-sick-badge"
-                            class="ml-auto bg-blue-100 text-blue-700 text-[10px] font-black px-2 py-0.5 rounded-full"></span>
-                    </div>
-                    <div id="ds-sick-list" class="flex flex-wrap gap-2"></div>
-                </div>
-
-            </div>
-        </div>
-        <!-- สิ้นสุด แดชบอร์ด -->
 
         <div class="glass-panel overflow-hidden shadow-2xl border-white">
             <div class="overflow-x-auto min-h-[450px]">

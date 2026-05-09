@@ -24,31 +24,32 @@ $(document).ready(async () => {
 });
 
 async function checkAuth() {
-    // 🌟 1. ตรวจสอบสิทธิ์การเข้าใช้งานของนักเรียนจาก LocalStorage (เหมือนระบบ EQ/พฤติกรรม)
-    const studentId = localStorage.getItem('student_id');
+    // ✅ ตรวจสอบ session จาก Supabase Auth แทน localStorage
+    const { data: { session } } = await db.auth.getSession();
 
-    if (!studentId) {
-        // ถ้าไม่มีรหัสนักเรียน ให้เด้งกลับไปหน้าล็อกอิน
-        window.location.replace("index.html"); // หากหน้าล็อกอินนร. ชื่ออื่น เช่น login_student.html ให้แก้ตรงนี้ครับ
+    if (!session) {
+        window.location.replace("index.html");
         return;
     }
 
     try {
-        // 🌟 2. ดึงข้อมูลนักเรียนจากตาราง core_students
+        // ✅ ดึง SID จาก email (รูปแบบ: {student_id_card}@wrk.ac.th)
+        const studentSid = session.user.email.split('@')[0];
+
+        // ดึงข้อมูลนักเรียนจาก core_students
         const { data: student, error: studentError } = await db
             .from('core_students')
             .select('*')
-            .eq('id', studentId)
+            .eq('student_id_card', studentSid)
             .single();
 
         if (studentError || !student) {
             console.error("ไม่พบข้อมูลนักเรียน:", studentError);
-            localStorage.removeItem('student_id'); // ล้างข้อมูลขยะทิ้ง
+            await db.auth.signOut(); // ✅ ใช้ signOut แทน localStorage.removeItem
             window.location.replace("index.html");
             return;
         }
 
-        // เก็บข้อมูลไว้ในตัวแปร Global
         currentStudent = student;
 
         // ดึงข้อมูลโรงเรียน
@@ -153,7 +154,6 @@ async function exportMyPDF() {
     const studentFullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
     const className = `ม.${currentEnrollment.core_classrooms.grade_level}/${currentEnrollment.core_classrooms.room_number}`;
 
-    // นับสถิติจากข้อมูลที่มี
     let counts = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
     attendanceHistory.forEach(h => counts[h.status]++);
 
@@ -174,7 +174,6 @@ async function exportMyPDF() {
                 <img src="${logoUrl}" crossorigin="anonymous" style="height: 60px; display: block; margin: 0 auto 10px auto;" alt="Logo">
                 <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
                 <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                
                 <h2 style="margin: 0; font-size: 16px; color: #065f46;">รายงานประวัติการมาเรียนรายบุคคล</h2>
                 <h3 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: normal;">
                     ชื่อ: ${studentFullName} | เลขที่ ${currentEnrollment.student_number} | ชั้น ${className}
@@ -250,6 +249,7 @@ async function exportMyPDF() {
     });
 }
 
+// ✅ logout ใช้ Supabase signOut (ถูกต้องอยู่แล้ว ไม่ต้องแก้)
 async function logout() {
     await db.auth.signOut();
     window.location.href = "index.html";

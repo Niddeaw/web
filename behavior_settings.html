@@ -65,9 +65,8 @@
             </div>
         </div>
 
-        <!-- เพิ่มแอดมินหัวหน้าระดับชั้น (Grade Head) เพื่อให้สามารถดูแลจัดการข้อมูลนักเรียนในระดับชั้นของตนเองได้ โดยไม่ต้องเป็น Super Admin ทั้งหมด -->
         <div id="grade_head_section"
-            class="glass p-6 rounded-3xl shadow-sm border border-slate-200 mb-6 border-l-4 border-l-purple-500">
+            class="hidden glass p-6 rounded-3xl shadow-sm border border-slate-200 mb-6 border-l-4 border-l-purple-500">
             <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
                 <h3 class="font-bold text-slate-800"><i
                         class="fas fa-user-tie mr-2 text-purple-500"></i>ตั้งค่าแอดมินหัวหน้าระดับชั้น</h3>
@@ -75,16 +74,17 @@
                     class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200 shadow-sm">Super
                     Admin Only</span>
             </div>
-
             <div class="flex flex-col sm:flex-row gap-4 items-end mb-4">
                 <div class="w-full sm:flex-1">
                     <label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร (พิมพ์เพื่อค้นหา)</label>
-                    <select id="grade_head_teacher" class="w-full text-sm"
-                        placeholder="พิมพ์ชื่อเพื่อค้นหา..."></select>
+                    <select id="grade_head_teacher" class="w-full select2-teacher">
+                        <option value="">-- พิมพ์ชื่อครู --</option>
+                    </select>
                 </div>
                 <div class="w-full sm:w-1/4">
                     <label class="block text-sm font-bold text-slate-700 mb-1">ระดับชั้น</label>
-                    <select id="grade_head_level" class="w-full text-sm">
+                    <select id="grade_head_level"
+                        class="w-full border border-slate-300 rounded-xl px-3 py-2 outline-none h-[42px] bg-white">
                         <option value="1">ม.1</option>
                         <option value="2">ม.2</option>
                         <option value="3">ม.3</option>
@@ -98,14 +98,13 @@
                     <i class="fas fa-plus"></i> เพิ่ม
                 </button>
             </div>
-
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-h-60 overflow-y-auto">
                 <table class="w-full text-sm text-left">
                     <thead class="bg-purple-50 text-purple-800 border-b border-purple-100 sticky top-0">
                         <tr>
-                            <th class="p-3 font-bold rounded-tl-lg">ระดับชั้น</th>
+                            <th class="p-3 font-bold">ระดับชั้น</th>
                             <th class="p-3 font-bold">ชื่อ - นามสกุล (หัวหน้าระดับ)</th>
-                            <th class="p-3 text-center font-bold w-24 rounded-tr-lg">ถอดถอน</th>
+                            <th class="p-3 text-center font-bold w-24">ถอดถอน</th>
                         </tr>
                     </thead>
                     <tbody id="grade_head_list" class="divide-y divide-slate-100">
@@ -226,10 +225,6 @@
             await checkAuth();
             loadApiConfig();
             loadCriteria();
-            // สร้าง Tom Select ให้ช่องเลือกประเภท (ไม่ให้พิมพ์ค้นหา เพราะมีแค่ 2 ตัวเลือก)
-            new TomSelect("#crit_category", {
-                controlInput: null
-            });
         });
 
         // 1. ตรวจสอบสิทธิ์ 
@@ -254,6 +249,9 @@
             }
         }
 
+        // ==========================================
+        // ส่วนจัดการแอดมินหัวหน้าระดับชั้น
+        // ==========================================
         // ==========================================
         // ส่วนจัดการแอดมินหัวหน้าระดับชั้น
         // ==========================================
