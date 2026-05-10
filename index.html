@@ -116,13 +116,28 @@
                 url: 'guidance_teacher.html',
                 reqAdmin: false
             },
-
-            // --- 💰 กลุ่มบริหารงบประมาณ ---
             {
-                id: 'scholarship', category: 'budget', moduleId: 'scholarship',
+                id: 'sdq_assessment', category: 'academic', moduleId: 'sdq',
+                title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
+                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
+            },
+            {
+                id: 'eq_assessment', category: 'academic', moduleId: 'eq',
+                title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
+                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
+            },
+            {
+                id: 'scholarship', category: 'academic', moduleId: 'scholarship',
                 title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
                 icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
             },
+
+            // --- 💰 กลุ่มบริหารงบประมาณ ---
+            // {
+            //     id: 'scholarship', category: 'budget', moduleId: 'scholarship',
+            //     title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
+            //     icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
+            // },
 
             // --- 👥 กลุ่มบริหารงานบุคคล ---
             {
@@ -153,16 +168,16 @@
                 title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน',
                 icon: 'fa-solid fa-house-chimney-user', color: 'text-teal-600', bgIcon: 'bg-teal-100', url: 'homevisit.html'
             },
-            {
-                id: 'sdq_assessment', category: 'general', moduleId: 'sdq',
-                title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
-                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
-            },
-            {
-                id: 'eq_assessment', category: 'general', moduleId: 'eq',
-                title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
-                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
-            }
+            // {
+            //     id: 'sdq_assessment', category: 'general', moduleId: 'sdq',
+            //     title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
+            //     icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
+            // },
+            // {
+            //     id: 'eq_assessment', category: 'general', moduleId: 'eq',
+            //     title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
+            //     icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
+            // }
         ];
 
         window.onload = async () => {
