@@ -21,6 +21,152 @@ let missingDatesList = [];
 let checkedDatesList = [];
 let currentManagedGrades = [];
 
+// 🌟 1. ตัวแปร Global สำหรับเก็บข้อมูลไว้ใช้กับ Dashboard
+let currentDashboardStudents = []; 
+let isDashboardSaved = false;
+
+// 🌟 2. ฟังก์ชันสำหรับสร้างและอัปเดต Dashboard สรุปการเช็คชื่อ
+function renderDashboardSummary() {
+    const container = document.getElementById('dashboard-summary-container');
+    if (!container) return;
+
+    if (!currentDashboardStudents || currentDashboardStudents.length === 0) {
+        container.innerHTML = '';
+        return;
+    }
+
+    // 🌟 1. ดึงวันที่จากปฏิทินมาแปลงเป็นภาษาไทย 🌟
+    const rawDate = document.getElementById('check-date') ? document.getElementById('check-date').value : '';
+    let thaiDateText = 'วันนี้'; // ค่าเริ่มต้น
+    if (rawDate) {
+        const dateObj = new Date(rawDate);
+        thaiDateText = dateObj.toLocaleDateString('th-TH', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    }
+
+    // นับสถิติ
+    let stats = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
+    let issueStudents = { 'ขาด': [], 'สาย': [], 'ลา': [], 'ป่วย': [] };
+
+    currentDashboardStudents.forEach(student => {
+        const studentId = student.id || student.student_id; 
+        const status = attendanceData[studentId]; 
+        
+        if (status && stats[status] !== undefined) {
+            stats[status]++;
+            if (status !== 'มา') {
+                const sData = student.core_students || student; 
+                const fullName = `${sData.prefix || ''}${sData.first_name} ${sData.last_name}`;
+                const studentCode = sData.student_id_card || sData.student_number || sData.id || '-';
+                const listNum = student.student_number ? `เลขที่ ${student.student_number}` : '';
+                
+                issueStudents[status].push({ code: studentCode, name: fullName, listNum: listNum });
+            }
+        }
+    });
+
+    const generateListHTML = (title, icon, colorClass, bgClass, borderClass, list) => {
+        if (list.length === 0) return '';
+        list.sort((a, b) => parseInt(a.listNum.replace('เลขที่ ', '')) - parseInt(b.listNum.replace('เลขที่ ', '')));
+
+        const items = list.map(s => `
+            <li class="flex justify-between items-center py-1.5 border-b border-white/50 last:border-0">
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold bg-white/60 px-1.5 py-0.5 rounded text-slate-600 shadow-sm">${s.listNum}</span>
+                    <span class="text-sm font-bold text-slate-700">${s.name}</span>
+                </div>
+                <span class="text-[10px] font-mono bg-white/40 px-1.5 py-0.5 rounded text-slate-500">${s.code}</span>
+            </li>
+        `).join('');
+
+        return `
+            <div class="${bgClass} p-4 rounded-2xl border ${borderClass} shadow-sm">
+                <h4 class="font-black text-sm ${colorClass} mb-2.5 flex items-center border-b border-white pb-2">
+                    <i class="${icon} w-5"></i> ${title} (${list.length} คน)
+                </h4>
+                <ul class="space-y-1">
+                    ${items}
+                </ul>
+            </div>
+        `;
+    };
+
+    const htmlAbsent = generateListHTML('ขาดเรียน', 'fas fa-user-times', 'text-rose-700', 'bg-rose-50', 'border-rose-100', issueStudents['ขาด']);
+    const htmlLate = generateListHTML('มาสาย', 'fas fa-clock', 'text-orange-700', 'bg-orange-50', 'border-orange-100', issueStudents['สาย']);
+    const htmlLeave = generateListHTML('ลากิจ', 'fas fa-envelope-open-text', 'text-yellow-700', 'bg-yellow-50', 'border-yellow-100', issueStudents['ลา']);
+    const htmlSick = generateListHTML('ลาป่วย', 'fas fa-procedures', 'text-blue-700', 'bg-blue-50', 'border-blue-100', issueStudents['ป่วย']);
+
+    const listsHTML = htmlAbsent + htmlLate + htmlLeave + htmlSick;
+    const hasIssues = listsHTML !== '';
+
+    // สร้างการ์ดแสดงผล
+    if (isDashboardSaved) {
+        container.innerHTML = `
+            <div class="glass-panel p-6 rounded-3xl shadow-sm border border-emerald-200 bg-gradient-to-br from-emerald-50/80 to-white relative overflow-hidden">
+                <div class="absolute -top-4 -right-4 p-4 text-emerald-500/10 text-8xl"><i class="fas fa-check-circle"></i></div>
+                
+                <div class="relative z-10">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-200">
+                            <i class="fas fa-check"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-black text-emerald-800 tracking-tight">บันทึกการเช็คชื่อเรียบร้อยแล้ว</h3>
+                            <p class="text-xs text-emerald-600 font-bold tracking-widest uppercase">ข้อมูลประจำวันที่ ${thaiDateText} อัปเดตเข้าระบบแล้ว</p>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-5 gap-3 mb-5">
+                        <div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100">
+                            <div class="text-xs text-slate-400 font-bold mb-1">มาเรียน</div>
+                            <div class="text-2xl font-black text-emerald-500">${stats['มา']}</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100">
+                            <div class="text-xs text-slate-400 font-bold mb-1">ขาด</div>
+                            <div class="text-2xl font-black text-rose-500">${stats['ขาด']}</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100">
+                            <div class="text-xs text-slate-400 font-bold mb-1">สาย</div>
+                            <div class="text-2xl font-black text-orange-500">${stats['สาย']}</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100">
+                            <div class="text-xs text-slate-400 font-bold mb-1">ลากิจ</div>
+                            <div class="text-2xl font-black text-yellow-500">${stats['ลา']}</div>
+                        </div>
+                        <div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100">
+                            <div class="text-xs text-slate-400 font-bold mb-1">ป่วย</div>
+                            <div class="text-2xl font-black text-blue-500">${stats['ป่วย']}</div>
+                        </div>
+                    </div>
+
+                    ${hasIssues ? 
+                        `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">${listsHTML}</div>` : 
+                        `<div class="text-center py-4 bg-white/60 rounded-2xl text-emerald-600 font-bold border border-emerald-100 shadow-sm"><i class="fas fa-award text-yellow-400 text-xl mr-2 mb-1"></i><br>ยอดเยี่ยม! นักเรียนมาเรียนครบ 100%</div>`
+                    }
+                </div>
+            </div>
+        `;
+    } else {
+        container.innerHTML = `
+            <div class="glass-panel p-6 rounded-3xl shadow-sm border border-amber-200 bg-gradient-to-br from-amber-50/80 to-white relative overflow-hidden">
+                <div class="absolute -top-4 -right-4 p-4 text-amber-500/10 text-8xl"><i class="fas fa-exclamation-circle"></i></div>
+                <div class="relative z-10 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-3xl shadow-lg shadow-amber-200 flex-shrink-0 animate-bounce">
+                        <i class="fas fa-clipboard-list"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-amber-900 tracking-tight">ยังไม่ได้บันทึกการเช็คชื่อ!</h3>
+                        <p class="text-sm text-amber-700 font-medium mt-0.5">ประจำวันที่ <b class="text-amber-900">${thaiDateText}</b> กรุณาตรวจสอบสถานะการมาของนักเรียนแล้ว <b class="text-amber-800">"บันทึกมาครบทุกคน"</b> หรือเลือก ขาด, สาย, ลา, ป่วย เป็นรายคน</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
 const statusStyles = {
     'มา': { active: 'active-มา', inactive: 'bg-green-50 text-green-600 border-green-200 hover:bg-green-100 hover:shadow-md' },
     'ขาด': { active: 'active-ขาด', inactive: 'bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 hover:shadow-md' },
@@ -231,6 +377,7 @@ function applyDateConstraints() {
         maxDateVal ? $dateInput.attr('max', maxDateVal) : $dateInput.removeAttr('max');
     }
 }
+
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
 
@@ -257,13 +404,21 @@ async function loadStudentList(classroomId) {
     const dayOfWeek = dateObj.getDay();
     if (moduleSettings.check_only_weekdays && (dayOfWeek === 0 || dayOfWeek === 6)) {
         $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-rose-500 font-bold bg-rose-50/50">ปิดระบบเช็คชื่อ (วันหยุดเสาร์-อาทิตย์)</td></tr>`);
-        updateStatsClear(); return;
+        updateStatsClear(); 
+        // 🌟 ซ่อน Dashboard วันหยุดเสาร์-อาทิตย์
+        currentDashboardStudents = [];
+        renderDashboardSummary();
+        return;
     }
 
     const isHoliday = holidayList.find(h => h.holiday_date === checkDate);
     if (isHoliday) {
         $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-indigo-600 font-bold bg-indigo-50/50">วันหยุด: ${isHoliday.description} (ระบบบันทึกมาอัตโนมัติ)</td></tr>`);
-        updateStatsClear(); return;
+        updateStatsClear(); 
+        // 🌟 ซ่อน Dashboard วันหยุดนักขัตฤกษ์
+        currentDashboardStudents = [];
+        renderDashboardSummary();
+        return;
     }
 
     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังดึงข้อมูล...</td></tr>');
@@ -279,8 +434,17 @@ async function loadStudentList(classroomId) {
     attendanceData = {};
     attendance?.forEach(row => { attendanceData[row.student_id] = row.status; });
 
+    // 🌟 ส่งรายชื่อนักเรียนเข้า Dashboard 
+    currentDashboardStudents = enrollments || [];
+    
+    // 🌟 เช็คว่าฐานข้อมูลมีค่าวางไว้หรือยัง (ถ้ามี = เคยบันทึกแล้ว / ถ้าไม่มี = ยังไม่บันทึก)
+    isDashboardSaved = (attendance && attendance.length > 0); 
+
     renderTable(enrollments);
     updateStats();
+    
+    // 🌟 สั่งวาดการ์ดแดชบอร์ด
+    renderDashboardSummary();
 }
 
 async function loadClassroomOverview(classroomId) {
@@ -394,6 +558,10 @@ async function updateAttendance(studentId, status) {
 
         loadClassroomOverview(classroomId);
         Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1000 }).fire({ icon: 'success', title: `บันทึก "${status}" เรียบร้อย` });
+
+        // 🌟 เพิ่มการอัปเดตแดชบอร์ดตรงนี้ครับ 🌟
+        isDashboardSaved = true; // บันทึกลงฐานข้อมูลสำเร็จแล้ว ให้การ์ดเป็นสีเขียว
+        renderDashboardSummary(); // สั่งให้วาดกราฟและตัวเลขใหม่ทันที
     }
 }
 
@@ -1621,4 +1789,233 @@ async function clearAttendanceData() {
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
+}
+
+/* ── ส่วนระบบกราฟสถิติและออกรายงาน (Chart.js + PDF) ── */
+let attendanceChartInstance = null;
+
+// 1. ฟังก์ชันดึงข้อมูลและประมวลผลเมื่อกดปุ่ม "ดูสถิติ"
+/* ── ฟังก์ชันดึงข้อมูลและประมวลผลสถิติ ── */
+async function generateStats() {
+    const classroomId = $('#classroom-select').val();
+    const startDate = $('#stat-start-date').val();
+    const endDate = $('#stat-end-date').val();
+    const roomText = $('#classroom-select option:selected').text();
+
+    if (!classroomId || !startDate || !endDate) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและช่วงวันที่ให้ครบถ้วน', 'warning');
+    }
+
+    Swal.fire({ title: 'กำลังประมวลผลข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        // 1. ดึงข้อมูลจาก Supabase
+        const { data: records, error } = await db.from('homeroom_attendance')
+            .select('student_id, status')
+            .eq('classroom_id', classroomId)
+            .gte('check_date', startDate)
+            .lte('check_date', endDate);
+
+        if (error) throw error;
+
+        // 2. ดึงข้อมูล ภาคเรียน/ปีการศึกษา
+        const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
+        const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
+
+        let statsCount = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
+        let studentIssues = { 'ขาด': {}, 'สาย': {}, 'ลา': {}, 'ป่วย': {} };
+
+        // 3. นับจำนวนสถิติ
+        records.forEach(r => {
+            if (statsCount[r.status] !== undefined) {
+                statsCount[r.status]++;
+                if (r.status !== 'มา') {
+                    if (!studentIssues[r.status][r.student_id]) studentIssues[r.status][r.student_id] = 0;
+                    studentIssues[r.status][r.student_id]++;
+                }
+            }
+        });
+
+        // 4. แมพรายชื่อนักเรียน
+        const studentMap = {};
+        currentDashboardStudents.forEach(enroll => {
+            const s = enroll.core_students || enroll;
+            const sid = enroll.student_id || enroll.id;
+            studentMap[sid] = {
+                name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                no: enroll.student_number || '-'
+            };
+        });
+
+        // 5. สร้าง HTML รายชื่อพร้อมป้องกันการตัดหน้ากระดาษ (Page Break Avoid)
+        const generateStatsListHTML = (title, statusKey, icon, colorClass, bgClass) => {
+            const issues = studentIssues[statusKey];
+            const studentIds = Object.keys(issues);
+            if (studentIds.length === 0) return '';
+
+            const list = studentIds.map(sid => {
+                const info = studentMap[sid] || { name: 'ไม่พบข้อมูลชื่อ', no: 99 };
+                return { name: info.name, no: info.no, count: issues[sid] };
+            }).sort((a, b) => a.no - b.no);
+
+            const itemsHTML = list.map(s => `
+                <li class="flex justify-between items-center py-1.5 border-b border-slate-200/50 last:border-0" style="page-break-inside: avoid; break-inside: avoid;">
+                    <div class="text-[12px] text-slate-700"><span class="font-bold text-slate-500 mr-1">${s.no}.</span> ${s.name}</div>
+                    <div class="text-[11px] font-black px-2 py-0.5 rounded-lg bg-white text-slate-600 shadow-sm border border-slate-100">${s.count} ครั้ง</div>
+                </li>
+            `).join('');
+
+            return `
+                <div class="${bgClass} p-5 rounded-2xl border border-slate-200 shadow-sm" style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 16px;">
+                    <h4 class="font-black text-sm ${colorClass} mb-3 flex items-center border-b border-white pb-2">
+                        <i class="${icon} mr-2"></i> ${title} (${list.length} คน)
+                    </h4>
+                    <ul class="space-y-1">
+                        ${itemsHTML}
+                    </ul>
+                </div>
+            `;
+        };
+
+        // 6. หยอดรายชื่อลงในหน้าจอ
+        const listsContainer = document.getElementById('stats-student-lists');
+        if (listsContainer) {
+            const htmlAbsent = generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2');
+            const htmlLate = generateStatsListHTML('มาสาย', 'สาย', 'fas fa-clock', '#c2410c', '#fff7ed');
+            const htmlLeave = generateStatsListHTML('ลากิจ', 'ลา', 'fas fa-envelope-open-text', '#a16207', '#fefce8');
+            const htmlSick = generateStatsListHTML('ลาป่วย', 'ป่วย', 'fas fa-procedures', '#1d4ed8', '#eff6ff');
+
+            listsContainer.innerHTML = htmlAbsent + htmlLate + htmlLeave + htmlSick;
+            listsContainer.classList.remove('hidden');
+        }
+
+        // 🌟 อัปเดตข้อมูลบนหน้าจอ Modal (UI) ให้คุณครูเห็นทันที 🌟
+        const uiRoomTerm = document.getElementById('ui-stats-room-term');
+        const uiAdvisers = document.getElementById('ui-stats-advisers');
+
+        if (uiRoomTerm) {
+            uiRoomTerm.textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
+        }
+        if (uiAdvisers) {
+            uiAdvisers.textContent = `ครูที่ปรึกษา: ${adviser1Name} และ ${adviser2Name}`;
+        }
+
+        // 🌟 7. อัปเดตข้อมูลหัวรายงาน PDF (รวมชื่อครูที่ปรึกษา) 🌟
+        document.getElementById('stats-pdf-term').textContent = `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`;
+        document.getElementById('stats-pdf-room').textContent = `ระดับชั้น: ${roomText}`;
+        document.getElementById('stats-pdf-adviser1').textContent = `ครูที่ปรึกษาคนที่ 1: ${adviser1Name}`;
+        document.getElementById('stats-pdf-adviser2').textContent = `ครูที่ปรึกษาคนที่ 2: ${adviser2Name}`;
+        document.getElementById('stats-pdf-subtitle').textContent = `ช่วงวันที่: ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`;
+
+        renderAttendanceChart(statsCount);
+        Swal.close();
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถประมวลผลข้อมูลได้', 'error');
+    }
+}
+
+// 2. ฟังก์ชันแปลงวันที่เป็นภาษาไทย 
+function formatThaiDate(dateStr) {
+    const dateObj = new Date(dateStr);
+    return dateObj.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+// 3. ฟังก์ชันสร้างกราฟ (Bar Chart)
+function renderAttendanceChart(stats) {
+    const ctx = document.getElementById('attendanceChart');
+    if (!ctx) return;
+
+    // ล้างกราฟเก่าออกก่อน (ถ้ามี)
+    if (attendanceChartInstance) {
+        attendanceChartInstance.destroy();
+    }
+
+    const dataValues = [stats['มา'], stats['ขาด'], stats['สาย'], stats['ลา'], stats['ป่วย']];
+    const bgColors = ['#10b981', '#f43f5e', '#f97316', '#eab308', '#3b82f6']; // สีเขียว, แดง, ส้ม, เหลือง, ฟ้า
+
+    // สร้างกราฟใหม่
+    attendanceChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['มาเรียน', 'ขาดเรียน', 'มาสาย', 'ลากิจ', 'ลาป่วย'],
+            datasets: [{
+                label: 'จำนวนครั้ง (รวมนักเรียนทุกคน)',
+                data: dataValues,
+                backgroundColor: bgColors,
+                borderRadius: 8, // ขอบกราฟมนสวยงาม
+                barThickness: 50 // ขนาดความอ้วนของแท่งกราฟ
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                title: { display: true, text: 'กราฟสรุปจำนวนครั้งแยกตามสถานะ', font: { size: 14, family: 'Anuphan' } }
+            },
+            scales: {
+                y: { beginAtZero: true, ticks: { stepSize: 1 } }
+            }
+        }
+    });
+}
+
+// 4. ฟังก์ชันพิมพ์กราฟออกเป็นไฟล์ PDF
+function printStatsPDF() {
+    if (!attendanceChartInstance) {
+        return Swal.fire('แจ้งเตือน', 'กรุณากดปุ่ม "ดูสถิติ" เพื่อแสดงกราฟและรายชื่อก่อน', 'warning');
+    }
+
+    // เปิดส่วนหัวรายงาน
+    const header = document.getElementById('stats-pdf-header');
+    header.classList.remove('hidden');
+    
+    const listsContainer = document.getElementById('stats-student-lists');
+    if (listsContainer) listsContainer.classList.remove('hidden');
+
+    const element = document.getElementById('stats-print-area');
+    const opt = {
+        margin: [10, 10, 10, 10], // ขอบกระดาษ บน, ซ้าย, ล่าง, ขวา
+        filename: `รายงานสถิติ_${$('#classroom-select option:selected').text()}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
+        // 🌟 เพิ่มบรรทัดนี้: เปิดระบบป้องกันการตัดหน้าผ่ากลางกล่อง
+        pagebreak: { mode: ['css', 'legacy'] } 
+    };
+
+    Swal.fire({ title: 'กำลังเตรียมไฟล์ PDF...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    html2pdf().set(opt).from(element).save().then(() => {
+        header.classList.add('hidden'); // ซ่อนหัวรายงานกลับหลังพิมพ์เสร็จ
+        Swal.close();
+    });
+}
+
+/* ── ฟังก์ชันควบคุม Modal รายงานสถิติ ── */
+function openStatsModal() {
+    const modal = document.getElementById('stats-modal');
+    // โชว์กล่องขึ้นมา
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    
+    // ทำ Animation ให้ค่อยๆ ชัดขึ้นและเด้งขยาย
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.querySelector('div').classList.remove('scale-95');
+    }, 10);
+}
+
+function closeStatsModal() {
+    const modal = document.getElementById('stats-modal');
+    // เล่น Animation เฟดออก
+    modal.classList.add('opacity-0');
+    modal.querySelector('div').classList.add('scale-95');
+    
+    // ซ่อนกล่องหลังจาก Animation จบ
+    setTimeout(() => {
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }, 300);
 }

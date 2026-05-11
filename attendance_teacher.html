@@ -14,7 +14,8 @@
 
 <body class="min-h-screen text-slate-800 pb-10">
 
-    <nav class="bg-white border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
+    <nav
+        class="bg-white border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
         <div class="flex items-center gap-3">
             <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
                 <i class="fas fa-calendar-check text-xl"></i>
@@ -44,6 +45,11 @@
                     class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
             </button>
 
+            <button onclick="openStatsModal()"
+                class="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors shadow-sm border border-indigo-200">
+                <i class="fas fa-chart-pie"></i> <span class="hidden sm:inline">รายงานสถิติ</span>
+            </button>
+
             <button onclick="window.location.href='index.html'"
                 class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
                 title="กลับหน้าหลัก">
@@ -59,7 +65,7 @@
     </nav>
 
     <main class="container mx-auto p-4 lg:p-6 space-y-6">
-
+        <!-- เลือกการเช็คชื่อสำหรับห้องเรียนและวันที่ต้องการ จากนั้นตรวจสอบข้อมูลและกดปุ่ม "บันทึกมาครบทุกคน" หรือเลือกสถานะอื่นๆ เป็นรายคนเพื่อบันทึกข้อมูลการเช็คชื่อในแต่ละวันอย่างถูกต้อง -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div class="lg:col-span-2 glass-panel p-6 shadow-xl space-y-4">
                 <div class="flex items-center gap-2 mb-2">
@@ -108,6 +114,9 @@
             </div>
         </div>
 
+        <!-- แดชบอร์ดสรุปการเช็คชื่อรายวัน (อัพเดตแบบไดนามิกเมื่อเลือกห้องเรียนและวันที่) -->
+        <div id="dashboard-summary-container" class="w-full transition-all duration-300 mb-6"></div>
+
         <div class="flex flex-col sm:flex-row gap-3 justify-between items-center">
             <div class="flex flex-wrap gap-2 w-full sm:w-auto">
                 <button onclick="markAllAs('มา')"
@@ -142,7 +151,6 @@
                 </button>
             </div>
 
-
             <div class="flex gap-4 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 text-sm font-bold">
                 <span class="text-green-600"><i class="fas fa-user-check mr-1"></i> มา: <span
                         id="stat-present">0</span></span>
@@ -176,6 +184,81 @@
             </div>
         </div>
     </main>
+
+    <!-- MOdal แดชบอร์ดรายงานสถิติการเช็คชื่อแบบกราฟและรายชื่อ (แสดงเมื่อกดปุ่ม "รายงานสถิติ") -->
+    <div id="stats-modal"
+        class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity opacity-0">
+        <div
+            class="bg-white w-full max-w-5xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300">
+
+            <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/80">
+                <div class="flex items-center gap-3">
+                    <div class="bg-indigo-100 text-indigo-600 p-3 rounded-2xl">
+                        <i class="fas fa-chart-bar text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-black text-slate-800">รายงานสถิติการเช็คชื่อ</h3>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Attendance Statistics
+                            Report</p>
+                    </div>
+                    <div class="flex flex-col gap-0.5">
+                        <p id="ui-stats-room-term" class="text-[11px] font-bold text-indigo-600"></p>
+                        <p id="ui-stats-advisers" class="text-[10px] font-medium text-slate-500"></p>
+                    </div>
+                </div>
+                <button onclick="closeStatsModal()"
+                    class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
+
+                <div class="flex flex-wrap items-end gap-4 mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-200">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">ตั้งแต่วันที่</label>
+                        <input type="date" id="stat-start-date"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-500 mb-1">ถึงวันที่</label>
+                        <input type="date" id="stat-end-date"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
+                    </div>
+                    <button onclick="generateStats()"
+                        class="h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2">
+                        <i class="fas fa-search"></i> ดูสถิติ
+                    </button>
+                    <button onclick="printStatsPDF()"
+                        class="h-[42px] bg-rose-500 hover:bg-rose-600 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2 ml-auto">
+                        <i class="fas fa-file-pdf"></i> พิมพ์ PDF
+                    </button>
+                </div>
+
+                <div id="stats-print-area" class="bg-white p-6 rounded-2xl border border-slate-100">
+                    <div class="text-center mb-6 hidden" id="stats-pdf-header">
+                        <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-20 mx-auto mb-2">
+                        <h2 class="text-2xl font-black text-indigo-900">โรงเรียนวัดไร่ขิงวิทยา</h2>
+                        <h3 class="text-lg font-bold text-slate-800 mt-1">รายงานสรุปสถิติการเข้าเรียน</h3>
+                        <p class="text-md font-bold text-indigo-700" id="stats-pdf-term"></p>
+                        <p class="text-sm font-semibold text-slate-600" id="stats-pdf-room"></p>
+                        <p class="text-sm font-semibold text-slate-600" id="stats-pdf-adviser1"></p>
+                        <p class="text-sm font-semibold text-slate-600" id="stats-pdf-adviser2"></p>
+                        <p class="text-sm font-semibold text-slate-600" id="stats-pdf-subtitle"></p>
+                    </div>
+
+                    <div class="relative h-[350px] w-full mb-8">
+                        <canvas id="attendanceChart"></canvas>
+                    </div>
+
+                    <div id="stats-student-lists"
+                        class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 border-t border-slate-100 pt-6">
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
 
     <div id="student-history-modal"
         class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
