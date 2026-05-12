@@ -45,9 +45,14 @@
                     class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
             </button>
 
-            <button onclick="openStatsModal()"
+            <button id="btn-stats-report" onclick="openStatsModal()"
                 class="flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors shadow-sm border border-indigo-200">
                 <i class="fas fa-chart-pie"></i> <span class="hidden sm:inline">รายงานสถิติ</span>
+            </button>
+
+            <button id="btn-grade-overview" onclick="openGradeOverview()"
+                class="hidden flex items-center gap-2 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl font-bold transition-colors shadow-sm border border-indigo-200">
+                <i class="fas fa-chart-bar"></i> ภาพรวมระดับชั้น
             </button>
 
             <button onclick="window.location.href='index.html'"
@@ -144,10 +149,6 @@
                 <button onclick="openHistoryModal()"
                     class="flex-1 sm:flex-none bg-slate-600 hover:bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-slate-100 transition-all flex items-center justify-center gap-2">
                     <i class="fas fa-history"></i> ประวัติ
-                </button>
-                <button id="btn-grade-overview" onclick="openGradeOverview()"
-                    class="hidden flex-1 sm:flex-none bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-purple-100 transition-all flex items-center justify-center gap-2">
-                    <i class="fas fa-chart-bar"></i> ภาพรวมระดับชั้น
                 </button>
             </div>
 
@@ -285,8 +286,7 @@
         <div
             class="bg-white/90 backdrop-blur-xl border border-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
-                <h2 class="text-lg font-bold text-indigo-900"><i class="fas fa-tools mr-2"></i> ตั้งค่าระบบเช็คชื่อ
-                    (Admin Only)</h2>
+                <h2 class="text-lg font-bold text-indigo-900"><i class="fas fa-tools mr-2"></i> ตั้งค่าระบบเช็คชื่อ (Admin Only)</h2>
                 <button onclick="closeAdminModal()" class="text-slate-400 hover:text-rose-500 transition-colors"><i
                         class="fas fa-times text-xl"></i></button>
             </div>
@@ -362,6 +362,7 @@
                         </table>
                     </div>
                 </div>
+                <!-- แต่งตั้งหัวหน้าระดับ -->
                 <div id="super-admin-section" class="space-y-4 hidden mt-6 pt-6 border-t-2 border-rose-100">
                     <h3 class="text-sm font-bold text-rose-600 uppercase tracking-widest border-b border-rose-100 pb-2">
                         <i class="fas fa-crown mr-1"></i> จัดการหัวหน้าระดับชั้น (Super Admin เท่านั้น)
@@ -402,6 +403,33 @@
                         </table>
                     </div>
                 </div>
+<!-- แต่งตั้งหัวหน้างานปกครอง -->
+                <div class="mt-8 border-t border-slate-200 pt-6">
+    <h4 class="text-sm font-black text-emerald-700 mb-4 flex items-center">
+        <i class="fas fa-shield-alt mr-2"></i> จัดการหัวหน้างานปกครอง (ตรวจได้ทุกระดับชั้น)
+    </h4>
+    <div class="flex gap-2 mb-4">
+        <select id="select-discipline-head" class="flex-1 px-4 py-2 rounded-xl border border-slate-300 text-sm outline-none focus:border-emerald-500">
+            <option value="">-- เลือกครูที่ต้องการแต่งตั้ง --</option>
+        </select>
+        <button onclick="addDisciplineHead()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold shadow-sm transition-colors whitespace-nowrap">
+            <i class="fas fa-plus mr-1"></i> แต่งตั้ง
+        </button>
+    </div>
+    
+    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden">
+        <table class="w-full text-sm text-left">
+            <thead class="bg-slate-100 text-slate-600">
+                <tr>
+                    <th class="py-2 px-4">ชื่อ - นามสกุล</th>
+                    <th class="py-2 px-4 text-center w-20">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody id="discipline-head-list" class="divide-y divide-slate-100">
+                </tbody>
+        </table>
+    </div>
+</div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
                 <button onclick="closeAdminModal()"
@@ -412,47 +440,69 @@
         </div>
     </div>
 
-    <div id="grade-overview-modal"
-        class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-purple-50">
-                <h2 class="text-lg font-bold text-purple-900"><i class="fas fa-chart-line mr-2"></i>
-                    สรุปการเช็คชื่อระดับชั้น <span id="grade-overview-title"></span></h2>
-                <button onclick="closeGradeOverview()" class="text-slate-400 hover:text-rose-500 transition-colors"><i
-                        class="fas fa-times text-xl"></i></button>
-            </div>
-            <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
-                <div class="mb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <p class="font-bold text-slate-700">ประจำวันที่: <span id="grade-overview-date"
-                            class="text-purple-600"></span></p>
-                    <button onclick="exportGradeOverviewPDF()"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-md transition-colors"><i
-                            class="fas fa-print mr-1"></i> พิมพ์รายงานระดับชั้น</button>
+    <div id="grade-overview-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden transform transition-transform">
+        
+        <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-purple-50/80">
+            <div class="flex items-center gap-3">
+                <div class="bg-purple-100 text-purple-600 p-2.5 rounded-xl shadow-inner hidden sm:flex items-center justify-center">
+                    <i class="fas fa-layer-group text-lg"></i>
                 </div>
-                <div class="bg-white overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
-                    <table class="w-full text-sm text-center">
-                        <thead class="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
-                            <tr>
-                                <th class="py-3 px-4 text-left">ห้องเรียน</th>
-                                <th class="py-3 px-4 text-slate-400">นร. ทั้งหมด</th>
-                                <th class="py-3 px-4 text-green-600">มา</th>
-                                <th class="py-3 px-4 text-rose-600">ขาด</th>
-                                <th class="py-3 px-4 text-orange-500">สาย</th>
-                                <th class="py-3 px-4 text-yellow-600">ลา</th>
-                                <th class="py-3 px-4 text-blue-600">ป่วย</th>
-                                <th class="py-3 px-4">สถานะการเช็คชื่อ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="grade-overview-tbody" class="divide-y divide-slate-100"></tbody>
-                    </table>
+                <div>
+                    <h2 class="text-xl font-black text-purple-900 leading-tight">
+                        สรุปการเช็คชื่อระดับชั้น <span id="grade-overview-title" class="text-purple-600 ml-1"></span>
+                    </h2>
+                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Grade Overview Dashboard</p>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
-                <button onclick="closeGradeOverview()"
-                    class="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">ปิด</button>
+            <button onclick="closeGradeOverview()" class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors">
+                <i class="fas fa-times text-xl"></i>
+            </button>
+        </div>
+        
+        <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar">
+            
+            <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                
+                <div class="flex items-center gap-3 w-full sm:w-auto">
+                    <label class="font-bold text-slate-600 text-sm whitespace-nowrap">
+                        <i class="fas fa-calendar-alt text-purple-500 mr-1.5"></i> ประจำวันที่:
+                    </label>
+                    <input type="date" id="overview-date-select" onchange="loadGradeOverviewData()" 
+                        class="flex-1 sm:flex-none text-sm font-bold text-purple-700 bg-purple-50 border border-purple-100 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer shadow-sm">
+                </div>
+
+                <button onclick="exportGradeOverviewPDF()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2">
+                    <i class="fas fa-print"></i> พิมพ์รายงานระดับชั้น
+                </button>
+            </div>
+            
+            <div class="bg-white overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
+                <table class="w-full text-sm text-center">
+                    <thead class="bg-slate-100/80 text-slate-600 font-bold border-b border-slate-200">
+                        <tr>
+                            <th class="py-3.5 px-4 text-left">ห้องเรียน</th>
+                            <th class="py-3.5 px-4 text-slate-400">นร. ทั้งหมด</th>
+                            <th class="py-3.5 px-4 text-emerald-600">มา</th>
+                            <th class="py-3.5 px-4 text-rose-600">ขาด</th>
+                            <th class="py-3.5 px-4 text-orange-500">สาย</th>
+                            <th class="py-3.5 px-4 text-yellow-600">ลา</th>
+                            <th class="py-3.5 px-4 text-blue-600">ป่วย</th>
+                            <th class="py-3.5 px-4">สถานะการเช็คชื่อ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="grade-overview-tbody" class="divide-y divide-slate-100"></tbody>
+                </table>
             </div>
         </div>
+        
+        <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
+            <button onclick="closeGradeOverview()" class="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-800 transition-colors">
+                ปิดหน้าต่าง
+            </button>
+        </div>
     </div>
+</div>
 
     <script src="attendance_teacher.js"></script>
 </body>
