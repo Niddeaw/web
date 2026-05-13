@@ -2159,6 +2159,125 @@ async function saveDeptHeads(e) {
 }
 
 // ==========================================
+// 🌟 ระบบจัดการหัวหน้าระดับและหัวหน้างานปกครอง
+// ==========================================
+
+// 🔴 ตัวแปรสำหรับ Tom Select
+let tsGradeModal = null;
+let tsDiscModal = null;
+
+// --- ฟังก์ชันสำหรับหัวหน้าระดับชั้น ---
+async function openGradeHeadModal() {
+    document.getElementById('gradeHeadModal').classList.remove('hidden');
+    document.getElementById('gradeHeadModal').classList.add('flex');
+    
+    // โหลดรายชื่อใส่ Tom Select (ทำครั้งเดียว)
+    if (!tsGradeModal) {
+        const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
+        tsGradeModal = new TomSelect('#modal_select_grade_head_user', {
+            options: personnel.map(p => ({ id: p.id, name: `${p.prefix || ''}${p.first_name} ${p.last_name}` })),
+            valueField: 'id', labelField: 'name', searchField: 'name', placeholder: '-- ค้นหาชื่อครู --'
+        });
+    }
+    renderGradeHeadsList();
+}
+
+function closeGradeHeadModal() {
+    document.getElementById('gradeHeadModal').classList.add('hidden');
+    document.getElementById('gradeHeadModal').classList.remove('flex');
+}
+
+async function renderGradeHeadsList() {
+    const { data } = await db.from('behavior_grade_heads').select('id, grade_level, core_personnel(prefix, first_name, last_name)').order('grade_level');
+    const tbody = document.getElementById('modal_list_grade_heads');
+    tbody.innerHTML = data?.map(h => `
+        <tr class="hover:bg-slate-50">
+            <td class="p-3 font-black text-purple-700">ม.${h.grade_level}</td>
+            <td class="p-3 font-bold text-slate-600">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
+            <td class="p-3 text-center">
+                <button onclick="removeGradeHead('${h.id}')" class="text-rose-500 hover:bg-rose-100 p-2 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+            </td>
+        </tr>
+    `).join('') || '<tr><td colspan="3" class="p-4 text-center text-slate-400">ยังไม่มีข้อมูล</td></tr>';
+}
+
+async function assignGradeHead() {
+    const userId = tsGradeModal.getValue();
+    const level = document.getElementById('modal_select_grade_level').value;
+    if (!userId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
+
+    const { error } = await db.from('behavior_grade_heads').insert({ teacher_id: userId, grade_level: parseInt(level) });
+    if (error) return Swal.fire('ผิดพลาด', 'ระดับชั้นนี้มีหัวหน้าอยู่แล้วครับ', 'error');
+    
+    tsGradeModal.clear();
+    renderGradeHeadsList();
+    Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1000, showConfirmButton: false });
+}
+
+// --- ฟังก์ชันสำหรับหัวหน้างานปกครอง ---
+async function openDisciplineHeadModal() {
+    document.getElementById('disciplineHeadModal').classList.remove('hidden');
+    document.getElementById('disciplineHeadModal').classList.add('flex');
+    
+    if (!tsDiscModal) {
+        const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
+        tsDiscModal = new TomSelect('#modal_select_discipline_head_user', {
+            options: personnel.map(p => ({ id: p.id, name: `${p.prefix || ''}${p.first_name} ${p.last_name}` })),
+            valueField: 'id', labelField: 'name', searchField: 'name', placeholder: '-- ค้นหาชื่อครู --'
+        });
+    }
+    renderDisciplineHeadsList();
+}
+
+function closeDisciplineHeadModal() {
+    document.getElementById('disciplineHeadModal').classList.add('hidden');
+    document.getElementById('disciplineHeadModal').classList.remove('flex');
+}
+
+async function renderDisciplineHeadsList() {
+    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+    const { data } = await db.from('core_discipline_heads')
+        .select('id, core_personnel(prefix, first_name, last_name)')
+        .eq('academic_year', sInfo?.current_academic_year);
+
+    const tbody = document.getElementById('modal_list_discipline_heads');
+    tbody.innerHTML = data?.map(h => `
+        <tr class="hover:bg-slate-50">
+            <td class="p-3 font-bold text-slate-600">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
+            <td class="p-3 text-center">
+                <button onclick="removeDisciplineHead('${h.id}')" class="text-rose-500 hover:bg-rose-100 p-2 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+            </td>
+        </tr>
+    `).join('') || '<tr><td colspan="2" class="p-4 text-center text-slate-400">ยังไม่มีข้อมูล</td></tr>';
+}
+
+async function assignDisciplineHead() {
+    const userId = tsDiscModal.getValue();
+    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+    if (!userId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
+
+    const { error } = await db.from('core_discipline_heads').insert({ personnel_id: userId, academic_year: sInfo.current_academic_year });
+    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+
+    tsDiscModal.clear();
+    renderDisciplineHeadsList();
+    Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1000, showConfirmButton: false });
+}
+
+// ฟังก์ชันลบสิทธิ์
+async function removeGradeHead(id) {
+    if(!confirm('ยืนยันการลบสิทธิ์?')) return;
+    await db.from('behavior_grade_heads').delete().eq('id', id);
+    renderGradeHeadsList();
+}
+
+async function removeDisciplineHead(id) {
+    if(!confirm('ยืนยันการลบสิทธิ์?')) return;
+    await db.from('core_discipline_heads').delete().eq('id', id);
+    renderDisciplineHeadsList();
+}
+
+// ==========================================
 // 🌟 ระบบจัดการ Sidebar (ย่อ-ขยาย) และ Theme
 // ==========================================
 let isSidebarCollapsed = false;

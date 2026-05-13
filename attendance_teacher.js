@@ -1,8 +1,7 @@
 /**
- * WRK System - Morning Attendance Logic (Refactored)
- * ปรับปรุง: โค้ดกระชับ, สิทธิ์หัวหน้างานปกครองดูได้อย่างเดียว
+ * WRK System - Morning Attendance (Clean Version)
+ * ลบบทบาทหัวหน้าระดับ/ปกครอง → จัดการจาก super_admin ส่วนกลาง
  */
-
 let currentUser = null;
 let currentSchoolInfo = null;
 let actualUserRole = '';
@@ -43,139 +42,220 @@ function formatThaiDate(dateStr) {
 
 // ==================== AUTH & INIT ====================
 $(document).ready(async () => {
-    const today = new Date();
-    $('#check-date').val(new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
-    await checkAuth();
-    $('#check-date').on('change', () => loadStudentList($('#classroom-select').val()));
+    try {
+        const today = new Date();
+        $('#check-date').val(new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
+        await checkAuth();
+        $('#check-date').on('change', () => loadStudentList($('#classroom-select').val()));
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถเริ่มระบบได้', 'error');
+    }
 });
 
+function queryTimeout(promise, label = '', ms = 10000) {
+    return Promise.race([
+        promise,
+        new Promise((_, reject) => setTimeout(() => reject(new Error(`Query [${label}] timed out after ${ms}ms`)), ms))
+    ]);
+}
+
 async function checkAuth() {
-    const { data: { user }, error: authError } = await db.auth.getUser();
-    if (authError || !user) { window.location.href = 'index.html'; return; }
+    try {
+        // --- Auth ---
+        const { data: { user }, error: authError } = await queryTimeout(
+            db.auth.getUser(), 'auth.getUser'
+        );
+        if (authError || !user) { window.location.href = 'index.html'; return; }
 
-    const { data: personnel } = await db.from('core_personnel').select('*').eq('id', user.id).single();
-    if (!personnel) return;
-    currentUser = personnel;
-    actualUserRole = personnel.role;
+        // --- Personnel ---
+        const { data: personnel } = await queryTimeout(
+            db.from('core_personnel').select('*').eq('id', user.id).single(),
+            'core_personnel'
+        );
+        if (!personnel) return;
+        currentUser = personnel;
+        actualUserRole = personnel.role;
 
-    let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name} ${personnel.last_name}`;
+        let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name} ${personnel.last_name}`;
 
-    const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
-    if (schoolInfo) {
+        // --- School Info ---
+        const { data: schoolInfo } = await queryTimeout(
+            db.from('core_school_info').select('*').single(),
+            'core_school_info'
+        );
+        if (!schoolInfo) {
+            Swal.fire('ข้อมูลโรงเรียนไม่สมบูรณ์', 'กรุณาตั้งค่าข้อมูลโรงเรียนในระบบส่วนกลาง', 'warning');
+            return;
+        }
         currentSchoolInfo = schoolInfo;
         termStartDate = schoolInfo.term_start_date;
-    }
 
-    const { data: settings } = await db.from('module_attendance_settings')
-        .select('*').eq('academic_year', schoolInfo.current_academic_year).eq('semester', schoolInfo.current_semester).maybeSingle();
-    if (settings) {
-        moduleSettings = {
-            check_only_weekdays: settings.check_only_weekdays !== false,
-            lock_future_dates: settings.lock_future_dates !== false,
-            enforce_term_start: settings.enforce_term_start !== false,
-            end_date: settings.end_date
-        };
-        termEndDate = settings.end_date;
-    }
-
-    const { data: holidays } = await db.from('module_attendance_holidays').select('*');
-    holidayList = holidays || [];
-    applyDateConstraints();
-
-    const { data: headInfo } = await db.from('core_grade_heads')
-        .select('grade_level').eq('personnel_id', user.id).eq('academic_year', schoolInfo.current_academic_year);
-    let managedGrades = headInfo ? headInfo.map(h => h.grade_level) : [];
-
-    const { data: discInfo } = await db.from('core_discipline_heads')
-        .select('id').eq('personnel_id', user.id).eq('academic_year', schoolInfo.current_academic_year).maybeSingle();
-    window.isDisciplineHead = !!discInfo;
-
-    if (actualUserRole === 'super_admin' || actualUserRole === 'admin' || window.isDisciplineHead) {
-        managedGrades = ['1', '2', '3', '4', '5', '6'];
-    }
-    currentManagedGrades = managedGrades;
-    $('#btn-grade-overview').toggleClass('hidden', currentManagedGrades.length === 0);
-
-    // Role display
-    if (actualUserRole === 'super_admin') {
-        userDisplayText += `<span class="block text-[10px] text-rose-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-crown mr-1"></i> ผู้ดูแลระบบสูงสุด</span>`;
-    } else if (window.isDisciplineHead) {
-        userDisplayText += `<span class="block text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-shield-alt mr-1"></i> หัวหน้างานปกครอง</span>`;
-    } else if (headInfo && headInfo.length > 0) {
-        userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${headInfo.map(h => h.grade_level).join(', ')}</span>`;
-    }
-    $('#user-display').html(userDisplayText);
-
-    // Toggle button visibility
-    const toggleBtn = document.getElementById('btnAdminMode');
-    if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
-        currentViewRole = 'admin';
-        $('#admin-settings-btn').removeClass('hidden').addClass('flex');
-        if (actualUserRole === 'super_admin') {
-            $('#super-admin-section').removeClass('hidden');
-            if (typeof loadAllTeachersForSelect === 'function') loadAllTeachersForSelect();
-        }
-        if (toggleBtn) {
-            toggleBtn.classList.remove('hidden');
-            toggleBtn.classList.add('flex');
-            updateToggleButtonUI();
-        }
-    } else {
-        currentViewRole = 'teacher';
-        if (toggleBtn) toggleBtn.classList.add('hidden');
-        $('#admin-settings-btn').addClass('hidden').removeClass('flex');
-    }
-
-    const { data: allClassrooms } = await db.from('core_classrooms')
-        .select('*').eq('academic_year', schoolInfo.current_academic_year).eq('semester', schoolInfo.current_semester)
-        .order('grade_level', { ascending: true }).order('room_number', { ascending: true });
-    window.globalClassroomsList = allClassrooms;
-
-    const isAdviser = allClassrooms.some(cls => cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id);
-    const btnStatsReport = document.getElementById('btn-stats-report');
-    if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && actualUserRole !== 'admin' && actualUserRole !== 'super_admin');
-
-    let classrooms = [];
-    if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
-        classrooms = allClassrooms;
-    } else if (window.isDisciplineHead) {
-        classrooms = []; // หัวหน้างานปกครองไม่สามารถเช็คชื่อได้
-    } else {
-        classrooms = allClassrooms.filter(cls =>
-            managedGrades.includes(String(cls.grade_level)) ||
-            cls.adviser_id_1 === user.id ||
-            cls.adviser_id_2 === user.id
+        // --- Settings & Holidays ---
+        const { data: settings } = await queryTimeout(
+            db.from('module_attendance_settings')
+                .select('*')
+                .eq('academic_year', schoolInfo.current_academic_year)
+                .eq('semester', schoolInfo.current_semester)
+                .maybeSingle(),
+            'module_attendance_settings'
         );
+        if (settings) {
+            moduleSettings = {
+                check_only_weekdays: settings.check_only_weekdays !== false,
+                lock_future_dates: settings.lock_future_dates !== false,
+                enforce_term_start: settings.enforce_term_start !== false,
+                end_date: settings.end_date
+            };
+            termEndDate = settings.end_date;
+        }
+
+        const { data: holidays } = await queryTimeout(
+            db.from('module_attendance_holidays').select('*'),
+            'module_attendance_holidays'
+        );
+        holidayList = holidays || [];
+        applyDateConstraints();
+
+        // ===== สิทธิ์หัวหน้าระดับ และหัวหน้างานปกครอง =====
+        let managedGrades = [];
+        let isDisciplineHead = false;
+
+        if (actualUserRole !== 'super_admin' && actualUserRole !== 'admin') {
+            // ตรวจสอบหัวหน้าระดับ
+            const { data: gradeHeads } = await queryTimeout(
+                db.from('core_grade_heads')
+                    .select('grade_level')
+                    .eq('personnel_id', user.id)
+                    .eq('academic_year', schoolInfo.current_academic_year),
+                'core_grade_heads'
+            );
+            if (gradeHeads && gradeHeads.length > 0) {
+                managedGrades = gradeHeads.map(h => h.grade_level);
+            }
+
+            // ตรวจสอบหัวหน้างานปกครอง
+            const { data: discHead } = await queryTimeout(
+                db.from('core_discipline_heads')
+                    .select('id')
+                    .eq('personnel_id', user.id)
+                    .eq('academic_year', schoolInfo.current_academic_year)
+                    .maybeSingle(),
+                'core_discipline_heads'
+            );
+            isDisciplineHead = !!discHead;
+        }
+
+        // กำหนด currentManagedGrades (ใช้ในภาพรวมระดับชั้น)
+        if (actualUserRole === 'super_admin' || actualUserRole === 'admin' || isDisciplineHead) {
+            currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
+        } else if (managedGrades.length > 0) {
+            currentManagedGrades = managedGrades;
+        } else {
+            currentManagedGrades = [];
+        }
+        $('#btn-grade-overview').toggleClass('hidden', currentManagedGrades.length === 0);
+
+        // --- แสดงป้ายบทบาท ---
+        if (actualUserRole === 'super_admin') {
+            userDisplayText += `<span class="block text-[10px] text-rose-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-crown mr-1"></i> ผู้ดูแลระบบสูงสุด</span>`;
+        } else if (isDisciplineHead) {
+            userDisplayText += `<span class="block text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-shield-alt mr-1"></i> หัวหน้างานปกครอง</span>`;
+        } else if (managedGrades.length > 0) {
+            userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${managedGrades.join(', ')}</span>`;
+        }
+        $('#user-display').html(userDisplayText);
+
+        // --- ปุ่มสลับโหมด (admin/teacher) ---
+        const toggleBtn = document.getElementById('btnAdminMode');
+        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+            currentViewRole = 'admin';
+            $('#admin-settings-btn').removeClass('hidden').addClass('flex');
+            if (actualUserRole === 'super_admin') {
+                $('#super-admin-section').removeClass('hidden');
+            }
+            if (toggleBtn) {
+                toggleBtn.classList.remove('hidden');
+                toggleBtn.classList.add('flex');
+                updateToggleButtonUI();
+            }
+        } else {
+            currentViewRole = 'teacher';
+            if (toggleBtn) toggleBtn.classList.add('hidden');
+            $('#admin-settings-btn').addClass('hidden').removeClass('flex');
+        }
+
+        // --- ดึงห้องเรียนทั้งหมด ---
+        const { data: allClassrooms, error: classError } = await queryTimeout(
+            db.from('core_classrooms')
+                .select('*')
+                .eq('academic_year', schoolInfo.current_academic_year)
+                .eq('semester', schoolInfo.current_semester)
+                .order('grade_level', { ascending: true })
+                .order('room_number', { ascending: true }),
+            'core_classrooms'
+        );
+        if (classError) throw classError;
+        window.globalClassroomsList = allClassrooms;
+
+        // --- ปุ่มสถิติ (เฉพาะครูที่ปรึกษาหรือ admin) ---
+        const isAdviser = allClassrooms.some(cls => cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id);
+        const btnStatsReport = document.getElementById('btn-stats-report');
+        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && actualUserRole !== 'admin' && actualUserRole !== 'super_admin');
+
+        // --- กำหนดรายการห้องเรียนใน dropdown ---
+        let classrooms = [];
+        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+            classrooms = allClassrooms;
+        } else if (isDisciplineHead) {
+            classrooms = []; // หัวหน้างานปกครองไม่สามารถเช็คชื่อได้
+        } else {
+            // ครูทั่วไป / หัวหน้าระดับ (เช็คชื่อได้เฉพาะห้องที่ตนเป็นที่ปรึกษา)
+            classrooms = allClassrooms.filter(cls =>
+                cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id
+            );
+        }
+
+        const selectEl = document.getElementById('classroom-select');
+        if (window.classroomTomSelect) window.classroomTomSelect.destroy();
+        selectEl.innerHTML = '';
+
+        if (classrooms.length === 0) {
+            selectEl.innerHTML = '<option value="">ไม่มีสิทธิ์เช็คชื่อ</option>';
+            $('#student-list').html('<tr><td colspan="3" class="text-center py-16 text-slate-500 font-bold">คุณไม่มีสิทธิ์บันทึกการเช็คชื่อในห้องเรียนใด ๆ</td></tr>');
+            updateStatsClear();
+            currentDashboardStudents = [];
+            renderDashboardSummary();
+            return;
+        }
+
+        classrooms.forEach(cls => {
+            const option = document.createElement('option');
+            option.value = cls.id;
+            option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
+            selectEl.appendChild(option);
+        });
+
+        window.classroomTomSelect = new TomSelect(selectEl, {
+            placeholder: '-- เลือกห้องเรียน --',
+            searchField: ['text'],
+        });
+
+        window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });
+        loadStudentList(classrooms[0].id);
+
+    } catch (err) {
+        console.error('❌ checkAuth error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'ระบบขัดข้อง',
+            text: err.message || 'เกิดข้อผิดพลาดระหว่างโหลดข้อมูล กรุณาลองใหม่',
+            footer: 'หากพบปัญหาต่อเนื่อง ให้ตรวจสอบ Console (F12)'
+        });
+        $('#user-display').html('<span class="text-rose-600 font-bold">โหลดข้อมูลล้มเหลว</span>');
     }
-
-    const selectEl = document.getElementById('classroom-select');
-    if (window.classroomTomSelect) window.classroomTomSelect.destroy();
-    selectEl.innerHTML = '';
-
-    if (classrooms.length === 0) {
-        selectEl.innerHTML = '<option value="">ไม่มีสิทธิ์เช็คชื่อ</option>';
-        $('#student-list').html('<tr><td colspan="3" class="text-center py-16 text-slate-500 font-bold">คุณไม่มีสิทธิ์บันทึกการเช็คชื่อในห้องเรียนใด ๆ</td></tr>');
-        updateStatsClear();
-        currentDashboardStudents = [];
-        renderDashboardSummary();
-        return;
-    }
-
-    classrooms.forEach(cls => {
-        const option = document.createElement('option');
-        option.value = cls.id;
-        option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
-        selectEl.appendChild(option);
-    });
-
-    window.classroomTomSelect = new TomSelect(selectEl, {
-        placeholder: '-- เลือกห้องเรียน --',
-        searchField: ['text'],
-    });
-
-    window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });
-    loadStudentList(classrooms[0].id);
 }
+//=====================================
 
 function updateToggleButtonUI() {
     const btn = document.getElementById('btnAdminMode');
@@ -190,6 +270,67 @@ function updateToggleButtonUI() {
 }
 
 // ==================== DASHBOARD ====================
+// function renderDashboardSummary() {
+//     const container = document.getElementById('dashboard-summary-container');
+//     if (!container || !currentDashboardStudents.length) { container.innerHTML = ''; return; }
+
+//     const rawDate = $('#check-date').val() || '';
+//     const thaiDateText = rawDate ? new Date(rawDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : 'วันนี้';
+
+//     let stats = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
+//     let issueStudents = { 'ขาด': [], 'สาย': [], 'ลา': [], 'ป่วย': [] };
+//     currentDashboardStudents.forEach(student => {
+//         const sid = student.id || student.student_id;
+//         const status = attendanceData[sid];
+//         if (status && stats[status] !== undefined) {
+//             stats[status]++;
+//             if (status !== 'มา') {
+//                 const sData = student.core_students || student;
+//                 issueStudents[status].push({
+//                     code: sData.student_id_card || sData.student_number || '-',
+//                     name: `${sData.prefix || ''}${sData.first_name} ${sData.last_name}`,
+//                     listNum: student.student_number ? `เลขที่ ${student.student_number}` : ''
+//                 });
+//             }
+//         }
+//     });
+
+//     const genList = (title, icon, colorClass, bgClass, borderClass, list) => {
+//         if (!list.length) return '';
+//         list.sort((a, b) => parseInt(a.listNum.replace('เลขที่ ', '')) - parseInt(b.listNum.replace('เลขที่ ', '')));
+//         const items = list.map(s => `
+//             <li class="flex justify-between items-center py-1.5 border-b border-white/50 last:border-0">
+//                 <div class="flex items-center gap-2"><span class="text-[11px] font-bold bg-white/60 px-1.5 py-0.5 rounded text-slate-600 shadow-sm">${s.listNum}</span><span class="text-sm font-bold text-slate-700">${s.name}</span></div>
+//                 <span class="text-[10px] font-mono bg-white/40 px-1.5 py-0.5 rounded text-slate-500">${s.code}</span>
+//             </li>`).join('');
+//         return `<div class="${bgClass} p-4 rounded-2xl border ${borderClass} shadow-sm"><h4 class="font-black text-sm ${colorClass} mb-2.5 flex items-center border-b border-white pb-2"><i class="${icon} w-5"></i> ${title} (${list.length} คน)</h4><ul class="space-y-1">${items}</ul></div>`;
+//     };
+
+//     const htmlLists = genList('ขาดเรียน', 'fas fa-user-times', 'text-rose-700', 'bg-rose-50', 'border-rose-100', issueStudents['ขาด']) +
+//         genList('มาสาย', 'fas fa-clock', 'text-orange-700', 'bg-orange-50', 'border-orange-100', issueStudents['สาย']) +
+//         genList('ลากิจ', 'fas fa-envelope-open-text', 'text-yellow-700', 'bg-yellow-50', 'border-yellow-100', issueStudents['ลา']) +
+//         genList('ลาป่วย', 'fas fa-procedures', 'text-blue-700', 'bg-blue-50', 'border-blue-100', issueStudents['ป่วย']);
+
+//     const cardClass = isDashboardSaved
+//         ? 'from-emerald-50/80 to-white border-emerald-200'
+//         : 'from-amber-50/80 to-white border-amber-200';
+//     const iconEl = isDashboardSaved
+//         ? '<div class="absolute -top-4 -right-4 p-4 text-emerald-500/10 text-8xl"><i class="fas fa-check-circle"></i></div>'
+//         : '<div class="absolute -top-4 -right-4 p-4 text-amber-500/10 text-8xl"><i class="fas fa-exclamation-circle"></i></div>';
+//     const headerContent = isDashboardSaved
+//         ? `<div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-200"><i class="fas fa-check"></i></div>
+//            <div><h3 class="text-xl font-black text-emerald-800 tracking-tight">บันทึกการเช็คชื่อเรียบร้อยแล้ว</h3><p class="text-xs text-emerald-600 font-bold tracking-widest uppercase">ข้อมูลประจำวันที่ ${thaiDateText} อัปเดตเข้าระบบแล้ว</p></div>`
+//         : `<div class="w-14 h-14 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-3xl shadow-lg shadow-amber-200 flex-shrink-0"><i class="fas fa-clipboard-list"></i></div>
+//            <div><h3 class="text-xl font-black text-amber-900 tracking-tight">ยังไม่ได้บันทึกการเช็คชื่อ!</h3><p class="text-sm text-amber-700 font-medium mt-0.5">ประจำวันที่ <b class="text-amber-900">${thaiDateText}</b> กรุณาตรวจสอบและบันทึก</p></div>`;
+
+//     container.innerHTML = `<div class="glass-panel p-6 rounded-3xl shadow-sm border bg-gradient-to-br ${cardClass} relative overflow-hidden">${iconEl}
+//         <div class="relative z-10"><div class="flex items-center gap-4 mb-6">${headerContent}</div>
+//         <div class="grid grid-cols-5 gap-3 mb-5">
+//             ${['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย'].map((s, i) => `<div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100"><div class="text-xs text-slate-400 font-bold mb-1">${s}</div><div class="text-2xl font-black ${['text-emerald-500', 'text-rose-500', 'text-orange-500', 'text-yellow-500', 'text-blue-500'][i]}">${stats[s]}</div></div>`).join('')}
+//         </div>
+//         ${htmlLists ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${htmlLists}</div>` : '<div class="text-center py-4 bg-white/60 rounded-2xl text-emerald-600 font-bold border border-emerald-100 shadow-sm"><i class="fas fa-award text-yellow-400 text-xl mr-2 mb-1"></i><br>ยอดเยี่ยม! นักเรียนมาเรียนครบ 100%</div>'}
+//         </div></div>`;
+// }
 function renderDashboardSummary() {
     const container = document.getElementById('dashboard-summary-container');
     if (!container || !currentDashboardStudents.length) { container.innerHTML = ''; return; }
@@ -243,19 +384,41 @@ function renderDashboardSummary() {
         : `<div class="w-14 h-14 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-3xl shadow-lg shadow-amber-200 flex-shrink-0"><i class="fas fa-clipboard-list"></i></div>
            <div><h3 class="text-xl font-black text-amber-900 tracking-tight">ยังไม่ได้บันทึกการเช็คชื่อ!</h3><p class="text-sm text-amber-700 font-medium mt-0.5">ประจำวันที่ <b class="text-amber-900">${thaiDateText}</b> กรุณาตรวจสอบและบันทึก</p></div>`;
 
+    // ----- ส่วนที่แก้ไข: ข้อความแสดงเมื่อไม่มีปัญหาการขาด/สาย/ลา/ป่วย -----
+    let bottomContent = '';
+    if (htmlLists) {
+        // มีรายชื่อนักเรียนที่ขาด/สาย/ลา/ป่วย → แสดงรายชื่อ
+        bottomContent = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${htmlLists}</div>`;
+    } else {
+        // ไม่มีนักเรียนที่ขาด/สาย/ลา/ป่วย
+        if (isDashboardSaved && Object.keys(attendanceData).length > 0) {
+            // เช็คแล้วและทุกคนมา → แสดงข้อความยินดี
+            bottomContent = `<div class="text-center py-4 bg-white/60 rounded-2xl text-emerald-600 font-bold border border-emerald-100 shadow-sm">
+                <i class="fas fa-award text-yellow-400 text-xl mr-2 mb-1"></i><br>ยอดเยี่ยม! นักเรียนมาเรียนครบ 100%
+            </div>`;
+        } else {
+            // ยังไม่ได้บันทึก หรือไม่มีข้อมูล → แสดงข้อความเตือน
+            bottomContent = `<div class="text-center py-4 bg-white/60 rounded-2xl text-amber-600 font-bold border border-amber-100 shadow-sm">
+                <i class="fas fa-clipboard-check text-2xl mb-1"></i><br>ยังไม่ได้บันทึกการเช็คชื่อในวันนี้ กรุณาเลือกสถานะนักเรียน
+            </div>`;
+        }
+    }
+
     container.innerHTML = `<div class="glass-panel p-6 rounded-3xl shadow-sm border bg-gradient-to-br ${cardClass} relative overflow-hidden">${iconEl}
         <div class="relative z-10"><div class="flex items-center gap-4 mb-6">${headerContent}</div>
         <div class="grid grid-cols-5 gap-3 mb-5">
             ${['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย'].map((s, i) => `<div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100"><div class="text-xs text-slate-400 font-bold mb-1">${s}</div><div class="text-2xl font-black ${['text-emerald-500', 'text-rose-500', 'text-orange-500', 'text-yellow-500', 'text-blue-500'][i]}">${stats[s]}</div></div>`).join('')}
         </div>
-        ${htmlLists ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${htmlLists}</div>` : '<div class="text-center py-4 bg-white/60 rounded-2xl text-emerald-600 font-bold border border-emerald-100 shadow-sm"><i class="fas fa-award text-yellow-400 text-xl mr-2 mb-1"></i><br>ยอดเยี่ยม! นักเรียนมาเรียนครบ 100%</div>'}
+        ${bottomContent}
         </div></div>`;
 }
 
 // ==================== DATA LOADING ====================
+let promptedFillMap = {};
+
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
-    promptedFillMap = {};  // ✅ แทรกตรงนี้เลย
+    promptedFillMap = {};
     adviser1Name = '.......................................';
     adviser2Name = '.......................................';
     const { data: room } = await db.from('core_classrooms').select('*').eq('id', classroomId).single();
@@ -280,10 +443,119 @@ async function loadStudentList(classroomId) {
         $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-rose-500 font-bold bg-rose-50/50">ปิดระบบเช็คชื่อ (วันหยุดเสาร์-อาทิตย์)</td></tr>`);
         updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary(); return;
     }
-    if (holidayList.find(h => h.holiday_date === checkDate)) {
-        $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-indigo-600 font-bold bg-indigo-50/50">วันหยุด: ${holidayList.find(h => h.holiday_date === checkDate).description} (ระบบบันทึกมาอัตโนมัติ)</td></tr>`);
-        updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary(); return;
+
+    // --- จัดการวันหยุด: บันทึก "มา" อัตโนมัติให้ทุกคน ---
+    // const holiday = holidayList.find(h => h.holiday_date === checkDate);
+    // if (holiday) {
+    //     const holidayDesc = holiday.description;
+    //     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังบันทึกการมาเรียนอัตโนมัติ (วันหยุด)...</td></tr>');
+
+    //     try {
+    //         // 1. ดึงรายชื่อนักเรียนในห้อง
+    //         const { data: enrollments, error: enrollErr } = await db.from('student_enrollments')
+    //             .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`)
+    //             .eq('classroom_id', classroomId)
+    //             .order('student_number', { ascending: true });
+    //         if (enrollErr) throw enrollErr;
+
+    //         if (!enrollments || enrollments.length === 0) {
+    //             // ห้องไม่มีนักเรียน → แสดงข้อความ
+    //             $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-indigo-600 font-bold bg-indigo-50/50">วันหยุด: ${holidayDesc} (ไม่มีนักเรียนในห้อง)</td></tr>`);
+    //             updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary();
+    //             return;
+    //         }
+
+    //         // 2. สร้างข้อมูลสำหรับ upsert (student_id, classroom_id, check_date, status='มา', teacher_id)
+    //         const upsertData = enrollments.map(s => ({
+    //             student_id: s.student_id,
+    //             classroom_id: classroomId,
+    //             check_date: checkDate,
+    //             status: 'มา',
+    //             teacher_id: currentUser.id
+    //         }));
+
+    //         // 3. บันทึกลงฐานข้อมูล (ถ้ามี record อยู่แล้วจะไม่ซ้ำ)
+    //         const { error: upsertErr } = await db.from('homeroom_attendance')
+    //             .upsert(upsertData, { onConflict: 'student_id,check_date' });
+    //         if (upsertErr) throw upsertErr;
+
+    //         // 4. อัปเดตข้อมูลในหน่วยความจำและ UI
+    //         attendanceData = {};
+    //         enrollments.forEach(s => { attendanceData[s.student_id] = 'มา'; });
+    //         currentDashboardStudents = enrollments;
+    //         isDashboardSaved = true;
+
+    //         renderTable(enrollments);
+    //         updateStats();
+    //         renderDashboardSummary();
+    //         await loadClassroomOverview(classroomId);
+
+    //         // 5. แจ้งเตือนผู้ใช้
+    //         Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 3000 })
+    //             .fire({ icon: 'success', title: `บันทึก "มา" อัตโนมัติสำหรับวันหยุด ${holidayDesc} เรียบร้อย` });
+    //     } catch (err) {
+    //         console.error('Holiday auto-mark error:', err);
+    //         $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-rose-600 font-bold bg-rose-50/50">เกิดข้อผิดพลาดในการบันทึกอัตโนมัติ: ${err.message}</td></tr>`);
+    //         updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary();
+    //     }
+    //     return; // จบการทำงานสำหรับวันหยุด
+    // }
+
+// --- จัดการวันหยุด: บันทึก "มา" อัตโนมัติให้ทุกคน ---
+const holiday = holidayList.find(h => h.holiday_date === checkDate);
+if (holiday) {
+    const holidayDesc = holiday.description;
+    $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังบันทึกการมาเรียนอัตโนมัติ (วันหยุด)...</td></tr>');
+    
+    try {
+        // 1. ดึงรายชื่อนักเรียนในห้อง
+        const { data: enrollments, error: enrollErr } = await db.from('student_enrollments')
+            .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`)
+            .eq('classroom_id', classroomId)
+            .order('student_number', { ascending: true });
+        if (enrollErr) throw enrollErr;
+
+        if (!enrollments || enrollments.length === 0) {
+            $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-indigo-600 font-bold bg-indigo-50/50">วันหยุด: ${holidayDesc} (ไม่มีนักเรียนในห้อง)</td></tr>`);
+            updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary();
+            return;
+        }
+
+        // 2. สร้างข้อมูล upsert
+        const upsertData = enrollments.map(s => ({
+            student_id: s.student_id,
+            classroom_id: classroomId,
+            check_date: checkDate,
+            status: 'มา',
+            teacher_id: currentUser.id
+        }));
+
+        // 3. บันทึกลงฐานข้อมูล
+        const { error: upsertErr } = await db.from('homeroom_attendance')
+            .upsert(upsertData, { onConflict: 'student_id,check_date' });
+        if (upsertErr) throw upsertErr;
+
+        // 4. อัปเดต UI และหน่วยความจำ
+        attendanceData = {};
+        enrollments.forEach(s => { attendanceData[s.student_id] = 'มา'; });
+        currentDashboardStudents = enrollments;
+        isDashboardSaved = true;
+        
+        renderTable(enrollments);
+        updateStats();
+        renderDashboardSummary();
+        await loadClassroomOverview(classroomId);
+
+        Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 3000 })
+            .fire({ icon: 'success', title: `บันทึก "มา" อัตโนมัติสำหรับวันหยุด ${holidayDesc} เรียบร้อย` });
+    } catch (err) {
+        console.error('Holiday auto-mark error:', err);
+        $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-rose-600 font-bold bg-rose-50/50">เกิดข้อผิดพลาดในการบันทึกอัตโนมัติ: ${err.message}</td></tr>`);
+        updateStatsClear(); currentDashboardStudents = []; renderDashboardSummary();
     }
+    return; // ออกจากฟังก์ชัน loadStudentList สำหรับวันหยุด
+}
+
 
     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังดึงข้อมูล...</td></tr>');
     const [{ data: enrollments }, { data: attendance }] = await Promise.all([
@@ -346,17 +618,8 @@ function renderTable(enrollments) {
     });
 }
 
-// แนวทางที่ 2
-// กันถามซ้ำว่า "บันทึกที่เหลือเป็นมา?" ในวัน/ห้องเดียวกัน
-let promptedFillMap = {};
-
 async function fillRemainingAsPresent(classroomId, checkDate) {
-    // หานักเรียนที่ยังไม่มีสถานะใน attendanceData
-    const uncheckedStudents = currentDashboardStudents.filter(s => {
-        const sid = s.student_id || s.id;
-        return !attendanceData[sid];
-    });
-
+    const uncheckedStudents = currentDashboardStudents.filter(s => !attendanceData[s.student_id || s.id]);
     if (uncheckedStudents.length === 0) return;
 
     const upsertData = uncheckedStudents.map(s => ({
@@ -367,33 +630,19 @@ async function fillRemainingAsPresent(classroomId, checkDate) {
         teacher_id: currentUser.id
     }));
 
-    const { error } = await db.from('homeroom_attendance')
-        .upsert(upsertData, { onConflict: 'student_id,check_date' });
-
+    const { error } = await db.from('homeroom_attendance').upsert(upsertData, { onConflict: 'student_id,check_date' });
     if (!error) {
-        // อัปเดต attendanceData ในหน่วยความจำ
+        uncheckedStudents.forEach(s => { attendanceData[s.student_id || s.id] = 'มา'; });
         uncheckedStudents.forEach(s => {
-            const sid = s.student_id || s.id;
-            attendanceData[sid] = 'มา';
+            const row = $(`tr[data-student-id="${s.student_id || s.id}"]`);
+            row.find('button').each(function () {
+                const btnStatus = $(this).text().trim();
+                $(this).removeClass().addClass('status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all')
+                    .addClass(btnStatus === 'มา' ? statusStyles['มา'].active : statusStyles[btnStatus].inactive);
+            });
         });
-
-        // รีเฟรช UI ของแถวที่ถูกเปลี่ยน
-        uncheckedStudents.forEach(s => {
-            const sid = s.student_id || s.id;
-            const row = $(`tr[data-student-id="${sid}"]`);
-            if (row.length) {
-                row.find('button').each(function () {
-                    const btnStatus = $(this).text().trim();
-                    $(this)
-                        .removeClass()
-                        .addClass('status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all')
-                        .addClass(btnStatus === 'มา' ? statusStyles['มา'].active : statusStyles[btnStatus].inactive);
-                });
-            }
-        });
-
         updateStats();
-        isDashboardSaved = true; // เช็คครบแล้ว
+        isDashboardSaved = true;
         renderDashboardSummary();
         Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 })
             .fire({ icon: 'success', title: `บันทึกที่เหลือเป็น "มา" เรียบร้อย` });
@@ -405,68 +654,40 @@ async function updateAttendance(studentId, status) {
     const checkDate = $('#check-date').val();
     if (!studentId || !classroomId || !currentUser) return;
 
-    // 1. อัปเดตสถานะของนักเรียนที่ครูเลือก
     const { error } = await db.from('homeroom_attendance').upsert({
-        student_id: studentId,
-        classroom_id: classroomId,
-        check_date: checkDate,
-        status: status,
-        teacher_id: currentUser.id
+        student_id: studentId, classroom_id: classroomId, check_date: checkDate,
+        status: status, teacher_id: currentUser.id
     }, { onConflict: 'student_id,check_date' });
+    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
 
-    if (error) {
-        Swal.fire('ผิดพลาด', error.message, 'error');
-        return;
-    }
-
-    // 2. อัปเดต UI เฉพาะแถวที่เปลี่ยน
     attendanceData[studentId] = status;
     updateStats();
 
     const row = $(`tr[data-student-id="${studentId}"]`);
     row.find('button').each(function () {
         const btnStatus = $(this).text().trim();
-        $(this)
-            .removeClass()
-            .addClass('status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all')
+        $(this).removeClass().addClass('status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all')
             .addClass(status === btnStatus ? statusStyles[btnStatus].active : statusStyles[btnStatus].inactive);
     });
 
     loadClassroomOverview(classroomId);
 
-    // 3. ตรวจสอบจำนวนที่เช็คแล้ว vs ทั้งหมด
-    const totalStudents = currentDashboardStudents.length;
-    const checkedStudents = Object.keys(attendanceData).length;
+    const total = currentDashboardStudents.length;
+    const checked = Object.keys(attendanceData).length;
     const prompKey = `${classroomId}_${checkDate}`;
-
-    if (checkedStudents < totalStudents && !promptedFillMap[prompKey]) {
-        // ยังมีนักเรียนที่ไม่มี record และยังไม่ได้ถามในรอบนี้
-        promptedFillMap[prompKey] = true; // กันถามซ้ำ
-        const uncheckedCount = totalStudents - checkedStudents;
-
+    if (checked < total && !promptedFillMap[prompKey]) {
+        promptedFillMap[prompKey] = true;
         const { isConfirmed } = await Swal.fire({
             title: 'เช็คชื่อยังไม่ครบทุกคน',
-            html: `<p>ยังมีนักเรียนอีก <b>${uncheckedCount}</b> คน ที่ยังไม่ได้บันทึกสถานะ</p>
-                   <p>ต้องการบันทึกที่เหลือเป็น <b>“มา”</b> อัตโนมัติหรือไม่?</p>`,
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'บันทึกที่เหลือเป็น “มา”',
-            cancelButtonText: 'ภายหลัง'
+            html: `<p>ยังมีนักเรียนอีก <b>${total - checked}</b> คน ที่ยังไม่ได้บันทึกสถานะ</p><p>ต้องการบันทึกที่เหลือเป็น <b>“มา”</b> อัตโนมัติหรือไม่?</p>`,
+            icon: 'question', showCancelButton: true, confirmButtonText: 'บันทึกที่เหลือเป็น “มา”', cancelButtonText: 'ภายหลัง'
         });
-
-        if (isConfirmed) {
-            await fillRemainingAsPresent(classroomId, checkDate);
-        } else {
-            // ครูเลือก "ภายหลัง" → แสดงสถานะยังไม่บันทึก แต่ไม่ถามซ้ำอีก
-            isDashboardSaved = false;
-            renderDashboardSummary();
-        }
+        if (isConfirmed) await fillRemainingAsPresent(classroomId, checkDate);
+        else { isDashboardSaved = false; renderDashboardSummary(); }
     } else {
-        // ถ้าครบแล้ว หรือถามไปแล้ว
-        isDashboardSaved = (checkedStudents === totalStudents);
+        isDashboardSaved = (checked === total);
         renderDashboardSummary();
     }
-
     Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1000 })
         .fire({ icon: 'success', title: `บันทึก "${status}" เรียบร้อย` });
 }
@@ -517,7 +738,6 @@ async function clearDailyData() {
 async function clearAttendanceData() {
     const isAdmin = actualUserRole === 'super_admin' || actualUserRole === 'admin';
 
-    // 1. สร้างตัวเลือกห้องเรียน
     let classroomOptions = [];
     if (isAdmin) {
         Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -534,7 +754,6 @@ async function clearAttendanceData() {
             label: `ม.${r.grade_level}/${r.room_number} (${r.semester}/${r.academic_year})`
         }));
     } else {
-        // ใช้ห้องเรียนจาก dropdown ปัจจุบัน (เฉพาะที่ครูมีสิทธิ์)
         $('#classroom-select option').each(function () {
             if ($(this).val()) classroomOptions.push({ id: $(this).val(), label: $(this).text() });
         });
@@ -542,7 +761,6 @@ async function clearAttendanceData() {
             return Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้เป็นครูที่ปรึกษาห้องใด', 'warning');
     }
 
-    // 2. สร้าง HTML สำหรับเลือกห้อง
     const roomSelectHtml = classroomOptions.length === 1
         ? `<input type="hidden" id="clr-room-id" value="${classroomOptions[0].id}">
            <div class="p-2 bg-rose-50 border border-rose-200 rounded-lg text-center font-bold text-rose-700 mb-3">
@@ -556,7 +774,6 @@ async function clearAttendanceData() {
     const currentClassroomId = $('#classroom-select').val();
     const currentDate = $('#check-date').val();
 
-    // 3. เปิด Swal เพื่อเลือกห้อง + โหมด + วันที่
     const { value: form } = await Swal.fire({
         title: '<i class="fas fa-trash-alt text-rose-500 mr-2"></i>ล้างข้อมูลการเช็คชื่อ',
         width: 520,
@@ -591,7 +808,6 @@ async function clearAttendanceData() {
             <p class="text-[10px] text-rose-500 font-bold bg-rose-50 p-2 rounded-lg">⚠️ ข้อมูลที่ถูกลบจะไม่สามารถกู้คืนได้</p>
         </div>`,
         didOpen: () => {
-            // toggle single/range
             document.querySelectorAll('input[name="clr-mode"]').forEach(radio => {
                 radio.addEventListener('change', e => {
                     if (e.target.value === 'single') {
@@ -626,7 +842,6 @@ async function clearAttendanceData() {
             } else {
                 const rangeVal = document.getElementById('clr-range-date').value;
                 if (!rangeVal) return Swal.showValidationMessage('กรุณาเลือกช่วงวันที่');
-                // แยก " ถึง " หรือ " to "
                 let parts = rangeVal.includes(' ถึง ') ? rangeVal.split(' ถึง ') : rangeVal.split(' to ');
                 startDate = parts[0].trim();
                 endDate = parts[1] ? parts[1].trim() : startDate;
@@ -635,9 +850,8 @@ async function clearAttendanceData() {
         }
     });
 
-    if (!form) return; // ยกเลิก
+    if (!form) return;
 
-    // 4. ยืนยันการลบ
     const dateDisplay = form.startDate === form.endDate
         ? formatThaiDateFull(form.startDate)
         : `${formatThaiDateFull(form.startDate)} ถึง ${formatThaiDateFull(form.endDate)}`;
@@ -657,7 +871,6 @@ async function clearAttendanceData() {
     });
     if (!confirm.isConfirmed) return;
 
-    // 5. ดำเนินการลบ
     Swal.fire({ title: 'กำลังล้างข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         const { error } = await db.from('homeroom_attendance')
@@ -675,7 +888,6 @@ async function clearAttendanceData() {
             showConfirmButton: true
         });
 
-        // รีเฟรชข้อมูลหน้าจอ
         loadStudentList(currentClassroomId);
         loadClassroomOverview(currentClassroomId);
     } catch (err) {
@@ -707,45 +919,32 @@ function closeStudentHistory() { $('#student-history-modal').addClass('hidden');
 
 function exportStudentPDF(name, no, counts, tableRows, className) {
     Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน (ตั้งค่าชื่อโรงเรียนในระบบส่วนกลาง)';
     const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
-
     const history = currentViewStudent.history || [];
 
     const chunkSize = 20;
     const pages = [];
-    for (let i = 0; i < history.length; i += chunkSize) {
-        pages.push(history.slice(i, i + chunkSize));
-    }
+    for (let i = 0; i < history.length; i += chunkSize) pages.push(history.slice(i, i + chunkSize));
     if (pages.length === 0) pages.push([]);
 
     const reportElement = document.createElement('div');
     let htmlContent = `<div style="font-family: 'Anuphan', sans-serif; color: #333;">`;
-
     pages.forEach((pageData, pageIndex) => {
         const isLastPage = pageIndex === pages.length - 1;
-
-        htmlContent += `
-        <div style="padding: 10px 20px; box-sizing: border-box; ${!isLastPage ? 'page-break-after: always;' : ''}">
+        htmlContent += `<div style="padding: 20px 40px; box-sizing: border-box; ${!isLastPage ? 'page-break-after: always;' : ''}">
             <div style="text-align: center; margin-bottom: 20px;">
                 <img src="${logoUrl}" crossorigin="anonymous" style="height: 60px; display: block; margin: 0 auto 10px auto;" alt="Logo">
                 <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
                 <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                
                 <h2 style="margin: 0; font-size: 16px; color: #1e3a8a;">รายงานประวัติการมาเรียนรายบุคคล</h2>
                 <h3 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: normal;">ชื่อ: ${name} (เลขที่ ${no}) | ชั้นเรียน: ${className}</h3>
                 <p style="margin: 0; font-size: 12px; color: #666;">(หน้าที่ ${pageIndex + 1} / ${pages.length})</p>
             </div>
-
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; text-align: center; font-size: 14px;">
                 <tr style="background: #f1f5f9;">
-                    <th style="border: 1px solid #cbd5e1; padding: 8px;">มา</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px;">ขาด</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px;">สาย</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px;">ลา</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px;">ป่วย</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 8px;">มา</th><th style="border: 1px solid #cbd5e1; padding: 8px;">ขาด</th><th style="border: 1px solid #cbd5e1; padding: 8px;">สาย</th><th style="border: 1px solid #cbd5e1; padding: 8px;">ลา</th><th style="border: 1px solid #cbd5e1; padding: 8px;">ป่วย</th>
                 </tr>
                 <tr>
                     <td style="border: 1px solid #cbd5e1; padding: 8px; color: green; font-weight: bold;">${counts['มา']}</td>
@@ -755,18 +954,10 @@ function exportStudentPDF(name, no, counts, tableRows, className) {
                     <td style="border: 1px solid #cbd5e1; padding: 8px; color: blue;">${counts['ป่วย']}</td>
                 </tr>
             </table>
-
             <h4 style="margin-bottom: 10px; font-size: 14px;">รายละเอียดการเช็คชื่อ</h4>
             <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: left;">
-                <thead style="background: #f1f5f9;">
-                    <tr>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px;">วันที่</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px; width: 30%; text-align: center;">สถานะ</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
+                <thead style="background: #f1f5f9;"><tr><th style="border: 1px solid #cbd5e1; padding: 8px;">วันที่</th><th style="border: 1px solid #cbd5e1; padding: 8px; width: 30%; text-align: center;">สถานะ</th></tr></thead>
+                <tbody>`;
         if (pageData.length > 0) {
             pageData.forEach(h => {
                 const thaiDate = formatThaiDateFull(h.check_date);
@@ -776,31 +967,22 @@ function exportStudentPDF(name, no, counts, tableRows, className) {
                 else if (h.status === 'สาย') color = 'color: orange;';
                 else if (h.status === 'ลา') color = 'color: #ca8a04;';
                 else if (h.status === 'ป่วย') color = 'color: blue;';
-
-                htmlContent += `
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px;">${thaiDate}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold; ${color}">${h.status}</td>
-                    </tr>
-                `;
+                htmlContent += `<tr><td style="border: 1px solid #cbd5e1; padding: 8px;">${thaiDate}</td><td style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; font-weight: bold; ${color}">${h.status}</td></tr>`;
             });
         } else {
             htmlContent += `<tr><td colspan="2" style="border: 1px solid #cbd5e1; padding: 8px; text-align: center; color: #94a3b8;">ยังไม่มีประวัติการเช็คชื่อ</td></tr>`;
         }
-
         htmlContent += `</tbody></table></div>`;
     });
-
     htmlContent += `</div>`;
     reportElement.innerHTML = htmlContent;
 
     html2pdf().set({
-        margin: [4, 4, 4, 4], // ← ลด margin
+        margin: 5,
         filename: `ประวัติ_${name.replace(/\s+/g, '')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, allowTaint: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css'], avoid: ['tr'] }
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     }).from(reportElement).save().then(() => {
         Swal.close();
         Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF ประวัติรายบุคคลเรียบร้อยแล้ว', 'success');
@@ -814,12 +996,10 @@ async function exportToExcel() {
 
     const { data: students } = await db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name)`).eq('classroom_id', classroomId).order('student_number');
     const { data: allAttendance } = await db.from('homeroom_attendance').select('*').eq('classroom_id', classroomId);
-
     if (!allAttendance || allAttendance.length === 0) { Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติ', 'info'); return; }
 
     const wb = XLSX.utils.book_new();
     const monthNames = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
-
     const groupedByMonth = {};
     allAttendance.forEach(att => {
         const monthKey = att.check_date.substring(0, 7);
@@ -832,23 +1012,18 @@ async function exportToExcel() {
     for (const [monthKey, monthData] of Object.entries(groupedByMonth)) {
         const [year, month] = monthKey.split('-');
         const sheetName = `${monthNames[parseInt(month) - 1]} ${parseInt(year) + 543}`;
-
         const sortedDates = Array.from(monthData.dates).sort();
         const dateHeaders = sortedDates.map(d => `${d.split('-')[2]}/${d.split('-')[1]}`);
-
         const wsData = [['เลขที่', 'ชื่อ-นามสกุล', 'มา', 'ขาด', 'สาย', 'ลา', 'ป่วย', ...dateHeaders]];
-
         students.forEach(std => {
             const stdId = std.student_id;
             let counts = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
             let dailyStatuses = [];
-
             sortedDates.forEach(d => {
                 const status = (monthData.attendance[stdId] && monthData.attendance[stdId][d]) ? monthData.attendance[stdId][d] : '-';
                 dailyStatuses.push(status);
                 if (counts[status] !== undefined) counts[status]++;
             });
-
             wsData.push([
                 std.student_number,
                 `${std.core_students.prefix}${std.core_students.first_name} ${std.core_students.last_name}`,
@@ -856,11 +1031,9 @@ async function exportToExcel() {
                 ...dailyStatuses
             ]);
         });
-
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
-
     XLSX.writeFile(wb, `เช็คชื่อ_${className.replace(/\s+/g, '')}_ละเอียด.xlsx`);
     Swal.close();
 }
@@ -868,19 +1041,15 @@ async function exportToExcel() {
 async function generatePDFReport() {
     const className = $('#classroom-select option:selected').text();
     const checkDateStr = $('#check-date').val();
-
     if (Object.keys(attendanceData).length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'กรุณาเช็คชื่อนักเรียนให้เรียบร้อยก่อนออกรายงาน', 'warning');
         return;
     }
-
     Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน (ตั้งค่าชื่อโรงเรียนในระบบส่วนกลาง)';
     const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDateStr);
-
     let cPresent = 0, cAbsent = 0, cLate = 0, cLeave = 0, cSick = 0;
     Object.values(attendanceData).forEach(status => {
         if (status === 'มา') cPresent++;
@@ -889,7 +1058,6 @@ async function generatePDFReport() {
         else if (status === 'ลา') cLeave++;
         else if (status === 'ป่วย') cSick++;
     });
-
     const studentsList = [];
     $('#student-list tr[data-student-id]').each(function () {
         studentsList.push({
@@ -899,129 +1067,92 @@ async function generatePDFReport() {
             status: attendanceData[$(this).data('student-id')] || 'ยังไม่เช็ค'
         });
     });
-
     const chunkSize = 20;
     const pages = [];
-    for (let i = 0; i < studentsList.length; i += chunkSize) {
-        pages.push(studentsList.slice(i, i + chunkSize));
-    }
-
+    for (let i = 0; i < studentsList.length; i += chunkSize) pages.push(studentsList.slice(i, i + chunkSize));
     let htmlContent = `<div style="font-family: 'Anuphan', sans-serif; color: #333;">`;
-
     pages.forEach((pageStudents, pageIndex) => {
         const isLastPage = pageIndex === pages.length - 1;
-
         htmlContent += `
         <div style="padding: 10px 20px; box-sizing: border-box; ${!isLastPage ? 'page-break-after: always;' : ''}">
             <div style="text-align: center; margin-bottom: 20px;">
                 <img src="${logoUrl}" crossorigin="anonymous" style="height: 60px; display: block; margin: 0 auto 10px auto;" alt="Logo">
                 <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
                 <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                
                 <h2 style="margin: 0; font-size: 16px;">รายงานการเช็คชื่อกิจกรรมหน้าเสาธง/โฮมรูม</h2>
                 <h3 style="margin: 5px 0 0 0; font-size: 14px; font-weight: normal;">ชั้นเรียน: ${className} | ประจำวันที่: ${thaiDateText}</h3>
                 <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">(หน้าที่ ${pageIndex + 1} / ${pages.length})</p>
             </div>
-
             <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <thead>
-                    <tr style="background-color: #f1f5f9;">
-                        <th style="border: 1px solid #cbd5e1; padding: 8px; width: 10%; text-align: center;">เลขที่</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">เลขประจำตัว</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px; width: 50%; text-align: left;">ชื่อ - นามสกุล</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">สถานะ</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
+                <thead><tr style="background-color: #f1f5f9;">
+                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 10%; text-align: center;">เลขที่</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">เลขประจำตัว</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 50%; text-align: left;">ชื่อ - นามสกุล</th>
+                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">สถานะ</th>
+                </tr></thead>
+                <tbody>`;
         pageStudents.forEach(std => {
             let color = '';
             if (std.status === 'มา') color = 'color: green;';
             else if (std.status === 'ขาด') color = 'color: red;';
-
-            htmlContent += `
-                <tr>
-                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.no}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.studentCode}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 6px;">${std.name}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; ${color}">${std.status}</td>
-                </tr>
-            `;
+            htmlContent += `<tr>
+                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.no}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.studentCode}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px;">${std.name}</td>
+                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; ${color}">${std.status}</td>
+            </tr>`;
         });
-
         htmlContent += `</tbody></table>`;
-
         if (isLastPage) {
             htmlContent += `
-                <div style="margin-top: 20px; font-size: 14px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; background-color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                    <b>สรุป:</b> 
-                    <span style="color: green;">มาเรียน ${cPresent} คน</span> | 
-                    <span style="color: red;">ขาด ${cAbsent} คน</span> | 
-                    <span style="color: orange;">สาย ${cLate} คน</span> | 
-                    <span style="color: #ca8a04;">ลา ${cLeave} คน</span> | 
-                    <span style="color: blue;">ป่วย ${cSick} คน</span>
-                </div>
-                
-                <div style="margin-top: 50px; display: flex; justify-content: space-around; font-size: 14px;">
-                    <div style="text-align: center;">
-                        <p>ลงชื่อ........................................................</p>
-                        <p>( ${adviser1Name} )</p>
-                        <p>ครูที่ปรึกษา</p>
-                    </div>
-                    <div style="text-align: center;">
-                        <p>ลงชื่อ........................................................</p>
-                        <p>( ${adviser2Name} )</p>
-                        <p>ครูที่ปรึกษา</p>
-                    </div>
-                </div>
-            `;
+            <div style="margin-top: 20px; font-size: 14px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; background-color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                <b>สรุป:</b> 
+                <span style="color: green;">มาเรียน ${cPresent} คน</span> | 
+                <span style="color: red;">ขาด ${cAbsent} คน</span> | 
+                <span style="color: orange;">สาย ${cLate} คน</span> | 
+                <span style="color: #ca8a04;">ลา ${cLeave} คน</span> | 
+                <span style="color: blue;">ป่วย ${cSick} คน</span>
+            </div>
+            <div style="margin-top: 50px; display: flex; justify-content: space-around; font-size: 14px;">
+                <div style="text-align: center;"><p>ลงชื่อ........................................................</p><p>( ${adviser1Name} )</p><p>ครูที่ปรึกษา</p></div>
+                <div style="text-align: center;"><p>ลงชื่อ........................................................</p><p>( ${adviser2Name} )</p><p>ครูที่ปรึกษา</p></div>
+            </div>`;
         }
         htmlContent += `</div>`;
     });
-
     htmlContent += `</div>`;
-
     const opt = {
-        margin: [4, 4, 4, 4],          // ลดขอบจาก 10 เหลือ 5 มม. → ใช้พื้นที่มากขึ้น
+        margin: [4, 4, 4, 4],
         filename: `รายงานประจำวัน_${className.replace(/\s+/g, '')}_${checkDateStr}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, // ✅ แนวตั้ง
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css'], avoid: ['tr'] }
     };
-
     html2pdf().set(opt).from(htmlContent).save().then(() => {
         Swal.close();
         Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว', 'success');
     });
 }
 
-// ฟังก์ชันสำหรับเปิดหน้าต่างประวัติการเช็คชื่อ
 async function openHistoryModal() {
     const classroomId = $('#classroom-select').val();
     const className = $('#classroom-select option:selected').text();
     if (!classroomId) return;
-
     Swal.fire({ title: 'กำลังโหลดประวัติ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     const { data } = await db.from('homeroom_attendance')
         .select('check_date, status')
         .eq('classroom_id', classroomId)
         .order('check_date', { ascending: false });
     Swal.close();
-
     if (!data || data.length === 0) {
         return Swal.fire('ไม่มีข้อมูล', `ยังไม่มีการเช็คชื่อของ ${className}`, 'info');
     }
-
-    // สรุปรายวัน
     const byDate = {};
     data.forEach(r => {
         if (!byDate[r.check_date]) byDate[r.check_date] = { มา: 0, ขาด: 0, สาย: 0, ลา: 0, ป่วย: 0 };
         byDate[r.check_date][r.status] = (byDate[r.check_date][r.status] || 0) + 1;
     });
-
     const rows = Object.entries(byDate).map(([date, s]) => `
         <tr class="border-b border-slate-100 hover:bg-slate-50">
             <td class="py-2 px-3 text-sm">${formatThaiDateFull(date)}</td>
@@ -1031,22 +1162,12 @@ async function openHistoryModal() {
             <td class="py-2 px-3 text-center text-yellow-600 font-bold">${s['ลา'] || 0}</td>
             <td class="py-2 px-3 text-center text-blue-600 font-bold">${s['ป่วย'] || 0}</td>
         </tr>`).join('');
-
     Swal.fire({
         title: `ประวัติการเช็คชื่อ: ${className}`,
         width: 640,
         html: `<div class="overflow-auto max-h-80">
             <table class="w-full text-left text-sm">
-                <thead class="bg-slate-100 sticky top-0">
-                    <tr>
-                        <th class="py-2 px-3">วันที่</th>
-                        <th class="py-2 px-3 text-center text-green-600">มา</th>
-                        <th class="py-2 px-3 text-center text-rose-600">ขาด</th>
-                        <th class="py-2 px-3 text-center text-orange-500">สาย</th>
-                        <th class="py-2 px-3 text-center text-yellow-600">ลา</th>
-                        <th class="py-2 px-3 text-center text-blue-600">ป่วย</th>
-                    </tr>
-                </thead>
+                <thead class="bg-slate-100 sticky top-0"><tr><th class="py-2 px-3">วันที่</th><th class="py-2 px-3 text-center text-green-600">มา</th><th class="py-2 px-3 text-center text-rose-600">ขาด</th><th class="py-2 px-3 text-center text-orange-500">สาย</th><th class="py-2 px-3 text-center text-yellow-600">ลา</th><th class="py-2 px-3 text-center text-blue-600">ป่วย</th></tr></thead>
                 <tbody>${rows}</tbody>
             </table>
         </div>`,
@@ -1062,17 +1183,19 @@ function openAdminModal() {
     $('#setting-enforce-term-start').prop('checked', moduleSettings.enforce_term_start);
     $('#setting-end-date').val(moduleSettings.end_date || '');
     renderHolidayList();
-    if (actualUserRole === 'super_admin') {
-        renderGradeHeadsList();
-        loadAllTeachersForSelect();
-        loadDisciplineHeads();
-    }
+    
+    // เพิ่ม: ตั้งค่าวันที่สำหรับบันทึกย้อนหลังเป็นวันนี้
+    const today = new Date().toISOString().split('T')[0];
+    $('#admin-batch-date').val(today);
+    $('#admin-batch-status').html(''); // ล้างข้อความเก่า
+
     $('#admin-modal').removeClass('hidden');
 }
+
 function closeAdminModal() { $('#admin-modal').addClass('hidden'); }
+
 async function saveAdminSettings() {
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     const newSettings = {
         academic_year: currentSchoolInfo.current_academic_year,
         semester: currentSchoolInfo.current_semester,
@@ -1081,11 +1204,9 @@ async function saveAdminSettings() {
         lock_future_dates: $('#setting-lock-future').is(':checked'),
         enforce_term_start: $('#setting-enforce-term-start').is(':checked')
     };
-
     const { error } = await db.from('module_attendance_settings').upsert(newSettings, { onConflict: 'academic_year,semester' });
-    if (error) {
-        Swal.fire('Error', error.message, 'error');
-    } else {
+    if (error) { Swal.fire('Error', error.message, 'error'); }
+    else {
         moduleSettings = newSettings;
         applyDateConstraints();
         Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success').then(() => {
@@ -1094,7 +1215,6 @@ async function saveAdminSettings() {
         });
     }
 }
-
 function toggleRoleView() {
     currentViewRole = currentViewRole === 'admin' ? 'teacher' : 'admin';
     updateToggleButtonUI();
@@ -1102,8 +1222,106 @@ function toggleRoleView() {
     Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: `เปลี่ยนเป็นมุมมอง${currentViewRole === 'admin' ? ' Admin' : 'ครู'}`, showConfirmButton: false, timer: 1500 });
 }
 
-// ==================== HOLIDAYS & GRADE HEADS & DISCIPLINE ====================
-// (คงฟังก์ชัน renderHolidayList, addHoliday, deleteHoliday, loadAllTeachersForSelect, renderGradeHeadsList, addGradeHead, removeGradeHead)
+// ===== บันทึก "มา" ย้อนหลังทั้งโรงเรียน (Admin) =====
+async function adminMarkAllPresentBatch() {
+    // ตรวจสอบสิทธิ์
+    if (actualUserRole !== 'admin' && actualUserRole !== 'super_admin') {
+        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+    }
+
+    const batchDate = $('#admin-batch-date').val();
+    if (!batchDate) {
+        return Swal.fire('กรุณาเลือกวันที่', '', 'warning');
+    }
+
+    // ยืนยันการดำเนินการ
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการบันทึกย้อนหลัง',
+        html: `คุณต้องการบันทึก <b>"มา"</b> ให้กับนักเรียน <b>ทุกห้อง</b> ในวันที่ <b>${formatThaiDateFull(batchDate)}</b> ใช่หรือไม่?<br><span class="text-sm text-rose-600">(การดำเนินการนี้อาจใช้เวลาสักครู่)</span>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'ใช่, บันทึกเลย',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!isConfirmed) return;
+
+    // แสดง Loading
+    Swal.fire({
+        title: 'กำลังดำเนินการ...',
+        html: 'กรุณารอสักครู่ ระบบกำลังบันทึกข้อมูลให้กับทุกห้องเรียน',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ดึงข้อมูลห้องเรียนทั้งหมดในเทอมปัจจุบัน
+        const { data: rooms, error: roomErr } = await db.from('core_classrooms')
+            .select('id, grade_level, room_number')
+            .eq('academic_year', currentSchoolInfo.current_academic_year)
+            .eq('semester', currentSchoolInfo.current_semester);
+        if (roomErr) throw roomErr;
+        if (!rooms || rooms.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่พบห้องเรียน', 'ไม่มีห้องเรียนในเทอมนี้', 'warning');
+        }
+
+        // วนลูปแต่ละห้อง
+        let totalStudents = 0;
+        for (const room of rooms) {
+            // ดึงรหัสนักเรียนทั้งหมดในห้อง
+            const { data: students, error: studentErr } = await db.from('student_enrollments')
+                .select('student_id')
+                .eq('classroom_id', room.id);
+            if (studentErr) throw studentErr;
+            if (!students || students.length === 0) continue;
+
+            // สร้าง upsert data
+            const upsertData = students.map(s => ({
+                student_id: s.student_id,
+                classroom_id: room.id,
+                check_date: batchDate,
+                status: 'มา',
+                teacher_id: currentUser.id
+            }));
+
+            // บันทึก
+            const { error: upsertErr } = await db.from('homeroom_attendance')
+                .upsert(upsertData, { onConflict: 'student_id,check_date' });
+            if (upsertErr) throw upsertErr;
+
+            totalStudents += students.length;
+        }
+
+        // อัปเดตสถานะที่หน้าจอ (ถ้าห้องที่กำลังดูอยู่ตรงกับวันที่เลือก)
+        const currentClassroomId = $('#classroom-select').val();
+        const currentCheckDate = $('#check-date').val();
+        if (currentClassroomId && currentCheckDate === batchDate) {
+            // โหลดรายชื่อใหม่เพื่ออัปเดต UI
+            await loadStudentList(currentClassroomId);
+        }
+
+        // แสดงผลสำเร็จ
+        Swal.fire({
+            icon: 'success',
+            title: 'ดำเนินการเสร็จสิ้น',
+            html: `บันทึก <b>"มา"</b> ให้กับนักเรียนทั้งหมด <b>${totalStudents} คน</b> ใน <b>${rooms.length} ห้อง</b> สำหรับวันที่ <b>${formatThaiDateFull(batchDate)}</b> เรียบร้อยแล้ว`,
+        });
+
+        // อัปเดตข้อความสถานะใน modal
+        $('#admin-batch-status').removeClass('text-rose-600 text-emerald-600')
+            .addClass('text-emerald-600')
+            .html(`<i class="fas fa-check-circle mr-1"></i> บันทึกเรียบร้อยเมื่อ ${new Date().toLocaleTimeString('th-TH')}`);
+
+    } catch (err) {
+        console.error('Batch mark error:', err);
+        Swal.fire('ข้อผิดพลาด', err.message || 'เกิดข้อผิดพลาดระหว่างดำเนินการ', 'error');
+        $('#admin-batch-status').removeClass('text-emerald-600 text-rose-600')
+            .addClass('text-rose-600')
+            .html(`<i class="fas fa-exclamation-triangle mr-1"></i> ${err.message}`);
+    }
+}
+
+// ==================== HOLIDAYS ====================
 function renderHolidayList() {
     const tbody = $('#holiday-list-table');
     tbody.empty();
@@ -1119,12 +1337,10 @@ function renderHolidayList() {
         </tr>`);
     });
 }
-
 async function addHoliday() {
     const date = $('#new-holiday-date').val();
     const desc = $('#new-holiday-desc').val();
     if (!date || !desc) { Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบ', 'warning'); return; }
-
     const { data, error } = await db.from('module_attendance_holidays').insert([{ holiday_date: date, description: desc }]).select();
     if (!error && data) {
         holidayList.push(data[0]);
@@ -1135,205 +1351,10 @@ async function addHoliday() {
         Swal.fire('ผิดพลาด', 'อาจมีวันหยุดนี้อยู่แล้ว หรือฐานข้อมูลมีปัญหา', 'error');
     }
 }
-
 async function deleteHoliday(id) {
     await db.from('module_attendance_holidays').delete().eq('id', id);
     holidayList = holidayList.filter(h => h.id !== id);
     renderHolidayList();
-}
-
-let allTeachersList = [];
-
-// ประกาศตัวแปร Global ไว้เก็บ Instance เพื่อให้เราสั่งเคลียร์/ทำลาย ทิ้งได้เมื่อโหลดข้อมูลใหม่
-window.headTeacherTomSelect = null;
-
-async function loadAllTeachersForSelect() {
-    const { data: personnel } = await db.from('core_personnel')
-        .select('id, prefix, first_name, last_name')
-        .order('first_name');
-
-    if (personnel) {
-        allTeachersList = personnel;
-
-        // รายชื่อ ID ของ Select ทั้งหมดที่ต้องการให้มีรายชื่อครู
-        const targetSelects = [
-            { id: 'head-teacher-select', instance: 'headTeacherTomSelect' },
-            { id: 'select-discipline-head', instance: 'disciplineHeadTomSelect' }
-        ];
-
-        targetSelects.forEach(target => {
-            const selectEl = document.getElementById(target.id);
-            if (selectEl?.tomselect) {
-                selectEl.tomselect.destroy();
-            }
-            if (!selectEl) return; // ข้ามถ้าไม่พบ Element ในหน้านั้น
-
-            // 1. ล้างค่าเดิมและสร้าง Option ว่างเปล่า
-            selectEl.innerHTML = '<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>';
-
-            // 2. วนลูปสร้าง Option
-            personnel.forEach(p => {
-                const option = document.createElement('option');
-                option.value = p.id;
-                option.text = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-                selectEl.appendChild(option);
-            });
-
-            // 3. จัดการ Tom Select (ทำลายตัวเก่าและสร้างใหม่)
-            if (window[target.instance]) {
-                window[target.instance].destroy();
-            }
-
-            window[target.instance] = new TomSelect(selectEl, {
-                placeholder: "-- พิมพ์ชื่อเพื่อค้นหา --",
-                allowEmptyOption: true,
-                plugins: ['clear_button'],
-            });
-        });
-    }
-}
-
-async function renderGradeHeadsList() {
-    const tbody = $('#grade-head-list-table');
-    tbody.html('<tr><td colspan="3" class="text-center py-4"><i class="fas fa-spinner fa-spin text-rose-500"></i> กำลังโหลด...</td></tr>');
-
-    const { data: heads } = await db.from('core_grade_heads')
-        .select(`id, grade_level, personnel_id, core_personnel(prefix, first_name, last_name)`)
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .order('grade_level');
-
-    tbody.empty();
-    if (!heads || heads.length === 0) {
-        tbody.append('<tr><td colspan="3" class="text-center py-4 text-slate-400">ยังไม่มีการแต่งตั้งหัวหน้าระดับชั้น</td></tr>');
-        return;
-    }
-
-    heads.forEach(h => {
-        const teacher = h.core_personnel;
-        const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่พบข้อมูลครู';
-
-        tbody.append(`
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="px-4 py-2 font-black text-rose-600">${h.grade_level}</td>
-                <td class="px-4 py-2 font-bold text-slate-700">${teacherName}</td>
-                <td class="px-4 py-2 text-center">
-                    <button onclick="removeGradeHead('${h.id}')" class="text-slate-400 hover:text-rose-600 transition-colors bg-white hover:bg-rose-50 px-2 py-1 rounded">
-                        <i class="fas fa-user-minus"></i>
-                    </button>
-                </td>
-            </tr>
-        `);
-    });
-}
-
-async function addGradeHead() {
-    const teacherId = $('#head-teacher-select').val();
-    const gradeLevel = $('#head-grade-select').val();
-
-    if (!teacherId || !gradeLevel) {
-        Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกคุณครูและระดับชั้นให้ครบถ้วน', 'warning');
-        return;
-    }
-
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    const { data: existing } = await db.from('core_grade_heads')
-        .select('id').eq('academic_year', currentSchoolInfo.current_academic_year).eq('grade_level', gradeLevel).maybeSingle();
-
-    if (existing) {
-        Swal.fire('ซ้ำซ้อน', `ระดับชั้น ${gradeLevel} มีหัวหน้าระดับแล้ว หากต้องการเปลี่ยน กรุณาถอดถอนคนเก่าก่อน`, 'error');
-        return;
-    }
-
-    const { error } = await db.from('core_grade_heads').insert([{
-        academic_year: currentSchoolInfo.current_academic_year,
-        grade_level: gradeLevel,
-        personnel_id: teacherId
-    }]);
-
-    if (error) {
-        Swal.fire('ผิดพลาด', error.message, 'error');
-    } else {
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: `แต่งตั้งหัวหน้าระดับ ${gradeLevel} เรียบร้อย`, showConfirmButton: false, timer: 1500 });
-        $('#head-teacher-select').val(null).trigger('change');
-        $('#head-grade-select').val('');
-        renderGradeHeadsList();
-    }
-}
-
-async function removeGradeHead(recordId) {
-    Swal.fire({
-        title: 'ยืนยันการถอดถอน?',
-        text: 'ระบบจะยกเลิกสิทธิ์หัวหน้าระดับชั้นของคุณครูท่านนี้',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#e11d48',
-        cancelButtonText: 'ยกเลิก',
-        confirmButtonText: 'ใช่, ถอดถอนเลย'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            Swal.fire({ title: 'กำลังดำเนินการ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            const { error } = await db.from('core_grade_heads').delete().eq('id', recordId);
-            if (error) {
-                Swal.fire('ผิดพลาด', error.message, 'error');
-            } else {
-                Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: 'ถอดถอนเรียบร้อย', showConfirmButton: false, timer: 1500 });
-                renderGradeHeadsList();
-            }
-        }
-    });
-}
-
-// (คงฟังก์ชัน loadDisciplineHeads, addDisciplineHead, removeDisciplineHead)
-/* ── ระบบจัดการหัวหน้างานปกครอง ── */
-async function loadDisciplineHeads() {
-    const { data } = await db.from('core_discipline_heads')
-        .select(`id, personnel_id, core_personnel(first_name, last_name)`)
-        .eq('academic_year', currentSchoolInfo.current_academic_year);
-
-    let html = '';
-    if (data && data.length > 0) {
-        data.forEach(item => {
-            const name = item.core_personnel ? `${item.core_personnel.first_name} ${item.core_personnel.last_name}` : 'ไม่พบข้อมูล';
-            html += `
-            <tr>
-                <td class="py-2.5 px-4 font-bold text-slate-700">${name}</td>
-                <td class="py-2.5 px-4 text-center">
-                    <button onclick="removeDisciplineHead('${item.id}')" class="text-rose-500 hover:bg-rose-100 p-2 rounded-lg transition-colors"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>`;
-        });
-    } else {
-        html = `<tr><td colspan="2" class="py-6 text-center text-slate-400 font-bold">ยังไม่มีการแต่งตั้งหัวหน้างานปกครอง</td></tr>`;
-    }
-    $('#discipline-head-list').html(html);
-}
-
-async function addDisciplineHead() {
-    const pid = $('#select-discipline-head').val();
-    if (!pid) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกครูที่ต้องการแต่งตั้ง', 'warning');
-
-    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-    const { error } = await db.from('core_discipline_heads').insert([
-        { personnel_id: pid, academic_year: currentSchoolInfo.current_academic_year }
-    ]);
-
-    if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
-
-    $('#select-discipline-head').val('');
-    await loadDisciplineHeads();
-    Swal.fire('สำเร็จ', 'แต่งตั้งเรียบร้อย', 'success');
-}
-
-async function removeDisciplineHead(id) {
-    if (!confirm('ต้องการยกเลิกสิทธิ์หัวหน้างานปกครองท่านนี้ใช่หรือไม่?')) return;
-
-    Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
-    const { error } = await db.from('core_discipline_heads').delete().eq('id', id);
-    if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
-
-    await loadDisciplineHeads();
-    Swal.close();
 }
 
 // ==================== GRADE OVERVIEW ====================
@@ -1345,11 +1366,8 @@ function openGradeOverview() {
     loadGradeOverviewData();
 }
 async function loadGradeOverviewData() {
-    const checkDate = $('#overview-date-select').val(); // อ่านวันที่จากใน Modal
-
-    // โชว์ Loading สวยๆ กลางตาราง
+    const checkDate = $('#overview-date-select').val();
     $('#grade-overview-tbody').html('<tr><td colspan="8" class="py-16 text-center"><i class="fas fa-circle-notch fa-spin text-4xl text-purple-500 mb-4 drop-shadow-md"></i><p class="text-slate-500 font-bold tracking-wide">กำลังวิเคราะห์ข้อมูลระดับชั้น...</p></td></tr>');
-
     try {
         const { data: allRooms, error: roomError } = await db.from('core_classrooms')
             .select('*')
@@ -1357,32 +1375,20 @@ async function loadGradeOverviewData() {
             .eq('semester', currentSchoolInfo.current_semester)
             .order('grade_level', { ascending: true })
             .order('room_number', { ascending: true });
-
         if (roomError) throw roomError;
-
-        const managedNumbers = currentManagedGrades.map(g => {
-            const match = String(g).match(/\d+/);
-            return match ? match[0] : null;
-        }).filter(n => n !== null);
-
+        const managedNumbers = currentManagedGrades.map(g => (String(g).match(/\d+/) || [])[0]).filter(n => n !== null);
         const rooms = allRooms.filter(r => managedNumbers.includes(String(r.grade_level)));
-
         if (rooms.length === 0) {
             $('#grade-overview-tbody').html(`<tr><td colspan="8" class="py-12 text-center text-rose-500 font-bold bg-rose-50/50"><i class="fas fa-exclamation-circle text-2xl mb-2"></i><br>ไม่พบข้อมูลห้องเรียนในระดับที่ท่านดูแล</td></tr>`);
             return;
         }
-
         const roomIds = rooms.map(r => r.id);
-
-        // โหลดนักเรียนและสถิติพร้อมกัน
         const [enrollRes, attendRes] = await Promise.all([
             db.from('student_enrollments').select('classroom_id').in('classroom_id', roomIds),
             db.from('homeroom_attendance').select('classroom_id, status').in('classroom_id', roomIds).eq('check_date', checkDate)
         ]);
-
         const studentCounts = {};
         enrollRes.data?.forEach(e => { studentCounts[e.classroom_id] = (studentCounts[e.classroom_id] || 0) + 1; });
-
         const attSummary = {};
         attendRes.data?.forEach(a => {
             if (!attSummary[a.classroom_id]) attSummary[a.classroom_id] = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0, totalChecked: 0 };
@@ -1391,111 +1397,71 @@ async function loadGradeOverviewData() {
                 attSummary[a.classroom_id].totalChecked++;
             }
         });
-
         let html = '';
         let gTotal = 0, gP = 0, gA = 0, gL = 0, gLe = 0, gS = 0, gUncheck = 0;
-
         rooms.forEach(r => {
             const total = studentCounts[r.id] || 0;
             const sum = attSummary[r.id] || { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0, totalChecked: 0 };
             const uncheckCount = total - sum.totalChecked;
-
             gTotal += total; gP += sum['มา']; gA += sum['ขาด']; gL += sum['สาย']; gLe += sum['ลา']; gS += sum['ป่วย']; gUncheck += uncheckCount;
-
-            // 🌟 ป้ายสถานะแบบมีไอคอน ดูทันสมัย 🌟
             let statusBadge = '';
-            if (total === 0) {
-                statusBadge = '<span class="text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-minus-circle mr-1.5"></i>ไม่มีนักเรียน</span>';
-            } else if (sum.totalChecked === 0) {
-                statusBadge = '<span class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-clock mr-1.5"></i>รอเช็คชื่อ</span>';
-            } else if (sum.totalChecked < total) {
-                statusBadge = `<span class="text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-exclamation-triangle mr-1.5"></i>ค้าง ${uncheckCount} คน</span>`;
-            } else {
-                statusBadge = '<span class="text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 text-[11px] font-black shadow-sm inline-flex items-center"><i class="fas fa-check-circle mr-1.5"></i>ครบถ้วน</span>';
-            }
-
-            html += `
-                <tr class="hover:bg-purple-50/40 transition-all border-b border-slate-100 last:border-0 group cursor-default">
-                    <td class="py-3.5 px-4 text-center font-black text-slate-700 whitespace-nowrap">ม.${r.grade_level}/${r.room_number}</td>
-                    <td class="py-3.5 px-4 text-center font-bold text-slate-500">${total}</td>
-                    <td class="py-3.5 px-4 text-center font-black text-emerald-600 bg-emerald-50/20">${sum['มา']}</td>
-                    <td class="py-3.5 px-4 text-center font-black text-rose-600 bg-rose-50/20">${sum['ขาด']}</td>
-                    <td class="py-3.5 px-4 text-center font-black text-orange-500 bg-orange-50/20">${sum['สาย']}</td>
-                    <td class="py-3.5 px-4 text-center font-black text-yellow-600 bg-yellow-50/20">${sum['ลา']}</td>
-                    <td class="py-3.5 px-4 text-center font-black text-blue-600 bg-blue-50/20">${sum['ป่วย']}</td>
-                    <td class="py-3.5 px-4 text-center">${statusBadge}</td>
-                </tr>`;
-        });
-
-        // 🌟 แถวสรุปรวมท้ายตาราง (เน้นสีชัดเจน) 🌟
-        html += `
-            <tr class="bg-purple-100/60 border-t-2 border-purple-200">
-                <td class="py-4 px-4 text-center font-black text-purple-900">รวมทั้งระดับชั้น</td>
-                <td class="py-4 px-4 text-center font-black text-purple-900">${gTotal}</td>
-                <td class="py-4 px-4 text-center font-black text-emerald-700">${gP}</td>
-                <td class="py-4 px-4 text-center font-black text-rose-700">${gA}</td>
-                <td class="py-4 px-4 text-center font-black text-orange-700">${gL}</td>
-                <td class="py-4 px-4 text-center font-black text-yellow-700">${gLe}</td>
-                <td class="py-4 px-4 text-center font-black text-blue-700">${gS}</td>
-                <td class="py-4 px-4 text-center font-black ${gUncheck === 0 ? 'text-emerald-600' : 'text-rose-600'}">
-                    ${gUncheck === 0 ? '<i class="fas fa-check-double mr-1"></i>เช็คครบ 100%' : '<i class="fas fa-info-circle mr-1"></i>ค้างรวม ' + gUncheck + ' คน'}
-                </td>
+            if (total === 0) statusBadge = '<span class="text-slate-400 bg-slate-100 px-3 py-1.5 rounded-lg text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-minus-circle mr-1.5"></i>ไม่มีนักเรียน</span>';
+            else if (sum.totalChecked === 0) statusBadge = '<span class="text-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg border border-rose-100 text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-clock mr-1.5"></i>รอเช็คชื่อ</span>';
+            else if (sum.totalChecked < total) statusBadge = `<span class="text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200 text-[11px] font-bold shadow-sm inline-flex items-center"><i class="fas fa-exclamation-triangle mr-1.5"></i>ค้าง ${uncheckCount} คน</span>`;
+            else statusBadge = '<span class="text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-100 text-[11px] font-black shadow-sm inline-flex items-center"><i class="fas fa-check-circle mr-1.5"></i>ครบถ้วน</span>';
+            html += `<tr class="hover:bg-purple-50/40 transition-all border-b border-slate-100 last:border-0 group cursor-default">
+                <td class="py-3.5 px-4 text-center font-black text-slate-700 whitespace-nowrap">ม.${r.grade_level}/${r.room_number}</td>
+                <td class="py-3.5 px-4 text-center font-bold text-slate-500">${total}</td>
+                <td class="py-3.5 px-4 text-center font-black text-emerald-600 bg-emerald-50/20">${sum['มา']}</td>
+                <td class="py-3.5 px-4 text-center font-black text-rose-600 bg-rose-50/20">${sum['ขาด']}</td>
+                <td class="py-3.5 px-4 text-center font-black text-orange-500 bg-orange-50/20">${sum['สาย']}</td>
+                <td class="py-3.5 px-4 text-center font-black text-yellow-600 bg-yellow-50/20">${sum['ลา']}</td>
+                <td class="py-3.5 px-4 text-center font-black text-blue-600 bg-blue-50/20">${sum['ป่วย']}</td>
+                <td class="py-3.5 px-4 text-center">${statusBadge}</td>
             </tr>`;
-
+        });
+        html += `<tr class="bg-purple-100/60 border-t-2 border-purple-200">
+            <td class="py-4 px-4 text-center font-black text-purple-900">รวมทั้งระดับชั้น</td>
+            <td class="py-4 px-4 text-center font-black text-purple-900">${gTotal}</td>
+            <td class="py-4 px-4 text-center font-black text-emerald-700">${gP}</td>
+            <td class="py-4 px-4 text-center font-black text-rose-700">${gA}</td>
+            <td class="py-4 px-4 text-center font-black text-orange-700">${gL}</td>
+            <td class="py-4 px-4 text-center font-black text-yellow-700">${gLe}</td>
+            <td class="py-4 px-4 text-center font-black text-blue-700">${gS}</td>
+            <td class="py-4 px-4 text-center font-black ${gUncheck === 0 ? 'text-emerald-600' : 'text-rose-600'}">${gUncheck === 0 ? '<i class="fas fa-check-double mr-1"></i>เช็คครบ 100%' : '<i class="fas fa-info-circle mr-1"></i>ค้างรวม ' + gUncheck + ' คน'}</td>
+        </tr>`;
         $('#grade-overview-tbody').html(html);
-
     } catch (err) {
         console.error("Overview Error:", err);
         $('#grade-overview-tbody').html(`<tr><td colspan="8" class="py-10 text-center text-rose-500 font-bold bg-rose-50">เกิดข้อผิดพลาด: ${err.message}</td></tr>`);
     }
 }
-
 function closeGradeOverview() { $('#grade-overview-modal').addClass('hidden'); }
-
 async function exportGradeOverviewPDF() {
     Swal.fire({ title: 'กำลังสร้างรายงาน...', text: 'กรุณารอซักครู่...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     const checkDate = $('#check-date').val();
     const thaiDateText = formatThaiDateFull(checkDate);
     const gradeTitle = currentManagedGrades.join(', ');
-
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
     const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const headTeacherName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-
     try {
-        const { data: allRooms } = await db.from('core_classrooms')
-            .select('*')
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester)
-            .order('room_number', { ascending: true });
-
-        const cleanManagedNumbers = currentManagedGrades.map(g => {
-            const m = String(g).match(/\d+/);
-            return m ? m[0] : null;
-        }).filter(n => n !== null);
-
+        const { data: allRooms } = await db.from('core_classrooms').select('*').eq('academic_year', currentSchoolInfo.current_academic_year).eq('semester', currentSchoolInfo.current_semester).order('room_number', { ascending: true });
+        const cleanManagedNumbers = currentManagedGrades.map(g => (String(g).match(/\d+/) || [])[0]).filter(n => n !== null);
         const targetRooms = allRooms.filter(r => cleanManagedNumbers.includes(String(r.grade_level)));
         const targetRoomIds = targetRooms.map(r => r.id);
         const roomMap = {}; targetRooms.forEach(r => roomMap[r.id] = `ม.${r.grade_level}/${r.room_number}`);
-
         const [enrollRes, attendRes] = await Promise.all([
             db.from('student_enrollments').select(`student_id, student_number, classroom_id, core_students(student_id_card, prefix, first_name, last_name)`).in('classroom_id', targetRoomIds),
             db.from('homeroom_attendance').select('student_id, classroom_id, status').in('classroom_id', targetRoomIds).eq('check_date', checkDate)
         ]);
-
         const students = enrollRes.data || [];
         const attendance = attendRes.data || [];
-
         const roomsPerPage = targetRooms.length > 15 ? 10 : 15;
         const roomChunks = [];
-        for (let i = 0; i < targetRooms.length; i += roomsPerPage) {
-            roomChunks.push(targetRooms.slice(i, i + roomsPerPage));
-        }
-
+        for (let i = 0; i < targetRooms.length; i += roomsPerPage) roomChunks.push(targetRooms.slice(i, i + roomsPerPage));
         let htmlContent = `<div style="font-family: 'Anuphan', sans-serif; color: #333; background: white;">`;
-
         let gTotal = 0, gP = 0, gA = 0, gLa = 0, gLe = 0, gS = 0;
         roomChunks.forEach((chunk, index) => {
             const isLastChunk = index === roomChunks.length - 1;
@@ -1505,24 +1471,20 @@ async function exportGradeOverviewPDF() {
                     <img src="${logoUrl}" crossorigin="anonymous" style="height: 70px; display: block; margin: 0 auto 10px auto;">
                     <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
                     <h3 style="margin: 5px 0 10px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                    <h2 style="margin: 0; font-size: 16px; color: #7e22ce;">รายงานสรุปการเช็คชื่อกิจกรรมหน้าเสาธง/โฮมรูม ระดับชั้น ${gradeTitle}</h2>
+                    <h2 style="margin: 0; font-size: 16px; color: #7e22ce;">รายงานสรุปการเช็คชื่อ ระดับชั้น ${gradeTitle}</h2>
                     <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">ประจำวันที่: ${thaiDateText}</h3>
                 </div>
-
                 <table style="width: 100%; border-collapse: collapse; text-align: center; font-size: 14px;">
-                    <thead>
-                        <tr style="background-color: #f8fafc;">
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">ห้องเรียน</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 15%;">นร. ทั้งหมด</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: green;">มา</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: red;">ขาด</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: orange;">สาย</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: #ca8a04;">ลา</th>
-                            <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: blue;">ป่วย</th>
-                        </tr>
-                    </thead>
+                    <thead><tr style="background-color: #f8fafc;">
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">ห้องเรียน</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 15%;">นร. ทั้งหมด</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: green;">มา</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: red;">ขาด</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: orange;">สาย</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: #ca8a04;">ลา</th>
+                        <th style="border: 1px solid #cbd5e1; padding: 10px; width: 10%; color: blue;">ป่วย</th>
+                    </tr></thead>
                     <tbody>`;
-
             chunk.forEach(r => {
                 const rEnroll = students.filter(s => s.classroom_id === r.id);
                 const rAttend = attendance.filter(a => a.classroom_id === r.id);
@@ -1533,49 +1495,37 @@ async function exportGradeOverviewPDF() {
                 const le = rAttend.filter(a => a.status === 'ลา').length;
                 const s = rAttend.filter(a => a.status === 'ป่วย').length;
                 gTotal += total; gP += p; gA += a; gLa += la; gLe += le; gS += s;
-
-                htmlContent += `
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: left;">ม.${r.grade_level}/${r.room_number}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px;">${total}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px;">${p}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: ${a > 0 ? 'red' : '#333'};">${a}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; color: orange;">${la}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; color: #ca8a04;">${le}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 8px; color: blue;">${s}</td>
-                    </tr>`;
+                htmlContent += `<tr>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; text-align: left;">ม.${r.grade_level}/${r.room_number}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px;">${total}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px;">${p}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; font-weight: bold; color: ${a > 0 ? 'red' : '#333'};">${a}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: orange;">${la}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: #ca8a04;">${le}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: blue;">${s}</td>
+                </tr>`;
             });
-
             if (isLastChunk) {
-                htmlContent += `
-                    <tr style="background-color: #f5f3ff; font-weight: bold;">
-                        <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">รวมทั้งระดับชั้น</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gTotal}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gP}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gA}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gLa}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gLe}</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">${gS}</td>
-                    </tr>`;
+                htmlContent += `<tr style="background-color: #f5f3ff; font-weight: bold;">
+                    <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;">รวมทั้งระดับชั้น</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gTotal}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gP}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gA}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gLa}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gLe}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 10px;">${gS}</td>
+                </tr>`;
             }
             htmlContent += `</tbody></table>`;
-
             if (isLastChunk) {
-                htmlContent += `
-                <div style="margin-top: 30px; display: flex; justify-content: flex-end;">
-                    <div style="text-align: center; width: 250px;">
-                        <p>ลงชื่อ........................................................</p>
-                        <p style="margin: 8px 0;">( ${headTeacherName} )</p>
-                        <p>หัวหน้าระดับชั้น ${gradeTitle}</p>
-                    </div>
+                htmlContent += `<div style="margin-top: 30px; display: flex; justify-content: flex-end;">
+                    <div style="text-align: center; width: 250px;"><p>ลงชื่อ........................................................</p><p style="margin: 8px 0;">( ${headTeacherName} )</p><p>หัวหน้าระดับชั้น ${gradeTitle}</p></div>
                 </div>`;
             }
             htmlContent += `</div>`;
         });
-
         let exceptionHtml = '';
         const statuses = ['ขาด', 'สาย', 'ลา', 'ป่วย'];
-
         statuses.forEach(statusType => {
             const list = attendance.filter(a => a.status === statusType).map(a => {
                 const s = students.find(std => std.student_id === a.student_id);
@@ -1586,44 +1536,20 @@ async function exportGradeOverviewPDF() {
                     name: s ? `${s.core_students.prefix}${s.core_students.first_name} ${s.core_students.last_name}` : 'ไม่พบข้อมูล'
                 };
             }).sort((a, b) => a.room.localeCompare(b.room, 'th') || a.no - b.no);
-
             if (list.length > 0) {
-                exceptionHtml += `
-                <div style="margin-bottom: 25px;">
-                    <h3 style="border-left: 5px solid #7e22ce; padding-left: 10px; margin-bottom: 10px; font-size: 15px;">
-                        สรุปรายชื่อนักเรียนที่ <span style="font-size: 17px; color: ${statusType === 'ขาด' ? 'red' : '#7e22ce'}">"${statusType}"</span>
-                    </h3>
+                exceptionHtml += `<div style="margin-bottom: 25px;">
+                    <h3 style="border-left: 5px solid #7e22ce; padding-left: 10px; margin-bottom: 10px; font-size: 15px;">สรุปรายชื่อนักเรียนที่ <span style="font-size: 17px; color: ${statusType === 'ขาด' ? 'red' : '#7e22ce'}">"${statusType}"</span></h3>
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
-                        <thead>
-                            <tr style="background-color: #f1f5f9;">
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; width: 15%;">ห้อง</th>
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; width: 10%;">เลขที่</th>
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%;">เลขประจำตัว</th>
-                                <th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left;">ชื่อ - นามสกุล</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${list.map(s => `
-                                <tr>
-                                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.room}</td>
-                                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.no}</td>
-                                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.code}</td>
-                                    <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: left;">${s.name}</td>
-                                </tr>`).join('')}
-                        </tbody>
+                        <thead><tr style="background-color: #f1f5f9;"><th style="border: 1px solid #cbd5e1; padding: 8px; width: 15%;">ห้อง</th><th style="border: 1px solid #cbd5e1; padding: 8px; width: 10%;">เลขที่</th><th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%;">เลขประจำตัว</th><th style="border: 1px solid #cbd5e1; padding: 8px; text-align: left;">ชื่อ - นามสกุล</th></tr></thead>
+                        <tbody>${list.map(s => `<tr><td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.room}</td><td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.no}</td><td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${s.code}</td><td style="border: 1px solid #cbd5e1; padding: 6px; text-align: left;">${s.name}</td></tr>`).join('')}</tbody>
                     </table>
                 </div>`;
             }
         });
-
-        if (exceptionHtml !== '') {
-            htmlContent += `<div style="padding: 15px 30px; page-break-before: always;">${exceptionHtml}</div>`;
-        }
-
+        if (exceptionHtml !== '') htmlContent += `<div style="padding: 15px 30px; page-break-before: always;">${exceptionHtml}</div>`;
         htmlContent += `</div>`;
         const reportElement = document.createElement('div');
         reportElement.innerHTML = htmlContent;
-
         html2pdf().set({
             margin: 5,
             filename: `สรุปภาพรวม_${gradeTitle}_${checkDate}.pdf`,
@@ -1634,7 +1560,6 @@ async function exportGradeOverviewPDF() {
             Swal.close();
             Swal.fire('สำเร็จ', 'ดาวน์โหลดรายงานเรียบร้อยแล้ว', 'success');
         });
-
     } catch (err) {
         console.error(err);
         Swal.fire('Error', 'ไม่สามารถสร้างรายงานได้: ' + err.message, 'error');
@@ -1644,60 +1569,36 @@ async function exportGradeOverviewPDF() {
 // ==================== STATS MODAL ====================
 function openStatsModal() {
     const modal = document.getElementById('stats-modal');
-    // โชว์กล่องขึ้นมา
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-
-    // ทำ Animation ให้ค่อยๆ ชัดขึ้นและเด้งขยาย
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        modal.querySelector('div').classList.remove('scale-95');
-    }, 10);
+    setTimeout(() => { modal.classList.remove('opacity-0'); modal.querySelector('div').classList.remove('scale-95'); }, 10);
 }
-
 function closeStatsModal() {
     const modal = document.getElementById('stats-modal');
-    // เล่น Animation เฟดออก
     modal.classList.add('opacity-0');
     modal.querySelector('div').classList.add('scale-95');
-
-    // ซ่อนกล่องหลังจาก Animation จบ
-    setTimeout(() => {
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-    }, 300);
+    setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
 }
-
 async function generateStats() {
     const classroomId = $('#classroom-select').val();
     const startDate = $('#stat-start-date').val();
     const endDate = $('#stat-end-date').val();
     const roomText = $('#classroom-select option:selected').text();
-
     if (!classroomId || !startDate || !endDate) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและช่วงวันที่ให้ครบถ้วน', 'warning');
     }
-
     Swal.fire({ title: 'กำลังประมวลผลข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
     try {
-        // 1. ดึงข้อมูลจาก Supabase
         const { data: records, error } = await db.from('homeroom_attendance')
             .select('student_id, status')
             .eq('classroom_id', classroomId)
             .gte('check_date', startDate)
             .lte('check_date', endDate);
-
         if (error) throw error;
-
-        // 2. ดึงข้อมูล ภาคเรียน/ปีการศึกษา
         const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
         const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
-
         let statsCount = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
         let studentIssues = { 'ขาด': {}, 'สาย': {}, 'ลา': {}, 'ป่วย': {} };
-
-        // 3. นับจำนวนสถิติ
         records.forEach(r => {
             if (statsCount[r.status] !== undefined) {
                 statsCount[r.status]++;
@@ -1707,8 +1608,6 @@ async function generateStats() {
                 }
             }
         });
-
-        // 4. แมพรายชื่อนักเรียน
         const studentMap = {};
         currentDashboardStudents.forEach(enroll => {
             const s = enroll.core_students || enroll;
@@ -1718,67 +1617,39 @@ async function generateStats() {
                 no: enroll.student_number || '-'
             };
         });
-
-        // 5. สร้าง HTML รายชื่อพร้อมป้องกันการตัดหน้ากระดาษ (Page Break Avoid)
         const generateStatsListHTML = (title, statusKey, icon, colorClass, bgClass) => {
             const issues = studentIssues[statusKey];
             const studentIds = Object.keys(issues);
             if (studentIds.length === 0) return '';
-
             const list = studentIds.map(sid => {
                 const info = studentMap[sid] || { name: 'ไม่พบข้อมูลชื่อ', no: 99 };
                 return { name: info.name, no: info.no, count: issues[sid] };
             }).sort((a, b) => a.no - b.no);
-
             const itemsHTML = list.map(s => `
                 <li class="flex justify-between items-center py-1.5 border-b border-slate-200/50 last:border-0" style="page-break-inside: avoid; break-inside: avoid;">
                     <div class="text-[12px] text-slate-700"><span class="font-bold text-slate-500 mr-1">${s.no}.</span> ${s.name}</div>
                     <div class="text-[11px] font-black px-2 py-0.5 rounded-lg bg-white text-slate-600 shadow-sm border border-slate-100">${s.count} ครั้ง</div>
-                </li>
-            `).join('');
-
-            return `
-                <div class="${bgClass} p-5 rounded-2xl border border-slate-200 shadow-sm" style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 16px;">
-                    <h4 class="font-black text-sm ${colorClass} mb-3 flex items-center border-b border-white pb-2">
-                        <i class="${icon} mr-2"></i> ${title} (${list.length} คน)
-                    </h4>
-                    <ul class="space-y-1">
-                        ${itemsHTML}
-                    </ul>
-                </div>
-            `;
+                </li>`).join('');
+            return `<div class="${bgClass} p-5 rounded-2xl border border-slate-200 shadow-sm" style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 16px;">
+                <h4 class="font-black text-sm ${colorClass} mb-3 flex items-center border-b border-white pb-2"><i class="${icon} mr-2"></i> ${title} (${list.length} คน)</h4>
+                <ul class="space-y-1">${itemsHTML}</ul>
+            </div>`;
         };
-
-        // 6. หยอดรายชื่อลงในหน้าจอ
         const listsContainer = document.getElementById('stats-student-lists');
         if (listsContainer) {
-            const htmlAbsent = generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2');
-            const htmlLate = generateStatsListHTML('มาสาย', 'สาย', 'fas fa-clock', '#c2410c', '#fff7ed');
-            const htmlLeave = generateStatsListHTML('ลากิจ', 'ลา', 'fas fa-envelope-open-text', '#a16207', '#fefce8');
-            const htmlSick = generateStatsListHTML('ลาป่วย', 'ป่วย', 'fas fa-procedures', '#1d4ed8', '#eff6ff');
-
-            listsContainer.innerHTML = htmlAbsent + htmlLate + htmlLeave + htmlSick;
+            listsContainer.innerHTML = generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2') +
+                generateStatsListHTML('มาสาย', 'สาย', 'fas fa-clock', '#c2410c', '#fff7ed') +
+                generateStatsListHTML('ลากิจ', 'ลา', 'fas fa-envelope-open-text', '#a16207', '#fefce8') +
+                generateStatsListHTML('ลาป่วย', 'ป่วย', 'fas fa-procedures', '#1d4ed8', '#eff6ff');
             listsContainer.classList.remove('hidden');
         }
-
-        // 🌟 อัปเดตข้อมูลบนหน้าจอ Modal (UI) ให้คุณครูเห็นทันที 🌟
-        const uiRoomTerm = document.getElementById('ui-stats-room-term');
-        const uiAdvisers = document.getElementById('ui-stats-advisers');
-
-        if (uiRoomTerm) {
-            uiRoomTerm.textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
-        }
-        if (uiAdvisers) {
-            uiAdvisers.textContent = `ครูที่ปรึกษา: ${adviser1Name} และ ${adviser2Name}`;
-        }
-
-        // 🌟 7. อัปเดตข้อมูลหัวรายงาน PDF (รวมชื่อครูที่ปรึกษา) 🌟
+        document.getElementById('ui-stats-room-term').textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
+        document.getElementById('ui-stats-advisers').textContent = `ครูที่ปรึกษา: ${adviser1Name} และ ${adviser2Name}`;
         document.getElementById('stats-pdf-term').textContent = `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`;
         document.getElementById('stats-pdf-room').textContent = `ระดับชั้น: ${roomText}`;
         document.getElementById('stats-pdf-adviser1').textContent = `ครูที่ปรึกษาคนที่ 1: ${adviser1Name}`;
         document.getElementById('stats-pdf-adviser2').textContent = `ครูที่ปรึกษาคนที่ 2: ${adviser2Name}`;
         document.getElementById('stats-pdf-subtitle').textContent = `ช่วงวันที่: ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`;
-
         renderAttendanceChart(statsCount);
         Swal.close();
     } catch (err) {
@@ -1786,20 +1657,12 @@ async function generateStats() {
         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถประมวลผลข้อมูลได้', 'error');
     }
 }
-
 function renderAttendanceChart(stats) {
     const ctx = document.getElementById('attendanceChart');
     if (!ctx) return;
-
-    // ล้างกราฟเก่าออกก่อน (ถ้ามี)
-    if (attendanceChartInstance) {
-        attendanceChartInstance.destroy();
-    }
-
+    if (attendanceChartInstance) attendanceChartInstance.destroy();
     const dataValues = [stats['มา'], stats['ขาด'], stats['สาย'], stats['ลา'], stats['ป่วย']];
-    const bgColors = ['#10b981', '#f43f5e', '#f97316', '#eab308', '#3b82f6']; // สีเขียว, แดง, ส้ม, เหลือง, ฟ้า
-
-    // สร้างกราฟใหม่
+    const bgColors = ['#10b981', '#f43f5e', '#f97316', '#eab308', '#3b82f6'];
     attendanceChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -1808,8 +1671,8 @@ function renderAttendanceChart(stats) {
                 label: 'จำนวนครั้ง (รวมนักเรียนทุกคน)',
                 data: dataValues,
                 backgroundColor: bgColors,
-                borderRadius: 8, // ขอบกราฟมนสวยงาม
-                barThickness: 50 // ขนาดความอ้วนของแท่งกราฟ
+                borderRadius: 8,
+                barThickness: 50
             }]
         },
         options: {
@@ -1819,38 +1682,30 @@ function renderAttendanceChart(stats) {
                 legend: { display: false },
                 title: { display: true, text: 'กราฟสรุปจำนวนครั้งแยกตามสถานะ', font: { size: 14, family: 'Anuphan' } }
             },
-            scales: {
-                y: { beginAtZero: true, ticks: { stepSize: 1 } }
-            }
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
         }
     });
 }
-
 function printStatsPDF() {
     if (!attendanceChartInstance) {
         return Swal.fire('แจ้งเตือน', 'กรุณากดปุ่ม "ดูสถิติ" เพื่อแสดงกราฟและรายชื่อก่อน', 'warning');
     }
-
-    // เปิดส่วนหัวรายงาน (ชื่อโรงเรียน, ภาคเรียน, ครูที่ปรึกษา)
     const header = document.getElementById('stats-pdf-header');
     header.classList.remove('hidden');
     const listsContainer = document.getElementById('stats-student-lists');
     if (listsContainer) listsContainer.classList.remove('hidden');
-
     const element = document.getElementById('stats-print-area');
     const opt = {
-        margin: [4, 4, 4, 4],          // ลดขอบจาก 10 เหลือ 5 มม. → ใช้พื้นที่มากขึ้น
+        margin: [4, 4, 4, 4],
         filename: `รายงานสถิติ_${$('#classroom-select option:selected').text()}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }, // ✅ แนวตั้ง
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css'], avoid: ['tr'] }
     };
-
     Swal.fire({ title: 'กำลังเตรียมไฟล์ PDF...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
     html2pdf().set(opt).from(element).save().then(() => {
-        header.classList.add('hidden');   // ซ่อนหัวรายงานหลังพิมพ์เสร็จ
+        header.classList.add('hidden');
         if (listsContainer) listsContainer.classList.add('hidden');
         Swal.close();
     });
@@ -1858,41 +1713,24 @@ function printStatsPDF() {
 
 // ==================== UTILS ====================
 function applyDateConstraints() {
-    // 🌟 1. ดึงวันปัจจุบันเป็น Local Time (เวลาไทย) เสมอ
     const today = new Date();
     const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-
-    let minDateVal = null;
+    let minDateVal = (moduleSettings.enforce_term_start && termStartDate) ? termStartDate : null;
     let maxDateVal = null;
-
-    // 🌟 2. คำนวณวันต่ำสุด (Min Date)
-    if (moduleSettings.enforce_term_start && termStartDate) {
-        minDateVal = termStartDate;
-    }
-
-    // 🌟 3. คำนวณวันสูงสุด (Max Date)
     if (moduleSettings.lock_future_dates) {
-        if (termEndDate && new Date(todayStr) > new Date(termEndDate)) {
-            maxDateVal = termEndDate;
-        } else {
-            maxDateVal = todayStr; // ล็อกไม่ให้เลือกวันอนาคต (ใช้วันนี้เป็นสูงสุด)
-        }
+        if (termEndDate && new Date(todayStr) > new Date(termEndDate)) maxDateVal = termEndDate;
+        else maxDateVal = todayStr;
     } else {
         maxDateVal = termEndDate || null;
     }
-
-    // 🌟 4. อัปเดตตั้งค่าไปที่ Flatpickr โดยตรง (สำคัญมาก)
     const dateInputNode = document.querySelector('#check-date');
     if (dateInputNode && dateInputNode._flatpickr) {
-        // หาก Flatpickr ทำงานแล้ว ให้เซ็ตค่าผ่านคำสั่ง set()
         dateInputNode._flatpickr.set('minDate', minDateVal);
         dateInputNode._flatpickr.set('maxDate', maxDateVal);
     } else {
-        // สำรองไว้เผื่อฟังก์ชันนี้ถูกเรียกก่อน Flatpickr โหลด
         const $dateInput = $('#check-date');
         minDateVal ? $dateInput.attr('min', minDateVal) : $dateInput.removeAttr('min');
         maxDateVal ? $dateInput.attr('max', maxDateVal) : $dateInput.removeAttr('max');
     }
 }
-
 async function logout() { await db.auth.signOut(); window.location.href = 'index.html'; }

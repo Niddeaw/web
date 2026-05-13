@@ -97,9 +97,11 @@ function logout() {
 async function loadTeacherData() {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
+        // ✅ FIX 1: กรอง academic_year ด้วย เพื่อไม่ให้ได้ห้องจากปีการศึกษาเก่า
         const { data: classrooms, error: cError } = await db.from('core_classrooms')
-            .select('id, grade_level, room_number')
-            .or(`adviser_id_1.eq.${teacherInfo.id},adviser_id_2.eq.${teacherInfo.id}`);
+            .select('id, grade_level, room_number, academic_year')
+            .or(`adviser_id_1.eq.${teacherInfo.id},adviser_id_2.eq.${teacherInfo.id}`)
+            .eq('academic_year', currentSchoolInfo.current_academic_year);
         if (cError) throw cError;
         if (!classrooms || classrooms.length === 0) {
             Swal.close();
@@ -112,6 +114,8 @@ async function loadTeacherData() {
         $('#advising-class-title').text(`ห้องที่ปรึกษา: ${classLabels}`);
         const classIds = classrooms.map(c => c.id);
 
+        // ✅ FIX 2: ไม่กรอง academic_year ใน student_enrollments เพราะ column นั้น null ทุกแถว
+        // ใช้ classroom_id (ซึ่งถูกกรองตาม academic_year แล้ว) เป็น filter หลักแทน
         const { data: enrollments, error: sError } = await db
             .from('student_enrollments')
             .select(`
@@ -125,11 +129,19 @@ async function loadTeacherData() {
                 )
             `)
             .in('classroom_id', classIds)
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
             .order('student_number', { ascending: true });
 
         if (sError) throw sError;
-        mergedDataList = enrollments || [];
+
+        // ✅ FIX 3: กรอง sdq_assessments ให้ตรงกับ academic_year และ semester ปัจจุบัน
+        const currentYear = currentSchoolInfo.current_academic_year;
+        const currentSem = currentSchoolInfo.current_semester;
+        mergedDataList = (enrollments || []).map(enrollment => ({
+            ...enrollment,
+            sdq_assessments: (enrollment.sdq_assessments || []).filter(
+                a => a.academic_year === currentYear && a.semester === currentSem
+            )
+        }));
         buildStudentTable();
         updateTeacherDashboard();
         Swal.close();

@@ -50,15 +50,15 @@
                         class="fa-solid fa-clipboard-question text-indigo-500 mr-2"></i> แดชบอร์ด SDQ สำหรับผู้ดูแลระบบ</h2>
             </div>
             
-            <!-- <div class="flex items-center gap-4">
-                <button onclick="db.auth.signOut().then(()=>location.reload())"
-                    class="text-sm font-bold text-slate-500 hover:text-rose-600 dark:text-slate-400 dark:hover:text-rose-400 transition-colors">
-                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> ออกจากระบบ
-                </button>
-            </div> -->
-            <!-- เพิ่มในส่วน header (ข้างปุ่มออกจากระบบ) -->
 <div class="flex items-center gap-4">
-    <!-- 🔑 ปุ่มจัดการแอดมิน -->
+    <!-- ปุ่มสลับโหมดครูที่ปรึกษา (แสดงเฉพาะเมื่อเป็นครูที่ปรึกษา) -->
+    <button id="switchToTeacherBtn" onclick="switchToTeacherMode()" 
+            class="text-sm font-bold text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 transition-colors flex items-center gap-1 hidden">
+        <i class="fa-solid fa-chalkboard-user"></i>
+        <span class="hidden sm:inline">โหมดครูที่ปรึกษา</span>
+    </button>
+
+    <!-- ปุ่มจัดการแอดมิน -->
     <button onclick="openAdminManager()" 
             class="text-sm font-bold text-slate-500 hover:text-indigo-600 dark:text-slate-400 dark:hover:text-indigo-400 transition-colors flex items-center gap-1">
         <i class="fa-solid fa-user-shield"></i>

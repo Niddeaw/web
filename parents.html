@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ระบบผู้ปกครองเครือข่าย</title>
+    <!-- โหลด Core Libraries จากส่วนกลาง[cite: 2] -->
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    
+    <!-- JQuery Thailand AutoComplete -->
+    <script type="text/javascript" src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/JQL.min.js"></script>
+    <script type="text/javascript" src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/typeahead.bundle.js"></script>
+    <link rel="stylesheet" href="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.css">
+    <script type="text/javascript" src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 flex h-screen overflow-hidden opacity-0 transition-opacity duration-300" id="mainBody">
+
+    <!-- Sidebar (ย่อ-ขยายได้)[cite: 4] -->
+    <aside id="sidebar" class="w-64 flex flex-col shadow-sm z-20 hidden md:flex transition-all duration-300 bg-white border-r border-slate-200">
+        <div class="p-6 flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-8 h-8 object-contain">
+            <h1 class="text-lg font-bold sidebar-text text-blue-700">WRK SYSTEM</h1>
+        </div>
+        <nav class="flex-1 px-4 space-y-2 overflow-y-auto">
+            <button onclick="switchTab('dashboard')" id="tab-btn-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-50 text-blue-700 font-bold sidebar-text">
+                <i class="fa-solid fa-chart-pie w-5"></i> ภาพรวมระบบ
+            </button>
+            <button onclick="switchTab('form')" id="tab-btn-form" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 sidebar-text">
+                <i class="fa-solid fa-pen-to-square w-5"></i> กรอกข้อมูล
+            </button>
+            <button onclick="switchTab('data')" id="tab-btn-data" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 sidebar-text">
+                <i class="fa-solid fa-table w-5"></i> ข้อมูลเครือข่าย
+            </button>
+            <!-- เมนูแอดมิน (ซ่อนไว้ก่อน) -->
+            <button onclick="switchTab('admin')" id="tab-btn-admin" class="hidden w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 sidebar-text">
+                <i class="fa-solid fa-gear w-5"></i> ตั้งค่าระบบ
+            </button>
+        </nav>
+        <div class="p-4 border-t">
+            <button onclick="window.location.href='index.html'" class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-colors">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i> <span class="sidebar-text">กลับหน้าหลัก</span>
+            </button>
+        </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col h-full overflow-hidden">
+        <!-- Header -->
+        <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 sticky top-0">
+            <div class="flex items-center gap-4">
+                <h2 class="text-xl font-bold text-slate-800">ระบบผู้ปกครองเครือข่าย</h2>
+            </div>
+            <div class="flex items-center gap-3">
+                <span id="school-term-badge" class="badge badge-blue">เทอม -/-</span>
+                <button id="role-toggle-btn" class="hidden px-3 py-1.5 text-sm bg-purple-100 text-purple-700 rounded-lg font-bold" onclick="toggleRoleView()">
+                    <i class="fa-solid fa-user-shield"></i> มุมมอง Admin
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <div class="p-6 overflow-y-auto flex-1">
+            
+            <!-- Tab: Dashboard -->
+            <div id="tab-dashboard" class="space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="card p-6 rounded-2xl border-l-4 border-blue-500">
+                        <p class="text-sm text-gray-500 font-bold">ห้องที่กรอกข้อมูลแล้ว</p>
+                        <h3 class="text-3xl font-black text-blue-700 mt-2" id="dash-completed">0</h3>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab: Form (Multi-step) -->
+            <div id="tab-form" class="hidden max-w-5xl mx-auto">
+                <div class="bg-white rounded-2xl shadow-sm border p-6">
+                    <div class="flex justify-between items-center mb-6 border-b pb-4">
+                        <h3 class="text-lg font-bold text-blue-800"><i class="fa-solid fa-users mr-2"></i> บันทึกข้อมูลคณะกรรมการผู้ปกครองเครือข่าย</h3>
+                        <select id="select-classroom" class="field-input w-64" onchange="loadClassroomData()">
+                            <option value="">-- เลือกระดับชั้น/ห้องเรียน --</option>
+                        </select>
+                    </div>
+
+                    <!-- Stepper -->
+                    <div class="flex gap-2 mb-6 overflow-x-auto pb-2" id="stepper">
+                        <button onclick="goToStep(1)" class="step-btn tab-pill active" data-step="1">1. ประธาน</button>
+                        <button onclick="goToStep(2)" class="step-btn tab-pill" data-step="2">2. รองประธาน</button>
+                        <button onclick="goToStep(3)" class="step-btn tab-pill" data-step="3">3. เลขานุการ</button>
+                        <button onclick="goToStep(4)" class="step-btn tab-pill" data-step="4">4. นายทะเบียน</button>
+                        <button onclick="goToStep(5)" class="step-btn tab-pill" data-step="5">5. ประชาสัมพันธ์</button>
+                    </div>
+
+                    <form id="network-form" onsubmit="saveNetworkData(event)">
+                        <!-- จะถูก Gen ด้วย JS เพื่อลดความซ้ำซ้อนของโค้ด HTML -->
+                        <div id="form-container"></div>
+
+                        <div class="flex justify-between mt-8 pt-4 border-t">
+                            <button type="button" onclick="prevStep()" class="px-6 py-2 bg-gray-100 rounded-xl font-bold text-gray-600 hover:bg-gray-200">ย้อนกลับ</button>
+                            <button type="button" onclick="nextStep()" id="btn-next" class="px-6 py-2 bg-blue-600 rounded-xl font-bold text-white hover:bg-blue-700">ถัดไป</button>
+                            <button type="submit" id="btn-submit" class="hidden px-6 py-2 bg-emerald-600 rounded-xl font-bold text-white hover:bg-emerald-700"><i class="fa-solid fa-save mr-2"></i>บันทึกข้อมูล</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tab: Data Table -->
+            <div id="tab-data" class="hidden">
+                <div class="card p-6 rounded-2xl">
+                    <table id="networkTable" class="w-full text-sm display nowrap">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600">
+                                <th>ระดับชั้น</th>
+                                <th>ประธานเครือข่าย</th>
+                                <th>เบอร์โทร</th>
+                                <th>สถานะ</th>
+                                <th>จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tb-network"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Tab: Admin Settings -->
+            <div id="tab-admin" class="hidden max-w-4xl mx-auto space-y-6">
+                <div class="card p-6 rounded-2xl">
+                    <h3 class="text-lg font-bold mb-4 border-b pb-2"><i class="fa-brands fa-google-drive text-green-600 mr-2"></i>ตั้งค่า Google Drive & Slide</h3>
+                    <form id="admin-settings-form" class="grid grid-cols-1 gap-4" onsubmit="saveSettings(event)">
+                        <div>
+                            <label class="field-label">Google Apps Script URL (สำหรับอัปโหลด)</label>
+                            <input type="text" id="set_api" class="field-input" placeholder="https://script.google.com/macros/s/.../exec">
+                        </div>
+                        <div>
+                            <label class="field-label">Google Drive Folder ID</label>
+                            <input type="text" id="set_folder" class="field-input" placeholder="1A2B3C...">
+                        </div>
+                        <div>
+                            <label class="field-label">Google Slide Template URL</label>
+                            <input type="text" id="set_slide" class="field-input">
+                        </div>
+                        <button type="submit" class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold w-max">บันทึกตั้งค่า</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script src="parents.js"></script>
+</body>
+</html>
