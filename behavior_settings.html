@@ -3,218 +3,227 @@
 
 <head>
     <title>ตั้งค่าระบบความประพฤติ | WRK System</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+
+    <!-- ✅ Tom Select CSS (ถ้า core_head.js ยังไม่ได้รวมไว้) -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+    <style>
+        .ts-control {
+            border-radius: 0.75rem !important; /* rounded-xl */
+            padding: 0.65rem 1rem !important;
+            border: 1px solid #e2e8f0 !important; /* border-slate-200 */
+            box-shadow: none !important;
+            background-color: #f8fafc !important; /* bg-slate-50 */
+            transition: all 0.2s ease-in-out;
+        }
+        .ts-control.focus {
+            background-color: #ffffff !important;
+            border-color: #a855f7 !important; /* focus ring purple */
+            box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
+        }
+    </style>
 </head>
 
-<body class="p-4 md:p-6 pb-20">
-    <div class="max-w-6xl mx-auto">
+<body class="p-4 md:p-6 pb-24 bg-slate-50/50">
+    <div class="max-w-6xl mx-auto space-y-6">
 
-        <div
-            class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 bg-white p-4 md:px-6 rounded-2xl shadow-sm border border-slate-100">
-            <h2 class="text-xl md:text-2xl font-bold text-slate-800 flex items-center">
-                <i class="fas fa-cog mr-3 text-blue-600"></i>ตั้งค่าเกณฑ์ระบบงานปกครอง
-            </h2>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 md:px-7 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
+            <div class="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
+            <div>
+                <h2 class="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center">
+                    <i class="fas fa-cog mr-3 text-blue-600 drop-shadow-sm"></i>ตั้งค่าเกณฑ์ระบบงานปกครอง
+                </h2>
+                <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Behavior System Configurations</p>
+            </div>
 
             <div class="flex items-center gap-2 w-full sm:w-auto">
                 <button onclick="window.location.href='behavior_admin.html'"
-                    class="flex-1 sm:flex-none h-10 px-4 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm text-sm font-bold gap-2">
-                    <i class="fa-solid fa-arrow-left"></i> <span>กลับหน้าแอดมิน</span>
+                    class="flex-1 sm:flex-none h-11 px-5 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all border border-slate-200 shadow-sm text-sm font-bold gap-2 group">
+                    <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i> <span>กลับหน้าแอดมิน</span>
                 </button>
                 <button onclick="window.location.href='index.html'"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm shrink-0"
+                    class="h-11 w-11 flex items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0 group"
                     title="กลับหน้า Central Portal">
-                    <i class="fas fa-house text-sm"></i>
+                    <i class="fas fa-house text-sm group-hover:scale-110 transition-transform"></i>
                 </button>
             </div>
         </div>
 
-        <div id="api_config_section"
-            class="hidden glass p-6 rounded-3xl shadow-sm border border-slate-200 mb-6 border-l-4 border-l-blue-500">
-            <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                <h3 class="font-bold text-slate-800"><i
-                        class="fas fa-cloud-upload-alt mr-2 text-blue-500"></i>ตั้งค่าการอัปโหลดหลักฐาน (Google Drive
-                    API)</h3>
-                <span
-                    class="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200 shadow-sm">Super
-                    Admin Only</span>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                    <label class="block text-sm mb-1 text-slate-600 font-bold">Google Apps Script URL (Web App)</label>
-                    <input type="text" id="config_gas_url"
-                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 ring-blue-500 outline-none transition"
-                        placeholder="https://script.google.com/macros/s/...">
+        <div class="space-y-6">
+            
+            <div id="api_config_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
+                <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
+                    <h3 class="font-bold text-slate-800 flex items-center">
+                        <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-cloud-upload-alt"></i></div> 
+                        การตั้งค่าการเชื่อมต่อ API & Google Drive
+                    </h3>
+                    <span class="text-[9px] font-black bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full uppercase tracking-wider border border-blue-100">Superuser Only</span>
                 </div>
-                <div>
-                    <label class="block text-sm mb-1 text-slate-600 font-bold">Google Drive Folder ID</label>
-                    <input type="text" id="config_folder_id"
-                        class="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 ring-blue-500 outline-none transition"
-                        placeholder="เช่น 1A2b3C4d5E6f7G8h9I0j...">
-                </div>
-            </div>
-            <div class="mt-5 flex justify-end">
-                <button onclick="saveApiConfig()"
-                    class="bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2">
-                    <i class="fas fa-save"></i>บันทึกการเชื่อมต่อ
-                </button>
-            </div>
-        </div>
-
-        <div id="grade_head_section"
-            class="hidden glass p-6 rounded-3xl shadow-sm border border-slate-200 mb-6 border-l-4 border-l-purple-500">
-            <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                <h3 class="font-bold text-slate-800"><i
-                        class="fas fa-user-tie mr-2 text-purple-500"></i>ตั้งค่าแอดมินหัวหน้าระดับชั้น</h3>
-                <span
-                    class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200 shadow-sm">Super
-                    Admin Only</span>
-            </div>
-            <div class="flex flex-col sm:flex-row gap-4 items-end mb-4">
-                <div class="w-full sm:flex-1">
-                    <label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร (พิมพ์เพื่อค้นหา)</label>
-                    <select id="grade_head_teacher" class="w-full select2-teacher">
-                        <option value="">-- พิมพ์ชื่อครู --</option>
-                    </select>
-                </div>
-                <div class="w-full sm:w-1/4">
-                    <label class="block text-sm font-bold text-slate-700 mb-1">ระดับชั้น</label>
-                    <select id="grade_head_level"
-                        class="w-full border border-slate-300 rounded-xl px-3 py-2 outline-none h-[42px] bg-white">
-                        <option value="1">ม.1</option>
-                        <option value="2">ม.2</option>
-                        <option value="3">ม.3</option>
-                        <option value="4">ม.4</option>
-                        <option value="5">ม.5</option>
-                        <option value="6">ม.6</option>
-                    </select>
-                </div>
-                <button onclick="saveGradeHead()"
-                    class="w-full sm:w-auto bg-purple-600 text-white px-6 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition shadow-sm h-[42px] flex items-center justify-center gap-2">
-                    <i class="fas fa-plus"></i> เพิ่ม
-                </button>
-            </div>
-            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden max-h-60 overflow-y-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-purple-50 text-purple-800 border-b border-purple-100 sticky top-0">
-                        <tr>
-                            <th class="p-3 font-bold">ระดับชั้น</th>
-                            <th class="p-3 font-bold">ชื่อ - นามสกุล (หัวหน้าระดับ)</th>
-                            <th class="p-3 text-center font-bold w-24">ถอดถอน</th>
-                        </tr>
-                    </thead>
-                    <tbody id="grade_head_list" class="divide-y divide-slate-100">
-                        <tr>
-                            <td colspan="3" class="p-6 text-center text-slate-400">กำลังโหลด...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="glass p-6 rounded-3xl shadow-sm border border-slate-200 h-fit">
-                <h3 id="form_title" class="font-bold mb-4 text-blue-800 border-b pb-2"><i
-                        class="fas fa-plus-circle mr-2"></i>เพิ่มเกณฑ์คะแนนใหม่</h3>
-                <div class="space-y-4">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-sm mb-1 text-slate-600 font-bold">ชื่อรายการความประพฤติ</label>
-                        <input type="text" id="crit_title"
-                            class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 ring-blue-500 outline-none transition"
-                            placeholder="เช่น มาสาย, จิตอาสา">
+                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google Apps Script URL</label>
+                        <input type="text" id="config_gas_url" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="https://script.google.com/macros/s/...">
                     </div>
                     <div>
-                        <label class="block text-sm mb-1 text-slate-600 font-bold">ประเภท</label>
-                        <select id="crit_category"
-                            class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 ring-blue-500 outline-none transition bg-white">
-                            <option value="positive">เพิ่มคะแนน (ทำความดี)</option>
-                            <option value="negative">หักคะแนน (ผิดระเบียบ)</option>
-                        </select>
+                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google Drive Folder ID</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="config_folder_id" class="flex-1 border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="Drive Folder ID...">
+                            <button onclick="saveApiConfig()" class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap">
+                                <i class="fas fa-save"></i> บันทึกข้อมูล
+                            </button>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-sm mb-1 text-slate-600 font-bold">คะแนนมาตรฐาน</label>
-                        <input type="number" id="crit_score"
-                            class="w-full border border-slate-300 rounded-xl p-2.5 focus:ring-2 ring-blue-500 outline-none transition"
-                            placeholder="ระบุตัวเลข (เช่น 5, 10)">
-                    </div>
+                </div>
+            </div>
 
-                    <div class="flex gap-2 pt-2">
-                        <button id="btn_save" onclick="saveCriteria()"
-                            class="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 shadow-md transition-colors">
-                            บันทึกเกณฑ์
-                        </button>
-                        <button id="btn_cancel_edit" onclick="cancelEdit()"
-                            class="hidden flex-1 bg-slate-100 text-slate-600 py-2.5 rounded-xl font-bold hover:bg-slate-200 shadow-sm border border-slate-200 transition-colors">
-                            ยกเลิก
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                
+                <div id="grade_head_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
+                    <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-800 flex items-center">
+                            <div class="bg-purple-100 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-user-tie"></i></div> แต่งตั้งหัวหน้าระดับชั้น
+                        </h3>
+                    </div>
+                    <div class="flex flex-col gap-3 mb-4">
+                        <select id="grade_head_teacher" class="w-full"><option value="">-- พิมพ์ชื่อครู --</option></select>
+                        <div class="flex gap-2">
+                            <select id="grade_head_level" class="w-1/3 border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm outline-none focus:border-purple-500 focus:bg-white transition-all font-bold text-slate-700">
+                                <option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option>
+                                <option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option>
+                            </select>
+                            <button onclick="saveGradeHead()" class="flex-1 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                                <i class="fas fa-plus"></i> เพิ่มรายชื่อ
+                            </button>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-sm text-left">
+                            <tbody id="grade_head_list" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="discipline_head_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                    <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
+                    <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
+                        <h3 class="font-bold text-slate-800 flex items-center">
+                            <div class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-shield-alt"></i></div> แต่งตั้งหัวหน้างานปกครอง
+                        </h3>
+                    </div>
+                    <div class="flex flex-col gap-3 mb-4">
+                        <select id="select-discipline-head" class="w-full"><option value="">-- พิมพ์ชื่อครู --</option></select>
+                        <button onclick="addDisciplineHead()" class="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                            <i class="fas fa-plus"></i> ยืนยันการแต่งตั้ง
                         </button>
                     </div>
+                    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
+                        <table class="w-full text-sm text-left">
+                            <tbody id="discipline-head-list" class="divide-y divide-slate-200"></tbody>
+                        </table>
+                    </div>
                 </div>
 
-                <h3 class="font-bold mt-8 mb-3 text-green-700 border-b pb-2"><i
-                        class="fas fa-file-excel mr-2"></i>จัดการด้วย Excel</h3>
-                <div class="space-y-2">
-                    <button onclick="downloadTemplate()"
-                        class="w-full bg-blue-50 text-blue-700 border border-blue-200 py-2.5 rounded-xl hover:bg-blue-100 transition font-bold text-sm flex items-center justify-center gap-2">
-                        <i class="fas fa-download"></i> โหลดไฟล์ต้นแบบ (Template)
-                    </button>
+            </div>
+        </div>
 
-                    <input type="file" id="excel_file" accept=".xlsx, .xls" class="hidden" onchange="importExcel(this)">
-                    <button onclick="document.getElementById('excel_file').click()"
-                        class="w-full bg-emerald-600 text-white py-2.5 rounded-xl hover:bg-emerald-700 transition font-bold text-sm flex items-center justify-center gap-2 shadow-md">
-                        <i class="fas fa-file-import"></i> นำเข้าเกณฑ์จาก Excel
-                    </button>
+        <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <h3 id="form_title" class="font-black mb-5 text-blue-900 border-b border-slate-100 pb-3 text-lg flex items-center">
+                        <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-plus"></i></div> เพิ่มเกณฑ์ใหม่
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ชื่อรายการความประพฤติ</label>
+                            <input type="text" id="crit_title" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="เช่น มาสาย, จิตอาสา, ทะเลาะวิวาท">
+                        </div>
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ประเภท</label>
+                                <select id="crit_category" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-700">
+                                    <option value="positive">🟢 ความดี (+)</option>
+                                    <option value="negative">🔴 ผิดระเบียบ (-)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">คะแนนมาตรฐาน</label>
+                                <input type="number" id="crit_score" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-black text-center text-blue-700" placeholder="ตัวเลข">
+                            </div>
+                        </div>
+                        <div class="flex gap-2 pt-3">
+                            <button id="btn_save" onclick="saveCriteria()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-colors active:scale-[0.98]">
+                                บันทึกเกณฑ์
+                            </button>
+                            <button id="btn_cancel_edit" onclick="cancelEdit()" class="hidden w-24 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 shadow-sm transition-colors active:scale-[0.98]">
+                                ยกเลิก
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                    <h3 class="font-black mb-5 text-emerald-800 border-b border-slate-100 pb-3 text-lg flex items-center">
+                        <div class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-file-excel"></i></div> จัดการด้วย Excel
+                    </h3>
+                    <div class="space-y-3">
+                        <button onclick="downloadTemplate()" class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-3 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                            <i class="fas fa-download text-emerald-600"></i> โหลดไฟล์ต้นแบบ (Template)
+                        </button>
+                        <input type="file" id="excel_file" accept=".xlsx, .xls" class="hidden" onchange="importExcel(this)">
+                        <button onclick="document.getElementById('excel_file').click()" class="w-full bg-emerald-600 text-white py-3 rounded-xl hover:bg-emerald-700 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]">
+                            <i class="fas fa-file-import"></i> นำเข้าข้อมูลจาก Excel
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            <div class="lg:col-span-2 glass p-6 rounded-3xl shadow-sm border border-slate-200">
-                <div
-                    class="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 border-b border-slate-100 pb-3 gap-3">
-                    <h3 class="font-bold text-slate-800"><i
-                            class="fas fa-list-check mr-2 text-orange-500"></i>รายการเกณฑ์ทั้งหมด</h3>
+            <div class="xl:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col h-[750px]">
+                
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
+                    <h3 class="font-black text-slate-800 text-lg flex items-center">
+                        <div class="bg-amber-100 text-amber-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-list-check"></i></div> ฐานข้อมูลเกณฑ์ทั้งหมด
+                    </h3>
 
-                    <div class="flex flex-wrap gap-2 w-full md:w-auto">
-                        <button id="btn_delete_selected" onclick="deleteSelectedCriteria()"
-                            class="hidden text-sm bg-red-50 text-red-600 border border-red-200 px-3 py-1.5 rounded-lg hover:bg-red-100 transition font-bold shadow-sm items-center gap-1.5 flex-1 md:flex-none justify-center">
+                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                        <button id="btn_delete_selected" onclick="deleteSelectedCriteria()" class="hidden text-xs bg-rose-50 text-rose-600 border border-rose-200 px-4 py-2 rounded-xl hover:bg-rose-100 transition-colors font-bold shadow-sm items-center gap-1.5 flex-1 sm:flex-none justify-center active:scale-[0.98]">
                             <i class="fas fa-check-double"></i> ลบที่เลือก (<span id="selected_count">0</span>)
                         </button>
-
-                        <button onclick="deleteAllCriteria()"
-                            class="text-sm bg-rose-50 text-rose-600 border border-rose-200 px-3 py-1.5 rounded-lg hover:bg-rose-100 transition font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 md:flex-none">
+                        <button onclick="deleteAllCriteria()" class="text-xs bg-white text-rose-500 border border-slate-200 px-4 py-2 rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
                             <i class="fas fa-dumpster"></i> ลบทั้งหมด
                         </button>
-
-                        <button onclick="exportCriteria()"
-                            class="text-sm bg-white text-slate-600 border border-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 md:flex-none">
-                            <i class="fas fa-file-export"></i> ส่งออก
+                        <button onclick="exportCriteria()" class="text-xs bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
+                            <i class="fas fa-file-export text-slate-300"></i> ส่งออก
                         </button>
                     </div>
                 </div>
-                <div class="overflow-x-auto max-h-[600px]">
+
+                <div class="flex-1 overflow-auto rounded-2xl border border-slate-200 custom-scrollbar relative">
                     <table class="w-full text-left border-collapse text-sm">
-                        <thead class="sticky top-0 bg-slate-100 z-10 shadow-sm">
+                        <thead class="sticky top-0 bg-slate-100/90 backdrop-blur-md z-10 shadow-sm">
                             <tr class="text-slate-600">
-                                <th class="p-3 text-center w-10">
-                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"
-                                        class="rounded text-blue-600 cursor-pointer w-4 h-4 accent-blue-600">
+                                <th class="p-3.5 text-center w-12">
+                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50">
                                 </th>
-                                <th class="p-3 font-bold">ชื่อรายการ</th>
-                                <th class="p-3 font-bold text-center">ประเภท</th>
-                                <th class="p-3 font-bold text-center">คะแนน</th>
-                                <th class="p-3 font-bold text-center w-24">จัดการ</th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs">ชื่อรายการ</th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-32">ประเภท</th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">คะแนน</th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">จัดการ</th>
                             </tr>
                         </thead>
                         <tbody id="criteria_list" class="divide-y divide-slate-100 bg-white">
-                            <tr>
-                                <td colspan="5" class="p-8 text-center text-slate-400">กำลังโหลดข้อมูล...</td>
-                            </tr>
+                            <tr><td colspan="5" class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-circle-notch fa-spin text-2xl mb-3 text-blue-300 block"></i> กำลังโหลดข้อมูล...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+
         </div>
     </div>
 
@@ -228,52 +237,85 @@
         });
 
         // 1. ตรวจสอบสิทธิ์ 
-        async function checkAuth() {
-            const { data: { session } } = await db.auth.getSession();
-            if (!session) { window.location.replace('index.html'); return; }
+        // async function checkAuth() {
+        //     const { data: { session } } = await db.auth.getSession();
+        //     if (!session) { window.location.replace('index.html'); return; }
 
-            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
-            const { data: moduleAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
+        //     const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+        //     const { data: moduleAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
 
-            if (profile.role !== 'super_admin' && !moduleAdmin) {
-                await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
-                history.back(); return;
-            }
+        //     if (profile.role !== 'super_admin' && !moduleAdmin) {
+        //         await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
+        //         history.back(); return;
+        //     }
 
-            // แสดงส่วนของ Super Admin เท่านั้น
-            if (profile.role === 'super_admin') {
-                $('#api_config_section').removeClass('hidden');
-                $('#grade_head_section').removeClass('hidden');
-                loadTeachersForSelect();
-                loadGradeHeads();
-            }
-        }
+        //     // 🌟 ซ่อน/แสดงส่วนของ Super Admin
+        //     if (profile.role === 'super_admin') {
+        //         $('#api_config_section').removeClass('hidden');
+        //         $('#grade_head_section').removeClass('hidden');
+        //         $('#discipline_head_section').removeClass('hidden');
+        //         loadTeachersForSelect();
+        //         loadGradeHeads();
+        //     }
+        // }
+async function checkAuth() {
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) { window.location.replace('index.html'); return; }
 
+    const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+    const { data: moduleAdmin } = await db.from('core_module_admins')
+        .select('*')
+        .eq('user_id', session.user.id)
+        .eq('module_id', 'behavior')
+        .maybeSingle();
+
+    // ✅ เพิ่มตรวจสอบว่าเป็นหัวหน้างานปกครองหรือไม่
+    const { data: schoolInfo } = await db.from('core_school_info')
+        .select('current_academic_year')
+        .single();
+    const academicYear = schoolInfo?.current_academic_year || '';
+
+    const { data: disciplineHead } = await db.from('core_discipline_heads')
+        .select('id')
+        .eq('personnel_id', session.user.id)
+        .eq('academic_year', academicYear)
+        .maybeSingle();
+
+    // อนุญาตถ้าเป็น super_admin, module admin ของ behavior, หรือเป็นหัวหน้างานปกครอง
+    if (profile.role !== 'super_admin' && !moduleAdmin && !disciplineHead) {
+        await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
+        history.back();
+        return;
+    }
+
+    // 🌟 ซ่อน/แสดงส่วนของ Super Admin (เหมือนเดิม)
+    if (profile.role === 'super_admin') {
+        $('#api_config_section').removeClass('hidden');
+        $('#grade_head_section').removeClass('hidden');
+        $('#discipline_head_section').removeClass('hidden');
+        loadTeachersForSelect();
+        loadGradeHeads();
+    }
+}
         // ==========================================
-        // ส่วนจัดการแอดมินหัวหน้าระดับชั้น
+        // ส่วนจัดการแอดมินหัวหน้าระดับชั้น (ใช้ Tom Select)
         // ==========================================
-        // ==========================================
-        // ส่วนจัดการแอดมินหัวหน้าระดับชั้น
-        // ==========================================
-        let teacherTomSelect = null; // 🔴 ประกาศตัวแปรสำหรับ Tom Select
+        let teacherTomSelect = null; 
 
         async function loadTeachersForSelect() {
             const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
 
             if (data) {
-                // เตรียมข้อมูล Options สำหรับ Tom Select
                 const options = data.map(t => ({
                     id: t.id,
                     full_name: `${t.prefix || ''}${t.first_name} ${t.last_name}`
                 }));
 
-                // เคลียร์ช่อง Select เดิมเพื่อรองรับการโหลดข้อมูลใหม่ (ป้องกันบัค)
                 if (teacherTomSelect) {
                     teacherTomSelect.destroy();
                     $('#grade_head_teacher').empty();
                 }
 
-                // 🔴 สร้าง Tom Select แทน Select2
                 teacherTomSelect = new TomSelect('#grade_head_teacher', {
                     options: options,
                     valueField: 'id',
@@ -298,16 +340,16 @@
 
             if (data && data.length > 0) {
                 tbody.innerHTML = data.map(h => `
-            <tr class="hover:bg-slate-50 transition-colors">
-                <td class="p-3 font-bold text-slate-700">ม.${h.grade_level}</td>
-                <td class="p-3 text-purple-700 font-bold">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
-                <td class="p-3 text-center">
-                    <button onclick="deleteGradeHead('${h.id}')" class="text-rose-400 hover:text-white hover:bg-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg transition-colors shadow-sm"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>
-        `).join('');
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="p-3.5 pl-5 font-black text-slate-700 w-24">ม.${h.grade_level}</td>
+                        <td class="p-3.5 text-slate-600 font-bold">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
+                        <td class="p-3.5 text-center">
+                            <button onclick="deleteGradeHead('${h.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    </tr>
+                `).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-slate-400">ยังไม่มีข้อมูลการแต่งตั้งหัวหน้าระดับชั้น</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="3" class="p-8 text-center text-slate-400 font-bold"><i class="fas fa-info-circle mb-2 block text-2xl"></i>ยังไม่มีข้อมูลการแต่งตั้งหัวหน้าระดับชั้น</td></tr>';
             }
         }
 
@@ -325,12 +367,7 @@
                 else Swal.fire('ผิดพลาด', error.message, 'error');
             } else {
                 Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
-
-                // 🔴 ใช้คำสั่งเคลียร์ค่าของ Tom Select แทนการใช้ .trigger('change') ของ jQuery
-                if (teacherTomSelect) {
-                    teacherTomSelect.clear();
-                }
-
+                if (teacherTomSelect) teacherTomSelect.clear();
                 loadGradeHeads();
             }
         }
@@ -343,6 +380,98 @@
                 Swal.fire({ icon: 'success', title: 'ถอดถอนสิทธิ์สำเร็จ', timer: 1500, showConfirmButton: false });
                 loadGradeHeads();
             } else Swal.fire('ผิดพลาด', error.message, 'error');
+        }
+
+        // ==========================================
+        // 🌟 ระบบจัดการหัวหน้างานปกครอง (ใช้ Tom Select)
+        // ==========================================
+        let currentAcadYear = '';
+
+        $(document).ready(async function () {
+            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+            if (sInfo) currentAcadYear = sInfo.current_academic_year;
+
+            loadAllTeachersForSelect();
+            loadDisciplineHeads();
+        });
+
+        async function loadAllTeachersForSelect() {
+            const { data } = await db.from('core_personnel').select('id, first_name, last_name, prefix').order('first_name');
+
+            if (data) {
+                const selectEl = document.getElementById('select-discipline-head');
+                // ล้าง options เดิมก่อน
+                selectEl.innerHTML = '<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>';
+                data.forEach(t => {
+                    const option = document.createElement('option');
+                    option.value = t.id;
+                    option.text = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
+                    selectEl.appendChild(option);
+                });
+
+                if (window.disciplineHeadTomSelect) {
+                    window.disciplineHeadTomSelect.destroy();
+                }
+
+                window.disciplineHeadTomSelect = new TomSelect(selectEl, {
+                    placeholder: "-- พิมพ์ค้นหาชื่อครู --",
+                    allowEmptyOption: true,
+                    plugins: ['clear_button'],
+                });
+            }
+        }
+
+        async function loadDisciplineHeads() {
+            const { data } = await db.from('core_discipline_heads')
+                .select(`id, personnel_id, core_personnel(first_name, last_name, prefix)`)
+                .eq('academic_year', currentAcadYear);
+
+            let html = '';
+            if (data && data.length > 0) {
+                data.forEach(item => {
+                    const p = item.core_personnel;
+                    const name = p ? `${p.prefix || ''}${p.first_name} ${p.last_name}` : 'ไม่พบข้อมูล';
+                    html += `
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="py-3.5 pl-5 font-bold text-slate-600">${name}</td>
+                        <td class="py-3.5 text-center">
+                            <button onclick="removeDisciplineHead('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+                        </td>
+                    </tr>`;
+                });
+            } else {
+                html = `<tr><td colspan="2" class="p-8 text-center text-slate-400 font-bold"><i class="fas fa-info-circle mb-2 block text-2xl"></i>ยังไม่มีการแต่งตั้งหัวหน้างานปกครอง</td></tr>`;
+            }
+            $('#discipline-head-list').html(html);
+        }
+
+        async function addDisciplineHead() {
+            const pid = $('#select-discipline-head').val();
+            if (!pid) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกครูที่ต้องการแต่งตั้ง', 'warning');
+
+            Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+
+            const { error } = await db.from('core_discipline_heads').insert([
+                { personnel_id: pid, academic_year: currentAcadYear }
+            ]);
+
+            if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
+
+            if (window.disciplineHeadTomSelect) window.disciplineHeadTomSelect.clear();
+            else $('#select-discipline-head').val('');
+
+            await loadDisciplineHeads();
+            Swal.fire({ icon: 'success', title: 'แต่งตั้งเรียบร้อย', timer: 1500, showConfirmButton: false });
+        }
+
+        async function removeDisciplineHead(id) {
+            if (!confirm('ต้องการยกเลิกสิทธิ์หัวหน้างานปกครองท่านนี้ใช่หรือไม่?')) return;
+            Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+            const { error } = await db.from('core_discipline_heads').delete().eq('id', id);
+            if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
+
+            await loadDisciplineHeads();
+            Swal.close();
         }
 
         // ==========================================
@@ -382,30 +511,30 @@
             checkSelection();
 
             if (currentCriteria.length === 0) {
-                html = '<tr><td colspan="5" class="p-8 text-center text-gray-400">ยังไม่มีข้อมูลเกณฑ์คะแนน</td></tr>';
+                html = '<tr><td colspan="5" class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open mb-3 block text-4xl text-slate-300"></i>ยังไม่มีข้อมูลเกณฑ์คะแนน</td></tr>';
             } else {
                 currentCriteria.forEach(item => {
                     const isPos = item.category === 'positive';
                     const safeTitle = item.title.replace(/'/g, "\\'");
                     html += `
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="p-3 text-center">
-                                <input type="checkbox" class="crit-checkbox rounded cursor-pointer w-4 h-4 accent-blue-600" value="${item.id}" onchange="checkSelection()">
+                        <tr class="hover:bg-slate-50 transition-colors group">
+                            <td class="p-3.5 text-center border-b border-slate-50">
+                                <input type="checkbox" class="crit-checkbox rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50" value="${item.id}" onchange="checkSelection()">
                             </td>
-                            <td class="p-3 font-bold text-slate-700">${item.title}</td>
-                            <td class="p-3 text-center">
-                                <span class="px-2.5 py-1 rounded-lg text-[11px] font-bold border ${isPos ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}">
-                                    ${isPos ? 'ทำความดี' : 'ผิดระเบียบ'}
+                            <td class="p-3.5 font-bold text-slate-700 border-b border-slate-50">${item.title}</td>
+                            <td class="p-3.5 text-center border-b border-slate-50">
+                                <span class="px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide border ${isPos ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}">
+                                    ${isPos ? '<i class="fas fa-plus-circle mr-1"></i>ความดี' : '<i class="fas fa-minus-circle mr-1"></i>ผิดระเบียบ'}
                                 </span>
                             </td>
-                            <td class="p-3 text-center font-black text-base ${isPos ? 'text-green-600' : 'text-red-600'}">
+                            <td class="p-3.5 text-center font-black text-base border-b border-slate-50 ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
                                 ${isPos ? '+' : '-'}${item.default_score}
                             </td>
-                            <td class="p-3 text-center whitespace-nowrap">
-                                <button onclick="editCriteria('${item.id}', '${safeTitle}', '${item.category}', ${item.default_score})" class="text-slate-300 hover:text-yellow-600 hover:bg-yellow-50 p-2 rounded-lg transition-colors mr-1" title="แก้ไข">
+                            <td class="p-3.5 text-center whitespace-nowrap border-b border-slate-50">
+                                <button onclick="editCriteria('${item.id}', '${safeTitle}', '${item.category}', ${item.default_score})" class="text-slate-300 hover:text-amber-600 hover:bg-amber-50 h-8 w-8 rounded-lg transition-colors mr-1" title="แก้ไข">
                                     <i class="fas fa-pen"></i>
                                 </button>
-                                <button onclick="deleteCriteria('${item.id}')" class="text-slate-300 hover:text-red-600 hover:bg-red-50 p-2 rounded-lg transition-colors" title="ลบ">
+                                <button onclick="deleteCriteria('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors" title="ลบ">
                                     <i class="fas fa-trash-alt"></i>
                                 </button>
                             </td>
@@ -424,86 +553,54 @@
 
         function checkSelection() {
             const checkedCount = $('.crit-checkbox:checked').length;
-
             if (checkedCount > 0) {
                 $('#btn_delete_selected').removeClass('hidden').addClass('flex');
                 $('#selected_count').text(checkedCount);
             } else {
                 $('#btn_delete_selected').addClass('hidden').removeClass('flex');
             }
-
             const totalCount = $('.crit-checkbox').length;
-            if (checkedCount === totalCount && totalCount > 0) {
-                $('#selectAll').prop('checked', true);
-            } else {
-                $('#selectAll').prop('checked', false);
-            }
+            $('#selectAll').prop('checked', checkedCount === totalCount && totalCount > 0);
         }
 
         async function deleteSelectedCriteria() {
             const selectedIds = [];
-            $('.crit-checkbox:checked').each(function () {
-                selectedIds.push($(this).val());
-            });
-
+            $('.crit-checkbox:checked').each(function () { selectedIds.push($(this).val()); });
             if (selectedIds.length === 0) return;
 
             const { isConfirmed } = await Swal.fire({
-                title: `ยืนยันการลบ ${selectedIds.length} รายการ?`,
-                html: "ข้อมูลที่อ้างอิงเกณฑ์ที่เลือกจะถูกลบไปด้วย",
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                confirmButtonText: 'ลบข้อมูล',
-                cancelButtonText: 'ยกเลิก'
+                title: `ยืนยันการลบ ${selectedIds.length} รายการ?`, html: "ข้อมูลที่อ้างอิงเกณฑ์ที่เลือกจะถูกลบไปด้วย", icon: 'warning',
+                showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
             });
 
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
                 const { error } = await db.from('behavior_criteria').delete().in('id', selectedIds);
-
-                if (!error) {
-                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
-                    loadCriteria();
-                } else {
-                    Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
-                }
+                if (!error) { Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); loadCriteria(); }
+                else Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
             }
         }
 
         async function deleteAllCriteria() {
             if (currentCriteria.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ลบ', 'info');
-
             const { isConfirmed } = await Swal.fire({
-                title: 'ยืนยันการลบ "ทั้งหมด"?',
-                html: "รายการเกณฑ์ทั้งหมดและข้อมูลประวัติที่อ้างอิงจะหายไป <br><b class='text-red-600'>ไม่สามารถกู้คืนได้</b>",
-                icon: 'error',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                confirmButtonText: 'ใช่, ลบทิ้งทั้งหมด',
-                cancelButtonText: 'ยกเลิก'
+                title: 'ยืนยันการลบ "ทั้งหมด"?', html: "รายการเกณฑ์ทั้งหมดและข้อมูลประวัติที่อ้างอิงจะหายไป <br><b class='text-rose-600'>ไม่สามารถกู้คืนได้</b>", icon: 'error',
+                showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ใช่, ลบทิ้งทั้งหมด', cancelButtonText: 'ยกเลิก'
             });
 
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังล้างข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
                 const allIds = currentCriteria.map(c => c.id);
                 const { error } = await db.from('behavior_criteria').delete().in('id', allIds);
-
-                if (!error) {
-                    Swal.fire({ icon: 'success', title: 'ล้างข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false });
-                    loadCriteria();
-                } else {
-                    Swal.fire('ผิดพลาด', error.message, 'error');
-                }
+                if (!error) { Swal.fire({ icon: 'success', title: 'ล้างข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false }); loadCriteria(); }
+                else Swal.fire('ผิดพลาด', error.message, 'error');
             }
         }
 
         async function deleteCriteria(id) {
             const { isConfirmed } = await Swal.fire({
                 title: 'ยืนยันการลบ?', html: "ข้อมูลที่อ้างอิงเกณฑ์นี้จะถูกลบไปด้วย", icon: 'warning',
-                showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
+                showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
             });
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -521,8 +618,8 @@
             $('#crit_title').val(title);
             $('#crit_category').val(category);
             $('#crit_score').val(score);
-            $('#form_title').html('<i class="fa-solid fa-pen-to-square mr-2 text-yellow-500"></i>แก้ไขเกณฑ์').removeClass('text-blue-800').addClass('text-yellow-600');
-            $('#btn_save').text('อัปเดตเกณฑ์').removeClass('bg-blue-600 hover:bg-blue-700').addClass('bg-yellow-500 hover:bg-yellow-600');
+            $('#form_title').html('<div class="bg-amber-100 text-amber-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fa-solid fa-pen-to-square"></i></div> แก้ไขเกณฑ์').removeClass('text-blue-900').addClass('text-amber-700');
+            $('#btn_save').text('อัปเดตเกณฑ์').removeClass('bg-blue-600 hover:bg-blue-700').addClass('bg-amber-500 hover:bg-amber-600');
             $('#btn_cancel_edit').removeClass('hidden');
             $('#crit_title').focus();
         }
@@ -532,8 +629,8 @@
             $('#crit_title').val('');
             $('#crit_score').val('');
             $('#crit_category').val('positive');
-            $('#form_title').html('<i class="fas fa-plus-circle mr-2 text-blue-500"></i>เพิ่มเกณฑ์คะแนนใหม่').removeClass('text-yellow-600').addClass('text-blue-800');
-            $('#btn_save').text('บันทึกเกณฑ์').removeClass('bg-yellow-500 hover:bg-yellow-600').addClass('bg-blue-600 hover:bg-blue-700');
+            $('#form_title').html('<div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-plus"></i></div> เพิ่มเกณฑ์ใหม่').removeClass('text-amber-700').addClass('text-blue-900');
+            $('#btn_save').text('บันทึกเกณฑ์').removeClass('bg-amber-500 hover:bg-amber-600').addClass('bg-blue-600 hover:bg-blue-700');
             $('#btn_cancel_edit').addClass('hidden');
         }
 
@@ -595,7 +692,6 @@
             XLSX.utils.book_append_sheet(wb, ws, "Criteria");
             XLSX.writeFile(wb, `รายการเกณฑ์ความประพฤติ.xlsx`);
         }
-
     </script>
 </body>
 

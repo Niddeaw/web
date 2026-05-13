@@ -303,18 +303,19 @@
                                 <input type="number" id="ms_display_order" value="0"
                                     class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
                             </div>
-<!-- ค้นหาส่วนนี้ในฟอร์ม แล้วเพิ่ม ms_target_blank เข้าไป -->
-<div class="flex items-center gap-4 mt-2">
-    <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" id="ms_is_active" checked class="w-4 h-4 text-blue-600 rounded">
-        <span class="text-sm font-bold text-gray-700">เปิดใช้งาน</span>
-    </label>
-    <!-- 🌟 เพิ่ม Checkbox เปิดแท็บใหม่ตรงนี้ -->
-    <label class="flex items-center gap-2 cursor-pointer">
-        <input type="checkbox" id="ms_target_blank" class="w-4 h-4 text-blue-600 rounded">
-        <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
-    </label>
-</div>
+                            <!-- ค้นหาส่วนนี้ในฟอร์ม แล้วเพิ่ม ms_target_blank เข้าไป -->
+                            <div class="flex items-center gap-4 mt-2">
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="ms_is_active" checked
+                                        class="w-4 h-4 text-blue-600 rounded">
+                                    <span class="text-sm font-bold text-gray-700">เปิดใช้งาน</span>
+                                </label>
+                                <!-- 🌟 เพิ่ม Checkbox เปิดแท็บใหม่ตรงนี้ -->
+                                <label class="flex items-center gap-2 cursor-pointer">
+                                    <input type="checkbox" id="ms_target_blank" class="w-4 h-4 text-blue-600 rounded">
+                                    <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
+                                </label>
+                            </div>
                             <div class="md:col-span-2 flex justify-end gap-2 mt-4">
                                 <button type="button" onclick="clearMicroServiceForm()"
                                     class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
@@ -479,28 +480,51 @@
                                         onchange="processImportStudents(event)">
                                     <button onclick="triggerImportStudents()"
                                         class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-solid fa-file-excel"></i> นำเข้า Excel
+                                        <i class="fa-solid fa-file-excel"></i>
                                     </button>
                                     <button onclick="triggerImportGoogleSheet()"
                                         class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-brands fa-google"></i> ดึงจาก Sheet
+                                        <i class="fa-brands fa-google"></i>
                                     </button>
                                 </div>
 
-                                <div class="flex gap-2 w-full sm:w-auto">
-                                    <button onclick="openAddStudentModal()"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-solid fa-user-plus"></i> เพิ่ม 1 คน
-                                    </button>
-                                    <button onclick="checkDuplicateStudents()"
-                                        class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm flex-1 sm:flex-none justify-center">
-                                        <i class="fas fa-users-slash"></i> เช็คชื่อซ้ำ
-                                    </button>
-                                    <button onclick="openGlobalStudentSearch()"
-                                        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-solid fa-magnifying-glass"></i> ค้นหาอิสระ
-                                    </button>
-                                </div>
+<div class="flex flex-wrap gap-2 w-full sm:w-auto">
+    <button onclick="openAddStudentModal()"
+        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
+        <i class="fa-solid fa-user-plus text-xs"></i>
+        <!-- <span>เพิ่ม 1 คน</span> -->
+    </button>
+
+    <button onclick="openGlobalStudentSearch()"
+        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
+        <i class="fa-solid fa-magnifying-glass text-xs"></i>
+        <!-- <span>ค้นหาอิสระ</span> -->
+    </button>
+
+    <button onclick="checkDuplicateStudents()"
+        class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
+        <i class="fas fa-users-slash text-xs"></i>
+        <!-- <span>เช็คชื่อซ้ำ</span> -->
+    </button>
+
+    <button onclick="checkUnassignedStudents()"
+        class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
+        <i class="fa-solid fa-user-slash text-xs"></i>
+        <!-- <span>นร. ที่ยังไม่มีห้อง</span> -->
+        <span id="unassigned_badge"
+            class="hidden bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full min-w-[18px]">0</span>
+    </button>
+
+    <button onclick="openStudentNumberReorder()"
+        class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95"
+        title="จัดลำดับเลขที่นักเรียน (ลาก-วาง)">
+        <i class="fa-solid fa-arrow-down-1-9 text-xs"></i>
+        <!-- <i class="fa-solid fa-arrow-up-down text-xs"></i> -->
+        <span class="hidden sm:inline text-xs">เลขที่</span>
+    </button>
+
+</div>
+
                             </div>
                         </div>
                     </div>
@@ -1055,6 +1079,7 @@
             </div>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script src="super_admin.js"></script>
 </body>
 

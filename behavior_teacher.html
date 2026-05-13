@@ -100,20 +100,50 @@
 
             let isAdmin = (profile.role === 'super_admin');
 
-            // เช็คสิทธิ์แอดมินระบบปกครอง
-            const { data: modAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
+            // เช็คสิทธิ์แอดมินระบบปกครอง (core_module_admins)
+            const { data: modAdmin } = await db.from('core_module_admins')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .eq('module_id', 'behavior')
+                .maybeSingle();
             if (modAdmin) isAdmin = true;
 
-            // 🌟 เช็คสิทธิ์หัวหน้าระดับชั้น (ตรงนี้ที่หายไป)
-            const { data: gradeHead } = await db.from('behavior_grade_heads').select('id').eq('teacher_id', session.user.id).maybeSingle();
+            // 🌟 เช็คสิทธิ์หัวหน้าระดับชั้น
+            const { data: gradeHead } = await db.from('behavior_grade_heads')
+                .select('id')
+                .eq('teacher_id', session.user.id)
+                .maybeSingle();
             if (gradeHead) isAdmin = true;
+
+            // ✅ เพิ่มการตรวจสอบหัวหน้างานปกครองจาก core_discipline_heads
+            const { data: sInfo } = await db.from('core_school_info')
+                .select('current_academic_year')
+                .single();
+            if (sInfo?.current_academic_year) {
+                const { data: discHead } = await db.from('core_discipline_heads')
+                    .select('id')
+                    .eq('personnel_id', session.user.id)
+                    .eq('academic_year', sInfo.current_academic_year)
+                    .maybeSingle();
+                if (discHead) isAdmin = true;
+            }
 
             // ถ้ามีสิทธิ์ใดสิทธิ์หนึ่งข้างต้น ให้แสดงปุ่มโหมดแอดมิน
             if (isAdmin) $('#btnAdminMode').removeClass('hidden').addClass('flex');
 
-            const { data: classroom } = await db.from('core_classrooms').select('*').or(`adviser_id_1.eq.${session.user.id},adviser_id_2.eq.${session.user.id}`).single();
+            const { data: classroom } = await db.from('core_classrooms')
+                .select('*')
+                .or(`adviser_id_1.eq.${session.user.id},adviser_id_2.eq.${session.user.id}`)
+                .single();
+
             if (!classroom) {
-                Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info').then(() => window.location.replace('index.html'));
+                if (isAdmin) {
+                    // หัวหน้าปกครอง / หัวหน้าระดับ / Super Admin ที่ไม่ได้เป็นครูที่ปรึกษา → ไปหน้าแอดมินโดยตรง
+                    window.location.replace('behavior_admin.html');
+                } else {
+                    Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info')
+                        .then(() => window.location.replace('index.html'));
+                }
                 return;
             }
 

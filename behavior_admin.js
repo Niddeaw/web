@@ -32,28 +32,63 @@ async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) { window.location.replace('index.html'); return; }
 
+    // 1. ดึงข้อมูลโปรไฟล์และข้อมูลโรงเรียน (ปีการศึกษา)
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
     
+    // 2. เช็คสิทธิ์ "หัวหน้างานปกครอง" จากตารางกลาง (core_discipline_heads)
+    const { data: discInfo } = await db.from('core_discipline_heads')
+        .select('id')
+        .eq('personnel_id', session.user.id)
+        .eq('academic_year', sInfo?.current_academic_year)
+        .maybeSingle();
+    window.isDisciplineHead = !!discInfo;
+
+    // 2b. เช็คสิทธิ์ "แอดมินระบบปกครอง" จาก core_module_admins (module_id = 'behavior')
+    //     รองรับกรณีที่ตั้งสิทธิ์ผ่านตารางนี้แทน core_discipline_heads
+    if (!window.isDisciplineHead) {
+        const { data: modAdmin } = await db.from('core_module_admins')
+            .select('id')
+            .eq('user_id', session.user.id)
+            .eq('module_id', 'behavior')
+            .maybeSingle();
+        if (modAdmin) window.isDisciplineHead = true;
+    }
+
+    // 3. เช็คสิทธิ์ "หัวหน้าระดับชั้น" ( behavior_grade_heads )
     const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
     
     currentUser = profile;
     currentUser.managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
-    if(profile.role === 'super_admin') {
-        $('#btn_settings').removeClass('hidden').addClass('flex');
-        $('#btn_import_old').removeClass('hidden').addClass('flex'); // 🌟 เปิดปุ่มให้เฉพาะ Superuser
-        $('#role_label').text('Superuser');
-    } else {
-        $('#role_label').text(`Admin หัวหน้าระดับชั้นมัธยมศึกษาปีที่ ${currentUser.managedGrades.join(', ')}`);
-    }
+    // 🌟 ส่วนสำคัญ: การจัดการสิทธิ์และ UI 🌟
     
-    if (profile.role !== 'super_admin' && currentUser.managedGrades.length === 0) {
+    // ซ่อนปุ่มตั้งค่าและปุ่มนำเข้าไว้ก่อนเป็นค่าเริ่มต้น
+    $('#btn_settings').addClass('hidden').removeClass('flex');
+    $('#btn_import_old').addClass('hidden').removeClass('flex');
+
+    if (profile.role === 'super_admin') {
+        // ✅ กรณี Superuser: ทำได้ทุกอย่าง + เห็นปุ่มตั้งค่า
+        $('#btn_settings').removeClass('hidden').addClass('flex');
+        $('#btn_import_old').removeClass('hidden').addClass('flex');
+        $('#role_label').html('<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser');
+        
+    } else if (window.isDisciplineHead) {
+        // ✅ กรณีหัวหน้างานปกครอง: จัดการได้ทั้งโรงเรียน แต่ไม่เห็นปุ่มตั้งค่า
+        currentUser.role = 'admin'; // ปรับ Role ภายในให้เป็น admin เพื่อให้ดึงข้อมูลได้ทั้งโรงเรียน
+        $('#role_label').html('<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> หัวหน้างานปกครอง');
+        
+    } else if (currentUser.managedGrades.length > 0) {
+        // ✅ กรณีหัวหน้าระดับชั้น: จัดการได้ตามระดับที่ได้รับมอบหมาย
+        $('#role_label').text(`หัวหน้าระดับ ม.${currentUser.managedGrades.join(', ')}`);
+        
+    } else {
+        // ❌ ไม่มีสิทธิ์ในหน้านี้: เด้งกลับหน้าครูที่ปรึกษา
         window.location.replace('behavior_teacher.html'); 
         return;
     }
-
     
-    // 🌟 แก้ไขแสดงชื่อ-นามสกุลเต็ม
+    // แสดงชื่อครูที่ Navbar
     $('#user_display').html(`ครู${profile.first_name} ${profile.last_name}`);
 }
 
