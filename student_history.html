@@ -1,7 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-
     <title>ประวัตินักเรียนรายคน | WRK System</title>
     <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
@@ -9,7 +8,6 @@
     <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
-    
 </head>
 <body class="p-4 md:p-8 text-slate-800">
     <div class="max-w-5xl mx-auto">
@@ -44,8 +42,7 @@
                 <div class="overflow-x-auto bg-white rounded-2xl border border-slate-100">
                     <table class="w-full text-sm text-left">
                         <thead class="bg-slate-50 text-slate-600 border-b border-slate-100">
-                            <tr id="table_headers">
-                                </tr>
+                            <tr id="table_headers"></tr>
                         </thead>
                         <tbody id="history_body" class="divide-y divide-slate-100">
                             <tr><td colspan="7" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr>
@@ -56,6 +53,7 @@
         </div>
     </div>
 
+    <!-- Modal แก้ไข -->
     <div id="editModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl">
             <h2 class="text-xl font-bold mb-6 flex items-center"><i class="fas fa-pen mr-3 text-yellow-500"></i>แก้ไขรายการบันทึก</h2>
@@ -87,13 +85,11 @@
         
         let currentLogs = [];
         let criteriaList = [];
-        
-        let currentUserId = null; // ID ของคนที่ล็อกอินอยู่
-        let isSuperAdmin = false; // เช็คว่าเป็น Super Admin ไหม (มีสิทธิ์ลบ)
-        let isFullAdmin = false;  // เช็คว่าเป็น Admin (มองเห็นผู้บันทึกและหลักฐาน)
+        let currentUserId = null;
+        let isAdmin = false; // true สำหรับ super_admin, หัวหน้างานปกครอง, หัวหน้าระดับ
 
         $(document).ready(async () => {
-            if(!stId) return history.back();
+            if (!stId) return history.back();
             await checkRole();
             await loadCriteria();
             loadHistory();
@@ -101,37 +97,48 @@
 
         async function checkRole() {
             const { data: { session } } = await db.auth.getSession();
-            if (session) {
-                currentUserId = session.user.id;
-                
-                const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-                if (profile && profile.role === 'super_admin') {
-                    isSuperAdmin = true;
-                    isFullAdmin = true;
-                }
-                
-                // ตรวจสอบสิทธิ์หัวหน้าระดับ (ดูข้อมูลได้ แต่ลบไม่ได้)
-                const { data: gh } = await db.from('behavior_grade_heads').select('id').eq('teacher_id', session.user.id).maybeSingle();
-                if (gh) isFullAdmin = true;
-            }
+            if (!session) { window.location.replace('index.html'); return; }
             
-            // วาดส่วนหัวของตาราง
+            currentUserId = session.user.id;
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+            if (!profile) return;
+
+            // ตรวจสอบสิทธิ์ admin (แก้ไข/ลบได้)
+            if (profile.role === 'super_admin') {
+                isAdmin = true;
+            } else {
+                // หัวหน้างานปกครอง
+                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+                if (sInfo?.current_academic_year) {
+                    const { data: disc } = await db.from('core_discipline_heads')
+                        .select('id')
+                        .eq('personnel_id', session.user.id)
+                        .eq('academic_year', sInfo.current_academic_year)
+                        .maybeSingle();
+                    if (disc) isAdmin = true;
+                }
+
+                // หัวหน้าระดับชั้น
+                if (!isAdmin) {
+                    const { data: grade } = await db.from('behavior_grade_heads')
+                        .select('id')
+                        .eq('teacher_id', session.user.id)
+                        .maybeSingle();
+                    if (grade) isAdmin = true;
+                }
+            }
+
+            // สร้างหัวตาราง (ทุกคนเห็นหลักฐานและผู้บันทึก, เฉพาะ admin เห็นคอลัมน์จัดการ)
             let headers = `
                 <th class="p-4 font-bold">วันที่/เวลา</th>
                 <th class="p-4 font-bold">รายการ</th>
                 <th class="p-4 font-bold">รายละเอียด</th>
-                <th class="p-4 text-center font-bold">คะแนน</th>`;
-            
-            if (isFullAdmin) {
-                headers += `
-                <th class="p-4 font-bold text-center">หลักฐาน</th>
+                <th class="p-4 text-center font-bold">คะแนน</th>
+                <th class="p-4 text-center font-bold">หลักฐาน</th>
                 <th class="p-4 font-bold">ผู้บันทึก</th>`;
-            }
-            
-            if (currentUserId) {
+            if (isAdmin) {
                 headers += `<th class="p-4 font-bold text-center">จัดการ</th>`;
             }
-            
             $('#table_headers').html(headers);
         }
 
@@ -151,65 +158,57 @@
 
             if (student) {
                 $('#st_name').text(`${student.prefix || ''}${student.first_name} ${student.last_name}`);
-                const classroom = student.student_enrollments && student.student_enrollments.length > 0 ? student.student_enrollments[0].core_classrooms : null;
+                const classroom = student.student_enrollments?.[0]?.core_classrooms;
                 const roomTxt = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : 'ยังไม่จัดห้อง';
                 $('#st_info').text(`เลขประจำตัว: ${student.student_id_card || '-'} | ชั้น ${roomTxt}`);
 
                 let total = 100;
                 let html = '';
-                
+
                 if (student.behavior_logs && student.behavior_logs.length > 0) {
-                    currentLogs = student.behavior_logs.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+                    currentLogs = student.behavior_logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
                     currentLogs.forEach(log => {
                         total += log.score_change;
-                        
+                        const dateDisplay = new Date(log.created_at).toLocaleDateString('th-TH', {
+                            year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                        }) + ' น.';
+                        const criteriaTitle = log.behavior_criteria?.title || '-';
+                        const desc = log.description || '-';
+                        const scoreClass = log.score_change > 0 ? 'text-green-600 bg-green-50/50' : 'text-red-600 bg-red-50/50';
+                        const evidenceHtml = log.evidence_url
+                            ? `<a href="${log.evidence_url}" target="_blank" class="text-blue-500 hover:text-blue-700 font-bold underline"><i class="fas fa-image"></i> ดูรูป</a>`
+                            : '<span class="text-slate-300">-</span>';
+                        const recorderName = log.core_personnel ? `${log.core_personnel.first_name} ${log.core_personnel.last_name}` : '-';
+
                         html += `<tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-                                <td class="p-4 text-slate-500">${new Date(log.created_at).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })} น.</td>
-                                <td class="p-4 font-bold text-slate-700">${log.behavior_criteria?.title || '-'}</td>
-                                <td class="p-4 text-slate-500 text-xs">${log.description || '-'}</td>
-                                <td class="p-4 text-center font-black text-lg ${log.score_change > 0 ? 'text-green-600 bg-green-50/50' : 'text-red-600 bg-red-50/50'}">
-                                    ${log.score_change > 0 ? '+' : ''}${log.score_change}
-                                </td>`;
-                                
-                        if (isFullAdmin) {
-                            html += `<td class="p-4 text-center text-xs">
-                                        ${log.evidence_url ? `<a href="${log.evidence_url}" target="_blank" class="text-blue-500 hover:text-blue-700 font-bold underline"><i class="fas fa-image"></i> ดูรูป</a>` : '<span class="text-slate-300">-</span>'}
-                                     </td>
-                                     <td class="p-4 text-xs text-slate-500 font-medium">${log.core_personnel?.first_name || '-'}</td>`;
-                        }
-                        
-                        // คอลัมน์จัดการ
-                        if (currentUserId) {
-                            let canEdit = isSuperAdmin || log.recorder_id === currentUserId; // ผู้บันทึก หรือ Super Admin แก้ได้
-                            let canDelete = isSuperAdmin; // เฉพาะ Super Admin ลบได้
-                            
-                            html += `<td class="p-4 text-center whitespace-nowrap">`;
-                            if (canEdit) {
-                                html += `<button onclick="openEditModal('${log.id}')" class="text-slate-400 hover:text-yellow-600 bg-slate-50 hover:bg-yellow-50 px-2 py-1 rounded-lg transition mr-1" title="แก้ไข"><i class="fas fa-pen"></i></button>`;
-                            }
-                            if (canDelete) {
-                                html += `<button onclick="deleteLog('${log.id}')" class="text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 px-2 py-1 rounded-lg transition" title="ลบ"><i class="fas fa-trash"></i></button>`;
-                            }
-                            if (!canEdit && !canDelete) {
-                                html += `<span class="text-slate-300 text-xs">-</span>`;
-                            }
-                            html += `</td>`;
+                            <td class="p-4 text-slate-500">${dateDisplay}</td>
+                            <td class="p-4 font-bold text-slate-700">${criteriaTitle}</td>
+                            <td class="p-4 text-slate-500 text-xs">${desc}</td>
+                            <td class="p-4 text-center font-black text-lg ${scoreClass}">
+                                ${log.score_change > 0 ? '+' : ''}${log.score_change}
+                            </td>
+                            <td class="p-4 text-center text-xs">${evidenceHtml}</td>
+                            <td class="p-4 text-xs text-slate-500 font-medium">${recorderName}</td>`;
+
+                        if (isAdmin) {
+                            html += `<td class="p-4 text-center whitespace-nowrap">
+                                <button onclick="openEditModal('${log.id}')" class="text-slate-400 hover:text-yellow-600 bg-slate-50 hover:bg-yellow-50 px-2 py-1 rounded-lg transition mr-1" title="แก้ไข"><i class="fas fa-pen"></i></button>
+                                <button onclick="deleteLog('${log.id}')" class="text-slate-400 hover:text-red-600 bg-slate-50 hover:bg-red-50 px-2 py-1 rounded-lg transition" title="ลบ"><i class="fas fa-trash"></i></button>
+                            </td>`;
                         }
                         html += `</tr>`;
                     });
                 }
 
                 $('#st_score').text(total);
-                let colSpan = 4;
-                if (isFullAdmin) colSpan += 2;
-                if (currentUserId) colSpan += 1;
+                const colSpan = isAdmin ? 7 : 6;
                 $('#history_body').html(html || `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400">ไม่พบประวัติการบันทึกความประพฤติ</td></tr>`);
             }
         }
 
         // ==========================================
-        // ระบบแก้ไขและลบข้อมูล
+        // แก้ไขและลบ (สำหรับ admin เท่านั้น)
         // ==========================================
         function openEditModal(logId) {
             const log = currentLogs.find(l => l.id === logId);
@@ -251,13 +250,14 @@
             const { error } = await db.from('behavior_logs').update({
                 criteria_id: criteriaId,
                 score_change: score,
-                description: desc
+                description: desc,
+                recorder_id: currentUserId   // เปลี่ยนผู้บันทึกเป็นคนที่แก้ไข
             }).eq('id', logId);
             
             if (!error) {
                 Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
                 closeEditModal();
-                loadHistory(); // โหลดตารางใหม่
+                loadHistory();
             } else {
                 Swal.fire('ผิดพลาด', error.message, 'error');
             }
@@ -265,22 +265,31 @@
 
         async function deleteLog(logId) {
             const { isConfirmed } = await Swal.fire({
-                title: 'ยืนยันการลบ?',
-                text: 'หากลบแล้วจะไม่สามารถกู้คืนได้ และคะแนนรวมจะถูกคำนวณใหม่ทันที',
+                title: 'ยืนยันการยกเลิกรายการ?',
+                text: 'รายการจะถูกยกเลิก (คะแนนกลายเป็น 0) และแสดงชื่อคุณเป็นผู้จัดการ',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#dc2626',
-                confirmButtonText: 'ใช่, ลบเลย',
-                cancelButtonText: 'ยกเลิก'
+                confirmButtonText: 'ใช่, ยกเลิกรายการ',
+                cancelButtonText: 'กลับ'
             });
             
             if (isConfirmed) {
-                Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-                const { error } = await db.from('behavior_logs').delete().eq('id', logId);
+                Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                
+                // ดึง description เดิม
+                const { data: log } = await db.from('behavior_logs').select('description').eq('id', logId).single();
+                const newDesc = (log?.description || '') + ' [ยกเลิก]';
+                
+                const { error } = await db.from('behavior_logs').update({
+                    score_change: 0,
+                    description: newDesc,
+                    recorder_id: currentUserId       // เปลี่ยนเป็นผู้ที่ลบ
+                }).eq('id', logId);
                 
                 if (!error) {
-                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
-                    loadHistory(); // โหลดตารางและคะแนนใหม่
+                    Swal.fire({ icon: 'success', title: 'ยกเลิกรายการสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadHistory();
                 } else {
                     Swal.fire('ผิดพลาด', error.message, 'error');
                 }

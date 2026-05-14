@@ -3,39 +3,31 @@
 
 <head>
     <title>ครูที่ปรึกษา | ระบบงานปกครอง</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="min-h-screen pb-10">
 
-    <nav
-        class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-red-100 px-4 md:px-6 py-3 shadow-sm flex justify-between items-center">
+    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-red-100 px-4 md:px-6 py-3 shadow-sm flex justify-between items-center">
         <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo"
-                class="w-10 h-10 object-contain hidden md:block">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain hidden md:block">
             <div>
                 <h1 class="font-bold text-red-900 leading-tight text-lg flex items-center gap-2">
                     <i class="fa-solid fa-gavel md:hidden"></i> ระบบงานปกครอง
                 </h1>
                 <div class="text-[10px] md:text-xs text-red-600 font-bold flex items-center gap-1">
-                    ครูที่ปรึกษา: <span id="my_room"
-                        class="bg-red-100 px-2 py-0.5 rounded-full text-red-700">กำลังโหลด...</span>
+                    ครูที่ปรึกษา: <span id="my_room" class="bg-red-100 px-2 py-0.5 rounded-full text-red-700">กำลังโหลด...</span>
                 </div>
             </div>
         </div>
         <div class="flex items-center gap-2 md:gap-3">
-            <span id="user_display"
-                class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
+            <span id="user_display" class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
 
             <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
                 class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm">
-                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span
-                    class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
             </button>
 
             <button onclick="window.location.href='index.html'"
@@ -72,9 +64,7 @@
                     </tr>
                 </thead>
                 <tbody id="teacherBody">
-                    <tr>
-                        <td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลดข้อมูล...</td>
-                    </tr>
+                    <tr><td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลดข้อมูล...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -93,52 +83,42 @@
             if (!session) { window.location.replace('index.html'); return; }
 
             const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-
-            // 🌟 แก้ไขแสดงชื่อ-นามสกุลเต็ม พร้อม Icon และจัดสไตล์เล็กน้อย
             const userDisplayName = `ครู${profile.first_name} ${profile.last_name}`;
             $('#user_display').html(`<i class="fas fa-user-tie mr-2 text-blue-500"></i>${userDisplayName}`);
 
-            let isAdmin = (profile.role === 'super_admin');
+            // รวบรวมสถานะ admin (ผู้ที่มีสิทธิ์เห็นปุ่มไปหน้าแอดมิน)
+            let hasAdminRight = (profile.role === 'super_admin' || profile.role === 'admin');
 
-            // เช็คสิทธิ์แอดมินระบบปกครอง (core_module_admins)
-            const { data: modAdmin } = await db.from('core_module_admins')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .eq('module_id', 'behavior')
-                .maybeSingle();
-            if (modAdmin) isAdmin = true;
-
-            // 🌟 เช็คสิทธิ์หัวหน้าระดับชั้น
-            const { data: gradeHead } = await db.from('behavior_grade_heads')
-                .select('id')
-                .eq('teacher_id', session.user.id)
-                .maybeSingle();
-            if (gradeHead) isAdmin = true;
-
-            // ✅ เพิ่มการตรวจสอบหัวหน้างานปกครองจาก core_discipline_heads
-            const { data: sInfo } = await db.from('core_school_info')
-                .select('current_academic_year')
-                .single();
+            // --- 1. ตรวจสอบหัวหน้างานปกครอง (core_discipline_heads) ---
+            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
             if (sInfo?.current_academic_year) {
                 const { data: discHead } = await db.from('core_discipline_heads')
                     .select('id')
                     .eq('personnel_id', session.user.id)
                     .eq('academic_year', sInfo.current_academic_year)
                     .maybeSingle();
-                if (discHead) isAdmin = true;
+                if (discHead) hasAdminRight = true;
             }
 
-            // ถ้ามีสิทธิ์ใดสิทธิ์หนึ่งข้างต้น ให้แสดงปุ่มโหมดแอดมิน
-            if (isAdmin) $('#btnAdminMode').removeClass('hidden').addClass('flex');
+            // --- 2. ตรวจสอบหัวหน้าระดับ (behavior_grade_heads) ---
+            const { data: gradeHead } = await db.from('behavior_grade_heads')
+                .select('id')
+                .eq('teacher_id', session.user.id)
+                .maybeSingle();
+            if (gradeHead) hasAdminRight = true;
 
+            // แสดงปุ่มโหมดแอดมินถ้ามีสิทธิ์
+            if (hasAdminRight) $('#btnAdminMode').removeClass('hidden').addClass('flex');
+
+            // ดึงห้องที่ปรึกษา
             const { data: classroom } = await db.from('core_classrooms')
                 .select('*')
                 .or(`adviser_id_1.eq.${session.user.id},adviser_id_2.eq.${session.user.id}`)
                 .single();
 
             if (!classroom) {
-                if (isAdmin) {
-                    // หัวหน้าปกครอง / หัวหน้าระดับ / Super Admin ที่ไม่ได้เป็นครูที่ปรึกษา → ไปหน้าแอดมินโดยตรง
+                if (hasAdminRight) {
+                    // ❗️ มีสิทธิ์ admin แต่ไม่ใช่ครูที่ปรึกษา → ไปหน้าแอดมินโดยตรง ไม่มี popup
                     window.location.replace('behavior_admin.html');
                 } else {
                     Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info')
@@ -179,19 +159,11 @@
                     `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
                 ]),
                 destroy: true,
-                // 🌟 1. ตั้งค่าการกดขยายข้อมูล
-                responsive: {
-                    details: {
-                        type: 'column',
-                        target: 'tr' // ให้ผู้ใช้สามารถกดที่ใดก็ได้ในแถวเพื่อกางข้อมูลที่ซ่อนอยู่ออกมา
-                    }
-                },
-
-                // 🌟 2. จัดลำดับความสำคัญของคอลัมน์ (1 = สำคัญสุด ห้ามซ่อน)
+                responsive: { details: { type: 'column', target: 'tr' } },
                 columnDefs: [
-                    { responsivePriority: 1, targets: 2 }, // ลำดับ 1: คอลัมน์ "ชื่อ-นามสกุล"
-                    { responsivePriority: 2, targets: 4 }, // ลำดับ 2: คอลัมน์ "ปุ่มจัดการ"
-                    { responsivePriority: 3, targets: 0 }, // ลำดับ 3: คอลัมน์ "เลขที่"
+                    { responsivePriority: 1, targets: 2 },
+                    { responsivePriority: 2, targets: 4 },
+                    { responsivePriority: 3, targets: 0 },
                 ],
                 language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
                 pageLength: 50,
@@ -202,7 +174,8 @@
         function exportTeacherExcel() {
             if (studentData.length === 0) return;
             const exportData = studentData.map(s => ({ 'เลขที่': s.no, 'เลขประจำตัว': s.sid, 'ชื่อ-นามสกุล': s.name, 'คะแนนปัจจุบัน': s.score }));
-            const ws = XLSX.utils.json_to_sheet(exportData); const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "คะแนนความประพฤติ");
             XLSX.writeFile(wb, `คะแนนความประพฤติ_ม.${myClassroom.grade_level}_${myClassroom.room_number}.xlsx`);
         }
@@ -210,5 +183,4 @@
         function viewHistory(id) { location.href = `student_history.html?id=${id}`; }
     </script>
 </body>
-
 </html>

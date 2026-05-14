@@ -32,63 +32,55 @@ async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) { window.location.replace('index.html'); return; }
 
-    // 1. ดึงข้อมูลโปรไฟล์และข้อมูลโรงเรียน (ปีการศึกษา)
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
     const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-    
-    // 2. เช็คสิทธิ์ "หัวหน้างานปกครอง" จากตารางกลาง (core_discipline_heads)
-    const { data: discInfo } = await db.from('core_discipline_heads')
-        .select('id')
-        .eq('personnel_id', session.user.id)
-        .eq('academic_year', sInfo?.current_academic_year)
-        .maybeSingle();
-    window.isDisciplineHead = !!discInfo;
 
-    // 2b. เช็คสิทธิ์ "แอดมินระบบปกครอง" จาก core_module_admins (module_id = 'behavior')
-    //     รองรับกรณีที่ตั้งสิทธิ์ผ่านตารางนี้แทน core_discipline_heads
-    if (!window.isDisciplineHead) {
-        const { data: modAdmin } = await db.from('core_module_admins')
+    currentUser = profile;
+
+    // ── ตรวจสอบสิทธิ์ (ใช้ตารางเดียวกับ attendance_teacher.js) ──
+
+    // 1. หัวหน้างานปกครอง (core_discipline_heads)
+    let isDisciplineHead = false;
+    if (sInfo?.current_academic_year) {
+        const { data: discHead } = await db.from('core_discipline_heads')
             .select('id')
-            .eq('user_id', session.user.id)
-            .eq('module_id', 'behavior')
+            .eq('personnel_id', session.user.id)
+            .eq('academic_year', sInfo.current_academic_year)
             .maybeSingle();
-        if (modAdmin) window.isDisciplineHead = true;
+        isDisciplineHead = !!discHead;
     }
 
-    // 3. เช็คสิทธิ์ "หัวหน้าระดับชั้น" ( behavior_grade_heads )
-    const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
-    
-    currentUser = profile;
+    // 2. หัวหน้าระดับชั้น (behavior_grade_heads)
+    const { data: gradeHeads } = await db.from('behavior_grade_heads')
+        .select('grade_level')
+        .eq('teacher_id', session.user.id);
     currentUser.managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
-    // 🌟 ส่วนสำคัญ: การจัดการสิทธิ์และ UI 🌟
-    
-    // ซ่อนปุ่มตั้งค่าและปุ่มนำเข้าไว้ก่อนเป็นค่าเริ่มต้น
+    // ── กำหนดบทบาทภายใน (role) และแสดงผล ──
+    // ซ่อนปุ่มตั้งค่าและนำเข้าไว้ก่อน
     $('#btn_settings').addClass('hidden').removeClass('flex');
     $('#btn_import_old').addClass('hidden').removeClass('flex');
 
     if (profile.role === 'super_admin') {
-        // ✅ กรณี Superuser: ทำได้ทุกอย่าง + เห็นปุ่มตั้งค่า
+        // ✅ Superuser: ทุกอย่าง
         $('#btn_settings').removeClass('hidden').addClass('flex');
         $('#btn_import_old').removeClass('hidden').addClass('flex');
         $('#role_label').html('<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser');
-        
-    } else if (window.isDisciplineHead) {
-        // ✅ กรณีหัวหน้างานปกครอง: จัดการได้ทั้งโรงเรียน แต่ไม่เห็นปุ่มตั้งค่า
-        currentUser.role = 'admin'; // ปรับ Role ภายในให้เป็น admin เพื่อให้ดึงข้อมูลได้ทั้งโรงเรียน
+        currentUser.role = 'admin';
+    } else if (isDisciplineHead) {
+        // ✅ หัวหน้างานปกครอง: เห็นทั้งโรงเรียน, ไม่เห็นปุ่มตั้งค่า/นำเข้า
+        currentUser.role = 'admin';
         $('#role_label').html('<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> หัวหน้างานปกครอง');
-        
     } else if (currentUser.managedGrades.length > 0) {
-        // ✅ กรณีหัวหน้าระดับชั้น: จัดการได้ตามระดับที่ได้รับมอบหมาย
-        $('#role_label').text(`หัวหน้าระดับ ม.${currentUser.managedGrades.join(', ')}`);
-        
+        // ✅ หัวหน้าระดับ: เห็นเฉพาะระดับชั้นที่ดูแล, ไม่เห็นปุ่มตั้งค่า/นำเข้า
+        currentUser.role = 'grade_head';
+        $('#role_label').html(`<i class="fas fa-layer-group text-blue-500 mr-1"></i> หัวหน้าระดับ ม.${currentUser.managedGrades.join(', ')}`);
     } else {
-        // ❌ ไม่มีสิทธิ์ในหน้านี้: เด้งกลับหน้าครูที่ปรึกษา
+        // ❌ ไม่มีสิทธิ์ใด ๆ → กลับหน้า teacher
         window.location.replace('behavior_teacher.html'); 
         return;
     }
     
-    // แสดงชื่อครูที่ Navbar
     $('#user_display').html(`ครู${profile.first_name} ${profile.last_name}`);
 }
 
@@ -112,20 +104,17 @@ async function loadCriteria() {
     if (data) criteriaList = data;
 }
 
-
 async function initStudentTable() {
-    // แสดงหน้าต่างโหลดข้อมูลค้างไว้ เพราะเด็ก 3000 คนอาจจะใช้เวลา 2-3 วินาที
     Swal.fire({ title: 'กำลังโหลดข้อมูลนักเรียน...', text: 'กรุณารอสักครู่', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     let allFetchedStudents = [];
     let from = 0;
     const limit = 1000;
 
-    // 🌟 วนลูปดึงข้อมูลทีละ 1,000 แถว จนกว่าจะหมด 🌟
     while (true) {
         const { data, error } = await db.from('core_students').select(`
-            id, student_id_card, first_name, last_name,
-            student_enrollments ( core_classrooms (grade_level, room_number) ),
+            id, student_id_card, prefix, first_name, last_name,
+            student_enrollments ( student_number, core_classrooms (grade_level, room_number) ),
             behavior_logs ( score_change, behavior_criteria(category) )
         `).range(from, from + limit - 1);
 
@@ -136,15 +125,11 @@ async function initStudentTable() {
         }
 
         if (data && data.length > 0) {
-            allFetchedStudents = allFetchedStudents.concat(data); // นำข้อมูลมาต่อกัน
+            allFetchedStudents = allFetchedStudents.concat(data);
         }
 
-        // ถ้าดึงมาได้น้อยกว่า 1,000 แสดงว่าหมดตารางแล้ว ให้ออกจากลูป
-        if (!data || data.length < limit) {
-            break; 
-        }
-        
-        from += limit; // ขยับจุดเริ่มต้นไปอีก 1000
+        if (!data || data.length < limit) break;
+        from += limit;
     }
 
     if (allFetchedStudents.length === 0) {
@@ -152,36 +137,45 @@ async function initStudentTable() {
         return;
     }
 
-    // 🌟 เข้าสู่กระบวนการกรองข้อมูล (ลอจิกเดิมของคุณครู) 🌟
+    // กรองตามระดับชั้นสำหรับหัวหน้าระดับ
     let filteredStudents = allFetchedStudents;
-    
-    // เช็คสิทธิ์การมองเห็นตามระดับชั้นที่รับผิดชอบ
-    if (currentUser && currentUser.role !== 'super_admin' && currentUser.managedGrades && currentUser.managedGrades.length > 0) {
+    if (currentUser.role === 'grade_head' && currentUser.managedGrades.length > 0) {
         filteredStudents = allFetchedStudents.filter(s => {
             const enroll = s.student_enrollments?.[0];
             return enroll && enroll.core_classrooms && currentUser.managedGrades.includes(enroll.core_classrooms.grade_level);
         });
     }
 
-    // 🌟 คำนวณคะแนนพฤติกรรม 🌟
     allStudents = filteredStudents.map(s => {
         const totalScore = 100 + (s.behavior_logs?.reduce((sum, log) => sum + log.score_change, 0) || 0);
         const posCount = s.behavior_logs?.filter(l => l.score_change > 0).length || 0;
         const negCount = s.behavior_logs?.filter(l => l.score_change < 0).length || 0;
         const enroll = s.student_enrollments?.[0];
-        
+        const classroom = enroll?.core_classrooms;
+        const prefix = s.prefix || '';
+        const firstName = s.first_name || '';
+        const lastName = s.last_name || '';
+
         return {
-            id: s.id, 
-            sid: s.student_id_card, 
-            name: `${s.first_name} ${s.last_name}`,
-            room: enroll && enroll.core_classrooms ? `${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-',
-            score: totalScore, 
-            pos: posCount, 
+            id: s.id,
+            sid: s.student_id_card,
+            prefix: prefix,
+            firstName: firstName,
+            lastName: lastName,
+            fullName: `${prefix}${firstName} ${lastName}`.trim(),
+            student_number: enroll?.student_number || 0,
+            grade_level: classroom ? parseInt(classroom.grade_level) : 0,
+            room_number: classroom ? classroom.room_number : '',
+            roomDisplay: classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-',
+            score: totalScore,
+            pos: posCount,
             neg: negCount
         };
     });
 
-    // วาดตารางและปิดกล่องโหลด
+    // เรียงตามชั้น แล้วตามเลขที่
+    allStudents.sort((a, b) => a.grade_level - b.grade_level || a.student_number - b.student_number);
+
     renderTable(allStudents);
     Swal.close();
 }
@@ -191,15 +185,16 @@ function renderTable(data) {
     
     table = $('#studentTable').DataTable({
         data: data.map(s => [
-            `<span class="font-medium text-slate-700">${s.sid}</span>`, 
-            `<span class="font-bold text-blue-800">${s.name}</span>`, 
-            `<span class="text-slate-600">ม.${s.room}</span>`, 
+            `<span class="text-slate-600 font-medium">${s.roomDisplay}</span>`,
+            `<span class="text-center font-bold text-gray-600">${s.student_number || '-'}</span>`,
+            `<span class="font-medium text-slate-700">${s.sid}</span>`,
+            `<span class="font-bold text-blue-800">${s.fullName}</span>`,
             `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
             `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
         ]),
-        responsive: true, 
+        responsive: true,
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        
+        order: [[0, 'asc'], [1, 'asc']] // ชั้น, เลขที่ (แต่เรียงไว้แล้ว)
     });
 }
 
@@ -209,6 +204,9 @@ function loadDashboard() {
     $('#stat_high').text(allStudents.filter(s => s.score > 100).length);
     $('#stat_low').text(allStudents.filter(s => s.score < 50).length);
 }
+
+// ── ฟังก์ชันอื่น ๆ คงเดิม (searchStudent, saveBehaviorRecord, importFromGoogleSheet ฯลฯ) ──
+// (สามารถคัดลอกมาจากไฟล์ก่อนหน้าได้เลย)
 
 async function searchStudent(val) {
     if(val.length < 2) { $('#search_results').hide(); return; }
@@ -369,31 +367,26 @@ async function importFromGoogleSheet() {
 
     if (!url) return;
 
-    // ดึง Sheet ID ออกมาจากลิงก์ URL
     const match = url.match(/\/d\/(.*?)(\/|$)/);
     if (!match || !match[1]) {
         return Swal.fire('ผิดพลาด', 'ไม่พบรหัส Sheet ID จากลิงก์', 'error');
     }
     const sheetId = match[1];
     
-    // แปลงลิงก์เพื่อสั่งให้ Google ส่งไฟล์กลับมาเป็น CSV
     const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv`;
 
     try {
         Swal.fire({ title: 'กำลังดึงข้อมูลจาก Google Sheet...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-        // ดึงข้อมูลผ่าน Fetch API
         const response = await fetch(csvUrl);
         if (!response.ok) throw new Error('ไม่สามารถเข้าถึงไฟล์ได้ กรุณาตรวจสอบว่าเปิดการแชร์ไฟล์เป็นสาธารณะ (Anyone with the link) แล้วหรือยัง');
         
         const csvText = await response.text();
         
-        // แปลง CSV Text เป็น JSON ด้วย SheetJS (XLSX) ที่เรามีโหลดไว้อยู่แล้ว
         const wb = XLSX.read(csvText, { type: 'string', raw: false });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '' });
 
-        // ส่งข้อมูลเข้าสู่กระบวนการประมวลผลฐานข้อมูล
         await processImportData(rows);
 
     } catch (err) {
@@ -401,7 +394,6 @@ async function importFromGoogleSheet() {
     }
 }
 
-// ฟังก์ชันสำหรับประมวลผลข้อมูลและบันทึกลงฐานข้อมูล (ย้ายลอจิกเดิมมาไว้ที่นี่)
 async function processImportData(rows) {
     const dataRows = rows.filter(r => {
         const stdCode = String(r['รหัสนักเรียน'] || '').trim();
@@ -417,14 +409,12 @@ async function processImportData(rows) {
         allowOutsideClick: false 
     });
 
-    // ── 1. ดึงข้อมูลนักเรียนทั้งหมด ──
     const { data: studentsList, error: stuErr } = await db.from('core_students').select('id, student_id_card').limit(10000);
     if (stuErr) throw stuErr;
 
     const studentMap = {};
     (studentsList || []).forEach(s => { studentMap[String(s.student_id_card).trim()] = s.id; });
 
-    // ── 2. จัดการ Criteria (หัวข้อความผิด/ความดี) แบบ Bulk ──
     const criteriaCache = new Map();
     (criteriaList || []).forEach(c => criteriaCache.set(c.title.trim(), c.id));
 
@@ -438,7 +428,6 @@ async function processImportData(rows) {
         }
     });
 
-    // ถ้ามีหัวข้อใหม่ ให้สร้างหัวข้อลงตารางก่อน
     if (uniqueNewCriteria.size > 0) {
         const criteriaToInsert = Array.from(uniqueNewCriteria.entries()).map(([title, score]) => ({
             title: title,
@@ -455,7 +444,6 @@ async function processImportData(rows) {
         });
     }
 
-    // ฟังก์ชันแปลงวันที่
     function parseDateTime(raw) {
         if (!raw || String(raw).trim() === '') return new Date().toISOString();
         const s = String(raw).trim();
@@ -470,7 +458,6 @@ async function processImportData(rows) {
         return !isNaN(dt2.getTime()) ? dt2.toISOString() : new Date().toISOString();
     }
 
-    // ── 3. เตรียมข้อมูลและบันทึก ──
     const logsToInsert = [];
     const errors = [];
 
@@ -517,7 +504,6 @@ async function processImportData(rows) {
         return;
     }
 
-    // ── 4. บันทึกลง Supabase เป็น Batch ──
     const BATCH = 100;
     let success = 0;
     for (let i = 0; i < logsToInsert.length; i += BATCH) {
@@ -537,7 +523,6 @@ async function processImportData(rows) {
                <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0,10).join('\n')}</pre></details>` : ''}`
     });
     
-    // รีเฟรชตารางหลังนำเข้าเสร็จ
     initStudentTable();
     loadDashboard();
 }
