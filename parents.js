@@ -11,6 +11,7 @@ let actualRole = ''; // Role จริงจาก DB
 let currentViewRole = ''; // Role ที่กำลังแสดงผล (Admin หรือ Teacher)
 let moduleSettings = {};
 let tsClassroom = null;
+let tsTeacherAppoint = null
 
 const FORM_ROLES = [
     { id: 'president', title: 'ประธาน' },
@@ -26,9 +27,57 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // 1. Authentication & Role Switcher Logic
+// async function checkAuth() {
+//     Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+//     const { data: { session } } = await db.auth.getSession();
+//     if (!session) return window.location.replace('login.html');
+
+//     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+//     if (!profile) return window.location.replace('login.html');
+
+//     currentUser = profile;
+//     actualRole = profile.role; // เช่น 'super_admin' หรือ 'teacher'
+//     currentViewRole = actualRole; 
+
+//     // แสดงปุ่มตั้งค่าและปุ่มสลับโหมดเฉพาะแอดมิน
+//     if (actualRole === 'super_admin') {
+//         document.getElementById('admin-settings-btn').classList.remove('hidden');
+//         document.getElementById('role-toggle-btn').classList.remove('hidden');
+//     }
+
+//     updateUIByRole();
+//     await loadSchoolInfo();
+//     await loadClassrooms();
+//     await loadAdminSettings();
+
+//     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+//     Swal.close();
+// }
+
+// function toggleViewRole() {
+//     currentViewRole = (currentViewRole === 'super_admin') ? 'teacher' : 'super_admin';
+//     const btn = document.getElementById('role-toggle-btn');
+
+//     if (currentViewRole === 'teacher') {
+//         btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดแอดมิน';
+//         btn.className = "px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-blue-100 transition-all";
+//     } else {
+//         btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดครู';
+//         btn.className = "px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all";
+//     }
+
+//     updateUIByRole();
+//     loadClassrooms(); // รีโหลดห้องเรียนตามสิทธิ์ที่สลับ
+// }
+
+// function updateUIByRole() {
+//     document.getElementById('userNameDisplay').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+//     document.getElementById('userRoleDisplay').innerText = currentViewRole === 'super_admin' ? 'ผู้ดูแลระบบ' : 'ครูที่ปรึกษา';
+// }
 async function checkAuth() {
     Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('login.html');
 
@@ -36,43 +85,82 @@ async function checkAuth() {
     if (!profile) return window.location.replace('login.html');
 
     currentUser = profile;
-    actualRole = profile.role; // เช่น 'super_admin' หรือ 'teacher'
-    currentViewRole = actualRole; 
+    actualRole = profile.role; // ค่าเริ่มต้น (super_admin หรือ teacher)
 
-    // แสดงปุ่มตั้งค่าและปุ่มสลับโหมดเฉพาะแอดมิน
+    // ตรวจสอบว่าเป็น Module Admin หรือไม่ (ในกรณีที่ไม่ใช่ Super Admin)
+    if (actualRole !== 'super_admin') {
+        const { data: modAdmin } = await db.from('core_module_admins')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .eq('module_id', 'parent_network')
+            .maybeSingle();
+
+        if (modAdmin) {
+            actualRole = 'module_admin'; // อัปเกรดสิทธิ์ชั่วคราวในหน้านี้
+        }
+    }
+
+    currentViewRole = actualRole; // โหมดมุมมองเริ่มต้นคือจุดสูงสุดที่ทำได้
+
+    // --- การแสดงผลปุ่ม (UI) ตามสิทธิ์ ---
     if (actualRole === 'super_admin') {
+        // Super Admin เห็นทั้งปุ่มตั้งค่าและปุ่มสลับโหมด
         document.getElementById('admin-settings-btn').classList.remove('hidden');
         document.getElementById('role-toggle-btn').classList.remove('hidden');
+    } else if (actualRole === 'module_admin') {
+        // Module Admin เห็นแค่ปุ่มสลับโหมด (ไม่เห็นปุ่มตั้งค่า)
+        document.getElementById('role-toggle-btn').classList.remove('hidden');
+        // admin-settings-btn ยังคงถูก hidden ไว้ตามเดิม
     }
 
     updateUIByRole();
     await loadSchoolInfo();
     await loadClassrooms();
-    await loadAdminSettings();
-    
+
+    // โหลด Settings เตรียมไว้กรณีเป็น Super Admin
+    if (actualRole === 'super_admin') {
+        await loadAdminSettings();
+        await loadTeachersForAppoint(); // โหลดรายชื่อครูไว้ให้เลือก
+        await loadModuleAdminsList();   // โหลดรายชื่อแอดมินที่มีอยู่
+    }
+
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     Swal.close();
 }
 
 function toggleViewRole() {
-    currentViewRole = (currentViewRole === 'super_admin') ? 'teacher' : 'super_admin';
+    // สลับระหว่างสิทธิ์สูงสุดที่มี กับ teacher
+    currentViewRole = (currentViewRole === 'teacher') ? actualRole : 'teacher';
+
     const btn = document.getElementById('role-toggle-btn');
-    
+
     if (currentViewRole === 'teacher') {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดแอดมิน';
-        btn.className = "px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-blue-100 transition-all";
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Switch to Admin';
+        btn.className = "px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-blue-100 transition-all shadow-sm";
     } else {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดครู';
-        btn.className = "px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all";
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Switch to Teacher';
+        btn.className = "px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all shadow-sm";
     }
-    
+
     updateUIByRole();
-    loadClassrooms(); // รีโหลดห้องเรียนตามสิทธิ์ที่สลับ
+    loadClassrooms(); // รีโหลดห้องเรียนให้ตรงกับโหมด
 }
 
 function updateUIByRole() {
     document.getElementById('userNameDisplay').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('userRoleDisplay').innerText = currentViewRole === 'super_admin' ? 'ผู้ดูแลระบบ' : 'ครูที่ปรึกษา';
+
+    // แสดง Badge บทบาท
+    let roleText = 'Class Teacher';
+    if (currentViewRole === 'super_admin') roleText = 'Super Admin';
+    if (currentViewRole === 'module_admin') roleText = 'Module Admin';
+
+    document.getElementById('userRoleDisplay').innerText = roleText;
+
+    if (currentViewRole !== 'teacher') {
+        document.getElementById('userRoleDisplay').className = "text-[10px] text-purple-500 font-bold mt-1 uppercase";
+    } else {
+        document.getElementById('userRoleDisplay').className = "text-[10px] text-slate-400 font-medium mt-1 uppercase";
+    }
 }
 
 // 2. Data Loading
@@ -119,7 +207,7 @@ async function loadClassrooms() {
         create: false,
         placeholder: "-- ค้นหาและเลือกห้องเรียน --",
         maxOptions: null, // แสดงผลการค้นหาทั้งหมดโดยไม่จำกัดจำนวน
-        onChange: function(value) {
+        onChange: function (value) {
             // เมื่อมีการเลือกห้องเรียน ให้เรียกใช้ฟังก์ชันดึงข้อมูลฟอร์ม
             if (value) {
                 loadClassroomData();
@@ -147,8 +235,8 @@ function generateForm() {
     container.innerHTML = FORM_ROLES.map((role, idx) => `
         <div id="step-content-${idx + 1}" class="${idx === 0 ? 'block' : 'hidden'} animate-fade-in">
             <div class="flex items-center gap-3 mb-6">
-                <div class="w-10 h-10 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center font-black">${idx+1}</div>
-                <h3 class="font-bold text-slate-800 uppercase tracking-tight">ข้อมูลส่วนที่ ${idx+1}: ${role.title}</h3>
+                <div class="w-10 h-10 bg-slate-100 text-slate-400 rounded-xl flex items-center justify-center font-black">${idx + 1}</div>
+                <h3 class="font-bold text-slate-800 uppercase tracking-tight">ข้อมูลส่วนที่ ${idx + 1}: ${role.title}</h3>
             </div>
             
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 bg-slate-50/50 p-6 rounded-3xl border border-slate-100">
@@ -210,7 +298,7 @@ function generateForm() {
             </div>
         </div>
     `).join('');
-    
+
     document.getElementById('form-actions').classList.remove('hidden');
     initJqueryThailand();
 }
@@ -269,7 +357,7 @@ async function loadClassroomData() {
     } else {
         updateStatusBadge('empty');
     }
-    
+
     goToStep(1);
     Swal.close();
 }
@@ -277,7 +365,7 @@ async function loadClassroomData() {
 async function saveNetworkData(e) {
     e.preventDefault();
     const classId = document.getElementById('select-classroom').value;
-    
+
     // ตรวจสอบความครบถ้วน (HTML5 Required handle ให้แล้ว แต่เรา double-check)
     let isComplete = true;
     for (const role of FORM_ROLES) {
@@ -344,7 +432,7 @@ async function clearRoomData() {
             .eq('classroom_id', classId)
             .eq('academic_year', currentYear)
             .eq('semester', currentTerm);
-        
+
         if (!error) {
             document.getElementById('network-form').reset();
             FORM_ROLES.forEach(role => {
@@ -402,8 +490,8 @@ function goToStep(step) {
     FORM_ROLES.forEach((_, i) => {
         const content = document.getElementById(`step-content-${i + 1}`);
         const btn = document.getElementById(`step-btn-${i + 1}`);
-        if(content) content.classList.toggle('hidden', i + 1 !== step);
-        if(btn) btn.classList.toggle('active', i + 1 === step);
+        if (content) content.classList.toggle('hidden', i + 1 !== step);
+        if (btn) btn.classList.toggle('active', i + 1 === step);
     });
     document.getElementById('btn-next').classList.toggle('hidden', step === 5);
     document.getElementById('btn-submit').classList.toggle('hidden', step !== 5);
@@ -455,7 +543,7 @@ async function loadDataTable() {
             .eq('academic_year', currentYear)
             .eq('semester', currentTerm)
             .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
-            
+
         const myRoomIds = myRooms ? myRooms.map(r => r.id) : [];
         if (myRoomIds.length > 0) {
             query = query.in('classroom_id', myRoomIds);
@@ -485,7 +573,7 @@ async function loadDataTable() {
         const presName = row.president_data?.name || '-';
         const presPhone = row.president_data?.phone || '-';
         const roomName = row.core_classrooms ? `ม.${row.core_classrooms.grade_level}/${row.core_classrooms.room_number}` : 'ไม่ระบุ';
-        
+
         return `
         <tr class="hover:bg-blue-50/50 transition-colors">
             <td class="py-4 px-4 font-black text-slate-700">${roomName}</td>
@@ -509,7 +597,7 @@ async function loadDataTable() {
     if ($.fn.DataTable && $.fn.DataTable.isDataTable('#networkTable')) {
         $('#networkTable').DataTable().destroy();
     }
-    
+
     if ($.fn.DataTable) {
         $('#networkTable').DataTable({
             responsive: true,
@@ -546,7 +634,7 @@ function renderDashboard(completedCount, totalCount) {
 // ฟังก์ชันสำหรับกดปุ่ม Edit จากในตาราง
 function editFromTable(classroomId) {
     // เซ็ตค่า Tom Select ให้เป็นห้องที่เลือก
-    if(tsClassroom) {
+    if (tsClassroom) {
         tsClassroom.setValue(classroomId);
     } else {
         document.getElementById('select-classroom').value = classroomId;
@@ -582,10 +670,109 @@ function exportToExcel() {
     }, 1000);
 }
 
+// ==========================================
+// 8. ระบบแต่งตั้ง Module Admin (เฉพาะ Super Admin)
+// ==========================================
+
+// โหลดรายชื่อครูทั้งหมดเข้า Tom Select
+async function loadTeachersForAppoint() {
+    const { data } = await db.from('core_personnel').select('id, first_name, last_name').order('first_name');
+    const select = document.getElementById('select-teacher-appoint');
+
+    select.innerHTML = '<option value="">-- ค้นหาชื่อครู --</option>';
+    if (data) {
+        data.forEach(teacher => {
+            select.innerHTML += `<option value="${teacher.id}">${teacher.first_name} ${teacher.last_name}</option>`;
+        });
+    }
+
+    if (tsTeacherAppoint) tsTeacherAppoint.destroy();
+    tsTeacherAppoint = new TomSelect("#select-teacher-appoint", {
+        create: false,
+        placeholder: "ค้นหาชื่อครู...",
+    });
+}
+
+// โหลดรายชื่อแอดมินโมดูลที่ถูกตั้งไว้แล้วมาแสดงในตาราง
+async function loadModuleAdminsList() {
+    const tbody = document.getElementById('module-admin-list');
+    tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400">กำลังโหลด...</td></tr>';
+
+    const { data, error } = await db.from('core_module_admins')
+        .select(`
+            id,
+            core_personnel (id, first_name, last_name)
+        `)
+        .eq('module_id', 'parent_network');
+
+    if (!data || data.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ยังไม่มีการแต่งตั้งผู้ดูแลระบบ</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = data.map(admin => `
+        <tr class="hover:bg-slate-50">
+            <td class="py-3 px-4 font-bold text-slate-700 flex items-center gap-2">
+                <div class="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px]"><i class="fas fa-user-shield"></i></div>
+                ${admin.core_personnel.first_name} ${admin.core_personnel.last_name}
+            </td>
+            <td class="py-3 px-4 text-center">
+                <button onclick="removeModuleAdmin('${admin.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors tooltip" title="ปลดสิทธิ์">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// เพิ่มสิทธิ์
+async function appointModuleAdmin() {
+    const teacherId = document.getElementById('select-teacher-appoint').value;
+    if (!teacherId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครูที่ต้องการแต่งตั้ง', 'warning');
+
+    Swal.fire({ title: 'กำลังแต่งตั้ง...', didOpen: () => Swal.showLoading() });
+
+    const { error } = await db.from('core_module_admins').insert({
+        user_id: teacherId,
+        module_id: 'parent_network'
+    });
+
+    if (error) {
+        if (error.code === '23505') return Swal.fire('แจ้งเตือน', 'ครูท่านนี้เป็นแอดมินอยู่แล้ว', 'info');
+        return Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+
+    Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แต่งตั้งแอดมินโมดูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+    tsTeacherAppoint.clear();
+    loadModuleAdminsList();
+}
+
+// ปลดสิทธิ์
+async function removeModuleAdmin(recordId) {
+    const result = await Swal.fire({
+        title: 'ยืนยันการปลดสิทธิ์?',
+        text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#EF4444',
+        confirmButtonText: 'ปลดสิทธิ์'
+    });
+
+    if (result.isConfirmed) {
+        Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading() });
+        const { error } = await db.from('core_module_admins').delete().eq('id', recordId);
+
+        if (!error) {
+            Swal.fire({ icon: 'success', title: 'ปลดสิทธิ์เรียบร้อย', timer: 1500, showConfirmButton: false });
+            loadModuleAdminsList();
+        }
+    }
+}
+
 function switchTab(tabId) {
     document.getElementById('tab-form').classList.toggle('hidden', tabId !== 'form');
     document.getElementById('tab-data').classList.toggle('hidden', tabId !== 'data');
-    
+
     // ถ้าสลับมาหน้า data ให้โหลดตารางใหม่
     if (tabId === 'data') {
         loadDataTable();
