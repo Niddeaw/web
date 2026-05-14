@@ -461,3 +461,47 @@ select.field-input {
 canvas {
     max-width: 100%;
 }
+
+        /* Stepper Colors - แตกต่างกันชัดเจน */
+        .step-1.active {
+            background-color: #2563EB !important;
+            color: white !important;
+        }
+
+        /* Blue */
+        .step-2.active {
+            background-color: #059669 !important;
+            color: white !important;
+        }
+
+        /* Emerald */
+        .step-3.active {
+            background-color: #D97706 !important;
+            color: white !important;
+        }
+
+        /* Amber */
+        .step-4.active {
+            background-color: #7C3AED !important;
+            color: white !important;
+        }
+
+        /* Violet */
+        .step-5.active {
+            background-color: #DB2777 !important;
+            color: white !important;
+        }
+
+        /* Pink */
+
+        /* .step-btn {
+            @apply px-4 py-2 rounded-xl font-bold text-xs transition-all bg-slate-100 text-slate-500 hover:bg-slate-200;
+        }
+
+        .field-label {
+            @apply block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider;
+        }
+
+        .field-input {
+            @apply w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 transition-all text-sm;
+        } */

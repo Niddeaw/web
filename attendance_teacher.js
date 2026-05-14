@@ -270,67 +270,6 @@ function updateToggleButtonUI() {
 }
 
 // ==================== DASHBOARD ====================
-// function renderDashboardSummary() {
-//     const container = document.getElementById('dashboard-summary-container');
-//     if (!container || !currentDashboardStudents.length) { container.innerHTML = ''; return; }
-
-//     const rawDate = $('#check-date').val() || '';
-//     const thaiDateText = rawDate ? new Date(rawDate).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' }) : 'วันนี้';
-
-//     let stats = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
-//     let issueStudents = { 'ขาด': [], 'สาย': [], 'ลา': [], 'ป่วย': [] };
-//     currentDashboardStudents.forEach(student => {
-//         const sid = student.id || student.student_id;
-//         const status = attendanceData[sid];
-//         if (status && stats[status] !== undefined) {
-//             stats[status]++;
-//             if (status !== 'มา') {
-//                 const sData = student.core_students || student;
-//                 issueStudents[status].push({
-//                     code: sData.student_id_card || sData.student_number || '-',
-//                     name: `${sData.prefix || ''}${sData.first_name} ${sData.last_name}`,
-//                     listNum: student.student_number ? `เลขที่ ${student.student_number}` : ''
-//                 });
-//             }
-//         }
-//     });
-
-//     const genList = (title, icon, colorClass, bgClass, borderClass, list) => {
-//         if (!list.length) return '';
-//         list.sort((a, b) => parseInt(a.listNum.replace('เลขที่ ', '')) - parseInt(b.listNum.replace('เลขที่ ', '')));
-//         const items = list.map(s => `
-//             <li class="flex justify-between items-center py-1.5 border-b border-white/50 last:border-0">
-//                 <div class="flex items-center gap-2"><span class="text-[11px] font-bold bg-white/60 px-1.5 py-0.5 rounded text-slate-600 shadow-sm">${s.listNum}</span><span class="text-sm font-bold text-slate-700">${s.name}</span></div>
-//                 <span class="text-[10px] font-mono bg-white/40 px-1.5 py-0.5 rounded text-slate-500">${s.code}</span>
-//             </li>`).join('');
-//         return `<div class="${bgClass} p-4 rounded-2xl border ${borderClass} shadow-sm"><h4 class="font-black text-sm ${colorClass} mb-2.5 flex items-center border-b border-white pb-2"><i class="${icon} w-5"></i> ${title} (${list.length} คน)</h4><ul class="space-y-1">${items}</ul></div>`;
-//     };
-
-//     const htmlLists = genList('ขาดเรียน', 'fas fa-user-times', 'text-rose-700', 'bg-rose-50', 'border-rose-100', issueStudents['ขาด']) +
-//         genList('มาสาย', 'fas fa-clock', 'text-orange-700', 'bg-orange-50', 'border-orange-100', issueStudents['สาย']) +
-//         genList('ลากิจ', 'fas fa-envelope-open-text', 'text-yellow-700', 'bg-yellow-50', 'border-yellow-100', issueStudents['ลา']) +
-//         genList('ลาป่วย', 'fas fa-procedures', 'text-blue-700', 'bg-blue-50', 'border-blue-100', issueStudents['ป่วย']);
-
-//     const cardClass = isDashboardSaved
-//         ? 'from-emerald-50/80 to-white border-emerald-200'
-//         : 'from-amber-50/80 to-white border-amber-200';
-//     const iconEl = isDashboardSaved
-//         ? '<div class="absolute -top-4 -right-4 p-4 text-emerald-500/10 text-8xl"><i class="fas fa-check-circle"></i></div>'
-//         : '<div class="absolute -top-4 -right-4 p-4 text-amber-500/10 text-8xl"><i class="fas fa-exclamation-circle"></i></div>';
-//     const headerContent = isDashboardSaved
-//         ? `<div class="w-12 h-12 rounded-2xl bg-emerald-500 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-200"><i class="fas fa-check"></i></div>
-//            <div><h3 class="text-xl font-black text-emerald-800 tracking-tight">บันทึกการเช็คชื่อเรียบร้อยแล้ว</h3><p class="text-xs text-emerald-600 font-bold tracking-widest uppercase">ข้อมูลประจำวันที่ ${thaiDateText} อัปเดตเข้าระบบแล้ว</p></div>`
-//         : `<div class="w-14 h-14 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-3xl shadow-lg shadow-amber-200 flex-shrink-0"><i class="fas fa-clipboard-list"></i></div>
-//            <div><h3 class="text-xl font-black text-amber-900 tracking-tight">ยังไม่ได้บันทึกการเช็คชื่อ!</h3><p class="text-sm text-amber-700 font-medium mt-0.5">ประจำวันที่ <b class="text-amber-900">${thaiDateText}</b> กรุณาตรวจสอบและบันทึก</p></div>`;
-
-//     container.innerHTML = `<div class="glass-panel p-6 rounded-3xl shadow-sm border bg-gradient-to-br ${cardClass} relative overflow-hidden">${iconEl}
-//         <div class="relative z-10"><div class="flex items-center gap-4 mb-6">${headerContent}</div>
-//         <div class="grid grid-cols-5 gap-3 mb-5">
-//             ${['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย'].map((s, i) => `<div class="bg-white p-3 rounded-2xl text-center shadow-sm border border-slate-100"><div class="text-xs text-slate-400 font-bold mb-1">${s}</div><div class="text-2xl font-black ${['text-emerald-500', 'text-rose-500', 'text-orange-500', 'text-yellow-500', 'text-blue-500'][i]}">${stats[s]}</div></div>`).join('')}
-//         </div>
-//         ${htmlLists ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4">${htmlLists}</div>` : '<div class="text-center py-4 bg-white/60 rounded-2xl text-emerald-600 font-bold border border-emerald-100 shadow-sm"><i class="fas fa-award text-yellow-400 text-xl mr-2 mb-1"></i><br>ยอดเยี่ยม! นักเรียนมาเรียนครบ 100%</div>'}
-//         </div></div>`;
-// }
 function renderDashboardSummary() {
     const container = document.getElementById('dashboard-summary-container');
     if (!container || !currentDashboardStudents.length) { container.innerHTML = ''; return; }
