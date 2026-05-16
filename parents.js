@@ -650,6 +650,126 @@ async function getPersonnelMap() {
     return personnelCache;
 }
 
+// async function loadDataTable() {
+//     const tbody = document.getElementById('tb-network');
+//     if (!tbody) return;
+//     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูล...</td></tr>';
+
+//     try {
+//         // ---------------------------------------------------------
+//         // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ และกรองเฉพาะเทอม/ปีการศึกษาปัจจุบัน
+//         // ---------------------------------------------------------
+//         let classQuery = db.from('core_classrooms')
+//             .select('*')
+//             .eq('academic_year', currentYear) // 🔥 เพิ่ม: กรองเฉพาะปีการศึกษาปัจจุบันจากระบบส่วนกลาง
+//             .eq('semester', currentTerm)     // 🔥 เพิ่ม: กรองเฉพาะภาคเรียนปัจจุบันจากระบบส่วนกลาง
+//             .order('grade_level')
+//             .order('room_number');
+
+//         if (currentViewRole === 'teacher') {
+//             // ครูที่ปรึกษา: เห็นเฉพาะห้องตัวเอง
+//             classQuery = classQuery.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
+            
+//         } else if (currentViewRole === 'head_grade') {
+//             // หัวหน้าระดับ: หาว่าดูแลระดับชั้นไหน แล้วดึงเฉพาะชั้นนั้น
+//             const { data: gh } = await db.from('behavior_grade_heads')
+//                 .select('grade_level')
+//                 .eq('teacher_id', currentUser.id)
+//                 .maybeSingle();
+                
+//             if (gh && gh.grade_level) {
+//                 classQuery = classQuery.eq('grade_level', gh.grade_level);
+//             } else {
+//                 classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // กันเหนียวถ้าไม่พบระดับ
+//             }
+//         }
+//         // *Superadmin, Module Admin, Head Discipline ไม่ถูก Filter (จะเห็นทุกห้องในเทอม/ปีการศึกษานี้)
+
+//         // ---------------------------------------------------------
+//         // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน (รายชื่อห้อง, ข้อมูลที่บันทึกแล้ว, ชื่อครู)
+//         // ---------------------------------------------------------
+//         const [
+//             { data: classrooms, error: classErr },
+//             { data: networks, error: netErr },
+//             staffMap
+//         ] = await Promise.all([
+//             classQuery,
+//             db.from('module_parent_network')
+//                 .select('classroom_id')
+//                 .eq('academic_year', currentYear)
+//                 .eq('semester', currentTerm),
+//             getPersonnelMap()
+//         ]);
+
+//         if (classErr) throw classErr;
+//         if (netErr) throw netErr;
+
+//         if (!classrooms || classrooms.length === 0) {
+//             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในความรับผิดชอบของภาคเรียนนี้</td></tr>';
+//             renderDashboard(0, 0);
+//             return;
+//         }
+
+//         // สร้างรายการห้องที่ "บันทึกแล้ว" ไว้เทียบในลูป (Set ช่วยให้เช็คข้อมูลได้เร็วมาก)
+//         const recordedRooms = new Set((networks || []).map(n => n.classroom_id));
+
+//         // ---------------------------------------------------------
+//         // 3. วาดตาราง (Render Table)
+//         // ---------------------------------------------------------
+//         tbody.innerHTML = classrooms.map(cls => {
+//             const room = `ม.${cls.grade_level}/${cls.room_number}`;
+            
+//             // ดึงชื่อครูประจำชั้นอย่างปลอดภัย
+//             const adv1 = staffMap[cls.adviser_id_1];
+//             const adv2 = staffMap[cls.adviser_id_2];
+//             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
+//             const adviser2 = adv2 ? (typeof adv2 === 'object' ? adv2.name : adv2) : '-';
+            
+//             const isRecorded = recordedRooms.has(cls.id);
+            
+//             // สิทธิ์การแก้ไข: ยกเว้น "หัวหน้าปกครอง" ที่ดูได้อย่างเดียว คนอื่นแก้ได้ตามเงื่อนไขสิทธิ์มองเห็น
+//             const canEdit = currentViewRole !== 'head_discipline';
+
+//             // กำหนดป้ายสถานะ (Badge)
+//             const statusBadge = isRecorded 
+//                 ? `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-check mr-1"></i> บันทึกแล้ว</span>`
+//                 : `<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-times mr-1"></i> ยังไม่บันทึก</span>`;
+
+//             // ปุ่มแก้ไข หรือ ดูข้อมูล
+//             const editBtn = canEdit
+//                 ? `<button onclick="editFromTable('${cls.id}')" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="แก้ไข/บันทึกข้อมูล"><i class="fas fa-edit"></i></button>`
+//                 : `<button onclick="editFromTable('${cls.id}')" class="text-slate-400 hover:text-blue-600 p-2 transition-all" title="ดูข้อมูล"><i class="fas fa-eye"></i></button>`;
+
+//             // ปุ่มพิมพ์ PDF (จะกดได้เฉพาะห้องที่บันทึกข้อมูลแล้วเท่านั้น)
+//             const printBtn = isRecorded
+//                 ? `<button onclick="printPDF('${cls.id}')" class="text-green-500 hover:text-green-700 p-2 transition-all" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`
+//                 : `<button disabled class="text-slate-200 p-2 cursor-not-allowed" title="ต้องบันทึกข้อมูลก่อนพิมพ์"><i class="fas fa-file-pdf"></i></button>`;
+
+//             return `
+//             <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
+//                 <td class="py-4 px-4 font-black text-slate-700">${room}</td>
+//                 <td class="py-4 px-4 font-bold text-blue-800">${adviser1}</td>
+//                 <td class="py-4 px-4 text-slate-600">${adviser2}</td>
+//                 <td class="py-4 px-4 text-center">${statusBadge}</td>
+//                 <td class="py-4 px-4 text-right">
+//                     <div class="flex items-center justify-end gap-1">
+//                         ${editBtn}
+//                         ${printBtn}
+//                     </div>
+//                 </td>
+//             </tr>`;
+//         }).join('');
+
+//         // อัปเดตตัวเลขหน้า Dashboard ให้ตรงกับสิทธิ์และจำนวนห้องที่เห็นจริงในเทอมนี้
+//         renderDashboard(classrooms.length, recordedRooms.size);
+
+//     } catch (error) {
+//         console.error("Table Load Error:", error);
+//         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 py-10"><i class="fas fa-exclamation-triangle mr-2"></i>เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
+//         renderDashboard(0, 0);
+//     }
+// }
+
 async function loadDataTable() {
     const tbody = document.getElementById('tb-network');
     if (!tbody) return;
@@ -657,21 +777,19 @@ async function loadDataTable() {
 
     try {
         // ---------------------------------------------------------
-        // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ และกรองเฉพาะเทอม/ปีการศึกษาปัจจุบัน
+        // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ และกรองเทอม/ปีปัจจุบัน
         // ---------------------------------------------------------
         let classQuery = db.from('core_classrooms')
             .select('*')
-            .eq('academic_year', currentYear) // 🔥 เพิ่ม: กรองเฉพาะปีการศึกษาปัจจุบันจากระบบส่วนกลาง
-            .eq('semester', currentTerm)     // 🔥 เพิ่ม: กรองเฉพาะภาคเรียนปัจจุบันจากระบบส่วนกลาง
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
             .order('grade_level')
             .order('room_number');
 
         if (currentViewRole === 'teacher') {
-            // ครูที่ปรึกษา: เห็นเฉพาะห้องตัวเอง
             classQuery = classQuery.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
             
         } else if (currentViewRole === 'head_grade') {
-            // หัวหน้าระดับ: หาว่าดูแลระดับชั้นไหน แล้วดึงเฉพาะชั้นนั้น
             const { data: gh } = await db.from('behavior_grade_heads')
                 .select('grade_level')
                 .eq('teacher_id', currentUser.id)
@@ -680,13 +798,12 @@ async function loadDataTable() {
             if (gh && gh.grade_level) {
                 classQuery = classQuery.eq('grade_level', gh.grade_level);
             } else {
-                classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // กันเหนียวถ้าไม่พบระดับ
+                classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000');
             }
         }
-        // *Superadmin, Module Admin, Head Discipline ไม่ถูก Filter (จะเห็นทุกห้องในเทอม/ปีการศึกษานี้)
 
         // ---------------------------------------------------------
-        // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน (รายชื่อห้อง, ข้อมูลที่บันทึกแล้ว, ชื่อครู)
+        // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน
         // ---------------------------------------------------------
         const [
             { data: classrooms, error: classErr },
@@ -710,8 +827,10 @@ async function loadDataTable() {
             return;
         }
 
-        // สร้างรายการห้องที่ "บันทึกแล้ว" ไว้เทียบในลูป (Set ช่วยให้เช็คข้อมูลได้เร็วมาก)
         const recordedRooms = new Set((networks || []).map(n => n.classroom_id));
+        
+        // 🔥 เพิ่มตัวแปรเพื่อนับจำนวนห้องที่บันทึกแล้ว เฉพาะสิทธิ์ที่คนๆ นี้มองเห็น
+        let actualCompletedCount = 0; 
 
         // ---------------------------------------------------------
         // 3. วาดตาราง (Render Table)
@@ -719,7 +838,6 @@ async function loadDataTable() {
         tbody.innerHTML = classrooms.map(cls => {
             const room = `ม.${cls.grade_level}/${cls.room_number}`;
             
-            // ดึงชื่อครูประจำชั้นอย่างปลอดภัย
             const adv1 = staffMap[cls.adviser_id_1];
             const adv2 = staffMap[cls.adviser_id_2];
             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
@@ -727,20 +845,21 @@ async function loadDataTable() {
             
             const isRecorded = recordedRooms.has(cls.id);
             
-            // สิทธิ์การแก้ไข: ยกเว้น "หัวหน้าปกครอง" ที่ดูได้อย่างเดียว คนอื่นแก้ได้ตามเงื่อนไขสิทธิ์มองเห็น
+            // 🔥 ถ้าระบบเช็คว่าห้องนี้บันทึกแล้ว ให้นับบวก 1
+            if (isRecorded) {
+                actualCompletedCount++;
+            }
+            
             const canEdit = currentViewRole !== 'head_discipline';
 
-            // กำหนดป้ายสถานะ (Badge)
             const statusBadge = isRecorded 
                 ? `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-check mr-1"></i> บันทึกแล้ว</span>`
                 : `<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-times mr-1"></i> ยังไม่บันทึก</span>`;
 
-            // ปุ่มแก้ไข หรือ ดูข้อมูล
             const editBtn = canEdit
                 ? `<button onclick="editFromTable('${cls.id}')" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="แก้ไข/บันทึกข้อมูล"><i class="fas fa-edit"></i></button>`
                 : `<button onclick="editFromTable('${cls.id}')" class="text-slate-400 hover:text-blue-600 p-2 transition-all" title="ดูข้อมูล"><i class="fas fa-eye"></i></button>`;
 
-            // ปุ่มพิมพ์ PDF (จะกดได้เฉพาะห้องที่บันทึกข้อมูลแล้วเท่านั้น)
             const printBtn = isRecorded
                 ? `<button onclick="printPDF('${cls.id}')" class="text-green-500 hover:text-green-700 p-2 transition-all" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`
                 : `<button disabled class="text-slate-200 p-2 cursor-not-allowed" title="ต้องบันทึกข้อมูลก่อนพิมพ์"><i class="fas fa-file-pdf"></i></button>`;
@@ -760,8 +879,8 @@ async function loadDataTable() {
             </tr>`;
         }).join('');
 
-        // อัปเดตตัวเลขหน้า Dashboard ให้ตรงกับสิทธิ์และจำนวนห้องที่เห็นจริงในเทอมนี้
-        renderDashboard(classrooms.length, recordedRooms.size);
+        // 🔥 ส่งจำนวนที่นับได้จริงๆ ไปให้ Dashboard แสดงผล
+        renderDashboard(classrooms.length, actualCompletedCount);
 
     } catch (error) {
         console.error("Table Load Error:", error);
@@ -770,10 +889,46 @@ async function loadDataTable() {
     }
 }
 
+// function renderDashboard(totalClassrooms, completedCount) {
+//     const container = document.getElementById('dashboard-stats');
+//     if (!container) return;
+//     const displayTotal = currentViewRole === 'super_admin' ? 'ทั้งหมด' : 'ที่รับผิดชอบ';
+//     const remaining = Math.max(0, totalClassrooms - completedCount);
+
+//     container.innerHTML = `
+//         <div class="glass-card rounded-2xl p-5 border-l-4 border-blue-500">
+//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">ห้องเรียน${displayTotal}</p>
+//             <h3 class="text-3xl font-black text-blue-700">${totalClassrooms} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
+//         </div>
+//         <div class="glass-card rounded-2xl p-5 border-l-4 border-emerald-500">
+//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">บันทึกสมบูรณ์แล้ว</p>
+//             <h3 class="text-3xl font-black text-emerald-600">${completedCount} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
+//         </div>
+//         <div class="glass-card rounded-2xl p-5 border-l-4 border-amber-500">
+//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">รอการบันทึก</p>
+//             <h3 class="text-3xl font-black text-amber-600">${remaining} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
+//         </div>
+//     `;
+// }
+
 function renderDashboard(totalClassrooms, completedCount) {
     const container = document.getElementById('dashboard-stats');
     if (!container) return;
-    const displayTotal = currentViewRole === 'super_admin' ? 'ทั้งหมด' : 'ที่รับผิดชอบ';
+
+    // 🔍 เช็คว่าตอนนี้ระบบมองเห็นสิทธิ์เป็นอะไร
+    console.log("👉 สิทธิ์ตอนนี้คือ:", currentViewRole);
+
+    let displayTotal = 'ที่รับผิดชอบ';
+    
+    // 🔥 ปรับเงื่อนไขให้ยืดหยุ่นขึ้น เผื่อมีช่องว่างหรือตัวพิมพ์เล็ก/ใหญ่
+    const role = (currentViewRole || '').trim().toLowerCase();
+    
+    if (['super_admin', 'module_admin', 'head_discipline'].includes(role)) {
+        displayTotal = 'ทั้งหมด'; 
+    } else if (role === 'head_grade') {
+        displayTotal = 'ในระดับชั้น'; 
+    }
+
     const remaining = Math.max(0, totalClassrooms - completedCount);
 
     container.innerHTML = `
