@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+
+    <title>ระบบจัดการกิจกรรมชุมนุม - WRK System</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans transition-colors duration-300">
+
+    <!-- Navbar สไตล์ Floating -->
+    <nav
+        class="glass-nav border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
+                <i class="fa-solid fa-users-rectangle text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-blue-900 uppercase tracking-tight">Club Management</h1>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest"><span
+                        id="term-info">โหลดปีการศึกษา...</span></p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2 md:gap-3">
+            <button id="admin-settings-btn" onclick="openAdminSettings()"
+                class="hidden h-10 px-3 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                title="ตั้งค่าระบบแอดมิน">
+                <i class="fas fa-cog sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">ตั้งค่าแอดมิน</span>
+            </button>
+
+            <div class="text-right hidden md:block mr-2">
+                <span id="user-display" class="block text-sm font-bold text-slate-700">กำลังโหลด...</span>
+            </div>
+
+            <button id="btnAdminMode" onclick="toggleRoleView()"
+                class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
+                title="สลับโหมด">
+                <i id="mode-icon" class="fa-solid fa-user-shield sm:mr-1"></i> <span id="mode-text"
+                    class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+            </button>
+
+            <button onclick="window.location.href='index.html'"
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200 shadow-sm"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 mx-4 mt-6 mb-16 max-w-7xl w-full xl:mx-auto">
+
+        <!-- ========================================== -->
+        <!-- ส่วนที่ 1: โหมดครูผู้สอน (Teacher View) -->
+        <!-- ========================================== -->
+        <div id="teacher-view" class="space-y-6 block fade-in">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- ข้อมูลชุมนุมของครู -->
+                <div
+                    class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:col-span-1 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2">
+                            ชุมนุมในความดูแลของคุณ</h2>
+                        <div id="my-club-display" class="hidden">
+                            <h3 id="my-club-name" class="text-2xl font-black text-blue-800 mb-1">ชื่อชุมนุม</h3>
+                            <p class="text-sm text-slate-600 mb-4"><i class="fa-solid fa-layer-group mr-1"></i> <span
+                                    id="my-club-category">หมวดหมู่</span></p>
+                            <div class="bg-blue-50 rounded-xl p-4 text-center border border-blue-100 mb-4">
+                                <p class="text-xs font-bold text-blue-600 uppercase mb-1">ยอดรับนักเรียน</p>
+                                <p class="text-3xl font-black text-blue-900"><span id="enrolled-count">0</span> / <span
+                                        id="max-capacity">20</span></p>
+                            </div>
+                        </div>
+                        <div id="no-club-display" class="text-center py-8">
+                            <div
+                                class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400 text-2xl">
+                                <i class="fa-solid fa-folder-open"></i></div>
+                            <p class="text-slate-500 font-medium mb-4">
+                                คุณยังไม่ได้เปิดชุมนุมในภาคเรียนนี้<br>โปรดติดต่อผู้ดูแลระบบเพื่อเปิดชุมนุม</p>
+                        </div>
+                    </div>
+                    <div>
+                        <button id="btn-lock-club" onclick="lockClub()"
+                            class="hidden w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow-md transition-all active:scale-95 mt-2">
+                            <i class="fa-solid fa-lock mr-1"></i> ยืนยันปิดรับสมัคร
+                        </button>
+                    </div>
+                </div>
+
+                <!-- รายชื่อนักเรียนที่สมัคร -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:col-span-2 overflow-hidden">
+                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+                        <h2 class="text-lg font-bold text-slate-800"><i
+                                class="fa-solid fa-clipboard-user text-blue-600 mr-2"></i>นักเรียนที่สมัครเข้าชุมนุม
+                        </h2>
+                        <button onclick="exportTeacherExcel()"
+                            class="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            <i class="fa-solid fa-file-excel mr-1"></i> Export Excel
+                        </button>
+                    </div>
+                    <table id="teacherStudentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600">
+                                <th class="py-3 px-4">รหัสนักเรียน</th>
+                                <th class="py-3 px-4">ชื่อ-สกุล</th>
+                                <th class="py-3 px-4">ระดับชั้น/ห้อง</th>
+                                <th class="py-3 px-4 text-center">สถานะ</th>
+                                <th class="py-3 px-4 text-center">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tb-teacher-students"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================== -->
+        <!-- ส่วนที่ 2: โหมดผู้ดูแลระบบ (Admin View) -->
+        <!-- ========================================== -->
+        <div id="admin-view" class="space-y-6 hidden fade-in">
+            <!-- Admin Tabs -->
+            <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
+                <button onclick="switchAdminTab('admin-tab-clubs')" id="btn-admin-tab-clubs"
+                    class="px-5 py-2.5 rounded-t-xl bg-purple-600 text-white font-bold transition-colors shadow-sm"><i
+                        class="fa-solid fa-layer-group mr-1"></i> จัดการชุมนุมทั้งหมด</button>
+                <button onclick="switchAdminTab('admin-tab-students')" id="btn-admin-tab-students"
+                    class="px-5 py-2.5 rounded-t-xl bg-transparent text-slate-500 hover:bg-slate-200 font-bold transition-colors"><i
+                        class="fa-solid fa-users-viewfinder mr-1"></i> ตรวจสอบนักเรียน</button>
+            </div>
+
+            <!-- Admin: จัดการชุมนุม -->
+            <div id="admin-tab-clubs" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 block">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-lg font-bold text-slate-800"><i
+                            class="fa-solid fa-list-check text-purple-600 mr-2"></i>รายชื่อชุมนุม (เทอมปัจจุบัน)</h2>
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="downloadClubTemplate()"
+                            class="bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 px-3 py-2 rounded-lg text-sm font-bold"><i
+                                class="fa-solid fa-download"></i> โหลดเทมเพลต</button>
+                        <input type="file" id="excelUploadClubs" accept=".xlsx, .xls" class="hidden"
+                            onchange="importClubsFromExcel(event)">
+                        <button onclick="document.getElementById('excelUploadClubs').click()"
+                            class="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-3 py-2 rounded-lg text-sm font-bold"><i
+                                class="fa-solid fa-file-import"></i> นำเข้า Excel</button>
+                        <button onclick="openAdminClubModal()"
+                            class="bg-purple-600 text-white hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-bold shadow-md"><i
+                                class="fa-solid fa-plus mr-1"></i> สร้างชุมนุมให้ครู</button>
+                    </div>
+                </div>
+                <table id="adminClubsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                    <thead>
+                        <tr class="bg-purple-50 text-purple-800">
+                            <th class="py-3 px-4">ชื่อชุมนุม</th>
+                            <th class="py-3 px-4">หมวดหมู่</th>
+                            <th class="py-3 px-4">ครูที่ปรึกษา</th>
+                            <th class="py-3 px-4">เป้าหมาย (ม.)</th>
+                            <th class="py-3 px-4 text-center">รับ (คน)</th>
+                            <th class="py-3 px-4 text-center">สถานะ</th>
+                            <th class="py-3 px-4 text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tb-admin-clubs"></tbody>
+                </table>
+            </div>
+
+            <!-- Admin: ตรวจสอบนักเรียน -->
+            <div id="admin-tab-students" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hidden">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                    <h2 class="text-lg font-bold text-slate-800"><i
+                            class="fa-solid fa-users text-purple-600 mr-2"></i>นักเรียนทุกระดับชั้น (เทอมปัจจุบัน)</h2>
+                    <button onclick="exportAllStudentsExcel()"
+                        class="bg-emerald-600 text-white hover:bg-emerald-700 px-4 py-2 rounded-lg text-sm font-bold shadow-md"><i
+                            class="fa-solid fa-file-excel mr-1"></i> Export รายชื่อทั้งหมด</button>
+                </div>
+                <table id="adminAllStudentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                    <thead>
+                        <tr class="bg-purple-50 text-purple-800">
+                            <th class="py-3 px-4">เลขประจำตัว</th>
+                            <th class="py-3 px-4">ชื่อ-สกุล</th>
+                            <th class="py-3 px-4">ระดับชั้น/ห้อง</th>
+                            <th class="py-3 px-4 text-purple-700">ชุมนุมที่เลือก</th>
+                            <th class="py-3 px-4 text-center">สถานะของครู</th>
+                            <th class="py-3 px-4">คอมเมนต์</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tb-admin-all-students"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- Modals -->
+    <!-- ========================================== -->
+
+    <!-- Modal: สร้าง/แก้ไข ชุมนุม (Admin) – ปรับใหม่ให้ 2 กล่อง -->
+    <div id="adminClubModal"
+        class="fixed inset-0 bg-slate-900/60 z-[60] hidden items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden mx-4">
+            <div class="px-6 py-4 border-b border-slate-100 bg-purple-50/50 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-purple-900"><i
+                        class="fa-solid fa-layer-group mr-2 text-purple-600"></i>ข้อมูลการเปิดชุมนุม</h3>
+                <button onclick="closeAdminClubModal()" class="text-slate-400 hover:text-red-500 transition"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <form id="adminClubForm" onsubmit="saveClubByAdmin(event)" class="p-6 space-y-4">
+                <input type="hidden" id="ac_id">
+
+                <div class="flex flex-col md:flex-row gap-6">
+                    <!-- กล่องที่ 1 -->
+                    <div class="flex-1 bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">ชื่อชุมนุม *</label>
+                            <input type="text" id="ac_name" required
+                                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 font-medium bg-white">
+                        </div>
+                        <div>
+                            <label
+                                class="block text-xs font-bold text-slate-500 uppercase mb-1">รายละเอียดชุมนุม</label>
+                            <textarea id="ac_desc" rows="2"
+                                class="w-full border border-slate-300 rounded-xl px-4 py-2 outline-none focus:border-purple-500 font-medium bg-white"></textarea>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">ครูผู้รับผิดชอบ
+                                *</label>
+                            <select id="ac_teacher" required
+                                class="w-full border border-slate-300 rounded-xl outline-none focus:border-purple-500 font-medium bg-white"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">หมวดหมู่/กลุ่มสาระฯ
+                                *</label>
+                            <select id="ac_category" required
+                                class="w-full border border-slate-300 rounded-xl outline-none focus:border-purple-500 font-medium bg-white"></select>
+                        </div>
+
+                        <!-- รูปภาพครู (ปรับปรุงใหม่) -->
+                        <div id="teacher-avatar-preview-container" style="display:none;">
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">
+                                รูปภาพครูที่ปรึกษา
+                                <span class="text-slate-400 font-normal">(ดึงจากฐานข้อมูล)</span>
+                            </label>
+                            <div class="flex items-start gap-2">
+                                <img id="teacher-avatar-img" src=""
+                                    class="w-16 h-16 rounded-full object-cover border-2 border-slate-200 shadow-sm bg-white"
+                                    onerror="this.style.display='none'" />
+                                <div class="flex-1 flex items-center gap-1">
+                                    <input type="text" id="ac_teacher_avatar_url" placeholder="URL รูปภาพครู"
+                                        class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm outline-none focus:border-purple-500 bg-white">
+                                    <button type="button" onclick="refreshTeacherAvatar()"
+                                        class="shrink-0 h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition"
+                                        title="ดึงรูปจากฐานข้อมูลอีกครั้ง">
+                                        <i class="fa-solid fa-rotate"></i>
+                                    </button>
+                                    <button type="button" onclick="clearTeacherAvatar()"
+                                        class="shrink-0 h-9 w-9 flex items-center justify-center rounded-lg bg-slate-100 text-slate-600 hover:bg-red-100 hover:text-red-700 transition"
+                                        title="ล้าง URL รูปภาพ (ปล่อยว่าง)">
+                                        <i class="fa-solid fa-xmark"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1">กด <i class="fa-solid fa-rotate"></i>
+                                เพื่อดึงรูปปัจจุบันของครูนี้ / กด <i class="fa-solid fa-xmark"></i> เพื่อลบ URL</p>
+                        </div>
+                    </div>
+
+                    <!-- กล่องที่ 2 (ไม่เปลี่ยนแปลง) -->
+                    <div class="flex-1 bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">ระดับชั้นที่รับ
+                                (เป้าหมาย) *</label>
+                            <select id="ac_grades" required
+                                class="w-full border border-slate-300 rounded-xl outline-none focus:border-purple-500 font-medium bg-white">
+                                <option value="">-- เลือกระดับชั้น --</option>
+                                <option value="ม.1">ม.1</option>
+                                <option value="ม.2">ม.2</option>
+                                <option value="ม.3">ม.3</option>
+                                <option value="ม.4">ม.4</option>
+                                <option value="ม.5">ม.5</option>
+                                <option value="ม.6">ม.6</option>
+                                <option value="ม.1-3">ม.1-3</option>
+                                <option value="ม.4-6">ม.4-6</option>
+                                <option value="ม.1-6">ม.1-6</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">จำนวนที่รับ (คน)
+                                *</label>
+                            <input type="number" id="ac_capacity" value="20" min="1" required
+                                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 font-medium bg-white">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-500 uppercase mb-1">สถานที่จัดกิจกรรม
+                                *</label>
+                            <input type="text" id="ac_location" required
+                                class="w-full border border-slate-300 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 font-medium bg-white">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="pt-4 flex justify-end gap-3 border-t border-slate-100 mt-4">
+                    <button type="button" onclick="closeAdminClubModal()"
+                        class="px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-bold hover:bg-slate-200 transition">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-700 shadow-md transition"><i
+                            class="fa-solid fa-save mr-1"></i> บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: ตั้งค่าแอดมิน (Module Admins) – เหมือนเดิม -->
+    <div id="moduleAdminModal"
+        class="fixed inset-0 bg-slate-900/60 z-[60] hidden items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-xl overflow-hidden mx-4">
+            <div class="px-6 py-4 border-b border-slate-100 bg-indigo-50/50 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-indigo-900"><i
+                        class="fa-solid fa-user-shield mr-2 text-indigo-600"></i>ตั้งค่าผู้ดูแลระบบชุมนุม</h3>
+                <button onclick="closeAdminSettings()" class="text-slate-400 hover:text-red-500 transition"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div class="flex gap-2">
+                    <select id="select_new_admin" class="w-full" placeholder="ค้นหาชื่อครูเพื่อเพิ่มแอดมิน..."></select>
+                    <button onclick="addModuleAdmin()"
+                        class="bg-indigo-600 text-white hover:bg-indigo-700 px-6 py-2 rounded-xl font-bold shadow-sm whitespace-nowrap"><i
+                            class="fa-solid fa-plus mr-1"></i> แต่งตั้ง</button>
+                </div>
+                <div class="border border-slate-200 rounded-xl overflow-hidden">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                            <tr>
+                                <th class="py-3 px-4">รายชื่อผู้ดูแลระบบย่อย</th>
+                                <th class="py-3 px-4 text-center w-24">ลบสิทธิ์</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tb-module-admins" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button onclick="closeAdminSettings()"
+                    class="px-5 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-bold hover:bg-slate-300 transition">ปิดหน้าต่าง</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="club_teacher.js"></script>
+</body>
+
+</html>

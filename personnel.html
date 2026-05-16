@@ -267,9 +267,14 @@
                                 <div class="section-header w-full"><i class="fas fa-image"></i> รูปประจำตัว</div>
                                 <div class="relative inline-block">
                                     <div id="avatar-display" class="avatar-ring">?</div>
-                                    <div id="avatar-upload-badge"
-                                        class="hidden absolute -top-2 -right-2 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-                                        รอ Upload</div>
+                                    <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+    <span>รอ Upload</span>
+    <button type="button" onclick="uploadAvatarNow()" 
+            class="hover:text-yellow-200 transition focus:outline-none"
+            title="อัปโหลดไปยัง Google Drive เดี๋ยวนี้">
+        <i class="fas fa-cloud-upload-alt"></i>
+    </button>
+</div>
                                     <label
                                         class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition"
                                         title="อัปโหลดจากเครื่อง">

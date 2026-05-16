@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>ระบบสมัครชุมนุม - นักเรียน</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen p-4 md:p-8">
+    <div class="max-w-6xl mx-auto space-y-6">
+
+        <!-- Header & Info -->
+        <div class="glass-panel rounded-2xl p-6 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold text-teal-800">
+                    <i class="fa-solid fa-users text-teal-600 mr-2"></i>ระบบเลือกกิจกรรมชุมนุม
+                </h1>
+                <p id="term-info" class="text-gray-600 mt-1">กำลังโหลดข้อมูลปีการศึกษา...</p>
+            </div>
+            <div id="student-profile" class="text-right">
+                <!-- ข้อมูลนักเรียนจะถูกเติมด้วย JS -->
+            </div>
+        </div>
+
+        <!-- Summary Section (แสดงเมื่อเลือกแล้ว) -->
+        <div id="summary-section" class="hidden glass-panel rounded-2xl p-6 border-l-4 border-teal-500 shadow-md">
+            <h2 class="text-xl font-bold text-gray-800 mb-2">สรุปการเลือกชุมนุมของคุณ</h2>
+            <div id="selected-club-details" class="text-lg text-gray-700 mb-4"></div>
+            <div class="flex gap-4">
+                <button id="btn-cancel-enroll"
+                    class="px-6 py-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 font-semibold transition">ยกเลิกการเลือก</button>
+                <button id="btn-final-confirm"
+                    class="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 font-semibold shadow-lg transition">ยืนยันสิทธิ์
+                    (แก้ไขไม่ได้)</button>
+            </div>
+        </div>
+
+        <!-- Club Categories & Cards -->
+        <div id="club-selection-area" class="glass-panel rounded-2xl p-6 shadow-sm">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-gray-800">รายการชุมนุมที่เปิดรับ</h2>
+                <select id="category-filter" class="px-4 py-2 rounded-lg border focus:ring-teal-500 outline-none">
+                    <option value="all">ทุกหมวดหมู่</option>
+                </select>
+            </div>
+
+            <div id="clubs-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- การ์ดชุมนุมจะถูก Render ที่นี่ -->
+            </div>
+        </div>
+
+    </div>
+    <script src="club_student.js"></script>
+</body>
+</html>

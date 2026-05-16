@@ -413,40 +413,40 @@ async function loadPersonnel() {
     }
 }
 
-function downloadPersonnelTemplate() {
-    const ws_data = [
-        ['อีเมล (ใช้เข้าระบบ)', 'รหัสผ่าน (ขั้นต่ำ 6 ตัว)', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'กลุ่มสาระการเรียนรู้', 'สิทธิ์ (teacher/admin)'],
-        ['teacher1@school.com', '123456', '1234567890123', 'นาย', 'เรียนดี', 'มีชัย', 'ครู', 'ครูชำนาญการ', 'วิทยาศาสตร์และเทคโนโลยี', 'teacher']
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 25 }, { wch: 35 }, { wch: 20 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "รายชื่อบุคลากร");
-    XLSX.writeFile(wb, "ต้นแบบนำเข้าบุคลากร.xlsx");
-}
+// function downloadPersonnelTemplate() {
+//     const ws_data = [
+//         ['อีเมล (ใช้เข้าระบบ)', 'รหัสผ่าน (ขั้นต่ำ 6 ตัว)', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'กลุ่มสาระการเรียนรู้', 'สิทธิ์ (teacher/admin)'],
+//         ['teacher1@school.com', '123456', '1234567890123', 'นาย', 'เรียนดี', 'มีชัย', 'ครู', 'ครูชำนาญการ', 'วิทยาศาสตร์และเทคโนโลยี', 'teacher']
+//     ];
+//     const ws = XLSX.utils.aoa_to_sheet(ws_data);
+//     ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 25 }, { wch: 35 }, { wch: 20 }];
+//     const wb = XLSX.utils.book_new();
+//     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อบุคลากร");
+//     XLSX.writeFile(wb, "ต้นแบบนำเข้าบุคลากร.xlsx");
+// }
 
-function showImportToolGuide() {
-    Swal.fire({
-        title: 'ระบบรักษาความปลอดภัย',
-        html: `
-            <div class="text-left text-sm text-gray-600 space-y-3 mt-2">
-                <p>เพื่อความปลอดภัยสูงสุดของฐานข้อมูลโรงเรียน การสร้างบัญชีครูคนใหม่จะไม่สามารถทำผ่านหน้าเว็บส่วนกลางได้โดยตรงครับ</p>
-                <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-                    <p class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> ขั้นตอนการเพิ่มครูคนใหม่:</p>
-                    <ol class="list-decimal ml-5 space-y-1 text-blue-900 font-medium">
-                        <li>กดปุ่ม <b>"โหลดไฟล์ต้นแบบ"</b> และกรอกข้อมูลครู</li>
-                        <li>เปิดไฟล์ <b class="text-red-600 bg-white px-1 rounded">import_tool.html</b> (Ninja Bypass) ที่อยู่ในเครื่องของคุณ</li>
-                        <li>อัปโหลดไฟล์ Excel เข้าไปในเครื่องมือนั้น</li>
-                        <li>เมื่อสร้างเสร็จ รายชื่อจะปรากฏในหน้านี้อัตโนมัติครับ</li>
-                    </ol>
-                </div>
-            </div>
-        `,
-        icon: 'info',
-        confirmButtonText: 'เข้าใจแล้ว',
-        confirmButtonColor: '#4f46e5'
-    });
-}
+// function showImportToolGuide() {
+//     Swal.fire({
+//         title: 'ระบบรักษาความปลอดภัย',
+//         html: `
+//             <div class="text-left text-sm text-gray-600 space-y-3 mt-2">
+//                 <p>เพื่อความปลอดภัยสูงสุดของฐานข้อมูลโรงเรียน การสร้างบัญชีครูคนใหม่จะไม่สามารถทำผ่านหน้าเว็บส่วนกลางได้โดยตรงครับ</p>
+//                 <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
+//                     <p class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> ขั้นตอนการเพิ่มครูคนใหม่:</p>
+//                     <ol class="list-decimal ml-5 space-y-1 text-blue-900 font-medium">
+//                         <li>กดปุ่ม <b>"โหลดไฟล์ต้นแบบ"</b> และกรอกข้อมูลครู</li>
+//                         <li>เปิดไฟล์ <b class="text-red-600 bg-white px-1 rounded">import_tool.html</b> (Ninja Bypass) ที่อยู่ในเครื่องของคุณ</li>
+//                         <li>อัปโหลดไฟล์ Excel เข้าไปในเครื่องมือนั้น</li>
+//                         <li>เมื่อสร้างเสร็จ รายชื่อจะปรากฏในหน้านี้อัตโนมัติครับ</li>
+//                     </ol>
+//                 </div>
+//             </div>
+//         `,
+//         icon: 'info',
+//         confirmButtonText: 'เข้าใจแล้ว',
+//         confirmButtonColor: '#4f46e5'
+//     });
+// }
 
 function closePersonnelModal() { document.getElementById('personnelModal').classList.add('hidden'); }
 
