@@ -596,11 +596,23 @@ function getGoogleDriveDirectUrl(url) {
 let personnelCache = null;
 
 async function getPersonnelMap() {
+    // ถ้ายิงดึงข้อมูลมาแล้ว ให้ใช้แคชเดิมได้เลย
     if (personnelCache) return personnelCache;
-    const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name');
+    
+    // 1. เพิ่ม avatar_url ในการ select ข้อมูล
+    const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name, avatar_url');
+    
     personnelCache = {};
     (data || []).forEach(p => {
-        if (p?.id) personnelCache[p.id] = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+        if (p?.id) {
+            // 2. เก็บเป็น Object แทน String ธรรมดา
+            // (และเพิ่ม .toString() เผื่อระบบอื่นดึงไปใช้แบบ String จะได้ไม่พังครับ)
+            personnelCache[p.id] = {
+                name: `${p.prefix || ''}${p.first_name} ${p.last_name}`,
+                avatar_url: p.avatar_url || '',
+                toString: function() { return this.name; } // ป้องกัน Error กับโค้ดส่วนอื่น
+            };
+        }
     });
     return personnelCache;
 }
@@ -689,7 +701,7 @@ function editFromTable(classroomId) {
 }
 
 // ==========================================
-// 11. Export Excel (คงเดิม)
+// 11. Export Excel
 // ==========================================
 async function exportToExcel() {
     Swal.fire({ title: 'กำลังเตรียมข้อมูล...', text: 'ระบบกำลังดึงข้อมูลเครือข่าย ครูที่ปรึกษา และหัวหน้าระดับชั้น', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -708,7 +720,7 @@ async function exportToExcel() {
         ]);
 
         if (netError) throw netError;
-        if (!networkData?.length) return Swal.fire('ไม่พบข้อมูล', '...', 'info');
+        if (!networkData?.length) return Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการบันทึกในเทอม/ปีการศึกษานี้', 'info');
 
         const gradeHeadMap = {};
         (ghData || []).forEach(gh => {
@@ -716,39 +728,58 @@ async function exportToExcel() {
                 gradeHeadMap[String(gh.grade_level)] = staffMap[gh.teacher_id] || '-';
         });
 
+        // ✅ อัปเดต Headers เพิ่มคอลัมน์ อาชีพ
         const headers = [
-            "ห้องเรียน", "ประธานเครือข่าย", "ที่อยู่", "เบอร์โทรประธาน", "ชื่อนักเรียน (บุตรประธาน)",
-            "รองประธาน", "ที่อยู่", "เบอร์โทรรองฯ", "ชื่อนักเรียน (บุตรรองประธาน)",
-            "เลขานุการ", "ที่อยู่", "เบอร์โทรเลขาฯ", "ชื่อนักเรียน (บุตรเลขานุการ)",
-            "นายทะเบียน", "ที่อยู่", "เบอร์โทรนายทะเบียน", "ชื่อนักเรียน (บุตรนายทะเบียน)",
-            "ประชาสัมพันธ์", "ที่อยู่", "เบอร์โทร ปชส.", "ชื่อนักเรียน (บุตรประชาสัมพันธ์)",
+            "ห้องเรียน", 
+            "ประธานเครือข่าย", "ที่อยู่", "เบอร์โทรประธาน", "อาชีพ(ประธาน)", "ชื่อนักเรียน (บุตรประธาน)",
+            "รองประธาน", "ที่อยู่", "เบอร์โทรรองฯ", "อาชีพ(รองฯ)", "ชื่อนักเรียน (บุตรรองประธาน)",
+            "เลขานุการ", "ที่อยู่", "เบอร์โทรเลขาฯ", "อาชีพ(เลขาฯ)", "ชื่อนักเรียน (บุตรเลขานุการ)",
+            "นายทะเบียน", "ที่อยู่", "เบอร์โทรนายทะเบียน", "อาชีพ(นายทะเบียน)", "ชื่อนักเรียน (บุตรนายทะเบียน)",
+            "ประชาสัมพันธ์", "ที่อยู่", "เบอร์โทรประชาสัมพันธ์", "อาชีพ(ประชาสัมพันธ์)", "ชื่อนักเรียน (บุตรประชาสัมพันธ์)",
             "ครูที่ปรึกษาคนที่ 1", "ครูที่ปรึกษาคนที่ 2", "หัวหน้าระดับชั้น"
         ];
+        
         const excelRows = [headers];
+        
         const buildAddress = (data) => {
             if (!data) return '-';
             const parts = [data.address || '', data.village || '', data.district ? `ต.${data.district}` : '', data.amphoe ? `อ.${data.amphoe}` : '', data.province ? `จ.${data.province}` : '', data.zip || ''].filter(p => p).join(' ');
             return parts || '-';
         };
+        
+        // ✅ อัปเดตการดึงข้อมูล แทรก item.[role]_data?.job เข้าไปตามลำดับ
         networkData.forEach(item => {
             const cls = item.core_classrooms;
             if (!cls) return;
             excelRows.push([
                 `ม.${cls.grade_level}/${cls.room_number}`,
-                item.president_data?.name || '-', buildAddress(item.president_data), item.president_data?.phone || '-', item.president_data?.student_name || '-',
-                item.vp_data?.name || '-', buildAddress(item.vp_data), item.vp_data?.phone || '-', item.vp_data?.student_name || '-',
-                item.secretary_data?.name || '-', buildAddress(item.secretary_data), item.secretary_data?.phone || '-', item.secretary_data?.student_name || '-',
-                item.registrar_data?.name || '-', buildAddress(item.registrar_data), item.registrar_data?.phone || '-', item.registrar_data?.student_name || '-',
-                item.pr_data?.name || '-', buildAddress(item.pr_data), item.pr_data?.phone || '-', item.pr_data?.student_name || '-',
+                
+                // ประธาน
+                item.president_data?.name || '-', buildAddress(item.president_data), item.president_data?.phone || '-', item.president_data?.job || '-', item.president_data?.student_name || '-',
+                
+                // รองประธาน
+                item.vp_data?.name || '-', buildAddress(item.vp_data), item.vp_data?.phone || '-', item.vp_data?.job || '-', item.vp_data?.student_name || '-',
+                
+                // เลขานุการ
+                item.secretary_data?.name || '-', buildAddress(item.secretary_data), item.secretary_data?.phone || '-', item.secretary_data?.job || '-', item.secretary_data?.student_name || '-',
+                
+                // นายทะเบียน
+                item.registrar_data?.name || '-', buildAddress(item.registrar_data), item.registrar_data?.phone || '-', item.registrar_data?.job || '-', item.registrar_data?.student_name || '-',
+                
+                // ประชาสัมพันธ์
+                item.pr_data?.name || '-', buildAddress(item.pr_data), item.pr_data?.phone || '-', item.pr_data?.job || '-', item.pr_data?.student_name || '-',
+                
                 staffMap[cls.adviser_id_1] || '-', staffMap[cls.adviser_id_2] || '-', gradeHeadMap[String(cls.grade_level)] || '-'
             ]);
         });
+        
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         ws['!cols'] = headers.map(() => ({ wch: 25 }));
         XLSX.utils.book_append_sheet(wb, ws, "NetworkReport");
         XLSX.writeFile(wb, `รายงานเครือข่ายผู้ปกครอง_${currentTerm}_${currentYear}.xlsx`);
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อยแล้ว', 'success');
+        
     } catch (err) {
         console.error("Export Error:", err);
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งออกข้อมูลได้: ' + err.message, 'error');
@@ -782,26 +813,50 @@ async function printPDF(classroomId) {
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm)
                 .single(),
-            getPersonnelMap()
+            getPersonnelMap() // ดึงข้อมูลครูทั้งหมดมาเก็บไว้ในหน่วยความจำชั่วคราว
         ]);
 
         if (error || !network) throw new Error('ไม่พบข้อมูลเครือข่ายของห้องนี้');
         const cls = network.core_classrooms;
         const room = `${cls.grade_level}/${cls.room_number}`;
 
-        // ✅ ดึง gradeHead พร้อมกับ resolve ชื่อครูจาก cache (ไม่ต้อง query personnel แยก)
-        const adviser1Name = staffMap[cls.adviser_id_1] || '-';
-        const adviser2Name = staffMap[cls.adviser_id_2] || '-';
+        // 🔍 ดึงข้อมูลชื่อและรูปภาพของครูที่ปรึกษาคนที่ 1 และ 2 จาก staffMap อย่างปลอดภัย
+        const adviser1Obj = staffMap[cls.adviser_id_1];
+        const adviser1Name = adviser1Obj ? (typeof adviser1Obj === 'object' ? adviser1Obj.name : adviser1Obj) : '-';
+        const adviser1Image = adviser1Obj?.avatar_url ? getGoogleDriveDirectUrl(adviser1Obj.avatar_url) : '';
 
+        const adviser2Obj = staffMap[cls.adviser_id_2];
+        const adviser2Name = adviser2Obj ? (typeof adviser2Obj === 'object' ? adviser2Obj.name : adviser2Obj) : '-';
+        const adviser2Image = adviser2Obj?.avatar_url ? getGoogleDriveDirectUrl(adviser2Obj.avatar_url) : '';
+
+        // 🔍 ดึงข้อมูลหัวหน้าระดับชั้นและรูปภาพ
         const { data: gradeHead } = await db.from('behavior_grade_heads')
             .select('teacher_id').eq('grade_level', cls.grade_level).maybeSingle();
-        const gradeHeadName = gradeHead?.teacher_id ? (staffMap[gradeHead.teacher_id] || '-') : '-';
+            
+        let gradeHeadName = '-';
+        let gradeHeadImage = '';
+        
+        if (gradeHead?.teacher_id && staffMap[gradeHead.teacher_id]) {
+            const ghObj = staffMap[gradeHead.teacher_id];
+            gradeHeadName = typeof ghObj === 'object' ? ghObj.name : ghObj;
+            gradeHeadImage = ghObj?.avatar_url ? getGoogleDriveDirectUrl(ghObj.avatar_url) : '';
+        }
 
+        // 📝 กำหนดชุดตัวแปรแทนที่ (Replacements) รวมถึง Placeholder สำหรับรูปภาพของครูด้วย
         const replacements = {
-            "{{CLASSROOM}}": room, "{{TERM}}": currentTerm, "{{YEAR}}": currentYear,
-            "{{ADVISER1}}": adviser1Name, "{{ADVISER2}}": adviser2Name, "{{GRADE_HEAD}}": gradeHeadName
+            "{{CLASSROOM}}": room, 
+            "{{TERM}}": currentTerm, 
+            "{{YEAR}}": currentYear,
+            "{{ADVISER1}}": adviser1Name, 
+            "{{ADVISER2}}": adviser2Name, 
+            "{{GRADE_HEAD}}": gradeHeadName,
+            // 🔥 ส่งลิงก์รูปภาพของครูและหัวหน้าระดับไปแทนที่ในสไลด์เทมเพลต
+            "{{ADVISER1_IMAGE}}": adviser1Image,
+            "{{ADVISER2_IMAGE}}": adviser2Image,
+            "{{GRADE_HEAD_IMAGE}}": gradeHeadImage
         };
 
+        // วนลูปดึงข้อมูลกรรมการผู้ปกครองเครือข่ายตามเดิม
         FORM_ROLES.forEach(role => {
             const roleData = network[`${role.id}_data`] || {};
             const PREFIX = role.id.toUpperCase();
@@ -826,7 +881,9 @@ async function printPDF(classroomId) {
         };
 
         const response = await fetch(moduleSettings.pdf_api_url, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
+            method: 'POST', 
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify(payload)
         });
         const result = await response.json();
 
