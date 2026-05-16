@@ -657,10 +657,12 @@ async function loadDataTable() {
 
     try {
         // ---------------------------------------------------------
-        // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ (Role-based)
+        // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ และกรองเฉพาะเทอม/ปีการศึกษาปัจจุบัน
         // ---------------------------------------------------------
         let classQuery = db.from('core_classrooms')
             .select('*')
+            .eq('academic_year', currentYear) // 🔥 เพิ่ม: กรองเฉพาะปีการศึกษาปัจจุบันจากระบบส่วนกลาง
+            .eq('semester', currentTerm)     // 🔥 เพิ่ม: กรองเฉพาะภาคเรียนปัจจุบันจากระบบส่วนกลาง
             .order('grade_level')
             .order('room_number');
 
@@ -681,7 +683,7 @@ async function loadDataTable() {
                 classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // กันเหนียวถ้าไม่พบระดับ
             }
         }
-        // *Superadmin, Module Admin, Head Discipline ไม่ถูก Filter (จะเห็นทุกห้อง)
+        // *Superadmin, Module Admin, Head Discipline ไม่ถูก Filter (จะเห็นทุกห้องในเทอม/ปีการศึกษานี้)
 
         // ---------------------------------------------------------
         // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน (รายชื่อห้อง, ข้อมูลที่บันทึกแล้ว, ชื่อครู)
@@ -703,12 +705,12 @@ async function loadDataTable() {
         if (netErr) throw netErr;
 
         if (!classrooms || classrooms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบห้องเรียนในความรับผิดชอบ</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในความรับผิดชอบของภาคเรียนนี้</td></tr>';
             renderDashboard(0, 0);
             return;
         }
 
-        // สร้างรายการห้องที่ "บันทึกแล้ว" ไว้เทียบ (จะได้เร็วๆ)
+        // สร้างรายการห้องที่ "บันทึกแล้ว" ไว้เทียบในลูป (Set ช่วยให้เช็คข้อมูลได้เร็วมาก)
         const recordedRooms = new Set((networks || []).map(n => n.classroom_id));
 
         // ---------------------------------------------------------
@@ -717,7 +719,7 @@ async function loadDataTable() {
         tbody.innerHTML = classrooms.map(cls => {
             const room = `ม.${cls.grade_level}/${cls.room_number}`;
             
-            // ดึงชื่อครู (รองรับกรณี getPersonnelMap คืนค่าเป็น Object ตามที่แก้ไป)
+            // ดึงชื่อครูประจำชั้นอย่างปลอดภัย
             const adv1 = staffMap[cls.adviser_id_1];
             const adv2 = staffMap[cls.adviser_id_2];
             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
@@ -725,15 +727,15 @@ async function loadDataTable() {
             
             const isRecorded = recordedRooms.has(cls.id);
             
-            // สิทธิ์การแก้ไข: ยกเว้น "หัวหน้าปกครอง" ที่ดูได้อย่างเดียว คนอื่นแก้ได้ตามเงื่อนไข
+            // สิทธิ์การแก้ไข: ยกเว้น "หัวหน้าปกครอง" ที่ดูได้อย่างเดียว คนอื่นแก้ได้ตามเงื่อนไขสิทธิ์มองเห็น
             const canEdit = currentViewRole !== 'head_discipline';
 
-            // ป้ายสถานะ
+            // กำหนดป้ายสถานะ (Badge)
             const statusBadge = isRecorded 
                 ? `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-check mr-1"></i> บันทึกแล้ว</span>`
                 : `<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-times mr-1"></i> ยังไม่บันทึก</span>`;
 
-            // ปุ่มแก้ไข/ดูข้อมูล
+            // ปุ่มแก้ไข หรือ ดูข้อมูล
             const editBtn = canEdit
                 ? `<button onclick="editFromTable('${cls.id}')" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="แก้ไข/บันทึกข้อมูล"><i class="fas fa-edit"></i></button>`
                 : `<button onclick="editFromTable('${cls.id}')" class="text-slate-400 hover:text-blue-600 p-2 transition-all" title="ดูข้อมูล"><i class="fas fa-eye"></i></button>`;
@@ -758,7 +760,7 @@ async function loadDataTable() {
             </tr>`;
         }).join('');
 
-        // อัปเดตตัวเลขหน้า Dashboard ให้ตรงกับสิทธิ์ที่เห็น
+        // อัปเดตตัวเลขหน้า Dashboard ให้ตรงกับสิทธิ์และจำนวนห้องที่เห็นจริงในเทอมนี้
         renderDashboard(classrooms.length, recordedRooms.size);
 
     } catch (error) {
