@@ -1,93 +1,98 @@
 <!DOCTYPE html>
 <html lang="th">
 <head>
-    <title>SDQ ครูที่ปรึกษา | WRK System</title>
+    <title>ระบบ SDQ | WRK System</title>
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
-<body class="bg-slate-50 min-h-screen pb-10">
+<body class="bg-slate-50 min-h-screen pb-10 opacity-0 transition-opacity duration-300" id="mainBody">
 
-    <!-- 🌟 Navbar แบบ Glass Panel ตามที่แนบมา -->
-    <nav class="glass-panel mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-sm rounded-2xl">
+    <nav class="glass-panel mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-sm rounded-2xl border border-slate-200">
         <div class="flex items-center gap-3">
             <div class="bg-indigo-600 p-2.5 rounded-xl text-white shadow-lg shadow-indigo-200">
                 <i class="fas fa-clipboard-question text-xl w-6 text-center"></i>
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-tight text-indigo-900 uppercase tracking-tight">SDQ System</h1>
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Teacher Dashboard</p>
+                <p id="mode-subtitle" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">กำลังโหลด...</p>
             </div>
         </div>
 
         <div class="flex items-center gap-2 md:gap-3">
-            <div class="text-right hidden md:block mr-2">
+            <div id="roleSwitchContainer"></div>
+
+            <div class="text-right hidden md:block mr-2 border-l pl-3 border-slate-300">
                 <span id="user-display" class="block text-sm font-bold text-slate-700">กำลังโหลด...</span>
             </div>
 
-            <button onclick="window.location.href='index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                title="กลับหน้าหลัก">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                title="ออกจากระบบ">
-                <i class="fas fa-sign-out-alt"></i>
+            <button onclick="logout()" class="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors">
+                <i class="fas fa-sign-out-alt text-lg"></i>
             </button>
         </div>
     </nav>
 
-    <main class="max-w-7xl mx-auto p-4 mt-4">
-        <!-- 🌟 แสดงระดับชั้น/ห้องของครูที่ปรึกษา -->
-        <div class="mb-4 px-2">
-            <h2 class="text-xl font-bold text-slate-800" id="advising-class-title">กำลังโหลดข้อมูลห้องเรียน...</h2>
-            <p class="text-sm text-slate-500">ข้อมูลการประเมิน SDQ ประจำภาคเรียนปัจจุบัน</p>
+    <main class="max-w-7xl mx-auto px-4 mt-8 space-y-6">
+        
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+                <div class="text-slate-500 text-xs font-bold mb-1">นักเรียนทั้งหมด</div>
+                <div class="text-2xl font-black text-slate-800" id="stat-total">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+                <div class="text-slate-500 text-xs font-bold mb-1">ประเมินแล้ว</div>
+                <div class="text-2xl font-black text-blue-600" id="stat-assessed">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+                <div class="text-emerald-600 text-xs font-bold mb-1">ผล: ปกติ</div>
+                <div class="text-2xl font-black text-emerald-600" id="stat-normal">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+                <div class="text-amber-500 text-xs font-bold mb-1">ผล: เสี่ยง</div>
+                <div class="text-2xl font-black text-amber-500" id="stat-risk">0</div>
+            </div>
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col justify-center items-center">
+                <div class="text-rose-500 text-xs font-bold mb-1">ผล: มีปัญหา</div>
+                <div class="text-2xl font-black text-rose-500" id="stat-problem">0</div>
+            </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div class="glass-card p-6 rounded-2xl shadow-sm border border-slate-100 md:col-span-2">
-                <h3 class="text-slate-500 font-bold mb-4"><i class="fa-solid fa-chart-pie mr-2 text-indigo-400"></i> สรุปผลประเมินห้องเรียนของคุณ</h3>
-                <div class="h-64 relative"><canvas id="sdqChart"></canvas></div>
-            </div>
-            <div class="bg-gradient-to-br from-indigo-500 to-purple-600 text-white p-6 rounded-2xl shadow-md flex flex-col justify-center items-center text-center relative overflow-hidden">
-                <div class="absolute -right-6 -top-6 text-white/10 text-9xl"><i class="fa-solid fa-users"></i></div>
-                <div class="relative z-10">
-                    <i class="fa-solid fa-clipboard-check text-5xl mb-4 opacity-90 shadow-sm rounded-xl"></i>
-                    <div class="text-sm opacity-90 font-medium">ประเมินแล้ว / นักเรียนทั้งหมด</div>
-                    <div class="text-4xl font-black mt-2 tracking-tight" id="statCompleted">0 / 0</div>
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+            
+            <div class="p-5 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 bg-slate-50">
+                <div class="flex items-center gap-2">
+                    <h3 class="font-bold text-lg text-slate-800" id="table-title"><i class="fa-solid fa-list mr-2 text-indigo-500"></i> รายชื่อนักเรียน</h3>
+                </div>
+                
+                <div class="flex flex-wrap gap-2 justify-end">
+                    <div id="adminFilters" class="hidden flex items-center gap-2 mr-4">
+                        <select id="filterGrade" class="px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="">ทุกระดับชั้น</option>
+                            <option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option>
+                            <option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option>
+                        </select>
+                        <input type="number" id="filterRoom" placeholder="ห้อง (เช่น 1)" class="w-24 px-3 py-2 border rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+
+                    <button onclick="exportExcel()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
+                        <i class="fa-solid fa-file-excel mr-2"></i> ส่งออก Excel
+                    </button>
                 </div>
             </div>
-        </div>
-
-        <div class="glass-card p-6 rounded-2xl shadow-sm border border-slate-100">
-            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-                <h3 class="font-bold text-lg text-slate-800"><i class="fa-solid fa-list-check mr-2 text-indigo-500"></i> รายชื่อนักเรียนในที่ปรึกษา</h3>
-                <button onclick="exportTeacherExcel()" class="w-full sm:w-auto px-5 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center justify-center">
-                    <i class="fa-solid fa-file-excel mr-2"></i> ส่งออก Excel
-                </button>
-            </div>
             
-            <div class="overflow-x-auto">
-                <table id="teacherTable" class="w-full text-sm text-left whitespace-nowrap">
-                    <thead class="bg-slate-100 text-slate-600">
-                        <tr>
-                            <th class="p-4 rounded-tl-lg">เลขที่</th>
-                            <th class="p-4">รหัสนักเรียน</th>
-                            <th class="p-4">ชื่อ-สกุล</th>
-                            <th class="p-4 text-center">สถานะทำแบบประเมิน</th>
-                            <th class="p-4 text-center">คะแนนรวม</th>
-                            <th class="p-4 text-center">ผลประเมิน</th>
-                            <th class="p-4 text-center rounded-tr-lg">จัดการ</th>
-                        </tr>
-                    </thead>
+            <div class="overflow-x-auto p-4">
+                <table id="mainTable" class="w-full text-sm text-left whitespace-nowrap dataTable">
+                    <thead class="bg-slate-100 text-slate-600" id="dynamicThead">
+                        </thead>
                     <tbody class="divide-y divide-slate-100"></tbody>
                 </table>
             </div>
+
         </div>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="sdq_teacher.js"></script>
 </body>
 </html>

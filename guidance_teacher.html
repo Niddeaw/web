@@ -1,20 +1,256 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <title>ปพ.5 - แนะแนว | WRK System</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
-    <link rel="stylesheet" href="style.css">
+    <!-- Tom Select CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <script>
-        tailwind.config = { theme: { extend: { fontFamily: { sans: ['Anuphan', 'sans-serif'] }, colors: { brand: { 50: '#eff6ff', 100: '#dbeafe', 500: '#3b82f6', 600: '#2563eb', 700: '#1d4ed8' } } } } }
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Anuphan', 'sans-serif']
+                    },
+                    colors: {
+                        brand: {
+                            50: '#eff6ff',
+                            100: '#dbeafe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8'
+                        }
+                    }
+                }
+            }
+        }
     </script>
-</head>
-<body class="text-slate-800 h-screen overflow-hidden flex flex-col relative pb-10">
+    <style>
+        /* ====== CSS ภายในระบบ ปพ.5 แนะแนว ====== */
+        body {
+            font-family: 'Anuphan', sans-serif;
+        }
 
-<header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-blue-100 px-4 py-3 shadow-sm hidden" id="dashboardView">
+        /* Glass effect */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Tom Select ปรับแต่ง */
+        .ts-wrapper .ts-control {
+            border-radius: 1rem;
+            border: 2px solid #bfdbfe;
+            background: white;
+            padding: 0.5rem 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+            color: #1e40af;
+        }
+
+        .ts-wrapper .ts-dropdown {
+            border-radius: 1rem;
+            margin-top: 4px;
+            border: 1px solid #e2e8f0;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
+
+        .ts-wrapper .ts-dropdown .option.active {
+            background-color: #dbeafe;
+            color: #1e40af;
+        }
+
+        .ts-wrapper .ts-dropdown .option:hover {
+            background-color: #eff6ff;
+        }
+
+        /* ===== แท็บ (Tabs) ===== */
+        .tab-btn {
+            padding: 0.6rem 1.4rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-radius: 0.75rem 0.75rem 0 0;
+            background: #f1f5f9;
+            color: #475569;
+            transition: all 0.25s ease;
+            border: none;
+            cursor: pointer;
+            margin-right: 4px;
+        }
+
+        .tab-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .tab-btn.active {
+            background: #2563eb;
+            color: #ffffff;
+            box-shadow: 0 -4px 12px rgba(37, 99, 235, 0.4);
+        }
+
+        /* แท็บ content */
+        .tab-content {
+            display: none;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+            /* สำคัญ: ให้ .table-responsive ใช้ absolute ได้ */
+        }
+
+        .tab-content.active {
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* ตาราง responsive: ใช้ absolute ให้เต็ม parent */
+        .table-responsive {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #cbd5e1 #f1f5f9;
+        }
+
+        .table-responsive::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+
+        /* select เล็กในตาราง */
+        .tiny-select {
+            padding: 2px 4px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            font-size: 12px;
+            outline: none;
+        }
+
+        .tiny-select:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        /* Animation ปุ่ม */
+        .btn-hover-lift {
+            transition: all 0.2s ease;
+        }
+
+        .btn-hover-lift:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+
+        .col-no {
+            width: 3rem;
+            text-align: center;
+            font-weight: 600;
+        }
+
+        .col-name {
+            text-align: left;
+            padding-left: 1rem;
+            white-space: nowrap;
+        }
+
+        /* Print */
+        @media print {
+
+            /* ซ่อนทุกอย่างยกเว้น print-area */
+            body>*:not(#print-area) {
+                display: none !important;
+            }
+
+            /* แสดงผลบนหน้าจอ (preview) */
+            #print-area {
+                display: none;
+                /* ปกติซ่อน */
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 9999;
+                background: white;
+                overflow-y: auto;
+                /* ให้ scroll ได้ */
+                padding: 20px;
+            }
+
+            #print-area.visible {
+                display: block;
+            }
+
+            /* ใน preview ให้ page-break ไม่ต้อง fix ความสูง */
+            #print-area .page-break {
+                height: auto;
+                min-height: auto;
+                page-break-after: always;
+                margin-bottom: 20px;
+                border-bottom: 1px dashed #ccc;
+                /* เส้นแบ่งหน้า */
+            }
+
+            /* เมื่อพิมพ์ (print) */
+            @media print {
+                body>*:not(#print-area) {
+                    display: none !important;
+                }
+
+                #print-area {
+                    display: block !important;
+                    position: static;
+                    width: 100%;
+                    height: auto;
+                    overflow: visible;
+                    background: white;
+                }
+
+                #print-area .page-break {
+                    height: 297mm;
+                    /* กลับมาใช้ความสูงกระดาษจริงตอนพิมพ์ */
+                    min-height: 297mm;
+                    page-break-after: always;
+                    border-bottom: none;
+                    margin: 0;
+                    padding: 10mm 15mm;
+                    box-sizing: border-box;
+                }
+
+                @page {
+                    size: A4;
+                    margin: 0;
+                }
+            }
+        }
+    </style>
+</head>
+
+<body class="text-slate-800 h-screen overflow-hidden flex flex-col">
+
+    <header class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-blue-100 px-4 py-3 shadow-sm hidden"
+        id="dashboardView">
         <div class="max-w-7xl mx-auto w-full flex flex-wrap justify-between items-center h-auto md:h-12 md:py-0">
             <div class="flex items-center gap-3">
                 <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 object-contain">
@@ -23,19 +259,24 @@
                     <div class="text-[10px] text-blue-600 uppercase tracking-widest">Guidance Module</div>
                 </div>
             </div>
-            
             <div class="flex items-center gap-2 md:gap-3 mt-3 md:mt-0">
-                <span id="userNameDisplay" class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
-                
-                <button id="btnAdminMode" onclick="localStorage.removeItem('activeMode'); window.location.href='guidance_admin.html'" class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm" title="สลับโหมด">
-                    <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+                <span id="userNameDisplay"
+                    class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
+                <button id="btnAdminMode"
+                    onclick="localStorage.removeItem('activeMode'); window.location.href='guidance_admin.html'"
+                    class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm btn-hover-lift"
+                    title="สลับโหมด">
+                    <i class="fa-solid fa-user-shield sm:mr-1"></i> <span
+                        class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
                 </button>
-
-                <button onclick="window.location.href='index.html'" class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm" title="กลับหน้าหลัก">
+                <button onclick="window.location.href='index.html'"
+                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm btn-hover-lift"
+                    title="กลับหน้าหลัก">
                     <i class="fas fa-house text-sm"></i>
                 </button>
-
-                <button onclick="handleLogout()" class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm" title="ออกจากระบบ">
+                <button onclick="handleLogout()"
+                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
+                    title="ออกจากระบบ">
                     <i class="fas fa-sign-out-alt"></i>
                 </button>
             </div>
@@ -46,11 +287,12 @@
         ⚠️ แอดมินได้ทำการปิดระบบชั่วคราว ไม่สามารถบันทึกหรือแก้ไขข้อมูลได้ในขณะนี้
     </div>
 
-    <main class="flex-1 overflow-hidden flex flex-col max-w-7xl mx-auto w-full p-4 gap-4 hidden relative z-10" id="dashboardMain">
-        
+    <main class="flex-1 overflow-hidden flex flex-col max-w-7xl mx-auto w-full p-4 gap-4 hidden relative z-10"
+        id="dashboardMain">
         <div class="glass rounded-3xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
             <div class="flex flex-col gap-2 w-full md:w-auto">
-                <div class="flex flex-wrap gap-4 text-sm font-medium text-slate-600 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white">
+                <div
+                    class="flex flex-wrap gap-4 text-sm font-medium text-slate-600 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white">
                     <span id="infoSubject" class="text-brand-700 font-bold">วิชา: -</span>
                     <span id="infoTerm">ภาคเรียน: -</span>
                     <span id="infoDirector">ผู้อำนวยการ: -</span>
@@ -58,28 +300,30 @@
                 <div id="classStatusContainer" class="flex flex-wrap gap-2 mt-1"></div>
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
-                <select id="classSelect" onchange="loadAllData()" class="border-2 border-brand-200 rounded-2xl px-4 py-2.5 text-brand-700 font-bold outline-none focus:border-brand-500 w-full md:w-48 shadow-sm bg-white cursor-pointer hover:bg-blue-50 transition-colors">
-                    <option value="">-- กรุณาเลือกห้อง --</option>
-                </select>
+                <select id="classSelect" placeholder="-- กรุณาเลือกห้อง --" autocomplete="off" class="hidden"></select>
                 <div id="startDateDisplay" class="hidden md:block"></div>
             </div>
         </div>
 
         <div class="glass rounded-3xl flex-1 flex flex-col overflow-hidden">
             <div class="flex border-b border-gray-200 bg-white/50 shrink-0 overflow-x-auto px-2 pt-2">
-                <button onclick="switchTab('tab-attendance', this)" class="tab-btn active whitespace-nowrap">เวลาเรียน</button>
+                <button onclick="switchTab('tab-attendance', this)"
+                    class="tab-btn active whitespace-nowrap">เวลาเรียน</button>
                 <button onclick="switchTab('tab-scores', this)" class="tab-btn whitespace-nowrap">ผลการเรียน</button>
-                <button onclick="switchTab('tab-attributes', this)" class="tab-btn whitespace-nowrap">คุณลักษณะฯ</button>
+                <button onclick="switchTab('tab-attributes', this)"
+                    class="tab-btn whitespace-nowrap">คุณลักษณะฯ</button>
             </div>
 
-            <div id="tab-attendance" class="tab-content active flex-1 overflow-hidden p-3 relative">
-                <div class="table-responsive h-full">
+            <!-- Tab Attendance -->
+            <div id="tab-attendance" class="tab-content active">
+                <div class="table-responsive">
                     <table class="w-full text-center text-sm">
                         <thead class="sticky top-0 z-10 bg-white shadow-sm">
                             <tr class="text-gray-600 bg-gray-100" id="att-header-row-1">
                                 <th rowspan="2" class="w-12 border-r border-gray-200">เลขที่</th>
                                 <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                <th rowspan="2" class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>เวลาเรียน</th>
+                                <th rowspan="2" class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">
+                                    รวม<br>เวลาเรียน</th>
                                 <th rowspan="2" class="w-16 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
                             </tr>
                             <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"></tr>
@@ -89,16 +333,21 @@
                 </div>
             </div>
 
-            <div id="tab-scores" class="tab-content flex-1 overflow-hidden p-3 relative hidden">
-                <div class="table-responsive h-full">
+            <!-- Tab Scores -->
+            <div id="tab-scores" class="tab-content">
+                <div class="table-responsive">
                     <table class="w-full text-center text-sm">
                         <thead class="sticky top-0 z-10 bg-white shadow-sm">
                             <tr class="text-gray-600 bg-gray-100">
                                 <th class="w-12 border-r border-gray-200 py-3">เลขที่</th>
                                 <th class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                <th class="w-16">ครั้งที่ 1</th><th class="w-16">ครั้งที่ 2</th><th class="w-16">ครั้งที่ 3</th>
-                                <th class="w-16">ครั้งที่ 4</th><th class="w-16 border-r border-gray-200">ครั้งที่ 5</th>
-                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน</th>
+                                <th class="w-16">ครั้งที่ 1</th>
+                                <th class="w-16">ครั้งที่ 2</th>
+                                <th class="w-16">ครั้งที่ 3</th>
+                                <th class="w-16">ครั้งที่ 4</th>
+                                <th class="w-16 border-r border-gray-200">ครั้งที่ 5</th>
+                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน
+                                </th>
                                 <th class="w-16 bg-orange-50 text-orange-700 border-l-2 border-orange-200">Pretest</th>
                                 <th class="w-16 bg-purple-50 text-purple-700 border-l-2 border-purple-200">Posttest</th>
                             </tr>
@@ -108,26 +357,49 @@
                 </div>
             </div>
 
-            <div id="tab-attributes" class="tab-content flex-1 overflow-hidden p-3 relative hidden">
-                <div class="table-responsive h-full">
+            <!-- Tab Attributes -->
+            <div id="tab-attributes" class="tab-content">
+                <div class="table-responsive">
                     <table class="w-full text-center text-sm">
                         <thead class="sticky top-0 z-10 bg-white shadow-sm">
                             <tr class="text-gray-600 bg-gray-100">
                                 <th rowspan="2" class="w-12 border-r border-gray-200">เลขที่</th>
                                 <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                <th colspan="4" class="border-r border-gray-200 border-b border-gray-200 text-blue-700 bg-blue-50/50 py-1">1. รักชาติ ศาสน์ กษัตริย์</th>
-                                <th colspan="2" class="border-r border-gray-200 border-b border-gray-200 text-indigo-700 bg-indigo-50/50">2. ซื่อสัตย์สุจริต</th>
-                                <th colspan="1" class="border-r border-gray-200 border-b border-gray-200 text-fuchsia-700 bg-fuchsia-50/50">3. มีวินัย</th>
-                                <th colspan="5" class="border-r border-gray-200 border-b border-gray-200 text-orange-700 bg-orange-50/50">4. ใฝ่เรียนรู้</th>
-                                <th rowspan="2" class="w-16 bg-blue-50/50 text-blue-700 leading-tight border-l-2 border-gray-300">สรุปผล<br>คุณลักษณะ</th>
-                                <th rowspan="2" class="w-16 bg-indigo-50/50 text-indigo-700 leading-tight border-l border-gray-300">สรุปผล<br>เวลาเรียน</th>
-                                <th rowspan="2" class="w-16 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">ผลการ<br>ประเมิน</th>
+                                <th colspan="4"
+                                    class="border-r border-gray-200 border-b border-gray-200 text-blue-700 bg-blue-50/50 py-1">
+                                    1. รักชาติ ศาสน์ กษัตริย์</th>
+                                <th colspan="2"
+                                    class="border-r border-gray-200 border-b border-gray-200 text-indigo-700 bg-indigo-50/50">
+                                    2. ซื่อสัตย์สุจริต</th>
+                                <th colspan="1"
+                                    class="border-r border-gray-200 border-b border-gray-200 text-fuchsia-700 bg-fuchsia-50/50">
+                                    3. มีวินัย</th>
+                                <th colspan="5"
+                                    class="border-r border-gray-200 border-b border-gray-200 text-orange-700 bg-orange-50/50">
+                                    4. ใฝ่เรียนรู้</th>
+                                <th rowspan="2"
+                                    class="w-16 bg-blue-50/50 text-blue-700 leading-tight border-l-2 border-gray-300">
+                                    สรุปผล<br>คุณลักษณะ</th>
+                                <th rowspan="2"
+                                    class="w-16 bg-indigo-50/50 text-indigo-700 leading-tight border-l border-gray-300">
+                                    สรุปผล<br>เวลาเรียน</th>
+                                <th rowspan="2"
+                                    class="w-16 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">
+                                    ผลการ<br>ประเมิน</th>
                             </tr>
                             <tr class="text-xs text-gray-500 font-normal bg-gray-50">
-                                <th class="w-10">1.1</th><th class="w-10">1.2</th><th class="w-10">1.3</th><th class="w-10 border-r border-gray-200">1.4</th>
-                                <th class="w-10">2.1</th><th class="w-10 border-r border-gray-200">2.2</th>
+                                <th class="w-10">1.1</th>
+                                <th class="w-10">1.2</th>
+                                <th class="w-10">1.3</th>
+                                <th class="w-10 border-r border-gray-200">1.4</th>
+                                <th class="w-10">2.1</th>
+                                <th class="w-10 border-r border-gray-200">2.2</th>
                                 <th class="w-10 border-r border-gray-200">3.1</th>
-                                <th class="w-10">4.1</th><th class="w-10">4.2</th><th class="w-10">4.3</th><th class="w-10">4.4</th><th class="w-10 border-r border-gray-200">4.5</th>
+                                <th class="w-10">4.1</th>
+                                <th class="w-10">4.2</th>
+                                <th class="w-10">4.3</th>
+                                <th class="w-10">4.4</th>
+                                <th class="w-10 border-r border-gray-200">4.5</th>
                             </tr>
                         </thead>
                         <tbody id="tb-attributes" class="divide-y divide-gray-100"></tbody>
@@ -135,22 +407,27 @@
                 </div>
             </div>
 
-            <div class="p-4 bg-white/60 border-t border-white flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 rounded-b-3xl">
+            <div
+                class="p-4 bg-white/60 border-t border-white flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 rounded-b-3xl">
                 <div class="flex gap-2 w-full lg:w-auto justify-center lg:justify-start">
-                    <button onclick="exportExcelAll()" class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                    <button onclick="exportExcelAll()"
+                        class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift">
                         <i class="fa-solid fa-file-export"></i> ส่งออก (Offline)
                     </button>
-                    <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden" onchange="importExcelAll(event)">
-                    <button onclick="document.getElementById('excelUploadAll').click()" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                    <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden"
+                        onchange="importExcelAll(event)">
+                    <button onclick="document.getElementById('excelUploadAll').click()"
+                        class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift">
                         <i class="fa-solid fa-file-import"></i> นำเข้า Excel
                     </button>
                 </div>
-                
                 <div class="flex gap-3 w-full lg:w-auto">
-                    <button onclick="printPDF_v7()" class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-6 rounded-xl shadow-sm text-sm w-full md:w-auto flex items-center justify-center gap-2 transition-colors">
+                    <button onclick="printPDF_v7()"
+                        class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-6 rounded-xl shadow-sm text-sm w-full md:w-auto flex items-center justify-center gap-2 transition-colors btn-hover-lift">
                         <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
                     </button>
-                    <button id="btnSaveAll" onclick="saveAllData()" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md hover:shadow-lg text-base w-full md:w-auto flex items-center justify-center gap-2 transition-all">
+                    <button id="btnSaveAll" onclick="saveAllData()"
+                        class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md hover:shadow-lg text-base w-full md:w-auto flex items-center justify-center gap-2 transition-all btn-hover-lift">
                         <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
                     </button>
                 </div>
@@ -159,6 +436,10 @@
     </main>
 
     <div id="print-area" class="hidden"></div>
+
+    <!-- Tom Select JS -->
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="guidance_teacher.js"></script>
 </body>
+
 </html>

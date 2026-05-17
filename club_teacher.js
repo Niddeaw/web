@@ -720,7 +720,11 @@ async function loadAllStudentsReport() {
             return `<tr class="hover:bg-purple-50"><td class="py-3 px-4 font-mono">${s.id_card}</td><td class="py-3 px-4">${s.full_name}</td><td class="py-3 px-4">${s.classroom}</td><td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td><td class="py-3 px-4 text-center">${badge}</td><td class="py-3 px-4 text-xs text-red-500">${s.comment}</td></tr>`;
         }).join('');
 
-        $('#adminAllStudentsTable').DataTable({ responsive: true, scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }});
+        $('#adminAllStudentsTable').DataTable({ 
+            responsive: true, 
+            scrollX: true,
+            order: [[2, 'asc']], // เรียงตามคอลัมน์ระดับชั้นจากน้อยไปมาก 
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }});
         Swal.close();
     } catch (err) { Swal.fire('Error', err.message, 'error'); }
 }
