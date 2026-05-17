@@ -85,7 +85,8 @@
                         <div id="no-club-display" class="text-center py-8">
                             <div
                                 class="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3 text-slate-400 text-2xl">
-                                <i class="fa-solid fa-folder-open"></i></div>
+                                <i class="fa-solid fa-folder-open"></i>
+                            </div>
                             <p class="text-slate-500 font-medium mb-4">
                                 คุณยังไม่ได้เปิดชุมนุมในภาคเรียนนี้<br>โปรดติดต่อผู้ดูแลระบบเพื่อเปิดชุมนุม</p>
                         </div>
@@ -153,6 +154,9 @@
                         <button onclick="document.getElementById('excelUploadClubs').click()"
                             class="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 px-3 py-2 rounded-lg text-sm font-bold"><i
                                 class="fa-solid fa-file-import"></i> นำเข้า Excel</button>
+                        <button onclick="exportClubsToExcel()"
+                            class="bg-emerald-600 text-white hover:bg-emerald-700 px-3 py-2 rounded-lg text-sm font-bold shadow-md"><i
+                                class="fa-solid fa-file-excel mr-1"></i> ส่งออก Excel</button>
                         <button onclick="openAdminClubModal()"
                             class="bg-purple-600 text-white hover:bg-purple-700 px-4 py-2 rounded-lg text-sm font-bold shadow-md"><i
                                 class="fa-solid fa-plus mr-1"></i> สร้างชุมนุมให้ครู</button>
