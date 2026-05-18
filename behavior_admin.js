@@ -295,14 +295,28 @@ function blobToBase64(blob) {
 }
 
 async function saveBehaviorRecord() {
-    const studentId = $('#selected_student_id').val();
+    const studentId  = $('#selected_student_id').val();
     const criteriaId = $('#criteria_select').val();
-    const score = parseInt($('#score_input').val());
-    const fileInput = $('#evidence_file')[0].files[0];
-    
-    if(!studentId || !criteriaId || isNaN(score)) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
+    const score      = parseInt($('#score_input').val());
+    const fileInput  = $('#evidence_file')[0].files[0];
 
-    Swal.fire({ title: 'กำลังบันทึกข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    if (!studentId || !criteriaId || isNaN(score))
+        return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
+
+    // ── ดึงข้อมูลนักเรียนเพื่อสร้างชื่อไฟล์ ──
+    const student          = allStudents.find(s => s.id === studentId);
+    const studentSid       = student?.sid       || studentId;
+    const studentFirstName = student?.firstName || '';
+    const studentLastName  = student?.lastName  || '';
+
+    // วันที่ปัจจุบัน format: YYYYMMDD
+    const now        = new Date();
+    const dateStr    = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+
+    // sanitize ชื่อ-นามสกุล (ตัดอักขระพิเศษที่ใช้ในชื่อไฟล์ไม่ได้)
+    const safeName   = `${studentFirstName}_${studentLastName}`.replace(/[\/\\:*?"<>|\s]/g, '_');
+    const fileName   = `behavior_${studentSid}-${safeName}_${dateStr}.jpg`;
+    // ตัวอย่าง → behavior_12345-สมชาย_ใจดี_20250518.jpg
 
     let finalImageUrl = null;
 
@@ -310,27 +324,28 @@ async function saveBehaviorRecord() {
         if (!systemConfig || !systemConfig.gas_url || !systemConfig.drive_folder_id) {
             return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'แอดมินยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive API', 'error');
         }
-        
+
         try {
             Swal.fire({ title: 'กำลังย่อขนาดและอัปโหลดรูปภาพ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-            
+
             const resizedBlob = await resizeImage(fileInput);
-            const base64Data = await blobToBase64(resizedBlob);
-            
+            const base64Data  = await blobToBase64(resizedBlob);
+
             const response = await fetch(systemConfig.gas_url, {
                 method: "POST",
                 body: JSON.stringify({
-                    base64: base64Data,
-                    fileName: `behavior_${studentId}_${Date.now()}.jpg`,
-                    folderId: systemConfig.drive_folder_id 
+                    base64:    base64Data,
+                    fileName:  fileName,
+                    folderId:  systemConfig.drive_folder_id
                 })
             });
+
             const resData = await response.json();
-            if(resData.status === "success") finalImageUrl = resData.url;
+            if (resData.status === 'success') finalImageUrl = resData.url;
             else throw new Error(resData.message);
-            
+
         } catch (err) {
-            console.error("Upload Error: ", err);
+            console.error('Upload Error:', err);
             return Swal.fire('อัปโหลดรูปไม่สำเร็จ', 'โปรดตรวจสอบการเชื่อมต่อ API ของ Google', 'error');
         }
     }
@@ -338,17 +353,25 @@ async function saveBehaviorRecord() {
     Swal.fire({ title: 'กำลังจัดเก็บลงฐานข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     const { error } = await db.from('behavior_logs').insert([{
-        student_id: studentId, criteria_id: criteriaId, score_change: score,
-        recorder_id: currentUser.id, description: $('#description_text').val(),
-        evidence_url: finalImageUrl,
-        academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester
+        student_id:    studentId,
+        criteria_id:   criteriaId,
+        score_change:  score,
+        recorder_id:   currentUser.id,
+        description:   $('#description_text').val(),
+        evidence_url:  finalImageUrl,
+        academic_year: schoolInfo.current_academic_year,
+        semester:      schoolInfo.current_semester
     }]);
 
-    if(!error) {
+    if (!error) {
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
         clearSelectedStudent();
-        $('#criteria_select').val(''); $('#score_input').val(''); $('#description_text').val('');
-        closeRecordModal(); initStudentTable(); loadDashboard();
+        $('#criteria_select').val('');
+        $('#score_input').val('');
+        $('#description_text').val('');
+        closeRecordModal();
+        initStudentTable();
+        loadDashboard();
     } else {
         Swal.fire('Error', error.message, 'error');
     }
