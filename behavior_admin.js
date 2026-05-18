@@ -208,14 +208,23 @@ function loadDashboard() {
 // ── ฟังก์ชันอื่น ๆ คงเดิม (searchStudent, saveBehaviorRecord, importFromGoogleSheet ฯลฯ) ──
 // (สามารถคัดลอกมาจากไฟล์ก่อนหน้าได้เลย)
 
+// ✅ แก้แล้ว
 async function searchStudent(val) {
-    if(val.length < 2) { $('#search_results').hide(); return; }
-    const matched = allStudents.filter(s => s.sid.includes(val) || s.name.includes(val)).slice(0, 5);
+    if (val.length < 2) { $('#search_results').hide(); return; }
+
+    const matched = allStudents.filter(s =>
+        (s.sid || '').includes(val) ||
+        (s.fullName || '').includes(val)
+    ).slice(0, 5);
+
     let html = '';
     matched.forEach(s => {
-        html += `<div onclick="selectStudent('${s.id}', '${s.sid} - ${s.name}')" class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">${s.sid} - ${s.name} (ม.${s.room})</div>`;
+        html += `<div onclick="selectStudent('${s.id}', '${s.sid} - ${s.fullName}')" 
+                 class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">
+                 ${s.sid} - ${s.fullName} (${s.roomDisplay})</div>`;
     });
-    $('#search_results').html(html).show();
+
+    $('#search_results').html(html || '<div class="p-3 text-sm text-slate-400">ไม่พบนักเรียน</div>').show();
 }
 
 function selectStudent(id, info) {
@@ -542,10 +551,15 @@ function filterCustomScore(mode) {
     renderTable(allStudents.filter(s => mode === 'more' ? s.score > val : s.score < val));
 }
 
+// ✅ แก้ exportTable
 function exportTable() {
     const exportData = allStudents.map(s => ({
-        'เลขประจำตัว': s.sid, 'ชื่อ-นามสกุล': s.name, 'ชั้นเรียน': s.room,
-        'คะแนนปัจจุบัน': s.score, 'จำนวนครั้งที่ทำดี': s.pos, 'จำนวนครั้งที่ผิดระเบียบ': s.neg
+        'เลขประจำตัว': s.sid,
+        'ชื่อ-นามสกุล': s.fullName,   // ← เดิม s.name
+        'ชั้นเรียน': s.roomDisplay,    // ← เดิม s.room
+        'คะแนนปัจจุบัน': s.score,
+        'จำนวนครั้งที่ทำดี': s.pos,
+        'จำนวนครั้งที่ผิดระเบียบ': s.neg
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
