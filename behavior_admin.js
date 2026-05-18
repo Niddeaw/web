@@ -182,9 +182,22 @@ function renderTable(data) {
             `<span class="font-medium text-slate-700">${s.sid}</span>`,
             `<span class="font-bold text-blue-800">${s.fullName}</span>`,
             `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
-            `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
+            `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="history-btn bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
         ]),
-        responsive: true,
+        responsive: {
+            details: {
+                display: $.fn.dataTable.Responsive.display.childRowImmediate,
+                type: 'none'
+            }
+        },
+        columnDefs: [
+            { responsivePriority: 1, targets: 3 },  // ชื่อ-นามสกุล (สำคัญสุด)
+            { responsivePriority: 2, targets: 4 },  // คะแนน
+            { responsivePriority: 3, targets: 5 },  // ปุ่มประวัติ (ห้ามหาย)
+            { responsivePriority: 4, targets: 0 },  // ชั้นเรียน
+            { responsivePriority: 5, targets: 2 },  // รหัสนักเรียน
+            { responsivePriority: 6, targets: 1 }   // เลขที่
+        ],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         order: [[0, 'asc'], [1, 'asc']]
     });
