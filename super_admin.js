@@ -997,6 +997,92 @@ function triggerImportStudents() {
     document.getElementById('excelUploadStudents').click();
 }
 
+// ==========================================
+// ส่งออก Excel รายชื่อนักเรียนทั้งหมด (ภาคเรียนปัจจุบัน)
+// ==========================================
+async function exportAllStudentsExcel() {
+    Swal.fire({
+        title: 'กำลังดึงข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // 1. อ่านปีการศึกษาและภาคเรียนจากตั้งค่าส่วนกลาง
+        const { data: schoolInfo } = await db.from('core_school_info')
+            .select('current_academic_year, current_semester')
+            .single();
+
+        const year = schoolInfo?.current_academic_year;
+        const term = schoolInfo?.current_semester;
+
+        if (!year) throw new Error('ยังไม่ได้ตั้งค่าปีการศึกษาในระบบ');
+
+        // 2. ดึงข้อมูลนักเรียนที่ลงทะเบียนในปีการศึกษาปัจจุบัน พร้อมห้องเรียน
+        let query = db.from('student_enrollments')
+            .select(`
+                student_number,
+                status,
+                core_students!inner( student_id_card, national_id, prefix, first_name, last_name ),
+                core_classrooms!inner( grade_level, room_number, academic_year, semester )
+            `)
+            .order('student_number', { ascending: true });
+
+        if (year) query = query.eq('core_classrooms.academic_year', year);
+        if (term) query = query.eq('core_classrooms.semester', term);
+
+        const { data, error } = await query;
+
+        if (error) throw error;
+        if (!data || data.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายชื่อนักเรียนในภาคเรียนปัจจุบัน', 'info');
+            return;
+        }
+
+        // 3. สร้างข้อมูลสำหรับ Excel
+        const wsData = [
+            ['เลขที่', 'รหัสนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ห้อง', 'สถานะ']
+        ];
+
+        data.forEach(row => {
+            const s = row.core_students;
+            const c = row.core_classrooms;
+            wsData.push([
+                row.student_number || '',
+                s.student_id_card || '',
+                s.national_id || '',
+                s.prefix || '',
+                s.first_name || '',
+                s.last_name || '',
+                `ม.${c.grade_level}/${c.room_number}`,
+                row.status || 'เรียนปกติ'
+            ]);
+        });
+
+        // 4. สร้างและดาวน์โหลดไฟล์ Excel
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols'] = [
+            { wch: 8 },   // เลขที่
+            { wch: 15 },  // รหัสนักเรียน
+            { wch: 15 },  // เลขประจำตัวประชาชน
+            { wch: 10 },  // คำนำหน้า
+            { wch: 20 },  // ชื่อ
+            { wch: 25 },  // นามสกุล
+            { wch: 12 },  // ห้อง
+            { wch: 12 }   // สถานะ
+        ];
+
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "รายชื่อนักเรียนทั้งหมด");
+        XLSX.writeFile(wb, `รายชื่อนักเรียน_เทอม${term}_${year}.xlsx`);
+
+        Swal.close();
+    } catch (err) {
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
+
 // นำเข้าผ่าน Excel Local
 async function processImportStudents(event) {
     const classId = document.getElementById('filterStudentClass').value;
@@ -1048,7 +1134,6 @@ async function processImportStudents(event) {
     reader.readAsArrayBuffer(file);
 }
 
-// นำเข้าผ่าน Google Sheet (รองรับ CORS และแก้ปัญหา column encoding)
 // นำเข้าผ่าน Google Sheet (รองรับไฟล์รวมนักเรียนทั้งโรงเรียน แยกตามห้องได้)
 async function triggerImportGoogleSheet() {
     const classId = document.getElementById('filterStudentClass').value;
