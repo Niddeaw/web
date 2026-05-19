@@ -487,7 +487,7 @@ async function resetTeacherPassword(teacherId, teacherName) {
     const { value: newPassword } = await Swal.fire({
         title: 'ตั้งรหัสผ่านใหม่',
         html: `คุณกำลังตั้งรหัสผ่านใหม่ให้กับ<br><b class="text-blue-600">${teacherName}</b>`,
-        input: 'text', // ใช้เป็น text จะได้มองเห็นว่าแอดมินพิมพ์รหัสอะไรให้ครู
+        input: 'text',
         inputPlaceholder: 'พิมพ์รหัสผ่านใหม่ที่นี่ (ขั้นต่ำ 6 ตัว)',
         inputAttributes: { autocapitalize: 'off', autocorrect: 'off' },
         showCancelButton: true,
@@ -501,17 +501,14 @@ async function resetTeacherPassword(teacherId, teacherName) {
 
     if (newPassword) {
         Swal.fire({ title: 'กำลังดำเนินการ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
         try {
-            // ส่งรหัสผ่านใหม่ที่แอดมินพิมพ์ ไปให้ Database อัปเดต
             const { data, error } = await db.rpc('admin_reset_password', {
                 p_user_id: teacherId,
                 p_new_password: newPassword
             });
-
             if (error) throw error;
-
-            Swal.fire('สำเร็จ!', `ตั้งรหัสผ่านใหม่ให้ครู ${teacherName} เป็น <b>${newPassword}</b> เรียบร้อยแล้ว`, 'success');
+            // ✅ ไม่แสดงรหัสผ่านอีกต่อไป
+            Swal.fire('สำเร็จ!', `รีเซ็ตรหัสผ่านให้ ${teacherName} เรียบร้อยแล้ว`, 'success');
         } catch (err) {
             console.error(err);
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -836,6 +833,7 @@ function editSingleStudent(id, number, student_id, national_id, prefix, fname, l
 
 function closeStudentModal() { document.getElementById('studentDetailModal').classList.add('hidden'); }
 
+// ป้องกันการเพิ่มนักเรียนซ้ำในห้องเดียวกัน
 async function saveSingleStudent(e) {
     e.preventDefault();
     const classId = document.getElementById('filterStudentClass').value;
@@ -855,8 +853,21 @@ async function saveSingleStudent(e) {
         if (stdErr) throw stdErr;
 
         if (!enrollmentId) {
+            // ✅ ตรวจสอบว่านักเรียนคนนี้มีในห้องนี้แล้วหรือไม่
+            const { data: existingEnroll } = await db.from('student_enrollments')
+                .select('id')
+                .eq('student_id', stdData.id)
+                .eq('classroom_id', classId)
+                .maybeSingle();
+
+            if (existingEnroll) {
+                Swal.fire('ข้อมูลซ้ำ', 'นักเรียนคนนี้มีรายชื่อในห้องนี้แล้ว', 'warning');
+                return;
+            }
+
             await db.from('student_enrollments').insert({
-                student_id: stdData.id, classroom_id: classId,
+                student_id: stdData.id,
+                classroom_id: classId,
                 student_number: document.getElementById('s_number').value || null,
                 status: document.getElementById('s_status').value
             });
@@ -867,9 +878,12 @@ async function saveSingleStudent(e) {
             }).eq('id', enrollmentId);
         }
 
-        closeStudentModal(); await loadStudents();
+        closeStudentModal();
+        await loadStudents();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 }
 
 async function deleteSingleStudent(id, fname) {
@@ -1138,13 +1152,18 @@ async function insertStudentDataToDB(rows, classId) {
     let successCount = 0;
     let errorList = [];
 
-    // ล้างรายชื่อเด็กในห้องนี้ทิ้งก่อนใส่ชุดใหม่
-    await db.from('student_enrollments').delete().eq('classroom_id', classId);
+    // ดึงรายชื่อ student_id ที่มีอยู่ในห้องนี้แล้ว (สำหรับตรวจสอบภายหลัง)
+    const { data: existingEnrollments } = await db.from('student_enrollments')
+        .select('student_id, id')
+        .eq('classroom_id', classId);
+    const existingMap = new Map();
+    if (existingEnrollments) {
+        existingEnrollments.forEach(e => existingMap.set(e.student_id, e.id));
+    }
 
     for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
 
-        // ดึงข้อมูลโดยเผื่อกรณีพิมพ์ผิดเล็กๆ น้อยๆ
         const stdIdCard = (row['เลขประจำตัวนักเรียน'] || row['เลขประจำตัว'] || '')?.toString().trim();
         const fName = (row['ชื่อ'] || row['ชื่อจริง'] || '')?.toString().trim();
 
@@ -1153,7 +1172,7 @@ async function insertStudentDataToDB(rows, classId) {
             continue;
         }
 
-        // อัปเดตตารางประวัติเด็ก
+        // อัปเดต/เพิ่มข้อมูลนักเรียนลง core_students
         const { data: stdData, error: stdErr } = await db.from('core_students').upsert({
             student_id_card: stdIdCard,
             national_id: row['เลขประจำตัวประชาชน']?.toString().trim() || null,
@@ -1167,18 +1186,37 @@ async function insertStudentDataToDB(rows, classId) {
             continue;
         }
 
-        // อัปเดตตารางจัดเด็กเข้าห้อง
-        const { error: enrErr } = await db.from('student_enrollments').insert({
-            student_id: stdData.id,
-            classroom_id: classId,
-            student_number: parseInt(row['เลขที่']) || null,
-            status: row['สถานะ']?.toString().trim() || 'เรียนปกติ'
-        });
+        const studentId = stdData.id;
+        const studentNumber = parseInt(row['เลขที่']) || null;
+        const status = row['สถานะ']?.toString().trim() || 'เรียนปกติ';
 
-        if (enrErr) {
-            errorList.push(`แถวที่ ${i + 2}: ข้อผิดพลาดจัดห้อง (${enrErr.message})`);
+        // ตรวจสอบว่านักเรียนคนนี้มี enrollment ในห้องนี้อยู่แล้วหรือไม่
+        if (existingMap.has(studentId)) {
+            // มีอยู่แล้ว → อัปเดตเฉพาะข้อมูลเลขที่และสถานะ
+            const enrollId = existingMap.get(studentId);
+            const { error: updateErr } = await db.from('student_enrollments')
+                .update({ student_number: studentNumber, status })
+                .eq('id', enrollId);
+
+            if (updateErr) {
+                errorList.push(`แถวที่ ${i + 2}: อัปเดตเลขที่/สถานะไม่สำเร็จ (${updateErr.message})`);
+            } else {
+                successCount++;
+            }
         } else {
-            successCount++;
+            // ยังไม่มี → เพิ่มใหม่
+            const { error: insertErr } = await db.from('student_enrollments').insert({
+                student_id: studentId,
+                classroom_id: classId,
+                student_number: studentNumber,
+                status
+            });
+
+            if (insertErr) {
+                errorList.push(`แถวที่ ${i + 2}: เพิ่มลงห้องไม่สำเร็จ (${insertErr.message})`);
+            } else {
+                successCount++;
+            }
         }
     }
 
@@ -1191,6 +1229,7 @@ async function insertStudentDataToDB(rows, classId) {
 
     await loadStudents();
 }
+
 // 🌟 1. ฟังก์ชันค้นหาเด็กซ้ำ
 async function checkDuplicateStudents() {
     Swal.fire({ title: 'กำลังสแกนฐานข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -1360,132 +1399,149 @@ async function searchGlobalStudents(keyword) {
         allowOutsideClick: false
     });
 
-    // ค้นหานักเรียน
-    const { data: students, error } = await db.from('core_students')
-        .select(`
-            id, student_id_card, first_name, last_name,
-            student_enrollments ( id, core_classrooms (id, grade_level, room_number, academic_year, semester) )
-        `)
-        .or(`student_id_card.ilike.%${keyword}%,first_name.ilike.%${keyword}%,last_name.ilike.%${keyword}%`)
-        .limit(50);
+    try {
+        // 1. ค้นหานักเรียน (ใช้ ilike หลายฟิลด์)
+        const { data: students, error: stuErr } = await db
+            .from('core_students')
+            .select(`
+                id,
+                student_id_card,
+                first_name,
+                last_name,
+                student_enrollments!student_id (
+                    id,
+                    student_number,
+                    classroom_id,
+                    core_classrooms (
+                        id,
+                        grade_level,
+                        room_number,
+                        academic_year,
+                        semester
+                    )
+                )
+            `)
+            .or(`student_id_card.ilike.%${keyword}%,first_name.ilike.%${keyword}%,last_name.ilike.%${keyword}%`)
+            .limit(50);
 
-    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
-    if (!students || students.length === 0) return Swal.fire('ไม่พบข้อมูล', `ไม่พบนักเรียนที่ตรงกับคำว่า "${keyword}"`, 'info');
-
-    // โหลดห้องทั้งหมด
-    const { data: classrooms } = await db.from('core_classrooms')
-        .select('id, grade_level, room_number, semester, academic_year')
-        .order('academic_year', { ascending: false })
-        .order('semester', { ascending: false })
-        .order('grade_level', { ascending: true })
-        .order('room_number', { ascending: true });
-
-    // เตรียมข้อมูลห้องสำหรับ Tom Select (array of {value, text})
-    const roomOptions = classrooms.map(c => ({
-        value: c.id,
-        text: `ม.${c.grade_level}/${c.room_number} (เทอม${c.semester}/${c.academic_year})`
-    }));
-
-    let html = `
-    <div class="overflow-x-auto max-h-[60vh] text-left">
-        <table class="w-full text-sm border-collapse">
-            <thead class="bg-gray-100 sticky top-0 z-10">
-                <tr>
-                    <th class="p-2 border border-gray-300">รหัส</th>
-                    <th class="p-2 border border-gray-300">ชื่อ - นามสกุล</th>
-                    <th class="p-2 border border-gray-300 text-center">ห้องปัจจุบัน</th>
-                    <th class="p-2 border border-gray-300 text-center">เปลี่ยนห้อง</th>
-                    <th class="p-2 border border-gray-300 text-center">ลบ</th>
-                </tr>
-            </thead>
-            <tbody>`;
-
-    students.forEach(s => {
-        const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null;
-        const currentRoomId = enroll && enroll.core_classrooms ? enroll.core_classrooms.id : '';
-
-        let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
-        if (enroll && enroll.core_classrooms) {
-            const c = enroll.core_classrooms;
-            const term = c.semester || '-';
-            const year = c.academic_year || '-';
-            roomText = `<span class="font-bold text-indigo-700">ม.${c.grade_level}/${c.room_number}</span><br><span class="text-[10px] text-gray-500">(เทอม${term}/${year})</span>`;
+        if (stuErr) throw stuErr;
+        if (!students || students.length === 0) {
+            Swal.fire('ไม่พบข้อมูล', `ไม่พบนักเรียนที่ตรงกับ "${keyword}"`, 'info');
+            return;
         }
 
-        const enrollId = enroll ? enroll.id : '';
+        // 2. โหลดห้องเรียนทั้งหมด (เฉพาะปีการศึกษาปัจจุบัน เพื่อไม่ให้ตัวเลือกเยอะ)
+        const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year').single();
+        const currentYear = schoolInfo?.current_academic_year || (new Date().getFullYear() + 543).toString();
+        const { data: classrooms } = await db
+            .from('core_classrooms')
+            .select('id, grade_level, room_number, semester, academic_year')
+            .eq('academic_year', currentYear)
+            .order('grade_level')
+            .order('room_number');
+        
+        const roomOptions = (classrooms || []).map(c => ({
+            value: c.id,
+            text: `ม.${c.grade_level}/${c.room_number} (เทอม ${c.semester}/${c.academic_year})`
+        }));
 
-        // ⭐ ใช้ class="room-select" และเก็บค่า currentRoomId, studentId, enrollId ไว้ใน data-*
-        html += `
-            <tr class="hover:bg-purple-50 transition-colors">
-                <td class="p-2 border border-gray-300 font-medium text-gray-700 whitespace-nowrap">${s.student_id_card}</td>
-                <td class="p-2 border border-gray-300 min-w-[150px]">
-                    <input type="text" id="fname_${s.id}" value="${s.first_name}" class="border rounded p-1 w-full text-xs mb-1 outline-none focus:border-purple-500" placeholder="ชื่อ">
-                    <input type="text" id="lname_${s.id}" value="${s.last_name}" class="border rounded p-1 w-full text-xs outline-none focus:border-purple-500" placeholder="นามสกุล">
-                    <button onclick="saveGlobalStudentName('${s.id}')" class="w-full mt-1 text-[10px] bg-purple-100 text-purple-700 py-1 rounded hover:bg-purple-200 font-bold transition-colors"><i class="fas fa-save"></i> บันทึกชื่อ</button>
-                </td>
-                <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${roomText}</td>
-                <td class="p-2 border border-gray-300 text-center min-w-[200px]">
-                    <select class="room-select" 
-                            data-student-id="${s.id}" 
-                            data-enroll-id="${enrollId}" 
-                            data-current-room="${currentRoomId}">
-                    </select>
-                </td>
-                <td class="p-2 border border-gray-300 text-center">
-                    <button onclick="deleteGlobalStudent('${s.id}', '${s.first_name}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8 rounded-full transition-colors shadow-sm"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>`;
-    });
+        // 3. สร้าง HTML ตาราง
+        let html = `<div class="overflow-x-auto max-h-[60vh] text-left">
+            <table class="w-full text-sm border-collapse">
+                <thead class="bg-gray-100 sticky top-0 z-10">
+                    <tr>
+                        <th class="p-2 border border-gray-300">รหัส</th>
+                        <th class="p-2 border border-gray-300">ชื่อ - นามสกุล</th>
+                        <th class="p-2 border border-gray-300 text-center">ห้องปัจจุบัน</th>
+                        <th class="p-2 border border-gray-300 text-center">เปลี่ยนห้อง</th>
+                        <th class="p-2 border border-gray-300 text-center">ลบ</th>
+                    </tr>
+                </thead>
+                <tbody>`;
 
-    html += `</tbody></table></div>`;
+        for (const s of students) {
+            // student_enrollments เป็น array (one-to-many) เราจะเอาตัวแรก (หรือจะแสดงหลายห้องก็ได้)
+            const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null;
+            const currentRoomId = enroll?.classroom_id || '';
+            const enrollId = enroll?.id || '';
+            
+            let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
+            if (enroll && enroll.core_classrooms) {
+                const cr = enroll.core_classrooms;
+                roomText = `<span class="font-bold text-indigo-700">ม.${cr.grade_level}/${cr.room_number}</span><br>
+                            <span class="text-[10px] text-gray-500">(เทอม ${cr.semester}/${cr.academic_year})</span>`;
+            }
 
-    Swal.fire({
-        title: 'ผลการค้นหานักเรียน',
-        html: html,
-        width: '1000px',
-        showConfirmButton: false,
-        showCancelButton: true,
-        cancelButtonText: 'ปิดหน้าต่าง',
-        // ⭐ หลังจากเปิด Modal แล้วให้แปลง <select> เป็น Tom Select
-        didOpen: () => {
-            // แปลงทุก <select> ที่มี class "room-select"
-            document.querySelectorAll('.room-select').forEach(select => {
-                const studentId = select.dataset.studentId;
-                const enrollId = select.dataset.enrollId;
-                const currentRoomId = select.dataset.currentRoom;
+            html += `
+                <tr class="hover:bg-purple-50 transition-colors">
+                    <td class="p-2 border border-gray-300 font-medium text-gray-700">${s.student_id_card || '-'}</td>
+                    <td class="p-2 border border-gray-300 min-w-[150px]">
+                        <input type="text" id="fname_${s.id}" value="${escapeHtml(s.first_name)}" class="border rounded p-1 w-full text-xs mb-1 outline-none focus:border-purple-500" placeholder="ชื่อ">
+                        <input type="text" id="lname_${s.id}" value="${escapeHtml(s.last_name)}" class="border rounded p-1 w-full text-xs outline-none focus:border-purple-500" placeholder="นามสกุล">
+                        <button onclick="saveGlobalStudentName('${s.id}')" class="w-full mt-1 text-[10px] bg-purple-100 text-purple-700 py-1 rounded hover:bg-purple-200 font-bold">บันทึกชื่อ</button>
+                    </td>
+                    <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${roomText}</td>
+                    <td class="p-2 border border-gray-300 text-center min-w-[200px]">
+                        <select class="room-select" data-student-id="${s.id}" data-enroll-id="${enrollId}" data-current-room="${currentRoomId}"></select>
+                    </td>
+                    <td class="p-2 border border-gray-300 text-center">
+                        <button onclick="deleteGlobalStudent('${s.id}', '${escapeHtml(s.first_name)}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8 rounded-full transition-colors"><i class="fas fa-trash"></i></button>
+                    </td>
+                </tr>
+            `;
+        }
+        html += `</tbody></table></div>`;
 
-                // สร้าง Tom Select พร้อม placeholder
-                const ts = new TomSelect(select, {
-                    options: roomOptions,
-                    valueField: 'value',
-                    labelField: 'text',
-                    searchField: ['text'],
-                    placeholder: currentRoomId
-                        ? '-- ถอดออกจากห้อง --'
-                        : '-- เลือกห้องเพื่อเพิ่ม --',
-                    allowEmptyOption: true, // ให้มีค่าว่างได้
-                    create: false,
-                    // เมื่อเปลี่ยนค่าให้เรียกฟังก์ชันเดิม
-                    onChange: (value) => {
-                        // value เป็น string หรือ null
-                        changeStudentGlobalRoom(studentId, enrollId, value || '');
+        Swal.fire({
+            title: 'ผลการค้นหานักเรียน',
+            html: html,
+            width: '1000px',
+            showConfirmButton: false,
+            showCancelButton: true,
+            cancelButtonText: 'ปิด',
+            didOpen: () => {
+                // สร้าง TomSelect ให้แต่ละ select
+                document.querySelectorAll('.room-select').forEach(select => {
+                    const studentId = select.dataset.studentId;
+                    const enrollId = select.dataset.enrollId;
+                    const currentRoomId = select.dataset.currentRoom;
+
+                    new TomSelect(select, {
+                        options: roomOptions,
+                        valueField: 'value',
+                        labelField: 'text',
+                        searchField: ['text'],
+                        placeholder: currentRoomId ? '-- ถอดออกจากห้อง --' : '-- เลือกห้องเพื่อเพิ่ม --',
+                        allowEmptyOption: true,
+                        onChange: (value) => {
+                            changeStudentGlobalRoom(studentId, enrollId, value || '');
+                        }
+                    });
+                    if (currentRoomId) {
+                        select.tomselect.setValue(currentRoomId);
                     }
                 });
+            },
+            willClose: () => {
+                document.querySelectorAll('.room-select').forEach(select => {
+                    if (select.tomselect) select.tomselect.destroy();
+                });
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
 
-                // ถ้ามีห้องปัจจุบันให้ตั้งค่า selected
-                if (currentRoomId) {
-                    ts.setValue(currentRoomId);
-                }
-            });
-        },
-        willClose: () => {
-            // ล้าง Tom Select instances เพื่อป้องกัน memory leak
-            document.querySelectorAll('.room-select').forEach(select => {
-                if (select.tomselect) {
-                    select.tomselect.destroy();
-                }
-            });
-        }
+// Helper escape HTML เพื่อป้องกัน XSS
+function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
     });
 }
 
@@ -1505,14 +1561,27 @@ async function changeStudentGlobalRoom(studentId, currentEnrollId, newRoomId) {
     Swal.fire({ title: 'กำลังอัปเดตห้องเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         if (!newRoomId) {
-            if (currentEnrollId) await db.from('student_enrollments').delete().eq('id', currentEnrollId);
+            // ถอดออกจากห้อง
+            if (currentEnrollId) {
+                await db.from('student_enrollments').delete().eq('id', currentEnrollId);
+            }
         } else {
-            if (currentEnrollId) await db.from('student_enrollments').update({ classroom_id: newRoomId }).eq('id', currentEnrollId);
-            else await db.from('student_enrollments').insert({ student_id: studentId, classroom_id: newRoomId });
+            // ย้ายไปห้องใหม่
+            if (currentEnrollId) {
+                await db.from('student_enrollments').update({ classroom_id: newRoomId }).eq('id', currentEnrollId);
+            } else {
+                // เพิ่มเข้าห้อง
+                await db.from('student_enrollments').insert({ student_id: studentId, classroom_id: newRoomId });
+            }
         }
-        Swal.fire({ icon: 'success', title: 'อัปเดตห้องเรียนสำเร็จ', text: 'กรุณาค้นหาใหม่อีกครั้งเพื่อดูความเปลี่ยนแปลง', timer: 2000, showConfirmButton: false });
+        Swal.fire({ icon: 'success', title: 'อัปเดตห้องเรียนสำเร็จ', timer: 1500, showConfirmButton: false });
+        // รีเฟรชตารางนักเรียนในเมนูหลัก (ถ้ากำลังดูห้องอยู่)
         if (typeof loadStudents === 'function') loadStudents();
-    } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+        // อัปเดต badge นักเรียนไร้ห้อง
+        if (typeof updateUnassignedBadge === 'function') updateUnassignedBadge();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 }
 
 async function deleteGlobalStudent(studentId, name) {
