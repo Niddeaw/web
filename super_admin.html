@@ -55,11 +55,6 @@
                 <span class="sidebar-text">ห้องเรียน & นักเรียน</span>
             </button>
 
-            <button onclick="exportAllStudentsExcel()"
-                class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow transition-all">
-                <i class="fas fa-file-excel mr-2"></i>ส่งออก Excel รายชื่อทั้งหมด
-            </button>
-            
             <button onclick="switchMenu('menu-student-portal')" id="btn-menu-student-portal"
                 class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-solid fa-graduation-cap w-5 text-center text-lg shrink-0"></i>
@@ -482,6 +477,7 @@
 
                             <div class="flex flex-wrap gap-2 w-full xl:w-auto xl:justify-end">
                                 <div class="flex gap-2 w-full sm:w-auto border-r-0 sm:border-r border-gray-200 sm:pr-2">
+
                                     <button onclick="downloadStudentTemplate()"
                                         class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"
                                         title="โหลดเทมเพลต Excel">
@@ -496,6 +492,11 @@
                                     <button onclick="triggerImportGoogleSheet()"
                                         class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
                                         <i class="fa-brands fa-google"></i>
+                                    </button>
+                                    <button onclick="exportAllStudentsExcel()"
+                                        class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"
+                                        title="ส่งออกรายชื่อทั้งหมด Excel">
+                                        <i class="fa-solid fa-file-arrow-up text-gray-500"></i>
                                     </button>
                                 </div>
 

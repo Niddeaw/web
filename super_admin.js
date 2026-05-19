@@ -1025,8 +1025,7 @@ async function exportAllStudentsExcel() {
                 status,
                 core_students!inner( student_id_card, national_id, prefix, first_name, last_name ),
                 core_classrooms!inner( grade_level, room_number, academic_year, semester )
-            `)
-            .order('student_number', { ascending: true });
+            `);
 
         if (year) query = query.eq('core_classrooms.academic_year', year);
         if (term) query = query.eq('core_classrooms.semester', term);
@@ -1039,22 +1038,51 @@ async function exportAllStudentsExcel() {
             return;
         }
 
+        // ==========================================
+        // เพิ่มส่วนนี้: เรียงลำดับข้อมูล (ชั้นเรียน -> ห้อง -> เลขที่)
+        // ==========================================
+        data.sort((a, b) => {
+            const classA = a.core_classrooms;
+            const classB = b.core_classrooms;
+
+            // แปลงเป็นตัวเลขเผื่อกรณีที่ข้อมูลใน DB เก็บเป็น String (เช่น "1", "2") เพื่อให้ 10 ไม่มาก่อน 2
+            const gradeA = Number(classA.grade_level) || 0;
+            const gradeB = Number(classB.grade_level) || 0;
+            
+            if (gradeA !== gradeB) {
+                return gradeA - gradeB; // เรียงตามชั้นเรียน
+            }
+
+            const roomA = Number(classA.room_number) || 0;
+            const roomB = Number(classB.room_number) || 0;
+            
+            if (roomA !== roomB) {
+                return roomA - roomB; // ถ้าชั้นเรียนเท่ากัน ให้เรียงตามห้อง
+            }
+
+            const numA = Number(a.student_number) || 0;
+            const numB = Number(b.student_number) || 0;
+            
+            return numA - numB; // ถ้าชั้นเรียนและห้องเท่ากัน ให้เรียงตามเลขที่
+        });
+        // ==========================================
+
         // 3. สร้างข้อมูลสำหรับ Excel
         const wsData = [
-            ['เลขที่', 'รหัสนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ห้อง', 'สถานะ']
+            ['ห้อง', 'เลขที่', 'รหัสนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'สถานะ']
         ];
 
         data.forEach(row => {
             const s = row.core_students;
             const c = row.core_classrooms;
             wsData.push([
+                `ม.${c.grade_level}/${c.room_number}`,
                 row.student_number || '',
                 s.student_id_card || '',
                 s.national_id || '',
                 s.prefix || '',
                 s.first_name || '',
                 s.last_name || '',
-                `ม.${c.grade_level}/${c.room_number}`,
                 row.status || 'เรียนปกติ'
             ]);
         });
@@ -1062,13 +1090,13 @@ async function exportAllStudentsExcel() {
         // 4. สร้างและดาวน์โหลดไฟล์ Excel
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         ws['!cols'] = [
+            { wch: 12 },  // ห้อง
             { wch: 8 },   // เลขที่
             { wch: 15 },  // รหัสนักเรียน
             { wch: 15 },  // เลขประจำตัวประชาชน
             { wch: 10 },  // คำนำหน้า
             { wch: 20 },  // ชื่อ
             { wch: 25 },  // นามสกุล
-            { wch: 12 },  // ห้อง
             { wch: 12 }   // สถานะ
         ];
 
