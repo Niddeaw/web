@@ -80,7 +80,7 @@ function switchMenu(menuId) {
     // 🌟 เรียกโหลดข้อมูลตามเมนูที่กด
     if (menuId === 'menu-school') {
         loadSchoolInfo();
-        loadMicroServices(); 
+        loadMicroServices();
     }
     if (menuId === 'menu-students') loadClassrooms();
     if (menuId === 'menu-student-portal') loadStudentModules();
@@ -229,16 +229,16 @@ async function loadMicroServices() {
                         const moduleId = row.getAttribute('data-module-id');
                         if (moduleId) updates.push({ module_id: moduleId, display_order: index + 1 });
                     });
-                    
+
                     // แจ้งเตือนว่ากำลังบันทึก
                     showToast('info', 'กำลังบันทึกลำดับ...');
 
                     for (let u of updates) {
                         await db.from('core_system_modules').update({ display_order: u.display_order }).eq('module_id', u.module_id);
                     }
-                    
+
                     showToast('success', 'บันทึกลำดับสำเร็จ!');
-                    
+
                     loadMicroServices(); // refresh
                 }
             });
@@ -413,41 +413,6 @@ async function loadPersonnel() {
     }
 }
 
-// function downloadPersonnelTemplate() {
-//     const ws_data = [
-//         ['อีเมล (ใช้เข้าระบบ)', 'รหัสผ่าน (ขั้นต่ำ 6 ตัว)', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'ตำแหน่ง', 'วิทยฐานะ', 'กลุ่มสาระการเรียนรู้', 'สิทธิ์ (teacher/admin)'],
-//         ['teacher1@school.com', '123456', '1234567890123', 'นาย', 'เรียนดี', 'มีชัย', 'ครู', 'ครูชำนาญการ', 'วิทยาศาสตร์และเทคโนโลยี', 'teacher']
-//     ];
-//     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-//     ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 20 }, { wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 25 }, { wch: 25 }, { wch: 35 }, { wch: 20 }];
-//     const wb = XLSX.utils.book_new();
-//     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อบุคลากร");
-//     XLSX.writeFile(wb, "ต้นแบบนำเข้าบุคลากร.xlsx");
-// }
-
-// function showImportToolGuide() {
-//     Swal.fire({
-//         title: 'ระบบรักษาความปลอดภัย',
-//         html: `
-//             <div class="text-left text-sm text-gray-600 space-y-3 mt-2">
-//                 <p>เพื่อความปลอดภัยสูงสุดของฐานข้อมูลโรงเรียน การสร้างบัญชีครูคนใหม่จะไม่สามารถทำผ่านหน้าเว็บส่วนกลางได้โดยตรงครับ</p>
-//                 <div class="bg-blue-50 p-4 rounded-xl border border-blue-200">
-//                     <p class="font-bold text-blue-800 mb-2"><i class="fa-solid fa-lightbulb text-yellow-500 mr-1"></i> ขั้นตอนการเพิ่มครูคนใหม่:</p>
-//                     <ol class="list-decimal ml-5 space-y-1 text-blue-900 font-medium">
-//                         <li>กดปุ่ม <b>"โหลดไฟล์ต้นแบบ"</b> และกรอกข้อมูลครู</li>
-//                         <li>เปิดไฟล์ <b class="text-red-600 bg-white px-1 rounded">import_tool.html</b> (Ninja Bypass) ที่อยู่ในเครื่องของคุณ</li>
-//                         <li>อัปโหลดไฟล์ Excel เข้าไปในเครื่องมือนั้น</li>
-//                         <li>เมื่อสร้างเสร็จ รายชื่อจะปรากฏในหน้านี้อัตโนมัติครับ</li>
-//                     </ol>
-//                 </div>
-//             </div>
-//         `,
-//         icon: 'info',
-//         confirmButtonText: 'เข้าใจแล้ว',
-//         confirmButtonColor: '#4f46e5'
-//     });
-// }
-
 function closePersonnelModal() { document.getElementById('personnelModal').classList.add('hidden'); }
 
 async function editPersonnel(id) {
@@ -602,8 +567,8 @@ async function loadClassrooms() {
                     </td>
                 </tr>`;
             }).join('');
-        } else { 
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลห้องเรียนในภาคเรียนปัจจุบัน</td></tr>'; 
+        } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลห้องเรียนในภาคเรียนปัจจุบัน</td></tr>';
         }
 
         $('#classroomsTable').DataTable({
@@ -617,13 +582,13 @@ async function loadClassrooms() {
 
 // เพิ่มฟังก์ชันโหลดรายชื่อครูกรณีจำเป็น
 async function ensurePersonnelListLoaded() {
-  if (globalPersonnelList.length === 0) {
-    const { data, error } = await db.from('core_personnel')
-      .select('id, first_name, last_name, department')
-      .order('first_name');
-    if (error) throw error;
-    globalPersonnelList = data || [];
-  }
+    if (globalPersonnelList.length === 0) {
+        const { data, error } = await db.from('core_personnel')
+            .select('id, first_name, last_name, department')
+            .order('first_name');
+        if (error) throw error;
+        globalPersonnelList = data || [];
+    }
 }
 
 // ==========================================
@@ -633,107 +598,107 @@ async function ensurePersonnelListLoaded() {
 // 🌟 Tom Select สำหรับ Modal ห้องเรียน
 // ==========================================
 function initAdviserSelect2() {
-  const adv1 = document.getElementById('c_adv1');
-  const adv2 = document.getElementById('c_adv2');
-  // ลบ instance เดิมถ้ามี
-  if (adv1.tomselect) adv1.tomselect.destroy();
-  if (adv2.tomselect) adv2.tomselect.destroy();
+    const adv1 = document.getElementById('c_adv1');
+    const adv2 = document.getElementById('c_adv2');
+    // ลบ instance เดิมถ้ามี
+    if (adv1.tomselect) adv1.tomselect.destroy();
+    if (adv2.tomselect) adv2.tomselect.destroy();
 
-  new TomSelect(adv1, {
-    placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
-    allowEmptyOption: true,
-    render: {
-      no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
-    }
-  });
-  new TomSelect(adv2, {
-    placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
-    allowEmptyOption: true,
-    render: {
-      no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
-    }
-  });
+    new TomSelect(adv1, {
+        placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
+        allowEmptyOption: true,
+        render: {
+            no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
+        }
+    });
+    new TomSelect(adv2, {
+        placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู --',
+        allowEmptyOption: true,
+        render: {
+            no_results: function () { return '<div class="no-results">ไม่พบครู</div>'; }
+        }
+    });
 }
 
 // เปิด Modal เพิ่มห้องเรียนใหม่
 async function openClassModal() {
-  currentEditClassId = null;
-  document.getElementById('classForm').reset();
-  document.getElementById('modalClassTitle').innerHTML = 'เพิ่มห้องเรียนใหม่';
+    currentEditClassId = null;
+    document.getElementById('classForm').reset();
+    document.getElementById('modalClassTitle').innerHTML = 'เพิ่มห้องเรียนใหม่';
 
-  try {
-    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading() });
-    await ensurePersonnelListLoaded();
-    Swal.close();
-  } catch (err) {
-    Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดรายชื่อครูได้', 'error');
-    return;
-  }
+    try {
+        Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading() });
+        await ensurePersonnelListLoaded();
+        Swal.close();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดรายชื่อครูได้', 'error');
+        return;
+    }
 
-  // สร้าง options สำหรับ select
-  const adv1El = document.getElementById('c_adv1');
-  const adv2El = document.getElementById('c_adv2');
-  let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
-  globalPersonnelList.forEach(p => {
-    options += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || ''})</option>`;
-  });
-  adv1El.innerHTML = options;
-  adv2El.innerHTML = options;
+    // สร้าง options สำหรับ select
+    const adv1El = document.getElementById('c_adv1');
+    const adv2El = document.getElementById('c_adv2');
+    let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
+    globalPersonnelList.forEach(p => {
+        options += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || ''})</option>`;
+    });
+    adv1El.innerHTML = options;
+    adv2El.innerHTML = options;
 
-  document.getElementById('c_year').value = (new Date().getFullYear() + 543).toString();
-  document.getElementById('c_term').value = '1';
-  document.getElementById('classroomModal').classList.remove('hidden');
+    document.getElementById('c_year').value = (new Date().getFullYear() + 543).toString();
+    document.getElementById('c_term').value = '1';
+    document.getElementById('classroomModal').classList.remove('hidden');
 
-  initAdviserSelect2(); // สร้าง Tom Select
-  // Clear ค่าเริ่มต้น
-  adv1El.tomselect?.clear();
-  adv2El.tomselect?.clear();
+    initAdviserSelect2(); // สร้าง Tom Select
+    // Clear ค่าเริ่มต้น
+    adv1El.tomselect?.clear();
+    adv2El.tomselect?.clear();
 }
 
 // แก้ไขห้องเรียน
 async function editClassroom(id, year, semester, grade, room, plan, adv1, adv2) {
-  currentEditClassId = id;
-  document.getElementById('modalClassTitle').innerHTML = 'แก้ไขห้องเรียน';
+    currentEditClassId = id;
+    document.getElementById('modalClassTitle').innerHTML = 'แก้ไขห้องเรียน';
 
-  try {
-    Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
-    await ensurePersonnelListLoaded();
-    Swal.close();
-  } catch (err) {
-    Swal.fire('ผิดพลาด', err.message, 'error');
-    return;
-  }
+    try {
+        Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
+        await ensurePersonnelListLoaded();
+        Swal.close();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+        return;
+    }
 
-  const adv1El = document.getElementById('c_adv1');
-  const adv2El = document.getElementById('c_adv2');
-  let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
-  globalPersonnelList.forEach(p => {
-    options += `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`;
-  });
-  adv1El.innerHTML = options;
-  adv2El.innerHTML = options;
+    const adv1El = document.getElementById('c_adv1');
+    const adv2El = document.getElementById('c_adv2');
+    let options = '<option value="">-- ไม่ระบุครูที่ปรึกษา --</option>';
+    globalPersonnelList.forEach(p => {
+        options += `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`;
+    });
+    adv1El.innerHTML = options;
+    adv2El.innerHTML = options;
 
-  document.getElementById('c_year').value = year;
-  document.getElementById('c_term').value = semester || '1';
-  document.getElementById('c_grade').value = grade;
-  document.getElementById('c_room').value = room;
-  document.getElementById('c_plan').value = plan;
-  document.getElementById('classroomModal').classList.remove('hidden');
+    document.getElementById('c_year').value = year;
+    document.getElementById('c_term').value = semester || '1';
+    document.getElementById('c_grade').value = grade;
+    document.getElementById('c_room').value = room;
+    document.getElementById('c_plan').value = plan;
+    document.getElementById('classroomModal').classList.remove('hidden');
 
-  initAdviserSelect2(); // สร้าง Tom Select พร้อมตัวเลือก
-  // ตั้งค่าเดิม
-  if (adv1) adv1El.tomselect?.setValue(adv1);
-  else adv1El.tomselect?.clear();
-  if (adv2) adv2El.tomselect?.setValue(adv2);
-  else adv2El.tomselect?.clear();
+    initAdviserSelect2(); // สร้าง Tom Select พร้อมตัวเลือก
+    // ตั้งค่าเดิม
+    if (adv1) adv1El.tomselect?.setValue(adv1);
+    else adv1El.tomselect?.clear();
+    if (adv2) adv2El.tomselect?.setValue(adv2);
+    else adv2El.tomselect?.clear();
 }
 
 function closeClassModal() {
-  document.getElementById('classroomModal').classList.add('hidden');
-  const adv1 = document.getElementById('c_adv1');
-  const adv2 = document.getElementById('c_adv2');
-  if (adv1?.tomselect) adv1.tomselect.destroy();
-  if (adv2?.tomselect) adv2.tomselect.destroy();
+    document.getElementById('classroomModal').classList.add('hidden');
+    const adv1 = document.getElementById('c_adv1');
+    const adv2 = document.getElementById('c_adv2');
+    if (adv1?.tomselect) adv1.tomselect.destroy();
+    if (adv2?.tomselect) adv2.tomselect.destroy();
 }
 
 // บันทึกห้องเรียน
@@ -834,6 +799,10 @@ async function loadStudents() {
             scrollX: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 50,
+            lengthMenu: [
+                [5, 10, 25, 50, -1],
+                [5, 10, 25, 50, "ทั้งหมด"],
+            ],
             columnDefs: [{ orderable: false, targets: [0, 5] }],
             destroy: true
         });
@@ -1020,86 +989,141 @@ async function processImportStudents(event) {
     const file = event.target.files[0];
     if (!file || !classId) return;
 
-    Swal.fire({ title: 'กำลังนำเข้ารายชื่อ...', html: 'ระบบกำลังประมวลผลแยกข้อมูล<br><span class="text-sm text-red-500">*ห้ามปิดหน้าต่างนี้*</span>', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+        title: 'กำลังนำเข้ารายชื่อ...',
+        html: 'ระบบกำลังประมวลผลแยกข้อมูล<br><span class="text-sm text-red-500">*ห้ามปิดหน้าต่างนี้*</span>',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
     const reader = new FileReader();
     reader.onload = async function (e) {
         try {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
+            let rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
 
+            // 🌟 เพิ่มโค้ดส่วนนี้: กรองและแปลงเลขประชาชนก่อนส่งเข้าฐานข้อมูล
+            rows = rows.map(row => {
+                // รองรับทั้งหัวคอลัมน์แบบภาษาไทยและภาษาอังกฤษ
+                let rawNationalId = row['เลขประจำตัวประชาชน'] || row.national_id || '';
+                rawNationalId = String(rawNationalId).trim();
+
+                // หากไม่มีข้อมูล หรือกรอก 9999999999999 มา ให้บังคับเป็น null
+                if (rawNationalId === '' || rawNationalId === '-' || rawNationalId === '9999999999999') {
+                    row['เลขประจำตัวประชาชน'] = null;
+                    row.national_id = null;
+                } else {
+                    // ถ้ามีเลข ปชช จริง ให้เก็บเป็น String ที่ไม่มีช่องว่าง
+                    row['เลขประจำตัวประชาชน'] = rawNationalId;
+                    row.national_id = rawNationalId;
+                }
+
+                return row;
+            });
+            // 🌟 สิ้นสุดการเพิ่มโค้ด
+
+            // ส่งข้อมูลที่ถูกแปลงค่า (null) เรียบร้อยแล้วไปบันทึก
             await insertStudentDataToDB(rows, classId);
             event.target.value = '';
-        } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error'); event.target.value = ''; }
+        } catch (err) {
+            Swal.fire('เกิดข้อผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error');
+            event.target.value = '';
+        }
     };
     reader.readAsArrayBuffer(file);
 }
 
 // นำเข้าผ่าน Google Sheet (รองรับ CORS และแก้ปัญหา column encoding)
+// นำเข้าผ่าน Google Sheet (รองรับไฟล์รวมนักเรียนทั้งโรงเรียน แยกตามห้องได้)
 async function triggerImportGoogleSheet() {
     const classId = document.getElementById('filterStudentClass').value;
-    if (!classId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนทำการดึงข้อมูล', 'warning');
+    if (!classId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือก "ห้องเรียนปลายทาง" ในระบบก่อนทำการดึงข้อมูล', 'warning');
 
-    const { value: url } = await Swal.fire({
+    const { value: formValues } = await Swal.fire({
         title: 'ดึงข้อมูลจาก Google Sheet',
         html: `
             <div class="text-sm text-left text-gray-600 mb-4 space-y-2 bg-green-50 p-4 rounded-xl border border-green-200">
-                <p class="font-bold text-green-800"><i class="fa-solid fa-circle-info"></i> ขั้นตอนการดึงข้อมูล:</p>
+                <p class="font-bold text-green-800"><i class="fa-solid fa-circle-info"></i> วิธีดึงจากไฟล์รวม (Database เดียว):</p>
                 <ol class="list-decimal ml-5 space-y-1">
-                    <li>จัดหัวคอลัมน์ใน Sheet ให้เหมือนไฟล์ Excel ต้นแบบ</li>
-                    <li>กดปุ่ม Share (แชร์) มุมขวาบนใน Google Sheet</li>
-                    <li>ตั้งค่าการเข้าถึงเป็น <b>"Anyone with the link (ทุกคนที่มีลิงก์)"</b></li>
-                    <li>คัดลอกลิงก์นั้นมาวางในช่องด้านล่างนี้ครับ</li>
+                    <li>วางลิงก์ไฟล์ Google Sheet (แบบ Anyone with the link)</li>
+                    <li>ในไฟล์ Sheet ต้องมีคอลัมน์ชื่อ <b>"ห้อง"</b> หรือ <b>"ห้องเรียน"</b></li>
+                    <li>พิมพ์ระบุชื่อห้องที่ต้องการนำเข้า (เพื่อให้ระบบกรองเฉพาะห้องนี้)</li>
                 </ol>
             </div>
-            <input id="swal-gsheet-url" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-green-500 font-medium" placeholder="https://docs.google.com/spreadsheets/d/...">
+            <input id="swal-gsheet-url" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3 outline-none focus:border-green-500 font-medium" placeholder="วางลิงก์ Google Sheet ที่นี่...">
+            <input id="swal-gsheet-room" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-blue-500 font-medium" placeholder="ตัวกรอง: เช่น 1/1, ม.1/1 (ปล่อยว่างเท่านำเข้าทั้งหมด)">
         `,
         focusConfirm: false,
         showCancelButton: true,
         confirmButtonColor: '#0f9d58',
-        confirmButtonText: '<i class="fa-solid fa-cloud-arrow-down mr-1"></i> ดึงข้อมูลเลย',
+        confirmButtonText: '<i class="fa-solid fa-filter"></i> ดึงและกรองข้อมูล',
         cancelButtonText: 'ยกเลิก',
         preConfirm: () => {
-            const link = document.getElementById('swal-gsheet-url').value.trim();
-            if (!link) Swal.showValidationMessage('กรุณาวางลิงก์ Google Sheet ก่อนครับ');
-            return link;
+            const url = document.getElementById('swal-gsheet-url').value.trim();
+            const roomFilter = document.getElementById('swal-gsheet-room').value.trim();
+            if (!url) Swal.showValidationMessage('กรุณาวางลิงก์ Google Sheet ก่อนครับ');
+            return { url, roomFilter };
         }
     });
 
-    if (url) {
-        Swal.fire({ title: 'กำลังดึงข้อมูลจาก Google Sheet...', html: 'กรุณารอสักครู่ ระบบกำลังดึงและแปลงข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    if (formValues && formValues.url) {
+        Swal.fire({ title: 'กำลังดึงและกรองข้อมูล...', html: 'กรุณารอสักครู่ ระบบกำลังค้นหาห้องที่คุณระบุ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         try {
-            const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
+            const match = formValues.url.match(/\/d\/([a-zA-Z0-9-_]+)/);
             if (!match) throw new Error("รูปแบบลิงก์ Google Sheet ไม่ถูกต้องครับ");
             const sheetId = match[1];
 
-            // 🌟 1. ใช้ API ลับของ Google เพื่อทะลวงบล็อก CORS
+            // 1. ดึงข้อมูล CSV
             const csvUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
-
             const response = await fetch(csvUrl);
-            if (!response.ok) throw new Error("ไม่สามารถเข้าถึงไฟล์ได้ (โปรดตรวจสอบว่าตั้ง Share เป็น Anyone with the link แล้ว)");
-
+            if (!response.ok) throw new Error("ไม่สามารถเข้าถึงไฟล์ได้ (โปรดตรวจสอบว่าเปิดแชร์ Anyone with the link แล้ว)");
             const csvText = await response.text();
 
-            // 🌟 2. แปลงข้อความ CSV เป็นตารางข้อมูล
+            // 2. แปลงข้อความ CSV เป็นตาราง
             const workbook = XLSX.read(csvText, { type: 'string' });
             const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]]);
-
             if (!rawRows || rawRows.length === 0) throw new Error("ไม่พบข้อมูลใน Google Sheet หรือรูปแบบตารางไม่ถูกต้อง");
 
-            // 🌟 3. ล้างช่องว่างในชื่อหัวคอลัมน์ให้สะอาดหมดจด
-            const rows = rawRows.map(row => {
+            // 3. ล้างหัวคอลัมน์และกรองเลข ปชช. (เหมือนเดิม)
+            let rows = rawRows.map(row => {
                 let cleanRow = {};
                 for (let key in row) {
-                    // กำจัดช่องว่างที่หัวคอลัมน์และตัดเครื่องหมายคำพูด (ถ้ามี)
                     const cleanKey = key.replace(/"/g, '').trim();
                     cleanRow[cleanKey] = row[key];
+                }
+
+                let rawNationalId = cleanRow['เลขประจำตัวประชาชน'] || cleanRow.national_id || '';
+                rawNationalId = String(rawNationalId).trim();
+
+                if (rawNationalId === '' || rawNationalId === '-' || rawNationalId === '9999999999999') {
+                    cleanRow['เลขประจำตัวประชาชน'] = null;
+                    cleanRow.national_id = null;
+                } else {
+                    cleanRow['เลขประจำตัวประชาชน'] = rawNationalId;
+                    cleanRow.national_id = rawNationalId;
                 }
                 return cleanRow;
             });
 
+            // 🌟 4. จุดที่เพิ่มเข้ามา: กรองข้อมูลเฉพาะห้องที่ระบุ
+            if (formValues.roomFilter) {
+                rows = rows.filter(row => {
+                    // รองรับหัวคอลัมน์ที่อาจจะตั้งชื่อว่า ห้อง, ห้องเรียน, หรือ ชั้นเรียน
+                    const sheetRoom = row['ห้อง'] || row['ห้องเรียน'] || row['ชั้นเรียน'] || row['room'] || '';
+                    return String(sheetRoom).trim() === formValues.roomFilter;
+                });
+
+                if (rows.length === 0) {
+                    throw new Error(`ไม่พบรายชื่อนักเรียนห้อง "${formValues.roomFilter}" ในไฟล์เลยครับ (เช็กชื่อคอลัมน์ใน Sheet ว่าตั้งเป็น "ห้อง" หรือไม่)`);
+                }
+            }
+
+            // 5. ส่งข้อมูลที่กรองแล้วเข้าฐานข้อมูล
             await insertStudentDataToDB(rows, classId);
+
+            // แจ้งเตือนความสำเร็จพร้อมบอกจำนวน
+            Swal.fire('นำเข้าสำเร็จ!', `ดึงรายชื่อนักเรียนห้อง ${formValues.roomFilter || 'ทั้งหมด'} จำนวน ${rows.length} คน เรียบร้อยแล้ว`, 'success');
 
         } catch (err) {
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -1436,8 +1460,8 @@ async function searchGlobalStudents(keyword) {
                     valueField: 'value',
                     labelField: 'text',
                     searchField: ['text'],
-                    placeholder: currentRoomId 
-                        ? '-- ถอดออกจากห้อง --' 
+                    placeholder: currentRoomId
+                        ? '-- ถอดออกจากห้อง --'
                         : '-- เลือกห้องเพื่อเพิ่ม --',
                     allowEmptyOption: true, // ให้มีค่าว่างได้
                     create: false,
@@ -1938,15 +1962,15 @@ async function loadStudentModules() {
                         const id = row.getAttribute('data-id');
                         if (id) updates.push({ id: id, display_order: index + 1 });
                     });
-                    
+
                     // นำลำดับใหม่ไปบันทึกลง Database
                     for (let u of updates) {
                         await db.from('student_portal_modules')
-                                .update({ display_order: u.display_order })
-                                .eq('id', u.id);
+                            .update({ display_order: u.display_order })
+                            .eq('id', u.id);
                     }
                     // รีโหลดตารางให้แสดงผลข้อมูลที่ถูกต้อง
-                    loadStudentModules(); 
+                    loadStudentModules();
                 }
             });
 
@@ -2068,16 +2092,16 @@ const DEPARTMENTS = [
 // 🌟 Tom Select สำหรับ Modal แต่งตั้งหัวหน้ากลุ่มสาระ
 // ==========================================
 async function openDeptHeadModal() {
-  const container = document.getElementById('dept_heads_container');
-  container.innerHTML = '';
+    const container = document.getElementById('dept_heads_container');
+    container.innerHTML = '';
 
-  let optionsHtml = '<option value="">-- ไม่ระบุ / ว่าง --</option>';
-  globalPersonnelList.forEach(p => {
-    optionsHtml += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || 'ไม่ระบุ'})</option>`;
-  });
+    let optionsHtml = '<option value="">-- ไม่ระบุ / ว่าง --</option>';
+    globalPersonnelList.forEach(p => {
+        optionsHtml += `<option value="${p.id}">${p.first_name} ${p.last_name} (${p.department || 'ไม่ระบุ'})</option>`;
+    });
 
-  DEPARTMENTS.forEach(dept => {
-    container.innerHTML += `
+    DEPARTMENTS.forEach(dept => {
+        container.innerHTML += `
       <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
         <label class="block text-sm font-bold text-gray-800 mb-2">
           <i class="fa-solid fa-layer-group text-blue-500 mr-1"></i> ${dept.name}
@@ -2087,43 +2111,43 @@ async function openDeptHeadModal() {
         </select>
       </div>
     `;
-  });
-
-  document.getElementById('deptHeadModal').classList.remove('hidden');
-  Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
-
-  try {
-    const { data, error } = await db.from('core_department_heads').select('*');
-    if (!error && data) {
-      data.forEach(row => {
-        const select = document.getElementById(row.department_id);
-        if (select) select.value = row.personnel_id;
-      });
-    }
-
-    // เริ่มต้น Tom Select ทุกอัน
-    document.querySelectorAll('.select2-dept-head').forEach(el => {
-      new TomSelect(el, {
-        placeholder: 'พิมพ์เพื่อค้นหาชื่อครู...',
-        allowEmptyOption: true,
-        render: {
-          no_results: function () { return 'ไม่พบครู'; }
-        }
-      });
     });
 
-    Swal.close();
-  } catch (err) {
-    console.error(err);
-    Swal.fire('ผิดพลาด', err.message, 'error');
-  }
+    document.getElementById('deptHeadModal').classList.remove('hidden');
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
+
+    try {
+        const { data, error } = await db.from('core_department_heads').select('*');
+        if (!error && data) {
+            data.forEach(row => {
+                const select = document.getElementById(row.department_id);
+                if (select) select.value = row.personnel_id;
+            });
+        }
+
+        // เริ่มต้น Tom Select ทุกอัน
+        document.querySelectorAll('.select2-dept-head').forEach(el => {
+            new TomSelect(el, {
+                placeholder: 'พิมพ์เพื่อค้นหาชื่อครู...',
+                allowEmptyOption: true,
+                render: {
+                    no_results: function () { return 'ไม่พบครู'; }
+                }
+            });
+        });
+
+        Swal.close();
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 }
 
 function closeDeptHeadModal() {
-  document.getElementById('deptHeadModal').classList.add('hidden');
-  document.querySelectorAll('.select2-dept-head').forEach(el => {
-    if (el.tomselect) el.tomselect.destroy();
-  });
+    document.getElementById('deptHeadModal').classList.add('hidden');
+    document.querySelectorAll('.select2-dept-head').forEach(el => {
+        if (el.tomselect) el.tomselect.destroy();
+    });
 }
 
 async function saveDeptHeads(e) {
@@ -2134,10 +2158,10 @@ async function saveDeptHeads(e) {
     DEPARTMENTS.forEach(dept => {
         const selectVal = document.getElementById(dept.id).value;
         if (selectVal) {
-            updates.push({ 
-                department_id: dept.id, 
-                department_name: dept.name, 
-                personnel_id: selectVal 
+            updates.push({
+                department_id: dept.id,
+                department_name: dept.name,
+                personnel_id: selectVal
             });
         }
     });
@@ -2170,7 +2194,7 @@ let tsDiscModal = null;
 async function openGradeHeadModal() {
     document.getElementById('gradeHeadModal').classList.remove('hidden');
     document.getElementById('gradeHeadModal').classList.add('flex');
-    
+
     // โหลดรายชื่อใส่ Tom Select (ทำครั้งเดียว)
     if (!tsGradeModal) {
         const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
@@ -2208,7 +2232,7 @@ async function assignGradeHead() {
 
     const { error } = await db.from('behavior_grade_heads').insert({ teacher_id: userId, grade_level: parseInt(level) });
     if (error) return Swal.fire('ผิดพลาด', 'ระดับชั้นนี้มีหัวหน้าอยู่แล้วครับ', 'error');
-    
+
     tsGradeModal.clear();
     renderGradeHeadsList();
     Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1000, showConfirmButton: false });
@@ -2218,7 +2242,7 @@ async function assignGradeHead() {
 async function openDisciplineHeadModal() {
     document.getElementById('disciplineHeadModal').classList.remove('hidden');
     document.getElementById('disciplineHeadModal').classList.add('flex');
-    
+
     if (!tsDiscModal) {
         const { data: personnel } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
         tsDiscModal = new TomSelect('#modal_select_discipline_head_user', {
@@ -2266,13 +2290,13 @@ async function assignDisciplineHead() {
 
 // ฟังก์ชันลบสิทธิ์
 async function removeGradeHead(id) {
-    if(!confirm('ยืนยันการลบสิทธิ์?')) return;
+    if (!confirm('ยืนยันการลบสิทธิ์?')) return;
     await db.from('behavior_grade_heads').delete().eq('id', id);
     renderGradeHeadsList();
 }
 
 async function removeDisciplineHead(id) {
-    if(!confirm('ยืนยันการลบสิทธิ์?')) return;
+    if (!confirm('ยืนยันการลบสิทธิ์?')) return;
     await db.from('core_discipline_heads').delete().eq('id', id);
     renderDisciplineHeadsList();
 }
@@ -2285,9 +2309,9 @@ let isSidebarCollapsed = false;
 function toggleSidebar() {
     const sidebar = document.getElementById('sidebar');
     const texts = document.querySelectorAll('.sidebar-text');
-    
+
     isSidebarCollapsed = !isSidebarCollapsed;
-    
+
     if (isSidebarCollapsed) {
         sidebar.classList.remove('w-64');
         sidebar.classList.add('w-20'); // ขนาดตอนย่อ
@@ -2306,16 +2330,16 @@ function toggleThemeManually() {
     const html = document.documentElement;
     const isDark = html.classList.contains('dark');
     const newTheme = isDark ? 'light' : 'dark';
-    
+
     changeTheme(newTheme);
 }
 
 function changeTheme(theme) {
     const html = document.documentElement;
     const btnIcon = document.querySelector('#theme-toggle-btn i');
-    
+
     html.classList.add('theme-transitioning');
-    
+
     if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
         html.classList.add('dark');
         if (btnIcon) {
@@ -2329,7 +2353,7 @@ function changeTheme(theme) {
             btnIcon.classList.add('fa-moon'); // คืนค่าเป็นพระจันทร์
         }
     }
-    
+
     setTimeout(() => html.classList.remove('theme-transitioning'), 80);
     localStorage.setItem('super_admin_theme', theme);
 }
@@ -2346,66 +2370,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Sync color inputs: Micro-service form ---
-    const msBgColor  = document.getElementById('ms_icon_bg');
-    const msBgText   = document.getElementById('ms_icon_bg_text');
+    const msBgColor = document.getElementById('ms_icon_bg');
+    const msBgText = document.getElementById('ms_icon_bg_text');
     const msTextColor = document.getElementById('ms_icon_text');
-    const msTextText  = document.getElementById('ms_icon_text_text');
+    const msTextText = document.getElementById('ms_icon_text_text');
     if (msBgColor && msBgText) {
-        msBgColor.addEventListener('input',  () => { msBgText.value = msBgColor.value; });
-        msBgText.addEventListener('input',   () => { if (/^#[0-9A-Fa-f]{6}$/.test(msBgText.value)) msBgColor.value = msBgText.value; });
+        msBgColor.addEventListener('input', () => { msBgText.value = msBgColor.value; });
+        msBgText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(msBgText.value)) msBgColor.value = msBgText.value; });
     }
     if (msTextColor && msTextText) {
         msTextColor.addEventListener('input', () => { msTextText.value = msTextColor.value; });
-        msTextText.addEventListener('input',  () => { if (/^#[0-9A-Fa-f]{6}$/.test(msTextText.value)) msTextColor.value = msTextText.value; });
+        msTextText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(msTextText.value)) msTextColor.value = msTextText.value; });
     }
 
     // --- Sync color inputs: Student module form ---
-    const smBgColor  = document.getElementById('sm_icon_bg');
-    const smBgText   = document.getElementById('sm_icon_bg_text');
+    const smBgColor = document.getElementById('sm_icon_bg');
+    const smBgText = document.getElementById('sm_icon_bg_text');
     const smTextColor = document.getElementById('sm_icon_text');
-    const smTextText  = document.getElementById('sm_icon_text_text');
+    const smTextText = document.getElementById('sm_icon_text_text');
     if (smBgColor && smBgText) {
-        smBgColor.addEventListener('input',  () => { smBgText.value = smBgColor.value; });
-        smBgText.addEventListener('input',   () => { if (/^#[0-9A-Fa-f]{6}$/.test(smBgText.value)) smBgColor.value = smBgText.value; });
+        smBgColor.addEventListener('input', () => { smBgText.value = smBgColor.value; });
+        smBgText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(smBgText.value)) smBgColor.value = smBgText.value; });
     }
     if (smTextColor && smTextText) {
         smTextColor.addEventListener('input', () => { smTextText.value = smTextColor.value; });
-        smTextText.addEventListener('input',  () => { if (/^#[0-9A-Fa-f]{6}$/.test(smTextText.value)) smTextColor.value = smTextText.value; });
+        smTextText.addEventListener('input', () => { if (/^#[0-9A-Fa-f]{6}$/.test(smTextText.value)) smTextColor.value = smTextText.value; });
     }
 });
 
 async function openRoomStudentOrder(classroomId) {
-  // 1. โหลดข้อมูลนักเรียนในห้อง
-  const { data: enrollments, error } = await db
-    .from('student_enrollments')
-    .select(`
+    // 1. โหลดข้อมูลนักเรียนในห้อง
+    const { data: enrollments, error } = await db
+        .from('student_enrollments')
+        .select(`
       id,
       class_order,
       core_students ( id, student_id_card, first_name, last_name )
     `)
-    .eq('core_classroom_id', classroomId)
-    .order('class_order', { ascending: true, nullsFirst: false });
+        .eq('core_classroom_id', classroomId)
+        .order('class_order', { ascending: true, nullsFirst: false });
 
-  if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
-  if (!enrollments || enrollments.length === 0) {
-    return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'info');
-  }
+    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+    if (!enrollments || enrollments.length === 0) {
+        return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'info');
+    }
 
-  // 2. สร้าง HTML ตาราง
-  let rowsHtml = '';
-  enrollments.forEach((enr, idx) => {
-    const s = enr.core_students;
-    const order = enr.class_order ?? idx + 1;
-    rowsHtml += `
+    // 2. สร้าง HTML ตาราง
+    let rowsHtml = '';
+    enrollments.forEach((enr, idx) => {
+        const s = enr.core_students;
+        const order = enr.class_order ?? idx + 1;
+        rowsHtml += `
       <tr data-enrollment-id="${enr.id}" class="sortable-row bg-white hover:bg-gray-50 cursor-grab active:cursor-grabbing">
         <td class="p-2 border text-center font-mono font-bold text-indigo-600 order-number">${order}</td>
         <td class="p-2 border">${s.student_id_card}</td>
         <td class="p-2 border">${s.first_name} ${s.last_name}</td>
         <td class="p-2 border text-center text-gray-400"><i class="fas fa-grip-vertical"></i></td>
       </tr>`;
-  });
+    });
 
-  const html = `
+    const html = `
     <div class="text-sm text-gray-500 mb-2">🖱️ ลากแถวเพื่อจัดลำดับ เลขที่จะอัปเดตอัตโนมัติ</div>
     <div class="overflow-auto max-h-[60vh]">
       <table class="w-full border-collapse bg-white" id="sortable-table">
@@ -2421,101 +2445,101 @@ async function openRoomStudentOrder(classroomId) {
       </table>
     </div>`;
 
-  // 3. แสดง SweetAlert2 และตั้งค่า Sortable ใน didOpen
-  const { isConfirmed } = await Swal.fire({
-    title: 'จัดลำดับเลขที่นักเรียน',
-    html,
-    width: '700px',
-    showCancelButton: true,
-    confirmButtonText: '<i class="fas fa-save"></i> บันทึกเลขที่',
-    cancelButtonText: 'ปิด',
-    didOpen: () => {
-      const tbody = document.querySelector('#sortable-table tbody');
-      if (!tbody) return;
+    // 3. แสดง SweetAlert2 และตั้งค่า Sortable ใน didOpen
+    const { isConfirmed } = await Swal.fire({
+        title: 'จัดลำดับเลขที่นักเรียน',
+        html,
+        width: '700px',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save"></i> บันทึกเลขที่',
+        cancelButtonText: 'ปิด',
+        didOpen: () => {
+            const tbody = document.querySelector('#sortable-table tbody');
+            if (!tbody) return;
 
-      // ทำให้ tbody ลากได้
-      new Sortable(tbody, {
-        animation: 150,
-        handle: '.sortable-row', // ลากได้ทั้งแถว (หรือจะใช้เฉพาะ icon ก็เปลี่ยนเป็น '.fa-grip-vertical')
-        onEnd: function () {
-          // หลังจากลากเสร็จ -> คำนวณเลขที่ใหม่ให้ทุกแถว
-          updateOrderNumbers();
+            // ทำให้ tbody ลากได้
+            new Sortable(tbody, {
+                animation: 150,
+                handle: '.sortable-row', // ลากได้ทั้งแถว (หรือจะใช้เฉพาะ icon ก็เปลี่ยนเป็น '.fa-grip-vertical')
+                onEnd: function () {
+                    // หลังจากลากเสร็จ -> คำนวณเลขที่ใหม่ให้ทุกแถว
+                    updateOrderNumbers();
+                }
+            });
+        },
+        preConfirm: () => {
+            // 4. รวบรวมลำดับใหม่จาก DOM และบันทึกลง Supabase
+            const rows = document.querySelectorAll('#sortable-table tbody tr');
+            const updates = [];
+
+            rows.forEach((row, index) => {
+                const enrollmentId = row.dataset.enrollmentId;
+                const newOrder = index + 1; // ลำดับใหม่ 1,2,3,...
+                updates.push(
+                    db.from('student_enrollments')
+                        .update({ class_order: newOrder })
+                        .eq('id', enrollmentId)
+                );
+            });
+
+            return Promise.all(updates)
+                .then(() => true)
+                .catch(err => {
+                    Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${err.message}`);
+                    return false;
+                });
         }
-      });
-    },
-    preConfirm: () => {
-      // 4. รวบรวมลำดับใหม่จาก DOM และบันทึกลง Supabase
-      const rows = document.querySelectorAll('#sortable-table tbody tr');
-      const updates = [];
+    });
 
-      rows.forEach((row, index) => {
-        const enrollmentId = row.dataset.enrollmentId;
-        const newOrder = index + 1; // ลำดับใหม่ 1,2,3,...
-        updates.push(
-          db.from('student_enrollments')
-            .update({ class_order: newOrder })
-            .eq('id', enrollmentId)
-        );
-      });
-
-      return Promise.all(updates)
-        .then(() => true)
-        .catch(err => {
-          Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${err.message}`);
-          return false;
-        });
+    if (isConfirmed) {
+        Swal.fire('สำเร็จ', 'บันทึกลำดับเลขที่เรียบร้อย', 'success');
     }
-  });
-
-  if (isConfirmed) {
-    Swal.fire('สำเร็จ', 'บันทึกลำดับเลขที่เรียบร้อย', 'success');
-  }
 }
 
 // ฟังก์ชันช่วย: อัปเดตตัวเลขแสดงผลในแถวหลังจากลาก (สำหรับ openRoomStudentOrder เดิม)
 function updateOrderNumbers() {
-  const rows = document.querySelectorAll('#sortable-table tbody tr');
-  rows.forEach((row, i) => {
-    const orderCell = row.querySelector('.order-number');
-    if (orderCell) orderCell.textContent = i + 1;
-  });
+    const rows = document.querySelectorAll('#sortable-table tbody tr');
+    rows.forEach((row, i) => {
+        const orderCell = row.querySelector('.order-number');
+        if (orderCell) orderCell.textContent = i + 1;
+    });
 }
 
 // ====================================================================
 // จัดลำดับเลขที่นักเรียน (ลาก-วาง) — อัปเดต student_number จริง
 // ====================================================================
 async function openStudentNumberReorder() {
-  const classId = document.getElementById('filterStudentClass').value;
-  const classSelect = document.getElementById('filterStudentClass');
-  const className = classSelect.options[classSelect.selectedIndex]?.text || '';
+    const classId = document.getElementById('filterStudentClass').value;
+    const classSelect = document.getElementById('filterStudentClass');
+    const className = classSelect.options[classSelect.selectedIndex]?.text || '';
 
-  if (!classId) {
-    return Swal.fire({ icon: 'warning', title: 'กรุณาเลือกห้องเรียนก่อน', timer: 2000, showConfirmButton: false });
-  }
+    if (!classId) {
+        return Swal.fire({ icon: 'warning', title: 'กรุณาเลือกห้องเรียนก่อน', timer: 2000, showConfirmButton: false });
+    }
 
-  Swal.fire({ title: 'กำลังโหลดรายชื่อ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'กำลังโหลดรายชื่อ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-  const { data: enrollments, error } = await db
-    .from('student_enrollments')
-    .select(`id, student_number, status, core_students!inner(student_id_card, prefix, first_name, last_name)`)
-    .eq('classroom_id', classId)
-    .order('student_number', { ascending: true });
+    const { data: enrollments, error } = await db
+        .from('student_enrollments')
+        .select(`id, student_number, status, core_students!inner(student_id_card, prefix, first_name, last_name)`)
+        .eq('classroom_id', classId)
+        .order('student_number', { ascending: true });
 
-  if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
-  if (!enrollments || enrollments.length === 0) {
-    return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'info');
-  }
+    if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+    if (!enrollments || enrollments.length === 0) {
+        return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'info');
+    }
 
-  Swal.close();
+    Swal.close();
 
-  let rowsHtml = '';
-  enrollments.forEach((enr, idx) => {
-    const s = enr.core_students;
-    const num = enr.student_number ?? idx + 1;
-    const stBadge = enr.status === 'เรียนปกติ'
-      ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>'
-      : `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
-    rowsHtml += `
+    let rowsHtml = '';
+    enrollments.forEach((enr, idx) => {
+        const s = enr.core_students;
+        const num = enr.student_number ?? idx + 1;
+        const stBadge = enr.status === 'เรียนปกติ'
+            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>'
+            : `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
+        rowsHtml += `
       <tr data-enrollment-id="${enr.id}"
           class="reorder-row bg-white hover:bg-blue-50 border-b border-gray-100 cursor-grab active:cursor-grabbing transition-colors">
         <td class="p-2 text-center font-mono font-bold text-indigo-600 order-number w-12 select-none">${num}</td>
@@ -2526,9 +2550,9 @@ async function openStudentNumberReorder() {
           <i class="fas fa-grip-vertical"></i>
         </td>
       </tr>`;
-  });
+    });
 
-  const html = `
+    const html = `
     <div class="flex items-center gap-2 text-xs text-blue-700 mb-3 bg-blue-50 border border-blue-100 p-2.5 rounded-xl">
       <i class="fas fa-hand-pointer text-blue-500"></i>
       <span>ลากแถวขึ้น-ลงเพื่อจัดลำดับ — เลขที่จะอัปเดตอัตโนมัติ — กด <b>บันทึก</b> เพื่อยืนยัน</span>
@@ -2548,67 +2572,67 @@ async function openStudentNumberReorder() {
       </table>
     </div>`;
 
-  const { isConfirmed } = await Swal.fire({
-    title: `<span class="text-indigo-700"><i class="fas fa-sort-numeric-up-alt mr-2"></i>จัดลำดับเลขที่</span><span class="text-base font-normal text-gray-500 ml-2">${className}</span>`,
-    html,
-    width: '720px',
-    showCancelButton: true,
-    confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึกเลขที่',
-    cancelButtonText: 'ยกเลิก',
-    confirmButtonColor: '#4f46e5',
-    cancelButtonColor: '#6b7280',
-    showLoaderOnConfirm: true,
-    didOpen: () => {
-      const tbody = document.getElementById('reorder-student-tbody');
-      if (!tbody || typeof Sortable === 'undefined') return;
-      new Sortable(tbody, {
-        animation: 180,
-        ghostClass: 'opacity-30',
-        chosenClass: 'bg-indigo-50',
-        dragClass: 'shadow-lg',
-        handle: '.reorder-row',
-        onEnd: () => { _updateStudentOrderNumbers(); }
-      });
-    },
-    preConfirm: async () => {
-      const rows = document.querySelectorAll('#reorder-student-tbody tr');
-      const updates = Array.from(rows).map((row, index) =>
-        db.from('student_enrollments')
-          .update({ student_number: index + 1 })
-          .eq('id', row.dataset.enrollmentId)
-      );
-      try {
-        const results = await Promise.all(updates);
-        const failed = results.filter(r => r.error);
-        if (failed.length > 0) {
-          Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${failed[0].error.message}`);
-          return false;
-        }
-        return true;
-      } catch (err) {
-        Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
-        return false;
-      }
-    },
-    allowOutsideClick: () => !Swal.isLoading()
-  });
-
-  if (isConfirmed) {
-    await loadStudents();
-    Swal.fire({
-      icon: 'success',
-      title: 'บันทึกสำเร็จ',
-      text: 'อัปเดตลำดับเลขที่นักเรียนเรียบร้อยแล้ว',
-      timer: 2000,
-      showConfirmButton: false
+    const { isConfirmed } = await Swal.fire({
+        title: `<span class="text-indigo-700"><i class="fas fa-sort-numeric-up-alt mr-2"></i>จัดลำดับเลขที่</span><span class="text-base font-normal text-gray-500 ml-2">${className}</span>`,
+        html,
+        width: '720px',
+        showCancelButton: true,
+        confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึกเลขที่',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#4f46e5',
+        cancelButtonColor: '#6b7280',
+        showLoaderOnConfirm: true,
+        didOpen: () => {
+            const tbody = document.getElementById('reorder-student-tbody');
+            if (!tbody || typeof Sortable === 'undefined') return;
+            new Sortable(tbody, {
+                animation: 180,
+                ghostClass: 'opacity-30',
+                chosenClass: 'bg-indigo-50',
+                dragClass: 'shadow-lg',
+                handle: '.reorder-row',
+                onEnd: () => { _updateStudentOrderNumbers(); }
+            });
+        },
+        preConfirm: async () => {
+            const rows = document.querySelectorAll('#reorder-student-tbody tr');
+            const updates = Array.from(rows).map((row, index) =>
+                db.from('student_enrollments')
+                    .update({ student_number: index + 1 })
+                    .eq('id', row.dataset.enrollmentId)
+            );
+            try {
+                const results = await Promise.all(updates);
+                const failed = results.filter(r => r.error);
+                if (failed.length > 0) {
+                    Swal.showValidationMessage(`บันทึกไม่สำเร็จ: ${failed[0].error.message}`);
+                    return false;
+                }
+                return true;
+            } catch (err) {
+                Swal.showValidationMessage(`เกิดข้อผิดพลาด: ${err.message}`);
+                return false;
+            }
+        },
+        allowOutsideClick: () => !Swal.isLoading()
     });
-  }
+
+    if (isConfirmed) {
+        await loadStudents();
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกสำเร็จ',
+            text: 'อัปเดตลำดับเลขที่นักเรียนเรียบร้อยแล้ว',
+            timer: 2000,
+            showConfirmButton: false
+        });
+    }
 }
 
 // อัปเดตตัวเลขใน modal หลังจากลาก
 function _updateStudentOrderNumbers() {
-  document.querySelectorAll('#reorder-student-tbody tr').forEach((row, i) => {
-    const cell = row.querySelector('.order-number');
-    if (cell) cell.textContent = i + 1;
-  });
+    document.querySelectorAll('#reorder-student-tbody tr').forEach((row, i) => {
+        const cell = row.querySelector('.order-number');
+        if (cell) cell.textContent = i + 1;
+    });
 }

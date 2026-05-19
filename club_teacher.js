@@ -111,19 +111,19 @@ window.toggleRoleView = () => {
         adminView.classList.replace('hidden', 'block');
         btnIcon.className = 'fa-solid fa-chalkboard-user sm:mr-1';
         btnText.innerText = 'โหมดครูผู้สอน';
-        
+
         btnToggle.classList.replace('bg-purple-50', 'bg-blue-50');
         btnToggle.classList.replace('text-purple-600', 'text-blue-600');
         btnToggle.classList.replace('border-purple-200', 'border-blue-200');
-        
+
         loadAdminClubs();
-        
+
         // 🌟 แสดง Toast แอดมิน
         Toast.fire({
             icon: 'success',
             title: 'สลับเป็นโหมด ผู้ดูแลระบบ'
         });
-        
+
     } else {
         // สลับไปโหมดครู
         currentMode = 'teacher';
@@ -131,13 +131,13 @@ window.toggleRoleView = () => {
         teacherView.classList.replace('hidden', 'block');
         btnIcon.className = 'fa-solid fa-user-shield sm:mr-1';
         btnText.innerText = 'โหมดแอดมิน';
-        
+
         btnToggle.classList.replace('bg-blue-50', 'bg-purple-50');
         btnToggle.classList.replace('text-blue-600', 'text-purple-600');
         btnToggle.classList.replace('border-blue-200', 'border-purple-200');
-        
+
         loadMyClub();
-        
+
         // 🌟 แสดง Toast ครู
         Toast.fire({
             icon: 'success',
@@ -189,7 +189,7 @@ async function loadMyClub() {
 
         const btnLock = document.getElementById('btn-lock-club');
         btnLock.classList.remove('hidden');
-        
+
         // 🌟 แก้ไข: ทำให้ปุ่มสลับสถานะ ล็อค <-> ปลดล็อค ได้
         if (club.is_locked) {
             btnLock.className = "px-4 py-2 rounded-lg font-bold shadow-md transition-colors bg-slate-500 text-white hover:bg-slate-600";
@@ -288,7 +288,7 @@ window.updateStatus = async (id, status, reason = null) => {
     if (status === 'approved') {
         // นับยอดนักเรียนที่สถานะเป็น 'approved' ในชุมนุมนี้
         const currentApprovedCount = teacherApplicantsData.filter(m => m.status === 'approved').length;
-        
+
         // ถ้ายอดคนที่อนุมัติไปแล้ว มากกว่าหรือเท่ากับ โควตาที่รับได้ ให้บล็อกทันที
         if (currentApprovedCount >= myClubInfo.max_capacity) {
             return Swal.fire({
@@ -302,18 +302,18 @@ window.updateStatus = async (id, status, reason = null) => {
     }
 
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-    
+
     const payload = { status };
-    
+
     // 🌟 2. เคลียร์เหตุผลปฏิเสธทิ้ง หากครูเปลี่ยนใจกลับมารับนักเรียน
     if (status === 'approved') {
-        payload.rejection_reason = null; 
+        payload.rejection_reason = null;
     } else if (reason) {
         payload.rejection_reason = reason;
     }
 
     await db.from('club_registrations').update(payload).eq('id', id);
-    
+
     // รีเฟรชตารางใหม่
     await loadTeacherApplicants();
     Swal.close();
@@ -351,6 +351,19 @@ async function loadAdminClubs() {
     if ($.fn.DataTable.isDataTable('#adminClubsTable')) $('#adminClubsTable').DataTable().destroy();
     document.getElementById('tb-admin-clubs').innerHTML = allClubsData.map(c => {
         const tName = c.core_personnel ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}` : 'ไม่ระบุ';
+        const avatarUrl = c.core_personnel?.avatar_url;
+        
+        // UI รูปครูแบบสี่เหลี่ยมมุมโค้งมน (ตามที่เคยปรับ)
+        const tHtml = avatarUrl 
+            ? `<div class="flex items-center gap-3">
+                 <img src="${avatarUrl}" onclick="viewTeacherImage('${avatarUrl}', '${tName}')" class="w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200" title="คลิกเพื่อดูรูปใหญ่" />
+                 <span class="font-medium">${tName}</span>
+               </div>`
+            : `<div class="flex items-center gap-3">
+                 <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400"><i class="fa-solid fa-user"></i></div>
+                 <span class="font-medium">${tName}</span>
+               </div>`;
+
         const stBadge = c.is_locked ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700">ปิดแล้ว</span>' : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">เปิดรับ</span>';
 
         const safeClubName = c.club_name.replace(/'/g, "\\'");
@@ -360,29 +373,36 @@ async function loadAdminClubs() {
         return `<tr class="hover:bg-purple-50/50">
             <td class="py-3 px-4 font-bold text-purple-700">${c.club_name}</td>
             <td class="py-3 px-4">${c.club_categories?.name || '-'}</td>
-            <td class="py-3 px-4">${tName}</td>
-            <td class="py-3 px-4">${c.target_grades}</td>
+            <td class="py-3 px-4">${tHtml}</td>
+            <td class="py-3 px-4 text-center">${c.target_grades}</td>
             <td class="py-3 px-4 text-center">${c.max_capacity}</td>
             <td class="py-3 px-4 text-center">${stBadge}</td>
             <td class="py-3 px-4 text-center whitespace-nowrap">
-                <button onclick="viewClubStudents('${c.id}', '${safeClubName}')" class="text-blue-600 hover:text-blue-800 text-sm font-bold px-2 rounded" title="ดูรายชื่อนักเรียน">
+                <button onclick="viewClubStudents('${c.id}', '${safeClubName}')" class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="ดูรายชื่อนักเรียน">
                     <i class="fa-solid fa-eye"></i>
                 </button>
+                
+                <button onclick="importClubMembersExcel('${c.id}', '${safeClubName}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="นำเข้ารายชื่อนักเรียนจาก Excel">
+                    <i class="fa-solid fa-file-excel"></i>
+                </button>
+
                 <button onclick="toggleLockAdminClub('${c.id}', ${c.is_locked}, '${safeClubName}')" 
-                        class="${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" 
+                        class="${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" 
                         title="${c.is_locked ? 'ปลดล็อคชุมนุม' : 'ล็อคชุมนุม'}">
                     <i class="fa-solid ${c.is_locked ? 'fa-lock-open' : 'fa-lock'}"></i>
                 </button>
-                <button onclick="editAdminClub('${c.id}', '${safeClubName}', '${safeCatName}', '${c.teacher_id}', '${c.target_grades}', '${c.max_capacity}', '${c.location}', '${safeDesc}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 rounded">
+
+                <button onclick="editAdminClub('${c.id}', '${safeClubName}', '${safeCatName}', '${c.teacher_id}', '${c.target_grades}', '${c.max_capacity}', '${c.location}', '${safeDesc}')" class="bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="แก้ไข">
                     <i class="fa-solid fa-pen-to-square"></i>
                 </button>
-                <button onclick="deleteAdminClub('${c.id}', '${safeClubName}')" class="text-red-600 hover:text-red-800 text-sm font-bold px-2 rounded">
+
+                <button onclick="deleteAdminClub('${c.id}', '${safeClubName}')" class="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors" title="ลบ">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </td>
         </tr>`;
     }).join('');
-    
+
     $('#adminClubsTable').DataTable({
         responsive: true,
         scrollX: true,
@@ -460,7 +480,7 @@ window.viewClubStudents = async (clubId, clubName) => {
 
         html += `</tbody></table></div></div>`;
 
-        Swal.fire({ title: 'รายชื่อนักเรียน', html: html, width: '850px', confirmButtonText: 'ปิด', customClass: { popup: 'text-sm rounded-xl' }});
+        Swal.fire({ title: 'รายชื่อนักเรียน', html: html, width: '850px', confirmButtonText: 'ปิด', customClass: { popup: 'text-sm rounded-xl' } });
     } catch (err) {
         console.error(err);
         Swal.fire('Error', err.message, 'error');
@@ -478,18 +498,18 @@ window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
         confirmButtonColor: isCurrentlyLocked ? '#f59e0b' : '#10b981',
         confirmButtonText: `ยืนยัน${actionText}`
     });
-    
+
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
-        
+
         // ถ้าแอดมินกดล็อค ให้เด้งเด็กที่ค้างอยู่ออกด้วย
         if (!isCurrentlyLocked) {
-           await db.from('club_registrations').update({ status: 'rejected', rejection_reason: 'แอดมินปิดรับสมัคร' }).eq('club_id', id).eq('status', 'pending');
+            await db.from('club_registrations').update({ status: 'rejected', rejection_reason: 'แอดมินปิดรับสมัคร' }).eq('club_id', id).eq('status', 'pending');
         }
-        
+
         // อัปเดตสถานะล็อค
         await db.from('club_lists').update({ is_locked: !isCurrentlyLocked }).eq('id', id);
-        
+
         await loadAdminClubs();
         Swal.fire('สำเร็จ', `${actionText}ชุมนุมเรียบร้อยแล้ว`, 'success');
     }
@@ -505,7 +525,7 @@ function updateTeacherAvatarPreview(teacherId) {
     const teacher = allTeachers.find(t => t.id === teacherId);
     if (teacher) {
         container.style.display = 'block';
-        if(urlInput) urlInput.value = teacher.avatar_url || '';
+        if (urlInput) urlInput.value = teacher.avatar_url || '';
         if (teacher.avatar_url) {
             img.src = teacher.avatar_url;
             img.style.display = 'block';
@@ -532,7 +552,7 @@ window.refreshTeacherAvatar = async () => {
     }
 
     const urlInput = document.getElementById('ac_teacher_avatar_url');
-    if(urlInput) urlInput.value = data.avatar_url || '';
+    if (urlInput) urlInput.value = data.avatar_url || '';
     const img = document.getElementById('teacher-avatar-img');
     if (data.avatar_url) {
         img.src = data.avatar_url;
@@ -551,9 +571,9 @@ window.refreshTeacherAvatar = async () => {
 
 window.clearTeacherAvatar = () => {
     const urlInput = document.getElementById('ac_teacher_avatar_url');
-    if(urlInput) urlInput.value = '';
+    if (urlInput) urlInput.value = '';
     const img = document.getElementById('teacher-avatar-img');
-    if(img) {
+    if (img) {
         img.src = '';
         img.style.display = 'none';
     }
@@ -569,10 +589,10 @@ function initAdminTomSelect() {
 
     const tsCat = document.getElementById('ac_category');
     if (tsCat.tomselect) tsCat.tomselect.destroy();
-    
-    categoryMap = {}; 
+
+    categoryMap = {};
     let catOptions = [];
-    allCategories.forEach(c => { categoryMap[c.name] = c.id; catOptions.push({value: c.name, text: c.name}); });
+    allCategories.forEach(c => { categoryMap[c.name] = c.id; catOptions.push({ value: c.name, text: c.name }); });
 
     new TomSelect(tsCat, {
         options: catOptions,
@@ -582,7 +602,7 @@ function initAdminTomSelect() {
         searchField: 'text',
         placeholder: 'เลือก หรือ พิมพ์หมวดหมู่ใหม่ที่นี่...',
         render: {
-            option_create: function(data, escape) {
+            option_create: function (data, escape) {
                 return '<div class="create text-blue-600 font-bold p-2 bg-blue-50"> <i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มหมวดหมู่: <strong>' + escape(data.input) + '</strong>&hellip;</div>';
             }
         }
@@ -608,10 +628,10 @@ window.editAdminClub = (id, name, catName, tId, grades, cap, loc, desc) => {
     initAdminTomSelect();
     document.getElementById('ac_category').tomselect.setValue(catName);
     document.getElementById('ac_teacher').tomselect.setValue(tId);
-    
+
     const gradesSelect = document.getElementById('ac_grades');
-    if(gradesSelect) gradesSelect.value = grades;
-    
+    if (gradesSelect) gradesSelect.value = grades;
+
     updateTeacherAvatarPreview(tId);
     document.getElementById('adminClubModal').classList.remove('hidden');
     document.getElementById('adminClubModal').classList.add('flex');
@@ -625,7 +645,7 @@ window.closeAdminClubModal = () => {
 window.saveClubByAdmin = async (e) => {
     e.preventDefault();
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-    
+
     let catName = document.getElementById('ac_category').value.trim();
     let catId = categoryMap[catName];
 
@@ -633,8 +653,8 @@ window.saveClubByAdmin = async (e) => {
         const { data: newCat, error: catErr } = await db.from('club_categories').insert([{ name: catName }]).select().single();
         if (catErr) return Swal.fire('Error', 'สร้างหมวดหมู่ใหม่ล้มเหลว', 'error');
         catId = newCat.id;
-        categoryMap[catName] = catId; 
-        allCategories.push(newCat); 
+        categoryMap[catName] = catId;
+        allCategories.push(newCat);
     }
 
     const payload = {
@@ -648,10 +668,10 @@ window.saveClubByAdmin = async (e) => {
         academic_year: currentSchoolInfo.current_academic_year,
         semester: currentSchoolInfo.current_semester
     };
-    
+
     if (!payload.teacher_id) return Swal.fire('เตือน', 'กรุณาเลือกครู', 'warning');
     if (!payload.target_grades) return Swal.fire('เตือน', 'กรุณาเลือกระดับชั้น', 'warning');
-    
+
     const urlInput = document.getElementById('ac_teacher_avatar_url');
     if (urlInput) {
         const avatarUrl = urlInput.value.trim();
@@ -659,7 +679,7 @@ window.saveClubByAdmin = async (e) => {
             await db.from('core_personnel').update({ avatar_url: avatarUrl }).eq('id', payload.teacher_id);
         }
     }
-    
+
     const id = document.getElementById('ac_id').value;
     const query = id ? db.from('club_lists').update(payload).eq('id', id) : db.from('club_lists').insert([payload]);
     const { error } = await query;
@@ -668,7 +688,7 @@ window.saveClubByAdmin = async (e) => {
         if (error.code === '23505') Swal.fire('ข้อผิดพลาด', 'ครูท่านนี้เปิดชุมนุมในเทอมนี้ไปแล้ว', 'error');
         else Swal.fire('Error', error.message, 'error');
     } else {
-        closeAdminClubModal(); 
+        closeAdminClubModal();
         await loadAdminClubs();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
     }
@@ -692,7 +712,7 @@ async function loadAllStudentsReport() {
             .select(`student_id, core_classrooms!inner(grade_level, room_number), core_students(student_id_card, prefix, first_name, last_name)`)
             .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
             .eq('core_classrooms.semester', currentSchoolInfo.current_semester);
-        
+
         const { data: mems } = await db.from('club_registrations')
             .select(`student_id, status, rejection_reason, club_lists(club_name)`)
             .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -706,11 +726,11 @@ async function loadAllStudentsReport() {
             const club = memMap[e.student_id];
             return {
                 id_card: stu.student_id_card,
-                full_name: `${stu.prefix||''}${stu.first_name} ${stu.last_name}`,
+                full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
                 classroom: `ม.${e.core_classrooms.grade_level}/${e.core_classrooms.room_number}`,
                 club_name: club ? club.club_lists?.club_name : '-',
                 status: club ? club.status : 'not_applied',
-                comment: club ? club.rejection_reason||'-' : '-'
+                comment: club ? club.rejection_reason || '-' : '-'
             };
         });
 
@@ -720,18 +740,19 @@ async function loadAllStudentsReport() {
             return `<tr class="hover:bg-purple-50"><td class="py-3 px-4 font-mono">${s.id_card}</td><td class="py-3 px-4">${s.full_name}</td><td class="py-3 px-4">${s.classroom}</td><td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td><td class="py-3 px-4 text-center">${badge}</td><td class="py-3 px-4 text-xs text-red-500">${s.comment}</td></tr>`;
         }).join('');
 
-        $('#adminAllStudentsTable').DataTable({ 
-            responsive: true, 
+        $('#adminAllStudentsTable').DataTable({
+            responsive: true,
             scrollX: true,
             order: [[2, 'asc']], // เรียงตามคอลัมน์ระดับชั้นจากน้อยไปมาก 
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }});
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+        });
         Swal.close();
     } catch (err) { Swal.fire('Error', err.message, 'error'); }
 }
 
 window.exportAllStudentsExcel = () => {
     if (allStudentsReportData.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => ({'เลขประจำตัว':s.id_card, 'ชื่อสกุล':s.full_name, 'ห้อง':s.classroom, 'ชุมนุม':s.club_name, 'สถานะ':s.status, 'หมายเหตุ':s.comment})));
+    const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => ({ 'เลขประจำตัว': s.id_card, 'ชื่อสกุล': s.full_name, 'ห้อง': s.classroom, 'ชุมนุม': s.club_name, 'สถานะ': s.status, 'หมายเหตุ': s.comment })));
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Students");
     XLSX.writeFile(wb, `รายงานนักเรียนสมัครชุมนุม_เทอม${currentSchoolInfo.current_semester}_${currentSchoolInfo.current_academic_year}.xlsx`);
 };
@@ -750,14 +771,14 @@ window.closeAdminSettings = () => {
 
 async function loadModuleAdmins() {
     const sel = document.getElementById('select_new_admin');
-    if(sel.tomselect) sel.tomselect.destroy();
-    
-    sel.innerHTML = '<option value="">-- พิมพ์ค้นหาชื่อครูเพื่อเพิ่มแอดมิน --</option>' + allTeachers.map(t => `<option value="${t.id}">${t.prefix||''}${t.first_name} ${t.last_name}</option>`).join('');
+    if (sel.tomselect) sel.tomselect.destroy();
+
+    sel.innerHTML = '<option value="">-- พิมพ์ค้นหาชื่อครูเพื่อเพิ่มแอดมิน --</option>' + allTeachers.map(t => `<option value="${t.id}">${t.prefix || ''}${t.first_name} ${t.last_name}</option>`).join('');
     new TomSelect(sel, { placeholder: 'ค้นหาชื่อครู...', allowEmptyOption: true });
 
     const { data } = await db.from('core_module_admins').select(`id, core_personnel(prefix, first_name, last_name)`).eq('module_id', MODULE_ID);
-    document.getElementById('tb-module-admins').innerHTML = (data||[]).map(m => `
-        <tr class="hover:bg-slate-50"><td class="py-3 px-4 font-bold text-indigo-800"><i class="fa-solid fa-user-shield text-indigo-400 mr-2"></i>${m.core_personnel.prefix||''}${m.core_personnel.first_name} ${m.core_personnel.last_name}</td>
+    document.getElementById('tb-module-admins').innerHTML = (data || []).map(m => `
+        <tr class="hover:bg-slate-50"><td class="py-3 px-4 font-bold text-indigo-800"><i class="fa-solid fa-user-shield text-indigo-400 mr-2"></i>${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}</td>
         <td class="py-3 px-4 text-center"><button onclick="removeModuleAdmin('${m.id}')" class="text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded transition"><i class="fa-solid fa-xmark"></i></button></td></tr>
     `).join('');
 }
@@ -766,7 +787,7 @@ window.addModuleAdmin = async () => {
     const uid = document.getElementById('select_new_admin').value;
     if (!uid) return Swal.fire('เตือน', 'กรุณาเลือกครู', 'warning');
     await db.from('core_module_admins').insert({ user_id: uid, module_id: MODULE_ID });
-    loadModuleAdmins(); Swal.fire({toast:true, position:'top-end', icon:'success', title:'สำเร็จ', timer:1500, showConfirmButton:false});
+    loadModuleAdmins(); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'สำเร็จ', timer: 1500, showConfirmButton: false });
 };
 
 window.removeModuleAdmin = async (id) => {
@@ -791,7 +812,7 @@ window.downloadClubTemplate = () => {
         ]
     ];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    
+
     // กำหนดความกว้างคอลัมน์ให้พอดี
     ws['!cols'] = [
         { wch: 25 }, // ชื่อชุมนุม
@@ -802,7 +823,7 @@ window.downloadClubTemplate = () => {
         { wch: 25 }, // สถานที่
         { wch: 30 }  // รายละเอียด
     ];
-    
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Clubs");
     XLSX.writeFile(wb, "ต้นแบบนำเข้าชุมนุม.xlsx");
@@ -816,7 +837,7 @@ window.importClubsFromExcel = async (event) => {
     reader.onload = async (e) => {
         try {
             Swal.fire({ title: 'กำลังประมวลผลไฟล์ Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-            
+
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
             const sheetName = workbook.SheetNames[0];
@@ -866,7 +887,7 @@ window.importClubsFromExcel = async (event) => {
                 .select('teacher_id')
                 .eq('academic_year', currentSchoolInfo.current_academic_year)
                 .eq('semester', currentSchoolInfo.current_semester);
-                
+
             const teachersWithClub = new Set((existingClubs || []).map(c => c.teacher_id));
 
             const errors = [];
@@ -912,7 +933,7 @@ window.importClubsFromExcel = async (event) => {
                             .select()
                             .single();
                         if (catErr) throw new Error('สร้างหมวดหมู่ล้มเหลว');
-                        
+
                         categoryId = newCat.id;
                         allCategories.push(newCat);
                         categoryMapByName[categoryName] = newCat.id;
@@ -946,7 +967,7 @@ window.importClubsFromExcel = async (event) => {
             // --- สรุปผลลัพธ์การนำเข้า ---
             let html = `<div class="text-left">
                 <p class="font-bold text-green-600 text-lg mb-2">✅ นำเข้าสำเร็จ: ${successCount} รายการ</p>`;
-            
+
             if (errors.length > 0) {
                 html += `<p class="font-bold mb-2 text-red-600 text-lg">⚠️ ไม่สามารถนำเข้าได้ ${errors.length} รายการ</p>
                 <div style="max-height: 250px; overflow-y: auto; border: 1px solid #fecaca; border-radius: 8px;">
@@ -1014,7 +1035,7 @@ window.exportClubsToExcel = () => {
 
     // สั่งสร้างไฟล์ Excel ด้วย SheetJS (XLSX)
     const ws = XLSX.utils.json_to_sheet(exportData);
-    
+
     // กำหนดความกว้างของคอลัมน์ให้อ่านง่าย
     ws['!cols'] = [
         { wch: 25 }, // ชื่อชุมนุม
@@ -1029,8 +1050,98 @@ window.exportClubsToExcel = () => {
 
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อชุมนุมทั้งหมด");
-    
+
     // ตั้งชื่อไฟล์ตามปีการศึกษาและเทอมปัจจุบันโดยอัตโนมัติ
     const fileName = `รายชื่อชุมนุมทั้งหมด_เทอม${currentSchoolInfo.current_semester}_ปี${currentSchoolInfo.current_academic_year}.xlsx`;
     XLSX.writeFile(wb, fileName);
 };
+
+// ==========================================
+// 🚀 ระบบนำเข้าสมาชิกชุมนุมจาก Excel (สำหรับแอดมิน)
+// ==========================================
+
+// ฟังก์ชันเปิดหน้าต่างเลือกไฟล์
+window.importClubMembersExcel = (clubId, clubName) => {
+    Swal.fire({
+        title: `นำเข้าสมาชิก: ${clubName}`,
+        html: `
+            <div class="text-left text-sm">
+                <p class="mb-2 text-slate-600">กรุณาเลือกไฟล์ Excel (.xlsx) ที่ใช้เทมเพลตของระบบ</p>
+                <input type="file" id="excel-import-file" accept=".xlsx" 
+                    class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'เริ่มนำเข้าข้อมูล',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const file = document.getElementById('excel-import-file').files[0];
+            if (!file) return Swal.showValidationMessage('กรุณาเลือกไฟล์ก่อนครับ');
+            return file;
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            processExcelImport(result.value, clubId);
+        }
+    });
+};
+
+// ฟังก์ชันประมวลผลไฟล์
+async function processExcelImport(file, clubId) {
+    Swal.fire({ title: 'กำลังอ่านข้อมูล...', didOpen: () => Swal.showLoading() });
+
+    try {
+        const data = await file.arrayBuffer();
+        const workbook = XLSX.read(data);
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+        if (jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel');
+
+        let successCount = 0;
+        let errorLogs = [];
+
+        for (const row of jsonData) {
+            const sid = row.student_id?.toString().trim();
+            if (!sid) continue;
+
+            // 1. ค้นหาไอดีนักเรียนจากเลขประจำตัว
+            const { data: std, error: stdErr } = await db.from('core_students')
+                .select('id')
+                .eq('student_id_card', sid) // หรือฟิลด์เลขประจำตัวใน table คุณครู
+                .maybeSingle();
+
+            if (!std) {
+                errorLogs.push(`ไม่พบนักเรียนเลขประจำตัว ${sid}`);
+                continue;
+            }
+
+            // 2. ลบรายการเก่า (ถ้ามี) เพื่อย้ายเข้าชุมนุมใหม่
+            await db.from('club_registrations').delete().eq('student_id', std.id);
+
+            // 3. เพิ่มเข้าชุมนุมใหม่และปรับเป็น approved ทันที
+            const { error: insErr } = await db.from('club_registrations').insert({
+                club_id: clubId,
+                student_id: std.id,
+                status: 'approved',
+                academic_year: currentSchoolInfo.current_academic_year,
+                semester: currentSchoolInfo.current_semester
+            });
+
+            if (insErr) errorLogs.push(`เลข ${sid}: ${insErr.message}`);
+            else successCount++;
+        }
+
+        Swal.fire({
+            icon: errorLogs.length > 0 ? 'warning' : 'success',
+            title: 'นำเข้าข้อมูลเสร็จสิ้น',
+            html: `นำเข้าสำเร็จ: <b>${successCount}</b> รายการ<br>${errorLogs.length > 0 ? `<div class="text-left mt-2 text-red-500 text-xs h-32 overflow-auto border p-2">${errorLogs.join('<br>')}</div>` : ''}`,
+            confirmButtonText: 'ตกลง'
+        });
+
+        if (currentMode === 'admin') loadAdminClubs();
+
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
