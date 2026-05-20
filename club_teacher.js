@@ -1113,19 +1113,17 @@ window.exportClubsToExcel = () => {
 // 🚀 ระบบนำเข้าสมาชิกชุมนุมจาก Excel (สำหรับแอดมิน)
 // ==========================================
 
-// ฟังก์ชันเปิดหน้าต่างเลือกไฟล์
 window.importClubMembersExcel = (clubId, clubName) => {
     Swal.fire({
         title: `นำเข้าสมาชิก: ${clubName}`,
         html: `
             <div class="text-left text-sm">
-                <p class="mb-2 text-slate-600">กรุณาเลือกไฟล์ Excel (.xlsx) ที่ใช้เทมเพลตของระบบ</p>
-                <input type="file" id="excel-import-file" accept=".xlsx" 
-                    class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100">
+                <p class="mb-2 text-slate-600">กรุณาเลือกไฟล์ Excel (.xlsx) ที่เลขประจำตัวนักเรียนอยู่ <b>คอลัมน์ A (คอลัมน์แรก)</b></p>
+                <input type="file" id="excel-import-file" accept=".xlsx" class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-50 file:text-emerald-700">
             </div>
         `,
         showCancelButton: true,
-        confirmButtonText: 'เริ่มนำเข้าข้อมูล',
+        confirmButtonText: 'นำเข้าข้อมูล',
         confirmButtonColor: '#10b981',
         preConfirm: () => {
             const file = document.getElementById('excel-import-file').files[0];
@@ -1133,46 +1131,49 @@ window.importClubMembersExcel = (clubId, clubName) => {
             return file;
         }
     }).then((result) => {
-        if (result.isConfirmed) {
-            processExcelImport(result.value, clubId);
-        }
+        if (result.isConfirmed) processExcelImport(result.value, clubId);
     });
 };
 
-// ฟังก์ชันประมวลผลไฟล์
 async function processExcelImport(file, clubId) {
-    Swal.fire({ title: 'กำลังอ่านข้อมูล...', didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
 
     try {
         const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data);
+        const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        // อ่านแบบ Array ของแถว (header: 1 ทำให้ไม่ต้องสนใจชื่อหัวตาราง)
+        const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-        if (jsonData.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel');
+        console.log("ข้อมูลที่อ่านได้จาก Excel:", rows); // 🌟 ตรงนี้สำคัญ: ให้ครูเปิด F12 (Console) ดูว่าข้อมูลที่อ่านได้หน้าตาเป็นอย่างไร
+
+        if (rows.length <= 1) throw new Error('ไฟล์ว่างเปล่า หรือไม่มีข้อมูลในแถวที่ 2 เป็นต้นไป');
 
         let successCount = 0;
         let errorLogs = [];
 
-        for (const row of jsonData) {
-            const sid = row.student_id?.toString().trim();
-            if (!sid) continue;
+        for (let i = 1; i < rows.length; i++) {
+            const row = rows[i];
+            // ดึงค่าจากคอลัมน์ A (index 0) หากไฟล์ครูเลขประจำตัวอยู่คอลัมน์อื่น ให้เปลี่ยน [0] เป็น [1] หรือ [2] ตามลำดับ
+            const sid = row[0] ? row[0].toString().trim() : null;
 
-            // 1. ค้นหาไอดีนักเรียนจากเลขประจำตัว
+            if (!sid) continue; 
+
+            // ค้นหานักเรียน
             const { data: std, error: stdErr } = await db.from('core_students')
                 .select('id')
-                .eq('student_id_card', sid) // หรือฟิลด์เลขประจำตัวใน table คุณครู
+                .eq('student_id_card', sid)
                 .maybeSingle();
 
             if (!std) {
-                errorLogs.push(`ไม่พบนักเรียนเลขประจำตัว ${sid}`);
+                errorLogs.push(`แถวที่ ${i + 1}: ไม่พบนักเรียนเลขที่ ${sid}`);
                 continue;
             }
 
-            // 2. ลบรายการเก่า (ถ้ามี) เพื่อย้ายเข้าชุมนุมใหม่
+            // ลบรายการเดิม
             await db.from('club_registrations').delete().eq('student_id', std.id);
 
-            // 3. เพิ่มเข้าชุมนุมใหม่และปรับเป็น approved ทันที
+            // เพิ่มเข้าชุมนุม
             const { error: insErr } = await db.from('club_registrations').insert({
                 club_id: clubId,
                 student_id: std.id,
@@ -1181,20 +1182,20 @@ async function processExcelImport(file, clubId) {
                 semester: currentSchoolInfo.current_semester
             });
 
-            if (insErr) errorLogs.push(`เลข ${sid}: ${insErr.message}`);
+            if (insErr) errorLogs.push(`แถวที่ ${i + 1}: ${insErr.message}`);
             else successCount++;
         }
 
         Swal.fire({
-            icon: errorLogs.length > 0 ? 'warning' : 'success',
-            title: 'นำเข้าข้อมูลเสร็จสิ้น',
-            html: `นำเข้าสำเร็จ: <b>${successCount}</b> รายการ<br>${errorLogs.length > 0 ? `<div class="text-left mt-2 text-red-500 text-xs h-32 overflow-auto border p-2">${errorLogs.join('<br>')}</div>` : ''}`,
-            confirmButtonText: 'ตกลง'
+            icon: successCount > 0 ? 'success' : 'warning',
+            title: 'สรุปการนำเข้า',
+            html: `สำเร็จ: <b>${successCount}</b> คน<br>${errorLogs.length > 0 ? `<div class="text-xs text-red-500 mt-2">ข้อผิดพลาด: ${errorLogs.length} รายการ</div>` : ''}`
         });
 
         if (currentMode === 'admin') loadAdminClubs();
 
     } catch (err) {
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        console.error(err);
+        Swal.fire('ข้อผิดพลาด', err.message, 'error');
     }
 }
