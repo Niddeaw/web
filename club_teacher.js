@@ -15,7 +15,10 @@ let allClubsData = [];
 let allStudentsReportData = [];
 let allTeachers = [];
 let allCategories = [];
-let categoryMap = {}; // ตัวแปรแมปชื่อกับ ID หมวดหมู่
+let categoryMap = {};
+
+// ✅ [FIX #2] Map สำหรับเก็บข้อความนักเรียนอย่างปลอดภัย แทนการฝังใน onclick
+const studentMessageStore = {};
 
 document.addEventListener('DOMContentLoaded', async () => {
     await initSystem();
@@ -82,7 +85,7 @@ async function loadAllTeachers() {
 }
 
 // ==========================================
-// 2. Role Switcher (สลับโหมด พร้อม Toast Alert)
+// 2. Role Switcher
 // ==========================================
 window.toggleRoleView = () => {
     const teacherView = document.getElementById('teacher-view');
@@ -91,7 +94,6 @@ window.toggleRoleView = () => {
     const btnText = document.getElementById('mode-text');
     const btnToggle = document.getElementById('btnAdminMode');
 
-    // 🌟 สร้าง Config สำหรับ Toast Alert
     const Toast = Swal.mixin({
         toast: true,
         position: 'top-end',
@@ -99,77 +101,51 @@ window.toggleRoleView = () => {
         timer: 1500,
         timerProgressBar: true,
         didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer)
-            toast.addEventListener('mouseleave', Swal.resumeTimer)
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
         }
     });
 
     if (currentMode === 'teacher') {
-        // สลับไปโหมดแอดมิน
         currentMode = 'admin';
         teacherView.classList.replace('block', 'hidden');
         adminView.classList.replace('hidden', 'block');
         btnIcon.className = 'fa-solid fa-chalkboard-user sm:mr-1';
         btnText.innerText = 'โหมดครูผู้สอน';
-
         btnToggle.classList.replace('bg-purple-50', 'bg-blue-50');
         btnToggle.classList.replace('text-purple-600', 'text-blue-600');
         btnToggle.classList.replace('border-purple-200', 'border-blue-200');
-
         loadAdminClubs();
-
-        // 🌟 แสดง Toast แอดมิน
-        Toast.fire({
-            icon: 'success',
-            title: 'สลับเป็นโหมด ผู้ดูแลระบบ'
-        });
-
+        Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ผู้ดูแลระบบ' });
     } else {
-        // สลับไปโหมดครู
         currentMode = 'teacher';
         adminView.classList.replace('block', 'hidden');
         teacherView.classList.replace('hidden', 'block');
         btnIcon.className = 'fa-solid fa-user-shield sm:mr-1';
         btnText.innerText = 'โหมดแอดมิน';
-
         btnToggle.classList.replace('bg-blue-50', 'bg-purple-50');
         btnToggle.classList.replace('text-blue-600', 'text-purple-600');
         btnToggle.classList.replace('border-blue-200', 'border-purple-200');
-
         loadMyClub();
-
-        // 🌟 แสดง Toast ครู
-        Toast.fire({
-            icon: 'success',
-            title: 'สลับเป็นโหมด ครูผู้สอน'
-        });
+        Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 };
 
 // ==========================================
-// แก้ไข Error: ซ่อมฟังก์ชันสลับแท็บของแอดมิน
+// Admin Tab Switcher
 // ==========================================
 window.switchAdminTab = (tabId) => {
-    // ซ่อนทุกแท็บก่อน
     document.getElementById('admin-tab-clubs').classList.replace('block', 'hidden');
     document.getElementById('admin-tab-students').classList.replace('block', 'hidden');
-
-    // รีเซ็ตสีปุ่ม
     document.getElementById('btn-admin-tab-clubs').className = "px-5 py-2.5 rounded-t-xl bg-transparent text-slate-500 hover:bg-slate-200 font-bold transition-colors";
     document.getElementById('btn-admin-tab-students').className = "px-5 py-2.5 rounded-t-xl bg-transparent text-slate-500 hover:bg-slate-200 font-bold transition-colors";
-
-    // แสดงแท็บที่เลือก และเปลี่ยนสีปุ่มให้แอคทีฟ
     document.getElementById(tabId).classList.replace('hidden', 'block');
     document.getElementById(`btn-${tabId}`).className = "px-5 py-2.5 rounded-t-xl bg-purple-600 text-white font-bold transition-colors shadow-sm";
-
-    // ถ้ากดแท็บนักเรียน ให้โหลดข้อมูล
-    if (tabId === 'admin-tab-students') {
-        loadAllStudentsReport();
-    }
+    if (tabId === 'admin-tab-students') loadAllStudentsReport();
 };
 
 // ==========================================
-// 3. Teacher Module: จัดการชุมนุมตัวเอง
+// 3. Teacher Module
 // ==========================================
 async function loadMyClub() {
     const { data: club } = await db.from('club_lists')
@@ -190,70 +166,105 @@ async function loadMyClub() {
         const btnLock = document.getElementById('btn-lock-club');
         btnLock.classList.remove('hidden');
 
-        // 🌟 แก้ไข: ทำให้ปุ่มสลับสถานะ ล็อค <-> ปลดล็อค ได้
         if (club.is_locked) {
             btnLock.className = "px-4 py-2 rounded-lg font-bold shadow-md transition-colors bg-slate-500 text-white hover:bg-slate-600";
             btnLock.innerHTML = '<i class="fa-solid fa-lock-open mr-1"></i> ปลดล็อคชุมนุม';
-            btnLock.onclick = unlockMyClub; // โยงไปฟังก์ชันปลดล็อค
+            btnLock.onclick = unlockMyClub;
         } else {
             btnLock.className = "px-4 py-2 rounded-lg font-bold shadow-md transition-colors bg-emerald-600 text-white hover:bg-emerald-700";
             btnLock.innerHTML = '<i class="fa-solid fa-lock mr-1"></i> ยืนยันปิดรับสมัคร';
-            btnLock.onclick = lockClub; // โยงไปฟังก์ชันล็อค
+            btnLock.onclick = lockClub;
         }
+
         await loadTeacherApplicants();
     } else {
         myClubInfo = null;
         document.getElementById('no-club-display').classList.remove('hidden');
         document.getElementById('my-club-display').classList.add('hidden');
         document.getElementById('btn-lock-club').classList.add('hidden');
-        if ($.fn.DataTable.isDataTable('#teacherStudentsTable')) $('#teacherStudentsTable').DataTable().clear().draw();
+        if ($.fn.DataTable.isDataTable('#teacherStudentsTable')) {
+            $('#teacherStudentsTable').DataTable().destroy();
+        }
     }
 }
 
-// ฟังก์ชันล็อคชุมนุม (ของครู)
+// ✅ [FIX #1] เพิ่ม await loadMyClub() ก่อนแสดง Toast ทั้งสองฟังก์ชัน
 window.lockClub = async () => {
-    const { isConfirmed } = await Swal.fire({ title: 'ยืนยันปิดรับสมัคร?', html: '<span class="text-red-500 text-sm">นักเรียนที่สถานะค้างอยู่ (รอพิจารณา) จะถูกปรับเป็น "ไม่อนุมัติ" อัตโนมัติ</span>', icon: 'warning', showCancelButton: true, confirmButtonColor: '#10b981' });
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันปิดรับสมัคร?',
+        html: '<span class="text-red-500 text-sm">นักเรียนที่สถานะค้างอยู่ (รอพิจารณา) จะถูกปรับเป็น "ไม่อนุมัติ" อัตโนมัติ</span>',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981'
+    });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
-        await db.from('club_registrations').update({ status: 'rejected', rejection_reason: 'ปิดรับสมัคร' }).eq('club_id', myClubInfo.id).eq('status', 'pending');
+        await db.from('club_registrations')
+            .update({ status: 'rejected', rejection_reason: 'ปิดรับสมัคร' })
+            .eq('club_id', myClubInfo.id)
+            .eq('status', 'pending');
         await db.from('club_lists').update({ is_locked: true }).eq('id', myClubInfo.id);
-        loadMyClub();
+        await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
         Swal.fire({ icon: 'success', title: 'ล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
 
-// 🌟 เพิ่มฟังก์ชันปลดล็อคชุมนุม (ของครู)
 window.unlockMyClub = async () => {
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันปลดล็อค?',
         text: 'การปลดล็อคจะทำให้นักเรียนกลับมาเลือกชุมนุมนี้ได้อีกครั้ง (นักเรียนที่ถูกปฏิเสธไปแล้วจะต้องกดสมัครเข้ามาใหม่)',
         icon: 'question',
         showCancelButton: true,
-        confirmButtonColor: '#f59e0b' // สีเหลืองส้ม
+        confirmButtonColor: '#f59e0b'
     });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังปลดล็อค...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').update({ is_locked: false }).eq('id', myClubInfo.id);
-        loadMyClub();
+        await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
         Swal.fire({ icon: 'success', title: 'ปลดล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
 
-// 🌟 1. แก้ไขฟังก์ชันโหลดรายชื่อนักเรียนฝั่งครู
+// ✅ [FIX #4] เพิ่ม filter academic_year / semester ใน loadTeacherApplicants
+// ✅ [FIX #2] เก็บข้อความลง studentMessageStore แทนการฝังใน onclick
 async function loadTeacherApplicants() {
     if (!myClubInfo) return;
-    
-    // ดึง student_message เข้ามาด้วย
+
     const { data: members, error } = await db.from('club_registrations')
-        .select(`id, status, is_confirmed, rejection_reason, student_message, core_students ( student_id_card, prefix, first_name, last_name, student_enrollments ( student_number, core_classrooms (grade_level, room_number, academic_year, semester) ) )`)
-        .eq('club_id', myClubInfo.id);
+        .select(`
+            id, status, is_confirmed, rejection_reason, student_message,
+            core_students(
+                student_id_card, prefix, first_name, last_name,
+                student_enrollments(
+                    student_number,
+                    core_classrooms(grade_level, room_number, academic_year, semester)
+                )
+            )
+        `)
+        .eq('club_id', myClubInfo.id)
+        .eq('academic_year', currentSchoolInfo.current_academic_year)  // ✅ เพิ่ม
+        .eq('semester', currentSchoolInfo.current_semester);            // ✅ เพิ่ม
 
     if (error) return;
 
+    // ✅ ล้าง store เก่าก่อนทุกครั้ง
+    Object.keys(studentMessageStore).forEach(k => delete studentMessageStore[k]);
+
     teacherApplicantsData = members.map(m => {
         const stu = m.core_students;
-        const currentEnr = stu.student_enrollments?.find(e => e.core_classrooms.academic_year === currentSchoolInfo.current_academic_year && e.core_classrooms.semester === currentSchoolInfo.current_semester);
-        
+        const currentEnr = stu.student_enrollments?.find(e =>
+            e.core_classrooms.academic_year === currentSchoolInfo.current_academic_year &&
+            e.core_classrooms.semester === currentSchoolInfo.current_semester
+        );
+
+        // ✅ เก็บข้อความลง Map โดยใช้ registration id เป็น key
+        if (m.student_message) {
+            studentMessageStore[m.id] = {
+                msg: m.student_message,
+                name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`
+            };
+        }
+
         return {
             id: m.id,
             stu_id: stu.student_id_card,
@@ -265,7 +276,7 @@ async function loadTeacherApplicants() {
             number_text: currentEnr?.student_number || '-',
             status: m.status,
             reason: m.rejection_reason,
-            message: m.student_message // 🌟 เก็บข้อความจากฐานข้อมูล
+            message: m.student_message
         };
     });
 
@@ -277,29 +288,48 @@ async function loadTeacherApplicants() {
 
     $('#enrolled-count').text(teacherApplicantsData.filter(m => m.status !== 'rejected').length);
 
-    if ($.fn.DataTable.isDataTable('#teacherStudentsTable')) $('#teacherStudentsTable').DataTable().destroy();
+    if ($.fn.DataTable.isDataTable('#teacherStudentsTable')) {
+        $('#teacherStudentsTable').DataTable().destroy();
+    }
 
     document.getElementById('tb-teacher-students').innerHTML = teacherApplicantsData.map(m => {
-        let stBadge = m.status === 'approved' ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>'
-            : (m.status === 'rejected' ? `<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700" title="${m.reason || ''}">ไม่อนุมัติ</span>`
+        let stBadge = m.status === 'approved'
+            ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>'
+            : (m.status === 'rejected'
+                ? `<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700" title="${m.reason || ''}">ไม่อนุมัติ</span>`
                 : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-700">รอพิจารณา</span>');
 
-        // 🌟 สร้างปุ่ม Action แบบ Dynamic
         let actionButtons = [];
-        
-        // ถ้ามีข้อความ ให้แทรกปุ่มจดหมายเป็นอันแรก
+
+        // ✅ [FIX #2] ใช้ data attribute แทน onclick inline — ปลอดภัยจาก XSS และอักขระพิเศษ
         if (m.message) {
-            // ป้องกัน Error อักขระพิเศษเวลาแปลงเป็น HTML
-            const safeMsg = m.message.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, '<br>');
-            actionButtons.push(`<button onclick="viewStudentMessage('${safeMsg}', '${m.full_name}')" class="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1 border border-indigo-100" title="อ่านข้อความจากนักเรียน"><i class="fa-solid fa-envelope"></i></button>`);
+            actionButtons.push(
+                `<button data-msg-id="${m.id}"
+                         class="msg-btn bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1 border border-indigo-100"
+                         title="อ่านข้อความจากนักเรียน">
+                    <i class="fa-solid fa-envelope"></i>
+                 </button>`
+            );
         }
 
-        // ปุ่ม รับ / ปฏิเสธ
         if (!myClubInfo.is_locked && m.status === 'pending') {
-            actionButtons.push(`<button onclick="updateStatus('${m.id}', 'approved')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1"><i class="fa-solid fa-check"></i> รับ</button>`);
-            actionButtons.push(`<button onclick="promptReject('${m.id}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-2 py-1 rounded shadow-sm"><i class="fa-solid fa-times"></i> ปฏิเสธ</button>`);
+            actionButtons.push(
+                `<button data-action="approve" data-id="${m.id}"
+                         class="action-btn bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1">
+                    <i class="fa-solid fa-check"></i> รับ
+                 </button>`,
+                `<button data-action="reject" data-id="${m.id}"
+                         class="action-btn bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-2 py-1 rounded shadow-sm">
+                    <i class="fa-solid fa-times"></i> ปฏิเสธ
+                 </button>`
+            );
         } else if (!myClubInfo.is_locked && m.status === 'approved') {
-            actionButtons.push(`<button onclick="updateStatus('${m.id}', 'pending')" class="text-xs text-amber-600 underline hover:text-amber-800 ml-1">ยกเลิกการรับ</button>`);
+            actionButtons.push(
+                `<button data-action="pending" data-id="${m.id}"
+                         class="action-btn text-xs text-amber-600 underline hover:text-amber-800 ml-1">
+                    ยกเลิกการรับ
+                 </button>`
+            );
         }
 
         const acts = actionButtons.length > 0 ? actionButtons.join('') : '-';
@@ -314,21 +344,41 @@ async function loadTeacherApplicants() {
         </tr>`;
     }).join('');
 
-    $('#teacherStudentsTable').DataTable({ 
-        responsive: true, scrollX: true, order: [], 
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' } 
+    // ✅ [FIX #2] Bind event ด้วย jQuery หลัง render ตาราง — ปลอดภัยและไม่ต้องกังวลอักขระพิเศษ
+    $('#tb-teacher-students')
+        .off('click', '.msg-btn')
+        .on('click', '.msg-btn', function () {
+            const entry = studentMessageStore[$(this).data('msg-id')];
+            if (entry) viewStudentMessage(entry.msg, entry.name);
+        });
+
+    $('#tb-teacher-students')
+        .off('click', '.action-btn')
+        .on('click', '.action-btn', function () {
+            const action = $(this).data('action');
+            const id = $(this).data('id');
+            if (action === 'approve') updateStatus(id, 'approved');
+            else if (action === 'pending') updateStatus(id, 'pending');
+            else if (action === 'reject') promptReject(id);
+        });
+
+    $('#teacherStudentsTable').DataTable({
+        responsive: true,
+        scrollX: true,
+        order: [],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
 }
 
-// 🌟 2. ฟังก์ชันแสดง Popup ข้อความจากนักเรียน (นำไปต่อท้ายไฟล์)
+// ✅ [FIX #2] viewStudentMessage — escape HTML อย่างปลอดภัย, ใช้ whitespace-pre-wrap แทน <br>
 window.viewStudentMessage = (msg, studentName) => {
+    const safeMsg = $('<div>').text(msg).html();       // escape ทุกอักขระอันตราย
+    const safeName = $('<div>').text(studentName).html();
     Swal.fire({
         title: 'จดหมายถึงคุณครู 💌',
         html: `
-            <div class="text-sm text-slate-500 mb-2">จาก: <b>${studentName}</b></div>
-            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 text-sm text-left leading-relaxed shadow-inner">
-                ${msg}
-            </div>
+            <div class="text-sm text-slate-500 mb-2">จาก: <b>${safeName}</b></div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 text-sm text-left leading-relaxed shadow-inner whitespace-pre-wrap">${safeMsg}</div>
         `,
         icon: 'info',
         confirmButtonColor: '#4f46e5',
@@ -336,17 +386,21 @@ window.viewStudentMessage = (msg, studentName) => {
     });
 };
 
+// ✅ [FIX #3] updateStatus — ตรวจโควตาจาก DB โดยตรง ไม่ใช้ local array ที่อาจ stale
 window.updateStatus = async (id, status, reason = null) => {
-    // 🌟 1. ดักจับ: ถ้าครูจะกด "อนุมัติ" ให้เช็คยอดก่อน
     if (status === 'approved') {
-        // นับยอดนักเรียนที่สถานะเป็น 'approved' ในชุมนุมนี้
-        const currentApprovedCount = teacherApplicantsData.filter(m => m.status === 'approved').length;
+        // ✅ นับจาก DB จริง ไม่ใช่ local array
+        const { count, error: countErr } = await db
+            .from('club_registrations')
+            .select('id', { count: 'exact', head: true })
+            .eq('club_id', myClubInfo.id)
+            .eq('status', 'approved');
 
-        // ถ้ายอดคนที่อนุมัติไปแล้ว มากกว่าหรือเท่ากับ โควตาที่รับได้ ให้บล็อกทันที
-        if (currentApprovedCount >= myClubInfo.max_capacity) {
+        if (!countErr && count >= myClubInfo.max_capacity) {
             return Swal.fire({
                 title: 'โควตาเต็มแล้ว!',
-                html: `ชุมนุมนี้อนุมัตินักเรียนครบ <b>${myClubInfo.max_capacity}</b> คนตามเป้าแล้ว<br><br><span class="text-sm text-red-500">* หากต้องการรับนักเรียนคนนี้ กรุณากด "ยกเลิกการรับ" คนเก่าออกก่อนครับ</span>`,
+                html: `ชุมนุมนี้อนุมัตินักเรียนครบ <b>${myClubInfo.max_capacity}</b> คนตามเป้าแล้ว<br><br>
+                       <span class="text-sm text-red-500">* หากต้องการรับนักเรียนคนนี้ กรุณากด "ยกเลิกการรับ" คนเก่าออกก่อนครับ</span>`,
                 icon: 'error',
                 confirmButtonColor: '#dc2626',
                 confirmButtonText: 'ตกลง'
@@ -357,112 +411,53 @@ window.updateStatus = async (id, status, reason = null) => {
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
 
     const payload = { status };
-
-    // 🌟 2. เคลียร์เหตุผลปฏิเสธทิ้ง หากครูเปลี่ยนใจกลับมารับนักเรียน
     if (status === 'approved') {
-        payload.rejection_reason = null;
+        payload.rejection_reason = null; // ✅ เคลียร์เหตุผลปฏิเสธเดิมออก
     } else if (reason) {
         payload.rejection_reason = reason;
     }
 
     await db.from('club_registrations').update(payload).eq('id', id);
-
-    // รีเฟรชตารางใหม่
     await loadTeacherApplicants();
     Swal.close();
 };
 
 window.promptReject = async (id) => {
     const { value: reason } = await Swal.fire({
-        title: 'ปฏิเสธนักเรียน', input: 'text', inputPlaceholder: 'ระบุเหตุผล (เช่น เต็ม, เกรดไม่ถึง)',
-        showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ปฏิเสธ',
+        title: 'ปฏิเสธนักเรียน',
+        input: 'text',
+        inputPlaceholder: 'ระบุเหตุผล (เช่น เต็ม, เกรดไม่ถึง)',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ปฏิเสธ',
         inputValidator: (v) => !v && 'กรุณาระบุเหตุผล'
     });
     if (reason) updateStatus(id, 'rejected', reason);
 };
 
+// ✅ [FIX #7] เพิ่มคอลัมน์ student_message ในการ export
 window.exportTeacherExcel = () => {
-    if (teacherApplicantsData.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ Export', 'info');
-    const ws = XLSX.utils.json_to_sheet(teacherApplicantsData.map(m => ({ 'รหัสนักเรียน': m.stu_id, 'ชื่อ-สกุล': m.full_name, 'ชั้นเรียน': m.classroom, 'สถานะ': m.status === 'approved' ? 'อนุมัติ' : (m.status === 'rejected' ? 'ไม่อนุมัติ' : 'รอ'), 'หมายเหตุ': m.reason || '' })));
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Students");
+    if (teacherApplicantsData.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ Export', 'info');
+    }
+    const ws = XLSX.utils.json_to_sheet(teacherApplicantsData.map(m => ({
+        'รหัสนักเรียน': m.stu_id,
+        'ชื่อ-สกุล': m.full_name,
+        'ชั้นเรียน': m.classroom,
+        'สถานะ': m.status === 'approved' ? 'อนุมัติ' : (m.status === 'rejected' ? 'ไม่อนุมัติ' : 'รอ'),
+        'หมายเหตุการปฏิเสธ': m.reason || '',
+        'ข้อความจากนักเรียน': m.message || '' // ✅ เพิ่มคอลัมน์นี้
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
     XLSX.writeFile(wb, `รายชื่อชุมนุม_${myClubInfo.club_name}.xlsx`);
 };
 
 // ==========================================
-// 4. Admin Module: จัดการส่วนกลาง
+// 4. Admin Module
 // ==========================================
 
-async function loadAdminClubs() {
-    const { data, error } = await db.from('club_lists')
-        .select(`*, core_personnel(prefix, first_name, last_name), club_categories(name)`)
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester);
-
-    if (error) return;
-    allClubsData = data || [];
-
-    if ($.fn.DataTable.isDataTable('#adminClubsTable')) $('#adminClubsTable').DataTable().destroy();
-    document.getElementById('tb-admin-clubs').innerHTML = allClubsData.map(c => {
-        const tName = c.core_personnel ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}` : 'ไม่ระบุ';
-        const avatarUrl = c.core_personnel?.avatar_url;
-        
-        // UI รูปครูแบบสี่เหลี่ยมมุมโค้งมน (ตามที่เคยปรับ)
-        const tHtml = avatarUrl 
-            ? `<div class="flex items-center gap-3">
-                 <img src="${avatarUrl}" onclick="viewTeacherImage('${avatarUrl}', '${tName}')" class="w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200" title="คลิกเพื่อดูรูปใหญ่" />
-                 <span class="font-medium">${tName}</span>
-               </div>`
-            : `<div class="flex items-center gap-3">
-                 <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400"><i class="fa-solid fa-user"></i></div>
-                 <span class="font-medium">${tName}</span>
-               </div>`;
-
-        const stBadge = c.is_locked ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700">ปิดแล้ว</span>' : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">เปิดรับ</span>';
-
-        const safeClubName = c.club_name.replace(/'/g, "\\'");
-        const safeDesc = (c.description || '').replace(/'/g, "\\'");
-        const safeCatName = (c.club_categories?.name || '').replace(/'/g, "\\'");
-
-        return `<tr class="hover:bg-purple-50/50">
-            <td class="py-3 px-4 font-bold text-purple-700">${c.club_name}</td>
-            <td class="py-3 px-4">${c.club_categories?.name || '-'}</td>
-            <td class="py-3 px-4">${tHtml}</td>
-            <td class="py-3 px-4 text-center">${c.target_grades}</td>
-            <td class="py-3 px-4 text-center">${c.max_capacity}</td>
-            <td class="py-3 px-4 text-center">${stBadge}</td>
-            <td class="py-3 px-4 text-center whitespace-nowrap">
-                <button onclick="viewClubStudents('${c.id}', '${safeClubName}')" class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="ดูรายชื่อนักเรียน">
-                    <i class="fa-solid fa-eye"></i>
-                </button>
-                
-                <button onclick="importClubMembersExcel('${c.id}', '${safeClubName}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="นำเข้ารายชื่อนักเรียนจาก Excel">
-                    <i class="fa-solid fa-file-excel"></i>
-                </button>
-
-                <button onclick="toggleLockAdminClub('${c.id}', ${c.is_locked}, '${safeClubName}')" 
-                        class="${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" 
-                        title="${c.is_locked ? 'ปลดล็อคชุมนุม' : 'ล็อคชุมนุม'}">
-                    <i class="fa-solid ${c.is_locked ? 'fa-lock-open' : 'fa-lock'}"></i>
-                </button>
-
-                <button onclick="editAdminClub('${c.id}', '${safeClubName}', '${safeCatName}', '${c.teacher_id}', '${c.target_grades}', '${c.max_capacity}', '${c.location}', '${safeDesc}')" class="bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="แก้ไข">
-                    <i class="fa-solid fa-pen-to-square"></i>
-                </button>
-
-                <button onclick="deleteAdminClub('${c.id}', '${safeClubName}')" class="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors" title="ลบ">
-                    <i class="fa-solid fa-trash"></i>
-                </button>
-            </td>
-        </tr>`;
-    }).join('');
-
-    $('#adminClubsTable').DataTable({
-        responsive: true,
-        scrollX: true,
-        order: [[1, 'asc']], // เรียงตามคอลัมน์ที่ 1 (หมวดหมู่) จากน้อยไปมาก
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
-    });
-}
+// ✅ [FIX #5] ลบ loadAdminClubs ตัวแรก (ซ้ำและไม่สมบูรณ์) เหลือเพียงตัวเดียวด้านล่าง
 
 window.viewClubStudents = async (clubId, clubName) => {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -516,31 +511,35 @@ window.viewClubStudents = async (clubId, clubName) => {
                             <th class="py-2 px-3 border-b text-left">เลขประจำตัว</th>
                             <th class="py-2 px-3 border-b text-left">ชื่อ-สกุล</th>
                             <th class="py-2 px-3 border-b text-left">ชั้น</th>
-                            <th class="py-2 px-3 border-b text-left">สถานะของครู</th>
+                            <th class="py-2 px-3 border-b text-left">สถานะ</th>
                         </tr>
                     </thead>
                     <tbody>`;
 
         rows.forEach(r => {
-            html += `
-                <tr class="border-t hover:bg-gray-50">
-                    <td class="py-2 px-3 font-mono text-gray-700">${r.id_card}</td>
-                    <td class="py-2 px-3 font-medium">${r.full_name}</td>
-                    <td class="py-2 px-3">${r.classroom}</td>
-                    <td class="py-2 px-3 font-bold ${r.statusColor}">${r.status}</td>
-                </tr>`;
+            html += `<tr class="border-t hover:bg-gray-50">
+                <td class="py-2 px-3 font-mono text-gray-700">${r.id_card}</td>
+                <td class="py-2 px-3 font-medium">${r.full_name}</td>
+                <td class="py-2 px-3">${r.classroom}</td>
+                <td class="py-2 px-3 font-bold ${r.statusColor}">${r.status}</td>
+            </tr>`;
         });
 
         html += `</tbody></table></div></div>`;
 
-        Swal.fire({ title: 'รายชื่อนักเรียน', html: html, width: '850px', confirmButtonText: 'ปิด', customClass: { popup: 'text-sm rounded-xl' } });
+        Swal.fire({
+            title: 'รายชื่อนักเรียน',
+            html: html,
+            width: '850px',
+            confirmButtonText: 'ปิด',
+            customClass: { popup: 'text-sm rounded-xl' }
+        });
     } catch (err) {
         console.error(err);
         Swal.fire('Error', err.message, 'error');
     }
 };
 
-// 🌟 เพิ่มฟังก์ชันเปิด-ปิดล็อค สำหรับแอดมิน
 window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
     const actionText = isCurrentlyLocked ? 'ปลดล็อค' : 'ล็อค';
     const { isConfirmed } = await Swal.fire({
@@ -554,25 +553,49 @@ window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
 
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
-
-        // ถ้าแอดมินกดล็อค ให้เด้งเด็กที่ค้างอยู่ออกด้วย
         if (!isCurrentlyLocked) {
-            await db.from('club_registrations').update({ status: 'rejected', rejection_reason: 'แอดมินปิดรับสมัคร' }).eq('club_id', id).eq('status', 'pending');
+            await db.from('club_registrations')
+                .update({ status: 'rejected', rejection_reason: 'แอดมินปิดรับสมัคร' })
+                .eq('club_id', id)
+                .eq('status', 'pending');
         }
-
-        // อัปเดตสถานะล็อค
         await db.from('club_lists').update({ is_locked: !isCurrentlyLocked }).eq('id', id);
-
         await loadAdminClubs();
         Swal.fire('สำเร็จ', `${actionText}ชุมนุมเรียบร้อยแล้ว`, 'success');
     }
+};
+
+// ✅ [FIX #6] ลบ getDisplayAvatar ออก เพราะไม่ถูกใช้งานจริง ใช้ getDirectImageUrl แทนทั้งหมด
+
+function getDirectImageUrl(url) {
+    if (!url) return null;
+    if (url.includes('drive.google.com')) {
+        const match = url.match(/id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+        if (match && match[1]) {
+            return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+        }
+    }
+    return url;
+}
+
+// ✅ viewTeacherImage — convert URL ภายในเสมอ ป้องกัน raw Google Drive URL
+window.viewTeacherImage = (url, name) => {
+    if (!url) return;
+    const directUrl = getDirectImageUrl(url);
+    Swal.fire({
+        title: name || 'ครูที่ปรึกษา',
+        imageUrl: directUrl,
+        imageAlt: 'Teacher Profile',
+        confirmButtonText: 'ปิดหน้าต่าง',
+        confirmButtonColor: '#0d9488',
+        customClass: { image: 'rounded-2xl object-cover max-h-[60vh] shadow-lg border-4 border-white' }
+    });
 };
 
 function updateTeacherAvatarPreview(teacherId) {
     const container = document.getElementById('teacher-avatar-preview-container');
     const img = document.getElementById('teacher-avatar-img');
     const urlInput = document.getElementById('ac_teacher_avatar_url');
-
     if (!teacherId || !container) return;
 
     const teacher = allTeachers.find(t => t.id === teacherId);
@@ -580,7 +603,7 @@ function updateTeacherAvatarPreview(teacherId) {
         container.style.display = 'block';
         if (urlInput) urlInput.value = teacher.avatar_url || '';
         if (teacher.avatar_url) {
-            img.src = teacher.avatar_url;
+            img.src = getDirectImageUrl(teacher.avatar_url);
             img.style.display = 'block';
         } else {
             img.src = '';
@@ -597,28 +620,23 @@ window.refreshTeacherAvatar = async () => {
         Swal.fire({ icon: 'info', title: 'กรุณาเลือกครูก่อน', timer: 1500, showConfirmButton: false });
         return;
     }
-
     const { data, error } = await db.from('core_personnel').select('avatar_url').eq('id', teacherId).single();
     if (error) {
         Swal.fire('Error', 'ไม่สามารถดึงข้อมูลครู', 'error');
         return;
     }
-
     const urlInput = document.getElementById('ac_teacher_avatar_url');
     if (urlInput) urlInput.value = data.avatar_url || '';
     const img = document.getElementById('teacher-avatar-img');
     if (data.avatar_url) {
-        img.src = data.avatar_url;
+        img.src = getDirectImageUrl(data.avatar_url);
         img.style.display = 'block';
     } else {
         img.src = '';
         img.style.display = 'none';
     }
-
     const teacher = allTeachers.find(t => t.id === teacherId);
-    if (teacher) {
-        teacher.avatar_url = data.avatar_url;
-    }
+    if (teacher) teacher.avatar_url = data.avatar_url;
     Swal.fire({ icon: 'success', title: 'ดึงข้อมูลรูปครูสำเร็จ', timer: 1000, showConfirmButton: false });
 };
 
@@ -626,18 +644,15 @@ window.clearTeacherAvatar = () => {
     const urlInput = document.getElementById('ac_teacher_avatar_url');
     if (urlInput) urlInput.value = '';
     const img = document.getElementById('teacher-avatar-img');
-    if (img) {
-        img.src = '';
-        img.style.display = 'none';
-    }
+    if (img) { img.src = ''; img.style.display = 'none'; }
 };
 
 function initAdminTomSelect() {
     const tsEl = document.getElementById('ac_teacher');
     if (tsEl.tomselect) tsEl.tomselect.destroy();
-    tsEl.innerHTML = '<option value="">-- ค้นหาชื่อครู... --</option>' + allTeachers.map(t => `<option value="${t.id}">${t.prefix || ''}${t.first_name} ${t.last_name}</option>`).join('');
+    tsEl.innerHTML = '<option value="">-- ค้นหาชื่อครู... --</option>' +
+        allTeachers.map(t => `<option value="${t.id}">${t.prefix || ''}${t.first_name} ${t.last_name}</option>`).join('');
     const teacherTS = new TomSelect(tsEl, { placeholder: 'ค้นหาชื่อครู...', allowEmptyOption: true });
-
     teacherTS.on('change', (value) => { updateTeacherAvatarPreview(value); });
 
     const tsCat = document.getElementById('ac_category');
@@ -645,7 +660,10 @@ function initAdminTomSelect() {
 
     categoryMap = {};
     let catOptions = [];
-    allCategories.forEach(c => { categoryMap[c.name] = c.id; catOptions.push({ value: c.name, text: c.name }); });
+    allCategories.forEach(c => {
+        categoryMap[c.name] = c.id;
+        catOptions.push({ value: c.name, text: c.name });
+    });
 
     new TomSelect(tsCat, {
         options: catOptions,
@@ -655,9 +673,10 @@ function initAdminTomSelect() {
         searchField: 'text',
         placeholder: 'เลือก หรือ พิมพ์หมวดหมู่ใหม่ที่นี่...',
         render: {
-            option_create: function (data, escape) {
-                return '<div class="create text-blue-600 font-bold p-2 bg-blue-50"> <i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มหมวดหมู่: <strong>' + escape(data.input) + '</strong>&hellip;</div>';
-            }
+            option_create: (data, escape) =>
+                `<div class="create text-blue-600 font-bold p-2 bg-blue-50">
+                    <i class="fa-solid fa-plus-circle mr-1"></i> เพิ่มหมวดหมู่: <strong>${escape(data.input)}</strong>&hellip;
+                 </div>`
         }
     });
 }
@@ -681,10 +700,8 @@ window.editAdminClub = (id, name, catName, tId, grades, cap, loc, desc) => {
     initAdminTomSelect();
     document.getElementById('ac_category').tomselect.setValue(catName);
     document.getElementById('ac_teacher').tomselect.setValue(tId);
-
     const gradesSelect = document.getElementById('ac_grades');
     if (gradesSelect) gradesSelect.value = grades;
-
     updateTeacherAvatarPreview(tId);
     document.getElementById('adminClubModal').classList.remove('hidden');
     document.getElementById('adminClubModal').classList.add('flex');
@@ -734,7 +751,9 @@ window.saveClubByAdmin = async (e) => {
     }
 
     const id = document.getElementById('ac_id').value;
-    const query = id ? db.from('club_lists').update(payload).eq('id', id) : db.from('club_lists').insert([payload]);
+    const query = id
+        ? db.from('club_lists').update(payload).eq('id', id)
+        : db.from('club_lists').insert([payload]);
     const { error } = await query;
 
     if (error) {
@@ -748,7 +767,13 @@ window.saveClubByAdmin = async (e) => {
 };
 
 window.deleteAdminClub = async (id, name) => {
-    const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', html: `ลบ <b>${name}</b> ใช่หรือไม่?`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' });
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        html: `ลบ <b>${name}</b> ใช่หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626'
+    });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').delete().eq('id', id);
@@ -757,7 +782,9 @@ window.deleteAdminClub = async (id, name) => {
     }
 };
 
-// --- Admin: Students Tracker (All School) ---
+// ==========================================
+// Admin: Students Tracker
+// ==========================================
 async function loadAllStudentsReport() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งโรงเรียน...', didOpen: () => Swal.showLoading() });
     try {
@@ -787,30 +814,58 @@ async function loadAllStudentsReport() {
             };
         });
 
-        if ($.fn.DataTable.isDataTable('#adminAllStudentsTable')) $('#adminAllStudentsTable').DataTable().destroy();
+        if ($.fn.DataTable.isDataTable('#adminAllStudentsTable')) {
+            $('#adminAllStudentsTable').DataTable().destroy();
+        }
+
         document.getElementById('tb-admin-all-students').innerHTML = allStudentsReportData.map(s => {
-            let badge = s.status === 'not_applied' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>' : (s.status === 'approved' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>' : (s.status === 'rejected' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>' : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
-            return `<tr class="hover:bg-purple-50"><td class="py-3 px-4 font-mono">${s.id_card}</td><td class="py-3 px-4">${s.full_name}</td><td class="py-3 px-4">${s.classroom}</td><td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td><td class="py-3 px-4 text-center">${badge}</td><td class="py-3 px-4 text-xs text-red-500">${s.comment}</td></tr>`;
+            let badge = s.status === 'not_applied'
+                ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>'
+                : (s.status === 'approved'
+                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>'
+                    : (s.status === 'rejected'
+                        ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>'
+                        : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
+            return `<tr class="hover:bg-purple-50">
+                <td class="py-3 px-4 font-mono">${s.id_card}</td>
+                <td class="py-3 px-4">${s.full_name}</td>
+                <td class="py-3 px-4">${s.classroom}</td>
+                <td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td>
+                <td class="py-3 px-4 text-center">${badge}</td>
+                <td class="py-3 px-4 text-xs text-red-500">${s.comment}</td>
+            </tr>`;
         }).join('');
 
         $('#adminAllStudentsTable').DataTable({
             responsive: true,
             scrollX: true,
-            order: [[2, 'asc']], // เรียงตามคอลัมน์ระดับชั้นจากน้อยไปมาก 
+            order: [[2, 'asc']],
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
         });
         Swal.close();
-    } catch (err) { Swal.fire('Error', err.message, 'error'); }
+    } catch (err) {
+        Swal.fire('Error', err.message, 'error');
+    }
 }
 
 window.exportAllStudentsExcel = () => {
     if (allStudentsReportData.length === 0) return;
-    const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => ({ 'เลขประจำตัว': s.id_card, 'ชื่อสกุล': s.full_name, 'ห้อง': s.classroom, 'ชุมนุม': s.club_name, 'สถานะ': s.status, 'หมายเหตุ': s.comment })));
-    const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Students");
+    const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => ({
+        'เลขประจำตัว': s.id_card,
+        'ชื่อสกุล': s.full_name,
+        'ห้อง': s.classroom,
+        'ชุมนุม': s.club_name,
+        'สถานะ': s.status,
+        'หมายเหตุ': s.comment
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Students");
     XLSX.writeFile(wb, `รายงานนักเรียนสมัครชุมนุม_เทอม${currentSchoolInfo.current_semester}_${currentSchoolInfo.current_academic_year}.xlsx`);
 };
 
-// --- Admin: Settings (Module Admins) ---
+// ==========================================
+// Admin: Module Settings
+// ==========================================
 window.openAdminSettings = () => {
     document.getElementById('moduleAdminModal').classList.remove('hidden');
     document.getElementById('moduleAdminModal').classList.add('flex');
@@ -825,14 +880,26 @@ window.closeAdminSettings = () => {
 async function loadModuleAdmins() {
     const sel = document.getElementById('select_new_admin');
     if (sel.tomselect) sel.tomselect.destroy();
-
-    sel.innerHTML = '<option value="">-- พิมพ์ค้นหาชื่อครูเพื่อเพิ่มแอดมิน --</option>' + allTeachers.map(t => `<option value="${t.id}">${t.prefix || ''}${t.first_name} ${t.last_name}</option>`).join('');
+    sel.innerHTML = '<option value="">-- พิมพ์ค้นหาชื่อครูเพื่อเพิ่มแอดมิน --</option>' +
+        allTeachers.map(t => `<option value="${t.id}">${t.prefix || ''}${t.first_name} ${t.last_name}</option>`).join('');
     new TomSelect(sel, { placeholder: 'ค้นหาชื่อครู...', allowEmptyOption: true });
 
-    const { data } = await db.from('core_module_admins').select(`id, core_personnel(prefix, first_name, last_name)`).eq('module_id', MODULE_ID);
+    const { data } = await db.from('core_module_admins')
+        .select(`id, core_personnel(prefix, first_name, last_name)`)
+        .eq('module_id', MODULE_ID);
+
     document.getElementById('tb-module-admins').innerHTML = (data || []).map(m => `
-        <tr class="hover:bg-slate-50"><td class="py-3 px-4 font-bold text-indigo-800"><i class="fa-solid fa-user-shield text-indigo-400 mr-2"></i>${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}</td>
-        <td class="py-3 px-4 text-center"><button onclick="removeModuleAdmin('${m.id}')" class="text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded transition"><i class="fa-solid fa-xmark"></i></button></td></tr>
+        <tr class="hover:bg-slate-50">
+            <td class="py-3 px-4 font-bold text-indigo-800">
+                <i class="fa-solid fa-user-shield text-indigo-400 mr-2"></i>
+                ${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}
+            </td>
+            <td class="py-3 px-4 text-center">
+                <button onclick="removeModuleAdmin('${m.id}')" class="text-red-500 hover:text-red-700 bg-red-50 px-2 py-1 rounded transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </td>
+        </tr>
     `).join('');
 }
 
@@ -840,7 +907,8 @@ window.addModuleAdmin = async () => {
     const uid = document.getElementById('select_new_admin').value;
     if (!uid) return Swal.fire('เตือน', 'กรุณาเลือกครู', 'warning');
     await db.from('core_module_admins').insert({ user_id: uid, module_id: MODULE_ID });
-    loadModuleAdmins(); Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'สำเร็จ', timer: 1500, showConfirmButton: false });
+    loadModuleAdmins();
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'สำเร็จ', timer: 1500, showConfirmButton: false });
 };
 
 window.removeModuleAdmin = async (id) => {
@@ -849,34 +917,15 @@ window.removeModuleAdmin = async (id) => {
 };
 
 // ==========================================
-// 5. Excel Import (Full Version)
+// 5. Excel Import/Export
 // ==========================================
-
 window.downloadClubTemplate = () => {
-    const ws_data = [
-        [
-            'ชื่อชุมนุม',
-            'ชื่อหมวดหมู่',
-            'ครูผู้รับผิดชอบ (ชื่อ-สกุล)',
-            'ระดับชั้นที่รับ (เป้าหมาย)',
-            'จำนวนที่รับ (คน)',
-            'สถานที่จัดกิจกรรม',
-            'รายละเอียด'
-        ]
-    ];
+    const ws_data = [[
+        'ชื่อชุมนุม', 'ชื่อหมวดหมู่', 'ครูผู้รับผิดชอบ (ชื่อ-สกุล)',
+        'ระดับชั้นที่รับ (เป้าหมาย)', 'จำนวนที่รับ (คน)', 'สถานที่จัดกิจกรรม', 'รายละเอียด'
+    ]];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-
-    // กำหนดความกว้างคอลัมน์ให้พอดี
-    ws['!cols'] = [
-        { wch: 25 }, // ชื่อชุมนุม
-        { wch: 20 }, // หมวดหมู่
-        { wch: 25 }, // ครู
-        { wch: 18 }, // ระดับชั้น
-        { wch: 15 }, // จำนวนที่รับ
-        { wch: 25 }, // สถานที่
-        { wch: 30 }  // รายละเอียด
-    ];
-
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 18 }, { wch: 15 }, { wch: 25 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Clubs");
     XLSX.writeFile(wb, "ต้นแบบนำเข้าชุมนุม.xlsx");
@@ -893,8 +942,7 @@ window.importClubsFromExcel = async (event) => {
 
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
+            const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
             if (rows.length < 2) {
@@ -922,20 +970,16 @@ window.importClubsFromExcel = async (event) => {
                 headerIndices[key] = idx;
             }
 
-            // เตรียมข้อมูล Dictionary เพื่อการจับคู่ที่รวดเร็ว
             const teacherMap = {};
             allTeachers.forEach(t => {
                 const fullName = `${t.prefix || ''}${t.first_name} ${t.last_name}`.trim();
                 teacherMap[fullName] = t.id;
-                // เผื่อกรอกแบบไม่มีคำนำหน้า
-                const nameWithoutPrefix = `${t.first_name} ${t.last_name}`.trim();
-                teacherMap[nameWithoutPrefix] = t.id;
+                teacherMap[`${t.first_name} ${t.last_name}`.trim()] = t.id;
             });
 
             const categoryMapByName = {};
             allCategories.forEach(c => categoryMapByName[c.name] = c.id);
 
-            // เช็คว่ามีครูคนไหนเปิดชุมนุมไปแล้วบ้าง
             const { data: existingClubs } = await db.from('club_lists')
                 .select('teacher_id')
                 .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -946,16 +990,12 @@ window.importClubsFromExcel = async (event) => {
             const errors = [];
             let successCount = 0;
 
-            // เริ่มตรวจสอบและเพิ่มข้อมูลทีละแถว
             for (let i = 1; i < rows.length; i++) {
                 const row = rows[i];
-                if (!row || row.length === 0) continue; // ข้ามแถวว่าง
+                if (!row || row.length === 0) continue;
 
                 const clubName = (row[headerIndices.club_name] || '').toString().trim();
-                if (!clubName) {
-                    errors.push(`แถว ${i + 1}: ไม่ได้ระบุชื่อชุมนุม`);
-                    continue;
-                }
+                if (!clubName) { errors.push(`แถว ${i + 1}: ไม่ได้ระบุชื่อชุมนุม`); continue; }
 
                 const categoryName = (row[headerIndices.category] || '').toString().trim();
                 const teacherFullName = (row[headerIndices.teacher] || '').toString().trim();
@@ -964,39 +1004,24 @@ window.importClubsFromExcel = async (event) => {
                 const location = (row[headerIndices.location] || '').toString().trim();
                 const description = (row[headerIndices.description] || '').toString().trim();
 
-                // 🔍 ตรวจสอบว่าครูมีในระบบหรือไม่
                 const teacherId = teacherMap[teacherFullName];
-                if (!teacherId) {
-                    errors.push(`แถว ${i + 1}: ไม่พบครู "${teacherFullName}" ในระบบ`);
-                    continue;
-                }
+                if (!teacherId) { errors.push(`แถว ${i + 1}: ไม่พบครู "${teacherFullName}" ในระบบ`); continue; }
+                if (teachersWithClub.has(teacherId)) { errors.push(`แถว ${i + 1}: ครู "${teacherFullName}" มีชุมนุมในเทอมนี้แล้ว (ข้าม)`); continue; }
 
-                // 🔍 ตรวจสอบว่าครูมีชุมนุมอยู่แล้วหรือไม่
-                if (teachersWithClub.has(teacherId)) {
-                    errors.push(`แถว ${i + 1}: ครู "${teacherFullName}" มีชุมนุมในเทอมนี้แล้ว (ข้าม)`);
-                    continue;
-                }
-
-                // จัดการหมวดหมู่ชุมนุม (ถ้ายังไม่มีให้สร้างใหม่เลย)
                 let categoryId = categoryMapByName[categoryName];
                 if (!categoryId && categoryName) {
                     try {
-                        const { data: newCat, error: catErr } = await db.from('club_categories')
-                            .insert([{ name: categoryName }])
-                            .select()
-                            .single();
+                        const { data: newCat, error: catErr } = await db.from('club_categories').insert([{ name: categoryName }]).select().single();
                         if (catErr) throw new Error('สร้างหมวดหมู่ล้มเหลว');
-
                         categoryId = newCat.id;
                         allCategories.push(newCat);
                         categoryMapByName[categoryName] = newCat.id;
-                    } catch (e) {
+                    } catch {
                         errors.push(`แถว ${i + 1}: ไม่สามารถเพิ่มหมวดหมู่ใหม่ได้`);
                         continue;
                     }
                 }
 
-                // บันทึกข้อมูลลงฐานข้อมูล
                 const { error: insertErr } = await db.from('club_lists').insert([{
                     club_name: clubName,
                     category_id: categoryId,
@@ -1012,12 +1037,11 @@ window.importClubsFromExcel = async (event) => {
                 if (insertErr) {
                     errors.push(`แถว ${i + 1}: บันทึกข้อมูลล้มเหลว`);
                 } else {
-                    teachersWithClub.add(teacherId); // ป้องกันการเพิ่มซ้ำในลูป
+                    teachersWithClub.add(teacherId);
                     successCount++;
                 }
             }
 
-            // --- สรุปผลลัพธ์การนำเข้า ---
             let html = `<div class="text-left">
                 <p class="font-bold text-green-600 text-lg mb-2">✅ นำเข้าสำเร็จ: ${successCount} รายการ</p>`;
 
@@ -1054,8 +1078,8 @@ window.importClubsFromExcel = async (event) => {
                 customClass: { popup: 'text-sm rounded-xl' }
             });
 
-            document.getElementById('excelUploadClubs').value = ''; // เคลียร์ช่อง input
-            await loadAdminClubs(); // รีเฟรชตาราง
+            document.getElementById('excelUploadClubs').value = '';
+            await loadAdminClubs();
 
         } catch (err) {
             Swal.fire('Error', err.message, 'error');
@@ -1065,15 +1089,14 @@ window.importClubsFromExcel = async (event) => {
     reader.readAsArrayBuffer(file);
 };
 
-// 🌟 ฟังก์ชันส่งออกรายชื่อชุมนุมทั้งหมดประจำเทอม (สำหรับแอดมิน)
 window.exportClubsToExcel = () => {
     if (allClubsData.length === 0) {
         return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลชุมนุมในภาคเรียนนี้ให้ส่งออก', 'info');
     }
-
-    // แปลงข้อมูลให้เป็นภาษาไทยและจัดเรียงคอลัมน์ให้สวยงาม
     const exportData = allClubsData.map(c => {
-        const tName = c.core_personnel ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}` : 'ไม่ระบุ';
+        const tName = c.core_personnel
+            ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}`
+            : 'ไม่ระบุ';
         return {
             'ชื่อกิจกรรมชุมนุม': c.club_name,
             'หมวดหมู่/กลุ่มสาระฯ': c.club_categories?.name || '-',
@@ -1085,33 +1108,12 @@ window.exportClubsToExcel = () => {
             'รายละเอียดเพิ่มเติม': c.description || '-'
         };
     });
-
-    // สั่งสร้างไฟล์ Excel ด้วย SheetJS (XLSX)
     const ws = XLSX.utils.json_to_sheet(exportData);
-
-    // กำหนดความกว้างของคอลัมน์ให้อ่านง่าย
-    ws['!cols'] = [
-        { wch: 25 }, // ชื่อชุมนุม
-        { wch: 20 }, // หมวดหมู่
-        { wch: 25 }, // ครู
-        { wch: 22 }, // ระดับชั้น
-        { wch: 15 }, // จำนวนที่รับ
-        { wch: 20 }, // สถานที่
-        { wch: 18 }, // สถานะ
-        { wch: 30 }  // รายละเอียด
-    ];
-
+    ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 22 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อชุมนุมทั้งหมด");
-
-    // ตั้งชื่อไฟล์ตามปีการศึกษาและเทอมปัจจุบันโดยอัตโนมัติ
-    const fileName = `รายชื่อชุมนุมทั้งหมด_เทอม${currentSchoolInfo.current_semester}_ปี${currentSchoolInfo.current_academic_year}.xlsx`;
-    XLSX.writeFile(wb, fileName);
+    XLSX.writeFile(wb, `รายชื่อชุมนุมทั้งหมด_เทอม${currentSchoolInfo.current_semester}_ปี${currentSchoolInfo.current_academic_year}.xlsx`);
 };
-
-// ==========================================
-// 🚀 ระบบนำเข้าสมาชิกชุมนุมจาก Excel (สำหรับแอดมิน)
-// ==========================================
 
 window.importClubMembersExcel = (clubId, clubName) => {
     Swal.fire({
@@ -1119,7 +1121,8 @@ window.importClubMembersExcel = (clubId, clubName) => {
         html: `
             <div class="text-left text-sm">
                 <p class="mb-2 text-slate-600">กรุณาเลือกไฟล์ Excel (.xlsx) ที่เลขประจำตัวนักเรียนอยู่ <b>คอลัมน์ A (คอลัมน์แรก)</b></p>
-                <input type="file" id="excel-import-file" accept=".xlsx" class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-50 file:text-emerald-700">
+                <input type="file" id="excel-import-file" accept=".xlsx"
+                       class="block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:bg-emerald-50 file:text-emerald-700">
             </div>
         `,
         showCancelButton: true,
@@ -1142,10 +1145,7 @@ async function processExcelImport(file, clubId) {
         const data = await file.arrayBuffer();
         const workbook = XLSX.read(data, { type: 'array' });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        // อ่านแบบ Array ของแถว (header: 1 ทำให้ไม่ต้องสนใจชื่อหัวตาราง)
         const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-        console.log("ข้อมูลที่อ่านได้จาก Excel:", rows); // 🌟 ตรงนี้สำคัญ: ให้ครูเปิด F12 (Console) ดูว่าข้อมูลที่อ่านได้หน้าตาเป็นอย่างไร
 
         if (rows.length <= 1) throw new Error('ไฟล์ว่างเปล่า หรือไม่มีข้อมูลในแถวที่ 2 เป็นต้นไป');
 
@@ -1154,13 +1154,10 @@ async function processExcelImport(file, clubId) {
 
         for (let i = 1; i < rows.length; i++) {
             const row = rows[i];
-            // ดึงค่าจากคอลัมน์ A (index 0) หากไฟล์ครูเลขประจำตัวอยู่คอลัมน์อื่น ให้เปลี่ยน [0] เป็น [1] หรือ [2] ตามลำดับ
             const sid = row[0] ? row[0].toString().trim() : null;
+            if (!sid) continue;
 
-            if (!sid) continue; 
-
-            // ค้นหานักเรียน
-            const { data: std, error: stdErr } = await db.from('core_students')
+            const { data: std } = await db.from('core_students')
                 .select('id')
                 .eq('student_id_card', sid)
                 .maybeSingle();
@@ -1170,14 +1167,18 @@ async function processExcelImport(file, clubId) {
                 continue;
             }
 
-            // ลบรายการเดิม
-            await db.from('club_registrations').delete().eq('student_id', std.id);
+            // ✅ ลบเฉพาะใน academic_year/semester ปัจจุบัน ไม่กระทบข้อมูลปีอื่น
+            await db.from('club_registrations')
+                .delete()
+                .eq('student_id', std.id)
+                .eq('academic_year', currentSchoolInfo.current_academic_year)
+                .eq('semester', currentSchoolInfo.current_semester);
 
-            // เพิ่มเข้าชุมนุม
             const { error: insErr } = await db.from('club_registrations').insert({
                 club_id: clubId,
                 student_id: std.id,
                 status: 'approved',
+                is_confirmed: true,
                 academic_year: currentSchoolInfo.current_academic_year,
                 semester: currentSchoolInfo.current_semester
             });
@@ -1189,7 +1190,10 @@ async function processExcelImport(file, clubId) {
         Swal.fire({
             icon: successCount > 0 ? 'success' : 'warning',
             title: 'สรุปการนำเข้า',
-            html: `สำเร็จ: <b>${successCount}</b> คน<br>${errorLogs.length > 0 ? `<div class="text-xs text-red-500 mt-2">ข้อผิดพลาด: ${errorLogs.length} รายการ</div>` : ''}`
+            html: `สำเร็จ: <b>${successCount}</b> คน<br>
+                   ${errorLogs.length > 0
+                    ? `<div class="text-xs text-red-500 mt-2">ข้อผิดพลาด: ${errorLogs.length} รายการ</div>`
+                    : ''}`
         });
 
         if (currentMode === 'admin') loadAdminClubs();
@@ -1198,4 +1202,117 @@ async function processExcelImport(file, clubId) {
         console.error(err);
         Swal.fire('ข้อผิดพลาด', err.message, 'error');
     }
+}
+
+// ==========================================
+// ✅ [FIX #5] loadAdminClubs — เหลือฉบับเดียว สมบูรณ์
+// ==========================================
+async function loadAdminClubs() {
+    const { data, error } = await db.from('club_lists')
+        .select(`*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name)`)
+        .eq('academic_year', currentSchoolInfo.current_academic_year)
+        .eq('semester', currentSchoolInfo.current_semester);
+
+    if (error) return;
+    allClubsData = data || [];
+
+    if ($.fn.DataTable.isDataTable('#adminClubsTable')) {
+        $('#adminClubsTable').DataTable().destroy();
+    }
+
+    document.getElementById('tb-admin-clubs').innerHTML = allClubsData.map(c => {
+        const tName = c.core_personnel
+            ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}`
+            : 'ไม่ระบุ';
+
+        const avatarUrl = getDirectImageUrl(c.core_personnel?.avatar_url);
+
+        // ✅ bind click ด้วย data attribute แทน onclick inline
+        const tHtml = avatarUrl
+            ? `<div class="flex items-center gap-3">
+                 <img src="${avatarUrl}"
+                      data-avatar-url="${avatarUrl}"
+                      data-teacher-name="${$('<div>').text(tName).html()}"
+                      onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(tName)}&background=random';"
+                      class="teacher-avatar-btn w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200"
+                      title="คลิกเพื่อดูรูปใหญ่" />
+                 <span class="font-medium">${$('<div>').text(tName).html()}</span>
+               </div>`
+            : `<div class="flex items-center gap-3">
+                 <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold">${tName.substring(0, 1)}</div>
+                 <span class="font-medium">${$('<div>').text(tName).html()}</span>
+               </div>`;
+
+        const stBadge = c.is_locked
+            ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700">ปิดแล้ว</span>'
+            : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">เปิดรับ</span>';
+
+        // ✅ ใช้ data attributes แทนการฝังข้อมูลใน onclick string — หลีกเลี่ยง quote แตก
+        return `<tr class="hover:bg-purple-50/50">
+            <td class="py-3 px-4 font-bold text-purple-700">${$('<div>').text(c.club_name).html()}</td>
+            <td class="py-3 px-4">${c.club_categories?.name || '-'}</td>
+            <td class="py-3 px-4">${tHtml}</td>
+            <td class="py-3 px-4 text-center">${c.target_grades}</td>
+            <td class="py-3 px-4 text-center">${c.max_capacity}</td>
+            <td class="py-3 px-4 text-center">${stBadge}</td>
+            <td class="py-3 px-4 text-center whitespace-nowrap">
+                <button data-action="view" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
+                        class="admin-club-btn bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="ดูรายชื่อนักเรียน">
+                    <i class="fa-solid fa-eye"></i>
+                </button>
+                <button data-action="import" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
+                        class="admin-club-btn bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="นำเข้ารายชื่อนักเรียนจาก Excel">
+                    <i class="fa-solid fa-file-excel"></i>
+                </button>
+                <button data-action="lock" data-id="${c.id}" data-locked="${c.is_locked}" data-name="${$('<div>').text(c.club_name).html()}"
+                        class="admin-club-btn ${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1"
+                        title="${c.is_locked ? 'ปลดล็อคชุมนุม' : 'ล็อคชุมนุม'}">
+                    <i class="fa-solid ${c.is_locked ? 'fa-lock-open' : 'fa-lock'}"></i>
+                </button>
+                <button data-action="edit"
+                        data-id="${c.id}"
+                        data-name="${$('<div>').text(c.club_name).html()}"
+                        data-cat="${$('<div>').text(c.club_categories?.name || '').html()}"
+                        data-teacher="${c.teacher_id}"
+                        data-grades="${c.target_grades}"
+                        data-cap="${c.max_capacity}"
+                        data-loc="${$('<div>').text(c.location || '').html()}"
+                        data-desc="${$('<div>').text(c.description || '').html()}"
+                        class="admin-club-btn bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="แก้ไข">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                </button>
+                <button data-action="delete" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
+                        class="admin-club-btn bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors" title="ลบ">
+                    <i class="fa-solid fa-trash"></i>
+                </button>
+            </td>
+        </tr>`;
+    }).join('');
+
+    // ✅ Bind events ทั้งหมดด้วย jQuery หลัง render
+    $('#tb-admin-clubs')
+        .off('click', '.teacher-avatar-btn')
+        .on('click', '.teacher-avatar-btn', function () {
+            viewTeacherImage($(this).data('avatar-url'), $(this).data('teacher-name'));
+        });
+
+    $('#tb-admin-clubs')
+        .off('click', '.admin-club-btn')
+        .on('click', '.admin-club-btn', function () {
+            const action = $(this).data('action');
+            const id = $(this).data('id');
+            const name = $(this).data('name');
+            if (action === 'view') viewClubStudents(id, name);
+            else if (action === 'import') importClubMembersExcel(id, name);
+            else if (action === 'lock') toggleLockAdminClub(id, $(this).data('locked') === true || $(this).data('locked') === 'true', name);
+            else if (action === 'edit') editAdminClub(id, name, $(this).data('cat'), $(this).data('teacher'), $(this).data('grades'), $(this).data('cap'), $(this).data('loc'), $(this).data('desc'));
+            else if (action === 'delete') deleteAdminClub(id, name);
+        });
+
+    $('#adminClubsTable').DataTable({
+        responsive: true,
+        scrollX: true,
+        order: [[1, 'asc']],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+    });
 }
