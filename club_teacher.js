@@ -1303,112 +1303,81 @@ async function processExcelImport(file, clubId) {
 // ==========================================
 // ✅ [FIX #5] loadAdminClubs — เหลือฉบับเดียว สมบูรณ์
 // ==========================================
+// 🌟 ฟังก์ชันโหลดตารางจัดการชุมนุม (ของแอดมิน)
 async function loadAdminClubs() {
+    // 🌟 เพิ่ม club_registrations(id, status) ใน Select เพื่อนำมานับยอดผู้สมัคร
     const { data, error } = await db.from('club_lists')
-        .select(`*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name)`)
+        .select(`*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name), club_registrations(id, status)`)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
         .eq('semester', currentSchoolInfo.current_semester);
 
     if (error) return;
     allClubsData = data || [];
 
-    if ($.fn.DataTable.isDataTable('#adminClubsTable')) {
-        $('#adminClubsTable').DataTable().destroy();
-    }
-
+    if ($.fn.DataTable.isDataTable('#adminClubsTable')) $('#adminClubsTable').DataTable().destroy();
     document.getElementById('tb-admin-clubs').innerHTML = allClubsData.map(c => {
-        const tName = c.core_personnel
-            ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}`
-            : 'ไม่ระบุ';
-
+        const tName = c.core_personnel ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}` : 'ไม่ระบุ';
+        
+        // แปลงลิงก์รูป
         const avatarUrl = getDirectImageUrl(c.core_personnel?.avatar_url);
-
-        // ✅ bind click ด้วย data attribute แทน onclick inline
-        const tHtml = avatarUrl
+        
+        const tHtml = avatarUrl 
             ? `<div class="flex items-center gap-3">
-                 <img src="${avatarUrl}"
-                      data-avatar-url="${avatarUrl}"
-                      data-teacher-name="${$('<div>').text(tName).html()}"
-                      onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(tName)}&background=random';"
-                      class="teacher-avatar-btn w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200"
-                      title="คลิกเพื่อดูรูปใหญ่" />
-                 <span class="font-medium">${$('<div>').text(tName).html()}</span>
+                 <img src="${avatarUrl}" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(tName)}&background=random';" onclick="viewTeacherImage('${avatarUrl}', '${tName}')" class="w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200" title="คลิกเพื่อดูรูปใหญ่" />
+                 <span class="font-medium">${tName}</span>
                </div>`
             : `<div class="flex items-center gap-3">
                  <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 font-bold">${tName.substring(0, 1)}</div>
-                 <span class="font-medium">${$('<div>').text(tName).html()}</span>
+                 <span class="font-medium">${tName}</span>
                </div>`;
 
-        const stBadge = c.is_locked
-            ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700">ปิดแล้ว</span>'
-            : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">เปิดรับ</span>';
+        const stBadge = c.is_locked ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700">ปิดแล้ว</span>' : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-emerald-100 text-emerald-700">เปิดรับ</span>';
 
-        // ✅ ใช้ data attributes แทนการฝังข้อมูลใน onclick string — หลีกเลี่ยง quote แตก
+        const safeClubName = c.club_name.replace(/'/g, "\\'");
+        const safeDesc = (c.description || '').replace(/'/g, "\\'");
+        const safeCatName = (c.club_categories?.name || '').replace(/'/g, "\\'");
+
+        // 🌟 นับยอดผู้สมัคร (คัดกรองเฉพาะคนที่ไม่โดนปฏิเสธ)
+        const appliedCount = c.club_registrations ? c.club_registrations.filter(r => r.status !== 'rejected').length : 0;
+        
+        // 🌟 สร้าง UI ยอดสมัคร ถ้าคนสมัครเกินโควตาให้เป็นตัวสีแดงเตือนแอดมิน
+        const capacityHtml = appliedCount > c.max_capacity 
+            ? `<span class="text-red-600 font-bold bg-red-50 px-2 py-1 rounded-lg">${appliedCount} / ${c.max_capacity}</span>`
+            : `<span class="text-slate-700 font-bold">${appliedCount} / ${c.max_capacity}</span>`;
+
         return `<tr class="hover:bg-purple-50/50">
-            <td class="py-3 px-4 font-bold text-purple-700">${$('<div>').text(c.club_name).html()}</td>
+            <td class="py-3 px-4 font-bold text-purple-700">${c.club_name}</td>
             <td class="py-3 px-4">${c.club_categories?.name || '-'}</td>
             <td class="py-3 px-4">${tHtml}</td>
             <td class="py-3 px-4 text-center">${c.target_grades}</td>
-            <td class="py-3 px-4 text-center">${c.max_capacity}</td>
-            <td class="py-3 px-4 text-center">${stBadge}</td>
+            <td class="py-3 px-4 text-center">${capacityHtml}</td> <td class="py-3 px-4 text-center">${stBadge}</td>
             <td class="py-3 px-4 text-center whitespace-nowrap">
-                <button data-action="view" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
-                        class="admin-club-btn bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="ดูรายชื่อนักเรียน">
+                <button onclick="viewClubStudents('${c.id}', '${safeClubName}')" class="bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="ดูรายชื่อนักเรียน">
                     <i class="fa-solid fa-eye"></i>
                 </button>
-                <button data-action="import" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
-                        class="admin-club-btn bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="นำเข้ารายชื่อนักเรียนจาก Excel">
+                <button onclick="importClubMembersExcel('${c.id}', '${safeClubName}')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="นำเข้ารายชื่อนักเรียนจาก Excel">
                     <i class="fa-solid fa-file-excel"></i>
                 </button>
-                <button data-action="lock" data-id="${c.id}" data-locked="${c.is_locked}" data-name="${$('<div>').text(c.club_name).html()}"
-                        class="admin-club-btn ${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1"
+                <button onclick="toggleLockAdminClub('${c.id}', ${c.is_locked}, '${safeClubName}')" 
+                        class="${c.is_locked ? 'bg-slate-200 text-slate-600 hover:bg-slate-300' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white'} text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" 
                         title="${c.is_locked ? 'ปลดล็อคชุมนุม' : 'ล็อคชุมนุม'}">
                     <i class="fa-solid ${c.is_locked ? 'fa-lock-open' : 'fa-lock'}"></i>
                 </button>
-                <button data-action="edit"
-                        data-id="${c.id}"
-                        data-name="${$('<div>').text(c.club_name).html()}"
-                        data-cat="${$('<div>').text(c.club_categories?.name || '').html()}"
-                        data-teacher="${c.teacher_id}"
-                        data-grades="${c.target_grades}"
-                        data-cap="${c.max_capacity}"
-                        data-loc="${$('<div>').text(c.location || '').html()}"
-                        data-desc="${$('<div>').text(c.description || '').html()}"
-                        class="admin-club-btn bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="แก้ไข">
+                <button onclick="editAdminClub('${c.id}', '${safeClubName}', '${safeCatName}', '${c.teacher_id}', '${c.target_grades}', '${c.max_capacity}', '${c.location}', '${safeDesc}')" class="bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors mr-1" title="แก้ไข">
                     <i class="fa-solid fa-pen-to-square"></i>
                 </button>
-                <button data-action="delete" data-id="${c.id}" data-name="${$('<div>').text(c.club_name).html()}"
-                        class="admin-club-btn bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors" title="ลบ">
+                <button onclick="deleteAdminClub('${c.id}', '${safeClubName}')" class="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors" title="ลบ">
                     <i class="fa-solid fa-trash"></i>
                 </button>
             </td>
         </tr>`;
     }).join('');
 
-    // ✅ Bind events ทั้งหมดด้วย jQuery หลัง render
-    $('#tb-admin-clubs')
-        .off('click', '.teacher-avatar-btn')
-        .on('click', '.teacher-avatar-btn', function () {
-            viewTeacherImage($(this).data('avatar-url'), $(this).data('teacher-name'));
-        });
-
-    $('#tb-admin-clubs')
-        .off('click', '.admin-club-btn')
-        .on('click', '.admin-club-btn', function () {
-            const action = $(this).data('action');
-            const id = $(this).data('id');
-            const name = $(this).data('name');
-            if (action === 'view') viewClubStudents(id, name);
-            else if (action === 'import') importClubMembersExcel(id, name);
-            else if (action === 'lock') toggleLockAdminClub(id, $(this).data('locked') === true || $(this).data('locked') === 'true', name);
-            else if (action === 'edit') editAdminClub(id, name, $(this).data('cat'), $(this).data('teacher'), $(this).data('grades'), $(this).data('cap'), $(this).data('loc'), $(this).data('desc'));
-            else if (action === 'delete') deleteAdminClub(id, name);
-        });
-
     $('#adminClubsTable').DataTable({
         responsive: true,
-        // scrollX: true,
-        order: [[1, 'asc']],
+        autoWidth: false,
+        scrollX: false,
+        order: [[1, 'asc']], // เรียงตามคอลัมน์หมวดหมู่
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
 }
