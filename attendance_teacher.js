@@ -332,11 +332,70 @@ function renderDashboardSummary() {
         </div></div>`;
 }
 
+
 // ==================== DATA LOADING ====================
+/**
+ * โหลดและแสดงรายชื่อครูที่ปรึกษาจาก adviser_id_1 และ adviser_id_2
+ * @param {string} classroomId - UUID ของห้องเรียน
+ */
+async function loadHomeroomAdvisors(classroomId) {
+    const container = document.getElementById('homeroom-advisor-container');
+    const nameElement = document.getElementById('homeroom-advisor-names');
+    
+    if (!container || !nameElement) return;
+
+    // แสดง UI โหลดข้อมูล
+    container.classList.remove('hidden');
+    nameElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400 mr-2"></i> กำลังโหลดข้อมูล...';
+
+    try {
+        // 1. ดึงข้อมูลห้องเรียนจาก Array ที่โหลดไว้แล้วใน checkAuth()
+        const classroom = window.globalClassroomsList.find(cls => cls.id === classroomId);
+        
+        if (!classroom) {
+             nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ไม่พบข้อมูลห้องเรียน</span>';
+             return;
+        }
+
+        // 2. รวบรวม ID ของครูที่ปรึกษาที่มี
+        const adviserIds = [];
+        if (classroom.adviser_id_1) adviserIds.push(classroom.adviser_id_1);
+        if (classroom.adviser_id_2) adviserIds.push(classroom.adviser_id_2);
+
+        if (adviserIds.length === 0) {
+            nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ยังไม่ระบุครูที่ปรึกษา</span>';
+            return;
+        }
+
+        // 3. Query หาชื่อ-สกุล จากตาราง core_personnel
+        const { data: personnel, error } = await db
+            .from('core_personnel')
+            .select('first_name, last_name')
+            .in('id', adviserIds);
+
+        if (error) throw error;
+
+        // 4. นำชื่อมาเรียงต่อกันและแสดงผล
+        if (personnel && personnel.length > 0) {
+            const advisorNames = personnel.map(p => `ครู${p.first_name} ${p.last_name}`).join(' และ ');
+            nameElement.innerHTML = advisorNames;
+        } else {
+            nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ไม่พบข้อมูลในระบบ</span>';
+        }
+        
+    } catch (err) {
+        console.error("Error loading homeroom advisors:", err);
+        nameElement.innerHTML = '<span class="text-rose-500 font-normal text-sm"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถดึงข้อมูลได้</span>';
+    }
+}
+
 let promptedFillMap = {};
 
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
+    // 🟢 แทรกโค้ดตรงนี้: ให้โหลดชื่อครูที่ปรึกษาทุกครั้งที่เปลี่ยนห้องเรียน
+    loadHomeroomAdvisors(classroomId);
+
     promptedFillMap = {};
     adviser1Name = '.......................................';
     adviser2Name = '.......................................';
