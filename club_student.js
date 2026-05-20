@@ -101,86 +101,6 @@ async function checkCurrentEnrollment() {
     }
 }
 
-function renderSummary() {
-    $('#club-selection-area').addClass('hidden');
-    $('#summary-section').removeClass('hidden');
-    
-    const club = currentMembership.club_lists;
-    const teacher = club.core_personnel;
-
-    // 🌟 ดึงสถานะมาแปลงเป็นตัวเล็ก เพื่อใช้เช็คเงื่อนไข
-    const currentStatus = (currentMembership.status || '').toLowerCase().trim();
-
-    let statusText = '';
-    if (currentStatus === 'approved') {
-        statusText = '<span class="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-lg border border-green-200"><i class="fa-solid fa-check-circle mr-1"></i>อนุมัติแล้ว</span>';
-    } else if (currentStatus === 'rejected') {
-        statusText = `<span class="text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg border border-red-200"><i class="fa-solid fa-times-circle mr-1"></i>ไม่อนุมัติ - ${currentMembership.rejection_reason || '-'}</span>`;
-    } else {
-        statusText = '<span class="text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fa-solid fa-clock mr-1"></i>รอพิจารณา</span>';
-    }
-
-    const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
-    const category = club.club_categories?.name || '-';
-
-    $('#selected-club-details').html(`
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-slate-200 pb-4">
-            <div>
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">ชุมนุมที่เลือกเรียน</span>
-                <span class="text-2xl font-black text-slate-800">${club.club_name}</span>
-            </div>
-            <div>${statusText}</div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm font-medium">
-            <p class="text-slate-600"><i class="fa-solid fa-layer-group text-slate-400 mr-1.5 w-4"></i><strong>หมวดหมู่:</strong> ${category}</p>
-            <p class="text-slate-600"><i class="fa-solid fa-location-dot text-slate-400 mr-1.5 w-4"></i><strong>สถานที่จัดกิจกรรม:</strong> ${club.location || '-'}</p>
-        </div>
-        <div class="mt-4 pt-4 border-t border-slate-100 flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200/60 inline-flex w-full sm:w-auto">
-            ${teacher?.avatar_url ? `
-                <img src="${teacher.avatar_url}" 
-                     onclick="viewTeacherImage('${teacher.avatar_url}', '${teacherName}')" 
-                     class="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-all" 
-                     title="คลิกเพื่อดูรูปใหญ่" />
-            ` : `
-                <div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl border border-slate-200 shadow-sm">
-                    <i class="fa-solid fa-user"></i>
-                </div>
-            `}
-            <div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ครูที่ปรึกษาชุมนุม</span>
-                <span class="font-bold text-slate-700 text-base">${teacherName}</span>
-                <span class="text-xs block text-slate-400"><i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่รูปเพื่อดูหน้าครูชัดๆ</span>
-            </div>
-        </div>
-    `);
-
-    const btnCancel = $('#btn-cancel-enroll');
-    const btnConfirm = $('#btn-final-confirm');
-
-    btnCancel.css('display', ''); 
-    btnConfirm.css('display', '');
-
-    // 🌟 แก้ไข Logic Bug: เอา rejected ขึ้นมาเช็คเป็นอันดับ 1 เสมอ
-    if (currentStatus === 'rejected') {
-        btnConfirm.hide();
-        btnCancel.show();
-        btnCancel.html('<i class="fa-solid fa-arrow-rotate-left mr-1"></i> รับทราบและขอคืนสิทธิ์เลือกใหม่');
-        btnCancel.attr('class', 'px-6 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-500/40 transition-all active:scale-95 border border-orange-600');
-    
-    // ถ้าสถานะปกติ แต่ยืนยันเด็ดขาดไปแล้ว ค่อยซ่อนปุ่ม
-    } else if (currentMembership.is_confirmed || currentStatus === 'approved') {
-        btnCancel.hide();
-        btnConfirm.hide();
-    
-    // สถานะรอพิจารณา และยังไม่ยืนยันเด็ดขาด
-    } else {
-        btnConfirm.show();
-        btnCancel.show();
-        btnCancel.html('<i class="fa-solid fa-xmark mr-1"></i> ยกเลิกการเลือก');
-        btnCancel.attr('class', 'px-6 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 font-bold transition-colors shadow-sm');
-    }
-}
-
 async function loadCategories() {
     const { data } = await db.from('club_categories').select('*').order('name');
     $('#category-filter').empty().append('<option value="all">ทุกหมวดหมู่</option>');
@@ -218,67 +138,12 @@ async function loadClubs() {
     renderClubs();
 }
 
-function renderClubs() {
-    const container = $('#clubs-container').empty();
-
-    if (!studentGradeLevel) {
-        container.html('<p class="text-gray-500 col-span-full text-center py-8">ไม่พบระดับชั้นของนักเรียน กรุณาติดต่อครูที่ปรึกษา</p>');
-        return;
-    }
-
-    const filteredClubs = allClubsData.filter(club => {
-        if (!club.target_grades) return false;
-        return isGradeAccepted(studentGradeLevel, club.target_grades);
-    });
-
-    if (filteredClubs.length === 0) {
-        container.html('<p class="text-gray-500 col-span-full text-center py-8">ไม่มีชุมนุมที่เปิดรับสำหรับระดับชั้นของคุณในขณะนี้</p>');
-        return;
-    }
-
-    filteredClubs.forEach(club => {
-        const enrolled = clubMemberCounts[club.id] || 0;
-        const isFull = enrolled >= club.max_capacity;
-        const teacherName = club.core_personnel ? `${club.core_personnel.prefix||''}${club.core_personnel.first_name} ${club.core_personnel.last_name}` : 'ไม่ระบุ';
-        const avatarUrl = club.core_personnel?.avatar_url || null;
-
-        container.append(`
-            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col h-full transition hover:shadow-lg">
-                <div class="flex items-start gap-4 mb-3">
-                    <div class="w-16 h-16 shrink-0 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-300 text-2xl overflow-hidden shadow-sm">
-                        ${avatarUrl ? `
-                            <img src="${avatarUrl}" 
-                                 onclick="viewTeacherImage('${avatarUrl}', '${teacherName}')"
-                                 class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300" 
-                                 title="คลิกดูรูปใหญ่" />
-                        ` : '<i class="fa-solid fa-user-tie"></i>'}
-                    </div>
-                    <div>
-                        <h3 class="font-bold text-lg text-gray-800 leading-tight mb-1">${club.club_name}</h3>
-                        <p class="text-sm text-gray-500 font-medium">${teacherName}</p>
-                    </div>
-                </div>
-                <p class="text-sm text-gray-600 mb-4 flex-grow">${club.description || ''}</p>
-                <div class="flex justify-between items-center mb-4 text-sm">
-                    <span class="bg-teal-50 text-teal-700 px-3 py-1 rounded-lg font-bold">${club.target_grades}</span>
-                    <span class="${isFull ? 'text-red-500' : 'text-green-600'} font-bold bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
-                        รับแล้ว ${enrolled}/${club.max_capacity}
-                    </span>
-                </div>
-                <button onclick="enrollClub('${club.id}', ${isFull})" ${currentMembership ? 'disabled' : ''}
-                    class="w-full py-2.5 rounded-xl font-bold transition-all shadow-sm ${currentMembership ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : (isFull ? 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-500 hover:text-white' : 'bg-teal-600 text-white hover:bg-teal-700')}">
-                    ${currentMembership ? 'คุณมีรายการเลือกอยู่แล้ว' : (isFull ? 'สมัครสำรอง (เต็มแล้ว)' : 'สมัครชุมนุมนี้')}
-                </button>
-            </div>
-        `);
-    });
-}
-
 window.viewTeacherImage = (url, name) => {
     if (!url) return;
+    const directUrl = getDirectImageUrl(url);
     Swal.fire({
         title: name || 'ครูที่ปรึกษา',
-        imageUrl: url,
+        imageUrl: directUrl,
         imageAlt: 'Teacher Profile',
         confirmButtonText: 'ปิดหน้าต่าง',
         confirmButtonColor: '#0d9488',
@@ -369,85 +234,6 @@ window.enrollClub = async (clubId, isFull) => {
     }
 };
 
-// 🌟 2. ฟังก์ชันหน้าสรุปผล (แสดงข้อความที่นักเรียนพิมพ์ให้ตัวเองเห็นด้วย)
-// (นำไปปรับแก้ตรงบรรทัดที่สร้าง #selected-club-details ในฟังก์ชัน renderSummary)
-function renderSummary() {
-    $('#club-selection-area').addClass('hidden');
-    $('#summary-section').removeClass('hidden');
-    
-    const club = currentMembership.club_lists;
-    const teacher = club.core_personnel;
-    const currentStatus = (currentMembership.status || '').toLowerCase().trim();
-
-    let statusText = '';
-    if (currentStatus === 'approved') {
-        statusText = '<span class="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-lg border border-green-200"><i class="fa-solid fa-check-circle mr-1"></i>อนุมัติแล้ว</span>';
-    } else if (currentStatus === 'rejected') {
-        statusText = `<span class="text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg border border-red-200"><i class="fa-solid fa-times-circle mr-1"></i>ไม่อนุมัติ - ${currentMembership.rejection_reason || '-'}</span>`;
-    } else {
-        statusText = '<span class="text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fa-solid fa-clock mr-1"></i>รอพิจารณา</span>';
-    }
-
-    const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
-    const category = club.club_categories?.name || '-';
-
-    // เช็คว่ามีข้อความฝากถึงครูไหม ถ้ามีให้แสดงกล่องข้อความด้วย
-    const myMsgHtml = currentMembership.student_message 
-        ? `<div class="mt-4 bg-teal-50/50 p-4 rounded-xl border border-teal-100 text-sm text-teal-800">
-               <p class="font-bold mb-1"><i class="fa-solid fa-envelope-open-text mr-1"></i> ข้อความที่คุณฝากถึงครู:</p>
-               <p class="whitespace-pre-wrap text-slate-600 leading-relaxed">${currentMembership.student_message}</p>
-           </div>` 
-        : '';
-
-    $('#selected-club-details').html(`
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-slate-200 pb-4">
-            <div>
-                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">ชุมนุมที่เลือกเรียน</span>
-                <span class="text-2xl font-black text-slate-800">${club.club_name}</span>
-            </div>
-            <div>${statusText}</div>
-        </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm font-medium">
-            <p class="text-slate-600"><i class="fa-solid fa-layer-group text-slate-400 mr-1.5 w-4"></i><strong>หมวดหมู่:</strong> ${category}</p>
-            <p class="text-slate-600"><i class="fa-solid fa-location-dot text-slate-400 mr-1.5 w-4"></i><strong>สถานที่จัดกิจกรรม:</strong> ${club.location || '-'}</p>
-        </div>
-        ${myMsgHtml} <div class="mt-4 pt-4 border-t border-slate-100 flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200/60 inline-flex w-full sm:w-auto">
-            ${teacher?.avatar_url ? `
-                <img src="${teacher.avatar_url}" 
-                     onclick="viewTeacherImage('${teacher.avatar_url}', '${teacherName}')" 
-                     class="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-all" 
-                     title="คลิกเพื่อดูรูปใหญ่" />
-            ` : `<div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl border border-slate-200 shadow-sm"><i class="fa-solid fa-user"></i></div>`}
-            <div>
-                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ครูที่ปรึกษาชุมนุม</span>
-                <span class="font-bold text-slate-700 text-base">${teacherName}</span>
-                <span class="text-xs block text-slate-400"><i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่รูปเพื่อดูหน้าครูชัดๆ</span>
-            </div>
-        </div>
-    `);
-
-    // (ส่วนจัดการปุ่ม Cancel/Confirm ด้านล่างคงไว้เหมือนเดิมครับ...)
-    const btnCancel = $('#btn-cancel-enroll');
-    const btnConfirm = $('#btn-final-confirm');
-    btnCancel.css('display', ''); 
-    btnConfirm.css('display', '');
-    
-    if (currentStatus === 'rejected') {
-        btnConfirm.hide();
-        btnCancel.show();
-        btnCancel.html('<i class="fa-solid fa-arrow-rotate-left mr-1"></i> รับทราบและขอคืนสิทธิ์เลือกใหม่');
-        btnCancel.attr('class', 'px-6 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-500/40 transition-all active:scale-95 border border-orange-600');
-    } else if (currentMembership.is_confirmed || currentStatus === 'approved') {
-        btnCancel.hide();
-        btnConfirm.hide();
-    } else {
-        btnConfirm.show();
-        btnCancel.show();
-        btnCancel.html('<i class="fa-solid fa-xmark mr-1"></i> ยกเลิกการเลือก');
-        btnCancel.attr('class', 'px-6 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 font-bold transition-colors shadow-sm');
-    }
-}
-
 $('#btn-cancel-enroll').click(async () => {
     if (!currentMembership) return;
     
@@ -511,3 +297,180 @@ $('#btn-final-confirm').click(async () => {
         await checkCurrentEnrollment();
     }
 });
+
+// 🌟 1. ฟังก์ชันตัวช่วยแปลงลิงก์ Google Drive เป็นลิงก์ตรง (วางไว้บนสุด หรือก่อน renderClubs)
+function getDirectImageUrl(url) {
+    if (!url) return null;
+    if (url.includes('drive.google.com')) {
+        const match = url.match(/id=([^&]+)/) || url.match(/\/d\/([^\/]+)/);
+        if (match && match[1]) {
+            return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+        }
+    }
+    return url;
+}
+
+// 🌟 2. ฟังก์ชันเรนเดอร์การ์ดชุมนุม
+// ✅ renderClubs: early return ถ้าสมัครแล้ว + ใช้ jQuery bind แทน onclick inline
+function renderClubs() {
+    const container = $('#clubs-container').empty();
+
+    if (currentMembership) return; // ไม่ต้อง render ถ้าสมัครแล้ว
+
+    if (!studentGradeLevel) {
+        container.html('<p class="text-gray-500 col-span-full text-center py-8">ไม่พบระดับชั้นของนักเรียน กรุณาติดต่อครูที่ปรึกษา</p>');
+        return;
+    }
+
+    const filteredClubs = allClubsData.filter(club => {
+        if (!club.target_grades) return false;
+        return isGradeAccepted(studentGradeLevel, club.target_grades);
+    });
+
+    if (filteredClubs.length === 0) {
+        container.html('<p class="text-gray-500 col-span-full text-center py-8">ไม่มีชุมนุมที่เปิดรับสำหรับระดับชั้นของคุณในขณะนี้</p>');
+        return;
+    }
+
+    filteredClubs.forEach(club => {
+        const enrolled = clubMemberCounts[club.id] || 0;
+        const isFull = enrolled >= club.max_capacity;
+        const teacherName = club.core_personnel
+            ? `${club.core_personnel.prefix || ''}${club.core_personnel.first_name} ${club.core_personnel.last_name}`
+            : 'ไม่ระบุ';
+        const avatarUrl = getDirectImageUrl(club.core_personnel?.avatar_url);
+
+        const avatarHtml = avatarUrl
+            ? `<img data-club-avatar="${club.id}" src="${avatarUrl}"
+                    onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(teacherName)}&background=random';"
+                    class="w-full h-full object-cover cursor-pointer hover:scale-110 transition-transform duration-300"
+                    title="คลิกดูรูปใหญ่" />`
+            : `<div class="w-full h-full flex items-center justify-center bg-teal-100 text-teal-600 font-bold text-2xl">${teacherName.substring(0, 1)}</div>`;
+
+        const card = $(`
+            <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col h-full transition hover:shadow-lg">
+                <div class="flex items-start gap-4 mb-3">
+                    <div class="w-16 h-16 shrink-0 rounded-2xl bg-teal-50 border border-teal-100 flex items-center justify-center text-teal-300 text-2xl overflow-hidden shadow-sm">
+                        ${avatarHtml}
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-lg text-gray-800 leading-tight mb-1">${club.club_name}</h3>
+                        <p class="text-sm text-gray-500 font-medium">${teacherName}</p>
+                    </div>
+                </div>
+                <p class="text-sm text-gray-600 mb-4 flex-grow">${club.description || ''}</p>
+                <div class="flex justify-between items-center mb-4 text-sm">
+                    <span class="bg-teal-50 text-teal-700 px-3 py-1 rounded-lg font-bold">${club.target_grades}</span>
+                    <span class="${isFull ? 'text-red-500' : 'text-green-600'} font-bold bg-slate-50 px-3 py-1 rounded-lg border border-slate-100">
+                        รับแล้ว ${enrolled}/${club.max_capacity}
+                    </span>
+                </div>
+                <button data-club-id="${club.id}" data-is-full="${isFull}"
+                    class="w-full py-2.5 rounded-xl font-bold transition-all shadow-sm ${isFull ? 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-500 hover:text-white' : 'bg-teal-600 text-white hover:bg-teal-700'}">
+                    ${isFull ? 'สมัครสำรอง (เต็มแล้ว)' : 'สมัครชุมนุมนี้'}
+                </button>
+            </div>
+        `);
+
+        // ✅ bind event ด้วย jQuery แทน inline
+        if (avatarUrl) {
+            card.find(`[data-club-avatar="${club.id}"]`).on('click', () => viewTeacherImage(avatarUrl, teacherName));
+        }
+        card.find('button[data-club-id]').on('click', function () {
+            enrollClub($(this).data('club-id'), $(this).data('is-full') === true || $(this).data('is-full') === 'true');
+        });
+
+        container.append(card);
+    });
+}
+
+// 🌟 3. ฟังก์ชันหน้าสรุปผล
+function renderSummary() {
+    $('#club-selection-area').addClass('hidden');
+    $('#summary-section').removeClass('hidden');
+
+    const club = currentMembership.club_lists;
+    const teacher = club.core_personnel;
+    const currentStatus = (currentMembership.status || '').toLowerCase().trim();
+
+    let statusText = '';
+    if (currentStatus === 'approved') {
+        statusText = '<span class="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-lg border border-green-200"><i class="fa-solid fa-check-circle mr-1"></i>อนุมัติแล้ว</span>';
+    } else if (currentStatus === 'rejected') {
+        statusText = `<span class="text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg border border-red-200"><i class="fa-solid fa-times-circle mr-1"></i>ไม่อนุมัติ - ${currentMembership.rejection_reason || '-'}</span>`;
+    } else {
+        statusText = '<span class="text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fa-solid fa-clock mr-1"></i>รอพิจารณา</span>';
+    }
+
+    const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
+    const category = club.club_categories?.name || '-';
+    const avatarUrl = getDirectImageUrl(teacher?.avatar_url);
+
+    // ✅ Escape ข้อความนักเรียนก่อน render
+    const safeMessage = currentMembership.student_message
+        ? $('<div>').text(currentMembership.student_message).html()
+        : null;
+
+    const myMsgHtml = safeMessage
+        ? `<div class="mt-4 bg-teal-50/50 p-4 rounded-xl border border-teal-100 text-sm text-teal-800">
+               <p class="font-bold mb-1"><i class="fa-solid fa-envelope-open-text mr-1"></i> ข้อความที่คุณฝากถึงครู:</p>
+               <p class="whitespace-pre-wrap text-slate-600 leading-relaxed">${safeMessage}</p>
+           </div>`
+        : '';
+
+    // ✅ สร้าง avatarHtml แยกออกมา แล้ว bind event ด้วย jQuery แทน onclick inline
+    const avatarHtml = avatarUrl
+        ? `<img id="teacher-avatar-img" src="${avatarUrl}"
+                onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(teacherName)}&background=random';"
+                class="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-all"
+                title="คลิกเพื่อดูรูปใหญ่" />`
+        : `<div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl border border-slate-200 shadow-sm font-bold">${teacherName.substring(0, 1)}</div>`;
+
+    $('#selected-club-details').html(`
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-slate-200 pb-4">
+            <div>
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">ชุมนุมที่เลือกเรียน</span>
+                <span class="text-2xl font-black text-slate-800">${club.club_name}</span>
+            </div>
+            <div>${statusText}</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm font-medium">
+            <p class="text-slate-600"><i class="fa-solid fa-layer-group text-slate-400 mr-1.5 w-4"></i><strong>หมวดหมู่:</strong> ${category}</p>
+            <p class="text-slate-600"><i class="fa-solid fa-location-dot text-slate-400 mr-1.5 w-4"></i><strong>สถานที่จัดกิจกรรม:</strong> ${club.location || '-'}</p>
+        </div>
+        ${myMsgHtml}
+        <div class="mt-4 pt-4 border-t border-slate-100 flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200/60 w-full sm:w-auto">
+            ${avatarHtml}
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ครูที่ปรึกษาชุมนุม</span>
+                <span class="font-bold text-slate-700 text-base">${teacherName}</span>
+                <span class="text-xs block text-slate-400"><i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่รูปเพื่อดูหน้าครูชัดๆ</span>
+            </div>
+        </div>
+    `);
+
+    // ✅ bind click ด้วย jQuery แทน onclick inline (ปลอดภัยกว่า)
+    if (avatarUrl) {
+        $('#teacher-avatar-img').on('click', () => viewTeacherImage(avatarUrl, teacherName));
+    }
+
+    const btnCancel = $('#btn-cancel-enroll');
+    const btnConfirm = $('#btn-final-confirm');
+    btnCancel.css('display', '');
+    btnConfirm.css('display', '');
+
+    if (currentStatus === 'rejected') {
+        btnConfirm.hide();
+        btnCancel.show();
+        btnCancel.html('<i class="fa-solid fa-arrow-rotate-left mr-1"></i> รับทราบและขอคืนสิทธิ์เลือกใหม่');
+        btnCancel.attr('class', 'px-6 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-500/40 transition-all active:scale-95 border border-orange-600');
+    } else if (currentMembership.is_confirmed || currentStatus === 'approved') {
+        btnCancel.hide();
+        btnConfirm.hide();
+    } else {
+        btnConfirm.show();
+        btnCancel.show();
+        btnCancel.html('<i class="fa-solid fa-xmark mr-1"></i> ยกเลิกการเลือก');
+        btnCancel.attr('class', 'px-6 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 font-bold transition-colors shadow-sm');
+    }
+}
