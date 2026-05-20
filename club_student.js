@@ -296,6 +296,7 @@ function isGradeAccepted(studentGrade, targetGrades) {
     return false;
 }
 
+// 🌟 1. ฟังก์ชันการกดปุ่มสมัครชุมนุม (เพิ่มกล่องฝากข้อความ)
 window.enrollClub = async (clubId, isFull) => {
     if (currentMembership) {
         return Swal.fire('ไม่สามารถสมัครได้', 'คุณมีชุมนุมที่เลือกไว้แล้ว 1 รายการ', 'warning');
@@ -303,47 +304,149 @@ window.enrollClub = async (clubId, isFull) => {
 
     let alertOptions = {
         title: 'ยืนยันการเลือกชุมนุม?',
-        text: 'เมื่อเลือกแล้วจะต้องรอครูประจำชุมนุมอนุมัติสิทธิ์',
+        html: `
+            <p class="mb-3 text-slate-600">เมื่อเลือกแล้วจะต้องรอครูประจำชุมนุมอนุมัติสิทธิ์</p>
+            <div class="text-left bg-slate-50 p-3 rounded-xl border border-slate-200">
+                <label class="block text-sm font-bold text-teal-700 mb-2"><i class="fa-solid fa-comment-dots mr-1"></i>ฝากข้อความถึงครูที่ปรึกษา (ไม่บังคับ)</label>
+                <textarea id="student-msg-input" maxlength="200" rows="3" class="w-full p-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm transition-all shadow-inner" placeholder="แนะนำตัวสั้นๆ หรือบอกเหตุผลที่อยากเข้าชุมนุมนี้ (ไม่เกิน 200 ตัวอักษร)..."></textarea>
+                <p class="text-[11px] text-slate-400 text-right mt-1 font-mono" id="msg-counter">0/200</p>
+            </div>
+        `,
         icon: 'question',
         showCancelButton: true,
         confirmButtonColor: '#0d9488',
-        cancelButtonText: 'ยกเลิก'
+        cancelButtonText: 'ยกเลิก',
+        didOpen: () => {
+            const input = document.getElementById('student-msg-input');
+            const counter = document.getElementById('msg-counter');
+            input.addEventListener('input', () => { counter.innerText = `${input.value.length}/200`; });
+        },
+        preConfirm: () => {
+            return document.getElementById('student-msg-input').value;
+        }
     };
 
     if (isFull) {
-        alertOptions = {
-            title: 'ชุมนุมนี้เต็มแล้ว!',
-            html: `ปัจจุบันมีผู้สมัครเต็มจำนวนแล้ว<br><br>คุณสามารถ <b>"สมัครสำรอง"</b> ไว้ได้ แต่ครูที่ปรึกษาอาจพิจารณาลบชื่อคุณออกในภายหลัง<br><br>ยืนยันที่จะรับความเสี่ยงหรือไม่?`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonColor: '#d33',
-            cancelButtonColor: '#3085d6',
-            confirmButtonText: 'รับความเสี่ยงและสมัคร',
-            cancelButtonText: 'เปลี่ยนใจ'
-        };
+        alertOptions.title = 'ชุมนุมนี้เต็มแล้ว!';
+        alertOptions.html = `
+            <p class="mb-3 text-red-600 font-bold">ปัจจุบันมีผู้สมัครเต็มจำนวนแล้ว</p>
+            <p class="mb-3 text-sm">คุณสามารถ <b>"สมัครสำรอง"</b> ไว้ได้ แต่ครูอาจพิจารณาลบชื่อคุณออกในภายหลัง ยืนยันที่จะรับความเสี่ยงหรือไม่?</p>
+            <div class="text-left bg-orange-50 p-3 rounded-xl border border-orange-200 mt-3">
+                <label class="block text-sm font-bold text-orange-700 mb-2"><i class="fa-solid fa-comment-dots mr-1"></i>ฝากข้อความถึงครูที่ปรึกษา (ไม่บังคับ)</label>
+                <textarea id="student-msg-input" maxlength="200" rows="3" class="w-full p-2.5 border border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 outline-none text-sm transition-all shadow-inner" placeholder="บอกเหตุผลดีๆ ที่ครูควรพิจารณารับคุณเพิ่ม (ไม่เกิน 200 ตัวอักษร)..."></textarea>
+                <p class="text-[11px] text-orange-400 text-right mt-1 font-mono" id="msg-counter">0/200</p>
+            </div>
+        `;
+        alertOptions.icon = 'warning';
+        alertOptions.confirmButtonColor = '#d33';
+        alertOptions.cancelButtonColor = '#3085d6';
+        alertOptions.confirmButtonText = 'รับความเสี่ยงและสมัคร';
+        alertOptions.cancelButtonText = 'เปลี่ยนใจ';
     }
 
     const result = await Swal.fire(alertOptions);
 
     if (result.isConfirmed) {
+        const studentMessage = result.value ? result.value.trim() : null; // ดึงข้อความที่นักเรียนพิมพ์
         Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+        
         const { error } = await db.from('club_registrations').insert([{
             student_id: currentStudent.id,
             club_id: clubId,
             academic_year: currentSchoolInfo.current_academic_year,
             semester: currentSchoolInfo.current_semester,
             status: 'pending',
-            is_confirmed: false
+            is_confirmed: false,
+            student_message: studentMessage // 🌟 บันทึกข้อความลง DB
         }]);
 
         if (error) {
             return Swal.fire('ข้อผิดพลาด', 'คุณอาจมีรายชื่อสมัครในระบบอยู่แล้ว กรุณารีเฟรชหน้าเว็บ', 'error');
         }
-        Swal.fire('สำเร็จ', 'บันทึกการเลือกชุมนุมแล้ว อย่าลืมกดยืนยันสิทธิ์และรอครูอนุมัติ', 'success');
+        Swal.fire('สำเร็จ', 'บันทึกการเลือกชุมนุมแล้ว กรุณารอครูอนุมัติ', 'success');
         await checkCurrentEnrollment();
         await loadClubs();
     }
 };
+
+// 🌟 2. ฟังก์ชันหน้าสรุปผล (แสดงข้อความที่นักเรียนพิมพ์ให้ตัวเองเห็นด้วย)
+// (นำไปปรับแก้ตรงบรรทัดที่สร้าง #selected-club-details ในฟังก์ชัน renderSummary)
+function renderSummary() {
+    $('#club-selection-area').addClass('hidden');
+    $('#summary-section').removeClass('hidden');
+    
+    const club = currentMembership.club_lists;
+    const teacher = club.core_personnel;
+    const currentStatus = (currentMembership.status || '').toLowerCase().trim();
+
+    let statusText = '';
+    if (currentStatus === 'approved') {
+        statusText = '<span class="text-green-600 font-bold bg-green-50 px-2.5 py-1 rounded-lg border border-green-200"><i class="fa-solid fa-check-circle mr-1"></i>อนุมัติแล้ว</span>';
+    } else if (currentStatus === 'rejected') {
+        statusText = `<span class="text-red-600 font-bold bg-red-50 px-2.5 py-1 rounded-lg border border-red-200"><i class="fa-solid fa-times-circle mr-1"></i>ไม่อนุมัติ - ${currentMembership.rejection_reason || '-'}</span>`;
+    } else {
+        statusText = '<span class="text-amber-600 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200"><i class="fa-solid fa-clock mr-1"></i>รอพิจารณา</span>';
+    }
+
+    const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
+    const category = club.club_categories?.name || '-';
+
+    // เช็คว่ามีข้อความฝากถึงครูไหม ถ้ามีให้แสดงกล่องข้อความด้วย
+    const myMsgHtml = currentMembership.student_message 
+        ? `<div class="mt-4 bg-teal-50/50 p-4 rounded-xl border border-teal-100 text-sm text-teal-800">
+               <p class="font-bold mb-1"><i class="fa-solid fa-envelope-open-text mr-1"></i> ข้อความที่คุณฝากถึงครู:</p>
+               <p class="whitespace-pre-wrap text-slate-600 leading-relaxed">${currentMembership.student_message}</p>
+           </div>` 
+        : '';
+
+    $('#selected-club-details').html(`
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 border-b border-slate-200 pb-4">
+            <div>
+                <span class="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">ชุมนุมที่เลือกเรียน</span>
+                <span class="text-2xl font-black text-slate-800">${club.club_name}</span>
+            </div>
+            <div>${statusText}</div>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm font-medium">
+            <p class="text-slate-600"><i class="fa-solid fa-layer-group text-slate-400 mr-1.5 w-4"></i><strong>หมวดหมู่:</strong> ${category}</p>
+            <p class="text-slate-600"><i class="fa-solid fa-location-dot text-slate-400 mr-1.5 w-4"></i><strong>สถานที่จัดกิจกรรม:</strong> ${club.location || '-'}</p>
+        </div>
+        ${myMsgHtml} <div class="mt-4 pt-4 border-t border-slate-100 flex items-center gap-4 bg-white p-3 rounded-xl border border-slate-200/60 inline-flex w-full sm:w-auto">
+            ${teacher?.avatar_url ? `
+                <img src="${teacher.avatar_url}" 
+                     onclick="viewTeacherImage('${teacher.avatar_url}', '${teacherName}')" 
+                     class="w-16 h-16 rounded-2xl object-cover border border-slate-200 shadow-sm cursor-pointer hover:scale-105 transition-all" 
+                     title="คลิกเพื่อดูรูปใหญ่" />
+            ` : `<div class="w-16 h-16 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center text-2xl border border-slate-200 shadow-sm"><i class="fa-solid fa-user"></i></div>`}
+            <div>
+                <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">ครูที่ปรึกษาชุมนุม</span>
+                <span class="font-bold text-slate-700 text-base">${teacherName}</span>
+                <span class="text-xs block text-slate-400"><i class="fa-solid fa-magnifying-glass-plus"></i> คลิกที่รูปเพื่อดูหน้าครูชัดๆ</span>
+            </div>
+        </div>
+    `);
+
+    // (ส่วนจัดการปุ่ม Cancel/Confirm ด้านล่างคงไว้เหมือนเดิมครับ...)
+    const btnCancel = $('#btn-cancel-enroll');
+    const btnConfirm = $('#btn-final-confirm');
+    btnCancel.css('display', ''); 
+    btnConfirm.css('display', '');
+    
+    if (currentStatus === 'rejected') {
+        btnConfirm.hide();
+        btnCancel.show();
+        btnCancel.html('<i class="fa-solid fa-arrow-rotate-left mr-1"></i> รับทราบและขอคืนสิทธิ์เลือกใหม่');
+        btnCancel.attr('class', 'px-6 py-2.5 bg-orange-500 text-white rounded-xl hover:bg-orange-600 font-bold shadow-lg shadow-orange-500/40 transition-all active:scale-95 border border-orange-600');
+    } else if (currentMembership.is_confirmed || currentStatus === 'approved') {
+        btnCancel.hide();
+        btnConfirm.hide();
+    } else {
+        btnConfirm.show();
+        btnCancel.show();
+        btnCancel.html('<i class="fa-solid fa-xmark mr-1"></i> ยกเลิกการเลือก');
+        btnCancel.attr('class', 'px-6 py-2.5 bg-rose-50 text-rose-600 border border-rose-200 rounded-xl hover:bg-rose-100 font-bold transition-colors shadow-sm');
+    }
+}
 
 $('#btn-cancel-enroll').click(async () => {
     if (!currentMembership) return;

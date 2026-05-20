@@ -239,10 +239,13 @@ window.unlockMyClub = async () => {
     }
 };
 
+// 🌟 1. แก้ไขฟังก์ชันโหลดรายชื่อนักเรียนฝั่งครู
 async function loadTeacherApplicants() {
     if (!myClubInfo) return;
+    
+    // ดึง student_message เข้ามาด้วย
     const { data: members, error } = await db.from('club_registrations')
-        .select(`id, status, is_confirmed, rejection_reason, core_students ( student_id_card, prefix, first_name, last_name, student_enrollments ( core_classrooms (grade_level, room_number, academic_year, semester) ) )`)
+        .select(`id, status, is_confirmed, rejection_reason, student_message, core_students ( student_id_card, prefix, first_name, last_name, student_enrollments ( student_number, core_classrooms (grade_level, room_number, academic_year, semester) ) )`)
         .eq('club_id', myClubInfo.id);
 
     if (error) return;
@@ -250,14 +253,26 @@ async function loadTeacherApplicants() {
     teacherApplicantsData = members.map(m => {
         const stu = m.core_students;
         const currentEnr = stu.student_enrollments?.find(e => e.core_classrooms.academic_year === currentSchoolInfo.current_academic_year && e.core_classrooms.semester === currentSchoolInfo.current_semester);
+        
         return {
             id: m.id,
             stu_id: stu.student_id_card,
             full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
             classroom: currentEnr ? `ม.${currentEnr.core_classrooms.grade_level}/${currentEnr.core_classrooms.room_number}` : 'ไม่ระบุ',
+            grade: currentEnr ? parseInt(currentEnr.core_classrooms.grade_level) : 99,
+            room: currentEnr ? parseInt(currentEnr.core_classrooms.room_number) : 99,
+            number: currentEnr ? parseInt(currentEnr.student_number) : 999,
+            number_text: currentEnr?.student_number || '-',
             status: m.status,
-            reason: m.rejection_reason
+            reason: m.rejection_reason,
+            message: m.student_message // 🌟 เก็บข้อความจากฐานข้อมูล
         };
+    });
+
+    teacherApplicantsData.sort((a, b) => {
+        if (a.grade !== b.grade) return a.grade - b.grade;
+        if (a.room !== b.room) return a.room - b.room;
+        return a.number - b.number;
     });
 
     $('#enrolled-count').text(teacherApplicantsData.filter(m => m.status !== 'rejected').length);
@@ -269,19 +284,57 @@ async function loadTeacherApplicants() {
             : (m.status === 'rejected' ? `<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-700" title="${m.reason || ''}">ไม่อนุมัติ</span>`
                 : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-amber-100 text-amber-700">รอพิจารณา</span>');
 
-        let acts = '-';
-        if (!myClubInfo.is_locked && m.status === 'pending') {
-            acts = `<button onclick="updateStatus('${m.id}', 'approved')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1"><i class="fa-solid fa-check"></i> รับ</button>
-                    <button onclick="promptReject('${m.id}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-2 py-1 rounded shadow-sm"><i class="fa-solid fa-times"></i> ปฏิเสธ</button>`;
-        } else if (!myClubInfo.is_locked && m.status === 'approved') {
-            acts = `<button onclick="updateStatus('${m.id}', 'pending')" class="text-xs text-amber-600 underline hover:text-amber-800">ยกเลิกการรับ</button>`;
+        // 🌟 สร้างปุ่ม Action แบบ Dynamic
+        let actionButtons = [];
+        
+        // ถ้ามีข้อความ ให้แทรกปุ่มจดหมายเป็นอันแรก
+        if (m.message) {
+            // ป้องกัน Error อักขระพิเศษเวลาแปลงเป็น HTML
+            const safeMsg = m.message.replace(/'/g, "\\'").replace(/"/g, "&quot;").replace(/\n/g, '<br>');
+            actionButtons.push(`<button onclick="viewStudentMessage('${safeMsg}', '${m.full_name}')" class="bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1 border border-indigo-100" title="อ่านข้อความจากนักเรียน"><i class="fa-solid fa-envelope"></i></button>`);
         }
 
-        return `<tr class="hover:bg-blue-50/50"><td class="py-3 px-4 font-mono text-blue-700">${m.stu_id}</td><td class="py-3 px-4">${m.full_name}</td><td class="py-3 px-4">${m.classroom}</td><td class="py-3 px-4 text-center">${stBadge}</td><td class="py-3 px-4 text-center">${acts}</td></tr>`;
+        // ปุ่ม รับ / ปฏิเสธ
+        if (!myClubInfo.is_locked && m.status === 'pending') {
+            actionButtons.push(`<button onclick="updateStatus('${m.id}', 'approved')" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white px-2 py-1 rounded shadow-sm mr-1"><i class="fa-solid fa-check"></i> รับ</button>`);
+            actionButtons.push(`<button onclick="promptReject('${m.id}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white px-2 py-1 rounded shadow-sm"><i class="fa-solid fa-times"></i> ปฏิเสธ</button>`);
+        } else if (!myClubInfo.is_locked && m.status === 'approved') {
+            actionButtons.push(`<button onclick="updateStatus('${m.id}', 'pending')" class="text-xs text-amber-600 underline hover:text-amber-800 ml-1">ยกเลิกการรับ</button>`);
+        }
+
+        const acts = actionButtons.length > 0 ? actionButtons.join('') : '-';
+        const classDisplay = m.classroom !== 'ไม่ระบุ' ? `${m.classroom} (เลขที่ ${m.number_text})` : 'ไม่ระบุ';
+
+        return `<tr class="hover:bg-blue-50/50">
+            <td class="py-3 px-4 font-mono text-blue-700">${m.stu_id}</td>
+            <td class="py-3 px-4">${m.full_name}</td>
+            <td class="py-3 px-4">${classDisplay}</td>
+            <td class="py-3 px-4 text-center">${stBadge}</td>
+            <td class="py-3 px-4 text-center whitespace-nowrap">${acts}</td>
+        </tr>`;
     }).join('');
 
-    $('#teacherStudentsTable').DataTable({ responsive: true, scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' } });
+    $('#teacherStudentsTable').DataTable({ 
+        responsive: true, scrollX: true, order: [], 
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' } 
+    });
 }
+
+// 🌟 2. ฟังก์ชันแสดง Popup ข้อความจากนักเรียน (นำไปต่อท้ายไฟล์)
+window.viewStudentMessage = (msg, studentName) => {
+    Swal.fire({
+        title: 'จดหมายถึงคุณครู 💌',
+        html: `
+            <div class="text-sm text-slate-500 mb-2">จาก: <b>${studentName}</b></div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-slate-700 text-sm text-left leading-relaxed shadow-inner">
+                ${msg}
+            </div>
+        `,
+        icon: 'info',
+        confirmButtonColor: '#4f46e5',
+        confirmButtonText: 'ปิดหน้าต่าง'
+    });
+};
 
 window.updateStatus = async (id, status, reason = null) => {
     // 🌟 1. ดักจับ: ถ้าครูจะกด "อนุมัติ" ให้เช็คยอดก่อน
