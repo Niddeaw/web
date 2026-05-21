@@ -650,126 +650,6 @@ async function getPersonnelMap() {
     return personnelCache;
 }
 
-// async function loadDataTable() {
-//     const tbody = document.getElementById('tb-network');
-//     if (!tbody) return;
-//     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูล...</td></tr>';
-
-//     try {
-//         // ---------------------------------------------------------
-//         // 1. สร้าง Query ดึงรายชื่อห้องเรียนตามสิทธิ์ และกรองเฉพาะเทอม/ปีการศึกษาปัจจุบัน
-//         // ---------------------------------------------------------
-//         let classQuery = db.from('core_classrooms')
-//             .select('*')
-//             .eq('academic_year', currentYear) // 🔥 เพิ่ม: กรองเฉพาะปีการศึกษาปัจจุบันจากระบบส่วนกลาง
-//             .eq('semester', currentTerm)     // 🔥 เพิ่ม: กรองเฉพาะภาคเรียนปัจจุบันจากระบบส่วนกลาง
-//             .order('grade_level')
-//             .order('room_number');
-
-//         if (currentViewRole === 'teacher') {
-//             // ครูที่ปรึกษา: เห็นเฉพาะห้องตัวเอง
-//             classQuery = classQuery.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
-            
-//         } else if (currentViewRole === 'head_grade') {
-//             // หัวหน้าระดับ: หาว่าดูแลระดับชั้นไหน แล้วดึงเฉพาะชั้นนั้น
-//             const { data: gh } = await db.from('behavior_grade_heads')
-//                 .select('grade_level')
-//                 .eq('teacher_id', currentUser.id)
-//                 .maybeSingle();
-                
-//             if (gh && gh.grade_level) {
-//                 classQuery = classQuery.eq('grade_level', gh.grade_level);
-//             } else {
-//                 classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000'); // กันเหนียวถ้าไม่พบระดับ
-//             }
-//         }
-//         // *Superadmin, Module Admin, Head Discipline ไม่ถูก Filter (จะเห็นทุกห้องในเทอม/ปีการศึกษานี้)
-
-//         // ---------------------------------------------------------
-//         // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน (รายชื่อห้อง, ข้อมูลที่บันทึกแล้ว, ชื่อครู)
-//         // ---------------------------------------------------------
-//         const [
-//             { data: classrooms, error: classErr },
-//             { data: networks, error: netErr },
-//             staffMap
-//         ] = await Promise.all([
-//             classQuery,
-//             db.from('module_parent_network')
-//                 .select('classroom_id')
-//                 .eq('academic_year', currentYear)
-//                 .eq('semester', currentTerm),
-//             getPersonnelMap()
-//         ]);
-
-//         if (classErr) throw classErr;
-//         if (netErr) throw netErr;
-
-//         if (!classrooms || classrooms.length === 0) {
-//             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในความรับผิดชอบของภาคเรียนนี้</td></tr>';
-//             renderDashboard(0, 0);
-//             return;
-//         }
-
-//         // สร้างรายการห้องที่ "บันทึกแล้ว" ไว้เทียบในลูป (Set ช่วยให้เช็คข้อมูลได้เร็วมาก)
-//         const recordedRooms = new Set((networks || []).map(n => n.classroom_id));
-
-//         // ---------------------------------------------------------
-//         // 3. วาดตาราง (Render Table)
-//         // ---------------------------------------------------------
-//         tbody.innerHTML = classrooms.map(cls => {
-//             const room = `ม.${cls.grade_level}/${cls.room_number}`;
-            
-//             // ดึงชื่อครูประจำชั้นอย่างปลอดภัย
-//             const adv1 = staffMap[cls.adviser_id_1];
-//             const adv2 = staffMap[cls.adviser_id_2];
-//             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
-//             const adviser2 = adv2 ? (typeof adv2 === 'object' ? adv2.name : adv2) : '-';
-            
-//             const isRecorded = recordedRooms.has(cls.id);
-            
-//             // สิทธิ์การแก้ไข: ยกเว้น "หัวหน้าปกครอง" ที่ดูได้อย่างเดียว คนอื่นแก้ได้ตามเงื่อนไขสิทธิ์มองเห็น
-//             const canEdit = currentViewRole !== 'head_discipline';
-
-//             // กำหนดป้ายสถานะ (Badge)
-//             const statusBadge = isRecorded 
-//                 ? `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-check mr-1"></i> บันทึกแล้ว</span>`
-//                 : `<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-times mr-1"></i> ยังไม่บันทึก</span>`;
-
-//             // ปุ่มแก้ไข หรือ ดูข้อมูล
-//             const editBtn = canEdit
-//                 ? `<button onclick="editFromTable('${cls.id}')" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="แก้ไข/บันทึกข้อมูล"><i class="fas fa-edit"></i></button>`
-//                 : `<button onclick="editFromTable('${cls.id}')" class="text-slate-400 hover:text-blue-600 p-2 transition-all" title="ดูข้อมูล"><i class="fas fa-eye"></i></button>`;
-
-//             // ปุ่มพิมพ์ PDF (จะกดได้เฉพาะห้องที่บันทึกข้อมูลแล้วเท่านั้น)
-//             const printBtn = isRecorded
-//                 ? `<button onclick="printPDF('${cls.id}')" class="text-green-500 hover:text-green-700 p-2 transition-all" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`
-//                 : `<button disabled class="text-slate-200 p-2 cursor-not-allowed" title="ต้องบันทึกข้อมูลก่อนพิมพ์"><i class="fas fa-file-pdf"></i></button>`;
-
-//             return `
-//             <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
-//                 <td class="py-4 px-4 font-black text-slate-700">${room}</td>
-//                 <td class="py-4 px-4 font-bold text-blue-800">${adviser1}</td>
-//                 <td class="py-4 px-4 text-slate-600">${adviser2}</td>
-//                 <td class="py-4 px-4 text-center">${statusBadge}</td>
-//                 <td class="py-4 px-4 text-right">
-//                     <div class="flex items-center justify-end gap-1">
-//                         ${editBtn}
-//                         ${printBtn}
-//                     </div>
-//                 </td>
-//             </tr>`;
-//         }).join('');
-
-//         // อัปเดตตัวเลขหน้า Dashboard ให้ตรงกับสิทธิ์และจำนวนห้องที่เห็นจริงในเทอมนี้
-//         renderDashboard(classrooms.length, recordedRooms.size);
-
-//     } catch (error) {
-//         console.error("Table Load Error:", error);
-//         tbody.innerHTML = `<tr><td colspan="5" class="text-center text-red-500 py-10"><i class="fas fa-exclamation-triangle mr-2"></i>เกิดข้อผิดพลาด: ${error.message}</td></tr>`;
-//         renderDashboard(0, 0);
-//     }
-// }
-
 async function loadDataTable() {
     const tbody = document.getElementById('tb-network');
     if (!tbody) return;
@@ -803,7 +683,7 @@ async function loadDataTable() {
         }
 
         // ---------------------------------------------------------
-        // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน
+        // 2. ดึงข้อมูล 3 ส่วนพร้อมกัน (เพิ่มการดึง pdf_url)
         // ---------------------------------------------------------
         const [
             { data: classrooms, error: classErr },
@@ -812,7 +692,7 @@ async function loadDataTable() {
         ] = await Promise.all([
             classQuery,
             db.from('module_parent_network')
-                .select('classroom_id')
+                .select('classroom_id, pdf_url') // 🔥 เพิ่ม pdf_url
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm),
             getPersonnelMap()
@@ -827,9 +707,12 @@ async function loadDataTable() {
             return;
         }
 
-        const recordedRooms = new Set((networks || []).map(n => n.classroom_id));
+        // 🔥 สร้าง Map เพื่อเก็บข้อมูลเครือข่ายและลิงก์ PDF ของแต่ละห้องให้ค้นหาง่ายขึ้น
+        const networkMap = {};
+        (networks || []).forEach(n => {
+            networkMap[n.classroom_id] = n;
+        });
         
-        // 🔥 เพิ่มตัวแปรเพื่อนับจำนวนห้องที่บันทึกแล้ว เฉพาะสิทธิ์ที่คนๆ นี้มองเห็น
         let actualCompletedCount = 0; 
 
         // ---------------------------------------------------------
@@ -843,9 +726,11 @@ async function loadDataTable() {
             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
             const adviser2 = adv2 ? (typeof adv2 === 'object' ? adv2.name : adv2) : '-';
             
-            const isRecorded = recordedRooms.has(cls.id);
+            // ตรวจสอบข้อมูลจาก networkMap
+            const networkData = networkMap[cls.id];
+            const isRecorded = !!networkData;
+            const existingPdfUrl = networkData?.pdf_url || '';
             
-            // 🔥 ถ้าระบบเช็คว่าห้องนี้บันทึกแล้ว ให้นับบวก 1
             if (isRecorded) {
                 actualCompletedCount++;
             }
@@ -860,9 +745,32 @@ async function loadDataTable() {
                 ? `<button onclick="editFromTable('${cls.id}')" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="แก้ไข/บันทึกข้อมูล"><i class="fas fa-edit"></i></button>`
                 : `<button onclick="editFromTable('${cls.id}')" class="text-slate-400 hover:text-blue-600 p-2 transition-all" title="ดูข้อมูล"><i class="fas fa-eye"></i></button>`;
 
-            const printBtn = isRecorded
-                ? `<button onclick="printPDF('${cls.id}')" class="text-green-500 hover:text-green-700 p-2 transition-all" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`
-                : `<button disabled class="text-slate-200 p-2 cursor-not-allowed" title="ต้องบันทึกข้อมูลก่อนพิมพ์"><i class="fas fa-file-pdf"></i></button>`;
+            // 🔥 ปรับปรุงปุ่ม PDF ให้รองรับรูปดวงตาและปุ่มรีเฟรช
+            let printBtn = '';
+            if (isRecorded) {
+                if (existingPdfUrl) {
+                    printBtn = `
+                        <a href="${existingPdfUrl}" target="_blank" class="text-blue-500 hover:text-blue-700 p-2 transition-all" title="เปิดดู PDF เดิม">
+                            <i class="fas fa-eye"></i>
+                        </a>
+                        <button onclick="printPDF('${cls.id}', true)" class="text-slate-400 hover:text-green-600 p-2 transition-all" title="สร้าง PDF ใหม่ทดแทนไฟล์เดิม">
+                            <i class="fas fa-sync-alt text-xs"></i>
+                        </button>
+                    `;
+                } else {
+                    printBtn = `
+                        <button onclick="printPDF('${cls.id}')" class="text-green-500 hover:text-green-700 p-2 transition-all" title="สร้างไฟล์ PDF">
+                            <i class="fas fa-file-pdf"></i>
+                        </button>
+                    `;
+                }
+            } else {
+                printBtn = `
+                    <button disabled class="text-slate-200 p-2 cursor-not-allowed" title="ต้องบันทึกข้อมูลก่อนพิมพ์">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                `;
+            }
 
             return `
             <tr class="hover:bg-slate-50 transition-colors border-b border-slate-100">
@@ -879,7 +787,7 @@ async function loadDataTable() {
             </tr>`;
         }).join('');
 
-        // 🔥 ส่งจำนวนที่นับได้จริงๆ ไปให้ Dashboard แสดงผล
+        // ส่งจำนวนที่นับได้จริงๆ ไปให้ Dashboard แสดงผล
         renderDashboard(classrooms.length, actualCompletedCount);
 
     } catch (error) {
@@ -888,28 +796,6 @@ async function loadDataTable() {
         renderDashboard(0, 0);
     }
 }
-
-// function renderDashboard(totalClassrooms, completedCount) {
-//     const container = document.getElementById('dashboard-stats');
-//     if (!container) return;
-//     const displayTotal = currentViewRole === 'super_admin' ? 'ทั้งหมด' : 'ที่รับผิดชอบ';
-//     const remaining = Math.max(0, totalClassrooms - completedCount);
-
-//     container.innerHTML = `
-//         <div class="glass-card rounded-2xl p-5 border-l-4 border-blue-500">
-//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">ห้องเรียน${displayTotal}</p>
-//             <h3 class="text-3xl font-black text-blue-700">${totalClassrooms} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
-//         </div>
-//         <div class="glass-card rounded-2xl p-5 border-l-4 border-emerald-500">
-//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">บันทึกสมบูรณ์แล้ว</p>
-//             <h3 class="text-3xl font-black text-emerald-600">${completedCount} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
-//         </div>
-//         <div class="glass-card rounded-2xl p-5 border-l-4 border-amber-500">
-//             <p class="text-[10px] font-black text-slate-400 mb-1 uppercase tracking-widest">รอการบันทึก</p>
-//             <h3 class="text-3xl font-black text-amber-600">${remaining} <span class="text-sm font-bold text-slate-400">ห้อง</span></h3>
-//         </div>
-//     `;
-// }
 
 function renderDashboard(totalClassrooms, completedCount) {
     const container = document.getElementById('dashboard-stats');
@@ -1051,41 +937,38 @@ function switchTab(tabId) {
 // ==========================================
 // 13. พิมพ์ PDF (แก้ prefix)
 // ==========================================
-async function printPDF(classroomId) {
-    // ----------------------------------------------------------------
-    // 🔥 แก้ไขปัญหาครูที่ปรึกษาปริ้นไม่ได้: ดึงค่า Settings ตรงจากฐานข้อมูลหากยังไม่มีค่า
-    // ----------------------------------------------------------------
+async function printPDF(classroomId, forceGenerate = false) {
     if (!moduleSettings || !moduleSettings.pdf_api_url || !moduleSettings.slide_template_url) {
         try {
-            // ดึงข้อมูลการตั้งค่าโดยตรงจากตารางที่ Supabase เปิดสิทธิ์ให้ครูแล้ว
             const { data: settingsData, error: settingsError } = await db
                 .from('module_parent_network_settings')
                 .select('*')
                 .single();
 
-            if (settingsData && !settingsError) {
-                moduleSettings = settingsData;
-            }
+            if (settingsData && !settingsError) moduleSettings = settingsData;
         } catch (err) {
-            console.error("Fetch Settings for PDF Error:", err);
+            console.error("Fetch Settings Error:", err);
         }
     }
-    // ----------------------------------------------------------------
 
-    // เช็คอีกครั้งหลังจากพยายามดึงข้อมูลแล้ว
     if (!moduleSettings || !moduleSettings.pdf_api_url || !moduleSettings.slide_template_url) {
         return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณาระบุ PDF API URL และ Slide ID ในเมนู "ตั้งค่าระบบ"', 'warning');
     }
 
+    // 💡 ปรับปรุงข้อความให้ผู้ใช้ทราบกรณีสั่งทำใหม่
+    const loadingText = forceGenerate 
+        ? 'ระบบกำลังลบไฟล์ PDF เดิม และกำลังประมวลผลไฟล์ใหม่ซ้ำอีกครั้ง...' 
+        : 'ระบบกำลังดึงข้อมูลและประมวลผลผ่าน Google Apps Script<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>';
+
     Swal.fire({ 
-        title: 'กำลังสร้างไฟล์ PDF...', 
-        html: 'ระบบกำลังดึงข้อมูลและประมวลผลผ่าน Google Apps Script<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>', 
+        title: forceGenerate ? 'กำลังสร้างไฟล์ PDF ใหม่...' : 'กำลังสร้างไฟล์ PDF...', 
+        html: loadingText, 
         didOpen: () => Swal.showLoading(), 
-        allowOutsideClick: false 
+        allowOutsideClick: false,
+        showConfirmButton: false 
     });
 
     try {
-        // ✅ ดึงข้อมูล network + personnelMap พร้อมกัน
         const [{ data: network, error }, staffMap] = await Promise.all([
             db.from('module_parent_network')
                 .select('*, core_classrooms(grade_level, room_number, adviser_id_1, adviser_id_2)')
@@ -1093,50 +976,44 @@ async function printPDF(classroomId) {
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm)
                 .single(),
-            getPersonnelMap() // ดึงข้อมูลครูทั้งหมดมาเก็บไว้ในหน่วยความจำชั่วคราว
+            getPersonnelMap()
         ]);
 
         if (error || !network) throw new Error('ไม่พบข้อมูลเครือข่ายของห้องนี้');
+        
+        // ❌ นำเงื่อนไขช็อตคัตเดิมออก เพื่อให้กรณี forceGenerate = true วิ่งทะลุไปสั่งลบและสร้างใหม่ที่ฝั่ง GAS เสมอ
+        if (!forceGenerate && network.pdf_url) {
+            Swal.close();
+            window.open(network.pdf_url, '_blank');
+            return;
+        }
+
         const cls = network.core_classrooms;
         const room = `${cls.grade_level}/${cls.room_number}`;
-
-        // 🔍 ดึงข้อมูลชื่อและรูปภาพของครูที่ปรึกษาคนที่ 1 และ 2 จาก staffMap อย่างปลอดภัย
         const adviser1Obj = staffMap[cls.adviser_id_1];
-        const adviser1Name = adviser1Obj ? (typeof adviser1Obj === 'object' ? adviser1Obj.name : adviser1Obj) : '-';
-        const adviser1Image = adviser1Obj?.avatar_url ? getGoogleDriveDirectUrl(adviser1Obj.avatar_url) : '';
-
+        const adviser1Name = adviser1Obj ? adviser1Obj.name : '-';
+        const adviser1Image = adviser1Obj?.avatar_url || '';
         const adviser2Obj = staffMap[cls.adviser_id_2];
-        const adviser2Name = adviser2Obj ? (typeof adviser2Obj === 'object' ? adviser2Obj.name : adviser2Obj) : '-';
-        const adviser2Image = adviser2Obj?.avatar_url ? getGoogleDriveDirectUrl(adviser2Obj.avatar_url) : '';
+        const adviser2Name = adviser2Obj ? adviser2Obj.name : '-';
+        const adviser2Image = adviser2Obj?.avatar_url || '';
 
-        // 🔍 ดึงข้อมูลหัวหน้าระดับชั้นและรูปภาพ
         const { data: gradeHead } = await db.from('behavior_grade_heads')
             .select('teacher_id').eq('grade_level', cls.grade_level).maybeSingle();
             
         let gradeHeadName = '-';
         let gradeHeadImage = '';
-        
         if (gradeHead?.teacher_id && staffMap[gradeHead.teacher_id]) {
             const ghObj = staffMap[gradeHead.teacher_id];
-            gradeHeadName = typeof ghObj === 'object' ? ghObj.name : ghObj;
-            gradeHeadImage = ghObj?.avatar_url ? getGoogleDriveDirectUrl(ghObj.avatar_url) : '';
+            gradeHeadName = ghObj.name;
+            gradeHeadImage = ghObj.avatar_url || '';
         }
 
-        // 📝 กำหนดชุดตัวแปรแทนที่ (Replacements) รวมถึง Placeholder สำหรับรูปภาพของครูด้วย
         const replacements = {
-            "{{CLASSROOM}}": room, 
-            "{{TERM}}": currentTerm, 
-            "{{YEAR}}": currentYear,
-            "{{ADVISER1}}": adviser1Name, 
-            "{{ADVISER2}}": adviser2Name, 
-            "{{GRADE_HEAD}}": gradeHeadName,
-            // 🔥 ส่งลิงก์รูปภาพของครูและหัวหน้าระดับไปแทนที่ในสไลด์เทมเพลต
-            "{{ADVISER1_IMAGE}}": adviser1Image,
-            "{{ADVISER2_IMAGE}}": adviser2Image,
-            "{{GRADE_HEAD_IMAGE}}": gradeHeadImage
+            "{{CLASSROOM}}": room, "{{TERM}}": currentTerm, "{{YEAR}}": currentYear,
+            "{{ADVISER1}}": adviser1Name, "{{ADVISER2}}": adviser2Name, "{{GRADE_HEAD}}": gradeHeadName,
+            "{{ADVISER1_IMAGE}}": adviser1Image, "{{ADVISER2_IMAGE}}": adviser2Image, "{{GRADE_HEAD_IMAGE}}": gradeHeadImage
         };
 
-        // วนลูปดึงข้อมูลกรรมการผู้ปกครองเครือข่ายตามเดิม
         FORM_ROLES.forEach(role => {
             const roleData = network[`${role.id}_data`] || {};
             const PREFIX = role.id.toUpperCase();
@@ -1151,25 +1028,32 @@ async function printPDF(classroomId) {
             replacements[`{{${PREFIX}_AMPHOE}}`] = roleData.amphoe || '-';
             replacements[`{{${PREFIX}_PROVINCE}}`] = roleData.province || '-';
             replacements[`{{${PREFIX}_ZIP}}`] = roleData.zip || '-';
-            replacements[`{{${PREFIX}_IMAGE}}`] = getGoogleDriveDirectUrl(roleData.image_url) || '';
+            replacements[`{{${PREFIX}_IMAGE}}`] = roleData.image_url || '';
         });
 
         const payload = {
             templateId: moduleSettings.slide_template_url,
+            pdfFolderId: moduleSettings.gd_pdf_folder_id, 
             fileName: `เครือข่าย_${room}_${currentTerm}_${currentYear}`,
             replacements
         };
 
         const response = await fetch(moduleSettings.pdf_api_url, {
-            method: 'POST', 
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-            body: JSON.stringify(payload)
+            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
         });
         const result = await response.json();
 
         if (result.status === 'success' && result.url) {
+            // อัปเดตข้อมูลลิงก์ใหม่ลงฐานข้อมูล (กรณีบังคับเจน ลิงก์จาก Google Drive จะเปลี่ยนไปตาม ID ใหม่)
+            await db.from('module_parent_network')
+                .update({ pdf_url: result.url })
+                .eq('classroom_id', classroomId)
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm);
+
             Swal.close();
             window.open(result.url, '_blank');
+            loadDataTable(); // รีเฟรชตารางใหม่
         } else {
             throw new Error(result.message || 'ประมวลผล PDF ไม่สำเร็จ');
         }
