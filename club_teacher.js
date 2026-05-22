@@ -366,6 +366,7 @@ async function loadTeacherApplicants() {
         responsive: true,
         scrollX: true,
         order: [],
+        pageLength: 50,
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
 }
@@ -496,7 +497,7 @@ window.viewClubStudents = async (clubId, clubName) => {
             const classroom = currentEnr ? `ม.${currentEnr.core_classrooms.grade_level}/${currentEnr.core_classrooms.room_number}` : 'ไม่ระบุ';
             const statusText = m.status === 'approved' ? 'อนุมัติ' : m.status === 'rejected' ? 'ไม่อนุมัติ' : 'รอตรวจ';
             const statusColor = m.status === 'approved' ? 'text-green-600' : m.status === 'rejected' ? 'text-red-600' : 'text-yellow-600';
-            
+
             return {
                 reg_id: m.id, // เก็บ ID การสมัครไว้ใช้ตอนลบ
                 id_card: stu.student_id_card,
@@ -574,7 +575,7 @@ window.toggleAllRejected = (source) => {
 window.clearSelectedRejections = async (clubId, clubName) => {
     // กวาดหา Checkbox ที่ถูกติ๊กเลือกไว้
     const selectedIds = Array.from(document.querySelectorAll('.reject-checkbox:checked')).map(cb => cb.value);
-    
+
     if (selectedIds.length === 0) {
         return Swal.fire({ icon: 'warning', title: 'ยังไม่ได้เลือกนักเรียน', text: 'กรุณาติ๊กหน้ารายชื่อนักเรียนที่ต้องการล้างสถานะก่อนครับ' });
     }
@@ -592,17 +593,17 @@ window.clearSelectedRejections = async (clubId, clubName) => {
 
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
-        
+
         try {
             // สั่งลบข้อมูลออกจากตาราง club_registrations ด้วย .in()
             const { error } = await db.from('club_registrations').delete().in('id', selectedIds);
             if (error) throw error;
-            
+
             Swal.fire({ icon: 'success', title: 'ล้างสถานะสำเร็จ', timer: 1500, showConfirmButton: false });
-            
+
             // รีเฟรชตารางของแอดมิน เพื่ออัปเดตยอดคงเหลือ
             await loadAdminClubs();
-            
+
             // เปิดหน้าต่าง Modal เดิมขึ้นมาใหม่เพื่อดูผลลัพธ์ (หน่วงเวลาเล็กน้อยให้ Swal เก่าปิดเสร็จก่อน)
             setTimeout(() => {
                 viewClubStudents(clubId, clubName);
@@ -868,7 +869,7 @@ async function loadAllStudentsReport() {
             .select(`student_id, student_number, core_classrooms!inner(grade_level, room_number), core_students(student_id_card, prefix, first_name, last_name)`)
             .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
             .eq('core_classrooms.semester', currentSchoolInfo.current_semester);
-        
+
         // 🌟 แก้ไข: ดึงข้อมูล core_personnel เพื่อเอาชื่อครูมาด้วย
         const { data: mems } = await db.from('club_registrations')
             .select(`student_id, status, club_lists(club_name, core_personnel(prefix, first_name, last_name))`)
@@ -881,14 +882,14 @@ async function loadAllStudentsReport() {
         allStudentsReportData = enrolls.map(e => {
             const stu = e.core_students;
             const club = memMap[e.student_id];
-            
+
             // 🌟 ดึงชื่อครู ถ้าไม่มีให้ใส่ '-'
             const teacher = club?.club_lists?.core_personnel;
-            const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : '-';
+            const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : '-';
 
             return {
                 id_card: stu.student_id_card,
-                full_name: `${stu.prefix||''}${stu.first_name} ${stu.last_name}`,
+                full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
                 classroom: `ม.${e.core_classrooms.grade_level}/${e.core_classrooms.room_number}`,
                 grade: parseInt(e.core_classrooms.grade_level),
                 room: parseInt(e.core_classrooms.room_number),
@@ -908,10 +909,10 @@ async function loadAllStudentsReport() {
         });
 
         if ($.fn.DataTable.isDataTable('#adminAllStudentsTable')) $('#adminAllStudentsTable').DataTable().destroy();
-        
+
         document.getElementById('tb-admin-all-students').innerHTML = allStudentsReportData.map(s => {
             let badge = s.status === 'not_applied' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>' : (s.status === 'approved' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>' : (s.status === 'rejected' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>' : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
-            
+
             // 🌟 แสดงผลชื่อครูในคอลัมน์สุดท้าย
             return `<tr class="hover:bg-purple-50">
                 <td class="py-3 px-4 font-mono">${s.id_card}</td>
@@ -923,8 +924,8 @@ async function loadAllStudentsReport() {
             </tr>`;
         }).join('');
 
-        $('#adminAllStudentsTable').DataTable({ 
-            responsive: true, 
+        $('#adminAllStudentsTable').DataTable({
+            responsive: true,
             autoWidth: false, // 🌟 ทำให้ตารางยืดหดพอดีจอ ไม่ต้อง scroll แนวนอน
             order: [], // 🌟 ปิดออโต้เพื่อเรียงตามที่เราเขียนไว้
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
@@ -936,25 +937,25 @@ async function loadAllStudentsReport() {
 // 🌟 อัปเดตฟังก์ชันโหลดไฟล์ Excel (ส่งออกชื่อครูแทน)
 window.exportAllStudentsExcel = () => {
     if (allStudentsReportData.length === 0) return;
-    
+
     const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => {
         let statusTh = 'ยังไม่เลือก';
         if (s.status === 'approved') statusTh = 'อนุมัติแล้ว';
         else if (s.status === 'rejected') statusTh = 'ไม่อนุมัติ';
         else if (s.status === 'pending') statusTh = 'รอพิจารณา';
 
-        return { 
-            'เลขประจำตัว': s.id_card, 
-            'ชื่อสกุล': s.full_name, 
+        return {
+            'เลขประจำตัว': s.id_card,
+            'ชื่อสกุล': s.full_name,
             'ระดับชั้น': s.classroom,
             'เลขที่': s.number_text,
-            'ชุมนุม': s.club_name, 
-            'สถานะ': statusTh, 
+            'ชุมนุม': s.club_name,
+            'สถานะ': statusTh,
             'ครูที่ปรึกษา': s.teacher_name // 🌟 ส่งออกชื่อครูลง Excel
         };
     }));
-    
-    const wb = XLSX.utils.book_new(); 
+
+    const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Students");
     XLSX.writeFile(wb, `รายงานนักเรียนสมัครชุมนุม_เทอม${currentSchoolInfo.current_semester}_${currentSchoolInfo.current_academic_year}.xlsx`);
 };
@@ -1317,11 +1318,11 @@ async function loadAdminClubs() {
     if ($.fn.DataTable.isDataTable('#adminClubsTable')) $('#adminClubsTable').DataTable().destroy();
     document.getElementById('tb-admin-clubs').innerHTML = allClubsData.map(c => {
         const tName = c.core_personnel ? `${c.core_personnel.prefix || ''}${c.core_personnel.first_name} ${c.core_personnel.last_name}` : 'ไม่ระบุ';
-        
+
         // แปลงลิงก์รูป
         const avatarUrl = getDirectImageUrl(c.core_personnel?.avatar_url);
-        
-        const tHtml = avatarUrl 
+
+        const tHtml = avatarUrl
             ? `<div class="flex items-center gap-3">
                  <img src="${avatarUrl}" onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(tName)}&background=random';" onclick="viewTeacherImage('${avatarUrl}', '${tName}')" class="w-10 h-10 rounded-xl object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200" title="คลิกเพื่อดูรูปใหญ่" />
                  <span class="font-medium">${tName}</span>
@@ -1339,9 +1340,9 @@ async function loadAdminClubs() {
 
         // 🌟 นับยอดผู้สมัคร (คัดกรองเฉพาะคนที่ไม่โดนปฏิเสธ)
         const appliedCount = c.club_registrations ? c.club_registrations.filter(r => r.status !== 'rejected').length : 0;
-        
+
         // 🌟 สร้าง UI ยอดสมัคร ถ้าคนสมัครเกินโควตาให้เป็นตัวสีแดงเตือนแอดมิน
-        const capacityHtml = appliedCount > c.max_capacity 
+        const capacityHtml = appliedCount > c.max_capacity
             ? `<span class="text-red-600 font-bold bg-red-50 px-2 py-1 rounded-lg">${appliedCount} / ${c.max_capacity}</span>`
             : `<span class="text-slate-700 font-bold">${appliedCount} / ${c.max_capacity}</span>`;
 
