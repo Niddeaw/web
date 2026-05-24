@@ -84,6 +84,7 @@ function switchMenu(menuId) {
     }
     if (menuId === 'menu-students') loadClassrooms();
     if (menuId === 'menu-student-portal') loadStudentModules();
+    if (menuId === 'menu-student-portal') { loadGasAvatarSettings(); }
 }
 
 // ==========================================
@@ -2817,4 +2818,71 @@ function _updateStudentOrderNumbers() {
         const cell = row.querySelector('.order-number');
         if (cell) cell.textContent = i + 1;
     });
+}
+
+// ====================================================
+// GAS Avatar Upload Settings
+// ====================================================
+
+let _schoolInfoId = null; // cache id ของ core_school_info
+
+async function loadGasAvatarSettings() {
+    const { data, error } = await db
+        .from('core_school_info')
+        .select('id, gas_avatar_api_url, gas_avatar_folder_id')
+        .single();
+
+    if (error || !data) return;
+
+    _schoolInfoId = data.id; // เก็บ id ไว้ใช้ตอน update
+
+    if (data.gas_avatar_api_url)
+        document.getElementById('inp_gas_avatar_url').value = data.gas_avatar_api_url;
+    if (data.gas_avatar_folder_id)
+        document.getElementById('inp_gas_avatar_folder').value = data.gas_avatar_folder_id;
+}
+
+async function saveGasAvatarSettings() {
+    const apiUrl   = document.getElementById('inp_gas_avatar_url').value.trim();
+    const folderId = document.getElementById('inp_gas_avatar_folder').value.trim();
+    const status   = document.getElementById('gas-save-status');
+
+    if (!apiUrl) return Swal.fire('แจ้งเตือน', 'กรุณากรอก GAS URL', 'warning');
+
+    // ถ้ายังไม่มี id → โหลดก่อน
+    if (!_schoolInfoId) await loadGasAvatarSettings();
+    if (!_schoolInfoId) return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลโรงเรียนใน core_school_info', 'error');
+
+    const { error } = await db
+        .from('core_school_info')
+        .update({
+            gas_avatar_api_url:    apiUrl,
+            gas_avatar_folder_id:  folderId || null
+        })
+        .eq('id', _schoolInfoId); // ✅ WHERE clause
+
+    if (error) return Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+
+    status.textContent = '✅ บันทึกแล้ว';
+    status.classList.remove('hidden', 'text-red-500');
+    status.classList.add('text-green-600');
+    setTimeout(() => status.classList.add('hidden'), 3000);
+}
+
+async function testGasAvatarApi() {
+    const apiUrl = document.getElementById('inp_gas_avatar_url').value.trim();
+    if (!apiUrl) return Swal.fire('แจ้งเตือน', 'กรุณากรอก GAS URL ก่อน', 'warning');
+
+    Swal.fire({ title: 'กำลังทดสอบ...', didOpen: () => Swal.showLoading() });
+    try {
+        const res  = await fetch(`${apiUrl}?action=ping`);
+        const text = await res.text();
+        if (text.includes('pong') || res.ok) {
+            Swal.fire('เชื่อมต่อสำเร็จ ✅', 'GAS ตอบสนองปกติ', 'success');
+        } else {
+            Swal.fire('เชื่อมต่อได้ แต่ Response ผิดปกติ', text.substring(0, 200), 'warning');
+        }
+    } catch (e) {
+        Swal.fire('เชื่อมต่อไม่ได้ ❌', e.message, 'error');
+    }
 }

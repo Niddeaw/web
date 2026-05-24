@@ -201,22 +201,22 @@ $(document).ready(async () => {
                     });
 
                     let successCount = 0, notFoundCount = 0, errorCount = 0;
-for (const row of dataRows) {
-    const studentIdCard = String(row[headers.indexOf('รหัสนักเรียน')] || '').trim();
-    if (!studentIdCard) continue;
+                    for (const row of dataRows) {
+                        const studentIdCard = String(row[headers.indexOf('รหัสนักเรียน')] || '').trim();
+                        if (!studentIdCard) continue;
 
-    // ✅ ถ้าแถวมีเพียงรหัสนักเรียน และเซลล์อื่นว่างทั้งหมด → ข้าม (ไม่บันทึก)
-    const hasData = row.some((cell, idx) => idx !== headers.indexOf('รหัสนักเรียน') && cell.toString().trim() !== '');
-    if (!hasData) {
-        // ยังไม่เยี่ยม → ไม่ต้องทำอะไร
-        continue;
-    }
+                        // ✅ ถ้าแถวมีเพียงรหัสนักเรียน และเซลล์อื่นว่างทั้งหมด → ข้าม (ไม่บันทึก)
+                        const hasData = row.some((cell, idx) => idx !== headers.indexOf('รหัสนักเรียน') && cell.toString().trim() !== '');
+                        if (!hasData) {
+                            // ยังไม่เยี่ยม → ไม่ต้องทำอะไร
+                            continue;
+                        }
 
-    const studentId = studentMap[studentIdCard];
-    if (!studentId) { notFoundCount++; continue; }
+                        const studentId = studentMap[studentIdCard];
+                        if (!studentId) { notFoundCount++; continue; }
 
-    const formData = buildVisitDataFromRow(headers, row, studentId, classroomId);
-    if (!formData) continue;
+                        const formData = buildVisitDataFromRow(headers, row, studentId, classroomId);
+                        if (!formData) continue;
 
                         try {
                             const { data: existing } = await db.from('module_home_visits')
@@ -1385,6 +1385,7 @@ async function loadReport() {
     Swal.fire({ title: 'กำลังประมวลผลรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
+        // 1. หา classIds ตาม scope
         let classIds = [];
         if (scope === 'myclass' && currentViewRole === 'teacher') {
             const { data } = await db.from('core_classrooms')
@@ -1400,7 +1401,7 @@ async function loadReport() {
                 .eq('semester', currentTerm)
                 .eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
-        } else {
+        } else { // all
             const { data } = await db.from('core_classrooms')
                 .select('id')
                 .eq('academic_year', currentYear)
@@ -1414,6 +1415,7 @@ async function loadReport() {
             return;
         }
 
+        // 2. ดึงนักเรียนทั้งหมดผ่าน enrollment
         const { data: enrolls } = await db.from('student_enrollments')
             .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name), classroom_id')
             .in('classroom_id', classIds);
@@ -1424,29 +1426,48 @@ async function loadReport() {
             return;
         }
 
+        // 3. สร้าง grade map จาก classrooms
         const { data: classrooms } = await db.from('core_classrooms')
             .select('id, grade_level')
             .in('id', classIds);
         const gradeMap = {};
         (classrooms || []).forEach(c => { gradeMap[c.id] = c.grade_level; });
 
-        const students = enrolls.map(e => ({
-            student: e.core_students,
-            grade_level: gradeMap[e.classroom_id] || '?'
-        }));
+        // 4. Unique students (กันข้อมูลซ้ำ)
+        const uniqueStudents = [];
+        const seenStudentIds = new Set();
+        enrolls.forEach(e => {
+            const sid = e.core_students.id;
+            if (!seenStudentIds.has(sid)) {
+                seenStudentIds.add(sid);
+                uniqueStudents.push({
+                    student: e.core_students,
+                    grade_level: gradeMap[e.classroom_id] || '?'
+                });
+            }
+        });
+        const students = uniqueStudents;
 
         const totalStudents = students.length;
         const studentIds = students.map(s => s.student.id);
 
-        const { data: visits } = await db.from('module_home_visits')
-            .select('student_id, risk_data, economic_data, special_help_details')
-            .in('student_id', studentIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+        // 5. ดึงข้อมูลเยี่ยมบ้าน
+        // const { data: visits } = await db.from('module_home_visits')
+        //     .select('student_id, risk_data, economic_data, special_help_details')
+        //     .in('student_id', studentIds)
+        //     .eq('academic_year', currentYear)
+        //     .eq('semester', currentTerm);
+
+        const { data: visits } = await db.rpc('get_visits_by_classrooms', {
+            p_classroom_ids: classIds,
+            p_year: currentYear,
+            p_semester: currentTerm
+        });
 
         const visitedMap = {};
         (visits || []).forEach(v => { visitedMap[v.student_id] = v; });
 
+        // 6. ประมวลผล
         let visitedCount = 0;
         const riskCounts = { learning: 0, health: 0, drugs: 0, violence: 0, sex: 0, gaming: 0, economy: 0 };
         const problemCounts = { ...riskCounts };
@@ -1463,6 +1484,7 @@ async function loadReport() {
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
 
+                // กลุ่มเสี่ยง
                 if (risk.health?.length) { riskCounts.health++; riskStudents.health.push(name); }
                 if (risk.drugs?.length) { riskCounts.drugs++; riskStudents.drugs.push(name); }
                 if (risk.violence?.length) { riskCounts.violence++; riskStudents.violence.push(name); }
@@ -1473,6 +1495,7 @@ async function loadReport() {
                     riskCounts.economy++; riskStudents.economy.push(name);
                 }
 
+                // กลุ่มมีปัญหา
                 if (risk.health?.length > 1) { problemCounts.health++; problemStudents.health.push(name); }
                 if (risk.drugs?.length > 1) { problemCounts.drugs++; problemStudents.drugs.push(name); }
                 if (risk.violence?.length > 1) { problemCounts.violence++; problemStudents.violence.push(name); }
@@ -1489,6 +1512,7 @@ async function loadReport() {
             sex: 'เพศ', gaming: 'ติดเกม', economy: 'เศรษฐกิจ'
         };
 
+        // 7. สร้าง HTML
         let html = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
             <div class="bg-blue-50 p-4 rounded-2xl">
