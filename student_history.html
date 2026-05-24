@@ -8,7 +8,8 @@
 </head>
 <body class="p-4 md:p-8 text-slate-800">
     <div class="max-w-5xl mx-auto">
-        <button onclick="history.back()" class="mb-4 text-slate-500 hover:text-blue-600 font-bold transition flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
+        <button onclick="history.back()"
+            class="mb-4 text-slate-500 hover:text-blue-600 font-bold transition flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
             <i class="fas fa-arrow-left"></i> กลับหน้าก่อนหน้า
         </button>
 
@@ -16,8 +17,11 @@
             <!-- Header -->
             <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white flex flex-col md:flex-row justify-between items-center gap-6">
                 <div class="flex items-center gap-4">
-                    <div class="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-4xl border border-white/30 shadow-inner">
-                        <i class="fas fa-user-graduate"></i>
+                    <!-- Container รูปโปรไฟล์ : แสดงรูปหรือไอคอนตามข้อมูล avatar_students_url -->
+                    <div id="avatar_container"
+                        class="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-4xl border border-white/30 shadow-inner overflow-hidden relative">
+                        <i id="st_avatar_icon" class="fas fa-user-graduate"></i>
+                        <img id="st_avatar_img" src="" class="hidden absolute inset-0 w-full h-full object-cover rounded-2xl" alt="รูปโปรไฟล์">
                     </div>
                     <div>
                         <h1 id="st_name" class="text-2xl font-bold">กำลังโหลดข้อมูล...</h1>
@@ -91,7 +95,7 @@
                         <p class="text-xs text-slate-500 mb-2 font-bold">หลักฐานปัจจุบัน:</p>
                         <img id="edit_evidence_current_img" src="" alt="หลักฐาน"
                             class="w-full max-h-48 object-contain rounded-lg border border-slate-200 mb-2 bg-white"
-                            onerror="this.src=''; this.classList.add('hidden'); $('#edit_evidence_img_error').removeClass('hidden');">
+                            onerror="this.src=''; this.classList.add('hidden'); document.getElementById('edit_evidence_img_error').classList.remove('hidden');">
                         <div id="edit_evidence_img_error" class="hidden text-xs text-amber-600 mb-2">
                             <i class="fas fa-exclamation-triangle mr-1"></i>ไม่สามารถแสดงรูปตัวอย่างได้
                         </div>
@@ -107,15 +111,15 @@
                     <!-- ปุ่มเลือกการจัดการรูป -->
                     <div class="flex gap-2 mb-3">
                         <button id="btn_img_keep" onclick="setImageAction('keep')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 transition">
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">
                             <i class="fas fa-lock mr-1"></i>คงเดิม
                         </button>
                         <button id="btn_img_replace" onclick="setImageAction('replace')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 transition">
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">
                             <i class="fas fa-sync-alt mr-1"></i>เปลี่ยนรูป
                         </button>
                         <button id="btn_img_remove" onclick="setImageAction('remove')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 transition hidden">
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition hidden">
                             <i class="fas fa-trash mr-1"></i>ลบรูป
                         </button>
                     </div>
@@ -146,17 +150,16 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const stId      = urlParams.get('id');
+        const stId = urlParams.get('id');
 
-        let currentLogs    = [];
-        let criteriaList   = [];
-        let currentUserId  = null;
-        let isAdmin        = false;   // แก้ไขได้: super_admin, หัวหน้างานปกครอง, หัวหน้าระดับ
-        let isSuperAdmin   = false;   // ลบได้: super_admin เท่านั้น
-        let systemConfig   = null;
-        let editImageAction = 'keep'; // 'keep' | 'replace' | 'remove'
+        let currentLogs = [];
+        let criteriaList = [];
+        let currentUserId = null;
+        let isAdmin = false;
+        let isSuperAdmin = false;
+        let systemConfig = null;
+        let editImageAction = 'keep';
 
-        // ─────────────────────────────────────────────────────
         $(document).ready(async () => {
             if (!stId) return history.back();
             await loadSystemConfig();
@@ -176,13 +179,11 @@
             });
         });
 
-        // ── โหลด config ──
         async function loadSystemConfig() {
             const { data } = await db.from('behavior_system_config').select('*').eq('id', 1).maybeSingle();
             systemConfig = data || null;
         }
 
-        // ── แปลง Google Drive URL → URL รูปโดยตรง ──
         function getFileIdFromUrl(url) {
             if (!url) return null;
             const m = url.match(/\/d\/([-\w]+)/) || url.match(/[?&]id=([-\w]+)/);
@@ -192,11 +193,10 @@
         function getDriveImageUrl(url) {
             if (!url) return null;
             const fileId = getFileIdFromUrl(url);
-            if (!fileId) return url; // ไม่ใช่ Drive → ใช้ URL เดิม
+            if (!fileId) return url;
             return `https://lh5.googleusercontent.com/d/${fileId}`;
         }
 
-        // ── ตรวจสอบบทบาท ──
         async function checkRole() {
             const { data: { session } } = await db.auth.getSession();
             if (!session) { window.location.replace('index.html'); return; }
@@ -207,9 +207,8 @@
 
             if (profile.role === 'super_admin') {
                 isSuperAdmin = true;
-                isAdmin      = true;
+                isAdmin = true;
             } else {
-                // หัวหน้างานปกครอง
                 const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
                 if (sInfo?.current_academic_year) {
                     const { data: disc } = await db.from('core_discipline_heads')
@@ -217,7 +216,6 @@
                         .eq('academic_year', sInfo.current_academic_year).maybeSingle();
                     if (disc) isAdmin = true;
                 }
-                // หัวหน้าระดับ
                 if (!isAdmin) {
                     const { data: grade } = await db.from('behavior_grade_heads')
                         .select('id').eq('teacher_id', session.user.id).maybeSingle();
@@ -225,7 +223,6 @@
                 }
             }
 
-            // สร้างหัวตาราง
             let headers = `
                 <th class="p-4 font-bold">วันที่/เวลา</th>
                 <th class="p-4 font-bold">รายการ</th>
@@ -242,7 +239,6 @@
             if (data) criteriaList = data;
         }
 
-        // ── โหลดประวัติ ──
         async function loadHistory() {
             const { data: student, error } = await db.from('core_students').select(`
                 *,
@@ -253,13 +249,23 @@
             if (error) { $('#st_name').text('เกิดข้อผิดพลาด'); return; }
 
             if (student) {
+                // ⭐ อัปเดตรูปโปรไฟล์
+                const avatarUrl = student.avatar_students_url;
+                if (avatarUrl) {
+                    $('#st_avatar_img').attr('src', avatarUrl).removeClass('hidden');
+                    $('#st_avatar_icon').addClass('hidden');
+                } else {
+                    $('#st_avatar_img').addClass('hidden');
+                    $('#st_avatar_icon').removeClass('hidden');
+                }
+
                 $('#st_name').text(`${student.prefix || ''}${student.first_name} ${student.last_name}`);
-                const cls  = student.student_enrollments?.[0]?.core_classrooms;
+                const cls = student.student_enrollments?.[0]?.core_classrooms;
                 const room = cls ? `ม.${cls.grade_level}/${cls.room_number}` : 'ยังไม่จัดห้อง';
                 $('#st_info').text(`เลขประจำตัว: ${student.student_id_card || '-'} | ชั้น ${room}`);
 
-                let total    = 100;
-                let html     = '';
+                let total = 100;
+                let html = '';
                 const colSpan = isAdmin ? 7 : 6;
 
                 if (student.behavior_logs?.length > 0) {
@@ -274,10 +280,9 @@
                         }) + ' น.';
 
                         const scoreClass = log.score_change > 0 ? 'text-green-600 bg-green-50/50'
-                                         : log.score_change < 0 ? 'text-red-600 bg-red-50/50'
-                                         : 'text-slate-400 bg-slate-50';
+                            : log.score_change < 0 ? 'text-red-600 bg-red-50/50'
+                                : 'text-slate-400 bg-slate-50';
 
-                        // ── หลักฐาน: แสดง thumbnail + ลิงก์ ──
                         const imgUrl = getDriveImageUrl(log.evidence_url);
                         const evidenceHtml = log.evidence_url
                             ? `<a href="${log.evidence_url}" target="_blank"
@@ -326,9 +331,6 @@
             }
         }
 
-        // ─────────────────────────────────────────────────────
-        // ── Image action helpers ──
-        // ─────────────────────────────────────────────────────
         function setImageAction(action) {
             editImageAction = action;
 
@@ -365,7 +367,6 @@
             }
         }
 
-        // ── เปิด Edit Modal ──
         function openEditModal(logId) {
             const log = currentLogs.find(l => l.id === logId);
             if (!log) return;
@@ -376,20 +377,17 @@
             $('#edit_desc').val(log.description || '');
             $('#edit_evidence_img_error').addClass('hidden');
 
-            // เกณฑ์
             let html = '<option value="">-- เลือกรายการ --</option>';
             criteriaList.forEach(c => {
-                const sel   = c.id === log.criteria_id ? 'selected' : '';
+                const sel = c.id === log.criteria_id ? 'selected' : '';
                 const score = c.category === 'negative' ? -c.default_score : c.default_score;
                 html += `<option value="${c.id}" data-score="${score}" ${sel}>${c.title} (${score > 0 ? '+' : ''}${score})</option>`;
             });
             $('#edit_criteria').html(html);
 
-            // หลักฐาน
             if (log.evidence_url) {
                 $('#edit_current_evidence').removeClass('hidden');
                 $('#edit_no_evidence').addClass('hidden');
-                // ใช้ URL รูปตรงสำหรับ <img> แต่ลิงก์เปิดยังใช้ URL เดิม
                 $('#edit_evidence_current_img')
                     .attr('src', getDriveImageUrl(log.evidence_url))
                     .removeClass('hidden');
@@ -415,20 +413,18 @@
             $('#edit_evidence_preview').addClass('hidden');
         }
 
-        // ── บันทึกการแก้ไข ──
         async function saveEditLog() {
-            const logId      = $('#edit_log_id').val();
+            const logId = $('#edit_log_id').val();
             const criteriaId = $('#edit_criteria').val();
-            const score      = parseInt($('#edit_score').val());
-            const desc       = $('#edit_desc').val();
-            const oldUrl     = $('#edit_old_evidence_url').val();
+            const score = parseInt($('#edit_score').val());
+            const desc = $('#edit_desc').val();
+            const oldUrl = $('#edit_old_evidence_url').val();
 
             if (!criteriaId || isNaN(score))
                 return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
 
-            let finalImageUrl = oldUrl || null; // default: คงเดิม
+            let finalImageUrl = oldUrl || null;
 
-            // ── จัดการรูปภาพ ──
             if (editImageAction === 'replace') {
                 const fileInput = $('#edit_evidence_file')[0].files[0];
                 if (!fileInput)
@@ -436,23 +432,21 @@
                 if (!systemConfig?.gas_url || !systemConfig?.drive_folder_id)
                     return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'ยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive', 'error');
 
-                // ลบรูปเก่า
                 if (oldUrl) {
                     Swal.fire({ title: 'กำลังลบรูปเก่า...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
                     await trashDriveFile(oldUrl);
                 }
 
-                // อัปโหลดรูปใหม่
                 try {
                     Swal.fire({ title: 'กำลังอัปโหลดรูปใหม่...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
                     const resizedBlob = await resizeImage(fileInput);
-                    const base64Data  = await blobToBase64(resizedBlob);
+                    const base64Data = await blobToBase64(resizedBlob);
 
                     const response = await fetch(systemConfig.gas_url, {
                         method: 'POST',
                         body: JSON.stringify({
-                            action:   'upload',
-                            base64:   base64Data,
+                            action: 'upload',
+                            base64: base64Data,
                             fileName: `behavior_edit_${logId}_${Date.now()}.jpg`,
                             folderId: systemConfig.drive_folder_id
                         })
@@ -471,17 +465,15 @@
                 }
                 finalImageUrl = null;
             }
-            // keep → finalImageUrl คงค่าเดิม
 
-            // ── บันทึกลง DB ──
             Swal.fire({ title: 'กำลังจัดเก็บข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
             const { error } = await db.from('behavior_logs').update({
-                criteria_id:  criteriaId,
+                criteria_id: criteriaId,
                 score_change: score,
-                description:  desc,
+                description: desc,
                 evidence_url: finalImageUrl,
-                recorder_id:  currentUserId  // บันทึกเป็นผู้แก้ไขล่าสุด
+                recorder_id: currentUserId
             }).eq('id', logId);
 
             if (!error) {
@@ -493,7 +485,6 @@
             }
         }
 
-        // ── ลบถาวร (super_admin เท่านั้น) ──
         async function deleteLog(logId) {
             const log = currentLogs.find(l => l.id === logId);
 
@@ -512,10 +503,8 @@
 
             Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-            // ย้ายรูปไปถังขยะ Drive
             if (log?.evidence_url) await trashDriveFile(log.evidence_url);
 
-            // Hard delete จาก DB
             const { error } = await db.from('behavior_logs').delete().eq('id', logId);
 
             if (!error) {
@@ -526,7 +515,6 @@
             }
         }
 
-        // ── Image utilities ──
         async function resizeImage(file, maxWidth = 1000) {
             return new Promise((resolve) => {
                 const reader = new FileReader();
