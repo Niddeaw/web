@@ -145,40 +145,34 @@ window.switchAdminTab = (tabId) => {
 };
 
 // ==========================================
-// 3. Teacher Module
+// 3. Teacher Module (รองรับหลายชุมนุม + FIX #1)
 // ==========================================
+let myClubs = []; // 🌟 ตัวแปรเก็บรายชื่อชุมนุมทั้งหมดของครู
+
 async function loadMyClub() {
-    const { data: club } = await db.from('club_lists')
+    // 🌟 เอา .maybeSingle() ออก เพื่อรับค่าเป็น Array เสมอ
+    const { data: clubs } = await db.from('club_lists')
         .select(`*, club_categories(name)`)
         .eq('teacher_id', currentUser.id)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
         .eq('semester', currentSchoolInfo.current_semester)
-        .maybeSingle();
+        .order('club_name'); 
 
-    if (club) {
-        myClubInfo = club;
-        document.getElementById('no-club-display').classList.add('hidden');
-        document.getElementById('my-club-display').classList.remove('hidden');
-        $('#my-club-name').text(club.club_name);
-        $('#my-club-category').text(club.club_categories?.name || '-');
-        $('#max-capacity').text(club.max_capacity);
-
-        const btnLock = document.getElementById('btn-lock-club');
-        btnLock.classList.remove('hidden');
-
-        if (club.is_locked) {
-            btnLock.className = "px-4 py-2 rounded-lg font-bold shadow-md transition-colors bg-slate-500 text-white hover:bg-slate-600";
-            btnLock.innerHTML = '<i class="fa-solid fa-lock-open mr-1"></i> ปลดล็อคชุมนุม';
-            btnLock.onclick = unlockMyClub;
-        } else {
-            btnLock.className = "px-4 py-2 rounded-lg font-bold shadow-md transition-colors bg-emerald-600 text-white hover:bg-emerald-700";
-            btnLock.innerHTML = '<i class="fa-solid fa-lock mr-1"></i> ยืนยันปิดรับสมัคร';
-            btnLock.onclick = lockClub;
+    if (clubs && clubs.length > 0) {
+        myClubs = clubs;
+        
+        // 🌟 จำว่าก่อนหน้านี้ดูชุมนุมไหนอยู่ (ใช้สำหรับตอน refresh หลังกดปุ่มล็อค/ปลดล็อค)
+        let indexToSelect = 0;
+        if (myClubInfo) {
+            const foundIndex = myClubs.findIndex(c => c.id === myClubInfo.id);
+            if (foundIndex !== -1) indexToSelect = foundIndex;
         }
 
-        await loadTeacherApplicants();
+        renderTeacherClub(indexToSelect);
     } else {
+        // กรณีไม่มีชุมนุมเลย
         myClubInfo = null;
+        myClubs = [];
         document.getElementById('no-club-display').classList.remove('hidden');
         document.getElementById('my-club-display').classList.add('hidden');
         document.getElementById('btn-lock-club').classList.add('hidden');
@@ -188,7 +182,42 @@ async function loadMyClub() {
     }
 }
 
-// ✅ [FIX #1] เพิ่ม await loadMyClub() ก่อนแสดง Toast ทั้งสองฟังก์ชัน
+// 🌟 ฟังก์ชันจัดการหน้าจอแยกออกมา เพื่อให้เรียกใช้ตอนเปลี่ยน Dropdown ได้
+window.renderTeacherClub = async (index) => {
+    myClubInfo = myClubs[index];
+    
+    document.getElementById('no-club-display').classList.add('hidden');
+    document.getElementById('my-club-display').classList.remove('hidden');
+    
+    // 🌟 ถ้ารับผิดชอบหลายชุมนุม ให้เปลี่ยนชื่อชุมนุมเป็น Dropdown
+    if (myClubs.length > 1) {
+        const options = myClubs.map((c, i) => `<option value="${i}" ${i === index ? 'selected' : ''}>${c.club_name}</option>`).join('');
+        document.getElementById('my-club-name').innerHTML = `<select onchange="renderTeacherClub(parseInt(this.value))" class="font-black text-indigo-900 border-b-2 border-indigo-300 outline-none bg-transparent cursor-pointer hover:border-indigo-500 transition-colors py-1 max-w-full w-full sm:w-auto truncate focus:ring-0">${options}</select>`;
+    } else {
+        // ถ้ามีชุมนุมเดียว แสดงข้อความปกติ
+        $('#my-club-name').text(myClubInfo.club_name);
+    }
+
+    $('#my-club-category').text(myClubInfo.club_categories?.name || '-');
+    $('#max-capacity').text(myClubInfo.max_capacity);
+
+    const btnLock = document.getElementById('btn-lock-club');
+    btnLock.classList.remove('hidden');
+
+    if (myClubInfo.is_locked) {
+        btnLock.className = "w-full sm:w-auto px-6 py-4 rounded-xl font-bold shadow-md transition-colors bg-slate-500 text-white hover:bg-slate-600";
+        btnLock.innerHTML = '<i class="fa-solid fa-lock-open mr-1"></i> ปลดล็อคชุมนุม';
+        btnLock.onclick = unlockMyClub;
+    } else {
+        btnLock.className = "w-full sm:w-auto px-6 py-4 rounded-xl font-bold shadow-md transition-colors bg-emerald-600 text-white hover:bg-emerald-700";
+        btnLock.innerHTML = '<i class="fa-solid fa-lock mr-1"></i> ยืนยันปิดรับสมัคร';
+        btnLock.onclick = lockClub;
+    }
+
+    await loadTeacherApplicants();
+};
+
+// ✅ [FIX #1] คงรูปแบบไว้ตามที่คุณครูแก้ไข
 window.lockClub = async () => {
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันปิดรับสมัคร?',
@@ -204,7 +233,9 @@ window.lockClub = async () => {
             .eq('club_id', myClubInfo.id)
             .eq('status', 'pending');
         await db.from('club_lists').update({ is_locked: true }).eq('id', myClubInfo.id);
+        
         await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
+        
         Swal.fire({ icon: 'success', title: 'ล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
@@ -220,12 +251,13 @@ window.unlockMyClub = async () => {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังปลดล็อค...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').update({ is_locked: false }).eq('id', myClubInfo.id);
+        
         await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
+        
         Swal.fire({ icon: 'success', title: 'ปลดล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
 
-// ✅ [FIX #4] เพิ่ม filter academic_year / semester ใน loadTeacherApplicants
 // ✅ [FIX #2] เก็บข้อความลง studentMessageStore แทนการฝังใน onclick
 async function loadTeacherApplicants() {
     if (!myClubInfo) return;

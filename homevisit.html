@@ -573,28 +573,29 @@
                             <i class="fas fa-search-location"></i> ค้นหาพิกัดจากที่อยู่
                         </button>
 
-<!-- 🔸 วางพิกัดที่คัดลอกจาก Google Maps -->
-<div class="mt-4 bg-white p-4 border border-orange-200 rounded-2xl shadow-sm">
-    <label class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
-        <i class="fas fa-map-pin text-rose-500 text-sm"></i> คัดลอกพิกัดจาก Google Maps
-    </label>
-    <p class="text-[10px] text-slate-500 mb-2">
-        เปิด Google Maps จากที่อยู่ → คลิกขวาที่ตำแหน่งบ้าน (PC) หรือแตะค้าง (มือถือ) → เลือกคัดลอกพิกัด → วางในช่องด้านล่าง
-    </p>
-    <div class="flex gap-2 mb-2">
-        <input type="text" id="coord-input" 
-            placeholder="13.740160996979197, 100.25988091557207"
-            class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-orange-200">
-        <button type="button" onclick="parseAndPinCoords()" 
-            class="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition">
-            <i class="fas fa-thumbtack mr-1"></i> ปักหมุด
-        </button>
-    </div>
-    <button type="button" onclick="openInGoogleMaps()" 
-        class="w-full px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition">
-        <i class="fas fa-map-marked-alt mr-1"></i> เปิด Google Maps จากที่อยู่
-    </button>
-</div>
+                        <!-- 🔸 วางพิกัดที่คัดลอกจาก Google Maps -->
+                        <div class="mt-4 bg-white p-4 border border-orange-200 rounded-2xl shadow-sm">
+                            <label
+                                class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
+                                <i class="fas fa-map-pin text-rose-500 text-sm"></i> คัดลอกพิกัดจาก Google Maps
+                            </label>
+                            <p class="text-[10px] text-slate-500 mb-2">
+                                เปิด Google Maps จากที่อยู่ → คลิกขวาที่ตำแหน่งบ้าน (PC) หรือแตะค้าง (มือถือ) →
+                                เลือกคัดลอกพิกัด → วางในช่องด้านล่าง
+                            </p>
+                            <div class="flex gap-2 mb-2">
+                                <input type="text" id="coord-input" placeholder="13.740160996979197, 100.25988091557207"
+                                    class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-orange-200">
+                                <button type="button" onclick="parseAndPinCoords()"
+                                    class="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition">
+                                    <i class="fas fa-thumbtack mr-1"></i> ปักหมุด
+                                </button>
+                            </div>
+                            <button type="button" onclick="openInGoogleMaps()"
+                                class="w-full px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition">
+                                <i class="fas fa-map-marked-alt mr-1"></i> เปิด Google Maps จากที่อยู่
+                            </button>
+                        </div>
                     </div>
 
                     <div class="flex justify-between mt-8 pt-4 border-t border-slate-200">
@@ -733,9 +734,10 @@
                         </div>
                         <div class="sm:col-span-2">
                             <label class="form-label-lg text-slate-600">นักเรียนได้รับค่าใช้จ่ายจาก</label>
-                            <input type="text" id="student_allowance_source"
-                                class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm outline-none focus:border-yellow-500 font-medium"
-                                placeholder="เช่น บิดา, มารดา, ทุนการศึกษา">
+                            <input type="text" id="student_allowance_source_other"
+                                class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500"
+                                placeholder="ระบุ...">
+                            <select id="student_allowance_source" class="w-full"></select>
                         </div>
                         <div
                             class="sm:col-span-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-2 gap-4">
@@ -779,9 +781,10 @@
                         <div>
                             <label
                                 class="form-label-lg text-slate-600">กรณีที่ผู้ปกครองไม่อยู่บ้านฝากเด็กนักเรียนอยู่บ้านกับใคร</label>
-                            <textarea id="leave_with_whom_details" rows="3"
-                                class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-yellow-500 placeholder-slate-400"
-                                placeholder="ระบุรายละเอียดเพิ่มเติม..."></textarea>
+                            <select id="leave_with_whom_details" class="w-full"></select>
+                            <input type="text" id="leave_with_whom_other"
+                                class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500"
+                                placeholder="ระบุบุคคลอื่น...">
                         </div>
                     </div>
 
@@ -1093,15 +1096,26 @@
                     </table>
                 </div>
 
-                <!-- ตารางสำหรับครู (รายบุคคล) -->
+                <!-- ตารางสำหรับครูที่ปรึกษา -->
                 <div id="teacher-table-container" class="overflow-x-auto hidden">
                     <div class="flex justify-between items-center mb-6">
-                        <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i
-                                class="fas fa-list mr-2"></i>รายชื่อนักเรียน</h3>
-                        <button onclick="downloadTemplate()"
-                            class="bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-100 transition-all uppercase">
-                            <i class="fas fa-download mr-1"></i> ดาวน์โหลดเทมเพลต
-                        </button>
+                        <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm">
+                            <i class="fas fa-list mr-2"></i>รายชื่อนักเรียน
+                        </h3>
+                        <div class="flex gap-2">
+                            <button onclick="downloadTemplate()"
+                                class="bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-100 transition-all uppercase">
+                                <i class="fas fa-download mr-1"></i> ดาวน์โหลดเทมเพลต
+                            </button>
+                            <button onclick="exportTeacherClassroom()"
+                                class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
+                                <i class="fas fa-file-excel mr-1"></i> ส่งออก Excel
+                            </button>
+                            <button onclick="triggerImportClassroom()"
+                                class="bg-orange-50 text-orange-700 border border-orange-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-orange-100 transition-all uppercase">
+                                <i class="fas fa-file-import mr-1"></i> นำเข้า Excel
+                            </button>
+                        </div>
                     </div>
                     <table class="w-full text-sm">
                         <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
@@ -1118,7 +1132,6 @@
                         <tbody id="tb-teacher-students" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
-
             </div>
         </div>
     </main>
@@ -1351,7 +1364,7 @@
         });
     </script>
     <!-- ไฟล์นำเข้า Excel (ซ่อน) -->
-    <input type="file" id="importFileInput" accept=".xlsx,.xls" style="display:none" />
+    <input type="file" id="importClassroomFileInput" accept=".xlsx,.xls" style="display:none" />
 </body>
 
 </html>
