@@ -2868,21 +2868,3 @@ async function saveGasAvatarSettings() {
     status.classList.add('text-green-600');
     setTimeout(() => status.classList.add('hidden'), 3000);
 }
-
-async function testGasAvatarApi() {
-    const apiUrl = document.getElementById('inp_gas_avatar_url').value.trim();
-    if (!apiUrl) return Swal.fire('แจ้งเตือน', 'กรุณากรอก GAS URL ก่อน', 'warning');
-
-    Swal.fire({ title: 'กำลังทดสอบ...', didOpen: () => Swal.showLoading() });
-    try {
-        const res  = await fetch(`${apiUrl}?action=ping`);
-        const text = await res.text();
-        if (text.includes('pong') || res.ok) {
-            Swal.fire('เชื่อมต่อสำเร็จ ✅', 'GAS ตอบสนองปกติ', 'success');
-        } else {
-            Swal.fire('เชื่อมต่อได้ แต่ Response ผิดปกติ', text.substring(0, 200), 'warning');
-        }
-    } catch (e) {
-        Swal.fire('เชื่อมต่อไม่ได้ ❌', e.message, 'error');
-    }
-}
