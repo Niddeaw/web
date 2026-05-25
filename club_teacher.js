@@ -493,6 +493,9 @@ window.exportTeacherExcel = () => {
 // ✅ [FIX #5] ลบ loadAdminClubs ตัวแรก (ซ้ำและไม่สมบูรณ์) เหลือเพียงตัวเดียวด้านล่าง
 
 // 🌟 1. ฟังก์ชันดูรายชื่อนักเรียน (ปรับปรุงเพิ่มระบบ Checkbox สำหรับ Super Admin)
+// ==========================================
+// แก้ไขฟังก์ชัน viewClubStudents ให้แสดงปุ่มลบสำหรับ Super Admin
+// ==========================================
 window.viewClubStudents = async (clubId, clubName) => {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -516,7 +519,7 @@ window.viewClubStudents = async (clubId, clubName) => {
             return;
         }
 
-        // 🌟 ตรวจสอบสิทธิ์ว่าเป็น Super Admin หรือไม่
+        // ตรวจสอบสิทธิ์ว่าเป็น Super Admin หรือไม่
         const isSuperAdmin = userRole === 'super_admin';
 
         const rows = members.map(m => {
@@ -531,13 +534,13 @@ window.viewClubStudents = async (clubId, clubName) => {
             const statusColor = m.status === 'approved' ? 'text-green-600' : m.status === 'rejected' ? 'text-red-600' : 'text-yellow-600';
 
             return {
-                reg_id: m.id, // เก็บ ID การสมัครไว้ใช้ตอนลบ
+                reg_id: m.id,
                 id_card: stu.student_id_card,
                 full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
                 classroom,
                 status: statusText,
                 statusColor,
-                raw_status: m.status // ค่าสถานะดิบ
+                raw_status: m.status
             };
         });
 
@@ -548,52 +551,93 @@ window.viewClubStudents = async (clubId, clubName) => {
                 <table class="w-full text-sm border-collapse" id="admin-club-students-table">
                     <thead class="bg-gray-100 sticky top-0 shadow-sm z-10">
                         <tr>
-                            ${isSuperAdmin ? `<th class="py-2 px-3 border-b text-center w-12"><input type="checkbox" title="เลือก/ยกเลิกทั้งหมด" onclick="toggleAllRejected(this)" class="w-4 h-4 cursor-pointer accent-red-500"></th>` : ''}
+                            ${isSuperAdmin ? `<th class="py-2 px-3 border-b text-center w-12">#</th>` : ''}
                             <th class="py-2 px-3 border-b text-left">เลขประจำตัว</th>
                             <th class="py-2 px-3 border-b text-left">ชื่อ-สกุล</th>
                             <th class="py-2 px-3 border-b text-left">ชั้น</th>
                             <th class="py-2 px-3 border-b text-left">สถานะของครู</th>
+                            ${isSuperAdmin ? `<th class="py-2 px-3 border-b text-center">จัดการ</th>` : ''}
                         </tr>
                     </thead>
                     <tbody>`;
 
         rows.forEach(r => {
+            // Escape อักขระพิเศษในชื่อเพื่อความปลอดภัย (ป้องกัน XSS)
+            const safeFullName = r.full_name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const safeClubName = clubName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+
             html += `
                 <tr class="border-t hover:bg-gray-50">
-                    ${isSuperAdmin ? `
-                        <td class="py-2 px-3 text-center border-r border-slate-100 bg-slate-50/50">
-                            ${r.raw_status === 'rejected' ? `<input type="checkbox" class="reject-checkbox w-4 h-4 cursor-pointer accent-red-600" value="${r.reg_id}">` : `<span class="text-slate-300">-</span>`}
-                        </td>
-                    ` : ''}
+                    ${isSuperAdmin ? `<td class="py-2 px-3 text-center border-r border-slate-100 bg-slate-50/50">-</td>` : ''}
                     <td class="py-2 px-3 font-mono text-gray-700">${r.id_card}</td>
                     <td class="py-2 px-3 font-medium">${r.full_name}</td>
                     <td class="py-2 px-3">${r.classroom}</td>
                     <td class="py-2 px-3 font-bold ${r.statusColor}">${r.status}</td>
+                    ${isSuperAdmin ? `
+                        <td class="py-2 px-3 text-center">
+                            <button onclick="removeStudentFromClub('${r.reg_id}', '${safeFullName}', '${clubId}', '${safeClubName}')" 
+                                    class="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors"
+                                    title="ลบนักเรียนออกจากชุมนุมนี้">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </td>
+                    ` : ''}
                 </tr>`;
         });
 
-        html += `</tbody></table></div>`;
+        html += `</tbody> </table> </div> </div>`;
 
-        // 🌟 แทรกปุ่ม "ล้างสถานะ" (แสดงเฉพาะ Super Admin)
-        if (isSuperAdmin) {
-            html += `
-            <div class="mt-4 p-3 bg-red-50 border border-red-100 rounded-xl flex items-center justify-between">
-                <div class="text-xs text-red-600">
-                    <b>โหมด Super Admin:</b><br>ติ๊กเลือกนักเรียนที่ "ไม่อนุมัติ" เพื่อล้างค่าให้กลับไปเลือกชุมนุมใหม่ได้
-                </div>
-                <button onclick="clearSelectedRejections('${clubId}', '${clubName}')" class="bg-red-600 text-white hover:bg-red-700 px-4 py-2 rounded-lg font-bold shadow-sm transition-colors text-sm whitespace-nowrap ml-2">
-                    <i class="fa-solid fa-eraser mr-1"></i> ล้างสถานะที่เลือก
-                </button>
-            </div>
-            `;
-        }
-
-        html += `</div>`;
-
-        Swal.fire({ title: 'รายชื่อนักเรียน', html: html, width: '850px', confirmButtonText: 'ปิด', customClass: { popup: 'text-sm rounded-xl' } });
+        Swal.fire({
+            title: 'รายชื่อนักเรียน',
+            html: html,
+            width: '900px',
+            confirmButtonText: 'ปิด',
+            customClass: { popup: 'text-sm rounded-xl' },
+            didOpen: () => {
+                // หากต้องการทำอะไรเพิ่มเติมหลังเปิด
+            }
+        });
     } catch (err) {
         console.error(err);
         Swal.fire('Error', err.message, 'error');
+    }
+};
+
+// ==========================================
+// ฟังก์ชันใหม่: ลบนักเรียนออกจากชุมนุม (เฉพาะ Super Admin)
+// ==========================================
+window.removeStudentFromClub = async (regId, studentName, clubId, clubName) => {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        html: `ต้องการลบ <b>${studentName}</b> ออกจากชุมนุม <b>${clubName}</b> ใช่หรือไม่?<br>
+               <span class="text-red-500 text-sm">การลบนี้จะทำให้นักเรียนสามารถไปสมัครชุมนุมอื่นได้อีกครั้ง</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ยืนยันลบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบข้อมูล...', didOpen: () => Swal.showLoading() });
+
+        try {
+            // ลบรายการสมัครจากตาราง club_registrations โดยตรง
+            const { error } = await db.from('club_registrations').delete().eq('id', regId);
+            if (error) throw error;
+
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+            
+            // ปิด Swal ปัจจุบันแล้วเปิด viewClubStudents ใหม่เพื่อรีเฟรชรายการ
+            Swal.close();
+            setTimeout(() => {
+                viewClubStudents(clubId, clubName);
+            }, 500);
+        } catch (error) {
+            console.error("Error removing student:", error);
+            Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+        }
     }
 };
 
