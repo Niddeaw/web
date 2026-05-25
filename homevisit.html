@@ -84,10 +84,6 @@
                 class="hidden w-10 h-10 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200 transition-all">
                 <i class="fas fa-cog"></i>
             </button>
-            <button onclick="openReportModal()"
-                class="flex items-center gap-2 px-4 py-2.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl font-bold transition-colors shadow-sm border border-amber-200 text-sm">
-                <i class="fas fa-chart-bar"></i> <span class="hidden sm:inline">รายงานสรุป</span>
-            </button>
             <div class="h-8 w-px bg-slate-200 mx-1"></div>
             <div class="flex items-center gap-3">
                 <div class="text-right hidden md:block">
@@ -134,6 +130,10 @@
                         <button onclick="switchTab('data')" id="tab-data-btn"
                             class="flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm">
                             <i class="fas fa-chart-bar mr-1"></i> ดูภาพรวม
+                        </button>
+                        <button onclick="switchTab('report')" id="tab-report-btn"
+                            class="flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm">
+                            <i class="fas fa-chart-pie mr-1"></i> รายงานสรุป
                         </button>
                     </div>
                 </div>
@@ -1071,9 +1071,8 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="dashboard-stats"></div>
             <div class="glass-card rounded-2xl p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i
-                            class="fas fa-database mr-2"></i>ตารางข้อมูลการเยี่ยมบ้าน</h3>
-                    <button onclick="exportToExcel()"
+                    <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i class="fas fa-database mr-2"></i>ตารางข้อมูลการเยี่ยมบ้าน</h3>
+                    <button onclick="exportToExcel()" 
                         class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
                         <i class="fas fa-file-excel mr-1"></i> Export Excel
                     </button>
@@ -1132,6 +1131,45 @@
                         <tbody id="tb-teacher-students" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
+            </div>
+        </div>
+
+        <!-- Tab Report (新增) -->
+        <div id="tab-report" class="hidden animate-fade-in space-y-6">
+            <!-- ตัวกรอง -->
+            <div class="flex flex-wrap items-center gap-4 mb-6 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+                <div>
+                    <label class="block text-xs font-bold text-slate-600 mb-1">ดูข้อมูล</label>
+                    <select id="report-scope" class="border rounded-xl px-3 py-2 text-sm font-bold">
+                        <option value="myclass">เฉพาะห้องที่ปรึกษา</option>
+                        <option value="grade">แยกตามระดับชั้น</option>
+                        <option value="all">ทั้งโรงเรียน</option>
+                    </select>
+                </div>
+                <div id="grade-select-container" class="hidden">
+                    <label class="block text-xs font-bold text-slate-600 mb-1">ระดับชั้น</label>
+                    <select id="report-grade" class="border rounded-xl px-3 py-2 text-sm" onchange="loadReport()">
+                        <option value="1">ม.1</option>
+                        <option value="2">ม.2</option>
+                        <option value="3">ม.3</option>
+                        <option value="4">ม.4</option>
+                        <option value="5">ม.5</option>
+                        <option value="6">ม.6</option>
+                    </select>
+                </div>
+                <button onclick="loadReport()"
+                    class="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700">
+                    <i class="fas fa-sync-alt mr-1"></i> โหลดข้อมูล
+                </button>
+                <button onclick="printReportPDF()"
+                    class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 ml-auto">
+                    <i class="fas fa-file-pdf mr-1"></i> พิมพ์ PDF
+                </button>
+            </div>
+
+            <!-- พื้นที่แสดงผลรายงาน -->
+            <div id="report-content" class="space-y-6">
+                <div class="text-center py-10 text-slate-400">กรุณากด "โหลดข้อมูล" เพื่อดูรายงาน</div>
             </div>
         </div>
     </main>
@@ -1228,7 +1266,7 @@
                                         <tr class="text-left text-slate-400 text-xs">
                                             <th class="py-1">ชื่อ-นามสกุล</th>
                                             <th class="py-1 text-center w-16">ถอดถอน</th>
-                                        </tr>
+                                         </tr>
                                     </thead>
                                     <tbody id="module-admin-list" class="divide-y divide-purple-100"></tbody>
                                 </table>
@@ -1250,55 +1288,8 @@
         </div>
     </div>
 
-    <!-- 🔶 Modal รายงานสรุป -->
-    <div id="report-modal"
-        class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-        <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-6xl max-h-[90vh] overflow-y-auto animate-fade-in">
-            <div class="flex justify-between items-center border-b pb-4 mb-6">
-                <h2 class="text-xl font-black text-amber-800 uppercase tracking-tight">
-                    <i class="fas fa-chart-pie mr-2"></i>รายงานสรุปการเยี่ยมบ้าน
-                </h2>
-                <button onclick="closeReportModal()"
-                    class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
-            </div>
-
-            <!-- ตัวกรอง -->
-            <div class="flex flex-wrap items-center gap-4 mb-6 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">ดูข้อมูล</label>
-                    <select id="report-scope" class="border rounded-xl px-3 py-2 text-sm font-bold">
-                        <option value="myclass">เฉพาะห้องที่ปรึกษา</option>
-                        <option value="grade">แยกตามระดับชั้น</option>
-                        <option value="all">ทั้งโรงเรียน</option>
-                    </select>
-                </div>
-                <div id="grade-select-container" class="hidden">
-                    <label class="block text-xs font-bold text-slate-600 mb-1">ระดับชั้น</label>
-                    <select id="report-grade" class="border rounded-xl px-3 py-2 text-sm" onchange="loadReport()">
-                        <option value="1">ม.1</option>
-                        <option value="2">ม.2</option>
-                        <option value="3">ม.3</option>
-                        <option value="4">ม.4</option>
-                        <option value="5">ม.5</option>
-                        <option value="6">ม.6</option>
-                    </select>
-                </div>
-                <button onclick="loadReport()"
-                    class="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700">
-                    <i class="fas fa-sync-alt mr-1"></i> โหลดข้อมูล
-                </button>
-                <button onclick="printReportPDF()"
-                    class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-sm font-bold hover:bg-emerald-700 ml-auto">
-                    <i class="fas fa-file-pdf mr-1"></i> พิมพ์ PDF
-                </button>
-            </div>
-
-            <!-- พื้นที่แสดงผล -->
-            <div id="report-content" class="space-y-6">
-                <div class="text-center py-10 text-slate-400">กรุณากด "โหลดข้อมูล" เพื่อดูรายงาน</div>
-            </div>
-        </div>
-    </div>
+    <!-- ไฟล์นำเข้า Excel (ซ่อน) -->
+    <input type="file" id="importClassroomFileInput" accept=".xlsx,.xls" style="display:none" />
 
     <script src="homevisit.js"></script>
 
@@ -1363,8 +1354,6 @@
             renderRelationTable();
         });
     </script>
-    <!-- ไฟล์นำเข้า Excel (ซ่อน) -->
-    <input type="file" id="importClassroomFileInput" accept=".xlsx,.xls" style="display:none" />
 </body>
 
 </html>

@@ -40,7 +40,8 @@ const templateFields = [
 ];
 
 const templateHeadersThai = [
-    'รหัสนักเรียน', 'วันที่เยี่ยม', 'สถานะการเยี่ยม', 'ครั้งที่',
+    'รหัสนักเรียน', 'ชื่อ-นามสกุล',          // ✅ เพิ่มคอลัมน์ชื่อ-นามสกุล
+    'วันที่เยี่ยม', 'สถานะการเยี่ยม', 'ครั้งที่',
     'ชื่อเล่น', 'เบอร์โทรศัพท์', 'ID Line',
     'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
     'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
@@ -155,7 +156,7 @@ $(document).ready(async () => {
         await loadModuleSettings();
         initAllTomSelects();
 
-        // Listener สำหรับ report-scope
+        // Listener สำหรับ report-scope (อยู่ในแท็บ report แล้ว)
         const reportScope = document.getElementById('report-scope');
         if (reportScope) {
             reportScope.addEventListener('change', function () {
@@ -166,7 +167,7 @@ $(document).ready(async () => {
             });
         }
 
-        // ✅ Listener สำหรับการนำเข้า Excel ทั้งห้อง (แทนของเดิม)
+        // ✅ Listener สำหรับการนำเข้า Excel ทั้งห้อง
         const importClassroomInput = document.getElementById('importClassroomFileInput');
         if (importClassroomInput) {
             importClassroomInput.addEventListener('change', async function (event) {
@@ -185,7 +186,6 @@ $(document).ready(async () => {
                     const headers = rows[0];
                     const dataRows = rows.slice(1);
 
-                    // เตรียมข้อมูลนักเรียนในห้อง
                     const classroomId = window.currentClassroomId;
                     if (!classroomId) throw new Error('ไม่ได้เลือกห้องเรียน');
 
@@ -205,12 +205,8 @@ $(document).ready(async () => {
                         const studentIdCard = String(row[headers.indexOf('รหัสนักเรียน')] || '').trim();
                         if (!studentIdCard) continue;
 
-                        // ✅ ถ้าแถวมีเพียงรหัสนักเรียน และเซลล์อื่นว่างทั้งหมด → ข้าม (ไม่บันทึก)
                         const hasData = row.some((cell, idx) => idx !== headers.indexOf('รหัสนักเรียน') && cell.toString().trim() !== '');
-                        if (!hasData) {
-                            // ยังไม่เยี่ยม → ไม่ต้องทำอะไร
-                            continue;
-                        }
+                        if (!hasData) continue;
 
                         const studentId = studentMap[studentIdCard];
                         if (!studentId) { notFoundCount++; continue; }
@@ -240,7 +236,7 @@ $(document).ready(async () => {
                     }
 
                     Swal.fire('นำเข้าเสร็จสิ้น', `สำเร็จ ${successCount} คน, ไม่พบรหัสนักเรียน ${notFoundCount} คน, ผิดพลาด ${errorCount} คน`, 'success');
-                    loadDataTable(); // รีเฟรชตาราง
+                    loadDataTable();
                 } catch (err) {
                     Swal.fire('ผิดพลาด', 'ไม่สามารถนำเข้าได้: ' + err.message, 'error');
                     console.error(err);
@@ -326,7 +322,6 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
     document.getElementById('userRoleDisplay').innerText = roleText;
 
-    // ✅ FIX: บังคับใช้ isReadOnly — disable ปุ่มบันทึกและ form เมื่อเป็นโหมดดูอย่างเดียว
     const submitBtn = document.getElementById('btn-submit-homevisit');
     if (submitBtn) {
         submitBtn.disabled = isReadOnly;
@@ -432,6 +427,9 @@ async function loadStudentsForClassroom(classroomId) {
 }
 
 async function loadStudentInfo(studentId) {
+    // ✅ เคลียร์ฟอร์มก่อนโหลดข้อมูลนักเรียนใหม่
+    clearStudentInfo();
+
     currentStudentId = studentId;
     Swal.fire({ title: 'กำลังโหลดข้อมูลประวัติ...', didOpen: () => Swal.showLoading() });
 
@@ -454,8 +452,114 @@ async function loadStudentInfo(studentId) {
 
 function clearStudentInfo() {
     currentStudentId = null;
-    ['student_code', 'student_fullname', 'student_grade', 'student_number'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-    const form = document.getElementById('homeVisitForm'); if (form) form.reset();
+
+    // เคลียร์ฟิลด์ทั่วไป
+    ['student_code', 'student_fullname', 'student_grade', 'student_number'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    // เคลียร์ TomSelect ทั้งหมด
+    const tomInstances = ['tomLivingWith', 'tomParentsStatus', 'tomHouseType', 'tomTravelMethod',
+        'tomEnvHouseStatus', 'tomEnvCleanStatus', 'tomEnvLocationStatus',
+        'tomInformantType', 'tomFamilyRelationStatus', 'tomLeaveWithWhom', 'tomAllowanceSource'];
+    tomInstances.forEach(inst => {
+        if (window[inst]) window[inst].setValue('');
+    });
+
+    // เคลียร์ radio ทั่วไป (visit_status, utility_*, internet_access)
+    const radioGroups = ['visit_status', 'utility_electric', 'utility_water', 'utility_toilet', 'internet_access'];
+    radioGroups.forEach(group => {
+        const radios = document.querySelectorAll(`input[name="${group}"]`);
+        radios.forEach(radio => radio.checked = false);
+        // ตั้งค่า default สำหรับ visit_status
+        if (group === 'visit_status') {
+            const defaultRadio = document.querySelector(`input[name="visit_status"][value="เยี่ยมแล้ว"]`);
+            if (defaultRadio) defaultRadio.checked = true;
+        }
+    });
+
+    // เคลียร์ตารางความสัมพันธ์ (relations radio)
+    for (let i = 0; i < 6; i++) {
+        const radios = document.querySelectorAll(`input[name="rel_radio_${i}"]`);
+        radios.forEach(radio => radio.checked = false);
+        const defaultRadio = document.querySelector(`input[name="rel_radio_${i}"][value="ไม่มี"]`);
+        if (defaultRadio) defaultRadio.checked = true;
+    }
+
+    // เคลียร์ checkbox ความเสี่ยงทั้งหมด
+    const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
+    riskGroups.forEach(group => {
+        document.querySelectorAll(`input[name="risk_${group}"]`).forEach(cb => cb.checked = false);
+        const otherInput = document.getElementById(`risk_${group}_other_txt`);
+        if (otherInput) {
+            otherInput.value = '';
+            otherInput.classList.add('hidden');
+        }
+    });
+
+    // เคลียร์รูปภาพทั้งหมด
+    const photos = [
+        { inputId: 'pic_student', previewId: 'preview1', cloudBtnId: 'cloud_btn1', delBtnId: 'del_btn1' },
+        { inputId: 'pic_outside', previewId: 'preview2', cloudBtnId: 'cloud_btn2', delBtnId: 'del_btn2' },
+        { inputId: 'pic_inside', previewId: 'preview3', cloudBtnId: 'cloud_btn3', delBtnId: 'del_btn3' },
+        { inputId: 'pic_teacher', previewId: 'preview4', cloudBtnId: 'cloud_btn4', delBtnId: 'del_btn4' }
+    ];
+    photos.forEach(p => {
+        const fileInput = document.getElementById(p.inputId);
+        if (fileInput) {
+            fileInput.value = '';
+            delete fileInput.dataset.uploadedUrl;
+        }
+        const img = document.getElementById(p.previewId);
+        if (img) {
+            img.src = '';
+            img.classList.add('hidden');
+        }
+        const delBtn = document.getElementById(p.delBtnId);
+        if (delBtn) delBtn.classList.add('hidden');
+        const cloudBtn = document.getElementById(p.cloudBtnId);
+        if (cloudBtn) {
+            cloudBtn.disabled = true;
+            cloudBtn.classList.add('opacity-40');
+            cloudBtn.classList.remove('bg-slate-700');
+            cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
+        }
+    });
+
+    // เคลียร์ฟิลด์ข้อความทั้งหมด
+    const textFields = [
+        'hv_date', 'visit_times', 'student_nickname', 'student_phone', 'student_line',
+        'father_name', 'father_job', 'father_phone', 'mother_name', 'mother_job', 'mother_phone',
+        'guardian_name', 'guardian_job', 'guardian_phone', 'guardian_relation',
+        'addr_house', 'addr_moo', 'addr_subdistrict', 'addr_district', 'addr_province', 'addr_zipcode',
+        'travel_distance', 'travel_hour', 'travel_minute', 'lat', 'lng',
+        'member_total', 'member_male', 'member_female',
+        'sib_same_total', 'sib_same_male', 'sib_same_female',
+        'sib_diff_total', 'sib_diff_male', 'sib_diff_female',
+        'family_income_monthly', 'student_job_name', 'student_job_income', 'money_to_school',
+        'time_together_hours', 'special_help_details', 'responsibilities_details',
+        'hobbies_details', 'guardian_concerns_details', 'guardian_requests_details', 'past_welfare_details'
+    ];
+    textFields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+
+    // รีเซ็ตค่าเริ่มต้นบางตัว
+    const defaultDate = new Date().toISOString().slice(0, 10);
+    const dateInput = document.getElementById('hv_date');
+    if (dateInput) dateInput.value = defaultDate;
+    const timesInput = document.getElementById('visit_times');
+    if (timesInput) timesInput.value = '1';
+
+    // เคลียร์พิกัดและแผนที่
+    if (map && marker) {
+        const defaultLat = 13.740195920850455;
+        const defaultLng = 100.2598792489264;
+        marker.setLatLng([defaultLat, defaultLng]);
+        map.setView([defaultLat, defaultLng], 15);
+    }
 }
 
 async function loadExistingHomeVisit(studentId) {
@@ -467,10 +571,14 @@ async function loadExistingHomeVisit(studentId) {
     }
 }
 
+// ==========================================
+// ภาค 2/3: Submit, Upload, Map, Step Navigator, Admin Modal
+// ==========================================
 function populateFormWithData(data) {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
     const setRadio = (name, val) => { const el = document.querySelector(`input[name="${name}"][value="${val}"]`); if (el) el.checked = true; };
 
+    // ข้อมูลพื้นฐาน
     setVal('hv_date', data.visit_date || new Date().toISOString().slice(0, 10));
     setRadio('visit_status', data.visit_status || 'เยี่ยมแล้ว');
     setVal('visit_times', data.visit_times || 1);
@@ -485,54 +593,149 @@ function populateFormWithData(data) {
     if (window.tomLivingWith) window.tomLivingWith.setValue(data.living_with || '');
     if (window.tomParentsStatus) window.tomParentsStatus.setValue(data.parents_status || '');
 
-    setVal('addr_house', data.house_number || ''); setVal('addr_moo', data.village_no || ''); setVal('addr_subdistrict', data.sub_district || '');
-    setVal('addr_district', data.district || ''); setVal('addr_province', data.province || ''); setVal('addr_zipcode', data.zipcode || '');
-    setVal('lat', data.latitude || ''); setVal('lng', data.longitude || '');
+    // ที่อยู่
+    setVal('addr_house', data.house_number || ''); setVal('addr_moo', data.village_no || '');
+    setVal('addr_subdistrict', data.sub_district || '');
+    setVal('addr_district', data.district || '');
+    setVal('addr_province', data.province || '');
+    setVal('addr_zipcode', data.zipcode || '');
     setVal('travel_distance', data.travel_distance || '');
-    setVal('travel_hour', data.travel_hour || 0); setVal('travel_minute', data.travel_minute || 0);
+    setVal('travel_hour', data.travel_hour || 0);
+    setVal('travel_minute', data.travel_minute || 0);
 
+    // TomSelect อื่น ๆ
     if (window.tomHouseType) window.tomHouseType.setValue(data.house_type || '');
     if (window.tomTravelMethod) window.tomTravelMethod.setValue(data.travel_method || '');
     if (window.tomEnvHouseStatus) window.tomEnvHouseStatus.setValue(data.env_house_status || '');
     if (window.tomEnvCleanStatus) window.tomEnvCleanStatus.setValue(data.env_clean_status || '');
     if (window.tomEnvLocationStatus) window.tomEnvLocationStatus.setValue(data.env_location_status || '');
+    if (window.tomInformantType) window.tomInformantType.setValue(data.informant_type || '');
+    if (window.tomFamilyRelationStatus) window.tomFamilyRelationStatus.setValue((data.family_relations || {}).status || '');
+    if (window.tomLeaveWithWhom) window.tomLeaveWithWhom.setValue(data.leave_with_whom_details || '');
+    if (window.tomAllowanceSource) window.tomAllowanceSource.setValue((data.economic_data || {}).allowance_source || '');
 
+    // Radio สาธารณูปโภค
     ['utility_electric', 'utility_water', 'utility_toilet'].forEach(util => setRadio(util, data[util]));
 
+    // จำนวนสมาชิก
     if (data.family_members) {
-        setVal('member_total', data.family_members.total); setVal('member_male', data.family_members.male); setVal('member_female', data.family_members.female);
-        setVal('sib_same_total', data.family_members.sib_same_total); setVal('sib_same_male', data.family_members.sib_same_male); setVal('sib_same_female', data.family_members.sib_same_female);
-        setVal('sib_diff_total', data.family_members.sib_diff_total); setVal('sib_diff_male', data.family_members.sib_diff_male); setVal('sib_diff_female', data.family_members.sib_diff_female);
-    }
-    if (data.economic_data) {
-        setVal('family_income_monthly', data.economic_data.income); if (window.tomAllowanceSource) window.tomAllowanceSource.setValue(data.economic_data?.allowance_source || '');
-        setVal('student_job_name', data.economic_data.student_job_name); setVal('student_job_income', data.economic_data.student_job_income); setVal('money_to_school', data.economic_data.money_to_school);
-    }
-    if (data.family_relations) {
-        if (window.tomFamilyRelationStatus) window.tomFamilyRelationStatus.setValue(data.family_relations.status || '');
-        setVal('time_together_hours', data.family_relations.time_together || '');
+        setVal('member_total', data.family_members.total);
+        setVal('member_male', data.family_members.male);
+        setVal('member_female', data.family_members.female);
+        setVal('sib_same_total', data.family_members.sib_same_total);
+        setVal('sib_same_male', data.family_members.sib_same_male);
+        setVal('sib_same_female', data.family_members.sib_same_female);
+        setVal('sib_diff_total', data.family_members.sib_diff_total);
+        setVal('sib_diff_male', data.family_members.sib_diff_male);
+        setVal('sib_diff_female', data.family_members.sib_diff_female);
     }
 
+    // เศรษฐกิจ
+    if (data.economic_data) {
+        setVal('family_income_monthly', data.economic_data.income);
+        setVal('student_job_name', data.economic_data.student_job_name);
+        setVal('student_job_income', data.economic_data.student_job_income);
+        setVal('money_to_school', data.economic_data.money_to_school);
+    }
+
+    // เวลาอยู่ร่วมกัน
+    setVal('time_together_hours', (data.family_relations || {}).time_together || '');
+
+    // ข้อความเพิ่มเติม
     setVal('special_help_details', data.special_help_details || '');
     setVal('responsibilities_details', data.responsibilities_details || '');
     setVal('hobbies_details', data.hobbies_details || '');
-    if (window.tomLeaveWithWhom) window.tomLeaveWithWhom.setValue(data.leave_with_whom_details || '');
     setVal('guardian_concerns_details', data.guardian_concerns || '');
     setVal('guardian_requests_details', data.guardian_requests || '');
     setVal('past_welfare_details', data.past_welfare || '');
-    if (window.tomInformantType) window.tomInformantType.setValue(data.informant_type || '');
 
-    if (data.latitude && data.longitude && map && marker) {
-        marker.setLatLng([data.latitude, data.longitude]); map.setView([data.latitude, data.longitude], 15);
+    // ---------- 1. RESTORE ความสัมพันธ์ในครอบครัว (Radio Table) ----------
+    if (data.relations_data && Array.isArray(data.relations_data)) {
+        const relatives = ['บิดา', 'มารดา', 'พี่ชาย/น้องชาย', 'พี่สาว/น้องสาว', 'ปู่/ย่า/ตา/ยาย', 'ญาติ'];
+        data.relations_data.forEach((rel, idx) => {
+            const index = relatives.indexOf(rel.relative);
+            if (index !== -1 && rel.relation) {
+                const radio = document.querySelector(`input[name="rel_radio_${index}"][value="${rel.relation}"]`);
+                if (radio) radio.checked = true;
+            }
+        });
+    }
+
+    // ---------- 2. RESTORE ความเสี่ยง (Checkboxes) ----------
+    if (data.risk_data) {
+        const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
+        riskGroups.forEach(group => {
+            const values = data.risk_data[group] || [];
+            // ยกเลิกการเลือกทั้งหมดก่อน
+            document.querySelectorAll(`input[name="risk_${group}"]`).forEach(cb => cb.checked = false);
+            values.forEach(val => {
+                // รองรับกรณี "อื่นๆ: ..."
+                let pureVal = val;
+                let otherText = '';
+                if (val.startsWith('อื่นๆ:')) {
+                    pureVal = 'อื่นๆ ระบุ...';
+                    otherText = val.replace('อื่นๆ:', '').trim();
+                }
+                const cb = document.querySelector(`input[name="risk_${group}"][value="${pureVal}"]`);
+                if (cb) {
+                    cb.checked = true;
+                    if (pureVal === 'อื่นๆ ระบุ...') {
+                        const otherInput = document.getElementById(`risk_${group}_other_txt`);
+                        if (otherInput) {
+                            otherInput.value = otherText;
+                            otherInput.classList.remove('hidden');
+                        }
+                    }
+                }
+            });
+        });
+        // Internet access (radio)
+        if (data.risk_data.internet_access) {
+            setRadio('internet_access', data.risk_data.internet_access);
+        }
+    }
+
+    // ---------- 3. RESTORE รูปภาพ ----------
+    const restorePhoto = (url, inputId, previewId, cloudBtnId) => {
+        if (url) {
+            const img = document.getElementById(previewId);
+            if (img) {
+                img.src = url;
+                img.classList.remove('hidden');
+            }
+            const fileInput = document.getElementById(inputId);
+            if (fileInput) fileInput.dataset.uploadedUrl = url;
+            const cloudBtn = document.getElementById(cloudBtnId);
+            if (cloudBtn) {
+                cloudBtn.disabled = false;
+                cloudBtn.classList.remove('opacity-40');
+                cloudBtn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> อัพโหลดสำเร็จ';
+                cloudBtn.classList.add('bg-slate-700');
+            }
+            const delBtn = document.getElementById(`del_${cloudBtnId.split('_')[1]}`);
+            if (delBtn) delBtn.classList.remove('hidden');
+        }
+    };
+    restorePhoto(data.photo_student, 'pic_student', 'preview1', 'cloud_btn1');
+    restorePhoto(data.photo_outside, 'pic_outside', 'preview2', 'cloud_btn2');
+    restorePhoto(data.photo_inside, 'pic_inside', 'preview3', 'cloud_btn3');
+    restorePhoto(data.photo_teacher, 'pic_teacher', 'preview4', 'cloud_btn4');
+
+    // ---------- 4. RESTORE พิกัด (Lat/Lng) ----------
+    if (data.latitude && data.longitude) {
+        setVal('lat', data.latitude);
+        setVal('lng', data.longitude);
+        // อัปเดตแผนที่ถ้ามีการสร้างแล้ว (ถ้ายังไม่มี marker ให้เก็บค่าไว้ initMap จะอ่านจาก input)
+        if (map && marker) {
+            const lat = parseFloat(data.latitude);
+            const lng = parseFloat(data.longitude);
+            marker.setLatLng([lat, lng]);
+            map.setView([lat, lng], 15);
+        }
     }
 }
 
-// ==========================================
-// ภาค 2/3: Submit, Upload, Map, Step Navigator, Admin Modal
-// ==========================================
-
 window.submitHomeVisit = async function () {
-    // ✅ FIX: ป้องกันการบันทึกในโหมด read-only
     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
 
     const studentId = document.getElementById('hv_student').value;
@@ -543,7 +746,6 @@ window.submitHomeVisit = async function () {
     const getVal = (id) => document.getElementById(id)?.value || '';
     const getRadio = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
 
-    // --- รวบรวมข้อมูลความเสี่ยงจาก Checkbox ---
     const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
     const riskData = {};
     riskGroups.forEach(group => {
@@ -559,10 +761,8 @@ window.submitHomeVisit = async function () {
         riskData[group] = values;
     });
 
-    // internet access (radio)
     riskData.internet_access = getRadio('internet_access');
 
-    // --- รวบรวมความสัมพันธ์ในครอบครัว (ตาราง Radio) ---
     const relatives = ['บิดา', 'มารดา', 'พี่ชาย/น้องชาย', 'พี่สาว/น้องสาว', 'ปู่/ย่า/ตา/ยาย', 'ญาติ'];
     const relations = relatives.map((rel, i) => {
         const radio = document.querySelector(`input[name="rel_radio_${i}"]:checked`);
@@ -636,7 +836,6 @@ window.submitHomeVisit = async function () {
     }
 };
 
-// ✅ FIX: รับ event เป็น parameter แทนการใช้ global event object
 window.triggerSingleUpload = async function (event, inputId, type) {
     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
     const fileInput = document.getElementById(inputId);
@@ -717,7 +916,6 @@ function initPlugins() {
         flatpickr("#hv_date", { locale: "th", dateFormat: "Y-m-d", defaultDate: "today" });
     }
 
-    // ✅ URL ที่ถูกต้อง
     $.Thailand({
         database: 'https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/database/db.json',
         $district: $('#addr_subdistrict'),
@@ -731,16 +929,15 @@ function initMap() {
     const mapEl = document.getElementById('map');
     if (!mapEl) return;
     if (map) { map.invalidateSize(); return; }
-    map = L.map('map').setView([13.740160996979197, 100.25988091557207], 15);
+    map = L.map('map').setView([13.740195920850455, 100.2598792489264], 15);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    marker = L.marker([13.740160996979197, 100.25988091557207], { draggable: true }).addTo(map);
+    marker = L.marker([13.740195920850455, 100.2598792489264], { draggable: true }).addTo(map);
     marker.on('dragend', function () {
         const pos = marker.getLatLng();
         document.getElementById('lat').value = pos.lat.toFixed(7);
         document.getElementById('lng').value = pos.lng.toFixed(7);
     });
 
-    // ✅ ให้ input lat/lng เปลี่ยนแล้วขยับหมุด
     $('#lat, #lng').off('input').on('input', function () {
         const lat = parseFloat($('#lat').val());
         const lng = parseFloat($('#lng').val());
@@ -749,9 +946,20 @@ function initMap() {
             map.setView([lat, lng], map.getZoom());
         }
     });
+
+    // ✅ เพิ่มส่วนนี้: ดึงค่าพิกัดจาก input (ถ้ามี) มาปักหมุด
+    const latInput = document.getElementById('lat');
+    const lngInput = document.getElementById('lng');
+    if (latInput && lngInput && latInput.value && lngInput.value) {
+        const lat = parseFloat(latInput.value);
+        const lng = parseFloat(lngInput.value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            marker.setLatLng([lat, lng]);
+            map.setView([lat, lng], 15);
+        }
+    }
 }
 
-// ฟังก์ชันย้ายหมุดตามค่าที่พิมพ์ใน input lat/lng
 window.updateMarkerFromInputs = function () {
     const lat = parseFloat(document.getElementById('lat').value);
     const lng = parseFloat(document.getElementById('lng').value);
@@ -762,7 +970,6 @@ window.updateMarkerFromInputs = function () {
     }
 };
 
-// ส่วนเสริม OpenStreetMap ค้นหาพิกัดจากที่อยู่
 window.geocodeAddress = function () {
     const house = document.getElementById('addr_house').value;
     const subdistrict = document.getElementById('addr_subdistrict').value;
@@ -787,29 +994,23 @@ window.geocodeAddress = function () {
         });
 };
 
-// ฟังก์ชันช่วยแปลงลิงก์ Google Maps เป็นพิกัด
 function parseGoogleMapsUrl(url) {
-    // รูปแบบที่พบบ่อย: @lat,lng,zoom
     let match = url.match(/@([-\d.]+),([-\d.]+),\d+z/i);
     if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
 
-    // รูปแบบ !3dLAT!4dLNG
     match = url.match(/!3d([-\d.]+)!4d([-\d.]+)/);
     if (match) return { lat: parseFloat(match[1]), lng: parseFloat(match[2]) };
 
-    // รูปแบบ ?q=loc:LAT,LNG หรือ ?q=LAT,LNG
     match = url.match(/[?&]q=(loc:)?([-\d.]+),([-\d.]+)/);
     if (match) return { lat: parseFloat(match[2]), lng: parseFloat(match[3]) };
 
     return null;
 }
 
-// ฟังก์ชันแยกพิกัดที่คัดลอกจาก Google Maps แล้วปักหมุด
 window.parseAndPinCoords = function () {
     const raw = document.getElementById('coord-input').value.trim();
     if (!raw) return Swal.fire('กรุณาวางพิกัด', 'คัดลอกพิกัดจาก Google Maps แล้ววางในช่อง', 'warning');
 
-    // แยก lat,lng โดยรองรับทั้งเครื่องหมายจุลภาค (,) และช่องว่าง
     const parts = raw.split(/[\s,]+/).filter(p => p);
     if (parts.length < 2) return Swal.fire('รูปแบบไม่ถูกต้อง', 'ตัวอย่างรูปแบบที่ถูกต้อง: 13.7389, 100.2595', 'warning');
 
@@ -827,7 +1028,6 @@ window.parseAndPinCoords = function () {
     Swal.fire('ปักหมุดแล้ว', `${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'success');
 };
 
-// เปิด Google Maps จากที่อยู่ที่กรอก
 window.openInGoogleMaps = function () {
     const house = document.getElementById('addr_house').value;
     const subdistrict = document.getElementById('addr_subdistrict').value;
@@ -861,7 +1061,6 @@ window.calcFemaleCount = function (prefix) {
 async function loadModuleSettings() {
     const { data } = await db.from('core_system_modules').select('*').eq('module_id', 'homevisit').single();
     if (data?.settings) {
-        // ✅ FIX: เพิ่ม report_template_id ใน moduleSettings
         moduleSettings = {
             gas_url: data.settings.gas_url || "",
             drive_folder_id: data.settings.drive_folder_id || "",
@@ -881,7 +1080,6 @@ window.openAdminModal = async function () {
 function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
 
 async function loadAdminSettings() {
-    // ✅ FIX: reuse moduleSettings ที่โหลดมาแล้ว แทนการ query ซ้ำ
     await loadModuleSettings();
     document.getElementById('set-gas-url').value = moduleSettings.gas_url;
     document.getElementById('set-drive-folder-id').value = moduleSettings.drive_folder_id;
@@ -900,7 +1098,6 @@ async function saveAdminSettings() {
         pdf_api_url: document.getElementById('set-pdf-api-url').value.trim(),
         slide_template_url: document.getElementById('set-slide-id').value.trim(),
         gd_pdf_folder_id: document.getElementById('set-pdf-folder-id').value.trim(),
-        // ✅ FIX: บันทึก report_template_id ด้วย
         report_template_id: document.getElementById('set-report-template-id')?.value.trim() || ""
     };
     const { error } = await db.from('core_system_modules').update({ settings: payload }).eq('module_id', 'homevisit');
@@ -934,10 +1131,10 @@ async function loadModuleAdminsList() {
             <td class="py-3 px-4 font-bold text-slate-700 flex items-center gap-2">
                 <div class="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px]"><i class="fas fa-user-shield"></i></div>
                 ${admin.core_personnel.first_name} ${admin.core_personnel.last_name}
-            </td>
+             </td>
             <td class="py-3 px-4 text-center">
                 <button onclick="removeModuleAdmin('${admin.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
-            </td>
+             </td>
         </tr>`).join('');
 }
 
@@ -983,21 +1180,18 @@ window.loadDataTable = async function () {
     const isTeacher = (currentViewRole === 'teacher');
     const classSummaryTable = document.getElementById('class-table-container');
     const teacherTableContainer = document.getElementById('teacher-table-container');
-    const exportBtn = document.querySelector('#tab-data button.bg-emerald-50'); // ปุ่ม Export Excel
+    const exportBtn = document.querySelector('#tab-data button.bg-emerald-50');
 
-    // แสดง / ซ่อน container ตามบทบาท
     if (isTeacher) {
         classSummaryTable.classList.add('hidden');
         teacherTableContainer.classList.remove('hidden');
-        // export ยังใช้ได้กับข้อมูลนักเรียน (ปรับชื่อหรือซ่อนตามชอบ)
-        if (exportBtn) exportBtn.style.display = 'none'; // ซ่อน export หรือปรับเป็น export รายบุคคล
+        if (exportBtn) exportBtn.style.display = 'none';
     } else {
         classSummaryTable.classList.remove('hidden');
         teacherTableContainer.classList.add('hidden');
         if (exportBtn) exportBtn.style.display = '';
     }
 
-    // --- กรณี admin/หัวหน้าระดับ/หัวหน้างานปกครอง (โหลดตารางภาพรวมรายชั้น) ---
     if (!isTeacher) {
         const tbody = document.getElementById('tb-class-summary');
         if (!tbody) return;
@@ -1054,7 +1248,7 @@ window.loadDataTable = async function () {
                     <td class="py-3 px-4 text-right"><button onclick="editFromTable('${c.id}')" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button></td>
                 </tr>`;
             }).join('');
-            renderDashboard(classrooms.length, doneCount, false);  // หรือไม่ต้องใส่ false ก็ได้
+            renderDashboard(classrooms.length, doneCount, false);
         } catch (err) {
             console.error(err);
             tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-500">เกิดข้อผิดพลาด</td></tr>';
@@ -1062,7 +1256,6 @@ window.loadDataTable = async function () {
         return;
     }
 
-    // --- กรณีครู (ตารางรายบุคคล) ---
     const classroomId = window.currentClassroomId;
     const tbody = document.getElementById('tb-teacher-students');
     if (!tbody) return;
@@ -1071,12 +1264,10 @@ window.loadDataTable = async function () {
     try {
         if (!classroomId) {
             tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-400">กรุณาเลือกห้องเรียนในแท็บฟอร์มก่อน</td></tr>';
-            // ✅ เพิ่มตรงนี้
-            renderDashboard(0, 0, true);  // ล้างการ์ดทั้ง 3 ช่อง
+            renderDashboard(0, 0, true);
             return;
         }
 
-        // ดึงนักเรียนในห้อง + ข้อมูลเยี่ยมบ้าน
         const { data: enrolls } = await db.from('student_enrollments')
             .select('student_id, student_number, core_students(id, student_id_card, prefix, first_name, last_name)')
             .eq('classroom_id', classroomId)
@@ -1128,9 +1319,8 @@ window.loadDataTable = async function () {
             </tr>`;
         }).join('');
 
-        // แสดงจำนวนนักเรียนใน dashboard
-        const totalStudents = enrolls.length;             // จำนวนนักเรียนทั้งหมดในห้อง
-        const visitedCount = Object.keys(visitMap).length; // จำนวนที่เยี่ยมแล้ว
+        const totalStudents = enrolls.length;
+        const visitedCount = Object.keys(visitMap).length;
         renderDashboard(totalStudents, visitedCount, true);
     } catch (err) {
         console.error(err);
@@ -1142,7 +1332,6 @@ function renderDashboard(total, done, isTeacher = false) {
     const container = document.getElementById('dashboard-stats');
     if (!container) return;
     if (isTeacher) {
-        // การ์ดสำหรับครู (นับจำนวนนักเรียน)
         container.innerHTML = `
             <div class="glass-card rounded-2xl p-5 border-l-4 border-blue-500">
                 <h3 class="text-3xl font-black text-blue-700">${total}</h3>
@@ -1157,7 +1346,6 @@ function renderDashboard(total, done, isTeacher = false) {
                 <p class="text-xs font-bold text-slate-500 mt-1 uppercase tracking-widest">รอการเยี่ยม</p>
             </div>`;
     } else {
-        // การ์ดสำหรับ admin/หัวหน้าระดับ/หัวหน้างานปกครอง (นับจำนวนห้อง)
         container.innerHTML = `
             <div class="glass-card rounded-2xl p-5 border-l-4 border-blue-500">
                 <h3 class="text-3xl font-black text-blue-700">${total}</h3>
@@ -1192,6 +1380,7 @@ function updateStatusBadge(status) {
     }
 }
 
+// ส่งออกตาราง Excel ทั้งโรงเรียน
 window.exportToExcel = async function () {
     Swal.fire({ title: 'กำลังส่งออก...', didOpen: () => Swal.showLoading() });
     const { data } = await db.from('module_home_visits')
@@ -1217,40 +1406,190 @@ window.exportToExcel = async function () {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'HomeVisit');
-    XLSX.writeFile(wb, `เยี่ยมบ้าน_${currentTerm}_${currentYear}.xlsx`);
+
+    let fileName = `เยี่ยมบ้านนักเรียน-รวมทุกห้อง_เทอม${currentTerm}_${currentYear}`;
+    if (currentViewRole === 'teacher' && window.currentClassroomId) {
+        try {
+            const { data: clsData } = await db.from('core_classrooms')
+                .select('grade_level, room_number')
+                .eq('id', window.currentClassroomId)
+                .single();
+            if (clsData) {
+                fileName = `เยี่ยมบ้านนักเรียน-ชั้นม.${clsData.grade_level}-ห้อง${clsData.room_number}_เทอม${currentTerm}_${currentYear}`;
+            }
+        } catch (e) { /* fallback */ }
+    }
+
+    XLSX.writeFile(wb, `${fileName}.xlsx`);
     Swal.close();
 };
 
+// พิมพ์ PDF
 window.printPDF = async function (visitId) {
     if (!moduleSettings.pdf_api_url || !moduleSettings.slide_template_url) {
         return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณากำหนด PDF API URL และ Slide ID ในเมนูตั้งค่าระบบ', 'warning');
     }
+
     Swal.fire({ title: 'กำลังสร้าง PDF...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
     try {
+        // ดึงข้อมูล visit พร้อมข้อมูลนักเรียนและห้องเรียน
         const { data: visit, error } = await db.from('module_home_visits')
             .select('*, core_students(*), core_classrooms(*)')
             .eq('id', visitId).single();
         if (error) throw error;
+
+        const student = visit.core_students;
+        const classroom = visit.core_classrooms;
+
+        // ฟังก์ชันช่วยแปลง array เป็น string สำหรับความเสี่ยง
+        const formatRiskList = (riskArr) => (riskArr || []).join(', ');
+
+        // ข้อมูลนักเรียน
+        const studentFullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
+        const studentIdCard = student.student_id_card || '-';
+
+        // ที่อยู่แบบบรรทัดเดียว
+        const fullAddress = `${visit.house_number || ''} ${visit.village_no || ''} ต.${visit.sub_district || ''} อ.${visit.district || ''} จ.${visit.province || ''} ${visit.zipcode || ''}`.trim();
+
+        // ข้อมูลครอบครัว
+        const family = visit.family_members || {};
+        const economic = visit.economic_data || {};
+        const relations = visit.family_relations || {};
+        const risk = visit.risk_data || {};
+
+        // เตรียม replacements
         const replacements = {
-            "{{STUDENT_NAME}}": `${visit.core_students.first_name} ${visit.core_students.last_name}`,
-            "{{student_id}}": visit.core_students.student_id_card,
-            "{{VISIT_DATE}}": visit.visit_date,
-            "{{VISIT_TIMES}}": visit.visit_times,
+            // นักเรียน
+            "{{STUDENT_NAME}}": studentFullName,
+            "{{STUDENT_ID}}": studentIdCard,
+            "{{STUDENT_NICKNAME}}": visit.student_nickname || '-',
+            "{{STUDENT_PHONE}}": visit.student_phone || '-',
+            "{{STUDENT_LINE}}": visit.student_line || '-',
+            "{{CLASSROOM}}": classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-',
+            "{{VISIT_DATE}}": visit.visit_date || '-',
+            "{{VISIT_TIMES}}": visit.visit_times || '1',
+
+            // บิดา มารดา ผู้ปกครอง
+            "{{FATHER_NAME}}": visit.father_name || '-',
+            "{{FATHER_JOB}}": visit.father_job || '-',
+            "{{FATHER_PHONE}}": visit.father_phone || '-',
+            "{{MOTHER_NAME}}": visit.mother_name || '-',
+            "{{MOTHER_JOB}}": visit.mother_job || '-',
+            "{{MOTHER_PHONE}}": visit.mother_phone || '-',
             "{{GUARDIAN_NAME}}": visit.guardian_name || '-',
-            "{{ADDRESS}}": `${visit.house_number} ${visit.village_no} ต.${visit.sub_district} อ.${visit.district} จ.${visit.province} ${visit.zipcode}`,
+            "{{GUARDIAN_JOB}}": visit.guardian_job || '-',
+            "{{GUARDIAN_PHONE}}": visit.guardian_phone || '-',
+            "{{GUARDIAN_RELATION}}": visit.guardian_relation || '-',
+            "{{LIVING_WITH}}": visit.living_with || '-',
+            "{{PARENTS_STATUS}}": visit.parents_status || '-',
+
+            // ที่อยู่
+            "{{ADDRESS}}": fullAddress,
+            "{{HOUSE_NUMBER}}": visit.house_number || '',
+            "{{VILLAGE_NO}}": visit.village_no || '',
+            "{{SUB_DISTRICT}}": visit.sub_district || '',
+            "{{DISTRICT}}": visit.district || '',
+            "{{PROVINCE}}": visit.province || '',
+            "{{ZIPCODE}}": visit.zipcode || '',
+            "{{LATITUDE}}": visit.latitude || '',
+            "{{LONGITUDE}}": visit.longitude || '',
+            "{{TRAVEL_DISTANCE}}": visit.travel_distance || '',
+            "{{HOUSE_TYPE}}": visit.house_type || '-',
+            "{{TRAVEL_HOUR}}": visit.travel_hour || '0',
+            "{{TRAVEL_MINUTE}}": visit.travel_minute || '0',
+            "{{TRAVEL_METHOD}}": visit.travel_method || '-',
+
+            // สภาพแวดล้อม
+            "{{ENV_HOUSE_STATUS}}": visit.env_house_status || '-',
+            "{{ENV_CLEAN_STATUS}}": visit.env_clean_status || '-',
+            "{{ENV_LOCATION_STATUS}}": visit.env_location_status || '-',
+            "{{UTILITY_ELECTRIC}}": visit.utility_electric || '-',
+            "{{UTILITY_WATER}}": visit.utility_water || '-',
+            "{{UTILITY_TOILET}}": visit.utility_toilet || '-',
+
+            // ครอบครัว
+            "{{FAMILY_TOTAL}}": family.total || '0',
+            "{{FAMILY_MALE}}": family.male || '0',
+            "{{FAMILY_FEMALE}}": family.female || '0',
+            "{{SIB_SAME_TOTAL}}": family.sib_same_total || '0',
+            "{{SIB_SAME_MALE}}": family.sib_same_male || '0',
+            "{{SIB_SAME_FEMALE}}": family.sib_same_female || '0',
+            "{{SIB_DIFF_TOTAL}}": family.sib_diff_total || '0',
+            "{{SIB_DIFF_MALE}}": family.sib_diff_male || '0',
+            "{{SIB_DIFF_FEMALE}}": family.sib_diff_female || '0',
+
+            // เศรษฐกิจ
+            "{{ECONOMIC_INCOME}}": economic.income || '0',
+            "{{ALLOWANCE_SOURCE}}": economic.allowance_source || '-',
+            "{{STUDENT_JOB_NAME}}": economic.student_job_name || '-',
+            "{{STUDENT_JOB_INCOME}}": economic.student_job_income || '0',
+            "{{MONEY_TO_SCHOOL}}": economic.money_to_school || '0',
+
+            // ความสัมพันธ์ในครอบครัว
+            "{{FAMILY_RELATIONS_STATUS}}": relations.status || '-',
+            "{{TIME_TOGETHER_HOURS}}": relations.time_together || '0',
+
+            // ข้อความเพิ่มเติม
+            "{{SPECIAL_HELP_DETAILS}}": visit.special_help_details || '-',
+            "{{RESPONSIBILITIES_DETAILS}}": visit.responsibilities_details || '-',
+            "{{HOBBIES_DETAILS}}": visit.hobbies_details || '-',
+            "{{LEAVE_WITH_WHOM}}": visit.leave_with_whom_details || '-',
+            "{{GUARDIAN_CONCERNS}}": visit.guardian_concerns || '-',
+            "{{GUARDIAN_REQUESTS}}": visit.guardian_requests || '-',
+            "{{PAST_WELFARE}}": visit.past_welfare || '-',
+            "{{INFORMANT_TYPE}}": visit.informant_type || '-',
+
+            // ความเสี่ยง (รวมเป็นข้อความ)
+            "{{RISK_HEALTH}}": formatRiskList(risk.health),
+            "{{RISK_WELFARE}}": formatRiskList(risk.welfare),
+            "{{RISK_RESPONSIBILITIES}}": formatRiskList(risk.responsibilities),
+            "{{RISK_HOBBIES}}": formatRiskList(risk.hobbies),
+            "{{RISK_DRUGS}}": formatRiskList(risk.drugs),
+            "{{RISK_VIOLENCE}}": formatRiskList(risk.violence),
+            "{{RISK_SEX}}": formatRiskList(risk.sex),
+            "{{RISK_GAMING}}": formatRiskList(risk.gaming),
+            "{{RISK_COMMUNICATION}}": formatRiskList(risk.communication),
+            "{{INTERNET_ACCESS}}": risk.internet_access || '-',
+
+            // รูปภาพ URL
+            "{{PHOTO_STUDENT}}": visit.photo_student || '',
+            "{{PHOTO_OUTSIDE}}": visit.photo_outside || '',
+            "{{PHOTO_INSIDE}}": visit.photo_inside || '',
+            "{{PHOTO_TEACHER}}": visit.photo_teacher || ''
         };
+
+        // สร้าง payload และเรียก Google Apps Script
         const payload = {
+            action: 'generate_pdf',   // ✅ เพิ่มบรรทัดนี้
             templateId: moduleSettings.slide_template_url,
             pdfFolderId: moduleSettings.gd_pdf_folder_id,
-            fileName: `HomeVisit_${visit.core_students.student_id_card}_${visit.visit_date}`,
+            fileName: `HomeVisit_${studentIdCard}_${visit.visit_date}`,
             replacements
         };
+
+        // 🔧 แก้ไข Headers ให้เป็น text/plain เพื่อหลีกเลี่ยง CORS preflight
         const response = await fetch(moduleSettings.pdf_api_url, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
         });
         const result = await response.json();
-        if (result.status === 'success') window.open(result.url, '_blank');
-        else throw new Error(result.message);
+
+        if (result.status === 'success' && result.url) {
+            // อัปเดต pdf_url ในฐานข้อมูล (ถ้ามีฟิลด์นี้)
+            if (visit.pdf_url !== undefined) {
+                await db.from('module_home_visits')
+                    .update({ pdf_url: result.url })
+                    .eq('id', visitId);
+            }
+            // ✅ รีเฟรชตารางข้อมูลทันที เพื่อให้ไอคอนรูปดวงตาแสดง
+            loadDataTable();
+            Swal.close();
+            window.open(result.url, '_blank');
+        } else {
+            throw new Error(result.message || 'สร้าง PDF ไม่สำเร็จ');
+        }
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
@@ -1281,7 +1620,6 @@ function toggleOtherInput(selectId, otherInputId, value) {
 }
 
 function initAllTomSelects() {
-    // ทำลาย instance เก่า (รวม tomLeaveWithWhom, tomAllowanceSource)
     ['tomLivingWith', 'tomParentsStatus', 'tomHouseType', 'tomTravelMethod', 'tomEnvHouseStatus', 'tomEnvCleanStatus', 'tomEnvLocationStatus', 'tomInformantType', 'tomFamilyRelationStatus', 'tomLeaveWithWhom', 'tomAllowanceSource'].forEach(k => {
         if (window[k]) window[k].destroy();
     });
@@ -1301,7 +1639,6 @@ function initAllTomSelects() {
 // ==========================================
 // Image Helpers
 // ==========================================
-// ✅ FIX: รับ inputId, previewId, cloudBtnId, delBtnId เป็น parameter ชัดเจน
 window.previewSelectedImage = function (input, previewId, cloudBtnId, delBtnId) {
     if (input.files && input.files[0]) {
         const reader = new FileReader();
@@ -1317,7 +1654,6 @@ window.previewSelectedImage = function (input, previewId, cloudBtnId, delBtnId) 
     }
 };
 
-// ✅ FIX: รับ event เป็น parameter แทน global event
 window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
     document.getElementById(inputId).value = '';
     const img = document.getElementById(previewId);
@@ -1330,54 +1666,46 @@ window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
         cloudBtn.classList.add('opacity-40');
         cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
     }
-    // ล้าง uploaded URL ด้วย
     const fileInput = document.getElementById(inputId);
     if (fileInput) delete fileInput.dataset.uploadedUrl;
 };
 
-// ✅ FIX: switchTab อัปเดต active style ของปุ่มด้วย
+// ==========================================
+// Switch Tab (แก้ไขให้รองรับ report)
+// ==========================================
 function switchTab(tabId) {
     document.getElementById('tab-form').classList.toggle('hidden', tabId !== 'form');
     document.getElementById('tab-data').classList.toggle('hidden', tabId !== 'data');
+    document.getElementById('tab-report').classList.toggle('hidden', tabId !== 'report');
 
-    // ✅ อัปเดต style ปุ่ม Tab
+    // อัปเดต style ปุ่ม Tab
     const formBtn = document.getElementById('tab-form-btn');
     const dataBtn = document.getElementById('tab-data-btn');
-    if (formBtn && dataBtn) {
-        if (tabId === 'form') {
-            formBtn.className = 'flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm';
-            dataBtn.className = 'flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm';
-        } else {
-            dataBtn.className = 'flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm';
-            formBtn.className = 'flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm';
-        }
-    }
+    const reportBtn = document.getElementById('tab-report-btn');
 
-    if (tabId === 'data') loadDataTable();
+    const activeClass = 'flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm';
+    const inactiveClass = 'flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm';
+
+    if (tabId === 'form') {
+        formBtn.className = activeClass;
+        dataBtn.className = inactiveClass;
+        reportBtn.className = inactiveClass;
+    } else if (tabId === 'data') {
+        dataBtn.className = activeClass;
+        formBtn.className = inactiveClass;
+        reportBtn.className = inactiveClass;
+        loadDataTable();
+    } else if (tabId === 'report') {
+        reportBtn.className = activeClass;
+        formBtn.className = inactiveClass;
+        dataBtn.className = inactiveClass;
+        loadReport();   // โหลดข้อมูลรายงานทันทีเมื่อเปิดแท็บ
+    }
 }
 
 // ==========================================
-// Report Modal
+// Report functions (loadReport, showReportStudentList, printReportPDF)
 // ==========================================
-// ✅ FIX: เหลือฟังก์ชันเดียว และเรียก loadReport() เองตรงๆ
-//         ไม่ต้องพึ่ง change event เพราะ set value ด้วย JS ไม่ trigger 'change'
-function openReportModal() {
-    document.getElementById('report-modal').classList.remove('hidden');
-    const scopeSelect = document.getElementById('report-scope');
-    const gradeContainer = document.getElementById('grade-select-container');
-    if (currentViewRole === 'teacher') {
-        scopeSelect.value = 'myclass';
-    } else {
-        scopeSelect.value = 'all';
-    }
-    gradeContainer.classList.add('hidden');
-    loadReport(); // ✅ เรียกตรง เพราะ set value ด้วย JS ไม่ trigger change event
-}
-
-function closeReportModal() {
-    document.getElementById('report-modal').classList.add('hidden');
-}
-
 async function loadReport() {
     const scope = document.getElementById('report-scope').value;
     const grade = document.getElementById('report-grade')?.value;
@@ -1385,27 +1713,19 @@ async function loadReport() {
     Swal.fire({ title: 'กำลังประมวลผลรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
-        // 1. หา classIds ตาม scope
         let classIds = [];
         if (scope === 'myclass' && currentViewRole === 'teacher') {
             const { data } = await db.from('core_classrooms')
-                .select('id')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
+                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm)
                 .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
             classIds = (data || []).map(c => c.id);
         } else if (scope === 'grade') {
             const { data } = await db.from('core_classrooms')
-                .select('id')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
-                .eq('grade_level', grade);
+                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm).eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
-        } else { // all
+        } else {
             const { data } = await db.from('core_classrooms')
-                .select('id')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm);
+                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm);
             classIds = (data || []).map(c => c.id);
         }
 
@@ -1415,10 +1735,14 @@ async function loadReport() {
             return;
         }
 
-        // 2. ดึงนักเรียนทั้งหมดผ่าน enrollment
-        const { data: enrolls } = await db.from('student_enrollments')
-            .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name), classroom_id')
-            .in('classroom_id', classIds);
+        const [{ data: enrolls }, { data: classrooms }] = await Promise.all([
+            db.from('student_enrollments')
+                .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name), classroom_id')
+                .in('classroom_id', classIds),
+            db.from('core_classrooms')
+                .select('id, grade_level, room_number')
+                .in('id', classIds)
+        ]);
 
         if (!enrolls || enrolls.length === 0) {
             Swal.close();
@@ -1426,37 +1750,20 @@ async function loadReport() {
             return;
         }
 
-        // 3. สร้าง grade map จาก classrooms
-        const { data: classrooms } = await db.from('core_classrooms')
-            .select('id, grade_level')
-            .in('id', classIds);
-        const gradeMap = {};
-        (classrooms || []).forEach(c => { gradeMap[c.id] = c.grade_level; });
+        const roomMap = {};
+        (classrooms || []).forEach(c => { roomMap[c.id] = `ม.${c.grade_level}/${c.room_number}`; });
 
-        // 4. Unique students (กันข้อมูลซ้ำ)
         const uniqueStudents = [];
         const seenStudentIds = new Set();
         enrolls.forEach(e => {
-            const sid = e.core_students.id;
-            if (!seenStudentIds.has(sid)) {
-                seenStudentIds.add(sid);
-                uniqueStudents.push({
-                    student: e.core_students,
-                    grade_level: gradeMap[e.classroom_id] || '?'
-                });
+            if (e.core_students && !seenStudentIds.has(e.core_students.id)) {
+                seenStudentIds.add(e.core_students.id);
+                e.core_students.room_label = roomMap[e.classroom_id] || '-';
+                uniqueStudents.push(e.core_students);
             }
         });
-        const students = uniqueStudents;
 
-        const totalStudents = students.length;
-        const studentIds = students.map(s => s.student.id);
-
-        // 5. ดึงข้อมูลเยี่ยมบ้าน
-        // const { data: visits } = await db.from('module_home_visits')
-        //     .select('student_id, risk_data, economic_data, special_help_details')
-        //     .in('student_id', studentIds)
-        //     .eq('academic_year', currentYear)
-        //     .eq('semester', currentTerm);
+        const totalStudents = uniqueStudents.length;
 
         const { data: visits } = await db.rpc('get_visits_by_classrooms', {
             p_classroom_ids: classIds,
@@ -1467,80 +1774,98 @@ async function loadReport() {
         const visitedMap = {};
         (visits || []).forEach(v => { visitedMap[v.student_id] = v; });
 
-        // 6. ประมวลผล
+        window.reportVisitedList = [];
+        window.reportNotVisitedList = [];
+
         let visitedCount = 0;
         const riskCounts = { learning: 0, health: 0, drugs: 0, violence: 0, sex: 0, gaming: 0, economy: 0 };
         const problemCounts = { ...riskCounts };
         const riskStudents = { learning: [], health: [], drugs: [], violence: [], sex: [], gaming: [], economy: [] };
         const problemStudents = { ...riskStudents };
 
-        students.forEach(s => {
-            const visit = visitedMap[s.student.id];
-            const name = `${s.student.prefix || ''}${s.student.first_name} ${s.student.last_name} (${s.student.student_id_card})`;
+        uniqueStudents.forEach(s => {
+            const visit = visitedMap[s.id];
+            const name = `${s.prefix || ''}${s.first_name} ${s.last_name} (${s.student_id_card})`;
+
+            const studentItem = { id: s.student_id_card || '-', name: `${s.prefix || ''}${s.first_name} ${s.last_name}`, room: s.room_label };
 
             if (visit) {
                 visitedCount++;
+                window.reportVisitedList.push(studentItem);
+
                 const risk = visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
 
-                // กลุ่มเสี่ยง
-                if (risk.health?.length) { riskCounts.health++; riskStudents.health.push(name); }
-                if (risk.drugs?.length) { riskCounts.drugs++; riskStudents.drugs.push(name); }
-                if (risk.violence?.length) { riskCounts.violence++; riskStudents.violence.push(name); }
-                if (risk.sex?.length) { riskCounts.sex++; riskStudents.sex.push(name); }
-                if (risk.gaming?.length) { riskCounts.gaming++; riskStudents.gaming.push(name); }
-                if (risk.responsibilities?.length || special.length > 5) { riskCounts.learning++; riskStudents.learning.push(name); }
-                if (eco && (parseInt(eco.income) < 3000 || (eco.allowance_source || '').includes('ไม่มี'))) {
-                    riskCounts.economy++; riskStudents.economy.push(name);
-                }
+                const evaluateRisk = (category, conditionRisk, conditionProblem) => {
+                    if (conditionProblem) {
+                        problemCounts[category]++;
+                        problemStudents[category].push(name);
+                    } else if (conditionRisk) {
+                        riskCounts[category]++;
+                        riskStudents[category].push(name);
+                    }
+                };
 
-                // กลุ่มมีปัญหา
-                if (risk.health?.length > 1) { problemCounts.health++; problemStudents.health.push(name); }
-                if (risk.drugs?.length > 1) { problemCounts.drugs++; problemStudents.drugs.push(name); }
-                if (risk.violence?.length > 1) { problemCounts.violence++; problemStudents.violence.push(name); }
-                if (risk.sex?.length > 1) { problemCounts.sex++; problemStudents.sex.push(name); }
-                if (risk.gaming?.length > 1) { problemCounts.gaming++; problemStudents.gaming.push(name); }
-                if (risk.responsibilities?.length > 1 || special.length > 10) { problemCounts.learning++; problemStudents.learning.push(name); }
-                if (eco && parseInt(eco.income) < 1500) { problemCounts.economy++; problemStudents.economy.push(name); }
+                evaluateRisk('health', risk.health?.length > 0, risk.health?.length > 1);
+                evaluateRisk('drugs', risk.drugs?.length > 0, risk.drugs?.length > 1);
+                evaluateRisk('violence', risk.violence?.length > 0, risk.violence?.length > 1);
+                evaluateRisk('sex', risk.sex?.length > 0, risk.sex?.length > 1);
+                evaluateRisk('gaming', risk.gaming?.length > 0, risk.gaming?.length > 1);
+                evaluateRisk('learning', (risk.responsibilities?.length > 0 || special.length > 5), (risk.responsibilities?.length > 1 || special.length > 10));
+
+                const income = parseInt(eco.income) || 0;
+                const hasNoAllowance = (eco.allowance_source || '').includes('ไม่มี');
+                evaluateRisk('economy', (income > 0 && income < 3000) || hasNoAllowance, income > 0 && income < 1500);
+            } else {
+                window.reportNotVisitedList.push(studentItem);
             }
         });
 
         const notVisited = totalStudents - visitedCount;
-        const catNames = {
-            learning: 'การเรียน', health: 'สุขภาพ', drugs: 'สารเสพติด', violence: 'ความรุนแรง',
-            sex: 'เพศ', gaming: 'ติดเกม', economy: 'เศรษฐกิจ'
-        };
+        const catNames = { learning: 'การเรียน', health: 'สุขภาพ', drugs: 'สารเสพติด', violence: 'ความรุนแรง', sex: 'เรื่องเพศ', gaming: 'ติดเกม', economy: 'เศรษฐกิจ' };
 
-        // 7. สร้าง HTML
         let html = `
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div class="bg-blue-50 p-4 rounded-2xl">
+            <div onclick="showReportStudentList('visited')" class="bg-blue-50 p-4 rounded-2xl cursor-pointer hover:bg-blue-100 transition border border-blue-100 shadow-sm relative group">
                 <h4 class="font-black text-blue-800">เยี่ยมบ้านแล้ว</h4>
-                <p class="text-3xl font-black">${visitedCount} <span class="text-sm">คน (${totalStudents > 0 ? ((visitedCount / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
+                <p class="text-3xl font-black">${visitedCount} <span class="text-sm text-blue-600 font-normal">คน (${totalStudents > 0 ? ((visitedCount / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
+                <div class="absolute top-4 right-4 text-blue-400 group-hover:text-blue-600 transition"><i class="fas fa-search-plus"></i></div>
             </div>
-            <div class="bg-slate-100 p-4 rounded-2xl">
+            <div onclick="showReportStudentList('not_visited')" class="bg-slate-100 p-4 rounded-2xl cursor-pointer hover:bg-slate-200 transition border border-slate-200 shadow-sm relative group">
                 <h4 class="font-black text-slate-600">ยังไม่ได้เยี่ยม</h4>
-                <p class="text-3xl font-black">${notVisited} <span class="text-sm">คน (${totalStudents > 0 ? ((notVisited / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
+                <p class="text-3xl font-black">${notVisited} <span class="text-sm text-slate-500 font-normal">คน (${totalStudents > 0 ? ((notVisited / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
+                <div class="absolute top-4 right-4 text-slate-400 group-hover:text-slate-600 transition"><i class="fas fa-search-plus"></i></div>
             </div>
         </div>`;
 
-        html += `<h4 class="font-black text-amber-800 mb-3">กลุ่มเสี่ยง</h4><div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">`;
-        for (let cat of Object.keys(catNames)) {
-            html += `<div class="bg-amber-50 p-3 rounded-xl">
-                <div class="flex justify-between font-bold text-sm"><span>${catNames[cat]}</span><span class="text-amber-600">${riskCounts[cat]} คน</span></div>
-                ${riskStudents[cat].length ? '<ul class="text-xs mt-2 list-disc pl-4">' + riskStudents[cat].slice(0, 5).map(n => `<li>${n}</li>`).join('') + (riskStudents[cat].length > 5 ? `<li class="text-slate-400">...และอีก ${riskStudents[cat].length - 5} คน</li>` : '') + '</ul>' : '<p class="text-xs text-slate-400 mt-1">-</p>'}
+        const renderCategoryBox = (cat, counts, studentsList, bgClass, textClass) => {
+            let listHtml = '<p class="text-xs text-slate-400 mt-1">-</p>';
+            if (studentsList[cat].length > 0) {
+                const uniqueNames = [...new Set(studentsList[cat])];
+                listHtml = '<ul class="text-xs mt-2 list-disc pl-4 text-slate-600 space-y-1">';
+                listHtml += uniqueNames.slice(0, 5).map(n => `<li>${n}</li>`).join('');
+                if (uniqueNames.length > 5) listHtml += `<li class="text-slate-400 italic">...และอีก ${uniqueNames.length - 5} คน</li>`;
+                listHtml += '</ul>';
+            }
+            return `
+            <div class="${bgClass} p-3 rounded-xl border border-white/50 shadow-sm">
+                <div class="flex justify-between items-center font-bold text-sm">
+                    <span class="text-slate-700">${catNames[cat]}</span>
+                    <span class="${textClass} bg-white px-2 py-0.5 rounded-full shadow-sm">${counts[cat]} คน</span>
+                </div>
+                ${listHtml}
             </div>`;
-        }
+        };
+
+        html += `<h4 class="font-black text-amber-600 mb-3 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>กลุ่มเสี่ยง (เริ่มมีแนวโน้ม)</h4>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">`;
+        for (let cat of Object.keys(catNames)) { html += renderCategoryBox(cat, riskCounts, riskStudents, 'bg-amber-50', 'text-amber-600'); }
         html += `</div>`;
 
-        html += `<h4 class="font-black text-rose-800 mb-3">กลุ่มมีปัญหา</h4><div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
-        for (let cat of Object.keys(catNames)) {
-            html += `<div class="bg-rose-50 p-3 rounded-xl">
-                <div class="flex justify-between font-bold text-sm"><span>${catNames[cat]}</span><span class="text-rose-600">${problemCounts[cat]} คน</span></div>
-                ${problemStudents[cat].length ? '<ul class="text-xs mt-2 list-disc pl-4">' + problemStudents[cat].slice(0, 5).map(n => `<li>${n}</li>`).join('') + (problemStudents[cat].length > 5 ? `<li class="text-slate-400">...และอีก ${problemStudents[cat].length - 5} คน</li>` : '') + '</ul>' : '<p class="text-xs text-slate-400 mt-1">-</p>'}
-            </div>`;
-        }
+        html += `<h4 class="font-black text-rose-600 mb-3 flex items-center"><i class="fas fa-biohazard mr-2"></i>กลุ่มมีปัญหา (ต้องช่วยเหลือเร่งด่วน)</h4>
+                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
+        for (let cat of Object.keys(catNames)) { html += renderCategoryBox(cat, problemCounts, problemStudents, 'bg-rose-50', 'text-rose-600'); }
         html += `</div>`;
 
         document.getElementById('report-content').innerHTML = html;
@@ -1549,12 +1874,66 @@ async function loadReport() {
     } catch (err) {
         Swal.close();
         console.error(err);
-        document.getElementById('report-content').innerHTML = `<div class="text-center py-10 text-red-500">เกิดข้อผิดพลาด: ${err.message}</div>`;
+        document.getElementById('report-content').innerHTML = `<div class="text-center py-10 text-red-500">เกิดข้อผิดพลาดในการดึงข้อมูลรายงาน</div>`;
     }
 }
 
+window.showReportStudentList = function (type) {
+    const isVisited = type === 'visited';
+    const list = isVisited ? window.reportVisitedList : window.reportNotVisitedList;
+    const titleText = isVisited ? 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว' : 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
+    const themeColor = isVisited ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-slate-700 bg-slate-100 border-slate-200';
+
+    if (!list || list.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', `ไม่มีรายชื่อนักเรียนในหมวดหมู่นี้`, 'info');
+        return;
+    }
+
+    list.sort((a, b) => {
+        if (a.room !== b.room) return a.room.localeCompare(b.room);
+        return a.id.localeCompare(b.id);
+    });
+
+    const tableHtml = `
+        <div class="max-h-[60vh] overflow-y-auto mt-2 rounded-xl border border-slate-200">
+            <table class="w-full text-sm text-left border-collapse">
+                <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
+                    <tr>
+                        <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
+                        <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
+                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
+                        <th class="p-3 w-28 text-center font-bold">ชั้นเรียน</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    ${list.map((s, idx) => `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="p-3 text-center text-slate-500">${idx + 1}</td>
+                            <td class="p-3 font-mono text-slate-500">${s.id}</td>
+                            <td class="p-3 font-bold text-slate-700">${s.name}</td>
+                            <td class="p-3 text-center"><span class="bg-slate-100 px-2 py-1 rounded text-xs text-slate-600">${s.room}</span></td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
+
+    Swal.fire({
+        title: `<div class="text-xl font-black ${isVisited ? 'text-blue-700' : 'text-slate-700'}">${titleText}</div>
+                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
+        html: tableHtml,
+        width: '800px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'rounded-2xl shadow-2xl',
+            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
+        }
+    });
+};
+
 async function printReportPDF() {
-    // ✅ FIX: เช็ค report_template_id ที่มีอยู่จริงใน moduleSettings
     if (!moduleSettings.pdf_api_url || !moduleSettings.report_template_id) {
         return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณากำหนด PDF API URL และ Report Template ID ในเมนูตั้งค่าระบบ', 'warning');
     }
@@ -1566,7 +1945,9 @@ async function printReportPDF() {
     printWindow.print();
 }
 
-// เลือกนักเรียนในฟอร์ม (เมื่อครูคลิกจากตารางรายบุคคล)
+// ==========================================
+// ฟังก์ชันสำหรับครู: นำเข้า/ส่งออก และอื่น ๆ
+// ==========================================
 window.selectStudentForForm = function (studentId) {
     if (studentTomSelect) {
         studentTomSelect.setValue(studentId);
@@ -1574,7 +1955,6 @@ window.selectStudentForForm = function (studentId) {
     switchTab('form');
 };
 
-// แก้ไขข้อมูลเยี่ยมบ้าน (คลิกปุ่มแก้ไขจากตารางครู → โหลดข้อมูลนักเรียนและไป Step 1)
 window.editStudentVisit = async function (visitId) {
     if (!visitId) return;
 
@@ -1585,7 +1965,6 @@ window.editStudentVisit = async function (visitId) {
     });
 
     try {
-        // 1. ดึง classroom_id และ student_id จาก visit
         const { data: visit, error } = await db
             .from('module_home_visits')
             .select('student_id, classroom_id')
@@ -1594,18 +1973,15 @@ window.editStudentVisit = async function (visitId) {
 
         if (error || !visit) throw new Error('ไม่พบข้อมูลการเยี่ยมบ้านนี้');
 
-        // 2. เลือกห้องเรียน (จะไปสร้าง dropdown นักเรียนใหม่)
         if (tsClassroom && visit.classroom_id) {
             tsClassroom.setValue(visit.classroom_id);
         }
-        await onClassroomSelected(visit.classroom_id); // รอจนกว่านักเรียนโหลดเสร็จ
+        await onClassroomSelected(visit.classroom_id);
 
-        // 3. เลือกนักเรียนใน dropdown → จะ trigger loadStudentInfo ให้เอง
         if (studentTomSelect && visit.student_id) {
             studentTomSelect.setValue(visit.student_id);
         }
 
-        // 4. ไปแท็บฟอร์มและ Step 1 (goToStep จะถูกเรียกโดย loadStudentInfo อยู่แล้ว แต่เพื่อความแน่ใจ)
         switchTab('form');
         goToStep(1);
 
@@ -1616,9 +1992,9 @@ window.editStudentVisit = async function (visitId) {
 };
 
 window.downloadTemplate = function () {
-    // สร้างแถวตัวอย่าง (ใช้ค่าสมมติภาษาไทย)
     const sampleRow = [
-        '12345', '2568-07-10', 'เยี่ยมแล้ว', '1',
+        '12345', 'เด็กชายสมชาย ใจดี',    // ✅ เพิ่มชื่อ-นามสกุลตัวอย่าง
+        '2568-07-10', 'เยี่ยมแล้ว', '1',
         'ต้น', '0812345678', 'ton_line',
         'สมชาย', 'รับจ้าง', '0811111111',
         'สมหญิง', 'ค้าขาย', '0822222222',
@@ -1640,23 +2016,17 @@ window.downloadTemplate = function () {
         'ร่างกายไม่แข็งแรง', '', '', '', '', '', '', '', '', 'สามารถเข้าถึง Internet ได้จากที่บ้าน'
     ];
 
-    const ws_data = [
-        templateHeadersThai,  // หัวคอลัมน์ภาษาไทย
-        sampleRow             // ตัวอย่างข้อมูล
-    ];
+    const ws_data = [templateHeadersThai, sampleRow];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    // กำหนดความกว้างคอลัมน์
     ws['!cols'] = templateHeadersThai.map(() => ({ wch: 22 }));
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, 'HV_Template.xlsx');
 };
 
 function populateFormFromTemplate(headers, values) {
-    // แปลงหัวคอลัมน์ภาษาไทยเป็นชื่อฟิลด์ภาษาอังกฤษ (ถ้าใช้เทมเพลตใหม่)
     const mappedHeaders = headers.map(h => fieldKeyMap[h] || h);
 
-    // --- ฟิลด์ทั่วไป (เหมือนเดิม แต่ใช้ mappedHeaders) ---
     const fieldMap = {
         'visit_date': { id: 'hv_date' },
         'visit_status': { id: 'visit_status', type: 'radio' },
@@ -1741,10 +2111,8 @@ function populateFormFromTemplate(headers, values) {
         }
     });
 
-    // --- กลุ่มเสี่ยง (checkbox) ---
     const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
     riskGroups.forEach(group => {
-        // หา header ภาษาไทยจาก fieldKeyMap
         const thKey = Object.keys(fieldKeyMap).find(k => fieldKeyMap[k] === `risk_${group}`);
         const idx = headers.indexOf(thKey);
         if (idx === -1 || !values[idx]) return;
@@ -1768,7 +2136,6 @@ function populateFormFromTemplate(headers, values) {
         });
     });
 
-    // --- internet access ---
     const internetTh = 'อินเทอร์เน็ต';
     const internetIdx = headers.indexOf(internetTh);
     if (internetIdx !== -1 && values[internetIdx]) {
@@ -1777,8 +2144,7 @@ function populateFormFromTemplate(headers, values) {
     }
 }
 
-// แปลงข้อมูลจาก visit → array ตามลำดับหัวคอลัมน์ภาษาไทย
-function buildTemplateRowFromVisit(visit, studentIdCard = '') {
+function buildTemplateRowFromVisit(visit, studentIdCard = '', studentFullName = '') {
     const eco = visit.economic_data || {};
     const fam = visit.family_members || {};
     const risk = visit.risk_data || {};
@@ -1788,6 +2154,7 @@ function buildTemplateRowFromVisit(visit, studentIdCard = '') {
 
     return [
         studentIdCard || '',
+        studentFullName || '',    // ✅ ชื่อ-นามสกุล
         visit.visit_date || '',
         visit.visit_status || '',
         visit.visit_times || '',
@@ -1868,7 +2235,7 @@ function buildTemplateRowFromVisit(visit, studentIdCard = '') {
     ];
 }
 
-// ฟังก์ชันส่งออก Excel ทั้งห้อง (สำหรับครู)
+// ส่งออกตาราง Excel ทั้งห้องเรียน
 window.exportTeacherClassroom = async function () {
     if (currentViewRole !== 'teacher') return;
     const classroomId = window.currentClassroomId;
@@ -1877,6 +2244,12 @@ window.exportTeacherClassroom = async function () {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading() });
 
     try {
+        const { data: classroom, error: classError } = await db.from('core_classrooms')
+            .select('grade_level, room_number')
+            .eq('id', classroomId)
+            .single();
+        if (classError || !classroom) throw new Error('ไม่พบข้อมูลห้องเรียน');
+
         const { data: enrolls } = await db.from('student_enrollments')
             .select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
             .eq('classroom_id', classroomId)
@@ -1900,17 +2273,19 @@ window.exportTeacherClassroom = async function () {
         const rows = enrolls.map(e => {
             const s = e.core_students;
             const v = visitMap[s.id];
-            if (v) return buildTemplateRowFromVisit(v, s.student_id_card);
-            // กรณียังไม่ถูกเยี่ยม -> ใส่เฉพาะรหัสนักเรียน และที่เหลือเว้นว่าง
+            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`.trim();
+            if (v) {
+                return buildTemplateRowFromVisit(v, s.student_id_card || '', fullName);
+            }
+            // กรณียังไม่เคยเยี่ยม ให้ใส่เฉพาะรหัส+ชื่อ ที่เหลือเว้นว่าง
             return [
                 s.student_id_card || '',
+                fullName,
                 '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
                 '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
                 '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
                 '', '', '', '', '', '',
-                // 6 ช่องความสัมพันธ์
                 '', '', '', '', '', '',
-                // 10 กลุ่มเสี่ยง + internet
                 '', '', '', '', '', '', '', '', '', ''
             ];
         });
@@ -1920,7 +2295,9 @@ window.exportTeacherClassroom = async function () {
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
         ws['!cols'] = templateHeadersThai.map(() => ({ wch: 22 }));
         XLSX.utils.book_append_sheet(wb, ws, 'ทั้งห้อง');
-        XLSX.writeFile(wb, `เยี่ยมบ้าน_ห้อง${enrolls[0]?.student_number || ''}_${currentYear}.xlsx`);
+
+        const fileName = `เยี่ยมบ้าน_ชั้นม.${classroom.grade_level}/${classroom.room_number}_ภาคเรียนที่${currentTerm}_${currentYear}.xlsx`;
+        XLSX.writeFile(wb, fileName);
 
         Swal.fire('สำเร็จ', 'ส่งออกข้อมูลทั้งห้องเรียบร้อย', 'success');
     } catch (err) {
@@ -1929,25 +2306,22 @@ window.exportTeacherClassroom = async function () {
     }
 };
 
-// ฟังก์ชันนำเข้า Excel ทั้งห้อง (สำหรับครู)
+// นำเข้าตาราง Excel ทั้งห้องเรียน
 window.triggerImportClassroom = function () {
     const input = document.getElementById('importClassroomFileInput');
     if (input) {
-        input.value = '';  // รีเซ็ต
+        input.value = '';
         input.click();
     }
 };
 
-// ฟังก์ชันช่วยสร้าง formData จากแถว Excel
 function buildVisitDataFromRow(headers, values, studentId, classroomId) {
-    // ใช้ fieldKeyMap ที่เรามีอยู่แล้ว (ภาษาไทย -> อังกฤษ)
     const mapped = {};
     headers.forEach((h, i) => {
         const key = fieldKeyMap[h];
         if (key) mapped[key] = values[i];
     });
 
-    // ดึงค่าต่าง ๆ
     const getVal = (field, defaultVal = '') => mapped[field] || defaultVal;
     const getRiskVal = (group) => {
         const val = getVal(`risk_${group}`);
@@ -2037,7 +2411,7 @@ function buildVisitDataFromRow(headers, values, studentId, classroomId) {
             communication: getRiskVal('communication'),
             internet_access: getVal('risk_internet_access'),
         },
-        relations_data: [],   // ไม่ได้ใส่ในเทมเพลต อาจปล่อยว่างไว้
+        relations_data: [],
         updated_at: new Date().toISOString()
     };
     return formData;
