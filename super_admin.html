@@ -708,63 +708,68 @@
                 </div>
 
                 <!-- ===== GAS Avatar Upload Settings ===== -->
-<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-    <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
-        <i class="fa-brands fa-google text-[#4285F4]"></i>
-        ตั้งค่า API อัพโหลดรูปโปรไฟล์นักเรียน (Google Apps Script)
-    </h3>
-    <p class="text-sm text-gray-500 mb-5">
-        ระบบจะใช้ GAS Web App รับไฟล์รูปและบันทึกลง Google Drive
-        แล้วส่ง URL กลับมาเก็บใน <code class="bg-gray-100 px-1 rounded">core_students.avatar_students_url</code>
-    </p>
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                    <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
+                        <i class="fa-brands fa-google text-[#4285F4]"></i>
+                        ตั้งค่า API อัพโหลดรูปโปรไฟล์นักเรียน (Google Apps Script)
+                    </h3>
+                    <p class="text-sm text-gray-500 mb-5">
+                        ระบบจะใช้ GAS Web App รับไฟล์รูปและบันทึกลง Google Drive
+                        แล้วส่ง URL กลับมาเก็บใน <code
+                            class="bg-gray-100 px-1 rounded">core_students.avatar_students_url</code>
+                    </p>
 
-    <!-- วิธีใช้งาน -->
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 space-y-1">
-        <p class="font-bold flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> วิธีเตรียม GAS</p>
-        <ol class="list-decimal list-inside space-y-1 pl-1 text-amber-700">
-            <li>สร้าง Google Apps Script ใหม่ → วางโค้ดรับไฟล์และบันทึกลง Drive</li>
-            <li>Deploy → New Deployment → Web App → Execute as: Me, Access: Anyone</li>
-            <li>คัดลอก <strong>Deployment URL (/exec)</strong> มาวางด้านล่าง</li>
-            <li>คัดลอก <strong>ID โฟลเดอร์ Drive</strong> ที่ต้องการเก็บรูปมาวาง</li>
-        </ol>
-    </div>
+                    <!-- วิธีใช้งาน -->
+                    <div
+                        class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 space-y-1">
+                        <p class="font-bold flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> วิธีเตรียม
+                            GAS</p>
+                        <ol class="list-decimal list-inside space-y-1 pl-1 text-amber-700">
+                            <li>สร้าง Google Apps Script ใหม่ → วางโค้ดรับไฟล์และบันทึกลง Drive</li>
+                            <li>Deploy → New Deployment → Web App → Execute as: Me, Access: Anyone</li>
+                            <li>คัดลอก <strong>Deployment URL (/exec)</strong> มาวางด้านล่าง</li>
+                            <li>คัดลอก <strong>ID โฟลเดอร์ Drive</strong> ที่ต้องการเก็บรูปมาวาง</li>
+                        </ol>
+                    </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div class="md:col-span-2">
-            <label class="block text-sm font-bold text-gray-700 mb-1">
-                <i class="fa-solid fa-link text-indigo-500 mr-1"></i>
-                GAS Deployment URL (exec)
-            </label>
-            <input type="url" id="inp_gas_avatar_url"
-                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm transition"
-                placeholder="https://script.google.com/macros/s/AKfycb.../exec">
-        </div>
-        <div>
-            <label class="block text-sm font-bold text-gray-700 mb-1">
-                <i class="fa-brands fa-google-drive text-[#0f9d58] mr-1"></i>
-                ID โฟลเดอร์ Google Drive เก็บรูปโปรไฟล์
-            </label>
-            <input type="text" id="inp_gas_avatar_folder"
-                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm transition"
-                placeholder="เช่น 1a2B3cDeFgHiJkLmNoPqRsTuV">
-        </div>
-        <div class="flex items-end">
-            <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 w-full leading-relaxed">
-                💡 ID โฟลเดอร์อยู่ใน URL ของ Google Drive<br>
-                <code class="text-slate-600">drive.google.com/drive/folders/<strong class="text-indigo-600">[ID ตรงนี้]</strong></code>
-            </div>
-        </div>
-    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                <i class="fa-solid fa-link text-indigo-500 mr-1"></i>
+                                GAS Deployment URL (exec)
+                            </label>
+                            <input type="url" id="inp_gas_avatar_url"
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm transition"
+                                placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                <i class="fa-brands fa-google-drive text-[#0f9d58] mr-1"></i>
+                                ID โฟลเดอร์ Google Drive เก็บรูปโปรไฟล์
+                            </label>
+                            <input type="text" id="inp_gas_avatar_folder"
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm transition"
+                                placeholder="เช่น 1a2B3cDeFgHiJkLmNoPqRsTuV">
+                        </div>
+                        <div class="flex items-end">
+                            <div
+                                class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 w-full leading-relaxed">
+                                💡 ID โฟลเดอร์อยู่ใน URL ของ Google Drive<br>
+                                <code
+                                    class="text-slate-600">drive.google.com/drive/folders/<strong class="text-indigo-600">[ID ตรงนี้]</strong></code>
+                            </div>
+                        </div>
+                    </div>
 
-    <!-- Test & Save -->
-    <div class="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-        <button onclick="saveGasAvatarSettings()"
-            class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">
-            <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
-        </button>
-        <span id="gas-save-status" class="text-sm font-medium text-gray-400 hidden"></span>
-    </div>
-</div>
+                    <!-- Test & Save -->
+                    <div class="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-gray-100">
+                        <button onclick="saveGasAvatarSettings()"
+                            class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">
+                            <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+                        </button>
+                        <span id="gas-save-status" class="text-sm font-medium text-gray-400 hidden"></span>
+                    </div>
+                </div>
 
             </div>
         </div>
@@ -1168,7 +1173,15 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-    <script src="super_admin.js"></script>
+    
+    <!-- <script src="super_admin.js"></script> -->
+
+    <!-- core ต้องมาก่อนเสมอ -->
+    <script src="super_admin_core.js"></script>
+    <script src="super_admin_school.js"></script>
+    <script src="super_admin_personnel.js"></script>
+    <script src="super_admin_classroom.js"></script>
+    <script src="super_admin_portal.js"></script>
 </body>
 
 </html>
