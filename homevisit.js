@@ -1450,6 +1450,33 @@ window.printPDF = async function (visitId) {
             .maybeSingle();
         const studentNumber = enroll?.student_number || '-';
 
+        // ✅ ดึงข้อมูลครูที่ปรึกษาคนที่ 1 และคนที่ 2
+        let teacher1Name = '-', teacher2Name = '-';
+        if (classroom) {
+            const adviserIds = [classroom.adviser_id_1, classroom.adviser_id_2].filter(id => id);
+            if (adviserIds.length > 0) {
+                const { data: teachers } = await db.from('core_personnel')
+                    .select('id, prefix, first_name, last_name')
+                    .in('id', adviserIds);
+                const teacherMap = {};
+                (teachers || []).forEach(t => { teacherMap[t.id] = `${t.prefix || ''}${t.first_name} ${t.last_name}`; });
+                if (classroom.adviser_id_1) teacher1Name = teacherMap[classroom.adviser_id_1] || '-';
+                if (classroom.adviser_id_2) teacher2Name = teacherMap[classroom.adviser_id_2] || '-';
+            }
+        }
+
+        // ✅ ฟังก์ชันแปลงวันที่เป็นภาษาไทย
+        const formatThaiDate = (dateStr) => {
+            if (!dateStr) return '';
+            const monthsThai = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+            const d = new Date(dateStr);
+            const day = d.getDate();
+            const month = monthsThai[d.getMonth()];
+            const year = d.getFullYear() + 543; // พ.ศ.
+            return `วันที่ ${day} ${month} ${year}`;
+        };
+        const visitDateThai = formatThaiDate(visit.visit_date);
+
         // ฟังก์ชันช่วยแปลง array เป็น string สำหรับความเสี่ยง
         const formatRiskList = (riskArr) => (riskArr || []).join(', ');
 
@@ -1466,6 +1493,23 @@ window.printPDF = async function (visitId) {
         const relations = visit.family_relations || {};
         const risk = visit.risk_data || {};
 
+        // ========== สร้าง mapping ความสัมพันธ์จาก relations_data ==========
+        const relMap = {};
+        if (visit.relations_data && Array.isArray(visit.relations_data)) {
+            visit.relations_data.forEach(rel => {
+                const relative = rel.relative;
+                const relation = rel.relation || 'ไม่มี';
+                if (relative === 'บิดา') relMap['FATHER'] = relation;
+                else if (relative === 'มารดา') relMap['MOTHER'] = relation;
+                else if (relative === 'พี่ชาย/น้องชาย') relMap['BROTHER'] = relation;
+                else if (relative === 'พี่สาว/น้องสาว') relMap['SISTER'] = relation;
+                else if (relative === 'ปู่/ย่า/ตา/ยาย') relMap['GRANDPARENT'] = relation;
+                else if (relative === 'ญาติ') relMap['RELATIVE'] = relation;
+            });
+        }
+        // กำหนดค่าเริ่มต้นถ้าไม่มีข้อมูล
+        const defaultRel = 'ไม่มี';
+
         // เตรียม replacements
         const replacements = {
             // นักเรียน
@@ -1477,7 +1521,12 @@ window.printPDF = async function (visitId) {
             "{{STUDENT_LINE}}": visit.student_line || '-',
             "{{CLASSROOM}}": classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-',
             "{{VISIT_DATE}}": visit.visit_date || '-',
+            "{{VISIT_DATE_TH}}": visitDateThai,   // ✅ เพิ่มวันที่ภาษาไทย
             "{{VISIT_TIMES}}": visit.visit_times || '1',
+
+            // ครูที่ปรึกษา
+            "{{TEACHER1_NAME}}": teacher1Name,
+            "{{TEACHER2_NAME}}": teacher2Name,
 
             // บิดา มารดา ผู้ปกครอง
             "{{FATHER_NAME}}": visit.father_name || '-',
@@ -1528,6 +1577,14 @@ window.printPDF = async function (visitId) {
             "{{SIB_DIFF_MALE}}": family.sib_diff_male || '0',
             "{{SIB_DIFF_FEMALE}}": family.sib_diff_female || '0',
 
+            // ความสัมพันธ์ในครอบครัว (จาก Radio Table)
+            "{{REL_FATHER}}": relMap['FATHER'] || defaultRel,
+            "{{REL_MOTHER}}": relMap['MOTHER'] || defaultRel,
+            "{{REL_BROTHER}}": relMap['BROTHER'] || defaultRel,
+            "{{REL_SISTER}}": relMap['SISTER'] || defaultRel,
+            "{{REL_GRANDPARENT}}": relMap['GRANDPARENT'] || defaultRel,
+            "{{REL_RELATIVE}}": relMap['RELATIVE'] || defaultRel,
+
             // เศรษฐกิจ
             "{{ECONOMIC_INCOME}}": economic.income || '0',
             "{{ALLOWANCE_SOURCE}}": economic.allowance_source || '-',
@@ -1561,7 +1618,7 @@ window.printPDF = async function (visitId) {
             "{{RISK_COMMUNICATION}}": formatRiskList(risk.communication),
             "{{INTERNET_ACCESS}}": risk.internet_access || '-',
 
-            // รูปภาพ URL — ✅ ต้องลงท้ายด้วย _IMAGE}} เพื่อให้ GAS ตรวจพบและแทนที่รูปได้
+            // รูปภาพ URL
             "{{PHOTO_STUDENT_IMAGE}}": visit.photo_student || '',
             "{{PHOTO_OUTSIDE_IMAGE}}": visit.photo_outside || '',
             "{{PHOTO_INSIDE_IMAGE}}": visit.photo_inside || '',
@@ -1574,12 +1631,10 @@ window.printPDF = async function (visitId) {
             templateId: moduleSettings.slide_template_url,
             pdfFolderId: moduleSettings.gd_pdf_folder_id,
             fileName: `HomeVisit_${studentIdCard}_${visit.visit_date}`,
-            // ✅ [Bug 3 fix] ส่ง URL ไฟล์เดิมไปให้ GAS ลบก่อนสร้างใหม่
             existingPdfUrl: visit.pdf_url || null,
             replacements
         };
 
-        // 🔧 แก้ไข Headers ให้เป็น text/plain เพื่อหลีกเลี่ยง CORS preflight
         const response = await fetch(moduleSettings.pdf_api_url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -1588,12 +1643,10 @@ window.printPDF = async function (visitId) {
         const result = await response.json();
 
         if (result.status === 'success' && result.url) {
-            // ✅ [Bug 1 fix] อัปเดต pdf_url เสมอ ไม่ต้องตรวจสอบ undefined
             await db.from('module_home_visits')
                 .update({ pdf_url: result.url })
                 .eq('id', visitId);
 
-            // ✅ [Bug 2 fix] รอ update เสร็จก่อนค่อย refresh ตาราง
             await loadDataTable();
             Swal.close();
             window.open(result.url, '_blank');
