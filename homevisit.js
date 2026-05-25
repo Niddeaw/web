@@ -1,5 +1,5 @@
 // ==========================================
-// homevisit.js (ฉบับแก้ไข) 24/5/2026 - ปรับปรุงโค้ดให้รองรับการนำเข้า Excel สำหรับทั้งห้องเรียน
+// homevisit.js (ฉบับแก้ไข) 25/5/2026
 // ==========================================
 
 let currentUser = null;
@@ -1442,6 +1442,14 @@ window.printPDF = async function (visitId) {
         const student = visit.core_students;
         const classroom = visit.core_classrooms;
 
+        // ✅ ดึงเลขที่นักเรียนจาก student_enrollments
+        const { data: enroll } = await db.from('student_enrollments')
+            .select('student_number')
+            .eq('student_id', visit.student_id)
+            .eq('classroom_id', visit.classroom_id)
+            .maybeSingle();
+        const studentNumber = enroll?.student_number || '-';
+
         // ฟังก์ชันช่วยแปลง array เป็น string สำหรับความเสี่ยง
         const formatRiskList = (riskArr) => (riskArr || []).join(', ');
 
@@ -1463,6 +1471,7 @@ window.printPDF = async function (visitId) {
             // นักเรียน
             "{{STUDENT_NAME}}": studentFullName,
             "{{STUDENT_ID}}": studentIdCard,
+            "{{STUDENT_NUMBER}}": studentNumber,
             "{{STUDENT_NICKNAME}}": visit.student_nickname || '-',
             "{{STUDENT_PHONE}}": visit.student_phone || '-',
             "{{STUDENT_LINE}}": visit.student_line || '-',
@@ -1552,19 +1561,21 @@ window.printPDF = async function (visitId) {
             "{{RISK_COMMUNICATION}}": formatRiskList(risk.communication),
             "{{INTERNET_ACCESS}}": risk.internet_access || '-',
 
-            // รูปภาพ URL
-            "{{PHOTO_STUDENT}}": visit.photo_student || '',
-            "{{PHOTO_OUTSIDE}}": visit.photo_outside || '',
-            "{{PHOTO_INSIDE}}": visit.photo_inside || '',
-            "{{PHOTO_TEACHER}}": visit.photo_teacher || ''
+            // รูปภาพ URL — ✅ ต้องลงท้ายด้วย _IMAGE}} เพื่อให้ GAS ตรวจพบและแทนที่รูปได้
+            "{{PHOTO_STUDENT_IMAGE}}": visit.photo_student || '',
+            "{{PHOTO_OUTSIDE_IMAGE}}": visit.photo_outside || '',
+            "{{PHOTO_INSIDE_IMAGE}}": visit.photo_inside || '',
+            "{{PHOTO_TEACHER_IMAGE}}": visit.photo_teacher || ''
         };
 
         // สร้าง payload และเรียก Google Apps Script
         const payload = {
-            action: 'generate_pdf',   // ✅ เพิ่มบรรทัดนี้
+            action: 'generate_pdf',
             templateId: moduleSettings.slide_template_url,
             pdfFolderId: moduleSettings.gd_pdf_folder_id,
             fileName: `HomeVisit_${studentIdCard}_${visit.visit_date}`,
+            // ✅ [Bug 3 fix] ส่ง URL ไฟล์เดิมไปให้ GAS ลบก่อนสร้างใหม่
+            existingPdfUrl: visit.pdf_url || null,
             replacements
         };
 
@@ -1577,14 +1588,13 @@ window.printPDF = async function (visitId) {
         const result = await response.json();
 
         if (result.status === 'success' && result.url) {
-            // อัปเดต pdf_url ในฐานข้อมูล (ถ้ามีฟิลด์นี้)
-            if (visit.pdf_url !== undefined) {
-                await db.from('module_home_visits')
-                    .update({ pdf_url: result.url })
-                    .eq('id', visitId);
-            }
-            // ✅ รีเฟรชตารางข้อมูลทันที เพื่อให้ไอคอนรูปดวงตาแสดง
-            loadDataTable();
+            // ✅ [Bug 1 fix] อัปเดต pdf_url เสมอ ไม่ต้องตรวจสอบ undefined
+            await db.from('module_home_visits')
+                .update({ pdf_url: result.url })
+                .eq('id', visitId);
+
+            // ✅ [Bug 2 fix] รอ update เสร็จก่อนค่อย refresh ตาราง
+            await loadDataTable();
             Swal.close();
             window.open(result.url, '_blank');
         } else {
