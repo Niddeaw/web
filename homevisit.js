@@ -2556,7 +2556,7 @@ window.importFromExcel = function () {
 
                         // อ่านค่าคอลัมน์จาก Excel (ถ้าไม่มี ให้ใช้ค่าว่าง)
                         visit_date: row['วันที่เยี่ยม'] || row['visit_date'] || new Date().toISOString().split('T')[0],
-                        visit_status: row['สถานะ'] || row['visit_status'] || 'เยี่ยมแล้ว',
+                        visit_status: row['สถานะ'] || row['visit_status'] || 'ยังไม่เยี่ยม',
                         visit_times: parseInt(row['ครั้งที่'] || row['visit_times']) || 1,
 
                         student_nickname: String(row['ชื่อเล่น'] || ''),
