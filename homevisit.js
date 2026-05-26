@@ -1292,13 +1292,16 @@ window.loadDataTable = async function () {
         tbody.innerHTML = enrolls.map(e => {
             const s = e.core_students;
             const visit = visitMap[s.id] || null;
-            const isVisited = !!visit;
+
+            // ✅ แก้ไข: เช็คสถานะ visit_status อย่างชัดเจน ว่าต้องเป็นคำว่า 'เยี่ยมแล้ว' เท่านั้น
+            const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
             const statusHtml = isVisited
                 ? '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>'
                 : '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
             let actions = '';
-            if (visit) {
+            // ✅ เปลี่ยนจาก if (visit) เป็น if (isVisited)
+            if (isVisited) {
                 actions += `<button onclick="editStudentVisit('${visit.id}')" class="text-blue-500 hover:text-blue-700 p-1" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
                 actions += `<button onclick="printPDF('${visit.id}')" class="text-green-500 hover:text-green-700 p-1" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`;
                 if (visit.pdf_url) {
@@ -1313,10 +1316,12 @@ window.loadDataTable = async function () {
                 <td class="py-3 px-4 text-center font-bold">${e.student_number || '-'}</td>
                 <td class="py-3 px-4">${s.student_id_card || '-'}</td>
                 <td class="py-3 px-4">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
-                <td class="py-3 px-4">${visit ? visit.visit_date : '-'}</td>
-                <td class="py-3 px-4 text-center">${visit ? visit.visit_times : '-'}</td>
+                
+                <td class="py-3 px-4">${visit?.visit_date || '-'}</td>
+                <td class="py-3 px-4 text-center">${visit?.visit_times || '-'}</td>
+                
                 <td class="py-3 px-4 text-center">${statusHtml}</td>
-                <td class="py-3 px-4 text-right whitespace-nowrap">${actions}</td>
+                <td class="py-3 px-4 text-center flex items-center justify-center gap-1">${actions}</td>
             </tr>`;
         }).join('');
 
@@ -2537,13 +2542,24 @@ window.importFromExcel = function () {
 
                 // 4. วนลูปจับคู่ข้อมูลจาก Excel
                 for (const row of json) {
-                    // ⚠️ สำคัญ: ชื่อคอลัมน์รหัสนักเรียนใน Excel ต้องตั้งชื่อว่า "รหัสประจำตัว" หรือ "student_id_card"
                     const idCard = String(row['รหัสประจำตัว'] || row['รหัสนักเรียน'] || row['student_id_card'] || '').trim();
 
                     const stdInfo = studentMap[idCard];
                     if (!stdInfo) {
-                        skipCount++; // ข้ามคนที่หารหัสไม่เจอในระบบ
+                        skipCount++;
                         continue;
+                    }
+
+                    // ✅ สร้างตัวแปรเช็คสถานะและวันที่
+                    const vStatus = row['สถานะ'] || row['visit_status'] || 'ยังไม่เยี่ยม';
+                    let vDate = row['วันที่เยี่ยม'] || row['visit_date'] || null;
+
+                    // ✅ เงื่อนไข: ถ้ายังไม่เยี่ยม ให้เคลียร์วันที่เป็นค่าว่าง (null)
+                    if (vStatus === 'ยังไม่เยี่ยม') {
+                        vDate = null;
+                    } else if (!vDate) {
+                        // ถ้าเยี่ยมแล้วแต่ใน Excel ลืมใส่วันที่มา ให้ใช้วันที่ปัจจุบันแทน
+                        vDate = new Date().toISOString().split('T')[0];
                     }
 
                     // จัดโครงสร้างให้ตรงกับ Database module_home_visits
@@ -2554,9 +2570,9 @@ window.importFromExcel = function () {
                         academic_year: currentYear,
                         semester: currentTerm,
 
-                        // อ่านค่าคอลัมน์จาก Excel (ถ้าไม่มี ให้ใช้ค่าว่าง)
-                        visit_date: row['วันที่เยี่ยม'] || row['visit_date'] || new Date().toISOString().split('T')[0],
-                        visit_status: row['สถานะ'] || row['visit_status'] || 'ยังไม่เยี่ยม',
+                        // ✅ ใช้วันที่และสถานะที่ผ่านการตรวจสอบแล้ว
+                        visit_date: vDate,
+                        visit_status: vStatus,
                         visit_times: parseInt(row['ครั้งที่'] || row['visit_times']) || 1,
 
                         student_nickname: String(row['ชื่อเล่น'] || ''),
@@ -2573,11 +2589,9 @@ window.importFromExcel = function () {
                         district: String(row['อำเภอ'] || ''),
                         province: String(row['จังหวัด'] || ''),
 
-                        // ป้องกัน Error 400 จากค่าตัวเลข
                         latitude: parseFloat(row['ละติจูด'] || row['latitude']) || null,
                         longitude: parseFloat(row['ลองจิจูด'] || row['longitude']) || null,
 
-                        // JSON ข้อมูลเปล่าไว้ก่อน (กรณี Excel ไม่ได้เก็บรายละเอียดเชิงลึก)
                         risk_factors: { health: [], drugs: [], violence: [], sex: [], gaming: [], responsibilities: [], hobbies: [] },
                         updated_at: new Date().toISOString()
                     };
@@ -2591,7 +2605,7 @@ window.importFromExcel = function () {
 
                 Swal.fire({ title: `กำลังบันทึก ${formattedData.length} รายการ...`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-// ================== ให้ก๊อปปี้ทับส่วนที่ 5 ของเดิม ==================
+                // ================== ให้ก๊อปปี้ทับส่วนที่ 5 ของเดิม ==================
                 // 5. บันทึกลงฐานข้อมูล (ตรวจเช็คและแยก Update / Insert ทีละรายการ)
                 let successCount = 0;
                 for (const formData of formattedData) {
@@ -2648,3 +2662,234 @@ window.importFromExcel = function () {
 
     fileInput.click(); // กดเพื่อเปิดหน้าต่างเลือกไฟล์
 }
+
+// ==========================================
+// ระบบแสดงภาพรวม & รายงาน (Overview & Report Tabs)
+// ==========================================
+
+window.openOverviewModal = async function (tab = 'overview') {
+    const modal = document.getElementById('overview-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+    await switchOverviewTab(tab);
+};
+
+window.closeOverviewModal = function () {
+    const modal = document.getElementById('overview-modal');
+    if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+};
+
+window.switchOverviewTab = async function (tab) {
+    const tabs = ['overview', 'report'];
+    tabs.forEach(t => {
+        const isMatch = (t === tab);
+
+        // สลับ Class ปุ่ม (Desktop)
+        const btn = document.getElementById(`tab-btn-${t}`);
+        if (btn) btn.className = isMatch
+            ? "px-4 py-2 rounded-lg font-bold text-sm bg-white text-sky-700 shadow-sm transition"
+            : "px-4 py-2 rounded-lg font-bold text-sm text-slate-500 hover:text-slate-700 transition";
+
+        // สลับ Class ปุ่ม (Mobile)
+        const btnMobile = document.getElementById(`tab-btn-${t}-mobile`);
+        if (btnMobile) btnMobile.className = isMatch
+            ? "flex-1 py-2 rounded-lg font-bold text-xs bg-white text-sky-700 shadow-sm transition"
+            : "flex-1 py-2 rounded-lg font-bold text-xs text-slate-500 hover:text-slate-700 transition";
+
+        // แสดง/ซ่อน Content
+        const content = document.getElementById(`tab-content-${t}`);
+        if (content) {
+            if (isMatch) content.classList.remove('hidden');
+            else content.classList.add('hidden');
+        }
+    });
+
+    if (typeof hideReportStudentList === 'function') hideReportStudentList();
+
+    // ประมวลผลข้อมูลตามแท็บที่ถูกเปิด
+    if (tab === 'overview') {
+        if (currentViewRole === 'teacher') {
+            document.getElementById('admin-overview-container')?.classList.add('hidden');
+            document.getElementById('teacher-overview-container')?.classList.remove('hidden');
+            await loadTeacherOverview();
+        } else {
+            document.getElementById('teacher-overview-container')?.classList.add('hidden');
+            document.getElementById('admin-overview-container')?.classList.remove('hidden');
+            await loadAdminOverview();
+        }
+    } else if (tab === 'report') {
+        const scopeSelect = document.getElementById('report-scope');
+        const gradeContainer = document.getElementById('grade-select-container');
+        if (scopeSelect && !scopeSelect.value) {
+            scopeSelect.value = currentViewRole === 'teacher' ? 'myclass' : 'all';
+            if (gradeContainer) gradeContainer.classList.add('hidden');
+        }
+        await loadReport();
+    }
+};
+
+// ==========================================
+// ฟังก์ชันโหลดข้อมูล (ตารางครูที่ปรึกษา)
+// ==========================================
+async function loadTeacherOverview() {
+    const tbody = document.getElementById('tb-overview-teacher');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลนักเรียน...</td></tr>';
+
+    try {
+        const { data: classrooms } = await db.from('core_classrooms')
+            .select('id').eq('academic_year', currentYear).eq('semester', currentTerm)
+            .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
+
+        if (!classrooms || classrooms.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ไม่พบห้องเรียนที่คุณเป็นที่ปรึกษา</td></tr>';
+            return;
+        }
+        const classIds = classrooms.map(c => c.id);
+
+        const { data: students } = await db.from('core_students')
+            .select('id, student_id_card, prefix, first_name, last_name, class_room_number')
+            .in('classroom_id', classIds).order('class_room_number');
+
+        const { data: visits } = await db.from('module_home_visits')
+            .select('id, student_id, pdf_url, visit_status')
+            .eq('academic_year', currentYear).eq('semester', currentTerm).in('classroom_id', classIds);
+
+        const visitMap = {};
+        (visits || []).forEach(v => visitMap[v.student_id] = v);
+
+        if (!students || students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ยังไม่มีนักเรียนในระบบ</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = students.map(s => {
+            const v = visitMap[s.id];
+            const isVisited = v && v.visit_status === 'เยี่ยมแล้ว';
+
+            const statusHtml = isVisited
+                ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-circle mr-1"></i> เยี่ยมแล้ว</span>`
+                : `<span class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-clock mr-1"></i> ยังไม่เยี่ยม</span>`;
+
+            let actionHtml = '';
+            if (isVisited) {
+                actionHtml = `
+                    <div class="flex justify-center gap-2">
+                        <button onclick="editHomeVisit('${s.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
+                        <button onclick="printPDF('${v.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF ใหม่"><i class="fas fa-print"></i></button>
+                        <button onclick="viewExistingPDF('${v.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดูไฟล์ PDF ล่าสุด"><i class="fas fa-file-pdf"></i></button>
+                    </div>`;
+            } else {
+                actionHtml = `<button onclick="editHomeVisit('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
+            }
+
+            return `<tr class="hover:bg-slate-50 transition">
+                <td class="p-3 text-center">${s.class_room_number || '-'}</td>
+                <td class="p-3 font-mono text-slate-500">${s.student_id_card || '-'}</td>
+                <td class="p-3 font-bold text-slate-700">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
+                <td class="p-3 text-center">${statusHtml}</td>
+                <td class="p-3 text-center">${actionHtml}</td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+    }
+}
+
+// ==========================================
+// ฟังก์ชันโหลดข้อมูล (ตารางแอดมิน)
+// ==========================================
+async function loadAdminOverview() {
+    const tbody = document.getElementById('tb-overview-admin');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังคำนวณข้อมูล...</td></tr>';
+
+    try {
+        let roomQuery = db.from('core_classrooms').select('id, grade_level, room_number')
+            .eq('academic_year', currentYear).eq('semester', currentTerm).order('grade_level').order('room_number');
+
+        if (currentViewRole === 'head_grade') {
+            const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
+            if (gh) roomQuery = roomQuery.eq('grade_level', gh.grade_level);
+        }
+
+        const { data: classrooms } = await roomQuery;
+        if (!classrooms || classrooms.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ไม่พบข้อมูลห้องเรียน</td></tr>';
+            return;
+        }
+
+        const classIds = classrooms.map(c => c.id);
+
+        const [{ data: students }, { data: visits }] = await Promise.all([
+            db.from('core_students').select('classroom_id').in('classroom_id', classIds),
+            db.from('module_home_visits').select('classroom_id, visit_status').in('classroom_id', classIds).eq('academic_year', currentYear).eq('semester', currentTerm)
+        ]);
+
+        const stdCount = {};
+        const visitCount = {};
+        classIds.forEach(id => { stdCount[id] = 0; visitCount[id] = 0; });
+        (students || []).forEach(s => { if (stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
+
+        (visits || []).forEach(v => {
+            if (visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
+                visitCount[v.classroom_id]++;
+            }
+        });
+
+        tbody.innerHTML = classrooms.map(c => {
+            const total = stdCount[c.id] || 0;
+            const visited = visitCount[c.id] || 0;
+            const pending = total - visited;
+            const percent = total > 0 ? Math.round((visited / total) * 100) : 0;
+            let colorClass = percent === 100 ? 'bg-green-500' : (percent >= 50 ? 'bg-yellow-500' : 'bg-rose-500');
+
+            return `<tr class="hover:bg-slate-50 transition">
+                <td class="p-3 font-bold text-slate-700">ม.${c.grade_level}/${c.room_number}</td>
+                <td class="p-3 text-center">${total}</td>
+                <td class="p-3 text-center text-green-600 font-bold">${visited}</td>
+                <td class="p-3 text-center text-rose-500 font-bold">${pending}</td>
+                <td class="p-3 w-48">
+                    <div class="flex items-center gap-2">
+                        <div class="w-full bg-slate-200 rounded-full h-2.5">
+                            <div class="${colorClass} h-2.5 rounded-full" style="width: ${percent}%"></div>
+                        </div>
+                        <span class="text-xs font-bold text-slate-600 w-8 text-right">${percent}%</span>
+                    </div>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+    }
+}
+
+// ==========================================
+// ฟังก์ชันย่อยสำหรับปุ่ม Action ในตาราง
+// ==========================================
+window.editHomeVisit = function (studentId) {
+    const modal = document.getElementById('overview-modal');
+    if (modal) { modal.classList.remove('flex'); modal.classList.add('hidden'); }
+
+    // ตั้งค่ารายชื่อในกล่องค้นหาให้ตรงกับคนที่กดเลือก
+    if (studentTomSelect) {
+        studentTomSelect.setValue(studentId);
+    }
+    goToStep(1);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+};
+
+window.viewExistingPDF = function (pdfUrl) {
+    if (!pdfUrl || pdfUrl === 'null' || pdfUrl === 'undefined') {
+        Swal.fire('ไม่พบไฟล์', 'ยังไม่มีการสร้างไฟล์ PDF สำหรับนักเรียนคนนี้ กรุณากดพิมพ์ PDF เพื่อให้ระบบสร้างไฟล์ก่อนครับ', 'info');
+        return;
+    }
+    window.open(pdfUrl, '_blank');
+};
