@@ -443,20 +443,73 @@ async function saveNetworkData(e) {
     }
 }
 
+
+/**
+ * ย่อขนาดรูปภาพจาก Data URL
+ * @param {string} dataUrl รูปในรูปแบบ data:image/...;base64,...
+ * @param {number} maxSize ขนาดสูงสุด (px) ด้านที่ยาวกว่า
+ * @returns {Promise<string>} Data URL ที่ถูกย่อแล้ว
+ */
+function resizeImageDataURL(dataUrl, maxSize = 600) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // คำนวณสัดส่วนใหม่ให้ไม่เกิน maxSize
+            if (width > height) {
+                if (width > maxSize) {
+                    height = (height * maxSize) / width;
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = (width * maxSize) / height;
+                    height = maxSize;
+                }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // ส่งออกเป็น JPEG คุณภาพ 0.85 (ลดขนาดไฟล์)
+            const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
+            resolve(resizedDataUrl);
+        };
+        img.src = dataUrl;
+    });
+}
+
 async function uploadImageToDrive(base64String, fileName) {
-    const cleanBase64 = base64String.split(',')[1];
+    // ถ้าเป็น Data URL ให้ทำการย่อรูปก่อน
+    let resizedDataUrl = base64String;
+    if (base64String && base64String.startsWith('data:image')) {
+        resizedDataUrl = await resizeImageDataURL(base64String, 600);
+    }
+    
+    // ดึงเฉพาะ base64 (ไม่มี header data:image/...)
+    const cleanBase64 = resizedDataUrl.split(',')[1];
+    
     const response = await fetch(moduleSettings.gd_api_url, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-            action: 'upload',          // ✅ เพิ่มตรงนี้
+            action: 'upload',          // ✅ สำคัญ: GAS ต้องรับ action='upload'
             base64: cleanBase64,
-            fileName,
-            folderId: moduleSettings.gd_folder_id
+            fileName: fileName,
+            folderId: moduleSettings.gd_folder_id   // ID โฟลเดอร์สำหรับรูปภาพ
         })
     });
+    
     const result = await response.json();
-    if (result.status === 'success') return getGoogleDriveDirectUrl(result.url);
-    throw new Error(result.message);
+    if (result.status === 'success') {
+        return getGoogleDriveDirectUrl(result.url);
+    }
+    throw new Error(result.message || 'อัปโหลดรูปไม่สำเร็จ');
 }
 
 // ==========================================

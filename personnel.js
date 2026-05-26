@@ -668,14 +668,13 @@ async function uploadFileToDrive(file, personId) {
         const resizedBlob = await resizeImageBlob(file, 600);
         const base64Data = await blobToBase64(resizedBlob);
         const sel = document.getElementById('inp-personnel-id');
-        let person = personnelMap.get(personId); // ถ้า personId ถูกต้อง (มีใน Map)
+        let person = personnelMap.get(personId);
         if (!person) {
-            // ถ้าไม่เจอใน Map (อาจเป็น modal ใหม่) ลองดึงจาก Tom Select value
             const selValue = sel?.tomselect?.getValue() || sel?.value;
             person = personnelMap.get(selValue);
         }
 
-        let namePart = personId; // fallback
+        let namePart = personId;
         if (person && person.first_name) {
             const prefix = person.prefix || '';
             const firstName = person.first_name || '';
@@ -689,9 +688,11 @@ async function uploadFileToDrive(file, personId) {
         const timestamp = Date.now();
         const fileName = `avatar_${namePart}_${timestamp}.jpg`;
 
+        // 🔥 แก้ไขที่สำคัญ: เพิ่ม action: 'upload'
         const response = await fetch(gasUrl, {
             method: "POST",
             body: JSON.stringify({
+                action: 'upload',          // ✅ เพิ่มบรรทัดนี้
                 base64: base64Data,
                 fileName: fileName,
                 folderId: folderId
@@ -701,7 +702,6 @@ async function uploadFileToDrive(file, personId) {
         const resData = await response.json();
         if (resData.status === "success") {
             Swal.close();
-            // ดึง File ID มาทำเป็น Thumbnail 
             const match = resData.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
             const fileId = match ? match[1] : null;
             if (fileId) {
