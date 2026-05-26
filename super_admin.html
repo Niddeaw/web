@@ -942,16 +942,53 @@
 
     <div id="studentDetailModal"
         class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <div class="bg-white  rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
+        <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
             <button onclick="closeStudentModal()"
                 class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors">
                 <i class="fa-solid fa-xmark text-2xl"></i>
             </button>
-            <h3 id="modalStudentTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i
-                    class="fa-solid fa-user-graduate text-blue-600 mr-2"></i>จัดการข้อมูลนักเรียน</h3>
+            <h3 id="modalStudentTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3">
+                <i class="fa-solid fa-user-graduate text-blue-600 mr-2"></i>จัดการข้อมูลนักเรียน
+            </h3>
             <form id="studentDetailForm" onsubmit="saveSingleStudent(event)"
                 class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="hidden" id="s_id">
+                <input type="hidden" id="s_id"> <!-- enrollment id -->
+                <input type="hidden" id="s_core_id"> <!-- student core id (UUID) -->
+                <input type="hidden" id="s_avatar_url">
+
+                <!-- แสดงรูปโปรไฟล์และปุ่มอัปโหลด (เต็ม 2 คอลัมน์) -->
+                <div
+                    class="md:col-span-2 flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div id="student-avatar-preview"
+                        class="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-3xl shadow-sm">
+                        ?
+                    </div>
+                    <div class="flex-1 space-y-2">
+                        <div class="flex flex-wrap gap-2">
+                            <label
+                                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer shadow-sm transition">
+                                <i class="fa-solid fa-upload mr-1"></i> เลือกรูป
+                                <input type="file" id="student-avatar-file" accept="image/*" class="hidden">
+                            </label>
+                            <button type="button" onclick="uploadStudentAvatarNow()"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition">
+                                <i class="fa-solid fa-cloud-upload-alt"></i> อัปโหลดรูปทันที
+                            </button>
+                            <button type="button" onclick="clearStudentAvatar()"
+                                class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition">
+                                <i class="fa-solid fa-trash-alt"></i> ลบรูป
+                            </button>
+                        </div>
+                        <div id="student-avatar-badge"
+                            class="hidden text-xs text-amber-600 bg-amber-50 p-1.5 rounded-lg inline-block">
+                            <i class="fa-solid fa-image"></i> มีไฟล์รออัปโหลด (กด "อัปโหลดรูปทันที")
+                        </div>
+                        <p class="text-[11px] text-slate-400 mt-1">รองรับ .jpg, .png (จะถูกย่อเหลือ 600px)</p>
+                    </div>
+                </div>
+
+                <!-- ฟิลด์อื่นๆ (คงเดิม) -->
                 <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขที่</label><input type="number"
                         id="s_number"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
