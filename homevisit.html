@@ -84,6 +84,11 @@
                 class="hidden w-10 h-10 bg-slate-50 hover:bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center border border-slate-200 transition-all">
                 <i class="fas fa-cog"></i>
             </button>
+            <!-- สำหรับแอดมินนำเข้า Excel ข้อมูลเดิม -->
+            <button id="btn-import-excel" onclick="importFromExcel()"
+                class="hidden flex h-11 px-4 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition font-bold text-sm border border-emerald-200 shadow-sm">
+                <i class="fas fa-file-excel mr-2"></i> <span class="hidden sm:inline">นำเข้าข้อมูล</span>
+            </button>
             <div class="h-8 w-px bg-slate-200 mx-1"></div>
             <div class="flex items-center gap-3">
                 <div class="text-right hidden md:block">
@@ -1071,8 +1076,9 @@
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="dashboard-stats"></div>
             <div class="glass-card rounded-2xl p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i class="fas fa-database mr-2"></i>ตารางข้อมูลการเยี่ยมบ้าน</h3>
-                    <button onclick="exportToExcel()" 
+                    <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i
+                            class="fas fa-database mr-2"></i>ตารางข้อมูลการเยี่ยมบ้าน</h3>
+                    <button onclick="exportToExcel()"
                         class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
                         <i class="fas fa-file-excel mr-1"></i> Export Excel
                     </button>
@@ -1106,13 +1112,13 @@
                                 class="bg-indigo-50 text-indigo-700 border border-indigo-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-indigo-100 transition-all uppercase">
                                 <i class="fas fa-download mr-1"></i> ดาวน์โหลดเทมเพลต
                             </button>
-                            <button onclick="exportTeacherClassroom()"
-                                class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
-                                <i class="fas fa-file-excel mr-1"></i> ส่งออก Excel
-                            </button>
                             <button onclick="triggerImportClassroom()"
                                 class="bg-orange-50 text-orange-700 border border-orange-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-orange-100 transition-all uppercase">
                                 <i class="fas fa-file-import mr-1"></i> นำเข้า Excel
+                            </button>
+                            <button onclick="exportTeacherClassroom()"
+                                class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
+                                <i class="fas fa-file-excel mr-1"></i> ส่งออก Excel
                             </button>
                         </div>
                     </div>
@@ -1266,7 +1272,7 @@
                                         <tr class="text-left text-slate-400 text-xs">
                                             <th class="py-1">ชื่อ-นามสกุล</th>
                                             <th class="py-1 text-center w-16">ถอดถอน</th>
-                                         </tr>
+                                        </tr>
                                     </thead>
                                     <tbody id="module-admin-list" class="divide-y divide-purple-100"></tbody>
                                 </table>

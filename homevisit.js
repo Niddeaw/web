@@ -289,6 +289,7 @@ async function checkAuth() {
         if (actualRole === 'super_admin') {
             currentViewRole = 'super_admin';
             document.getElementById('admin-settings-btn')?.classList.remove('hidden');
+            document.getElementById('btn-import-excel')?.classList.remove('hidden'); // <--- เพิ่มบรรทัดนี้
         } else if (modAdmin) {
             currentViewRole = 'module_admin';
         } else if (discHeadData) {
@@ -2478,4 +2479,172 @@ function buildVisitDataFromRow(headers, values, studentId, classroomId) {
         updated_at: new Date().toISOString()
     };
     return formData;
+}
+
+// ==========================================
+// ระบบนำเข้าข้อมูลเยี่ยมบ้านจากไฟล์ Excel
+// ==========================================
+window.importFromExcel = function () {
+    // 1. สร้าง Input File แบบซ่อนเพื่อเปิดหน้าต่างเลือกไฟล์
+    const fileInput = document.createElement('input');
+    fileInput.type = 'file';
+    fileInput.accept = '.xlsx, .xls, .csv';
+
+    fileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        Swal.fire({ title: 'กำลังอ่านไฟล์ Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        const reader = new FileReader();
+        reader.onload = async function (e) {
+            try {
+                // 2. แปลงไฟล์ Excel เป็น JSON
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                // แปลง Sheet เป็น Array ของ Object (แถวแรกเป็นชื่อคอลัมน์)
+                const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+                if (json.length === 0) throw new Error("ไม่พบข้อมูลในไฟล์ Excel");
+
+                Swal.fire({ title: 'กำลังตรวจสอบข้อมูลนักเรียน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+                // ================== ให้ก๊อปปี้ทับส่วนที่ 3 ของเดิม ==================
+                // 3. ดึงรายชื่อนักเรียนทั้งหมดมาเพื่อเทียบ รหัสประจำตัว (student_id_card) -> ID (UUID)
+                // เปลี่ยนไปดึงผ่านตารางการลงทะเบียนเรียนแทน เพื่อเอา classroom_id มาด้วย
+                const { data: enrollments, error: stdError } = await db.from('student_enrollments')
+                    .select('classroom_id, core_students(id, student_id_card)');
+
+                if (stdError) throw stdError;
+
+                // สร้าง Dictionary (Map) สำหรับค้นหานักเรียนอย่างรวดเร็ว
+                const studentMap = {};
+                (enrollments || []).forEach(row => {
+                    if (row.core_students && row.core_students.student_id_card) {
+                        studentMap[String(row.core_students.student_id_card).trim()] = {
+                            id: row.core_students.id,
+                            classroom_id: row.classroom_id
+                        };
+                    }
+                });
+                // =============================================================
+
+                const formattedData = [];
+                let skipCount = 0;
+
+                // 4. วนลูปจับคู่ข้อมูลจาก Excel
+                for (const row of json) {
+                    // ⚠️ สำคัญ: ชื่อคอลัมน์รหัสนักเรียนใน Excel ต้องตั้งชื่อว่า "รหัสประจำตัว" หรือ "student_id_card"
+                    const idCard = String(row['รหัสประจำตัว'] || row['รหัสนักเรียน'] || row['student_id_card'] || '').trim();
+
+                    const stdInfo = studentMap[idCard];
+                    if (!stdInfo) {
+                        skipCount++; // ข้ามคนที่หารหัสไม่เจอในระบบ
+                        continue;
+                    }
+
+                    // จัดโครงสร้างให้ตรงกับ Database module_home_visits
+                    const formData = {
+                        student_id: stdInfo.id,
+                        classroom_id: stdInfo.classroom_id,
+                        teacher_id: currentUser.id,
+                        academic_year: currentYear,
+                        semester: currentTerm,
+
+                        // อ่านค่าคอลัมน์จาก Excel (ถ้าไม่มี ให้ใช้ค่าว่าง)
+                        visit_date: row['วันที่เยี่ยม'] || row['visit_date'] || new Date().toISOString().split('T')[0],
+                        visit_status: row['สถานะ'] || row['visit_status'] || 'เยี่ยมแล้ว',
+                        visit_times: parseInt(row['ครั้งที่'] || row['visit_times']) || 1,
+
+                        student_nickname: String(row['ชื่อเล่น'] || ''),
+                        student_phone: String(row['เบอร์โทรนักเรียน'] || ''),
+
+                        father_name: String(row['ชื่อบิดา'] || ''),
+                        mother_name: String(row['ชื่อมารดา'] || ''),
+                        guardian_name: String(row['ชื่อผู้ปกครอง'] || ''),
+                        guardian_relation: String(row['ความเกี่ยวข้อง'] || ''),
+
+                        house_number: String(row['บ้านเลขที่'] || ''),
+                        village_no: String(row['หมู่'] || ''),
+                        sub_district: String(row['ตำบล'] || ''),
+                        district: String(row['อำเภอ'] || ''),
+                        province: String(row['จังหวัด'] || ''),
+
+                        // ป้องกัน Error 400 จากค่าตัวเลข
+                        latitude: parseFloat(row['ละติจูด'] || row['latitude']) || null,
+                        longitude: parseFloat(row['ลองจิจูด'] || row['longitude']) || null,
+
+                        // JSON ข้อมูลเปล่าไว้ก่อน (กรณี Excel ไม่ได้เก็บรายละเอียดเชิงลึก)
+                        risk_factors: { health: [], drugs: [], violence: [], sex: [], gaming: [], responsibilities: [], hobbies: [] },
+                        updated_at: new Date().toISOString()
+                    };
+
+                    formattedData.push(formData);
+                }
+
+                if (formattedData.length === 0) {
+                    throw new Error("ไม่พบข้อมูลที่ตรงกับรหัสนักเรียนในระบบ<br><br><span class='text-sm text-slate-500'>(โปรดตรวจสอบว่าคอลัมน์รหัสนักเรียนในไฟล์ Excel ตั้งชื่อว่า <b>'รหัสประจำตัว'</b> หรือ <b>'รหัสนักเรียน'</b>)</span>");
+                }
+
+                Swal.fire({ title: `กำลังบันทึก ${formattedData.length} รายการ...`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+// ================== ให้ก๊อปปี้ทับส่วนที่ 5 ของเดิม ==================
+                // 5. บันทึกลงฐานข้อมูล (ตรวจเช็คและแยก Update / Insert ทีละรายการ)
+                let successCount = 0;
+                for (const formData of formattedData) {
+                    // ค้นหาว่าเด็กคนนี้ เทอมนี้ เคยมีข้อมูลเยี่ยมบ้านหรือยัง?
+                    const { data: existing } = await db.from('module_home_visits')
+                        .select('id')
+                        .eq('student_id', formData.student_id)
+                        .eq('academic_year', currentYear)
+                        .eq('semester', currentTerm)
+                        .maybeSingle();
+
+                    let opError;
+                    if (existing) {
+                        // ถ้ามีแล้วให้ทำการ อัปเดต (Update) ข้อมูลเดิม
+                        const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
+                        opError = error;
+                    } else {
+                        // ถ้ายังไม่มีให้ เพิ่มข้อมูลใหม่ (Insert)
+                        const { error } = await db.from('module_home_visits').insert([formData]);
+                        opError = error;
+                    }
+
+                    if (opError) {
+                        console.error("Error saving student ID:", formData.student_id, opError);
+                    } else {
+                        successCount++;
+                    }
+                }
+
+                // สรุปผล
+                let msg = `นำเข้าข้อมูลสำเร็จ <b>${successCount}</b> รายการ`;
+                if (skipCount > 0) msg += `<br><span class="text-rose-500 text-sm mt-2 block">* ข้าม ${skipCount} รายการ (หารหัสนักเรียนไม่พบในระบบ)</span>`;
+                if (successCount < formattedData.length) msg += `<br><span class="text-rose-500 text-sm mt-1 block">* บางรายการบันทึกไม่สำเร็จ (ดูรายละเอียดใน F12)</span>`;
+
+                Swal.fire({
+                    title: 'นำเข้าสำเร็จ!',
+                    html: msg,
+                    icon: 'success'
+                }).then(() => {
+                    if (document.getElementById('overview-modal') && !document.getElementById('overview-modal').classList.contains('hidden')) {
+                        if (currentViewRole === 'teacher' && typeof loadTeacherOverview === 'function') loadTeacherOverview();
+                        if (currentViewRole !== 'teacher' && typeof loadAdminOverview === 'function') loadAdminOverview();
+                    }
+                });
+                // =============================================================
+
+            } catch (err) {
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+                console.error(err);
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    };
+
+    fileInput.click(); // กดเพื่อเปิดหน้าต่างเลือกไฟล์
 }
