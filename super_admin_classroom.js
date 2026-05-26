@@ -210,6 +210,44 @@ async function deleteClassroom(id, name) {
 // ==========================================
 // นักเรียน (Students)
 // ==========================================
+// ==========================================
+// แสดงรูปโปรไฟล์นักเรียน (fallback เป็นตัวอักษรย่อ)
+// ==========================================
+function getStudentAvatarHtml(avatarUrl, studentName) {
+    if (!avatarUrl || avatarUrl.trim() === '') {
+        // ถ้าไม่มีรูป -> แสดงอักษรตัวแรก
+        const initial = studentName ? studentName.charAt(0).toUpperCase() : '?';
+        return `<div class="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-sm shadow-sm">${initial}</div>`;
+    }
+    
+    // ตรวจสอบว่า avatarUrl เป็น path หรือ full URL
+    let fullUrl = avatarUrl;
+    if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('blob:')) {
+        // ถ้าเป็น path ใน Storage ให้สร้าง public URL (สมมติ bucket ชื่อ 'avatars')
+        const { data: { publicUrl } } = db.storage.from('avatars').getPublicUrl(avatarUrl);
+        fullUrl = publicUrl;
+    }
+    
+    return `<img src="${fullUrl}"
+                onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=random&rounded=true&size=36';"
+                onclick="viewStudentImage('${fullUrl}', '${studentName.replace(/'/g, "\\'")}')"
+                class="w-9 h-9 rounded-full object-cover cursor-pointer hover:scale-105 transition-all border border-slate-200 shadow-sm"
+                title="คลิกเพื่อดูรูปใหญ่" />`;
+}
+
+// ฟังก์ชันแสดงรูปขนาดใหญ่ (SweetAlert)
+window.viewStudentImage = function(imgUrl, studentName) {
+    Swal.fire({
+        title: studentName,
+        imageUrl: imgUrl,
+        imageAlt: studentName,
+        imageWidth: '300px',
+        background: '#fff',
+        confirmButtonText: 'ปิด',
+        showCloseButton: true
+    });
+};
+
 async function loadStudents() {
     const classId = document.getElementById('filterStudentClass').value;
     const tbody = document.getElementById('tb-students');
@@ -224,8 +262,9 @@ async function loadStudents() {
     try {
         if ($.fn.DataTable.isDataTable('#studentsTable')) $('#studentsTable').DataTable().destroy();
 
+        // 🔁 เพิ่ม avatar_students_url ใน select
         const { data, error } = await db.from('student_enrollments')
-            .select(`id, student_number, status, classroom_id, core_students!inner(id, student_id_card, national_id, prefix, first_name, last_name)`)
+            .select(`id, student_number, status, classroom_id, core_students!inner(id, student_id_card, national_id, prefix, first_name, last_name, avatar_students_url)`)
             .eq('classroom_id', classId)
             .order('student_number', { ascending: true });
 
@@ -234,21 +273,29 @@ async function loadStudents() {
         if (data && data.length > 0) {
             tbody.innerHTML = data.map((enr) => {
                 let std = enr.core_students;
-                let stBadge = enr.status === 'เรียนปกติ' ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>' : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status}</span>`;
+                let stBadge = enr.status === 'เรียนปกติ' 
+                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>' 
+                    : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status}</span>`;
                 const safeFname = std.first_name ? std.first_name.replace(/'/g, "\\'") : '';
                 const safeLname = std.last_name ? std.last_name.replace(/'/g, "\\'") : '';
+                const fullName = `${std.prefix || ''}${std.first_name} ${std.last_name}`;
+                
+                // ✅ สร้าง HTML รูปโปรไฟล์
+                const avatarHtml = getStudentAvatarHtml(std.avatar_students_url, fullName);
 
                 return `
                 <tr class="hover:bg-blue-50 transition-colors">
                     <td class="py-3 px-4 text-center">
                         <input type="checkbox" class="student-chk w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded cursor-pointer focus:ring-blue-500" value="${enr.id}" onchange="updateSelectedCount()">
                     </td>
+                    <!-- ✅ เพิ่มคอลัมน์รูป -->
+                    <td class="py-3 px-2 text-center">${avatarHtml}</td>
                     <td class="py-3 px-4 text-center font-bold text-gray-700">${enr.student_number || '-'}</td>
                     <td class="py-3 px-4">
                         <div class="font-bold text-blue-700">${std.student_id_card || '-'}</div>
                         <div class="text-[11px] text-gray-500">ปชช: ${std.national_id || '-'}</div>
                     </td>
-                    <td class="py-3 px-4 text-gray-800 font-medium">${std.prefix || ''}${std.first_name} ${std.last_name}</td>
+                    <td class="py-3 px-4 text-gray-800 font-medium">${fullName}</td>
                     <td class="py-3 px-4 text-center">${stBadge}</td>
                     <td class="py-3 px-4 text-center whitespace-nowrap">
                         <button onclick="editSingleStudent('${enr.id}', '${enr.student_number || ''}', '${std.student_id_card || ''}', '${std.national_id || ''}', '${std.prefix || ''}', '${safeFname}', '${safeLname}', '${enr.status || 'เรียนปกติ'}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 rounded hover:bg-yellow-100"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
@@ -256,18 +303,25 @@ async function loadStudents() {
                     </td>
                 </tr>`;
             }).join('');
-        } else { tbody.innerHTML = ''; }
+        } else { 
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">ไม่พบนักเรียนในห้องนี้</td></tr>';
+        }
 
+        // ✅ ปรับ columnDefs (คอลัมน์ที่ index 0 = checkbox, index 1 = รูป, index 6 = จัดการ)
         $('#studentsTable').DataTable({
             scrollX: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 50,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "ทั้งหมด"]],
-            columnDefs: [{ orderable: false, targets: [0, 5] }],
+            columnDefs: [
+                { orderable: false, targets: [0, 1, 6] }  // 0=checkbox, 1=รูป, 6=ปุ่มจัดการ
+            ],
             destroy: true
         });
         Swal.close();
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+    } catch (err) { 
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); 
+    }
 }
 
 function openAddStudentModal() {
