@@ -203,8 +203,9 @@ async function updateUnassignedBadge() {
 window.onload = async () => {
     await checkAuth();
     await updateUnassignedBadge();
+    // โหลดข้อมูลภาพรวมระบบ (เมนูแรก)
+    switchMenu('menu-school');
 };
-
 // ==========================================
 // จัดการ Theme เมื่อโหลด
 // ==========================================
