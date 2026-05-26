@@ -1455,15 +1455,6 @@ async function loadAdminClubs() {
         autoWidth: false,
         scrollX: false,
         order: [[1, 'asc']],
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        // layout: {
-        //     topStart: 'searchBuilder'
-        // }
-        
-        // layout: {
-        //     topStart: {
-        //         buttons: ['copy', 'excel', 'pdf', 'print']
-        //     }
-        // }
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
 }
