@@ -156,11 +156,11 @@ async function loadMyClub() {
         .eq('teacher_id', currentUser.id)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
         .eq('semester', currentSchoolInfo.current_semester)
-        .order('club_name'); 
+        .order('club_name');
 
     if (clubs && clubs.length > 0) {
         myClubs = clubs;
-        
+
         // 🌟 จำว่าก่อนหน้านี้ดูชุมนุมไหนอยู่ (ใช้สำหรับตอน refresh หลังกดปุ่มล็อค/ปลดล็อค)
         let indexToSelect = 0;
         if (myClubInfo) {
@@ -185,10 +185,10 @@ async function loadMyClub() {
 // 🌟 ฟังก์ชันจัดการหน้าจอแยกออกมา เพื่อให้เรียกใช้ตอนเปลี่ยน Dropdown ได้
 window.renderTeacherClub = async (index) => {
     myClubInfo = myClubs[index];
-    
+
     document.getElementById('no-club-display').classList.add('hidden');
     document.getElementById('my-club-display').classList.remove('hidden');
-    
+
     // 🌟 ถ้ารับผิดชอบหลายชุมนุม ให้เปลี่ยนชื่อชุมนุมเป็น Dropdown
     if (myClubs.length > 1) {
         const options = myClubs.map((c, i) => `<option value="${i}" ${i === index ? 'selected' : ''}>${c.club_name}</option>`).join('');
@@ -233,9 +233,9 @@ window.lockClub = async () => {
             .eq('club_id', myClubInfo.id)
             .eq('status', 'pending');
         await db.from('club_lists').update({ is_locked: true }).eq('id', myClubInfo.id);
-        
+
         await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
-        
+
         Swal.fire({ icon: 'success', title: 'ล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
@@ -251,9 +251,9 @@ window.unlockMyClub = async () => {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังปลดล็อค...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').update({ is_locked: false }).eq('id', myClubInfo.id);
-        
+
         await loadMyClub(); // ✅ รอให้ข้อมูลรีเฟรชก่อน
-        
+
         Swal.fire({ icon: 'success', title: 'ปลดล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
 };
@@ -628,7 +628,7 @@ window.removeStudentFromClub = async (regId, studentName, clubId, clubName) => {
             if (error) throw error;
 
             Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
-            
+
             // ปิด Swal ปัจจุบันแล้วเปิด viewClubStudents ใหม่เพื่อรีเฟรชรายการ
             Swal.close();
             setTimeout(() => {
@@ -1454,7 +1454,16 @@ async function loadAdminClubs() {
         responsive: true,
         autoWidth: false,
         scrollX: false,
-        order: [[1, 'asc']], // เรียงตามคอลัมน์หมวดหมู่
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+        order: [[1, 'asc']],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        // layout: {
+        //     topStart: 'searchBuilder'
+        // }
+        
+        // layout: {
+        //     topStart: {
+        //         buttons: ['copy', 'excel', 'pdf', 'print']
+        //     }
+        // }
     });
 }
