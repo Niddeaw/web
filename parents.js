@@ -146,10 +146,10 @@ function toggleViewRole() {
     if (!btn) return;
 
     if (currentViewRole === 'teacher') {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Switch to Admin';
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดแอดมิน';
         btn.className = "px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-blue-100 transition-all shadow-sm";
     } else {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> Switch to Teacher';
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดครู';
         btn.className = "px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all shadow-sm";
     }
 
@@ -375,6 +375,9 @@ async function clearRoomData() {
 // ==========================================
 // 7. บันทึกข้อมูล & อัปโหลดรูปไป Google Drive
 // ==========================================
+// ==========================================
+// 7. บันทึกข้อมูล & อัปโหลดรูปไป Google Drive (ปรับเงื่อนไขเช็ค)
+// ==========================================
 async function saveNetworkData(e) {
     e.preventDefault();
     const classId = document.getElementById('select-classroom').value;
@@ -389,49 +392,32 @@ async function saveNetworkData(e) {
         }
     }
 
-// ----------------------------------------------------------------
-    // 🔥 แก้ไขปัญหาครูบันทึกไม่ได้: ยิงตรงไปดึงค่า Settings จากฐานข้อมูล
-    // ----------------------------------------------------------------
-    if (!moduleSettings || !moduleSettings.gd_api_url) {
+    if (!moduleSettings || !moduleSettings.gd_api_url || !moduleSettings.gd_folder_id) {
         try {
-            // อ้างอิงชื่อตารางจากภาพ Supabase ของคุณ (module_parent_network_settings)
             const { data: settingsData, error: settingsError } = await db
                 .from('module_parent_network_settings')
                 .select('*')
                 .single();
-
-            if (settingsData && !settingsError) {
-                moduleSettings = settingsData;
-            }
-        } catch (err) {
-            console.error("Fetch Settings Error:", err);
-        }
+            if (settingsData && !settingsError) moduleSettings = settingsData;
+        } catch (err) { console.error("Fetch Settings Error:", err); }
     }
-    // ----------------------------------------------------------------
 
     if (!moduleSettings || !moduleSettings.gd_api_url || !moduleSettings.gd_folder_id) {
-        return Swal.fire(
-            'ไม่สามารถบันทึกได้', 
-            'แอดมินตั้งค่าแล้ว แต่สิทธิ์ฐานข้อมูล (RLS) ของตารางตั้งค่าใน Supabase ปิดกั้นไม่ให้ครูมองเห็น กรุณาเปิดสิทธิ์ให้อ่านได้', 
-            'error'
-        );
+        return Swal.fire('ไม่สามารถบันทึกได้', 'แอดมินตั้งค่าไม่ครบ (Google API Link หรือ Folder ID รูปภาพ)', 'error');
     }
 
     Swal.fire({ title: 'กำลังบันทึกและอัปโหลด...', html: 'กระบวนการนี้อาจใช้เวลาสักครู่ กรุณาอย่าปิดหน้าต่าง', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
-    
+
     try {
         const payload = { classroom_id: classId, academic_year: currentYear, semester: currentTerm, updated_at: new Date() };
         for (const role of FORM_ROLES) {
             const imgElement = document.getElementById(`img-preview-${role.id}`);
             let finalImageUrl = imgElement.src || '';
-            
             if (finalImageUrl.startsWith('data:image')) {
                 Swal.update({ html: `กำลังอัปโหลดรูปภาพ ${role.title}...` });
                 finalImageUrl = await uploadImageToDrive(finalImageUrl, `${roomFormat}_${role.title}`);
             }
-            
             finalImageUrl = getGoogleDriveDirectUrl(finalImageUrl);
-            
             payload[`${role.id}_data`] = {
                 name: document.getElementById(`${role.id}_name`).value,
                 phone: document.getElementById(`${role.id}_phone`).value,
@@ -447,15 +433,11 @@ async function saveNetworkData(e) {
                 image_url: finalImageUrl
             };
         }
-        
         Swal.update({ html: 'กำลังบันทึกข้อมูลลงฐานระบบ...' });
         const { error } = await db.from('module_parent_network').upsert(payload, { onConflict: 'classroom_id,academic_year,semester' });
-        
         if (error) throw error;
-        
         Swal.fire('สำเร็จ', 'บันทึกข้อมูลและอัปโหลดรูปภาพเรียบร้อยแล้ว', 'success');
         updateStatusBadge('completed');
-        
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
@@ -465,7 +447,12 @@ async function uploadImageToDrive(base64String, fileName) {
     const cleanBase64 = base64String.split(',')[1];
     const response = await fetch(moduleSettings.gd_api_url, {
         method: 'POST',
-        body: JSON.stringify({ base64: cleanBase64, fileName, folderId: moduleSettings.gd_folder_id })
+        body: JSON.stringify({
+            action: 'upload',          // ✅ เพิ่มตรงนี้
+            base64: cleanBase64,
+            fileName,
+            folderId: moduleSettings.gd_folder_id
+        })
     });
     const result = await response.json();
     if (result.status === 'success') return getGoogleDriveDirectUrl(result.url);
@@ -479,29 +466,20 @@ async function loadAdminSettings() {
     const { data } = await db.from('module_parent_network_settings').select('*').eq('id', 1).maybeSingle();
     if (data) {
         moduleSettings = data;
-        document.getElementById('set-upload-api-url').value = data.gd_api_url || '';
+        document.getElementById('set-api-url').value = data.gd_api_url || '';
         document.getElementById('set-folder-id').value = data.gd_folder_id || '';
-        document.getElementById('set-pdf-api-url').value = data.pdf_api_url || '';
+        document.getElementById('set-pdf-folder-id').value = data.gd_pdf_folder_id || '';
         document.getElementById('set-slide-id').value = data.slide_template_url || '';
     }
-    // ✅ โหลดทั้ง 2 พร้อมกัน แทนที่จะเรียก sequential
     await Promise.all([loadTeachersForAppoint(), loadModuleAdminsList()]);
 }
-
-async function openAdminModal() {
-    document.getElementById('admin-modal').classList.remove('hidden');
-    await loadTeachersForAppoint();
-    await loadModuleAdminsList();
-}
-
-function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
 
 async function saveAdminSettings() {
     const payload = {
         id: 1,
-        gd_api_url: document.getElementById('set-upload-api-url').value.trim(),
+        gd_api_url: document.getElementById('set-api-url').value.trim(),
         gd_folder_id: document.getElementById('set-folder-id').value.trim(),
-        pdf_api_url: document.getElementById('set-pdf-api-url').value.trim(),
+        gd_pdf_folder_id: document.getElementById('set-pdf-folder-id').value.trim(),
         slide_template_url: document.getElementById('set-slide-id').value.trim(),
         updated_at: new Date()
     };
@@ -514,6 +492,13 @@ async function saveAdminSettings() {
         Swal.fire('ผิดพลาด', 'ไม่สามารถบันทึกได้: ' + error.message, 'error');
     }
 }
+async function openAdminModal() {
+    document.getElementById('admin-modal').classList.remove('hidden');
+    await loadTeachersForAppoint();
+    await loadModuleAdminsList();
+}
+
+function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
 
 async function loadTeachersForAppoint() {
     const { data } = await db.from('core_personnel').select('id, first_name, last_name').order('first_name');
@@ -631,10 +616,10 @@ let personnelCache = null;
 async function getPersonnelMap() {
     // ถ้ายิงดึงข้อมูลมาแล้ว ให้ใช้แคชเดิมได้เลย
     if (personnelCache) return personnelCache;
-    
+
     // 1. เพิ่ม avatar_url ในการ select ข้อมูล
     const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name, avatar_url');
-    
+
     personnelCache = {};
     (data || []).forEach(p => {
         if (p?.id) {
@@ -643,7 +628,7 @@ async function getPersonnelMap() {
             personnelCache[p.id] = {
                 name: `${p.prefix || ''}${p.first_name} ${p.last_name}`,
                 avatar_url: p.avatar_url || '',
-                toString: function() { return this.name; } // ป้องกัน Error กับโค้ดส่วนอื่น
+                toString: function () { return this.name; } // ป้องกัน Error กับโค้ดส่วนอื่น
             };
         }
     });
@@ -668,13 +653,13 @@ async function loadDataTable() {
 
         if (currentViewRole === 'teacher') {
             classQuery = classQuery.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
-            
+
         } else if (currentViewRole === 'head_grade') {
             const { data: gh } = await db.from('behavior_grade_heads')
                 .select('grade_level')
                 .eq('teacher_id', currentUser.id)
                 .maybeSingle();
-                
+
             if (gh && gh.grade_level) {
                 classQuery = classQuery.eq('grade_level', gh.grade_level);
             } else {
@@ -712,32 +697,32 @@ async function loadDataTable() {
         (networks || []).forEach(n => {
             networkMap[n.classroom_id] = n;
         });
-        
-        let actualCompletedCount = 0; 
+
+        let actualCompletedCount = 0;
 
         // ---------------------------------------------------------
         // 3. วาดตาราง (Render Table)
         // ---------------------------------------------------------
         tbody.innerHTML = classrooms.map(cls => {
             const room = `ม.${cls.grade_level}/${cls.room_number}`;
-            
+
             const adv1 = staffMap[cls.adviser_id_1];
             const adv2 = staffMap[cls.adviser_id_2];
             const adviser1 = adv1 ? (typeof adv1 === 'object' ? adv1.name : adv1) : '-';
             const adviser2 = adv2 ? (typeof adv2 === 'object' ? adv2.name : adv2) : '-';
-            
+
             // ตรวจสอบข้อมูลจาก networkMap
             const networkData = networkMap[cls.id];
             const isRecorded = !!networkData;
             const existingPdfUrl = networkData?.pdf_url || '';
-            
+
             if (isRecorded) {
                 actualCompletedCount++;
             }
-            
+
             const canEdit = currentViewRole !== 'head_discipline';
 
-            const statusBadge = isRecorded 
+            const statusBadge = isRecorded
                 ? `<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-check mr-1"></i> บันทึกแล้ว</span>`
                 : `<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase"><i class="fas fa-times mr-1"></i> ยังไม่บันทึก</span>`;
 
@@ -805,14 +790,14 @@ function renderDashboard(totalClassrooms, completedCount) {
     console.log("👉 สิทธิ์ตอนนี้คือ:", currentViewRole);
 
     let displayTotal = 'ที่รับผิดชอบ';
-    
+
     // 🔥 ปรับเงื่อนไขให้ยืดหยุ่นขึ้น เผื่อมีช่องว่างหรือตัวพิมพ์เล็ก/ใหญ่
     const role = (currentViewRole || '').trim().toLowerCase();
-    
+
     if (['super_admin', 'module_admin', 'head_discipline'].includes(role)) {
-        displayTotal = 'ทั้งหมด'; 
+        displayTotal = 'ทั้งหมด';
     } else if (role === 'head_grade') {
-        displayTotal = 'ในระดับชั้น'; 
+        displayTotal = 'ในระดับชั้น';
     }
 
     const remaining = Math.max(0, totalClassrooms - completedCount);
@@ -869,7 +854,7 @@ async function exportToExcel() {
 
         // ✅ อัปเดต Headers เพิ่มคอลัมน์ อาชีพ
         const headers = [
-            "ห้องเรียน", 
+            "ห้องเรียน",
             "ประธานเครือข่าย", "ที่อยู่", "เบอร์โทรประธาน", "อาชีพ(ประธาน)", "ชื่อนักเรียน (บุตรประธาน)",
             "รองประธาน", "ที่อยู่", "เบอร์โทรรองฯ", "อาชีพ(รองฯ)", "ชื่อนักเรียน (บุตรรองประธาน)",
             "เลขานุการ", "ที่อยู่", "เบอร์โทรเลขาฯ", "อาชีพ(เลขาฯ)", "ชื่อนักเรียน (บุตรเลขานุการ)",
@@ -877,48 +862,48 @@ async function exportToExcel() {
             "ประชาสัมพันธ์", "ที่อยู่", "เบอร์โทรประชาสัมพันธ์", "อาชีพ(ประชาสัมพันธ์)", "ชื่อนักเรียน (บุตรประชาสัมพันธ์)",
             "ครูที่ปรึกษาคนที่ 1", "ครูที่ปรึกษาคนที่ 2", "หัวหน้าระดับชั้น"
         ];
-        
+
         const excelRows = [headers];
-        
+
         const buildAddress = (data) => {
             if (!data) return '-';
             const parts = [data.address || '', data.village || '', data.district ? `ต.${data.district}` : '', data.amphoe ? `อ.${data.amphoe}` : '', data.province ? `จ.${data.province}` : '', data.zip || ''].filter(p => p).join(' ');
             return parts || '-';
         };
-        
+
         // ✅ อัปเดตการดึงข้อมูล แทรก item.[role]_data?.job เข้าไปตามลำดับ
         networkData.forEach(item => {
             const cls = item.core_classrooms;
             if (!cls) return;
             excelRows.push([
                 `ม.${cls.grade_level}/${cls.room_number}`,
-                
+
                 // ประธาน
                 item.president_data?.name || '-', buildAddress(item.president_data), item.president_data?.phone || '-', item.president_data?.job || '-', item.president_data?.student_name || '-',
-                
+
                 // รองประธาน
                 item.vp_data?.name || '-', buildAddress(item.vp_data), item.vp_data?.phone || '-', item.vp_data?.job || '-', item.vp_data?.student_name || '-',
-                
+
                 // เลขานุการ
                 item.secretary_data?.name || '-', buildAddress(item.secretary_data), item.secretary_data?.phone || '-', item.secretary_data?.job || '-', item.secretary_data?.student_name || '-',
-                
+
                 // นายทะเบียน
                 item.registrar_data?.name || '-', buildAddress(item.registrar_data), item.registrar_data?.phone || '-', item.registrar_data?.job || '-', item.registrar_data?.student_name || '-',
-                
+
                 // ประชาสัมพันธ์
                 item.pr_data?.name || '-', buildAddress(item.pr_data), item.pr_data?.phone || '-', item.pr_data?.job || '-', item.pr_data?.student_name || '-',
-                
+
                 staffMap[cls.adviser_id_1] || '-', staffMap[cls.adviser_id_2] || '-', gradeHeadMap[String(cls.grade_level)] || '-'
             ]);
         });
-        
+
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         ws['!cols'] = headers.map(() => ({ wch: 25 }));
         XLSX.utils.book_append_sheet(wb, ws, "NetworkReport");
         XLSX.writeFile(wb, `รายงานเครือข่ายผู้ปกครอง_${currentTerm}_${currentYear}.xlsx`);
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อยแล้ว', 'success');
-        
+
     } catch (err) {
         console.error("Export Error:", err);
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถส่งออกข้อมูลได้: ' + err.message, 'error');
@@ -935,37 +920,35 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// 13. พิมพ์ PDF (แก้ prefix)
+// 13. พิมพ์ PDF (แก้ไขให้ใช้ gd_api_url และส่ง action)
 // ==========================================
 async function printPDF(classroomId, forceGenerate = false) {
-    if (!moduleSettings || !moduleSettings.pdf_api_url || !moduleSettings.slide_template_url) {
+    if (!moduleSettings || !moduleSettings.gd_api_url || !moduleSettings.slide_template_url) {
         try {
             const { data: settingsData, error: settingsError } = await db
                 .from('module_parent_network_settings')
                 .select('*')
                 .single();
-
             if (settingsData && !settingsError) moduleSettings = settingsData;
         } catch (err) {
             console.error("Fetch Settings Error:", err);
         }
     }
 
-    if (!moduleSettings || !moduleSettings.pdf_api_url || !moduleSettings.slide_template_url) {
-        return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณาระบุ PDF API URL และ Slide ID ในเมนู "ตั้งค่าระบบ"', 'warning');
+    if (!moduleSettings || !moduleSettings.gd_api_url || !moduleSettings.slide_template_url) {
+        return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณาระบุ Google API Link และ Slide ID ในเมนู "ตั้งค่าระบบ"', 'warning');
     }
 
-    // 💡 ปรับปรุงข้อความให้ผู้ใช้ทราบกรณีสั่งทำใหม่
-    const loadingText = forceGenerate 
-        ? 'ระบบกำลังลบไฟล์ PDF เดิม และกำลังประมวลผลไฟล์ใหม่ซ้ำอีกครั้ง...' 
+    const loadingText = forceGenerate
+        ? 'ระบบกำลังลบไฟล์ PDF เดิม และกำลังประมวลผลไฟล์ใหม่ซ้ำอีกครั้ง...'
         : 'ระบบกำลังดึงข้อมูลและประมวลผลผ่าน Google Apps Script<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>';
 
-    Swal.fire({ 
-        title: forceGenerate ? 'กำลังสร้างไฟล์ PDF ใหม่...' : 'กำลังสร้างไฟล์ PDF...', 
-        html: loadingText, 
-        didOpen: () => Swal.showLoading(), 
+    Swal.fire({
+        title: forceGenerate ? 'กำลังสร้างไฟล์ PDF ใหม่...' : 'กำลังสร้างไฟล์ PDF...',
+        html: loadingText,
+        didOpen: () => Swal.showLoading(),
         allowOutsideClick: false,
-        showConfirmButton: false 
+        showConfirmButton: false
     });
 
     try {
@@ -980,8 +963,7 @@ async function printPDF(classroomId, forceGenerate = false) {
         ]);
 
         if (error || !network) throw new Error('ไม่พบข้อมูลเครือข่ายของห้องนี้');
-        
-        // ❌ นำเงื่อนไขช็อตคัตเดิมออก เพื่อให้กรณี forceGenerate = true วิ่งทะลุไปสั่งลบและสร้างใหม่ที่ฝั่ง GAS เสมอ
+
         if (!forceGenerate && network.pdf_url) {
             Swal.close();
             window.open(network.pdf_url, '_blank');
@@ -999,7 +981,7 @@ async function printPDF(classroomId, forceGenerate = false) {
 
         const { data: gradeHead } = await db.from('behavior_grade_heads')
             .select('teacher_id').eq('grade_level', cls.grade_level).maybeSingle();
-            
+
         let gradeHeadName = '-';
         let gradeHeadImage = '';
         if (gradeHead?.teacher_id && staffMap[gradeHead.teacher_id]) {
@@ -1032,28 +1014,29 @@ async function printPDF(classroomId, forceGenerate = false) {
         });
 
         const payload = {
+            action: 'generate_pdf',          // ✅ เปลี่ยนเป็น generate_pdf
             templateId: moduleSettings.slide_template_url,
-            pdfFolderId: moduleSettings.gd_pdf_folder_id, 
+            pdfFolderId: moduleSettings.gd_pdf_folder_id || moduleSettings.gd_folder_id,
             fileName: `เครือข่าย_${room}_${currentTerm}_${currentYear}`,
             replacements
         };
 
-        const response = await fetch(moduleSettings.pdf_api_url, {
-            method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload)
+        const response = await fetch(moduleSettings.gd_api_url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
         });
         const result = await response.json();
 
         if (result.status === 'success' && result.url) {
-            // อัปเดตข้อมูลลิงก์ใหม่ลงฐานข้อมูล (กรณีบังคับเจน ลิงก์จาก Google Drive จะเปลี่ยนไปตาม ID ใหม่)
             await db.from('module_parent_network')
                 .update({ pdf_url: result.url })
                 .eq('classroom_id', classroomId)
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm);
-
             Swal.close();
             window.open(result.url, '_blank');
-            loadDataTable(); // รีเฟรชตารางใหม่
+            loadDataTable();
         } else {
             throw new Error(result.message || 'ประมวลผล PDF ไม่สำเร็จ');
         }
