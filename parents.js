@@ -454,7 +454,7 @@ function resizeImageDataURL(dataUrl, maxSize = 600) {
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            
+
             // คำนวณสัดส่วนใหม่ให้ไม่เกิน maxSize
             if (width > height) {
                 if (width > maxSize) {
@@ -467,12 +467,12 @@ function resizeImageDataURL(dataUrl, maxSize = 600) {
                     height = maxSize;
                 }
             }
-            
+
             canvas.width = width;
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            
+
             // ส่งออกเป็น JPEG คุณภาพ 0.85 (ลดขนาดไฟล์)
             const resizedDataUrl = canvas.toDataURL('image/jpeg', 0.85);
             resolve(resizedDataUrl);
@@ -482,26 +482,24 @@ function resizeImageDataURL(dataUrl, maxSize = 600) {
 }
 
 async function uploadImageToDrive(base64String, fileName) {
-    // ถ้าเป็น Data URL ให้ทำการย่อรูปก่อน
     let resizedDataUrl = base64String;
     if (base64String && base64String.startsWith('data:image')) {
         resizedDataUrl = await resizeImageDataURL(base64String, 600);
     }
-    
-    // ดึงเฉพาะ base64 (ไม่มี header data:image/...)
     const cleanBase64 = resizedDataUrl.split(',')[1];
-    
+
     const response = await fetch(moduleSettings.gd_api_url, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ✅ สำคัญ
+        keepalive: true,                                            // ป้องกัน request ถูก kill
         body: JSON.stringify({
-            action: 'upload',          // ✅ สำคัญ: GAS ต้องรับ action='upload'
+            action: 'upload',
             base64: cleanBase64,
             fileName: fileName,
-            folderId: moduleSettings.gd_folder_id   // ID โฟลเดอร์สำหรับรูปภาพ
+            folderId: moduleSettings.gd_folder_id
         })
     });
-    
+
     const result = await response.json();
     if (result.status === 'success') {
         return getGoogleDriveDirectUrl(result.url);
@@ -1073,9 +1071,11 @@ async function printPDF(classroomId, forceGenerate = false) {
 
         const response = await fetch(moduleSettings.gd_api_url, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ✅ สำคัญ
+            keepalive: true,
             body: JSON.stringify(payload)
         });
+        
         const result = await response.json();
 
         if (result.status === 'success' && result.url) {
