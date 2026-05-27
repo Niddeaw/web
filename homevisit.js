@@ -837,31 +837,124 @@ window.submitHomeVisit = async function () {
     }
 };
 
-window.triggerSingleUpload = async function (event, inputId, type) {
-    if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
+// ==========================================
+// ฟังก์ชันบีบอัดรูปภาพให้ไม่เกินขนาดที่กำหนด (หน่วยเป็น MB)
+// ==========================================
+async function compressImage(file, maxSizeMB = 2) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (event) => {
+            const img = new Image();
+            img.src = event.target.result;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                // ย่อขนาดความกว้าง/สูงสูงสุดที่ 1920px (เพื่อไม่ให้ภาพใหญ่เกินไป)
+                const MAX_SIZE = 1920;
+                if (width > height && width > MAX_SIZE) {
+                    height *= MAX_SIZE / width;
+                    width = MAX_SIZE;
+                } else if (height > MAX_SIZE) {
+                    width *= MAX_SIZE / height;
+                    height = MAX_SIZE;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                let quality = 0.9; // เริ่มต้นที่คุณภาพ 90%
+                let base64 = canvas.toDataURL('image/jpeg', quality);
+                
+                // ลดคุณภาพลงเรื่อยๆ จนกว่าขนาดจะต่ำกว่า maxSizeMB
+                while (Math.round((base64.length * 3) / 4) / (1024 * 1024) > maxSizeMB && quality > 0.1) {
+                    quality -= 0.1;
+                    base64 = canvas.toDataURL('image/jpeg', quality);
+                }
+                
+                resolve(base64.split(',')[1]); // ส่งคืนเฉพาะส่วน Base64 (ไม่เอา Data URI)
+            };
+            img.onerror = (err) => reject(err);
+        };
+        reader.onerror = (err) => reject(err);
+    });
+}
+
+// ==========================================
+// ระบบอัปโหลดรูปภาพ (แยกโฟลเดอร์ + บีบอัดภาพ)
+// ==========================================
+window.triggerSingleUpload = async function (inputId, type) {
     const fileInput = document.getElementById(inputId);
     const file = fileInput?.files[0];
-    const studentId = document.getElementById('hv_student')?.value;
-    if (!file || !studentId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกนักเรียนและไฟล์รูปภาพก่อนครับ', 'warning');
+    const studentId = document.getElementById('hv_student')?.value; // รหัส UUID
+    const studentCode = document.getElementById('student_code')?.value; // รหัส 5 หลัก (ดึงจาก input)
+
+    if (!file || !studentId || !studentCode) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกนักเรียนก่อนทำการอัพโหลด', 'warning');
+    }
+
     const btn = event.currentTarget;
+    const originalText = btn.innerHTML;
     btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังอัพโหลด...`;
     btn.disabled = true;
+
+// 🛑 กำหนดค่าโฟลเดอร์และ GAS API 
+    // ดึง URL และ โฟลเดอร์เยี่ยมบ้าน มาจากการตั้งค่าส่วนกลางของแอดมิน (moduleSettings)
+    const GAS_URL = moduleSettings.gas_url; 
+    const FOLDER_HOMEVISIT = moduleSettings.drive_folder_id; 
+    
+    // โฟลเดอร์รูปโปรไฟล์นักเรียน (ระบุคงที่ไว้ตามเดิม)
+    const FOLDER_PROFILE = '168WCLk-GfvyGZnlE5ywGOVx2Qz8QRvnN';
+
+    let targetFolderId = FOLDER_HOMEVISIT;
+    let targetFileName = `HV_${studentCode}_${type}.jpg`; // รูปเยี่ยมบ้านตั้งชื่อตามรหัสเด็กและประเภท
+
+    // ถ้ารูปที่อัปโหลดคือ รูปนักเรียน (type = 'student')
+    if (type === 'student') {
+        targetFolderId = FOLDER_PROFILE;
+        targetFileName = `avatar_${studentCode}.jpg`; // ชื่อไฟล์สำหรับลบทับรูปเดิม
+    }
+
     try {
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-            const base64 = reader.result.split(',')[1];
-            const response = await fetch(moduleSettings.gas_url, {
-                method: "POST",
-                body: JSON.stringify({ action: 'upload', base64, fileName: `HV_${studentId}_${type}.jpg`, folderId: moduleSettings.drive_folder_id }),
-            });
-            const res = await response.json();
-            fileInput.dataset.uploadedUrl = res.url;
+        // 1. เรียกใช้ฟังก์ชันบีบอัดภาพให้ไม่เกิน 2MB
+        const compressedBase64 = await compressImage(file, 2);
+
+        // 2. ส่งไปที่ GAS
+        const response = await fetch(GAS_URL, {
+            method: "POST",
+            body: JSON.stringify({ 
+                action: 'upload', 
+                base64: compressedBase64, 
+                fileName: targetFileName, 
+                folderId: targetFolderId 
+            }),
+        });
+        
+        const res = await response.json();
+        
+        if (res.status === 'success' && res.url) {
+            fileInput.dataset.uploadedUrl = res.url; // แขวน URL ไว้ที่ Dataset
+
+            // 3. ถ้ารูปที่อัปโหลดเป็นรูปนักเรียน ให้ Update ลงตาราง core_students ด้วย
+            if (type === 'student') {
+                await db.from('core_students')
+                    .update({ avatar_students_url: res.url })
+                    .eq('student_id_card', studentCode);
+            }
+
+            // แสดงสถานะปุ่มเมื่อเสร็จสิ้น
             btn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> อัพโหลดสำเร็จ`;
-            btn.classList.replace('bg-green-600', 'bg-slate-700');
-        };
-        reader.readAsDataURL(file);
+            btn.classList.add('bg-slate-700', 'text-white');
+            btn.classList.remove('bg-sky-600', 'bg-blue-600', 'text-sky-700'); // เคลียร์สีเดิม
+        } else {
+            throw new Error(res.message || "ไม่สามารถอัพโหลดได้");
+        }
     } catch (err) {
-        btn.innerHTML = 'อัพโหลดรูปนี้';
+        btn.innerHTML = originalText;
         btn.disabled = false;
         Swal.fire('Error', 'ไม่สามารถอัพโหลดได้: ' + err.message, 'error');
     }
@@ -2893,3 +2986,4 @@ window.viewExistingPDF = function (pdfUrl) {
     }
     window.open(pdfUrl, '_blank');
 };
+
