@@ -447,6 +447,51 @@ async function loadStudentInfo(studentId) {
     document.getElementById('student_grade').value = enroll.core_classrooms?.grade_level || '';
     document.getElementById('student_number').value = enroll.student_number || '';
 
+    // ==========================================
+    // ✅ โค้ดดึงรูปโปรไฟล์นักเรียนและนำมาแสดงที่หน้าจอ
+    // ==========================================
+    const avatarUrl = enroll.core_students?.avatar_students_url;
+    const studentPicInput = document.getElementById('pic_student');
+
+    if (studentPicInput) {
+        const previewImg = document.getElementById('preview1'); // กรอบรูป
+        const delBtn = document.getElementById('del_btn1'); // ปุ่มกากบาทลบรูป
+        const cloudBtn = document.getElementById('cloud_btn1'); // ปุ่มอัพโหลด
+
+        if (avatarUrl) {
+            studentPicInput.dataset.uploadedUrl = avatarUrl; // แขวนลิงก์ไว้ใช้สร้าง PDF
+
+            if (previewImg) {
+                previewImg.src = avatarUrl;
+                previewImg.classList.remove('hidden');
+            }
+            if (delBtn) {
+                delBtn.classList.remove('hidden');
+                delBtn.classList.add('flex');
+            }
+            if (cloudBtn) {
+                // เปลี่ยนข้อความปุ่มให้รู้ว่ามีรูปแล้ว
+                cloudBtn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> ใช้รูปโปรไฟล์เดิม`;
+                cloudBtn.classList.add('bg-slate-700', 'text-white');
+                cloudBtn.classList.remove('bg-green-600', 'opacity-40');
+                cloudBtn.disabled = true; // ไม่ต้องให้อัพโหลดซ้ำจนกว่าจะกดเลือกรูปใหม่
+            }
+        } else {
+            // กรณีเด็กยังไม่มีรูป ให้ล้างค่าทุกอย่าง
+            delete studentPicInput.dataset.uploadedUrl;
+
+            if (previewImg) { previewImg.src = ''; previewImg.classList.add('hidden'); }
+            if (delBtn) { delBtn.classList.add('hidden'); delBtn.classList.remove('flex'); }
+            if (cloudBtn) {
+                cloudBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้`;
+                cloudBtn.classList.add('bg-green-600', 'opacity-40');
+                cloudBtn.classList.remove('bg-slate-700', 'text-white');
+                cloudBtn.disabled = true;
+            }
+        }
+    }
+    // ==========================================
+
     await loadExistingHomeVisit(studentId);
     Swal.close();
 }
@@ -869,13 +914,13 @@ async function compressImage(file, maxSizeMB = 2) {
 
                 let quality = 0.9; // เริ่มต้นที่คุณภาพ 90%
                 let base64 = canvas.toDataURL('image/jpeg', quality);
-                
+
                 // ลดคุณภาพลงเรื่อยๆ จนกว่าขนาดจะต่ำกว่า maxSizeMB
                 while (Math.round((base64.length * 3) / 4) / (1024 * 1024) > maxSizeMB && quality > 0.1) {
                     quality -= 0.1;
                     base64 = canvas.toDataURL('image/jpeg', quality);
                 }
-                
+
                 resolve(base64.split(',')[1]); // ส่งคืนเฉพาะส่วน Base64 (ไม่เอา Data URI)
             };
             img.onerror = (err) => reject(err);
@@ -887,14 +932,16 @@ async function compressImage(file, maxSizeMB = 2) {
 // ==========================================
 // ระบบอัปโหลดรูปภาพ (แยกโฟลเดอร์ + บีบอัดภาพ)
 // ==========================================
-window.triggerSingleUpload = async function (inputId, type) {
+window.triggerSingleUpload = async function (event, inputId, type) {
+    if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
+    
     const fileInput = document.getElementById(inputId);
     const file = fileInput?.files[0];
     const studentId = document.getElementById('hv_student')?.value; // รหัส UUID
-    const studentCode = document.getElementById('student_code')?.value; // รหัส 5 หลัก (ดึงจาก input)
+    const studentCode = document.getElementById('student_code')?.value; // รหัส 5 หลัก
 
     if (!file || !studentId || !studentCode) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกนักเรียนก่อนทำการอัพโหลด', 'warning');
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกนักเรียนและไฟล์รูปภาพก่อนทำการอัพโหลด', 'warning');
     }
 
     const btn = event.currentTarget;
@@ -902,28 +949,24 @@ window.triggerSingleUpload = async function (inputId, type) {
     btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังอัพโหลด...`;
     btn.disabled = true;
 
-// 🛑 กำหนดค่าโฟลเดอร์และ GAS API 
-    // ดึง URL และ โฟลเดอร์เยี่ยมบ้าน มาจากการตั้งค่าส่วนกลางของแอดมิน (moduleSettings)
+    // ดึงค่า URL และ โฟลเดอร์เยี่ยมบ้าน จากการตั้งค่าส่วนกลาง
     const GAS_URL = moduleSettings.gas_url; 
     const FOLDER_HOMEVISIT = moduleSettings.drive_folder_id; 
-    
-    // โฟลเดอร์รูปโปรไฟล์นักเรียน (ระบุคงที่ไว้ตามเดิม)
-    const FOLDER_PROFILE = '168WCLk-GfvyGZnlE5ywGOVx2Qz8QRvnN';
+    const FOLDER_PROFILE = '168WCLk-GfvyGZnlE5ywGOVx2Qz8QRvnN'; // โฟลเดอร์รูปโปรไฟล์นักเรียน
 
     let targetFolderId = FOLDER_HOMEVISIT;
-    let targetFileName = `HV_${studentCode}_${type}.jpg`; // รูปเยี่ยมบ้านตั้งชื่อตามรหัสเด็กและประเภท
+    let targetFileName = `HV_${studentCode}_${type}.jpg`; 
 
-    // ถ้ารูปที่อัปโหลดคือ รูปนักเรียน (type = 'student')
-    if (type === 'student') {
+    // ✅ แก้ไข: เช็ค type เป็น 'student_pic' ตามที่ส่งมาจาก HTML
+    if (type === 'student_pic') {
         targetFolderId = FOLDER_PROFILE;
-        targetFileName = `avatar_${studentCode}.jpg`; // ชื่อไฟล์สำหรับลบทับรูปเดิม
+        targetFileName = `avatar_${studentCode}.jpg`; 
     }
 
     try {
-        // 1. เรียกใช้ฟังก์ชันบีบอัดภาพให้ไม่เกิน 2MB
+        // บีบอัดภาพให้ไม่เกิน 2MB (ฟังก์ชันที่วางไปก่อนหน้านี้)
         const compressedBase64 = await compressImage(file, 2);
 
-        // 2. ส่งไปที่ GAS
         const response = await fetch(GAS_URL, {
             method: "POST",
             body: JSON.stringify({ 
@@ -937,19 +980,18 @@ window.triggerSingleUpload = async function (inputId, type) {
         const res = await response.json();
         
         if (res.status === 'success' && res.url) {
-            fileInput.dataset.uploadedUrl = res.url; // แขวน URL ไว้ที่ Dataset
+            fileInput.dataset.uploadedUrl = res.url; 
 
-            // 3. ถ้ารูปที่อัปโหลดเป็นรูปนักเรียน ให้ Update ลงตาราง core_students ด้วย
-            if (type === 'student') {
+            // ✅ ถ้าเป็นรูปนักเรียน ให้ Update ลงตาราง core_students ด้วย
+            if (type === 'student_pic') {
                 await db.from('core_students')
                     .update({ avatar_students_url: res.url })
                     .eq('student_id_card', studentCode);
             }
 
-            // แสดงสถานะปุ่มเมื่อเสร็จสิ้น
             btn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> อัพโหลดสำเร็จ`;
             btn.classList.add('bg-slate-700', 'text-white');
-            btn.classList.remove('bg-sky-600', 'bg-blue-600', 'text-sky-700'); // เคลียร์สีเดิม
+            btn.classList.remove('bg-green-600', 'opacity-40');
         } else {
             throw new Error(res.message || "ไม่สามารถอัพโหลดได้");
         }
