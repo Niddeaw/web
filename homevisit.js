@@ -2940,6 +2940,9 @@ async function loadTeacherOverview() {
 // ==========================================
 // ฟังก์ชันโหลดข้อมูล (ตารางแอดมิน)
 // ==========================================
+// ==========================================
+// ฟังก์ชันโหลดข้อมูล (ตารางแอดมิน)
+// ==========================================
 async function loadAdminOverview() {
     const tbody = document.getElementById('tb-overview-admin');
     if (!tbody) return;
@@ -2970,12 +2973,15 @@ async function loadAdminOverview() {
         const stdCount = {};
         const visitCount = {};
         classIds.forEach(id => { stdCount[id] = 0; visitCount[id] = 0; });
-        (students || []).forEach(s => { if (stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
-
-        (visits || []).forEach(v => {
-            if (visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
-                visitCount[v.classroom_id]++;
-            }
+        
+        // นับนักเรียนทั้งหมด
+        (students || []).forEach(s => { if(stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
+        
+        // ✅ นับเฉพาะที่เยี่ยมแล้วจริงๆ 
+        (visits || []).forEach(v => { 
+            if(visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
+                visitCount[v.classroom_id]++; 
+            } 
         });
 
         tbody.innerHTML = classrooms.map(c => {
