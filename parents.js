@@ -205,7 +205,12 @@ async function loadClassrooms() {
 // ==========================================
 async function loadThailandLibrary() {
     if (thailandLoaded) return;
-    // ถ้าใน HTML มี script ของ Thailand อยู่แล้ว เราจะไม่โหลดซ้ำ (เช็ค typeof $)
+    // ถ้า HTML preload ไว้แล้ว (ผ่าน flag ที่ตั้งใน HTML) ไม่ต้องโหลดซ้ำ
+    if (window.thailandPreloaded) {
+        thailandLoaded = true;
+        return;
+    }
+    // fallback: เช็ค $.Thailand ตามเดิม
     if (typeof $ !== 'undefined' && $.Thailand) {
         thailandLoaded = true;
         return;
@@ -490,8 +495,7 @@ async function uploadImageToDrive(base64String, fileName) {
 
     const response = await fetch(moduleSettings.gd_api_url, {
         method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ✅ สำคัญ
-        keepalive: true,                                            // ป้องกัน request ถูก kill
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({
             action: 'upload',
             base64: cleanBase64,
@@ -500,7 +504,15 @@ async function uploadImageToDrive(base64String, fileName) {
         })
     });
 
-    const result = await response.json();
+    // ป้องกัน GAS ส่ง HTML error กลับมาแทน JSON
+    const rawText = await response.text();
+    let result;
+    try {
+        result = JSON.parse(rawText);
+    } catch {
+        throw new Error('GAS ตอบกลับไม่ใช่ JSON: ' + rawText.substring(0, 200));
+    }
+
     if (result.status === 'success') {
         return getGoogleDriveDirectUrl(result.url);
     }
@@ -1071,12 +1083,18 @@ async function printPDF(classroomId, forceGenerate = false) {
 
         const response = await fetch(moduleSettings.gd_api_url, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // ✅ สำคัญ
-            keepalive: true,
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         });
-        
-        const result = await response.json();
+
+        // ป้องกัน GAS ส่ง HTML error กลับมาแทน JSON
+        const rawText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(rawText);
+        } catch {
+            throw new Error('GAS ตอบกลับไม่ใช่ JSON: ' + rawText.substring(0, 200));
+        }
 
         if (result.status === 'success' && result.url) {
             await db.from('module_parent_network')
