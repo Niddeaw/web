@@ -341,7 +341,7 @@ function renderDashboardSummary() {
 async function loadHomeroomAdvisors(classroomId) {
     const container = document.getElementById('homeroom-advisor-container');
     const nameElement = document.getElementById('homeroom-advisor-names');
-    
+
     if (!container || !nameElement) return;
 
     // แสดง UI โหลดข้อมูล
@@ -351,10 +351,10 @@ async function loadHomeroomAdvisors(classroomId) {
     try {
         // 1. ดึงข้อมูลห้องเรียนจาก Array ที่โหลดไว้แล้วใน checkAuth()
         const classroom = window.globalClassroomsList.find(cls => cls.id === classroomId);
-        
+
         if (!classroom) {
-             nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ไม่พบข้อมูลห้องเรียน</span>';
-             return;
+            nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ไม่พบข้อมูลห้องเรียน</span>';
+            return;
         }
 
         // 2. รวบรวม ID ของครูที่ปรึกษาที่มี
@@ -382,7 +382,7 @@ async function loadHomeroomAdvisors(classroomId) {
         } else {
             nameElement.innerHTML = '<span class="text-slate-400 font-normal italic">ไม่พบข้อมูลในระบบ</span>';
         }
-        
+
     } catch (err) {
         console.error("Error loading homeroom advisors:", err);
         nameElement.innerHTML = '<span class="text-rose-500 font-normal text-sm"><i class="fa-solid fa-triangle-exclamation"></i> ไม่สามารถดึงข้อมูลได้</span>';
@@ -429,7 +429,8 @@ async function loadStudentList(classroomId) {
 
         try {
             const { data: enrollments, error: enrollErr } = await db.from('student_enrollments')
-                .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`)
+                // 🟢 เพิ่ม avatar_students_url ใน Query ฝั่งวันหยุด
+                .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card, avatar_students_url)`)
                 .eq('classroom_id', classroomId)
                 .order('student_number', { ascending: true });
             if (enrollErr) throw enrollErr;
@@ -472,9 +473,11 @@ async function loadStudentList(classroomId) {
         return;
     }
 
-    $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2 text-blue-500"></i> กำลังดึงข้อมูล...</td></tr>');
+    $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin text-3xl text-blue-200 mb-3"></i> กำลังดึงข้อมูล...</td></tr>');
+
+    // 🟢 เพิ่ม avatar_students_url ใน Query ฝั่งวันปกติ
     const [{ data: enrollments }, { data: attendance }] = await Promise.all([
-        db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`).eq('classroom_id', classroomId).order('student_number', { ascending: true }),
+        db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card, avatar_students_url)`).eq('classroom_id', classroomId).order('student_number', { ascending: true }),
         db.from('homeroom_attendance').select('student_id, status').eq('classroom_id', classroomId).eq('check_date', checkDate)
     ]);
 
@@ -518,9 +521,9 @@ function updateStats() {
     $('#stat-present').text(vals.filter(v => v === 'มา').length);
     $('#stat-absent').text(vals.filter(v => v !== 'มา' && v !== '').length);
 }
-function updateStatsClear() { 
-    $('#stat-present').text('0'); 
-    $('#stat-absent').text('0'); 
+function updateStatsClear() {
+    $('#stat-present').text('0');
+    $('#stat-absent').text('0');
 }
 
 async function fillRemainingAsPresent(classroomId, checkDate, silent = false) {
@@ -646,18 +649,68 @@ async function updateAttendance(studentId, status) {
 function renderTable(enrollments) {
     const tbody = $('#student-list').empty();
     if (!enrollments?.length) return;
+
     enrollments.forEach(item => {
         const std = item.core_students;
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
         const current = attendanceData[item.student_id] || '';
+
+        // 🟢 1. กำหนดรูปโปรไฟล์ (ถ้าไม่มีรูป ให้สร้างรูปตัวอักษรสีพาสเทลอัตโนมัติ)
+        const avatarUrl = std?.avatar_students_url
+            ? std.avatar_students_url
+            : `https://ui-avatars.com/api/?name=${encodeURIComponent(std?.first_name || 'U')}&background=ebd9fc&color=7c3aed&font-size=0.4&bold=true`;
+
+        // 2. สร้างปุ่มสถานะ (อ้างอิง Logic เดิม)
         const btns = ['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย'].map(s => {
             const cls = current === s ? statusStyles[s].active : statusStyles[s].inactive;
             return `<button onclick="updateAttendance('${item.student_id}','${s}')" class="status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all ${cls}">${s}</button>`;
         }).join('');
+
+        // 🟢 3. อัปเดต HTML ของแถวตาราง
         tbody.append(`<tr data-student-id="${item.student_id}" data-student-code="${std?.student_id_card || '-'}" class="hover:bg-blue-50/50 transition-colors border-b border-slate-50">
-            <td class="px-6 py-4 font-bold text-slate-400 text-center">${item.student_number}</td>
-            <td class="px-6 py-4"><div class="font-bold text-blue-700 cursor-pointer hover:text-blue-900" onclick="openStudentHistory('${item.student_id}', '${fullName}', '${item.student_number}')">${fullName} <i class="fas fa-search text-[10px] ml-1 opacity-50"></i></div></td>
-            <td class="px-6 py-4"><div class="flex justify-center gap-1 sm:gap-2">${btns}</div></td></tr>`);
+            <td class="px-6 py-4 font-bold text-slate-400 text-center align-middle">${item.student_number}</td>
+            
+            <td class="px-6 py-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 shrink-0 rounded-full bg-slate-100 border border-slate-200 shadow-sm overflow-hidden flex items-center justify-center relative group cursor-pointer"
+                         onclick="showFullImage('${avatarUrl}', '${fullName}')">
+                        <img src="${avatarUrl}" 
+                             alt="${fullName}" 
+                             class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                             onerror="this.onerror=null; this.src='https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';">
+                    </div>
+                    
+                    <div class="font-bold text-blue-700 cursor-pointer hover:text-blue-900" onclick="openStudentHistory('${item.student_id}', '${fullName}', '${item.student_number}')">
+                        ${fullName} <i class="fas fa-search text-[10px] ml-1 opacity-50"></i>
+                        <div class="text-[10px] text-slate-400 font-normal mt-0.5 leading-none">เลขประจำตัว: ${std?.student_id_card || '-'}</div>
+                    </div>
+                </div>
+            </td>
+            
+            <td class="px-6 py-4 align-middle"><div class="flex justify-center gap-1 sm:gap-2">${btns}</div></td>
+        </tr>`);
+    });
+}
+
+/**
+ * ฟังก์ชันแสดงรูปโปรไฟล์ขนาดใหญ่ด้วย SweetAlert2
+ * @param {string} imageUrl - ลิงก์รูปภาพ
+ * @param {string} studentName - ชื่อ-นามสกุลนักเรียน
+ */
+function showFullImage(imageUrl, studentName) {
+    Swal.fire({
+        title: studentName,
+        imageUrl: imageUrl,
+        imageAlt: `รูปโปรไฟล์ของ ${studentName}`,
+        showCloseButton: true,
+        showConfirmButton: false, // ซ่อนปุ่ม "ตกลง" ให้เหลือแค่รูปกับปุ่มกากบาทปิด
+        padding: '1.5em',
+        customClass: {
+            title: 'text-xl font-bold text-blue-900 font-sans',
+            image: 'rounded-2xl shadow-lg border border-slate-200 max-h-[60vh] object-contain', // ใส่ขอบโค้งมนและปรับขนาดรูปไม่ให้ล้นจอ
+            popup: 'rounded-3xl border border-blue-50 bg-white/95 backdrop-blur-sm' // สไตล์ Glassmorphism
+        },
+        backdrop: 'rgba(15, 23, 42, 0.8)' // พื้นหลังสีเทาเข้มแบบโปร่งแสง
     });
 }
 
@@ -1143,7 +1196,7 @@ function openAdminModal() {
     $('#setting-enforce-term-start').prop('checked', moduleSettings.enforce_term_start);
     $('#setting-end-date').val(moduleSettings.end_date || '');
     renderHolidayList();
-    
+
     const today = new Date().toISOString().split('T')[0];
     $('#admin-batch-date').val(today);
     $('#admin-batch-status').html('');
@@ -1408,8 +1461,8 @@ async function loadGradeOverviewData() {
 }
 
 // ✅ ส่วนที่เพิ่มเติม: closeGradeOverview (จำเป็น)
-function closeGradeOverview() { 
-    $('#grade-overview-modal').addClass('hidden'); 
+function closeGradeOverview() {
+    $('#grade-overview-modal').addClass('hidden');
 }
 
 // ==================== STATS MODAL ====================
