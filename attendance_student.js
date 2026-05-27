@@ -45,7 +45,7 @@ async function checkAuth() {
 
         if (studentError || !student) {
             console.error("ไม่พบข้อมูลนักเรียน:", studentError);
-            await db.auth.signOut(); // ✅ ใช้ signOut แทน localStorage.removeItem
+            await db.auth.signOut();
             window.location.replace("index.html");
             return;
         }
@@ -71,14 +71,30 @@ async function checkAuth() {
 
         currentEnrollment = enrollment;
 
-        // แสดงข้อมูลส่วนตัว
+        // 🟢 1. แสดงข้อมูลส่วนตัว (อัปเดตให้ตรงกับ HTML ดีไซน์ใหม่)
         const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
         const className = `ม.${enrollment.core_classrooms.grade_level}/${enrollment.core_classrooms.room_number}`;
-        $('#student-name').text(fullName);
-        $('#student-class').text(className);
-        $('#student-no').text(enrollment.student_number);
-        $('#student-code').text(currentStudent.student_id_card || '-');
-        $('#user-display').html(`<i class="fas fa-user-graduate mr-1"></i>${currentStudent.prefix}${currentStudent.first_name} ${currentStudent.last_name}`);
+        
+        $('#student-fullname').text(fullName);
+        $('#student-info').html(`
+            <p><i class="fas fa-graduation-cap w-5 text-center text-emerald-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ${className}</p>
+            <p><i class="fas fa-list-ol w-5 text-center text-emerald-400 drop-shadow-sm"></i> เลขที่ ${enrollment.student_number}</p>
+            <p><i class="fas fa-id-card w-5 text-center text-emerald-400 drop-shadow-sm"></i> รหัสประจำตัว: ${currentStudent.student_id_card || '-'}</p>
+        `);
+        
+        // 🟢 2. จัดการรูปโปรไฟล์ (Avatar)
+        const avatarUrl = currentStudent.avatar_students_url;
+        if (avatarUrl) {
+            $('#student-avatar').attr('src', avatarUrl).removeClass('hidden');
+            $('#student-avatar-placeholder').addClass('hidden');
+        } else {
+            // ถ้าไม่มีรูประบบจะเจนรูปตัวอักษรสีเขียว (สไตล์หน้าเด็กนักเรียน) แทนให้อัตโนมัติ
+            const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentStudent.first_name)}&background=d1fae5&color=059669&font-size=0.4&bold=true`;
+            $('#student-avatar').attr('src', fallbackUrl).removeClass('hidden');
+            $('#student-avatar-placeholder').addClass('hidden');
+        }
+
+        $('#user-display').html(`<i class="fas fa-user-graduate mr-1 text-emerald-600"></i>${currentStudent.first_name} ${currentStudent.last_name}`);
 
         await loadAttendanceHistory();
     } catch (err) {
@@ -113,26 +129,30 @@ async function loadAttendanceHistory() {
     $('#count-leave').text(counts['ลา']);
     $('#count-sick').text(counts['ป่วย']);
 
-    // สร้างตาราง
+    // สร้างตารางประวัติย้อนหลัง
     if (attendanceHistory.length === 0) {
-        $('#history-list').html('<tr><td colspan="2" class="text-center py-10 text-slate-400">ยังไม่มีประวัติการเช็คชื่อ</td></tr>');
+        $('#history-list').html('<tr><td colspan="2" class="text-center py-16 text-slate-400 font-medium">ยังไม่มีประวัติการเช็คชื่อในเทอมนี้</td></tr>');
         return;
     }
 
     let rows = '';
     attendanceHistory.forEach(h => {
         const thaiDate = formatThaiDateFull(h.check_date);
-        let colorClass = 'text-slate-700';
-        if (h.status === 'มา') colorClass = 'text-green-600 font-bold';
-        else if (h.status === 'ขาด') colorClass = 'text-rose-600 font-bold';
-        else if (h.status === 'สาย') colorClass = 'text-orange-500 font-bold';
-        else if (h.status === 'ลา') colorClass = 'text-yellow-600 font-bold';
-        else if (h.status === 'ป่วย') colorClass = 'text-blue-600 font-bold';
+        let colorClass = 'text-slate-700 bg-slate-100'; // Default
+        
+        // 🟢 เปลี่ยนสีสถานะให้ตรงกับสีในการ์ดด้านบน (Tailwind CSS)
+        if (h.status === 'มา') colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
+        else if (h.status === 'ขาด') colorClass = 'text-rose-700 bg-rose-50 border-rose-200';
+        else if (h.status === 'สาย') colorClass = 'text-orange-700 bg-orange-50 border-orange-200';
+        else if (h.status === 'ลา') colorClass = 'text-yellow-700 bg-yellow-50 border-yellow-200';
+        else if (h.status === 'ป่วย') colorClass = 'text-blue-700 bg-blue-50 border-blue-200';
 
         rows += `
             <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
-                <td class="px-6 py-3 text-sm">${thaiDate}</td>
-                <td class="px-6 py-3 text-center ${colorClass}">${h.status}</td>
+                <td class="px-6 py-4 font-bold text-slate-600 text-[13px]">${thaiDate}</td>
+                <td class="px-6 py-4 text-center">
+                    <span class="px-3 py-1 text-xs font-black rounded-xl border ${colorClass}">${h.status}</span>
+                </td>
             </tr>
         `;
     });
@@ -140,13 +160,14 @@ async function loadAttendanceHistory() {
     $('#history-list').html(rows);
 }
 
-async function exportMyPDF() {
+// 🟢 3. แก้ชื่อฟังก์ชันให้ตรงกับปุ่มใน HTML (จาก exportMyPDF -> exportToPDF)
+async function exportToPDF() {
     if (attendanceHistory.length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติให้พิมพ์', 'info');
         return;
     }
 
-    Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({ title: 'กำลังสร้างเอกสาร PDF...', text: 'จัดหน้าเอกสาร กรุณารอสักครู่...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน (ตั้งค่าชื่อโรงเรียนในระบบส่วนกลาง)';
     const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
@@ -174,7 +195,7 @@ async function exportMyPDF() {
                 <img src="${logoUrl}" crossorigin="anonymous" style="height: 60px; display: block; margin: 0 auto 10px auto;" alt="Logo">
                 <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
                 <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                <h2 style="margin: 0; font-size: 16px; color: #065f46;">รายงานประวัติการมาเรียนรายบุคคล</h2>
+                <h2 style="margin: 0; font-size: 16px; color: #059669;">รายงานประวัติการมาเรียนรายบุคคล</h2>
                 <h3 style="margin: 10px 0 5px 0; font-size: 14px; font-weight: normal;">
                     ชื่อ: ${studentFullName} | เลขที่ ${currentEnrollment.student_number} | ชั้น ${className}
                 </h3>
@@ -190,11 +211,11 @@ async function exportMyPDF() {
                     <th style="border: 1px solid #cbd5e1; padding: 8px;">ป่วย</th>
                 </tr>
                 <tr>
-                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: green; font-weight: bold;">${counts['มา']}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: red;">${counts['ขาด']}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: orange;">${counts['สาย']}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: #059669; font-weight: bold;">${counts['มา']}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: #e11d48;">${counts['ขาด']}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: #ea580c;">${counts['สาย']}</td>
                     <td style="border: 1px solid #cbd5e1; padding: 8px; color: #ca8a04;">${counts['ลา']}</td>
-                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: blue;">${counts['ป่วย']}</td>
+                    <td style="border: 1px solid #cbd5e1; padding: 8px; color: #2563eb;">${counts['ป่วย']}</td>
                 </tr>
             </table>
 
@@ -213,11 +234,11 @@ async function exportMyPDF() {
             pageData.forEach(h => {
                 const thaiDate = formatThaiDateFull(h.check_date);
                 let colorStyle = 'color: #333;';
-                if (h.status === 'มา') colorStyle = 'color: green; font-weight: bold;';
-                else if (h.status === 'ขาด') colorStyle = 'color: red; font-weight: bold;';
-                else if (h.status === 'สาย') colorStyle = 'color: orange;';
+                if (h.status === 'มา') colorStyle = 'color: #059669; font-weight: bold;';
+                else if (h.status === 'ขาด') colorStyle = 'color: #e11d48; font-weight: bold;';
+                else if (h.status === 'สาย') colorStyle = 'color: #ea580c;';
                 else if (h.status === 'ลา') colorStyle = 'color: #ca8a04;';
-                else if (h.status === 'ป่วย') colorStyle = 'color: blue;';
+                else if (h.status === 'ป่วย') colorStyle = 'color: #2563eb;';
 
                 htmlContent += `
                     <tr>
@@ -249,7 +270,7 @@ async function exportMyPDF() {
     });
 }
 
-// ✅ logout ใช้ Supabase signOut (ถูกต้องอยู่แล้ว ไม่ต้องแก้)
+// ✅ logout
 async function logout() {
     await db.auth.signOut();
     window.location.href = "index.html";
