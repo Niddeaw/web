@@ -124,31 +124,31 @@
             <div class="glass-card rounded-2xl p-6">
                 <div class="flex flex-wrap gap-2 mb-8" id="stepper"></div>
 
-                <form id="network-form" onsubmit="saveNetworkData(event)">
-                    <div id="form-container">
-                        <div class="text-center py-20 text-slate-300">
-                            <i class="fas fa-mouse-pointer text-5xl mb-4"></i>
-                            <p class="font-bold uppercase tracking-widest text-xs">กรุณาเลือกห้องเรียนเพื่อดึงข้อมูล</p>
-                        </div>
+                <form id="network-form" onsubmit="saveNetworkData(event)" novalidate></form>
+                <div id="form-container">
+                    <div class="text-center py-20 text-slate-300">
+                        <i class="fas fa-mouse-pointer text-5xl mb-4"></i>
+                        <p class="font-bold uppercase tracking-widest text-xs">กรุณาเลือกห้องเรียนเพื่อดึงข้อมูล</p>
                     </div>
+                </div>
 
-                    <div id="form-actions"
-                        class="hidden flex justify-between items-center pt-6 border-t border-slate-100 mt-8">
-                        <button type="button" onclick="prevStep()"
-                            class="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm">ย้อนกลับ</button>
-                        <div class="flex gap-2">
-                            <button type="button" onclick="clearRoomData()"
-                                class="px-5 py-2.5 text-rose-500 font-bold rounded-xl hover:bg-rose-50 transition-all text-sm border border-transparent hover:border-rose-100">
-                                <i class="fas fa-trash-alt mr-1"></i> ล้างข้อมูลห้องนี้
-                            </button>
-                            <button type="button" id="btn-next" onclick="nextStep()"
-                                class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">ถัดไป</button>
-                            <button type="submit" id="btn-submit"
-                                class="hidden px-8 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all text-sm">
-                                <i class="fas fa-save mr-1"></i> บันทึกข้อมูลทั้งหมด
-                            </button>
-                        </div>
+                <div id="form-actions"
+                    class="hidden flex justify-between items-center pt-6 border-t border-slate-100 mt-8">
+                    <button type="button" onclick="prevStep()"
+                        class="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm">ย้อนกลับ</button>
+                    <div class="flex gap-2">
+                        <button type="button" onclick="clearRoomData()"
+                            class="px-5 py-2.5 text-rose-500 font-bold rounded-xl hover:bg-rose-50 transition-all text-sm border border-transparent hover:border-rose-100">
+                            <i class="fas fa-trash-alt mr-1"></i> ล้างข้อมูลห้องนี้
+                        </button>
+                        <button type="button" id="btn-next" onclick="nextStep()"
+                            class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">ถัดไป</button>
+                        <button type="submit" id="btn-submit"
+                            class="hidden px-8 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all text-sm">
+                            <i class="fas fa-save mr-1"></i> บันทึกข้อมูลทั้งหมด
+                        </button>
                     </div>
+                </div>
                 </form>
             </div>
         </div>
@@ -185,106 +185,115 @@
         </div>
     </main>
 
-<!-- Modal ผู้ดูแลระบบ -->
-<div id="admin-modal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center hidden">
-    <div class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-8 animate-fade-in">
-        <div class="flex justify-between items-center border-b pb-4">
-            <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">
-                <i class="fas fa-cogs mr-2 text-purple-600"></i>ตั้งค่าผู้ดูแลระบบ
-            </h2>
-            <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
-        </div>
-
-        <!-- ส่วนที่ 1: การเชื่อมต่อ Google API (เหลือ 1 ช่อง) -->
-        <section>
-            <h3 class="text-sm font-black text-blue-800 uppercase mb-3 flex items-center gap-2">
-                <i class="fas fa-cloud-upload-alt"></i> การเชื่อมต่อ Google API
-            </h3>
-            <div class="grid grid-cols-1 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">Google API Link (Exec URL) <span class="text-red-500">*</span></label>
-                    <input type="url" id="set-api-url" placeholder="https://script.google.com/macros/s/..." 
-                           class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-200">
-                    <p class="text-[10px] text-slate-400 mt-1">ใช้สำหรับทั้งอัปโหลดรูปภาพและสร้างไฟล์ PDF</p>
-                </div>
+    <!-- Modal ผู้ดูแลระบบ -->
+    <div id="admin-modal"
+        class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+        <div
+            class="bg-white rounded-3xl shadow-2xl p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto space-y-8 animate-fade-in">
+            <div class="flex justify-between items-center border-b pb-4">
+                <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">
+                    <i class="fas fa-cogs mr-2 text-purple-600"></i>ตั้งค่าผู้ดูแลระบบ
+                </h2>
+                <button onclick="closeAdminModal()"
+                    class="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
             </div>
-        </section>
 
-        <!-- ส่วนที่ 2: ตำแหน่งเก็บไฟล์ (แยก Folder รูป และ PDF) -->
-        <section>
-            <h3 class="text-sm font-black text-green-800 uppercase mb-3 flex items-center gap-2">
-                <i class="fas fa-folder-open"></i> ตำแหน่งเก็บไฟล์บน Google Drive
-            </h3>
-            <div class="grid grid-cols-1 gap-4 bg-green-50/50 p-4 rounded-2xl border border-green-100">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">ID Folder สำหรับอัปโหลดรูปภาพ <span class="text-red-500">*</span></label>
-                    <input type="text" id="set-folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
-                           class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-green-200">
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">ID Folder สำหรับอัปโหลดไฟล์ PDF</label>
-                    <input type="text" id="set-pdf-folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
-                           class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-green-200">
-                </div>
-            </div>
-        </section>
-
-        <!-- ส่วนที่ 3: เทมเพลตสไลด์ (Google Slides) -->
-        <section>
-            <h3 class="text-sm font-black text-purple-800 uppercase mb-3 flex items-center gap-2">
-                <i class="fas fa-sliders-h"></i> เทมเพลตสไลด์ (Google Slides)
-            </h3>
-            <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
-                <div>
-                    <label class="block text-xs font-bold text-slate-600 mb-1">ID สไลด์เทมเพลต <span class="text-red-500">*</span></label>
-                    <input type="text" id="set-slide-id" placeholder="1abcDEFghijKLmnopQRStuvWXyz"
-                           class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-purple-200">
-                </div>
-            </div>
-        </section>
-
-        <!-- ส่วนที่ 4: แต่งตั้งผู้ดูแลระบบ (คงเดิม) -->
-        <section>
-            <h3 class="text-sm font-black text-purple-800 uppercase mb-3 flex items-center gap-2">
-                <i class="fas fa-user-shield"></i> แต่งตั้งผู้ดูแลระบบ (Module Admin)
-            </h3>
-            <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100 space-y-4">
-                <div class="flex items-end gap-2">
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-slate-600 mb-1">เลือกครูเพื่อแต่งตั้ง</label>
-                        <select id="select-teacher-appoint" class="w-full"></select>
+            <!-- ส่วนที่ 1: การเชื่อมต่อ Google API (เหลือ 1 ช่อง) -->
+            <section>
+                <h3 class="text-sm font-black text-blue-800 uppercase mb-3 flex items-center gap-2">
+                    <i class="fas fa-cloud-upload-alt"></i> การเชื่อมต่อ Google API
+                </h3>
+                <div class="grid grid-cols-1 gap-4 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">Google API Link (Exec URL) <span
+                                class="text-red-500">*</span></label>
+                        <input type="url" id="set-api-url" placeholder="https://script.google.com/macros/s/..."
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-200">
+                        <p class="text-[10px] text-slate-400 mt-1">ใช้สำหรับทั้งอัปโหลดรูปภาพและสร้างไฟล์ PDF</p>
                     </div>
-                    <button onclick="appointModuleAdmin()"
+                </div>
+            </section>
+
+            <!-- ส่วนที่ 2: ตำแหน่งเก็บไฟล์ (แยก Folder รูป และ PDF) -->
+            <section>
+                <h3 class="text-sm font-black text-green-800 uppercase mb-3 flex items-center gap-2">
+                    <i class="fas fa-folder-open"></i> ตำแหน่งเก็บไฟล์บน Google Drive
+                </h3>
+                <div class="grid grid-cols-1 gap-4 bg-green-50/50 p-4 rounded-2xl border border-green-100">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ID Folder สำหรับอัปโหลดรูปภาพ <span
+                                class="text-red-500">*</span></label>
+                        <input type="text" id="set-folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-green-200">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ID Folder สำหรับอัปโหลดไฟล์
+                            PDF</label>
+                        <input type="text" id="set-pdf-folder-id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-green-200">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ส่วนที่ 3: เทมเพลตสไลด์ (Google Slides) -->
+            <section>
+                <h3 class="text-sm font-black text-purple-800 uppercase mb-3 flex items-center gap-2">
+                    <i class="fas fa-sliders-h"></i> เทมเพลตสไลด์ (Google Slides)
+                </h3>
+                <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ID สไลด์เทมเพลต <span
+                                class="text-red-500">*</span></label>
+                        <input type="text" id="set-slide-id" placeholder="1abcDEFghijKLmnopQRStuvWXyz"
+                            class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-purple-200">
+                    </div>
+                </div>
+            </section>
+
+            <!-- ส่วนที่ 4: แต่งตั้งผู้ดูแลระบบ (คงเดิม) -->
+            <section>
+                <h3 class="text-sm font-black text-purple-800 uppercase mb-3 flex items-center gap-2">
+                    <i class="fas fa-user-shield"></i> แต่งตั้งผู้ดูแลระบบ (Module Admin)
+                </h3>
+                <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100 space-y-4">
+                    <div class="flex items-end gap-2">
+                        <div class="flex-1">
+                            <label class="block text-xs font-bold text-slate-600 mb-1">เลือกครูเพื่อแต่งตั้ง</label>
+                            <select id="select-teacher-appoint" class="w-full"></select>
+                        </div>
+                        <button onclick="appointModuleAdmin()"
                             class="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all whitespace-nowrap">
-                        <i class="fas fa-plus mr-1"></i> แต่งตั้ง
-                    </button>
-                </div>
-                <div>
-                    <p class="text-xs font-bold text-slate-500 mb-2">รายชื่อผู้ดูแลปัจจุบัน</p>
-                    <div class="max-h-32 overflow-y-auto">
-                        <table class="w-full text-sm">
-                            <thead>
-                                <tr class="text-left text-slate-400 text-xs">
-                                    <th class="py-1">ชื่อ-นามสกุล</th>
-                                    <th class="py-1 text-center w-16">ถอดถอน</th>
-                                 </tr>
-                            </thead>
-                            <tbody id="module-admin-list" class="divide-y divide-purple-100"></tbody>
-                        </table>
+                            <i class="fas fa-plus mr-1"></i> แต่งตั้ง
+                        </button>
+                    </div>
+                    <div>
+                        <p class="text-xs font-bold text-slate-500 mb-2">รายชื่อผู้ดูแลปัจจุบัน</p>
+                        <div class="max-h-32 overflow-y-auto">
+                            <table class="w-full text-sm">
+                                <thead>
+                                    <tr class="text-left text-slate-400 text-xs">
+                                        <th class="py-1">ชื่อ-นามสกุล</th>
+                                        <th class="py-1 text-center w-16">ถอดถอน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="module-admin-list" class="divide-y divide-purple-100"></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
-        </section>
+            </section>
 
-        <!-- ปุ่มบันทึกทั้งหมด -->
-        <div class="flex justify-end gap-3 pt-4 border-t">
-            <button onclick="closeAdminModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200">ยกเลิก</button>
-            <button onclick="saveAdminSettings()" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">
-                <i class="fas fa-save mr-1"></i> บันทึกการตั้งค่า
-            </button>
+            <!-- ปุ่มบันทึกทั้งหมด -->
+            <div class="flex justify-end gap-3 pt-4 border-t">
+                <button onclick="closeAdminModal()"
+                    class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200">ยกเลิก</button>
+                <button onclick="saveAdminSettings()"
+                    class="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">
+                    <i class="fas fa-save mr-1"></i> บันทึกการตั้งค่า
+                </button>
+            </div>
         </div>
     </div>
-</div>
 
     <script src="parents.js"></script>
 </body>
