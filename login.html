@@ -2,428 +2,453 @@
 <html lang="th">
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบ | WRK System</title>
-    <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
+    <title>Central Portal - ระบบบริหารจัดการสถานศึกษา</title>
+    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <script src="core_head.js"></script>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
 
-    <style>
-        /* สไตล์เดิมทั้งหมด คงไว้เหมือนเดิม */
-        body {
-            font-family: 'Anuphan', sans-serif;
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            padding: 1.5rem;
-        }
-
-        .container-auth {
-            position: relative;
-            width: 100%;
-            max-width: 900px;
-            min-height: 550px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.4);
-            border-radius: 2.5rem;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
-            overflow: hidden;
-        }
-
-        .form-container {
-            position: absolute;
-            top: 0;
-            height: 100%;
-            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            text-align: center;
-            padding: 0 4rem;
-        }
-
-        .teacher-container {
-            left: 0;
-            width: 50%;
-            z-index: 2;
-        }
-
-        .container-auth.right-panel-active .teacher-container {
-            transform: translateX(100%);
-        }
-
-        .student-container {
-            left: 0;
-            width: 50%;
-            opacity: 0;
-            z-index: 1;
-        }
-
-        .container-auth.right-panel-active .student-container {
-            transform: translateX(100%);
-            opacity: 1;
-            z-index: 5;
-            animation: show 0.6s;
-        }
-
-        @keyframes show {
-            0%, 49.99% { opacity: 0; z-index: 1; }
-            50%, 100% { opacity: 1; z-index: 5; }
-        }
-
-        .overlay-container {
-            position: absolute;
-            top: 0;
-            left: 50%;
-            width: 50%;
-            height: 100%;
-            overflow: hidden;
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-            z-index: 100;
-        }
-
-        .container-auth.right-panel-active .overlay-container {
-            transform: translateX(-100%);
-        }
-
-        .overlay {
-            background: linear-gradient(135deg, #1d4ed8, #4f46e5);
-            color: #FFFFFF;
-            position: relative;
-            left: -100%;
-            height: 100%;
-            width: 200%;
-            transform: translateX(0);
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .container-auth.right-panel-active .overlay {
-            transform: translateX(50%);
-        }
-
-        .overlay-panel {
-            position: absolute;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column;
-            padding: 0 40px;
-            text-align: center;
-            top: 0;
-            height: 100%;
-            width: 50%;
-            transform: translateX(0);
-            transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .overlay-left {
-            transform: translateX(-20%);
-        }
-
-        .container-auth.right-panel-active .overlay-left {
-            transform: translateX(0);
-        }
-
-        .overlay-right {
-            right: 0;
-            transform: translateX(0);
-        }
-
-        .container-auth.right-panel-active .overlay-right {
-            transform: translateX(20%);
-        }
-
-        @media (max-width: 768px) {
-            .container-auth {
-                min-height: 80vh;
-                border-radius: 2rem;
-                max-width: 100%;
-            }
-
-            .form-container {
-                width: 100%;
-                padding: 0 2rem;
-            }
-
-            .teacher-container { width: 100%; }
-            .student-container { width: 100%; display: none; opacity: 1; }
-
-            .container-auth.right-panel-active .student-container {
-                display: flex;
-                transform: translateX(0);
-            }
-
-            .container-auth.right-panel-active .teacher-container {
-                display: none;
-            }
-
-            .overlay-container {
-                display: none;
-            }
-        }
-    </style>
 </head>
 
-<body>
+<body class="text-gray-800 min-h-screen flex flex-col relative opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <div class="container-auth" id="container">
-
-        <!-- ฟอร์มนักเรียน -->
-        <div class="form-container student-container bg-white">
-            <div class="text-center mb-6">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
-                <h1 class="text-2xl font-black text-blue-900 leading-tight">ระบบของนักเรียน</h1>
-                <p class="text-slate-500 text-sm mt-1">เข้าสู่ระบบสำหรับนักเรียน</p>
-            </div>
-
-            <div class="space-y-4 w-full max-w-sm mx-auto">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">เลขประจำตัวนักเรียน (5 หลัก)</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-user text-slate-400"></i></div>
-                        <input type="text" id="s_id" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all text-sm" placeholder="ระบุเลขประจำตัว">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">
-                        รหัสผ่าน <span class="text-gray-400 font-normal">(เลขบัตรประชาชน)</span>
-                    </label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-id-card text-slate-400"></i></div>
-                        <input type="password" id="s_idc" class="w-full pl-10 pr-12 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50 transition-all text-sm" placeholder="กรอกเลขบัตรประชาชน 13 หลัก">
-                        <button type="button" onclick="togglePwd('s_idc', 'eye_s')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-blue-600 outline-none">
-                            <i class="fas fa-eye" id="eye_s"></i>
-                        </button>
-                    </div>
-                </div>
-                <button id="btn-student-login"
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl mt-3 shadow-lg shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบนักเรียน
-                </button>
-
-                <button onclick="document.getElementById('container').classList.remove('right-panel-active')"
-                    class="md:hidden w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl mt-2 transition-all text-sm">
-                    กลับไปโหมดคุณครู
-                </button>
-            </div>
+    <div class="fixed inset-0 z-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 pointer-events-none">
+        <div
+            class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse">
         </div>
-
-        <!-- ฟอร์มครู -->
-        <div class="form-container teacher-container bg-white">
-            <div class="text-center mb-6">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-14 mx-auto mb-3 drop-shadow-sm">
-                <h1 class="text-2xl font-black text-indigo-900 leading-tight">WRK Portal</h1>
-                <p class="text-slate-500 text-sm mt-1">เข้าสู่ระบบบุคลากรทางการศึกษา</p>
-            </div>
-
-            <div class="space-y-4 w-full max-w-sm mx-auto">
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">อีเมลผู้ใช้งาน (Email)</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-envelope text-slate-400"></i></div>
-                        <input type="email" id="t_email" class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 transition-all text-sm" placeholder="example@school.ac.th">
-                    </div>
-                </div>
-                <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1 text-left">รหัสผ่าน (Password)</label>
-                    <div class="relative">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"><i class="fas fa-lock text-slate-400"></i></div>
-                        <input type="text" id="t_pwd" class="w-full pl-10 pr-12 py-3 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50 transition-all text-sm" placeholder="ระบุรหัสผ่าน">
-                        <button type="button" onclick="togglePwd('t_pwd', 'eye_t')" class="absolute inset-y-0 right-0 pr-4 flex items-center text-slate-400 hover:text-indigo-600 outline-none"><i class="fas fa-eye" id="eye_t"></i></button>
-                    </div>
-                </div>
-
-                <button id="btn-teacher-login"
-                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl mt-3 shadow-lg shadow-indigo-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-                    <i class="fas fa-sign-in-alt"></i> เข้าสู่ระบบคุณครู
-                </button>
-
-                <button onclick="document.getElementById('container').classList.add('right-panel-active')"
-                    class="md:hidden w-full bg-slate-100 text-slate-600 font-bold py-3 rounded-xl mt-2 transition-all text-sm">
-                    เข้าสู่ระบบนักเรียน
-                </button>
-            </div>
-        </div>
-
-        <div class="overlay-container hidden md:block">
-            <div class="overlay">
-                <div class="overlay-panel overlay-left">
-                    <i class="fas fa-chalkboard-teacher text-5xl mb-5 text-white/90"></i>
-                    <h1 class="text-3xl font-black mb-3">ระบบครูและบุคลากร</h1>
-                    <p class="text-sm font-medium text-blue-100 mb-8 max-w-[280px]">กรุณาเข้าสู่ระบบในโหมดของคุณครู เพื่อจัดการข้อมูลระบบของโรงเรียน</p>
-                    <button class="border-2 border-white text-white hover:bg-white hover:text-blue-600 font-bold py-3 px-10 rounded-full transition-colors" id="btn-show-teacher">สลับเป็นโหมดคุณครู</button>
-                </div>
-
-                <div class="overlay-panel overlay-right">
-                    <i class="fas fa-user-graduate text-5xl mb-5 text-white/90"></i>
-                    <h1 class="text-3xl font-black mb-3">ระบบสำหรับนักเรียน</h1>
-                    <p class="text-sm font-medium text-indigo-100 mb-8 max-w-[280px]">กรุณาเข้าสู่ระบบในโหมดของนักเรียน กดปุ่มด้านล่างเพื่อสลับไปยังหน้าเข้าสู่ระบบของนักเรียน</p>
-                    <button class="border-2 border-white text-white hover:bg-white hover:text-indigo-600 font-bold py-3 px-10 rounded-full transition-colors" id="btn-show-student">สลับเป็นโหมดนักเรียน</button>
-                </div>
-            </div>
-        </div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"
+            style="animation-delay: 2s;"></div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="config.js"></script>
+    <div id="portalView" class="hidden flex-1 flex flex-col z-10">
+        <header
+            class="glass-panel sticky top-0 z-20 px-6 py-4 shadow-sm border-b border-white/50 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="bg-white p-1 rounded-full shadow-sm"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png"
+                        class="w-9 h-9 object-contain"></div>
+                <div>
+                    <h1
+                        class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-700">
+                        Central Portal</h1>
+                    <div class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">School Management System
+                    </div>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="hidden md:block text-right">
+                    <div id="userName" class="text-sm font-bold text-gray-800">กำลังโหลด...</div>
+                    <div id="userRole" class="text-xs text-gray-500">...</div>
+                </div>
+
+                <button onclick="changeMyPassword()"
+                    class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">เปลี่ยนรหัส</span>
+                </button>
+
+                <button onclick="handleLogout()"
+                    class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-power-off"></i> <span class="hidden sm:inline">ออกจากระบบ</span>
+                </button>
+            </div>
+        </header>
+
+        <main class="flex-1 max-w-6xl mx-auto w-full p-6 py-10">
+            <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
+                <div>
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h2>
+                    <p class="text-gray-600 text-sm">กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน
+                    </p>
+                </div>
+
+                <button id="btnSuperAdmin" onclick="window.location.href='super_admin.html'"
+                    class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 shrink-0">
+                    <i class="fa-solid fa-server"></i> จัดการระบบส่วนกลาง
+                </button>
+            </div>
+
+            <div
+                class="flex flex-wrap gap-2 mb-8 bg-white/50 backdrop-blur-md p-2 rounded-2xl border border-white shadow-sm">
+                <button onclick="switchMainTab('academic', this)"
+                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md">
+                    <i class="fa-solid fa-book-open mr-2"></i> บริหารวิชาการ
+                </button>
+                <button onclick="switchMainTab('budget', this)"
+                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
+                    <i class="fa-solid fa-coins mr-2"></i> บริหารงบประมาณ
+                </button>
+                <button onclick="switchMainTab('personnel', this)"
+                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
+                    <i class="fa-solid fa-users mr-2"></i> บริหารงานบุคคล
+                </button>
+                <button onclick="switchMainTab('general', this)"
+                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
+                    <i class="fa-solid fa-building mr-2"></i> บริหารทั่วไป
+                </button>
+            </div>
+
+            <div id="appGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="col-span-full text-center py-10 text-gray-400"><i
+                        class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...
+                </div>
+            </div>
+        </main>
+    </div>
 
     <script>
-        const container = document.getElementById('container');
-        document.getElementById('btn-show-student').addEventListener('click', () => container.classList.add("right-panel-active"));
-        document.getElementById('btn-show-teacher').addEventListener('click', () => container.classList.remove("right-panel-active"));
+        let currentUser = null;
+        let activeModules = [];
+        let userAdminModules = [];
 
-        function togglePwd(inputId, iconId) {
-            const input = document.getElementById(inputId);
-            const icon = document.getElementById(iconId);
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash', 'text-indigo-500');
-            } else {
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash', 'text-indigo-500');
-                icon.classList.add('fa-eye');
+        // ตัวแปรเก็บสถานะว่าตอนนี้อยู่แท็บไหน (เริ่มต้นที่แท็บวิชาการ)
+        let currentCategory = 'academic';
+
+        const ALL_APPS = [
+            // --- 📚 กลุ่มบริหารวิชาการ ---
+            {
+                id: 'guidance_teacher',
+                category: 'academic',
+                moduleId: 'guidance',  // ✔️ เดียวกัน แต่คนละ entry
+                title: 'ปพ.5 กิจกรรมแนะแนว',
+                desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ',
+                icon: 'fa-solid fa-compass',
+                url: 'guidance_teacher.html',
+                reqAdmin: false
+            },
+            {
+                id: 'sdq_assessment', category: 'academic', moduleId: 'sdq',
+                title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
+                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_teacher.html'
+            },
+            {
+                id: 'eq_assessment', category: 'academic', moduleId: 'eq',
+                title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
+                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
+            },
+            {
+                id: 'scholarship', category: 'academic', moduleId: 'scholarship',
+                title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
+                icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
+            },
+
+            // --- 💰 กลุ่มบริหารงบประมาณ ---
+            // {
+            //     id: 'scholarship', category: 'budget', moduleId: 'scholarship',
+            //     title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
+            //     icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
+            // },
+
+            // --- 👥 กลุ่มบริหารงานบุคคล ---
+            {
+                id: 'personnel', category: 'personnel', moduleId: 'personnel',
+                title: 'ระบบบริหารจัดการบุคลากร', desc: 'ข้อมูลครูและบุคลากร, ตำแหน่ง, วิทยฐานะ และประวัติการทำงาน',
+                icon: 'fa-solid fa-id-card', color: 'text-violet-600', bgIcon: 'bg-violet-100', url: 'personnel.html'
+            },
+            {
+                id: 'leave_system', category: 'personnel', moduleId: 'leave',
+                title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร',
+                icon: 'fa-solid fa-envelope-open-text', color: 'text-rose-500', bgIcon: 'bg-rose-100', url: 'leave_teacher.html'
+            },
+
+            // --- 🏢 กลุ่มบริหารทั่วไป / กิจการนักเรียน ---
+            {
+                id: 'attendance', category: 'general', moduleId: 'attendance',
+                title: 'ระบบเช็คชื่อหน้าเสาธง', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา',
+                icon: 'fa-solid fa-clipboard-user', color: 'text-orange-500', bgIcon: 'bg-orange-100', url: 'attendance_teacher.html'
+            },
+            {
+                id: 'discipline', category: 'general', moduleId: 'behavior',
+                title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน',
+                icon: 'fa-solid fa-gavel', color: 'text-red-500', bgIcon: 'bg-red-100',
+                url: 'behavior_teacher.html'
+            },
+            {
+                id: 'homevisit', category: 'general', moduleId: 'homevisit',
+                title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน',
+                icon: 'fa-solid fa-house-chimney-user', color: 'text-teal-600', bgIcon: 'bg-teal-100', url: 'homevisit.html'
+            },
+            // {
+            //     id: 'sdq_assessment', category: 'general', moduleId: 'sdq',
+            //     title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
+            //     icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
+            // },
+            // {
+            //     id: 'eq_assessment', category: 'general', moduleId: 'eq',
+            //     title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
+            //     icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
+            // }
+        ];
+
+        window.onload = async () => {
+            await checkAuth();
+            document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+        };
+
+        async function checkAuth() {
+            const { data: { session }, error } = await db.auth.getSession();
+
+            // 🌟 เด้งไปหน้า login.html ถ้ายังไม่เข้าระบบ
+            if (error || !session) {
+                window.location.replace('login.html');
+                return;
             }
+
+            document.getElementById('portalView').classList.remove('hidden');
+
+            const { data: profile, error: profileError } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+
+            if (profileError || !profile) {
+                await db.auth.signOut();
+                Swal.fire('เซสชันไม่ถูกต้อง', 'ไม่พบข้อมูลบุคลากรในระบบ กรุณาล็อกอินใหม่อีกครั้ง', 'warning').then(() => {
+                    window.location.replace('login.html');
+                });
+                return;
+            }
+
+            currentUser = profile;
+
+            const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
+            userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
+
+            // --- 🌟 เปลี่ยนเป็นโค้ดชุดนี้แทน ---
+            const { data: allCustomModules } = await db.from('core_system_modules')
+                .select('*')
+                .order('display_order', { ascending: true });
+
+            window.moduleOverrides = {};
+            activeModules = []; // ล้างค่าเดิมก่อน
+
+            if (allCustomModules) {
+                allCustomModules.forEach(m => {
+                    window.moduleOverrides[m.module_id] = m;
+                    // จัดเก็บตัวที่เปิดใช้งานเอาไว้ใน activeModules ด้วยเลย
+                    if (m.is_active) {
+                        activeModules.push({
+                            module_id: m.module_id,
+                            is_active: m.is_active,
+                            target_blank: m.target_blank // 🌟 1. เพิ่มบรรทัดนี้เข้ามาครับ!
+                        });
+                    }
+                });
+            }
+            updateUI();
+            renderAppCards();
         }
 
-        // ---------- ป้องกันการกดซ้ำ ----------
-        let isSubmitting = false;
+        function handleLogout() {
+            Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
+                .then(async (result) => {
+                    if (result.isConfirmed) {
+                        localStorage.removeItem('activeMode');
+                        await db.auth.signOut();
+                        window.location.replace('login.html'); // 🌟 เด้งไปหน้า login
+                    }
+                });
+        }
 
-        // ==============================
-        // 🎓 ระบบ Login นักเรียน
-        // ==============================
-        async function handleStudentLogin() {
-            if (isSubmitting) return;   // ป้องกัน double submit
+        function updateUI() {
+            if (!currentUser) return;
+            document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
 
-            const btn = document.getElementById('btn-student-login');
-            const sid = $('#s_id').val().trim();
-            const password = $('#s_idc').val().trim();
-            const email = `${sid}@wrk.ac.th`;
-
-            if (!sid || !password) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบ', 'warning');
-            if (!/^\d{5}$/.test(sid)) return Swal.fire('แจ้งเตือน', 'เลขประจำตัวนักเรียนต้องเป็นตัวเลข 5 หลัก', 'warning');
-            if (!/^\d{13}$/.test(password) && password !== '9999999999999') {
-                return Swal.fire('แจ้งเตือน', 'รหัสผ่านต้องเป็นเลขบัตรประชาชน 13 หลัก', 'warning');
+            let roleText = 'ครูผู้สอน (Teacher)';
+            if (currentUser.role === 'super_admin') {
+                roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
+                document.getElementById('btnSuperAdmin').classList.remove('hidden');
+            }
+            else if (currentUser.role === 'admin') {
+                roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
             }
 
-            // ล็อก UI
-            isSubmitting = true;
-            btn.disabled = true;
-            Swal.fire({ title: 'กำลังเข้าสู่ระบบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+            document.getElementById('userRole').innerText = roleText;
+        }
 
-            try {
-                const { data, error } = await db.auth.signInWithPassword({ email, password });
+        function switchMainTab(category, btnElement) {
+            currentCategory = category;
+            document.querySelectorAll('.main-tab-btn').forEach(btn => {
+                btn.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm";
+            });
+            btnElement.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md";
+            renderAppCards();
+        }
 
-                if (error) {
-                    // ตรวจสอบว่าเป็น Rate limit หรือไม่
-                    if (error.status === 429 || error.message.includes('rate limit')) {
-                        Swal.fire('คำขอถี่เกินไป', 'ระบบตรวจพบความพยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอประมาณ 1 นาทีแล้วลองใหม่', 'warning');
-                        return; // ออกโดยไม่ reset UI (ผู้ใช้ควรรอ)
+        function renderAppCards() {
+            const grid = document.getElementById('appGrid');
+            grid.innerHTML = '';
+
+            // เตรียมข้อมูลโมดูลที่กำหนดเอง (Override map)
+            const overrides = window.moduleOverrides || {};
+
+            // รวบรวมแอปจาก ALL_APPS + โมดูลที่เพิ่มเข้ามาใหม่จาก DB
+            let appsToDisplay = [];
+
+            // 1. เพิ่มแอปที่อยู่ใน ALL_APPS (ปรับแต่งด้วย override)
+            ALL_APPS.forEach(app => {
+                if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
+
+                const modOverride = overrides[app.moduleId];
+                const finalApp = { ...app }; // clone
+
+                if (modOverride) {
+                    // ให้เปลี่ยนสีและไอคอนได้ตามปกติ
+                    finalApp.icon = modOverride.icon || app.icon;
+                    finalApp.bgIcon = '';
+                    finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0';
+                    finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
+                    finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+
+                    // 🌟 1. ดึงค่า target_blank มาใส่ใน finalApp
+                    finalApp.target_blank = modOverride.target_blank || false;
+
+                    // 🌟 ป้องกันการเขียนทับแอปที่มีหลายสิทธิ์ (เช่น guidance_admin กับ guidance_teacher)
+                    if (app.id === app.moduleId) {
+                        finalApp.url = modOverride.url || app.url;
+                        finalApp.desc = modOverride.description || app.desc;
+                        finalApp.title = modOverride.module_name || app.title;
                     }
+                } else {
+                    // ไม่มี override → ใช้ค่าเดิมจาก ALL_APPS
+                    finalApp.iconBgColor = '#e2e8f0'; // สีพื้นหลังไอคอน (default)
+                    finalApp.iconTextColor = '#4a5568'; // สีตัวไอคอน (default)
+                    finalApp.isActive = activeModules.some(m => m.module_id === app.moduleId && m.is_active);
 
-                    if (error.message === 'Invalid login credentials') {
-                        // ขั้นตอนสำรอง: ตรวจสอบข้อมูลนักเรียนใน core_students
-                        const { data: student, error: fetchError } = await db
-                            .from('core_students')
-                            .select('national_id')
-                            .eq('student_id_card', sid)
-                            .single();
+                    // 🌟 กำหนดค่าตั้งต้นหากไม่มี override
+                    finalApp.target_blank = false;
+                }
 
-                        if (fetchError || !student) {
-                            Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'ไม่พบข้อมูลนักเรียนในระบบ', 'error');
+                appsToDisplay.push(finalApp);
+            });
+
+            // 2. เพิ่มโมดูลใหม่จาก DB ที่ไม่มีใน ALL_APPS
+            Object.values(overrides).forEach(mod => {
+                // ถ้ามี module_id นี้ใน ALL_APPS แล้ว ข้าม (ใช้ override ด้านบนแล้ว)
+                const alreadyExists = ALL_APPS.some(app => app.moduleId === mod.module_id);
+                if (alreadyExists) return;
+
+                // สร้าง app object ใหม่
+                const newApp = {
+                    id: mod.module_id,
+                    category: mod.category || 'general',
+                    moduleId: mod.module_id,
+                    title: mod.module_name,
+                    desc: mod.description || '',
+                    icon: mod.icon || 'fa-solid fa-cube',
+                    iconBgColor: mod.icon_bg_color || '#e2e8f0',
+                    iconTextColor: mod.icon_text_color || '#4a5568',
+                    url: mod.url || '#',
+                    isActive: mod.is_active !== false,
+                    reqAdmin: false,
+                    reqSuperAdmin: false,
+                    // 🌟 2. ดึงค่า target_blank สำหรับโมดูลที่สร้างใหม่
+                    target_blank: mod.target_blank || false
+                };
+                appsToDisplay.push(newApp);
+            });
+
+            // 3. กรองตามหมวดหมู่ปัจจุบัน
+            const appsToShow = appsToDisplay.filter(app => app.category === currentCategory);
+
+            if (appsToShow.length === 0) {
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>ยังไม่มีระบบในกลุ่มบริหารงานนี้</div>`;
+                return;
+            }
+
+            // 4. สร้างการ์ด
+            appsToShow.forEach(app => {
+                let isLocked = false;
+                let lockReason = '';
+
+                // ตรวจสอบสิทธิ์การเข้าใช้งาน
+                if (!app.isActive) {
+                    isLocked = true;
+                    lockReason = 'ปิดปรับปรุงระบบชั่วคราว';
+                } else if (app.reqAdmin) {
+                    const hasAccess = (currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId);
+                    if (!hasAccess) {
+                        isLocked = true;
+                        lockReason = 'คุณไม่มีสิทธิ์เข้าถึงส่วนนี้';
+                    }
+                }
+
+                const card = document.createElement('div');
+                card.className = `app-card glass-panel rounded-2xl p-6 border ${isLocked ? 'locked border-gray-200 bg-gray-50' : 'border-gray-200 bg-white hover:border-blue-300 cursor-pointer'} flex flex-col h-full`;
+
+                if (isLocked) {
+                    card.onclick = () => Swal.fire('ไม่สามารถเข้าใช้งานได้', lockReason, 'warning');
+                } else {
+                    card.onclick = () => {
+                        // 🌟 ตอนนี้ app.target_blank จะมีค่าส่งมาแน่นอนแล้วครับ
+                        if (app.target_blank === true || app.target_blank === 'true') {
+                            window.open(app.url, '_blank');
                         } else {
-                            const expectedPassword = (student.national_id && student.national_id.trim() !== '')
-                                ? student.national_id.trim()
-                                : '9999999999999';
-
-                            if (password === expectedPassword) {
-                                const { error: signUpError } = await db.auth.signUp({ email, password: expectedPassword });
-
-                                if (signUpError) {
-                                    if (signUpError.status === 429) {
-                                        Swal.fire('คำขอถี่เกินไป', 'ระบบป้องกันการสร้างบัญชีอัตโนมัติ กรุณารอสักครู่แล้วลองใหม่', 'warning');
-                                        return;
-                                    }
-                                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถสร้างบัญชีได้: ' + signUpError.message, 'error');
-                                } else {
-                                    Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
-                                    setTimeout(() => { window.location.href = 'student_index.html'; }, 1000);
-                                }
-                            } else {
-                                Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'รหัสนักเรียนหรือรหัสผ่านไม่ถูกต้อง', 'error');
-                            }
+                            window.location.href = app.url;
                         }
-                    } else {
-                        Swal.fire('ข้อผิดพลาดระบบ', error.message || 'เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
-                    }
-                } else {
-                    // Login สำเร็จ
-                    Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
-                    setTimeout(() => { window.location.href = 'student_index.html'; }, 1000);
+                    };
                 }
-            } catch (e) {
-                Swal.fire('ข้อผิดพลาดระบบ', 'ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองใหม่', 'error');
-            } finally {
-                isSubmitting = false;
-                btn.disabled = false;
-                Swal.close(); // ปิด loading ถ้ายังค้างอยู่
-            }
+
+                let badgeHtml = '';
+                if (isLocked) {
+                    badgeHtml = `<span class="px-2.5 py-1 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full border border-gray-300 flex items-center gap-1"><i class="fa-solid fa-lock"></i> ${lockReason}</span>`;
+                } else {
+                    badgeHtml = `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-200 flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> เปิดใช้งาน</span>`;
+                }
+
+                // ใช้ inline style สำหรับไอคอน หากมีการตั้งค่าสีจาก DB
+                const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
+                            <i class="${app.icon}"></i>
+                        </div>
+                        ${badgeHtml}
+                    </div>
+                    <div class="flex-1">
+                        <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
+                        <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
+                    </div>
+                    <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
+                        ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
+                    </div>
+                `;
+
+                grid.appendChild(card);
+            });
         }
 
-        // ==============================
-        // 👩‍🏫 ระบบ Login ครู/บุคลากร
-        // ==============================
-        async function handleTeacherLogin() {
-            if (isSubmitting) return;
+        async function changeMyPassword() {
+            const { value: formValues } = await Swal.fire({
+                title: 'เปลี่ยนรหัสผ่าน',
+                html: `
+                    <div class="text-sm text-gray-500 mb-3">กรุณาตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</div>
+                    <input id="swal-pwd1" type="password" placeholder="รหัสผ่านใหม่" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3 outline-none focus:border-blue-500">
+                    <input id="swal-pwd2" type="password" placeholder="ยืนยันรหัสผ่านใหม่อีกครั้ง" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-blue-500">
+                `,
+                focusConfirm: false,
+                showCancelButton: true,
+                confirmButtonColor: '#2563eb',
+                confirmButtonText: 'อัปเดตรหัสผ่าน',
+                cancelButtonText: 'ยกเลิก',
+                preConfirm: () => {
+                    const p1 = document.getElementById('swal-pwd1').value;
+                    const p2 = document.getElementById('swal-pwd2').value;
+                    if (!p1 || p1.length < 6) Swal.showValidationMessage('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร');
+                    else if (p1 !== p2) Swal.showValidationMessage('รหัสผ่านทั้งสองช่องไม่ตรงกัน');
+                    return p1;
+                }
+            });
 
-            const btn = document.getElementById('btn-teacher-login');
-            const email = $('#t_email').val().trim();
-            const password = $('#t_pwd').val().trim();
-
-            if (!email || !password) return Swal.fire('แจ้งเตือน', 'กรุณากรอกอีเมลและรหัสผ่านให้ครบ', 'warning');
-
-            isSubmitting = true;
-            btn.disabled = true;
-            Swal.fire({ title: 'กำลังเข้าสู่ระบบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
-            try {
-                const { data, error } = await db.auth.signInWithPassword({ email, password });
+            if (formValues) {
+                Swal.fire({ title: 'กำลังอัปเดต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+                const { error } = await db.auth.updateUser({ password: formValues });
 
                 if (error) {
-                    if (error.status === 429 || error.message.includes('rate limit')) {
-                        Swal.fire('คำขอถี่เกินไป', 'คุณพยายามเข้าสู่ระบบบ่อยเกินไป กรุณารอสักครู่แล้วลองใหม่', 'warning');
-                        return;
-                    }
-                    Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'อีเมลหรือรหัสผ่านไม่ถูกต้อง', 'error');
+                    Swal.fire('ผิดพลาด', error.message, 'error');
                 } else {
-                    Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
-                    setTimeout(() => { window.location.href = 'index.html'; }, 1000);
+                    Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านสำเร็จ!', text: 'ครั้งต่อไปกรุณาใช้รหัสผ่านใหม่นี้ในการเข้าสู่ระบบ' });
                 }
-            } catch (e) {
-                Swal.fire('ข้อผิดพลาดระบบ', 'ไม่สามารถเชื่อมต่อระบบได้ กรุณาลองใหม่', 'error');
-            } finally {
-                isSubmitting = false;
-                btn.disabled = false;
-                Swal.close();
             }
         }
-
-        // ผูกปุ่มกับฟังก์ชัน
-        document.getElementById('btn-student-login').addEventListener('click', handleStudentLogin);
-        document.getElementById('btn-teacher-login').addEventListener('click', handleTeacherLogin);
-
-        // Enter key
-        $('#s_idc').keypress(function (e) { if (e.which == 13) handleStudentLogin(); });
-        $('#t_pwd').keypress(function (e) { if (e.which == 13) handleTeacherLogin(); });
     </script>
 </body>
 
