@@ -1344,10 +1344,12 @@ window.loadDataTable = async function () {
                 else classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000');
             }
 
+            // ================== ให้คัดลอกส่วนนี้ไปทับของเดิม ==================
             const [{ data: classrooms }, { data: visits }, staffMap] = await Promise.all([
                 classQuery,
                 db.from('module_home_visits')
-                    .select('classroom_id, student_id')
+                    // ✅ 1. เพิ่มการดึง visit_status มาด้วย
+                    .select('classroom_id, student_id, visit_status')
                     .eq('academic_year', currentYear)
                     .eq('semester', currentTerm),
                 getPersonnelMap()
@@ -1361,9 +1363,17 @@ window.loadDataTable = async function () {
             const { data: enrolls } = await db.from('student_enrollments')
                 .select('classroom_id, student_id')
                 .in('classroom_id', classrooms.map(c => c.id));
+                
             const totalMap = {}, visitedMap = {};
             (enrolls || []).forEach(e => { totalMap[e.classroom_id] = (totalMap[e.classroom_id] || 0) + 1; });
-            (visits || []).forEach(v => { visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1; });
+            
+            // ✅ 2. เปลี่ยนการนับ ให้นับเพิ่มเฉพาะคนที่สถานะเป็น 'เยี่ยมแล้ว' เท่านั้น
+            (visits || []).forEach(v => { 
+                if (v.visit_status === 'เยี่ยมแล้ว') {
+                    visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1; 
+                }
+            });
+            // =============================================================
 
             let doneCount = 0;
             tbody.innerHTML = classrooms.map(c => {
