@@ -8,6 +8,14 @@ let actualRole = '';
 let isReadOnly = false;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_url: "", gd_pdf_folder_id: "", report_template_id: "" };
 let map, marker;
+let routeLayer = null;
+let schoolMarkerObj = null;
+// ====================================================
+// 🏫 พิกัดโรงเรียน — แก้ไขค่านี้ให้ตรงกับโรงเรียนจริง
+// ====================================================
+const SCHOOL_LAT = 13.740269204697068;
+const SCHOOL_LNG = 100.25988109513965;
+const SCHOOL_NAME = 'โรงเรียนวัดไร่ขิงวิทยา';
 let studentTomSelect = null;
 let tsClassroom = null;
 let currentYear = '';
@@ -449,18 +457,40 @@ async function loadStudentInfo(studentId) {
     document.getElementById('student_number').value = enroll.student_number || '';
 
     // ==========================================
-    // ✅ โค้ดดึงรูปโปรไฟล์นักเรียนและนำมาแสดงที่หน้าจอ
+    // ✅ ดึงรูปโปรไฟล์นักเรียน → แสดงทั้ง Step 1 และ Step 4
     // ==========================================
     const avatarUrl = enroll.core_students?.avatar_students_url;
     const studentPicInput = document.getElementById('pic_student');
 
+    // --- Step 1: แสดงรูปในกรอบโปรไฟล์ ---
+    const avatarImg = document.getElementById('student-avatar-img');
+    const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
+    const avatarBadge = document.getElementById('student-avatar-badge');
+    const avatarStatus = document.getElementById('student-avatar-status');
+
+    if (avatarUrl) {
+        if (avatarImg) {
+            avatarImg.src = avatarUrl;
+            avatarImg.classList.remove('hidden');
+        }
+        if (avatarPlaceholder) avatarPlaceholder.classList.add('hidden');
+        if (avatarBadge) avatarBadge.classList.remove('hidden');
+        if (avatarStatus) avatarStatus.textContent = 'มีรูปโปรไฟล์แล้ว ✓';
+    } else {
+        if (avatarImg) { avatarImg.src = ''; avatarImg.classList.add('hidden'); }
+        if (avatarPlaceholder) avatarPlaceholder.classList.remove('hidden');
+        if (avatarBadge) avatarBadge.classList.add('hidden');
+        if (avatarStatus) avatarStatus.textContent = 'ยังไม่มีรูปโปรไฟล์';
+    }
+
+    // --- Step 4: แสดงรูปในการ์ดอัปโหลด ---
     if (studentPicInput) {
-        const previewImg = document.getElementById('preview1'); // กรอบรูป
-        const delBtn = document.getElementById('del_btn1'); // ปุ่มกากบาทลบรูป
-        const cloudBtn = document.getElementById('cloud_btn1'); // ปุ่มอัพโหลด
+        const previewImg = document.getElementById('preview1');
+        const delBtn = document.getElementById('del_btn1');
+        const cloudBtn = document.getElementById('cloud_btn1');
 
         if (avatarUrl) {
-            studentPicInput.dataset.uploadedUrl = avatarUrl; // แขวนลิงก์ไว้ใช้สร้าง PDF
+            studentPicInput.dataset.uploadedUrl = avatarUrl;
 
             if (previewImg) {
                 previewImg.src = avatarUrl;
@@ -471,16 +501,13 @@ async function loadStudentInfo(studentId) {
                 delBtn.classList.add('flex');
             }
             if (cloudBtn) {
-                // เปลี่ยนข้อความปุ่มให้รู้ว่ามีรูปแล้ว
                 cloudBtn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> ใช้รูปโปรไฟล์เดิม`;
                 cloudBtn.classList.add('bg-slate-700', 'text-white');
                 cloudBtn.classList.remove('bg-green-600', 'opacity-40');
-                cloudBtn.disabled = true; // ไม่ต้องให้อัพโหลดซ้ำจนกว่าจะกดเลือกรูปใหม่
+                cloudBtn.disabled = true;
             }
         } else {
-            // กรณีเด็กยังไม่มีรูป ให้ล้างค่าทุกอย่าง
             delete studentPicInput.dataset.uploadedUrl;
-
             if (previewImg) { previewImg.src = ''; previewImg.classList.add('hidden'); }
             if (delBtn) { delBtn.classList.add('hidden'); delBtn.classList.remove('flex'); }
             if (cloudBtn) {
@@ -545,6 +572,16 @@ function clearStudentInfo() {
         }
     });
 
+    // เคลียร์รูปโปรไฟล์ Step 1
+    const avatarImg = document.getElementById('student-avatar-img');
+    const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
+    const avatarBadge = document.getElementById('student-avatar-badge');
+    const avatarStatus = document.getElementById('student-avatar-status');
+    if (avatarImg) { avatarImg.src = ''; avatarImg.classList.add('hidden'); }
+    if (avatarPlaceholder) avatarPlaceholder.classList.remove('hidden');
+    if (avatarBadge) avatarBadge.classList.add('hidden');
+    if (avatarStatus) avatarStatus.textContent = '— เลือกนักเรียนเพื่อดูรูป —';
+
     // เคลียร์รูปภาพทั้งหมด
     const photos = [
         { inputId: 'pic_student', previewId: 'preview1', cloudBtnId: 'cloud_btn1', delBtnId: 'del_btn1' },
@@ -602,10 +639,10 @@ function clearStudentInfo() {
 
     // เคลียร์พิกัดและแผนที่
     if (map && marker) {
-        const defaultLat = 13.740195920850455;
-        const defaultLng = 100.2598792489264;
-        marker.setLatLng([defaultLat, defaultLng]);
-        map.setView([defaultLat, defaultLng], 15);
+        marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
+        map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+        updateRouteInfoPanel(null);
     }
 }
 
@@ -768,6 +805,18 @@ function populateFormWithData(data) {
     restorePhoto(data.photo_inside, 'pic_inside', 'preview3', 'cloud_btn3');
     restorePhoto(data.photo_teacher, 'pic_teacher', 'preview4', 'cloud_btn4');
 
+    // ซิงค์รูปนักเรียน → กรอบโปรไฟล์ Step 1
+    const s1Img = document.getElementById('student-avatar-img');
+    const s1Placeholder = document.getElementById('student-avatar-placeholder');
+    const s1Badge = document.getElementById('student-avatar-badge');
+    const s1Status = document.getElementById('student-avatar-status');
+    if (data.photo_student) {
+        if (s1Img) { s1Img.src = data.photo_student; s1Img.classList.remove('hidden'); }
+        if (s1Placeholder) s1Placeholder.classList.add('hidden');
+        if (s1Badge) s1Badge.classList.remove('hidden');
+        if (s1Status) s1Status.textContent = 'มีรูปโปรไฟล์แล้ว ✓';
+    }
+
     // ---------- 4. RESTORE พิกัด (Lat/Lng) ----------
     if (data.latitude && data.longitude) {
         setVal('lat', data.latitude);
@@ -778,6 +827,7 @@ function populateFormWithData(data) {
             const lng = parseFloat(data.longitude);
             marker.setLatLng([lat, lng]);
             map.setView([lat, lng], 15);
+            calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
         }
     }
 }
@@ -1066,13 +1116,65 @@ function initMap() {
     const mapEl = document.getElementById('map');
     if (!mapEl) return;
     if (map) { map.invalidateSize(); return; }
-    map = L.map('map').setView([13.740195920850455, 100.2598792489264], 15);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-    marker = L.marker([13.740195920850455, 100.2598792489264], { draggable: true }).addTo(map);
+
+    // สร้างแผนที่โดยมีจุดศูนย์กลางที่โรงเรียน
+    map = L.map('map').setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+    // ---- ไอคอนโรงเรียน (สีแดง รูปสามเหลี่ยม) ----
+    const schoolIcon = L.divIcon({
+        html: `<div style="
+            width:0;height:0;
+            border-left:14px solid transparent;
+            border-right:14px solid transparent;
+            border-bottom:26px solid #dc2626;
+            filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+            position:relative;">
+            <div style="position:absolute;bottom:-24px;left:-6px;width:12px;height:12px;background:#fff;border-radius:50%;"></div>
+        </div>`,
+        iconSize: [28, 28],
+        iconAnchor: [14, 26],
+        className: ''
+    });
+
+    // ---- ไอคอนบ้านนักเรียน (สีน้ำเงิน วงกลม) ----
+    const homeIcon = L.divIcon({
+        html: `<div style="
+            width:22px;height:22px;
+            background:#2563eb;
+            border-radius:50%;
+            border:3px solid #fff;
+            box-shadow:0 2px 8px rgba(37,99,235,0.6);">
+        </div>`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        className: ''
+    });
+
+    // หมุดโรงเรียน (คงที่)
+    schoolMarkerObj = L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon, draggable: false })
+        .addTo(map)
+        .bindTooltip(`🏫 ${SCHOOL_NAME}`, { permanent: false, direction: 'top' });
+
+    // ตรวจสอบว่ามีพิกัดบ้านอยู่แล้วหรือไม่
+    const latInput = document.getElementById('lat');
+    const lngInput = document.getElementById('lng');
+    const hasCoords = latInput?.value && lngInput?.value;
+    const homeLat = hasCoords ? parseFloat(latInput.value) : SCHOOL_LAT;
+    const homeLng = hasCoords ? parseFloat(lngInput.value) : SCHOOL_LNG;
+
+    // หมุดบ้านนักเรียน (ลากได้)
+    marker = L.marker([homeLat, homeLng], { icon: homeIcon, draggable: true })
+        .addTo(map)
+        .bindTooltip('🏠 บ้านนักเรียน', { permanent: false, direction: 'top' });
+
     marker.on('dragend', function () {
         const pos = marker.getLatLng();
         document.getElementById('lat').value = pos.lat.toFixed(7);
         document.getElementById('lng').value = pos.lng.toFixed(7);
+        calculateRoute(SCHOOL_LAT, SCHOOL_LNG, pos.lat, pos.lng);
     });
 
     $('#lat, #lng').off('input').on('input', function () {
@@ -1081,20 +1183,135 @@ function initMap() {
         if (!isNaN(lat) && !isNaN(lng) && marker) {
             marker.setLatLng([lat, lng]);
             map.setView([lat, lng], map.getZoom());
+            calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
         }
     });
 
-    // ✅ เพิ่มส่วนนี้: ดึงค่าพิกัดจาก input (ถ้ามี) มาปักหมุด
-    const latInput = document.getElementById('lat');
-    const lngInput = document.getElementById('lng');
-    if (latInput && lngInput && latInput.value && lngInput.value) {
-        const lat = parseFloat(latInput.value);
-        const lng = parseFloat(lngInput.value);
-        if (!isNaN(lat) && !isNaN(lng)) {
-            marker.setLatLng([lat, lng]);
-            map.setView([lat, lng], 15);
-        }
+    if (hasCoords && !isNaN(homeLat) && !isNaN(homeLng)) {
+        calculateRoute(SCHOOL_LAT, SCHOOL_LNG, homeLat, homeLng);
+    } else {
+        updateRouteInfoPanel(null);
     }
+}
+
+// ==========================================
+// 📍 คำนวณเส้นทางจากโรงเรียน → บ้านนักเรียน
+// ==========================================
+async function calculateRoute(fromLat, fromLng, toLat, toLng) {
+    const panel = document.getElementById('route-info-panel');
+    if (panel) {
+        panel.innerHTML = `<div class="flex items-center gap-2 text-orange-500 text-sm font-bold py-2 animate-pulse">
+            <i class="fas fa-spinner fa-spin"></i> กำลังคำนวณเส้นทาง...
+        </div>`;
+    }
+    try {
+        const url = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.code !== 'Ok' || !data.routes?.length) {
+            updateRouteInfoPanel(null);
+            return;
+        }
+
+        const route = data.routes[0];
+        const distanceKm = (route.distance / 1000).toFixed(2);
+        const durationMin = Math.round(route.duration / 60);
+
+        // วาดเส้นทางบนแผนที่
+        if (routeLayer) map.removeLayer(routeLayer);
+        routeLayer = L.geoJSON(route.geometry, {
+            style: { color: '#3b82f6', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
+        }).addTo(map);
+
+        // ซูมให้เห็นทั้งสองจุด
+        const bounds = L.latLngBounds([fromLat, fromLng], [toLat, toLng]);
+        map.fitBounds(bounds, { padding: [50, 50] });
+
+        // ✅ อัปเดต field ระยะทาง / เวลาเดินทาง อัตโนมัติ
+        const distEl = document.getElementById('travel_distance');
+        const hourEl = document.getElementById('travel_hour');
+        const minEl = document.getElementById('travel_minute');
+        if (distEl) distEl.value = distanceKm;
+        if (hourEl) hourEl.value = Math.floor(durationMin / 60);
+        if (minEl) minEl.value = durationMin % 60;
+
+        updateRouteInfoPanel({ distanceKm, durationMin, toLat, toLng });
+
+    } catch (e) {
+        console.error('Route calculation error:', e);
+        updateRouteInfoPanel(null);
+    }
+}
+
+function updateRouteInfoPanel(info) {
+    const panel = document.getElementById('route-info-panel');
+    if (!panel) return;
+    const latVal = document.getElementById('lat')?.value || '';
+    const lngVal = document.getElementById('lng')?.value || '';
+
+    if (!info) {
+        panel.innerHTML = `
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">📍 พิกัดโรงเรียน</p>
+                    <p class="font-mono text-xs font-bold text-slate-600">${SCHOOL_LAT}, ${SCHOOL_LNG}</p>
+                </div>
+                <div>
+                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">🏠 พิกัดบ้านนักเรียน</p>
+                    <p class="font-mono text-xs font-bold text-slate-400">${latVal ? latVal + ', ' + lngVal : 'ยังไม่ได้ปักหมุด'}</p>
+                </div>
+            </div>`;
+        return;
+    }
+
+    const hrs = Math.floor(info.durationMin / 60);
+    const mins = info.durationMin % 60;
+    const timeStr = hrs > 0 ? `${hrs} ชั่วโมง ${mins} นาที` : `${mins} นาที`;
+
+    panel.innerHTML = `
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-2 mb-3 text-xs">
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                    <span class="inline-block w-3 h-3 bg-red-600 rounded-sm" style="clip-path:polygon(50% 0%,100% 100%,0% 100%)"></span> โรงเรียน
+                </p>
+                <p class="font-bold text-slate-700">${SCHOOL_NAME}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">พิกัดโรงเรียน</p>
+                <p class="font-mono font-bold text-slate-600">${SCHOOL_LAT}, ${SCHOOL_LNG}</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                    <span class="inline-block w-3 h-3 bg-blue-600 rounded-full"></span> บ้านนักเรียน
+                </p>
+                <p class="font-bold text-slate-700">-</p>
+            </div>
+            <div>
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">พิกัดบ้านนักเรียน</p>
+                <p class="font-mono font-bold text-slate-600">${parseFloat(info.toLat).toFixed(5)}, ${parseFloat(info.toLng).toFixed(5)}</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-3 bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-xl px-4 py-3">
+            <i class="fas fa-route text-orange-500 text-2xl flex-shrink-0"></i>
+            <div class="flex-1">
+                <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider">ระยะถนนจริง</p>
+                <p class="text-2xl font-black text-orange-700 leading-tight">
+                    ${info.distanceKm} <span class="text-base font-bold text-orange-600">กิโลเมตร</span>
+                    <span class="text-sm font-bold text-slate-500 ml-2">(ระยะทางถนนจริง — ประมาณ ${info.durationMin} นาที)</span>
+                </p>
+            </div>
+            <div class="flex gap-3 text-center flex-shrink-0">
+                <div class="bg-white border border-orange-200 rounded-xl px-3 py-2 shadow-sm">
+                    <i class="fas fa-car text-orange-500 text-sm"></i>
+                    <p class="text-xs font-black text-orange-700 mt-0.5">${info.distanceKm} กม.</p>
+                </div>
+                <div class="bg-white border border-orange-200 rounded-xl px-3 py-2 shadow-sm">
+                    <i class="fas fa-clock text-orange-500 text-sm"></i>
+                    <p class="text-xs font-black text-orange-700 mt-0.5">ประมาณ ${timeStr}</p>
+                </div>
+            </div>
+        </div>`;
 }
 
 window.updateMarkerFromInputs = function () {
@@ -1124,6 +1341,7 @@ window.geocodeAddress = function () {
                 if (map && marker) {
                     marker.setLatLng([lat, lng]);
                     map.setView([lat, lng], 16);
+                    calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
                 }
             } else {
                 Swal.fire('ไม่พบ', 'ไม่พบพิกัดจากที่อยู่นี้', 'warning');
@@ -1160,9 +1378,10 @@ window.parseAndPinCoords = function () {
 
     if (map && marker) {
         marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], 16);
+        map.setView([lat, lng], 13);
+        calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
     }
-    Swal.fire('ปักหมุดแล้ว', `${lat.toFixed(6)}, ${lng.toFixed(6)}`, 'success');
+    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ปักหมุดแล้ว: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, showConfirmButton: false, timer: 2500 });
 };
 
 window.openInGoogleMaps = function () {

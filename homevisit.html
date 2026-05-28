@@ -231,6 +231,35 @@
 
                     <div
                         class="bg-red-50/40 border border-red-100 rounded-2xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
+
+                        <!-- 🖼️ รูปโปรไฟล์นักเรียน -->
+                        <div class="sm:col-span-3 flex items-center gap-4 pb-3 border-b border-red-100">
+                            <div class="relative flex-shrink-0">
+                                <div id="student-avatar-wrapper"
+                                    class="w-20 h-20 rounded-2xl border-2 border-red-200 bg-white shadow-md overflow-hidden flex items-center justify-center">
+                                    <img id="student-avatar-img" class="hidden w-full h-full object-cover" src=""
+                                        alt="รูปนักเรียน">
+                                    <div id="student-avatar-placeholder"
+                                        class="flex flex-col items-center justify-center text-slate-300 gap-1 w-full h-full">
+                                        <i class="fas fa-user-graduate text-3xl"></i>
+                                        <span class="text-[9px] font-bold uppercase tracking-wider">ไม่มีรูป</span>
+                                    </div>
+                                </div>
+                                <!-- badge สีเขียว = มีรูปแล้ว -->
+                                <span id="student-avatar-badge"
+                                    class="hidden absolute -top-1.5 -right-1.5 w-5 h-5 bg-emerald-500 border-2 border-white rounded-full flex items-center justify-center">
+                                    <i class="fas fa-check text-white text-[9px]"></i>
+                                </span>
+                            </div>
+                            <div>
+                                <p class="text-xs font-black text-red-900 uppercase tracking-wider mb-0.5">
+                                    รูปโปรไฟล์นักเรียน</p>
+                                <p id="student-avatar-status" class="text-xs text-slate-400 font-medium">—
+                                    เลือกนักเรียนเพื่อดูรูป —</p>
+                                <p class="text-[10px] text-slate-400 mt-1">รูปจะถูกใช้อัตโนมัติในส่วนแนบภาพ (Step 4)</p>
+                            </div>
+                        </div>
+
                         <div>
                             <label class="block text-xs font-bold text-red-950 mb-1">เลขประจำตัวนักเรียน</label>
                             <input type="text" id="student_code" readonly
@@ -566,6 +595,24 @@
                                 class="fas fa-map-pin text-rose-500 text-sm"></i> ลากจุดปักหมุดแผนที่
                             (เลื่อนแผนที่หาตำแหน่งบ้านแล้วลากหมุดไปวาง)</label>
                         <div id="map" class="border border-slate-300 shadow-inner"></div>
+
+                        <!-- 🗺️ Route Info Panel — แสดงข้อมูลเส้นทาง + ระยะทาง/เวลาอัตโนมัติ -->
+                        <div id="route-info-panel"
+                            class="mt-3 bg-white border border-orange-200 rounded-2xl p-4 text-sm shadow-sm min-h-[60px]">
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">📍
+                                        พิกัดโรงเรียน</p>
+                                    <p class="font-mono text-xs font-bold text-slate-600">รอการโหลดแผนที่...</p>
+                                </div>
+                                <div>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">🏠
+                                        พิกัดบ้านนักเรียน</p>
+                                    <p class="font-mono text-xs font-bold text-slate-400">ยังไม่ได้ปักหมุด</p>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="grid grid-cols-2 gap-4 mt-3">
                             <input type="text" id="lat" placeholder="Latitude"
                                 class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-mono text-slate-500 outline-none focus:border-orange-500">
@@ -1214,6 +1261,24 @@
                                 class="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-200">
                         </div>
                     </div>
+                    <!-- เปิด-ปิดรายงาน -->
+                    <div id="report-toggle-container"
+                        class="mt-6 flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                        <div>
+                            <h4 class="font-bold text-slate-700 text-sm">
+                                <i class="fas fa-eye text-indigo-500 mr-2"></i>เปิดใช้งานรายงานสรุปภาพรวม
+                            </h4>
+                            <p class="text-xs text-slate-500 mt-1">
+                                หากปิดสวิตช์นี้ ผู้ใช้งานทั่วไปจะมองไม่เห็นปุ่มรายงาน (Super Admin จะเห็นเสมอ)
+                            </p>
+                        </div>
+                        <label class="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" id="setting-show-report" class="sr-only peer">
+                            <div
+                                class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner">
+                            </div>
+                        </label>
+                    </div>
                 </section>
 
                 <!-- ส่วนที่ 2: พิมพ์ PDF -->
@@ -1280,24 +1345,7 @@
                         </div>
                     </div>
                 </section>
-                <!-- เปิด-ปิดรายงาน (เต็มความกว้าง) -->
-                <div id="report-toggle-container"
-                    class="mt-6 flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-                    <div>
-                        <h4 class="font-bold text-slate-700 text-sm">
-                            <i class="fas fa-eye text-indigo-500 mr-2"></i>เปิดใช้งานรายงานสรุปภาพรวม
-                        </h4>
-                        <p class="text-xs text-slate-500 mt-1">
-                            หากปิดสวิตช์นี้ ผู้ใช้งานทั่วไปจะมองไม่เห็นปุ่มรายงาน (Super Admin จะเห็นเสมอ)
-                        </p>
-                    </div>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="setting-show-report" class="sr-only peer">
-                        <div
-                            class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner">
-                        </div>
-                    </label>
-                </div>
+
             </div>
 
             <!-- Footer (ปุ่มล่าง) -->
