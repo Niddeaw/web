@@ -7,16 +7,16 @@ const SUPABASE_KEY = 'sb_publishable_NvxGXPU6HqN6cIY9qWgrKA_gNzeAmf6';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 // ==========================================
-// Global Sticky Footer (แสดงทุกหน้าอัตโนมัติ)
+// Global Footer (แสดงทุกหน้าอัตโนมัติ)
 // ==========================================
 function injectGlobalFooter() {
-    // 1. ป้องกันการสร้างซ้ำ
+    // ป้องกันการสร้างซ้ำ
     if (document.getElementById('wrk-global-footer')) return;
 
-    // 2. สร้าง Footer แบบ Fixed
+    // สร้าง Footer แบบธรรมดา (ไม่ Fixed)
     const footer = document.createElement('footer');
     footer.id = 'wrk-global-footer';
-    footer.className = 'fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-gray-200 py-2.5 z-[100] text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]';
+    footer.className = 'w-full bg-white/80 backdrop-blur-md border-t border-gray-200 py-2.5 text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]';
     
     footer.innerHTML = `
         <p class="text-[11px] md:text-xs text-gray-500 font-medium">
@@ -26,25 +26,11 @@ function injectGlobalFooter() {
     
     document.body.appendChild(footer);
     
-    // 3. ฟังก์ชันปรับ padding-bottom ให้เท่ากับความสูงของ Footer
-    function adjustPadding() {
-        if (!footer) return;
-        const footerHeight = footer.offsetHeight;
-        document.body.style.paddingBottom = footerHeight + 'px';
-    }
-    
-    // 4. เรียกตอนแรก และตรวจจับทุกครั้งที่ขนาด Footer เปลี่ยน
-    adjustPadding();
-    window.addEventListener('resize', adjustPadding);
-    
-    // 5. ใช้ ResizeObserver สำหรับกรณีที่เนื้อหา Footer เปลี่ยนแบบไม่ต้อง resize (เช่น โหลดฟอนต์ช้า)
-    if (window.ResizeObserver) {
-        const resizeObserver = new ResizeObserver(adjustPadding);
-        resizeObserver.observe(footer);
-    }
+    // ไม่ต้องปรับ padding-bottom เพราะ Footer อยู่ใน flow ปกติ
+    // ไม่มี element ใดถูกบังอีกต่อไป
 }
 
-// รอให้ DOM พร้อมแล้วจึงแทรก Footer
+// รอให้หน้าเว็บโหลดโครงสร้าง HTML เสร็จก่อน แล้วค่อยแทรก Footer
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', injectGlobalFooter);
 } else {
