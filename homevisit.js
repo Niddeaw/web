@@ -1394,6 +1394,30 @@ window.openInGoogleMaps = function () {
     window.open(`https://www.google.com/maps/search/?api=1&query=${encoded}`, '_blank');
 };
 
+// ==========================================
+// เปิดเส้นทางใน Google Maps (โรงเรียน → บ้าน)
+// ==========================================
+window.openRouteInGoogleMaps = function () {
+    const lat = parseFloat(document.getElementById('lat')?.value);
+    const lng = parseFloat(document.getElementById('lng')?.value);
+
+    if (isNaN(lat) || isNaN(lng) || !lat || !lng) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ยังไม่มีพิกัดบ้าน',
+            text: 'กรุณาปักหมุดบ้านนักเรียน หรือกรอกละติจูด/ลองจิจูด ก่อน',
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
+
+    const origin = `${SCHOOL_LAT},${SCHOOL_LNG}`;
+    const destination = `${lat},${lng}`;
+    const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
+
+    window.open(url, '_blank');
+};
+
 window.syncGuardianData = function (role) {
     const isFather = (role === 'father');
     const getVal = id => document.getElementById(id) ? document.getElementById(id).value : '';
