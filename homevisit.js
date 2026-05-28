@@ -935,7 +935,7 @@ async function compressImage(file, maxSizeMB = 2) {
 // ==========================================
 window.triggerSingleUpload = async function (event, inputId, type) {
     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
-    
+
     const fileInput = document.getElementById(inputId);
     const file = fileInput?.files[0];
     const studentId = document.getElementById('hv_student')?.value; // รหัส UUID
@@ -951,17 +951,17 @@ window.triggerSingleUpload = async function (event, inputId, type) {
     btn.disabled = true;
 
     // ดึงค่า URL และ โฟลเดอร์เยี่ยมบ้าน จากการตั้งค่าส่วนกลาง
-    const GAS_URL = moduleSettings.gas_url; 
-    const FOLDER_HOMEVISIT = moduleSettings.drive_folder_id; 
+    const GAS_URL = moduleSettings.gas_url;
+    const FOLDER_HOMEVISIT = moduleSettings.drive_folder_id;
     const FOLDER_PROFILE = '168WCLk-GfvyGZnlE5ywGOVx2Qz8QRvnN'; // โฟลเดอร์รูปโปรไฟล์นักเรียน
 
     let targetFolderId = FOLDER_HOMEVISIT;
-    let targetFileName = `HV_${studentCode}_${type}.jpg`; 
+    let targetFileName = `HV_${studentCode}_${type}.jpg`;
 
     // ✅ แก้ไข: เช็ค type เป็น 'student_pic' ตามที่ส่งมาจาก HTML
     if (type === 'student_pic') {
         targetFolderId = FOLDER_PROFILE;
-        targetFileName = `avatar_${studentCode}.jpg`; 
+        targetFileName = `avatar_${studentCode}.jpg`;
     }
 
     try {
@@ -970,18 +970,18 @@ window.triggerSingleUpload = async function (event, inputId, type) {
 
         const response = await fetch(GAS_URL, {
             method: "POST",
-            body: JSON.stringify({ 
-                action: 'upload', 
-                base64: compressedBase64, 
-                fileName: targetFileName, 
-                folderId: targetFolderId 
+            body: JSON.stringify({
+                action: 'upload',
+                base64: compressedBase64,
+                fileName: targetFileName,
+                folderId: targetFolderId
             }),
         });
-        
+
         const res = await response.json();
-        
+
         if (res.status === 'success' && res.url) {
-            fileInput.dataset.uploadedUrl = res.url; 
+            fileInput.dataset.uploadedUrl = res.url;
 
             // ✅ ถ้าเป็นรูปนักเรียน ให้ Update ลงตาราง core_students ด้วย
             if (type === 'student_pic') {
@@ -1236,13 +1236,13 @@ async function loadAdminSettings() {
     document.getElementById('set-pdf-folder-id').value = moduleSettings.gd_pdf_folder_id;
     const reportTemplateEl = document.getElementById('set-report-template-id');
     if (reportTemplateEl) reportTemplateEl.value = moduleSettings.report_template_id;
-    
+
     // ✅ โหลดค่า show_report
     const showReportCheckbox = document.getElementById('setting-show-report');
     if (showReportCheckbox) {
         showReportCheckbox.checked = (moduleSettings.show_report === 'true');
     }
-    
+
     await Promise.all([loadTeachersForAppoint(), loadModuleAdminsList()]);
 }
 
@@ -1387,14 +1387,14 @@ window.loadDataTable = async function () {
             const { data: enrolls } = await db.from('student_enrollments')
                 .select('classroom_id, student_id')
                 .in('classroom_id', classrooms.map(c => c.id));
-                
+
             const totalMap = {}, visitedMap = {};
             (enrolls || []).forEach(e => { totalMap[e.classroom_id] = (totalMap[e.classroom_id] || 0) + 1; });
-            
+
             // ✅ 2. เปลี่ยนการนับ ให้นับเพิ่มเฉพาะคนที่สถานะเป็น 'เยี่ยมแล้ว' เท่านั้น
-            (visits || []).forEach(v => { 
+            (visits || []).forEach(v => {
                 if (v.visit_status === 'เยี่ยมแล้ว') {
-                    visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1; 
+                    visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1;
                 }
             });
             // =============================================================
@@ -2750,8 +2750,14 @@ window.importFromExcel = function () {
                         student_phone: String(row['เบอร์โทรนักเรียน'] || ''),
 
                         father_name: String(row['ชื่อบิดา'] || ''),
+                        father_job: String(row['อาชีพบิดา'] || ''),
+                        father_phone: String(row['เบอร์โทรบิดา'] || ''),
                         mother_name: String(row['ชื่อมารดา'] || ''),
+                        mother_job: String(row['อาชีพมารดา'] || ''),
+                        mother_phone: String(row['เบอร์โทรมารดา'] || ''),
                         guardian_name: String(row['ชื่อผู้ปกครอง'] || ''),
+                        guardian_job: String(row['อาชีพผู้ปกครอง'] || ''),
+                        guardian_phone: String(row['เบอร์โทรผู้ปกครอง'] || ''),
                         guardian_relation: String(row['ความเกี่ยวข้อง'] || ''),
 
                         house_number: String(row['บ้านเลขที่'] || ''),
@@ -3010,15 +3016,15 @@ async function loadAdminOverview() {
         const stdCount = {};
         const visitCount = {};
         classIds.forEach(id => { stdCount[id] = 0; visitCount[id] = 0; });
-        
+
         // นับนักเรียนทั้งหมด
-        (students || []).forEach(s => { if(stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
-        
+        (students || []).forEach(s => { if (stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
+
         // ✅ นับเฉพาะที่เยี่ยมแล้วจริงๆ 
-        (visits || []).forEach(v => { 
-            if(visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
-                visitCount[v.classroom_id]++; 
-            } 
+        (visits || []).forEach(v => {
+            if (visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
+                visitCount[v.classroom_id]++;
+            }
         });
 
         tbody.innerHTML = classrooms.map(c => {
@@ -3072,7 +3078,7 @@ window.viewExistingPDF = function (pdfUrl) {
     window.open(pdfUrl, '_blank');
 };
 
-window.applyReportVisibility = function() {
+window.applyReportVisibility = function () {
     const isReportEnabled = moduleSettings.show_report === 'true';
     const isSuperAdmin = (actualRole === 'super_admin' || currentViewRole === 'super_admin');
 
