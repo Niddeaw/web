@@ -138,7 +138,7 @@
                         </button>
                         <button onclick="switchTab('report')" id="tab-report-btn"
                             class="flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm">
-                            <i class="fas fa-chart-pie mr-1"></i> รายงานสรุป
+                            <i class="fas fa-chart-pie mr-1"></i><span class="hidden sm:inline"> รายงาน</span>
                         </button>
                     </div>
                 </div>
@@ -1280,6 +1280,24 @@
                         </div>
                     </div>
                 </section>
+                <!-- เปิด-ปิดรายงาน (เต็มความกว้าง) -->
+                <div id="report-toggle-container"
+                    class="mt-6 flex items-center justify-between bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                    <div>
+                        <h4 class="font-bold text-slate-700 text-sm">
+                            <i class="fas fa-eye text-indigo-500 mr-2"></i>เปิดใช้งานรายงานสรุปภาพรวม
+                        </h4>
+                        <p class="text-xs text-slate-500 mt-1">
+                            หากปิดสวิตช์นี้ ผู้ใช้งานทั่วไปจะมองไม่เห็นปุ่มรายงาน (Super Admin จะเห็นเสมอ)
+                        </p>
+                    </div>
+                    <label class="relative inline-flex items-center cursor-pointer">
+                        <input type="checkbox" id="setting-show-report" class="sr-only peer">
+                        <div
+                            class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 shadow-inner">
+                        </div>
+                    </label>
+                </div>
             </div>
 
             <!-- Footer (ปุ่มล่าง) -->

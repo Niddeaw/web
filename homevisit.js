@@ -305,6 +305,7 @@ async function checkAuth() {
         if (actualRole !== 'teacher') document.getElementById('btnAdminMode')?.classList.remove('hidden');
         updateUIByRole();
         await loadClassrooms();
+        applyReportVisibility(); // เพิ่มบรรทัดนี้ลงไปหลังจากโหลดค่าต่างๆ เสร็จ
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
     } catch (error) {
@@ -1203,7 +1204,8 @@ async function loadModuleSettings() {
             pdf_api_url: data.settings.pdf_api_url || "",
             slide_template_url: data.settings.slide_template_url || "",
             gd_pdf_folder_id: data.settings.gd_pdf_folder_id || "",
-            report_template_id: data.settings.report_template_id || ""
+            report_template_id: data.settings.report_template_id || "",
+            show_report: data.settings.show_report || "false"   // ✅ เพิ่มบรรทัดนี้
         };
     }
 }
@@ -1211,6 +1213,16 @@ async function loadModuleSettings() {
 window.openAdminModal = async function () {
     document.getElementById('admin-modal').classList.remove('hidden');
     await loadAdminSettings();
+
+    // ✅ ซ่อนการตั้งค่าเปิด/ปิดรายงานถ้าไม่ใช่ Super Admin
+    const toggleContainer = document.getElementById('report-toggle-container');
+    if (toggleContainer) {
+        if (actualRole === 'super_admin') {
+            toggleContainer.classList.remove('hidden');
+        } else {
+            toggleContainer.classList.add('hidden');
+        }
+    }
 };
 
 function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
@@ -1224,23 +1236,35 @@ async function loadAdminSettings() {
     document.getElementById('set-pdf-folder-id').value = moduleSettings.gd_pdf_folder_id;
     const reportTemplateEl = document.getElementById('set-report-template-id');
     if (reportTemplateEl) reportTemplateEl.value = moduleSettings.report_template_id;
+    
+    // ✅ โหลดค่า show_report
+    const showReportCheckbox = document.getElementById('setting-show-report');
+    if (showReportCheckbox) {
+        showReportCheckbox.checked = (moduleSettings.show_report === 'true');
+    }
+    
     await Promise.all([loadTeachersForAppoint(), loadModuleAdminsList()]);
 }
 
 async function saveAdminSettings() {
+    const showReportCheckbox = document.getElementById('setting-show-report');
+    const showReportValue = showReportCheckbox ? (showReportCheckbox.checked ? 'true' : 'false') : 'false';
+
     const payload = {
         gas_url: document.getElementById('set-gas-url').value.trim(),
         drive_folder_id: document.getElementById('set-drive-folder-id').value.trim(),
         pdf_api_url: document.getElementById('set-pdf-api-url').value.trim(),
         slide_template_url: document.getElementById('set-slide-id').value.trim(),
         gd_pdf_folder_id: document.getElementById('set-pdf-folder-id').value.trim(),
-        report_template_id: document.getElementById('set-report-template-id')?.value.trim() || ""
+        report_template_id: document.getElementById('set-report-template-id')?.value.trim() || "",
+        show_report: showReportValue   // ✅ เพิ่มบรรทัดนี้
     };
     const { error } = await db.from('core_system_modules').update({ settings: payload }).eq('module_id', 'homevisit');
     if (error) return Swal.fire('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + error.message, 'error');
     moduleSettings = payload;
     Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
     closeAdminModal();
+    applyReportVisibility(); // ✅ รีเฟรชการแสดงผลปุ่มรายงานทันที
 }
 
 async function loadTeachersForAppoint() {
@@ -2003,11 +2027,13 @@ async function loadReport() {
 
             const studentItem = { id: s.student_id_card || '-', name: `${s.prefix || ''}${s.first_name} ${s.last_name}`, room: s.room_label };
 
-            if (visit) {
+            // ✅ เปลี่ยนแปลงสำคัญ: ตรวจสอบสถานะว่าต้องเป็น 'เยี่ยมแล้ว' เท่านั้น
+            if (visit && visit.visit_status === 'เยี่ยมแล้ว') {
                 visitedCount++;
                 window.reportVisitedList.push(studentItem);
 
-                const risk = visit.risk_data || {};
+                // ✅ ดักจับ Error กรณีชื่อฟิลด์ JSON ของความเสี่ยงไม่ตรงกัน
+                const risk = visit.risk_factors || visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
 
@@ -2733,6 +2759,7 @@ window.importFromExcel = function () {
                         sub_district: String(row['ตำบล'] || ''),
                         district: String(row['อำเภอ'] || ''),
                         province: String(row['จังหวัด'] || ''),
+                        zipcode: String(row['รหัสไปรษณีย์'] || ''),
 
                         latitude: parseFloat(row['ละติจูด'] || row['latitude']) || null,
                         longitude: parseFloat(row['ลองจิจูด'] || row['longitude']) || null,
@@ -3045,3 +3072,40 @@ window.viewExistingPDF = function (pdfUrl) {
     window.open(pdfUrl, '_blank');
 };
 
+window.applyReportVisibility = function() {
+    const isReportEnabled = moduleSettings.show_report === 'true';
+    const isSuperAdmin = (actualRole === 'super_admin' || currentViewRole === 'super_admin');
+
+    // ปุ่มทั้งหมดที่เกี่ยวกับรายงาน
+    const navBtn = document.getElementById('nav-btn-report');          // ถ้ามีใน navbar
+    const tabBtnDesktop = document.getElementById('tab-report-btn');
+    const tabBtnMobile = document.getElementById('tab-report-btn-mobile');
+
+    // ถ้าเป็น Super Admin ให้แสดงเสมอ (เพราะเขาต้องการควบคุม)
+    if (isSuperAdmin) {
+        if (navBtn) navBtn.classList.remove('hidden');
+        if (tabBtnDesktop) tabBtnDesktop.classList.remove('hidden');
+        if (tabBtnMobile) {
+            tabBtnMobile.classList.remove('hidden');
+            tabBtnMobile.classList.add('flex-1');
+        }
+        return;
+    }
+
+    // สำหรับผู้ใช้อื่น: แสดงก็ต่อเมื่อเปิดใช้งานรายงาน
+    if (isReportEnabled) {
+        if (navBtn) navBtn.classList.remove('hidden');
+        if (tabBtnDesktop) tabBtnDesktop.classList.remove('hidden');
+        if (tabBtnMobile) {
+            tabBtnMobile.classList.remove('hidden');
+            tabBtnMobile.classList.add('flex-1');
+        }
+    } else {
+        if (navBtn) navBtn.classList.add('hidden');
+        if (tabBtnDesktop) tabBtnDesktop.classList.add('hidden');
+        if (tabBtnMobile) {
+            tabBtnMobile.classList.add('hidden');
+            tabBtnMobile.classList.remove('flex-1');
+        }
+    }
+};
