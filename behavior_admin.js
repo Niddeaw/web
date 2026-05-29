@@ -316,6 +316,9 @@ async function saveBehaviorRecord() {
     if (!studentId || !criteriaId || isNaN(score))
         return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
 
+    if (!fileInput)
+        return Swal.fire('กรุณาแนบรูปหลักฐาน', 'ต้องอัปโหลดรูปภาพหลักฐานทุกครั้ง', 'warning');
+
     // ค้นหาจาก allStudents
     const student = allStudents.find(s => s.id === studentId);
     const studentSid = student?.sid || studentId;
