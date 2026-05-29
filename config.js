@@ -56,3 +56,20 @@ if (document.readyState === 'loading') {
 } else {
     injectGlobalFooter();
 }
+
+// ฟังก์ชันส่วนกลางสำหรับบันทึก Log การเข้าใช้งาน
+async function logUserAction(action, module) {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) return;
+
+        await db.from('core_access_logs').insert([{
+            user_id: session.user.id,
+            action: action,
+            module: module,
+            user_agent: navigator.userAgent
+        }]);
+    } catch (error) {
+        console.error("Failed to save log:", error);
+    }
+}
