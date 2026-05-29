@@ -148,6 +148,10 @@ async function initStudentTable() {
         const totalScore = 100 + (s.behavior_logs?.reduce((sum, log) => sum + log.score_change, 0) || 0);
         const posCount = s.behavior_logs?.filter(l => l.score_change > 0).length || 0;
         const negCount = s.behavior_logs?.filter(l => l.score_change < 0).length || 0;
+        // จำแนกขั้นโทษจาก score_change: เบา 1-3, กลาง 4-7, ร้ายแรง 8+
+        const sevLight  = s.behavior_logs?.filter(l => l.score_change < 0 && Math.abs(l.score_change) <= 3).length || 0;
+        const sevMedium = s.behavior_logs?.filter(l => l.score_change < 0 && Math.abs(l.score_change) >= 4 && Math.abs(l.score_change) <= 7).length || 0;
+        const sevHeavy  = s.behavior_logs?.filter(l => l.score_change < 0 && Math.abs(l.score_change) >= 8).length || 0;
         const enroll = s.student_enrollments?.[0];
         const classroom = enroll?.core_classrooms;
         const prefix = s.prefix || '';
@@ -168,6 +172,9 @@ async function initStudentTable() {
             score: totalScore,
             pos: posCount,
             neg: negCount,
+            sevLight,
+            sevMedium,
+            sevHeavy,
             avatar: s.avatar_students_url || null   // รูปโปรไฟล์นักเรียน
         };
     });
@@ -216,6 +223,73 @@ function loadDashboard() {
     $('#stat_negative').text(allStudents.filter(s => s.neg > 0).length);
     $('#stat_high').text(allStudents.filter(s => s.score > 100).length);
     $('#stat_low').text(allStudents.filter(s => s.score < 50).length);
+    // การ์ดขั้นโทษ — นับนักเรียนที่มีประวัติขั้นนั้นอย่างน้อย 1 ครั้ง
+    $('#stat_sev_light').text(allStudents.filter(s => s.sevLight > 0).length);
+    $('#stat_sev_medium').text(allStudents.filter(s => s.sevMedium > 0).length);
+    $('#stat_sev_heavy').text(allStudents.filter(s => s.sevHeavy > 0).length);
+    loadRecentLogs();
+}
+
+// ── 10 รายการล่าสุด (ทำดี / ผิดระเบียบ) ─────────────────────────────────
+async function loadRecentLogs() {
+    const cols = 'id, student_id, score_change, created_at, behavior_criteria(title), recorder:core_personnel!recorder_id(prefix, first_name, last_name), student:core_students!student_id(student_id_card, first_name, last_name, student_enrollments(student_number, core_classrooms(grade_level, room_number)))';
+
+    const [posRes, negRes] = await Promise.all([
+        db.from('behavior_logs').select(cols)
+            .gt('score_change', 0).order('created_at', { ascending: false }).limit(10),
+        db.from('behavior_logs').select(cols)
+            .lt('score_change', 0).order('created_at', { ascending: false }).limit(10)
+    ]);
+
+    renderRecentTable('recent_positive_body', posRes.data || [], 'positive');
+    renderRecentTable('recent_negative_body', negRes.data || [], 'negative');
+}
+
+function renderRecentTable(tbodyId, logs, type) {
+    if (!logs.length) {
+        $('#' + tbodyId).html('<tr><td colspan="7" class="py-6 text-center text-slate-300">ยังไม่มีรายการ</td></tr>');
+        return;
+    }
+
+    const isPos = type === 'positive';
+
+    let html = '';
+    logs.forEach(function(log) {
+        const date = new Date(log.created_at).toLocaleDateString('th-TH', {
+            month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+
+        // ดึงข้อมูล enrollment
+        const student  = log.student || {};
+        const enroll   = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
+        const classroom = enroll?.core_classrooms || {};
+        const room      = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+        const sid       = student.student_id_card || '-';
+        const fullName  = ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-';
+
+        const criteria = log.behavior_criteria?.title || '-';
+        const scoreVal = (isPos ? '+' : '') + log.score_change;
+        const scoreClass = isPos ? 'text-green-600 font-black' : 'text-red-600 font-black';
+
+        const rec = log.recorder
+            ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name
+            : '-';
+
+        // กด row → เปิดประวัตินักเรียน
+        const studentUUID = log.student_id;
+        html += `<tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+                     onclick="viewHistory('${studentUUID}')" title="ดูประวัติ ${fullName}">
+            <td class="py-2 pr-2 text-slate-400 whitespace-nowrap">${date}</td>
+            <td class="py-2 pr-2 whitespace-nowrap">${room}</td>
+            <td class="py-2 pr-2 text-slate-500">${sid}</td>
+            <td class="py-2 pr-3 font-medium text-slate-700 whitespace-nowrap">${fullName}</td>
+            <td class="py-2 pr-2 text-slate-500 max-w-[120px] truncate" title="${criteria}">${criteria}</td>
+            <td class="py-2 pr-2 text-center ${scoreClass}">${scoreVal}</td>
+            <td class="py-2 text-slate-400 whitespace-nowrap">${rec}</td>
+        </tr>`;
+    });
+
+    $('#' + tbodyId).html(html);
 }
 
 // ค้นหาจาก allStudents
@@ -741,23 +815,27 @@ function viewHistory(studentId) {
 }
 
 async function loadStudentHistory(studentId) {
-    $('#historyBody').html('<tr><td colspan="5" class="text-center py-8 text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</td></tr>');
+    $('#historyBody').html('<tr><td colspan="6" class="text-center py-8 text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</td></tr>');
 
     const { data, error } = await db.from('behavior_logs')
-        .select('id, score_change, description, evidence_url, created_at, behavior_criteria(title, category), core_personnel(prefix, first_name, last_name)')
+        .select('id, criteria_id, score_change, description, evidence_url, created_at, updated_at, behavior_criteria(id, title, category), recorder:core_personnel!recorder_id(prefix, first_name, last_name), updatedBy:core_personnel!updated_by(prefix, first_name, last_name)')
         .eq('student_id', studentId)
         .order('created_at', { ascending: false });
 
     if (error) {
-        $('#historyBody').html('<tr><td colspan="5" class="text-center py-4 text-red-400">เกิดข้อผิดพลาด: ' + error.message + '</td></tr>');
+        $('#historyBody').html('<tr><td colspan="6" class="text-center py-4 text-red-400">เกิดข้อผิดพลาด: ' + error.message + '</td></tr>');
         return;
     }
 
-    // ✅ สิทธิ์ลบ: super_admin และ หัวหน้าปกครอง (isDisciplineHead)
-    const canDelete = currentUser.role === 'super_admin' || currentUser.isDisciplineHead;
+    // ── สิทธิ์แต่ละระดับ ──────────────────────────────────────────────────
+    const isSuperAdmin    = currentUser.role === 'super_admin';
+    const isDiscHead      = currentUser.isDisciplineHead;
+    const isGradeHead     = currentUser.role === 'admin' && currentUser.managedGrades.length > 0 && !isDiscHead;
+    const canEdit         = isSuperAdmin || isDiscHead || isGradeHead;   // ทุกระดับที่สูงกว่าครู
+    const canDelete       = isSuperAdmin || isDiscHead;
 
     if (!data || data.length === 0) {
-        $('#historyBody').html('<tr><td colspan="5" class="text-center py-8 text-slate-400">ไม่มีประวัติการบันทึก</td></tr>');
+        $('#historyBody').html('<tr><td colspan="6" class="text-center py-8 text-slate-400">ไม่มีประวัติการบันทึก</td></tr>');
         return;
     }
 
@@ -767,17 +845,41 @@ async function loadStudentHistory(studentId) {
             year: 'numeric', month: 'short', day: 'numeric',
             hour: '2-digit', minute: '2-digit'
         });
-        const isPos = log.score_change > 0;
+        const isPos      = log.score_change > 0;
         const scoreClass = isPos ? 'text-green-600' : 'text-red-600';
-        const scorePre = isPos ? '+' : '';
-        const recorder = log.core_personnel
-            ? (log.core_personnel.prefix || '') + log.core_personnel.first_name + ' ' + log.core_personnel.last_name
+        const scorePre   = isPos ? '+' : '';
+        const recorder   = log.recorder
+            ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name
             : '-';
         const evidenceLink = log.evidence_url
             ? '<a href="' + log.evidence_url + '" target="_blank" class="text-blue-500 hover:underline text-xs ml-1"><i class="fas fa-image"></i></a>'
             : '';
+
+        // แสดงแก้ไขล่าสุด (ถ้ามี updated_at และต่างจาก created_at)
+        let editedLine = '';
+        if (log.updated_at && log.updated_at !== log.created_at) {
+            const updDate = new Date(log.updated_at).toLocaleDateString('th-TH', {
+                year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+            });
+            const updBy = log.updatedBy
+                ? (log.updatedBy.prefix || '') + log.updatedBy.first_name + ' ' + log.updatedBy.last_name
+                : '-';
+            editedLine = '<div class="text-amber-500 text-[10px] mt-0.5">'
+                + '<i class="fas fa-pen mr-1"></i>แก้ไขล่าสุด ' + updDate + ' โดย ' + updBy + '</div>';
+        }
+
+        // ปุ่มแก้ไข
+        const editBtn = canEdit
+            ? '<button onclick="editLog(\'' + log.id + '\', \'' + studentId + '\')" '
+              + 'class="text-blue-300 hover:text-blue-600 transition p-1 rounded-lg hover:bg-blue-50" title="แก้ไข">'
+              + '<i class="fas fa-pen text-xs"></i></button>'
+            : '';
+
+        // ปุ่มลบ
         const deleteBtn = canDelete
-            ? '<button onclick="deleteLog(\'' + log.id + '\', \'' + studentId + '\')" class="text-red-300 hover:text-red-600 transition p-1 rounded-lg hover:bg-red-50" title="ลบรายการนี้"><i class="fas fa-trash-alt text-xs"></i></button>'
+            ? '<button onclick="deleteLog(\'' + log.id + '\', \'' + studentId + '\')" '
+              + 'class="text-red-300 hover:text-red-600 transition p-1 rounded-lg hover:bg-red-50" title="ลบ">'
+              + '<i class="fas fa-trash-alt text-xs"></i></button>'
             : '';
 
         html += '<tr class="border-b border-slate-100 hover:bg-slate-50">'
@@ -785,12 +887,151 @@ async function loadStudentHistory(studentId) {
             + '<td class="py-2 px-3 text-sm font-medium">' + (log.behavior_criteria ? log.behavior_criteria.title : '-') + '</td>'
             + '<td class="py-2 px-3 text-center font-black ' + scoreClass + '">' + scorePre + log.score_change + '</td>'
             + '<td class="py-2 px-3 text-xs text-slate-500">' + (log.description || '-') + evidenceLink
-            + '<div class="text-slate-400 text-[10px] mt-0.5">บันทึกโดย: ' + recorder + '</div></td>'
-            + '<td class="py-2 px-3 text-center">' + deleteBtn + '</td>'
+            + '<div class="text-slate-400 text-[10px] mt-0.5">บันทึกโดย: ' + recorder + '</div>'
+            + editedLine + '</td>'
+            + '<td class="py-2 px-3 text-center whitespace-nowrap">' + editBtn + ' ' + deleteBtn + '</td>'
             + '</tr>';
     });
 
     $('#historyBody').html(html);
+}
+
+// ── แก้ไข log ───────────────────────────────────────────────────────────
+async function editLog(logId, studentId) {
+    // โหลดข้อมูล log ที่จะแก้ไข
+    const { data: log, error } = await db.from('behavior_logs')
+        .select('id, criteria_id, score_change, description, evidence_url, behavior_criteria(id, title, category)')
+        .eq('id', logId).single();
+    if (error || !log) return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลรายการนี้', 'error');
+
+    const curCategory = log.behavior_criteria?.category || 'negative';
+
+    // สร้าง options criteria
+    const criteriaOptions = criteriaList
+        .filter(c => c.category === curCategory)
+        .map(c => '<option value="' + c.id + '" data-score="' + (c.category === 'negative' ? -c.default_score : c.default_score) + '"'
+            + (c.id === log.criteria_id ? ' selected' : '') + '>'
+            + c.title + ' (' + (c.category === 'negative' ? '-' : '+') + c.default_score + ')</option>')
+        .join('');
+
+    // แสดงรูปเดิม (ถ้ามี)
+    const existingImgHtml = log.evidence_url
+        ? `<div class="mt-2">
+              <p class="text-[10px] text-slate-400 mb-1">รูปปัจจุบัน (คลิกเพื่อดู):</p>
+              <a href="${log.evidence_url}" target="_blank">
+                <img src="${log.evidence_url}" class="h-20 rounded-xl object-cover border border-slate-200 hover:opacity-80 transition">
+              </a>
+           </div>`
+        : '<p class="text-[10px] text-slate-400 mt-1">ยังไม่มีรูปหลักฐาน</p>';
+
+    const { value: formValues } = await Swal.fire({
+        title: '<i class="fas fa-pen mr-2 text-blue-500"></i>แก้ไขรายการ',
+        width: '660px',
+        html: `
+        <div class="text-left space-y-3">
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">รายการเกณฑ์</label>
+                <select id="edit_criteria" class="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    onchange="document.getElementById('edit_score').value = this.options[this.selectedIndex].dataset.score">
+                    ${criteriaOptions}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">คะแนน</label>
+                <input id="edit_score" type="number" value="${log.score_change}"
+                    class="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm text-center font-bold outline-none focus:border-blue-400">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">รายละเอียดเพิ่มเติม</label>
+                <textarea id="edit_desc" rows="2"
+                    class="w-full border-2 border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400">${log.description || ''}</textarea>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 mb-1">
+                    รูปภาพหลักฐาน
+                    <span class="font-normal text-slate-400">(เลือกใหม่เพื่อแทนที่รูปเดิม — ย่อขนาดอัตโนมัติ)</span>
+                </label>
+                ${existingImgHtml}
+                <input type="file" id="edit_evidence" accept="image/*"
+                    class="w-full text-sm mt-2 file:mr-3 file:py-1.5 file:px-4 file:rounded-full file:border-0
+                           file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                    onchange="
+                        const f = this.files[0];
+                        const preview = document.getElementById('edit_new_preview');
+                        if (f) { preview.src = URL.createObjectURL(f); preview.classList.remove('hidden'); }
+                        else { preview.classList.add('hidden'); }
+                    ">
+                <img id="edit_new_preview" class="hidden mt-2 h-28 rounded-xl object-cover border border-blue-200 w-full">
+            </div>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonColor: '#2563eb',
+        confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        focusConfirm: false,
+        preConfirm: async () => {
+            const criteriaId = document.getElementById('edit_criteria').value;
+            const score      = parseInt(document.getElementById('edit_score').value);
+            const desc       = document.getElementById('edit_desc').value.trim();
+            const fileInput  = document.getElementById('edit_evidence').files[0];
+
+            if (!criteriaId || isNaN(score))
+                return Swal.showValidationMessage('กรุณาเลือกเกณฑ์และระบุคะแนน');
+
+            // ── อัปโหลดรูปใหม่ (ถ้าเลือกไว้) ──────────────────────────────
+            let newImageUrl = undefined;   // undefined = ไม่แตะ evidence_url เดิม
+            if (fileInput) {
+                if (!systemConfig?.gas_url || !systemConfig?.drive_folder_id)
+                    return Swal.showValidationMessage('ยังไม่ได้ตั้งค่า Google Drive API');
+                try {
+                    // ชื่อไฟล์ตรึงตาม logId → GAS ลบของเดิมและแทนที่อัตโนมัติ
+                    const fileName = `behavior_edit_${logId}.jpg`;
+                    const resizedBlob = await resizeImage(fileInput);
+                    const base64Data  = await blobToBase64(resizedBlob);
+                    const res = await fetch(systemConfig.gas_url, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'upload',
+                            base64: base64Data,
+                            fileName: fileName,
+                            folderId: systemConfig.drive_folder_id
+                        })
+                    });
+                    const resData = await res.json();
+                    if (resData.status === 'success') newImageUrl = resData.url;
+                    else return Swal.showValidationMessage('อัปโหลดรูปไม่สำเร็จ: ' + resData.message);
+                } catch (err) {
+                    return Swal.showValidationMessage('อัปโหลดรูปไม่สำเร็จ: ' + err.message);
+                }
+            }
+
+            return { criteriaId, score, desc, newImageUrl };
+        }
+    });
+
+    if (!formValues) return;
+
+    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const updateData = {
+        criteria_id:  formValues.criteriaId,
+        score_change: formValues.score,
+        description:  formValues.desc,
+        updated_at:   new Date().toISOString(),
+        updated_by:   currentUser.id
+    };
+    // อัปเดต evidence_url เฉพาะเมื่อมีการอัปโหลดรูปใหม่
+    if (formValues.newImageUrl !== undefined) updateData.evidence_url = formValues.newImageUrl;
+
+    const { error: updErr } = await db.from('behavior_logs').update(updateData).eq('id', logId);
+    if (updErr) return Swal.fire('ผิดพลาด', updErr.message, 'error');
+
+    await initStudentTable();
+    loadDashboard();
+    const student = allStudents.find(s => s.id === studentId);
+    if (student) $('#historyStudentScore').text(student.score);
+    await loadStudentHistory(studentId);
+    Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1200, showConfirmButton: false });
 }
 
 async function deleteLog(logId, studentId) {

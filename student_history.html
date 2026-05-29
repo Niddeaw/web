@@ -5,8 +5,14 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <style>
+        /* เพิ่มสไตล์สำหรับ scrollbar และการ์ด */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
 </head>
-<body class="p-4 md:p-8 text-slate-800">
+<body class="p-4 md:p-8 text-slate-800 bg-slate-50">
     <div class="max-w-5xl mx-auto">
         <button onclick="history.back()"
             class="mb-4 text-slate-500 hover:text-blue-600 font-bold transition flex items-center gap-2 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-200">
@@ -17,7 +23,6 @@
             <!-- Header -->
             <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-8 text-white flex flex-col md:flex-row justify-between items-center gap-6">
                 <div class="flex items-center gap-4">
-                    <!-- Container รูปโปรไฟล์ : แสดงรูปหรือไอคอนตามข้อมูล avatar_students_url -->
                     <div id="avatar_container"
                         class="h-20 w-20 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-4xl border border-white/30 shadow-inner overflow-hidden relative">
                         <i id="st_avatar_icon" class="fas fa-user-graduate"></i>
@@ -47,7 +52,7 @@
                             <tr id="table_headers"></tr>
                         </thead>
                         <tbody id="history_body" class="divide-y divide-slate-100">
-                            <tr><td colspan="7" class="p-8 text-center text-slate-400">กำลังโหลด...</td></tr>
+                            <tr><td colspan="7" class="p-8 text-center text-slate-400">กำลังโหลด...</td</tr>
                         </tbody>
                     </table>
                 </div>
@@ -55,7 +60,7 @@
         </div>
     </div>
 
-    <!-- ── Edit Modal ── -->
+    <!-- Edit Modal (เหมือนเดิม แต่ปรับให้ใช้ Tom Select หรือคงเดิม) -->
     <div id="editModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-3xl p-6 md:p-8 max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <h2 class="text-xl font-bold mb-6 flex items-center">
@@ -65,32 +70,26 @@
                 <input type="hidden" id="edit_log_id">
                 <input type="hidden" id="edit_old_evidence_url">
 
-                <!-- เกณฑ์ -->
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">รายการเกณฑ์</label>
                     <select id="edit_criteria" onchange="updateEditScore()"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none bg-white focus:border-yellow-500 transition"></select>
                 </div>
 
-                <!-- คะแนน -->
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">คะแนน (ใส่เครื่องหมาย + หรือ - ให้ถูกต้อง)</label>
                     <input type="number" id="edit_score"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none text-center font-bold text-lg focus:border-yellow-500 transition">
                 </div>
 
-                <!-- รายละเอียด -->
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">รายละเอียดเพิ่มเติม</label>
                     <textarea id="edit_desc" rows="2"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-yellow-500 transition"></textarea>
                 </div>
 
-                <!-- ── หลักฐาน ── -->
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-2">หลักฐาน</label>
-
-                    <!-- รูปปัจจุบัน -->
                     <div id="edit_current_evidence" class="hidden mb-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
                         <p class="text-xs text-slate-500 mb-2 font-bold">หลักฐานปัจจุบัน:</p>
                         <img id="edit_evidence_current_img" src="" alt="หลักฐาน"
@@ -108,23 +107,15 @@
                         <p class="text-xs text-slate-400 italic"><i class="fas fa-image mr-1"></i>ไม่มีหลักฐานแนบ</p>
                     </div>
 
-                    <!-- ปุ่มเลือกการจัดการรูป -->
                     <div class="flex gap-2 mb-3">
-                        <button id="btn_img_keep" onclick="setImageAction('keep')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">
-                            <i class="fas fa-lock mr-1"></i>คงเดิม
-                        </button>
-                        <button id="btn_img_replace" onclick="setImageAction('replace')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">
-                            <i class="fas fa-sync-alt mr-1"></i>เปลี่ยนรูป
-                        </button>
-                        <button id="btn_img_remove" onclick="setImageAction('remove')"
-                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition hidden">
-                            <i class="fas fa-trash mr-1"></i>ลบรูป
-                        </button>
+                        <button type="button" onclick="setImageAction('keep')"
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">คงเดิม</button>
+                        <button type="button" onclick="setImageAction('replace')"
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition">เปลี่ยนรูป</button>
+                        <button type="button" onclick="setImageAction('remove')"
+                            class="flex-1 py-2 rounded-xl text-xs font-bold border-2 border-slate-200 text-slate-600 bg-white transition hidden">ลบรูป</button>
                     </div>
 
-                    <!-- อัปโหลดรูปใหม่ (แสดงเมื่อ action = replace) -->
                     <div id="edit_new_image_section" class="hidden">
                         <input type="file" id="edit_evidence_file" accept="image/*"
                             class="w-full text-sm text-slate-500 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:font-bold file:bg-green-50 file:text-green-600 hover:file:bg-green-100 cursor-pointer border-2 border-dashed border-green-300 rounded-xl p-2">
@@ -133,16 +124,11 @@
                     </div>
                 </div>
 
-                <!-- ปุ่มบันทึก/ยกเลิก -->
                 <div class="flex gap-3 pt-4">
                     <button onclick="closeEditModal()"
-                        class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600 hover:bg-gray-200 transition">
-                        ยกเลิก
-                    </button>
+                        class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600 hover:bg-gray-200 transition">ยกเลิก</button>
                     <button onclick="saveEditLog()"
-                        class="flex-1 py-3 rounded-xl bg-yellow-500 text-white font-bold hover:bg-yellow-600 shadow-md transition">
-                        <i class="fas fa-save mr-2"></i>บันทึกการแก้ไข
-                    </button>
+                        class="flex-1 py-3 rounded-xl bg-yellow-500 text-white font-bold hover:bg-yellow-600 shadow-md transition">บันทึกการแก้ไข</button>
                 </div>
             </div>
         </div>
@@ -162,10 +148,15 @@
 
         $(document).ready(async () => {
             if (!stId) return history.back();
-            await loadSystemConfig();
-            await checkRole();
-            await loadCriteria();
-            loadHistory();
+            try {
+                await loadSystemConfig();
+                await checkRole();
+                await loadCriteria();
+                await loadHistory();
+            } catch (err) {
+                console.error(err);
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+            }
 
             $('#edit_evidence_file').on('change', function (e) {
                 const file = e.target.files[0];
@@ -240,16 +231,32 @@
         }
 
         async function loadHistory() {
-            const { data: student, error } = await db.from('core_students').select(`
-                *,
-                behavior_logs ( *, behavior_criteria ( title, category ), core_personnel ( first_name, last_name ) ),
-                student_enrollments ( core_classrooms ( grade_level, room_number ) )
-            `).eq('id', stId).single();
+            try {
+                // ✅ แก้ไขการ join relations ให้ถูกต้อง
+                const { data: student, error } = await db.from('core_students')
+                    .select(`
+                        *,
+                        behavior_logs (
+                            id,
+                            criteria_id,
+                            score_change,
+                            description,
+                            evidence_url,
+                            created_at,
+                            updated_at,
+                            behavior_criteria ( title, category ),
+                            recorder:core_personnel!recorder_id ( prefix, first_name, last_name ),
+                            updatedBy:core_personnel!updated_by ( prefix, first_name, last_name )
+                        ),
+                        student_enrollments ( core_classrooms ( grade_level, room_number ) )
+                    `)
+                    .eq('id', stId)
+                    .single();
 
-            if (error) { $('#st_name').text('เกิดข้อผิดพลาด'); return; }
+                if (error) throw error;
+                if (!student) throw new Error('ไม่พบข้อมูลนักเรียน');
 
-            if (student) {
-                // ⭐ อัปเดตรูปโปรไฟล์
+                // แสดงรูปโปรไฟล์
                 const avatarUrl = student.avatar_students_url;
                 if (avatarUrl) {
                     $('#st_avatar_img').attr('src', avatarUrl).removeClass('hidden');
@@ -281,7 +288,7 @@
 
                         const scoreClass = log.score_change > 0 ? 'text-green-600 bg-green-50/50'
                             : log.score_change < 0 ? 'text-red-600 bg-red-50/50'
-                                : 'text-slate-400 bg-slate-50';
+                            : 'text-slate-400 bg-slate-50';
 
                         const imgUrl = getDriveImageUrl(log.evidence_url);
                         const evidenceHtml = log.evidence_url
@@ -289,14 +296,27 @@
                                   class="flex flex-col items-center gap-1 text-blue-500 hover:text-blue-700 font-bold underline">
                                    <img src="${imgUrl}" alt="หลักฐาน"
                                         class="h-12 w-12 object-cover rounded-lg border border-slate-200 bg-slate-100"
-                                        onerror="this.src=''; this.outerHTML='<i class=\'fas fa-image text-blue-400 text-xl\'></i>';">
+                                        onerror="this.src=''; this.outerHTML='<i class=\\'fas fa-image text-blue-400 text-xl\\'></i>';">
                                    <span class="text-xs">ดูรูป</span>
                                </a>`
                             : '<span class="text-slate-300">-</span>';
 
-                        const recorder = log.core_personnel
-                            ? `${log.core_personnel.first_name} ${log.core_personnel.last_name}`
+                        // ✅ ใช้ log.recorder ที่ join อย่างถูกต้อง
+                        const recorder = log.recorder
+                            ? `${log.recorder.prefix || ''}${log.recorder.first_name} ${log.recorder.last_name}`
                             : '-';
+
+                        // แก้ไขล่าสุด (ถ้ามี)
+                        let editedLine = '';
+                        if (log.updated_at && log.updated_at !== log.created_at) {
+                            const updDate = new Date(log.updated_at).toLocaleDateString('th-TH', {
+                                year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                            });
+                            const updBy = log.updatedBy
+                                ? `${log.updatedBy.prefix || ''}${log.updatedBy.first_name} ${log.updatedBy.last_name}`
+                                : '-';
+                            editedLine = `<div class="text-amber-500 text-[10px] mt-0.5"><i class="fas fa-pen mr-1"></i>แก้ไขล่าสุด ${updDate} โดย ${updBy}</div>`;
+                        }
 
                         html += `<tr class="hover:bg-slate-50 transition-colors">
                             <td class="p-4 text-slate-500 text-xs whitespace-nowrap">${dateDisplay}</td>
@@ -306,7 +326,10 @@
                                 ${log.score_change > 0 ? '+' : ''}${log.score_change}
                             </td>
                             <td class="p-4 text-center">${evidenceHtml}</td>
-                            <td class="p-4 text-xs text-slate-500 font-medium">${recorder}</td>`;
+                            <td class="p-4 text-xs text-slate-500 font-medium">
+                                ${recorder}
+                                ${editedLine}
+                            </td>`;
 
                         if (isAdmin) {
                             html += `<td class="p-4 text-center whitespace-nowrap">
@@ -328,17 +351,20 @@
 
                 $('#st_score').text(total);
                 $('#history_body').html(html || `<tr><td colspan="${colSpan}" class="p-8 text-center text-slate-400">ไม่พบประวัติการบันทึกความประพฤติ</td></tr>`);
+            } catch (err) {
+                console.error('loadHistory error:', err);
+                $('#history_body').html(`<tr><td colspan="7" class="p-8 text-center text-red-500">เกิดข้อผิดพลาด: ${err.message}</td></tr>`);
+                Swal.fire('ไม่สามารถโหลดประวัติได้', err.message, 'error');
             }
         }
 
+        // ---------- ฟังก์ชันจัดการรูปและการแก้ไข (เหมือนเดิม แต่ปรับให้ใช้ global db และ systemConfig) ----------
         function setImageAction(action) {
             editImageAction = action;
-
             const base = 'border-slate-200 text-slate-600 bg-white';
             $('#btn_img_keep, #btn_img_replace, #btn_img_remove')
                 .removeClass('border-blue-500 bg-blue-500 border-green-500 bg-green-500 border-red-500 bg-red-500 text-white')
                 .addClass(base);
-
             if (action === 'keep') {
                 $('#btn_img_keep').removeClass(base).addClass('border-blue-500 bg-blue-500 text-white');
                 $('#edit_new_image_section').addClass('hidden');
@@ -362,9 +388,7 @@
                     method: 'POST',
                     body: JSON.stringify({ action: 'trash', fileId })
                 });
-            } catch (err) {
-                console.warn('Trash file error:', err);
-            }
+            } catch (err) { console.warn(err); }
         }
 
         function openEditModal(logId) {
@@ -384,6 +408,7 @@
                 html += `<option value="${c.id}" data-score="${score}" ${sel}>${c.title} (${score > 0 ? '+' : ''}${score})</option>`;
             });
             $('#edit_criteria').html(html);
+            updateEditScore();
 
             if (log.evidence_url) {
                 $('#edit_current_evidence').removeClass('hidden');
@@ -398,7 +423,6 @@
                 $('#edit_no_evidence').removeClass('hidden');
                 $('#btn_img_remove').addClass('hidden');
             }
-
             setImageAction('keep');
             $('#editModal').removeClass('hidden').addClass('flex');
         }
@@ -411,108 +435,6 @@
             $('#editModal').addClass('hidden').removeClass('flex');
             $('#edit_evidence_file').val('');
             $('#edit_evidence_preview').addClass('hidden');
-        }
-
-        async function saveEditLog() {
-            const logId = $('#edit_log_id').val();
-            const criteriaId = $('#edit_criteria').val();
-            const score = parseInt($('#edit_score').val());
-            const desc = $('#edit_desc').val();
-            const oldUrl = $('#edit_old_evidence_url').val();
-
-            if (!criteriaId || isNaN(score))
-                return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
-
-            let finalImageUrl = oldUrl || null;
-
-            if (editImageAction === 'replace') {
-                const fileInput = $('#edit_evidence_file')[0].files[0];
-                if (!fileInput)
-                    return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรูปภาพใหม่', 'warning');
-                if (!systemConfig?.gas_url || !systemConfig?.drive_folder_id)
-                    return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'ยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive', 'error');
-
-                if (oldUrl) {
-                    Swal.fire({ title: 'กำลังลบรูปเก่า...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-                    await trashDriveFile(oldUrl);
-                }
-
-                try {
-                    Swal.fire({ title: 'กำลังอัปโหลดรูปใหม่...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-                    const resizedBlob = await resizeImage(fileInput);
-                    const base64Data = await blobToBase64(resizedBlob);
-
-                    const response = await fetch(systemConfig.gas_url, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            action: 'upload',
-                            base64: base64Data,
-                            fileName: `behavior_edit_${logId}_${Date.now()}.jpg`,
-                            folderId: systemConfig.drive_folder_id
-                        })
-                    });
-                    const resData = await response.json();
-                    if (resData.status === 'success') finalImageUrl = resData.url;
-                    else throw new Error(resData.message);
-                } catch (err) {
-                    return Swal.fire('อัปโหลดรูปไม่สำเร็จ', err.message, 'error');
-                }
-
-            } else if (editImageAction === 'remove') {
-                if (oldUrl) {
-                    Swal.fire({ title: 'กำลังลบรูปหลักฐาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-                    await trashDriveFile(oldUrl);
-                }
-                finalImageUrl = null;
-            }
-
-            Swal.fire({ title: 'กำลังจัดเก็บข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
-            const { error } = await db.from('behavior_logs').update({
-                criteria_id: criteriaId,
-                score_change: score,
-                description: desc,
-                evidence_url: finalImageUrl,
-                recorder_id: currentUserId
-            }).eq('id', logId);
-
-            if (!error) {
-                Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
-                closeEditModal();
-                loadHistory();
-            } else {
-                Swal.fire('ผิดพลาด', error.message, 'error');
-            }
-        }
-
-        async function deleteLog(logId) {
-            const log = currentLogs.find(l => l.id === logId);
-
-            const { isConfirmed } = await Swal.fire({
-                title: 'ลบรายการนี้ถาวร?',
-                html: `<p class="text-slate-600">รายการจะถูก<b class="text-red-600">ลบออกจากระบบถาวร</b></p>
-                       ${log?.evidence_url ? '<p class="text-xs text-amber-600 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>รูปหลักฐานจะถูกย้ายไปถังขยะ Drive</p>' : ''}`,
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                confirmButtonText: '<i class="fas fa-trash mr-1"></i> ลบถาวร',
-                cancelButtonText: 'ยกเลิก'
-            });
-
-            if (!isConfirmed) return;
-
-            Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
-            if (log?.evidence_url) await trashDriveFile(log.evidence_url);
-
-            const { error } = await db.from('behavior_logs').delete().eq('id', logId);
-
-            if (!error) {
-                Swal.fire({ icon: 'success', title: 'ลบรายการสำเร็จ', timer: 1500, showConfirmButton: false });
-                loadHistory();
-            } else {
-                Swal.fire('ผิดพลาด', error.message, 'error');
-            }
         }
 
         async function resizeImage(file, maxWidth = 1000) {
@@ -540,6 +462,119 @@
                 reader.onloadend = () => resolve(reader.result.split(',')[1]);
                 reader.readAsDataURL(blob);
             });
+        }
+
+        async function saveEditLog() {
+            const logId = $('#edit_log_id').val();
+            const criteriaId = $('#edit_criteria').val();
+            const score = parseInt($('#edit_score').val());
+            const desc = $('#edit_desc').val();
+            const oldUrl = $('#edit_old_evidence_url').val();
+
+            if (!criteriaId || isNaN(score))
+                return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
+
+            let finalImageUrl = oldUrl || null;
+
+            if (editImageAction === 'replace') {
+                const fileInput = $('#edit_evidence_file')[0].files[0];
+                if (!fileInput) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรูปภาพใหม่', 'warning');
+                if (!systemConfig?.gas_url || !systemConfig?.drive_folder_id)
+                    return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'ยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive', 'error');
+
+                if (oldUrl) {
+                    Swal.fire({ title: 'กำลังลบรูปเก่า...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                    await trashDriveFile(oldUrl);
+                }
+
+                try {
+                    Swal.fire({ title: 'กำลังอัปโหลดรูปใหม่...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                    const resizedBlob = await resizeImage(fileInput);
+                    const base64Data = await blobToBase64(resizedBlob);
+                    const response = await fetch(systemConfig.gas_url, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            action: 'upload',
+                            base64: base64Data,
+                            fileName: `behavior_edit_${logId}_${Date.now()}.jpg`,
+                            folderId: systemConfig.drive_folder_id
+                        })
+                    });
+                    const resData = await response.json();
+                    if (resData.status === 'success') finalImageUrl = resData.url;
+                    else throw new Error(resData.message);
+                } catch (err) {
+                    return Swal.fire('อัปโหลดรูปไม่สำเร็จ', err.message, 'error');
+                }
+            } else if (editImageAction === 'remove') {
+                if (oldUrl) {
+                    Swal.fire({ title: 'กำลังลบรูปหลักฐาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                    await trashDriveFile(oldUrl);
+                }
+                finalImageUrl = null;
+            }
+
+            Swal.fire({ title: 'กำลังจัดเก็บข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+            const { error } = await db.from('behavior_logs').update({
+                criteria_id: criteriaId,
+                score_change: score,
+                description: desc,
+                evidence_url: finalImageUrl,
+                recorder_id: currentUserId,
+                updated_at: new Date().toISOString(),
+                updated_by: currentUserId
+            }).eq('id', logId);
+
+            if (!error) {
+                Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1500, showConfirmButton: false });
+                closeEditModal();
+                await loadHistory();  // รีโหลดข้อมูลใหม่
+                // รีโหลด student score ใน header
+                const { data: freshStudent } = await db.from('core_students').select('*').eq('id', stId).single();
+                if (freshStudent) {
+                    let total = 100;
+                    const freshLogs = await db.from('behavior_logs').select('score_change').eq('student_id', stId);
+                    if (freshLogs.data) total += freshLogs.data.reduce((sum, l) => sum + l.score_change, 0);
+                    $('#st_score').text(total);
+                }
+            } else {
+                Swal.fire('ผิดพลาด', error.message, 'error');
+            }
+        }
+
+        async function deleteLog(logId) {
+            const log = currentLogs.find(l => l.id === logId);
+            const { isConfirmed } = await Swal.fire({
+                title: 'ลบรายการนี้ถาวร?',
+                html: `<p class="text-slate-600">รายการจะถูก<b class="text-red-600">ลบออกจากระบบถาวร</b></p>
+                       ${log?.evidence_url ? '<p class="text-xs text-amber-600 mt-2"><i class="fas fa-exclamation-triangle mr-1"></i>รูปหลักฐานจะถูกย้ายไปถังขยะ Drive</p>' : ''}`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: '<i class="fas fa-trash mr-1"></i> ลบถาวร',
+                cancelButtonText: 'ยกเลิก'
+            });
+            if (!isConfirmed) return;
+
+            Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+            if (log?.evidence_url) await trashDriveFile(log.evidence_url);
+            const { error } = await db.from('behavior_logs').delete().eq('id', logId);
+            if (!error) {
+                Swal.fire({ icon: 'success', title: 'ลบรายการสำเร็จ', timer: 1500, showConfirmButton: false });
+                await loadHistory();
+                // อัปเดตคะแนนรวมใหม่
+                const { data: freshStudent } = await db.from('core_students').select('*').eq('id', stId).single();
+                if (freshStudent) {
+                    let total = 100;
+                    const freshLogs = await db.from('behavior_logs').select('score_change').eq('student_id', stId);
+                    if (freshLogs.data) total += freshLogs.data.reduce((sum, l) => sum + l.score_change, 0);
+                    $('#st_score').text(total);
+                }
+            } else {
+                Swal.fire('ผิดพลาด', error.message, 'error');
+            }
         }
     </script>
 </body>
