@@ -69,6 +69,7 @@ async function checkAuth() {
     if (profile.role === 'super_admin') {
         $('#btn_settings').removeClass('hidden').addClass('flex');
         $('#btn_import_old').removeClass('hidden').addClass('flex');
+        $('#btn_import_excel').removeClass('hidden').addClass('flex');   // ✅ ปุ่มนำเข้า Excel
         $('#role_label').html('<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser');
         currentUser.role = 'super_admin';
     } else if (isDisciplineHead || currentUser.managedGrades.length > 0) {
@@ -118,7 +119,7 @@ async function initStudentTable() {
 
     while (true) {
         const { data, error } = await db.from('core_students').select(`
-            id, student_id_card, prefix, first_name, last_name,
+            id, student_id_card, prefix, first_name, last_name, avatar_students_url,
             student_enrollments ( student_number, core_classrooms (grade_level, room_number) ),
             behavior_logs ( score_change, behavior_criteria(category) )
         `).range(from, from + limit - 1);
@@ -166,7 +167,8 @@ async function initStudentTable() {
             roomDisplay: classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-',
             score: totalScore,
             pos: posCount,
-            neg: negCount
+            neg: negCount,
+            avatar: s.avatar_students_url || null   // รูปโปรไฟล์นักเรียน
         };
     });
 
@@ -426,10 +428,75 @@ async function importFromGoogleSheet() {
     }
 }
 
+// ── นำเข้าจาก Excel (เฉพาะ super admin) ────────────────────────────────
+function importFromExcel() {
+    // เปิด file picker ผ่าน input ที่ซ่อนอยู่
+    const input = document.getElementById('excel_import_input');
+    input.value = '';          // reset เผื่อเลือกไฟล์เดิมซ้ำ
+    input.click();
+}
+
+async function handleExcelImport(input) {
+    const file = input.files[0];
+    if (!file) return;
+
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['xlsx', 'xls'].includes(ext)) {
+        return Swal.fire('ไฟล์ไม่ถูกต้อง', 'กรุณาเลือกไฟล์ .xlsx หรือ .xls เท่านั้น', 'error');
+    }
+
+    // แสดง preview ชื่อไฟล์ + ยืนยัน
+    const confirm = await Swal.fire({
+        title: 'นำเข้าจาก Excel',
+        html: `<div class="text-left">
+            <p class="text-sm text-slate-600 mb-3">ไฟล์ที่เลือก: <span class="font-bold text-blue-700">${file.name}</span></p>
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700">
+                <i class="fas fa-exclamation-triangle mr-1"></i>
+                ระบบจะอ่านข้อมูลจากชีทแรก โดยข้ามแถวที่ไม่มีรหัสนักเรียน<br>
+                คอลัมน์: รหัสนักเรียน*, วันที่/เวลา, รายการ, รายละเอียด, คะแนน*, หลักฐาน (URL), ผู้บันทึก
+            </div>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonColor: '#7c3aed',
+        confirmButtonText: '<i class="fas fa-file-import mr-1"></i> นำเข้าเลย',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+        Swal.fire({ title: 'กำลังอ่านไฟล์ Excel...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+        const arrayBuffer = await file.arrayBuffer();
+        const wb = XLSX.read(arrayBuffer, { type: 'array', raw: false, cellDates: false });
+
+        // อ่านชีทแรก — range:2 = ข้าม 2 แถวแรก (title/คำอธิบาย) ให้แถวที่ 3 เป็น header
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { raw: false, defval: '', range: 2 });
+
+        if (rows.length === 0) {
+            return Swal.fire('ไม่พบข้อมูล', 'ไม่พบข้อมูลในชีทแรก กรุณาตรวจสอบไฟล์', 'warning');
+        }
+
+        await processImportData(rows);
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถอ่านไฟล์ได้', 'error');
+    }
+}
+
 async function processImportData(rows) {
-    const dataRows = rows.filter(r => {
+    // ── Fix 2: normalize column names — ลบ * และ whitespace ออกจาก key ทุกตัว ──
+    const normalizedRows = rows.map(function(r) {
+        const norm = {};
+        Object.keys(r).forEach(function(k) {
+            norm[k.replace(/\*/g, '').trim()] = r[k];
+        });
+        return norm;
+    });
+
+    // ── Fix: กรองเฉพาะแถวที่รหัสนักเรียนเป็นตัวเลขล้วน (ข้ามแถวตัวอย่าง/คำเตือน) ──
+    const dataRows = normalizedRows.filter(function(r) {
         const stdCode = String(r['รหัสนักเรียน'] || '').trim();
-        return stdCode !== '' && stdCode !== 'รหัสนักเรียน*';
+        return /^\d+$/.test(stdCode);
     });
 
     if (dataRows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ (ตรวจสอบว่ามีคอลัมน์ "รหัสนักเรียน" หรือไม่)');
@@ -478,10 +545,11 @@ async function processImportData(rows) {
     function parseDateTime(raw) {
         if (!raw || String(raw).trim() === '') return new Date().toISOString();
         const s = String(raw).trim();
-        const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
+        // รองรับ: "27/11/2024, 8:34:24" | "15/03/2567 08:30" | "d/m/yyyy h:mm" ทุกรูปแบบ
+        const m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[,\s]+(\d{1,2}):(\d{2})(?::\d{2})?)?/);
         if (m) {
             let [, d, mo, y, hr = '12', mn = '0'] = m;
-            if (parseInt(y) > 2400) y = parseInt(y) - 543;
+            if (parseInt(y) > 2400) y = parseInt(y) - 543;   // แปลง พ.ศ. → ค.ศ.
             const dt = new Date(parseInt(y), parseInt(mo) - 1, parseInt(d), parseInt(hr), parseInt(mn));
             if (!isNaN(dt.getTime())) return dt.toISOString();
         }
@@ -535,23 +603,80 @@ async function processImportData(rows) {
         return;
     }
 
+    // ── Dedup: ข้ามรายการที่มีอยู่แล้ว (student_id + created_at + score_change) ──
+    Swal.fire({ title: 'กำลังตรวจสอบรายการซ้ำ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const importStudentIds = [...new Set(logsToInsert.map(l => l.student_id))];
+
+    // ดึง existing logs แบบ batch 50 IDs ต่อครั้ง เพื่อหลีกเลี่ยง URL too long (400)
+    const DEDUP_BATCH = 50;
+    let existingLogs = [];
+    for (let i = 0; i < importStudentIds.length; i += DEDUP_BATCH) {
+        const batchIds = importStudentIds.slice(i, i + DEDUP_BATCH);
+        const { data: batchLogs, error: fetchErr } = await db
+            .from('behavior_logs')
+            .select('student_id, created_at, score_change')
+            .in('student_id', batchIds);
+        if (fetchErr) throw fetchErr;
+        if (batchLogs) existingLogs = existingLogs.concat(batchLogs);
+    }
+
+    // สร้าง Set ของ key "student_id|ISO_date|score" เพื่อ lookup O(1)
+    const existingKeys = new Set(
+        (existingLogs || []).map(l => {
+            // normalize เป็น date string เฉพาะวัน+ชม+นาที เพื่อให้ tolerance เรื่อง timezone/ms
+            const dt = new Date(l.created_at);
+            const dateKey = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}-${dt.getHours()}-${dt.getMinutes()}`;
+            return `${l.student_id}|${dateKey}|${l.score_change}`;
+        })
+    );
+
+    const dedupedLogs = [];
+    const dupSkipped = [];
+    logsToInsert.forEach(function(log) {
+        const dt = new Date(log.created_at);
+        const dateKey = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}-${dt.getHours()}-${dt.getMinutes()}`;
+        const key = `${log.student_id}|${dateKey}|${log.score_change}`;
+        if (existingKeys.has(key)) {
+            dupSkipped.push(log);
+        } else {
+            dedupedLogs.push(log);
+        }
+    });
+
+    if (dedupedLogs.length === 0) {
+        await Swal.fire({
+            icon: 'info',
+            title: 'ไม่มีรายการใหม่',
+            html: `<p>ข้อมูลทั้งหมด <b>${dupSkipped.length}</b> รายการมีอยู่ในระบบแล้ว</p>
+                   <p class="text-sm text-slate-500 mt-1">ระบบข้ามรายการซ้ำทั้งหมด ไม่มีการเพิ่มข้อมูล</p>`
+        });
+        return;
+    }
+
+    // Insert เฉพาะรายการใหม่ที่ไม่ซ้ำ
     const BATCH = 100;
     let success = 0;
-    for (let i = 0; i < logsToInsert.length; i += BATCH) {
-        const batchData = logsToInsert.slice(i, i + BATCH);
+    for (let i = 0; i < dedupedLogs.length; i += BATCH) {
+        const batchData = dedupedLogs.slice(i, i + BATCH);
         const { error } = await db.from('behavior_logs').insert(batchData);
         if (error) throw error;
         success += batchData.length;
     }
 
-    const skipCount = dataRows.length - logsToInsert.length;
+    const invalidSkip = dataRows.length - logsToInsert.length;   // ข้ามเพราะ error (รหัสไม่พบ ฯลฯ)
+    const totalSkipped = dupSkipped.length + invalidSkip;
+
     await Swal.fire({
         icon: 'success',
         title: 'นำเข้าสำเร็จ!',
-        html: `<p>บันทึก <b>${success}</b> รายการ</p>
-               ${skipCount > 0 ? `<p class="text-sm text-amber-600 mt-1">ข้าม ${skipCount} รายการ (ไม่พบรหัส/คะแนนผิด)</p>` : ''}
-               ${errors.length > 0 ? `<details class="mt-2 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error</summary>
-               <pre class="text-xs text-red-400 max-h-24 overflow-y-auto mt-1">${errors.slice(0, 10).join('\n')}</pre></details>` : ''}`
+        html: `<div class="text-left space-y-1">
+                 <p>✅ เพิ่มใหม่ <b class="text-green-700">${success}</b> รายการ</p>
+                 ${dupSkipped.length > 0 ? `<p>⏭️ ข้ามซ้ำ <b class="text-blue-600">${dupSkipped.length}</b> รายการ (มีอยู่แล้ว)</p>` : ''}
+                 ${invalidSkip > 0 ? `<p>⚠️ ข้ามผิดพลาด <b class="text-amber-600">${invalidSkip}</b> รายการ (รหัสไม่พบ/คะแนนผิด)</p>` : ''}
+               </div>
+               ${errors.length > 0 ? `<details class="mt-3 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error (${errors.length} รายการ)</summary>
+               <pre class="text-xs text-red-400 max-h-28 overflow-y-auto mt-1 bg-red-50 p-2 rounded-lg">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}`
     });
 
     initStudentTable();
@@ -593,8 +718,21 @@ function exportTable() {
 function viewHistory(studentId) {
     const student = allStudents.find(s => s.id === studentId);
     if (!student) return;
+
     $('#historyStudentName').text(student.fullName + ' (' + student.roomDisplay + ')');
     $('#historyStudentScore').text(student.score);
+
+    // แสดงรูปโปรไฟล์นักเรียน
+    const $avatar = $('#historyAvatar');
+    const $avatarWrap = $('#historyAvatarWrap');
+    if (student.avatar) {
+        $avatar.attr('src', student.avatar).removeClass('hidden');
+        $avatarWrap.removeClass('hidden');
+    } else {
+        $avatar.addClass('hidden');
+        $avatarWrap.addClass('hidden');
+    }
+
     $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
     loadStudentHistory(studentId);
 }
