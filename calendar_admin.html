@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <title>จัดการปฏิทินกิจกรรม</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <style>
+        .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 sticky top-0 z-10">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-9 h-9 object-contain rounded-full">
+                <div>
+                    <h1 class="text-xl font-bold text-indigo-700">จัดการปฏิทินกิจกรรม</h1>
+                    <div id="userRoleBadge" class="text-xs text-slate-500"></div>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="window.location.href='index.html'" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold transition">
+                    <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าหลัก
+                </button>
+                <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-bold transition">
+                    <i class="fa-solid fa-right-from-bracket mr-1"></i> ออกจากระบบ
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 max-w-6xl mx-auto w-full p-6 py-8">
+        <!-- สถิติ - แสดงเฉพาะกิจกรรมเดือนนี้ -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p class="text-xs text-slate-500 uppercase tracking-wide">กิจกรรมเดือนที่เลือก</p>
+                <p class="text-2xl font-bold text-indigo-600" id="monthCount">0</p>
+            </div>
+            <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p class="text-xs text-slate-500 uppercase tracking-wide">กลุ่มงานที่ดูแล</p>
+                <p class="text-2xl font-bold text-emerald-600" id="deptCount">0</p>
+            </div>
+        </div>
+
+        <!-- ตารางกิจกรรม -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-regular fa-calendar-alt text-indigo-500 mr-2"></i>รายการกิจกรรม</h3>
+                <div class="flex flex-wrap gap-3 items-center">
+                    <!-- ตัวเลือกเดือน/ปี -->
+                    <div class="flex gap-2 items-center bg-slate-100 p-1 rounded-lg">
+                        <select id="monthSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                            <option value="0">มกราคม</option>
+                            <option value="1">กุมภาพันธ์</option>
+                            <option value="2">มีนาคม</option>
+                            <option value="3">เมษายน</option>
+                            <option value="4">พฤษภาคม</option>
+                            <option value="5">มิถุนายน</option>
+                            <option value="6">กรกฎาคม</option>
+                            <option value="7">สิงหาคม</option>
+                            <option value="8">กันยายน</option>
+                            <option value="9">ตุลาคม</option>
+                            <option value="10">พฤศจิกายน</option>
+                            <option value="11">ธันวาคม</option>
+                        </select>
+                        <select id="yearSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
+                        <button id="btnLoadCalendar" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
+                            <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
+                        </button>
+                    </div>
+                    <!-- ตัวกรองกลุ่มงาน รวมกลุ่มวิชาการ -->
+                    <select id="deptFilter" class="border rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">-- ทุกกลุ่ม --</option>
+                        <option value="academic">กลุ่มวิชาการ (Google Calendar)</option>
+                    </select>
+                    <!-- ปุ่มเพิ่มกิจกรรม จะไม่ให้เลือกกลุ่มวิชาการ -->
+                    <button onclick="openAddEventModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">
+                        <i class="fa-solid fa-plus mr-1"></i> เพิ่มกิจกรรม
+                    </button>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="eventsTable" class="w-full text-left text-sm border-collapse">
+                    <thead class="bg-slate-50 border-b border-slate-200">
+                        <tr>
+                            <th class="py-3 px-4">วันที่เริ่ม</th>
+                            <th class="py-3 px-4">วันที่สิ้นสุด</th>
+                            <th class="py-3 px-4">กิจกรรม</th>
+                            <th class="py-3 px-4">กลุ่มงาน</th>
+                            <th class="py-3 px-4 text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="eventsTbody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal เพิ่ม/แก้ไขกิจกรรม (เฉพาะกลุ่มที่ไม่ใช่วิชาการ) -->
+    <div id="eventModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
+            <button onclick="closeEventModal()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
+            <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม</h3>
+            <form id="eventForm" onsubmit="saveEvent(event)">
+                <input type="hidden" id="event_id">
+                <div class="mb-3">
+                    <label class="block font-bold mb-1 text-slate-700">กลุ่มงาน *</label>
+                    <select id="event_dept" required class="w-full border rounded-lg px-3 py-2 bg-white">
+                        <option value="">-- เลือกกลุ่มงาน --</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="block font-bold mb-1 text-slate-700">ชื่อกิจกรรม *</label>
+                    <input type="text" id="event_title" required class="w-full border rounded-lg px-3 py-2">
+                </div>
+                <div class="mb-3">
+                    <label class="block font-bold mb-1 text-slate-700">รายละเอียด</label>
+                    <textarea id="event_desc" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div><label class="block font-bold text-slate-700">วันที่เริ่ม *</label><input type="date" id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
+                    <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label><input type="date" id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
+                </div>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeEventModal()" class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i class="fa-solid fa-save"></i> บันทึก</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="calendar_manager.js"></script>
+    <script>
+        let managedDepts = [];   // กลุ่มที่ user ได้รับมอบหมาย (academic อาจรวมหรือไม่รวมก็ได้)
+        let currentYear = new Date().getFullYear() + 543;
+        let currentMonth = new Date().getMonth();
+
+        function populateYearSelect() {
+            const yearSelect = document.getElementById('yearSelect');
+            if (!yearSelect) return;
+            const startYear = 2569, endYear = 2572;
+            yearSelect.innerHTML = '';
+            for (let y = startYear; y <= endYear; y++) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                if (y === currentYear) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+        }
+
+        // ดึงกิจกรรมตามเดือน/ปี และตัวกรองกลุ่ม
+        async function loadEvents() {
+            const year = parseInt(document.getElementById('yearSelect').value);
+            const month = parseInt(document.getElementById('monthSelect').value);
+            const deptFilter = document.getElementById('deptFilter').value;
+            const tbody = document.getElementById('eventsTbody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
+            try {
+                const events = await getEventsByMonthYearForAdmin(year, month, deptFilter);
+                renderTable(events);
+                updateMonthCount(events);
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
+            }
+        }
+
+        async function getEventsByMonthYearForAdmin(yearBE, monthIndex, deptFilter) {
+            const yearCE = yearBE - 543;
+            const startOfMonth = new Date(yearCE, monthIndex, 1);
+            const endOfMonth = new Date(yearCE, monthIndex + 1, 0);
+            let allEvents = [];
+
+            // ถ้าตัวกรองเป็น academic หรือ ไม่มีตัวกรอง (ทุกกลุ่ม) ให้ดึงจาก Google Calendar
+            if (deptFilter === 'academic' || deptFilter === '') {
+                const googleEvents = await fetchGoogleEventsForDept('academic', startOfMonth, endOfMonth);
+                allEvents.push(...googleEvents);
+            }
+            // ถ้าตัวกรองไม่ใช่ academic หรือไม่มีตัวกรอง ให้ดึง internal events จากกลุ่มที่ user ดูแล (รวม academic? แต่ internal ของ academic ไม่มี)
+            let internalDepts = [];
+            if (deptFilter === '') {
+                internalDepts = managedDepts.filter(d => d !== 'academic');
+            } else if (deptFilter !== 'academic') {
+                internalDepts = [deptFilter];
+            }
+            for (const dept of internalDepts) {
+                const internalEvents = await getEventsByDept(dept, startOfMonth.toISOString().split('T')[0], endOfMonth.toISOString().split('T')[0]);
+                allEvents.push(...internalEvents);
+            }
+
+            // กำจัด duplicate id (google ids ไม่ซ้ำกับ internal)
+            const uniqueMap = new Map();
+            allEvents.forEach(ev => uniqueMap.set(ev.id, ev));
+            const uniqueEvents = Array.from(uniqueMap.values());
+            uniqueEvents.sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
+            return uniqueEvents;
+        }
+
+        async function fetchGoogleEventsForDept(deptKey, startDate, endDate) {
+            if (deptKey !== 'academic') return [];
+            const { data: configs, error } = await db.from('calendar_config')
+                .select('google_calendar_id, google_api_key')
+                .eq('dept_key', 'academic')
+                .single();
+            if (error || !configs?.google_calendar_id || !configs?.google_api_key) return [];
+            const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(configs.google_calendar_id)}/events?key=${configs.google_api_key}&timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&singleEvents=true&orderBy=startTime`;
+            try {
+                const resp = await fetch(url);
+                const data = await resp.json();
+                if (!resp.ok || !data.items) return [];
+                return data.items.map(item => {
+                    let start_date = null, end_date = null, isAllDay = false;
+                    if (item.start?.date) { start_date = item.start.date; isAllDay = true; }
+                    else if (item.start?.dateTime) start_date = item.start.dateTime.split('T')[0];
+                    if (item.end?.date) { end_date = item.end.date; isAllDay = true; }
+                    else if (item.end?.dateTime) end_date = item.end.dateTime.split('T')[0];
+                    if (isAllDay && start_date && end_date) {
+                        const diffDays = (new Date(end_date) - new Date(start_date)) / (1000*60*60*24);
+                        if (diffDays === 1) end_date = null;
+                    }
+                    return {
+                        id: `google_${item.id}`,
+                        dept_key: 'academic',
+                        title: item.summary || 'ไม่มีชื่อกิจกรรม',
+                        description: item.description || '',
+                        start_date: start_date,
+                        end_date: end_date,
+                        source: 'google'
+                    };
+                });
+            } catch (err) {
+                console.error("Google Calendar fetch error:", err);
+                return [];
+            }
+        }
+
+        function renderTable(events) {
+            const tbody = document.getElementById('eventsTbody');
+            const deptNames = { academic:'วิชาการ', budget:'แผนงานและงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
+            if (events.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-400">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
+                return;
+            }
+            tbody.innerHTML = events.map(ev => `
+                <tr class="border-b border-slate-100 hover:bg-slate-50">
+                    <td class="py-3 px-4">${formatDate(ev.start_date)}</td>
+                    <td class="py-3 px-4">${ev.end_date ? formatDate(ev.end_date) : '-'}</td>
+                    <td class="py-3 px-4 font-bold text-slate-700">${escapeHtml(ev.title)}<br><span class="text-xs text-slate-400">${DOMPurify ? DOMPurify.sanitize(ev.description || '') : (ev.description || '')}</span></td>
+                    <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${getDeptColorClass(ev.dept_key)}">${deptNames[ev.dept_key]}</span></td>
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        ${ev.source === 'google' ? '<span class="text-gray-400 text-xs">(อ่านอย่างเดียว)</span>' : `
+                            <button onclick="editEvent('${ev.id}')" class="text-yellow-600 hover:text-yellow-800 px-2"><i class="fa-solid fa-pen-to-square"></i></button>
+                            <button onclick="deleteEvent('${ev.id}')" class="text-red-600 hover:text-red-800 px-2"><i class="fa-solid fa-trash-can"></i></button>
+                        `}
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        function updateMonthCount(events) {
+            document.getElementById('monthCount').innerText = events.length;
+        }
+
+        function formatDate(dateStr) {
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('th-TH', { day:'numeric', month:'short', year:'numeric' });
+        }
+
+        function getDeptColorClass(dept) {
+            const colors = { academic:'bg-blue-100 text-blue-700', budget:'bg-green-100 text-green-700', personnel:'bg-purple-100 text-purple-700', general:'bg-orange-100 text-orange-700' };
+            return colors[dept] || 'bg-slate-100 text-slate-700';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]));
+        }
+
+        async function checkAuthAndLoad() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) {
+                window.location.replace('login.html');
+                return;
+            }
+            // ดึงกลุ่มที่ user ได้รับมอบหมาย (รวม academic ด้วย เพราะจะได้เห็น Google Calendar)
+            const allManaged = await getUserManagedDepts(session.user.id);
+            // แต่สำหรับ internal events (เพิ่ม/แก้ไข/ลบ) จะอนุญาตเฉพาะกลุ่มที่ไม่ใช่ academic
+            managedDepts = allManaged.filter(d => d !== 'academic');
+            
+            // ถ้าไม่มีกลุ่มย่อยใดเลย (ยกเว้น academic) ก็ยังสามารถดู academic ได้ แต่จะไม่มีปุ่มเพิ่ม
+            // แสดงกลุ่มที่ดูแลใน badge (เฉพาะที่สามารถเพิ่ม/แก้ไขได้)
+            const deptNames = { academic:'วิชาการ', budget:'แผนงานและงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
+            const displayDepts = managedDepts.map(d => deptNames[d] || d);
+            document.getElementById('deptCount').innerText = managedDepts.length;
+            document.getElementById('userRoleBadge').innerHTML = `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">แอดมินประจำกลุ่ม: ${displayDepts.join(', ') || 'ไม่มี (ดูได้เฉพาะกลุ่มวิชาการ)'}</span>`;
+            
+            // เตรียม dropdown กลุ่มงาน (เฉพาะกลุ่มที่ดูแล + academic สำหรับกรอง)
+            const filter = document.getElementById('deptFilter');
+            let options = '<option value="">-- ทุกกลุ่ม --</option>';
+            options += '<option value="academic">กลุ่มวิชาการ (Google Calendar)</option>';
+            for (const dept of managedDepts) {
+                options += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
+            }
+            filter.innerHTML = options;
+            
+            // เตรียม dropdown เลือกกลุ่มใน modal (เฉพาะกลุ่มที่ดูแลเท่านั้น ห้าม academic)
+            const deptSelect = document.getElementById('event_dept');
+            let selectOptions = '<option value="">-- เลือกกลุ่มงาน --</option>';
+            for (const dept of managedDepts) {
+                selectOptions += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
+            }
+            deptSelect.innerHTML = selectOptions;
+            
+            document.body.classList.replace('opacity-0', 'opacity-100');
+            populateYearSelect();
+            document.getElementById('btnLoadCalendar').addEventListener('click', loadEvents);
+            document.getElementById('deptFilter').addEventListener('change', loadEvents);
+            document.getElementById('monthSelect').value = currentMonth;
+            await loadEvents();
+        }
+
+        // CRUD สำหรับ internal events (เฉพาะกลุ่มที่ดูแล)
+        let currentEventId = null;
+        function openAddEventModal() {
+            if (managedDepts.length === 0) {
+                Swal.fire('ไม่สามารถเพิ่มกิจกรรม', 'คุณไม่มีสิทธิ์เพิ่มกิจกรรมในกลุ่มใด (กลุ่มวิชาการเพิ่มผ่าน Google Calendar เท่านั้น)', 'info');
+                return;
+            }
+            currentEventId = null;
+            document.getElementById('eventForm').reset();
+            document.getElementById('event_id').value = '';
+            document.getElementById('eventModalTitle').innerHTML = '<i class="fa-solid fa-calendar-plus mr-1"></i> เพิ่มกิจกรรม';
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        async function editEvent(eventId) {
+            const { data, error } = await db.from('calendar_events').select('*').eq('id', eventId).single();
+            if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+            currentEventId = eventId;
+            document.getElementById('event_id').value = eventId;
+            document.getElementById('event_dept').value = data.dept_key;
+            document.getElementById('event_title').value = data.title;
+            document.getElementById('event_desc').value = data.description || '';
+            document.getElementById('event_start').value = data.start_date;
+            document.getElementById('event_end').value = data.end_date || '';
+            document.getElementById('eventModalTitle').innerHTML = '<i class="fa-solid fa-pen mr-1"></i> แก้ไขกิจกรรม';
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        async function saveEvent(e) {
+            e.preventDefault();
+            const deptKey = document.getElementById('event_dept').value;
+            const eventId = document.getElementById('event_id').value;
+            const data = {
+                dept_key: deptKey,
+                title: document.getElementById('event_title').value,
+                description: document.getElementById('event_desc').value,
+                start_date: document.getElementById('event_start').value,
+                end_date: document.getElementById('event_end').value || null
+            };
+            const { data: { session } } = await db.auth.getSession();
+            try {
+                if (eventId) {
+                    await updateInternalEvent(eventId, data);
+                    Swal.fire({ toast: true, icon: 'success', title: 'อัปเดตกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
+                } else {
+                    await createInternalEvent(data, session.user.id);
+                    Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
+                }
+                closeEventModal();
+                await loadEvents();
+            } catch (err) {
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+            }
+        }
+
+        async function deleteEvent(eventId) {
+            const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบกิจกรรมนี้ใช่หรือไม่', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบเลย' });
+            if (isConfirmed) {
+                await deleteInternalEvent(eventId);
+                await loadEvents();
+                Swal.fire({ toast: true, icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+            }
+        }
+
+        function closeEventModal() {
+            document.getElementById('eventModal').classList.add('hidden');
+            document.getElementById('eventForm').reset();
+        }
+
+        function handleLogout() {
+            Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
+                .then(async (result) => {
+                    if (result.isConfirmed) { await db.auth.signOut(); window.location.replace('login.html'); }
+                });
+        }
+
+        window.onload = checkAuthAndLoad;
+    </script>
+</body>
+</html>

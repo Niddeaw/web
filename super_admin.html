@@ -60,7 +60,13 @@
                 <i class="fa-solid fa-graduation-cap w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">Student Portal</span>
             </button>
-            <!-- 🔽 เพิ่มตรงนี้ -->
+            <!-- 🔽 ปฏิทินกิจกรรม -->
+            <button onclick="switchMenu('menu-calendar')" id="btn-menu-calendar"
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                <i class="fa-regular fa-calendar-days w-5 text-center text-lg shrink-0"></i>
+                <span class="sidebar-text">ปฏิทินกิจกรรม</span>
+            </button>
+            <!-- 🔽 Logs -->
             <button onclick="window.location.href='system_logs.html'"
                 class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-solid fa-clock-rotate-left w-5 text-center text-lg shrink-0"></i>
@@ -594,7 +600,7 @@
 
             </div>
 
-            <!-- เมนู student-portal (คงเดิม) -->
+            <!-- เมนู student-portal -->
             <div id="menu-student-portal" class="hidden max-w-6xl mx-auto space-y-6">
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                     <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
@@ -779,6 +785,145 @@
                 </div>
 
             </div>
+
+            <!-- เมนูจัดการปฏิทินกิจกรรม -->
+            <div id="menu-calendar" class="hidden max-w-6xl mx-auto space-y-6">
+                <div
+                    class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
+                    <h2
+                        class="text-xl font-bold text-slate-800 dark:text-white mb-4 border-b pb-2 flex items-center gap-2">
+                        <i class="fa-regular fa-calendar-check text-indigo-600"></i> ตั้งค่าระบบปฏิทินกิจกรรม
+                    </h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <!-- กลุ่มวิชาการ -->
+                        <div class="border rounded-xl p-4 bg-blue-50 dark:bg-slate-900/50">
+                            <h3 class="font-bold text-blue-800 dark:text-blue-400 flex justify-between items-center">
+                                <span><i class="fa-regular fa-calendar-alt mr-1"></i> กลุ่มวิชาการ</span>
+                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
+                                        type="checkbox" id="cfg_academic_active" data-dept="academic"
+                                        class="toggle-cfg"></label>
+                            </h3>
+                            <div class="mt-3 space-y-2">
+                                <input type="text" id="cfg_academic_cal_id" placeholder="Google Calendar ID"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800">
+                                <input type="text" id="cfg_academic_api_key" placeholder="Google API Key"
+                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800">
+                                <button onclick="saveCalendarConfig('academic')"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">บันทึกการตั้งค่า</button>
+                            </div>
+                        </div>
+                        <!-- กลุ่มแผนงานและงบประมาณ -->
+                        <div class="border rounded-xl p-4 bg-green-50 dark:bg-slate-900/50">
+                            <h3 class="font-bold text-green-800 dark:text-green-400 flex justify-between items-center">
+                                <span><i class="fa-solid fa-coins mr-1"></i> กลุ่มแผนงานและงบประมาณ</span>
+                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
+                                        type="checkbox" id="cfg_budget_active" data-dept="budget"
+                                        class="toggle-cfg"></label>
+                            </h3>
+                            <div class="mt-3"><button onclick="openEventModal('budget')"
+                                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
+                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
+                        </div>
+                        <!-- กลุ่มบริหารงานบุคคล -->
+                        <div class="border rounded-xl p-4 bg-purple-50 dark:bg-slate-900/50">
+                            <h3
+                                class="font-bold text-purple-800 dark:text-purple-400 flex justify-between items-center">
+                                <span><i class="fa-solid fa-users mr-1"></i> กลุ่มบริหารงานบุคคล</span>
+                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
+                                        type="checkbox" id="cfg_personnel_active" data-dept="personnel"
+                                        class="toggle-cfg"></label>
+                            </h3>
+                            <div class="mt-3"><button onclick="openEventModal('personnel')"
+                                    class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
+                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
+                        </div>
+                        <!-- กลุ่มบริหารทั่วไป -->
+                        <div class="border rounded-xl p-4 bg-orange-50 dark:bg-slate-900/50">
+                            <h3
+                                class="font-bold text-orange-800 dark:text-orange-400 flex justify-between items-center">
+                                <span><i class="fa-solid fa-building mr-1"></i> กลุ่มบริหารทั่วไป</span>
+                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
+                                        type="checkbox" id="cfg_general_active" data-dept="general"
+                                        class="toggle-cfg"></label>
+                            </h3>
+                            <div class="mt-3"><button onclick="openEventModal('general')"
+                                    class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
+                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
+                        </div>
+                    </div>
+                    <div class="border-t pt-6 mt-4">
+                        <h3 class="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><i
+                                class="fa-solid fa-user-shield text-emerald-600"></i> แต่งตั้ง Admin ประจำกลุ่มงาน</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div><label class="block text-sm font-bold mb-1">กลุ่มวิชาการ</label><select
+                                    id="admin_academic" class="w-full border rounded-lg p-2 text-sm"></select><button
+                                    onclick="assignDeptAdmin('academic')"
+                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                <div id="admin_list_academic" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-bold mb-1">กลุ่มแผนงานฯ</label><select
+                                    id="admin_budget" class="w-full border rounded-lg p-2 text-sm"></select><button
+                                    onclick="assignDeptAdmin('budget')"
+                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                <div id="admin_list_budget" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-bold mb-1">กลุ่มบริหารงานบุคคล</label><select
+                                    id="admin_personnel" class="w-full border rounded-lg p-2 text-sm"></select><button
+                                    onclick="assignDeptAdmin('personnel')"
+                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                <div id="admin_list_personnel" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                </div>
+                            </div>
+                            <div><label class="block text-sm font-bold mb-1">กลุ่มบริหารทั่วไป</label><select
+                                    id="admin_general" class="w-full border rounded-lg p-2 text-sm"></select><button
+                                    onclick="assignDeptAdmin('general')"
+                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                <div id="admin_list_general" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal สำหรับเพิ่ม/แก้ไขกิจกรรม (internal) -->
+            <div id="eventModal"
+                class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
+                <div class="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
+                    <button onclick="closeEventModal()"
+                        class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
+                    <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800 dark:text-white">เพิ่มกิจกรรม
+                    </h3>
+                    <form id="eventForm" onsubmit="saveEvent(event)">
+                        <input type="hidden" id="event_id"><input type="hidden" id="event_dept_key">
+                        <div class="mb-3"><label
+                                class="block font-bold mb-1 text-slate-700 dark:text-slate-300">ชื่อกิจกรรม</label><input
+                                type="text" id="event_title" required
+                                class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
+                        <div class="mb-3"><label
+                                class="block font-bold mb-1 text-slate-700 dark:text-slate-300">รายละเอียด</label><textarea
+                                id="event_desc" rows="3"
+                                class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></textarea></div>
+                        <div class="grid grid-cols-2 gap-3 mb-3">
+                            <div><label
+                                    class="block font-bold text-slate-700 dark:text-slate-300">วันที่เริ่ม</label><input
+                                    type="date" id="event_start" required
+                                    class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
+                            <div><label
+                                    class="block font-bold text-slate-700 dark:text-slate-300">วันที่สิ้นสุด</label><input
+                                    type="date" id="event_end"
+                                    class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
+                        </div>
+                        <div class="flex justify-end gap-2"><button type="button" onclick="closeEventModal()"
+                                class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button><button type="submit"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i
+                                    class="fa-solid fa-save"></i> บันทึก</button></div>
+                    </form>
+                </div>
+            </div>
+
         </div>
     </main>
 
@@ -1215,6 +1360,165 @@
             </div>
         </div>
     </div>
+
+    <script src="calendar_manager.js"></script>
+    <script>
+        // โหลดข้อมูล UI ของปฏิทิน
+        async function loadCalendarAdminUI() {
+            await loadCalendarConfigs();
+            await loadPersonnelForSelects();
+            await loadAllAdminLists();
+            attachToggleEvents();
+        }
+
+        async function loadCalendarConfigs() {
+            const configs = await getCalendarConfig();
+            configs.forEach(cfg => {
+                const chk = document.getElementById(`cfg_${cfg.dept_key}_active`);
+                if (chk) chk.checked = cfg.is_active;
+                if (cfg.dept_key === 'academic') {
+                    document.getElementById('cfg_academic_cal_id').value = cfg.google_calendar_id || '';
+                    document.getElementById('cfg_academic_api_key').value = cfg.google_api_key || '';
+                }
+            });
+        }
+
+        async function loadPersonnelForSelects() {
+            const { data } = await db.from('core_personnel').select('id, first_name, last_name').order('first_name');
+            if (!data) return;
+            const options = data.map(p => `<option value="${p.id}">${p.first_name} ${p.last_name}</option>`).join('');
+            ['academic', 'budget', 'personnel', 'general'].forEach(dept => {
+                const sel = document.getElementById(`admin_${dept}`);
+                if (sel) sel.innerHTML = '<option value="">-- เลือกบุคลากร --</option>' + options;
+            });
+        }
+
+        async function loadAllAdminLists() {
+            for (const dept of ['academic', 'budget', 'personnel', 'general']) {
+                await loadAdminList(dept);
+            }
+        }
+
+        async function loadAdminList(dept) {
+            const admins = await getDeptAdmins(dept);
+            const container = document.getElementById(`admin_list_${dept}`);
+            if (!container) return;
+            container.innerHTML = admins.map(a => `
+            <div class="flex justify-between items-center border-b py-1">
+                <span>${a.core_personnel?.first_name || ''} ${a.core_personnel?.last_name || ''}</span>
+                <button onclick="deleteDeptAdmin('${dept}','${a.user_id}')" class="text-red-500 text-xs hover:underline">ลบ</button>
+            </div>
+        `).join('');
+            if (admins.length === 0) container.innerHTML = '<div class="text-gray-400 text-center text-xs">ยังไม่มีผู้ดูแล</div>';
+        }
+
+        async function assignDeptAdmin(dept) {
+            const sel = document.getElementById(`admin_${dept}`);
+            const userId = sel.value;
+            if (!userId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
+            await addDeptAdmin(userId, dept);
+            await loadAdminList(dept);
+            sel.value = '';
+            Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มสำเร็จ', timer: 1500, showConfirmButton: false });
+        }
+
+        async function deleteDeptAdmin(dept, userId) {
+            // เรียกใช้ฟังก์ชันจาก calendar_manager.js โดยตรง (รับ userId, deptKey)
+            await window.removeDeptAdmin(userId, dept);
+            await loadAdminList(dept);
+            Swal.fire({ toast: true, icon: 'info', title: 'ลบออกแล้ว', timer: 1500, showConfirmButton: false });
+        }
+
+        async function saveCalendarConfig(dept) {
+            const isActive = document.getElementById(`cfg_${dept}_active`).checked;
+            const updates = { is_active: isActive };
+            if (dept === 'academic') {
+                updates.google_calendar_id = document.getElementById('cfg_academic_cal_id').value;
+                updates.google_api_key = document.getElementById('cfg_academic_api_key').value;
+                updates.source_type = 'google';
+            }
+            await updateCalendarConfig(dept, updates);
+            Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเรียบร้อย', 'success');
+        }
+
+        function attachToggleEvents() {
+            document.querySelectorAll('.toggle-cfg').forEach(chk => {
+                chk.removeEventListener('change', handleToggleChange);
+                chk.addEventListener('change', handleToggleChange);
+            });
+        }
+        async function handleToggleChange(e) {
+            const dept = e.target.dataset.dept;
+            const isActive = e.target.checked;
+            await updateCalendarConfig(dept, { is_active: isActive });
+            showToast('info', `กลุ่ม ${dept} ${isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} แล้ว`);
+        }
+
+        // CRUD กิจกรรม
+        let currentDeptForEvent = null;
+        async function openEventModal(deptKey) {
+            currentDeptForEvent = deptKey;
+            document.getElementById('event_id').value = '';
+            document.getElementById('event_title').value = '';
+            document.getElementById('event_desc').value = '';
+            document.getElementById('event_start').value = '';
+            document.getElementById('event_end').value = '';
+            document.getElementById('event_dept_key').value = deptKey;
+            document.getElementById('eventModalTitle').innerHTML = `<i class="fa-solid fa-calendar-plus mr-1"></i> เพิ่มกิจกรรม - ${getDeptName(deptKey)}`;
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        async function editEvent(eventId, deptKey, title, desc, startDate, endDate) {
+            currentDeptForEvent = deptKey;
+            document.getElementById('event_id').value = eventId;
+            document.getElementById('event_title').value = title;
+            document.getElementById('event_desc').value = desc || '';
+            document.getElementById('event_start').value = startDate;
+            document.getElementById('event_end').value = endDate || '';
+            document.getElementById('event_dept_key').value = deptKey;
+            document.getElementById('eventModalTitle').innerHTML = `<i class="fa-solid fa-pen"></i> แก้ไขกิจกรรม - ${getDeptName(deptKey)}`;
+            document.getElementById('eventModal').classList.remove('hidden');
+        }
+
+        async function saveEvent(e) {
+            e.preventDefault();
+            const deptKey = currentDeptForEvent;
+            const eventId = document.getElementById('event_id').value;
+            const data = {
+                dept_key: deptKey,
+                title: document.getElementById('event_title').value,
+                description: document.getElementById('event_desc').value,
+                start_date: document.getElementById('event_start').value,
+                end_date: document.getElementById('event_end').value || null
+            };
+            const { data: { session } } = await db.auth.getSession();
+            try {
+                if (eventId) {
+                    await updateInternalEvent(eventId, data);
+                    Swal.fire({ toast: true, icon: 'success', title: 'อัปเดตกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
+                } else {
+                    await createInternalEvent(data, session.user.id);
+                    Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
+                }
+                closeEventModal();
+                // รีเฟรชตารางกิจกรรมของกลุ่มนั้น (ถ้ามี)
+                if (typeof loadEventsTable === 'function') loadEventsTable(deptKey);
+            } catch (err) {
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+            }
+        }
+
+        function closeEventModal() {
+            document.getElementById('eventModal').classList.add('hidden');
+            document.getElementById('eventForm').reset();
+        }
+
+        function getDeptName(key) {
+            const names = { academic: 'วิชาการ', budget: 'แผนงาน/งบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
+            return names[key] || key;
+        }
+
+    </script>
 
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 

@@ -42,6 +42,12 @@
                     <div id="userRole" class="text-xs text-gray-500">...</div>
                 </div>
 
+                <!-- ปุ่มจัดการปฏิทิน (แสดงเฉพาะผู้ที่มีสิทธิ์) -->
+                <button id="calendarAdminBtn" onclick="window.location.href='calendar_admin.html'" 
+                    class="hidden bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+                    <i class="fa-regular fa-calendar-alt"></i> <span class="hidden sm:inline">จัดการปฏิทิน</span>
+                </button>
+
                 <button onclick="changeMyPassword()"
                     class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
                     <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">เปลี่ยนรหัส</span>
@@ -61,13 +67,62 @@
                     <p class="text-gray-600 text-sm">กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน
                     </p>
                 </div>
-
                 <button id="btnSuperAdmin" onclick="window.location.href='super_admin.html'"
                     class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 shrink-0">
                     <i class="fa-solid fa-server"></i> จัดการระบบส่วนกลาง
                 </button>
             </div>
 
+            <!-- ส่วนแสดงปฏิทินกิจกรรม (ปรับให้ความกว้างเท่ากับส่วนอื่น) -->
+            <section class="mb-8">
+                <div class="bg-white rounded-2xl shadow-sm p-6">
+                    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800 border-l-4 border-primary-600 pl-3">
+                            📅 ปฏิทินกิจกรรม
+                        </h2>
+                        <div class="flex gap-3 items-center bg-white p-2 rounded-xl shadow-sm border border-gray-200">
+                            <select id="monthSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                                <option value="0">มกราคม</option>
+                                <option value="1">กุมภาพันธ์</option>
+                                <option value="2">มีนาคม</option>
+                                <option value="3">เมษายน</option>
+                                <option value="4">พฤษภาคม</option>
+                                <option value="5">มิถุนายน</option>
+                                <option value="6">กรกฎาคม</option>
+                                <option value="7">สิงหาคม</option>
+                                <option value="8">กันยายน</option>
+                                <option value="9">ตุลาคม</option>
+                                <option value="10">พฤศจิกายน</option>
+                                <option value="11">ธันวาคม</option>
+                            </select>
+                            <select id="yearSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                            <button id="btnLoadCalendar"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
+                                <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto overflow-y-auto border border-gray-200 rounded-lg" style="max-height: 300px;">
+                        <table class="w-full text-left text-sm border-collapse relative">
+                            <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
+                                <tr>
+                                    <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
+                                    <th class="py-3 px-4 font-semibold">กลุ่ม</th>
+                                    <th class="py-3 px-4 font-semibold">รายการ</th>
+                                    <th class="py-3 px-4 font-semibold">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody id="calendarEventsTableBody">
+                                <tr>
+                                    <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+            
             <div
                 class="flex flex-wrap gap-2 mb-8 bg-white/50 backdrop-blur-md p-2 rounded-2xl border border-white shadow-sm">
                 <button onclick="switchMainTab('academic', this)"
@@ -87,97 +142,129 @@
                     <i class="fa-solid fa-building mr-2"></i> บริหารทั่วไป
                 </button>
             </div>
-
+            
             <div id="appGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="col-span-full text-center py-10 text-gray-400"><i
                         class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...
                 </div>
             </div>
+
         </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="calendar_manager.js"></script>
     <script>
+        // =======================================================
+        // ส่วนแสดงปฏิทินกิจกรรม (ตาราง + ตัวกรองเดือน/ปี)
+        // =======================================================
+        let currentYear = new Date().getFullYear() + 543;  // ปี พ.ศ.
+        let currentMonth = new Date().getMonth();  // 0-11
+
+        function populateYearSelect() {
+            const yearSelect = document.getElementById('yearSelect');
+            if (!yearSelect) return;
+            const startYear = 2569;
+            const endYear = 2572;
+            yearSelect.innerHTML = '';
+            for (let y = startYear; y <= endYear; y++) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                if (y === currentYear) option.selected = true;
+                yearSelect.appendChild(option);
+            }
+        }
+
+        async function loadEventsByMonth() {
+            const year = parseInt(document.getElementById('yearSelect').value);
+            const month = parseInt(document.getElementById('monthSelect').value);
+            if (isNaN(year) || isNaN(month)) return;
+
+            const tbody = document.getElementById('calendarEventsTableBody');
+            if (!tbody) return;
+
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
+
+            try {
+                const events = await getEventsByMonthYear(year, month);
+
+                if (!events.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
+                    return;
+                }
+
+                const deptNames = {
+                    academic: 'กลุ่มวิชาการ',
+                    budget: 'กลุ่มแผนงานและงบประมาณ',
+                    personnel: 'กลุ่มบริหารงานบุคคล',
+                    general: 'กลุ่มบริหารทั่วไป'
+                };
+
+                tbody.innerHTML = events.map(ev => {
+                    let startDate = new Date(ev.start_date);
+                    return `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
+                            <td class="py-3 px-4 whitespace-nowrap">${formatThaiDate(startDate)}</td>
+                            <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${getDeptColorClass(ev.dept_key)}">${deptNames[ev.dept_key] || ev.dept_key}</span></td>
+                            <td class="py-3 px-4 font-medium text-gray-800">${escapeHtml(ev.title)}</td>
+                            <td class="py-3 px-4 text-gray-600">${DOMPurify ? DOMPurify.sanitize(ev.description || '-') : (ev.description || '-')}</td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (err) {
+                console.error(err);
+                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
+            }
+        }
+
+        function formatThaiDate(date) {
+            if (!date || isNaN(date.getTime())) return '-';
+            const day = date.getDate();
+            const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+            const month = monthNames[date.getMonth()];
+            const year = date.getFullYear() + 543;
+            return `${day} ${month} ${year}`;
+        }
+
+        function getDeptColorClass(dept) {
+            const colors = {
+                academic: 'bg-blue-100 text-blue-700',
+                budget: 'bg-green-100 text-green-700',
+                personnel: 'bg-purple-100 text-purple-700',
+                general: 'bg-orange-100 text-orange-700'
+            };
+            return colors[dept] || 'bg-gray-100 text-gray-700';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // =======================================================
+        // ส่วนหลักของระบบ (การแสดงแอป, สิทธิ์ ฯลฯ)
+        // =======================================================
         let currentUser = null;
         let activeModules = [];
         let userAdminModules = [];
-
-        // ตัวแปรเก็บสถานะว่าตอนนี้อยู่แท็บไหน (เริ่มต้นที่แท็บวิชาการ)
         let currentCategory = 'academic';
 
         const ALL_APPS = [
-            // --- 📚 กลุ่มบริหารวิชาการ ---
-            {
-                id: 'guidance_teacher',
-                category: 'academic',
-                moduleId: 'guidance',  // ✔️ เดียวกัน แต่คนละ entry
-                title: 'ปพ.5 กิจกรรมแนะแนว',
-                desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ',
-                icon: 'fa-solid fa-compass',
-                url: 'guidance_teacher.html',
-                reqAdmin: false
-            },
-            {
-                id: 'sdq_assessment', category: 'academic', moduleId: 'sdq',
-                title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
-                icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_teacher.html'
-            },
-            {
-                id: 'eq_assessment', category: 'academic', moduleId: 'eq',
-                title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
-                icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
-            },
-            {
-                id: 'scholarship', category: 'academic', moduleId: 'scholarship',
-                title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
-                icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
-            },
-
-            // --- 💰 กลุ่มบริหารงบประมาณ ---
-            // {
-            //     id: 'scholarship', category: 'budget', moduleId: 'scholarship',
-            //     title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน',
-            //     icon: 'fa-solid fa-hand-holding-dollar', color: 'text-yellow-600', bgIcon: 'bg-yellow-100', url: 'scholarship.html'
-            // },
-
-            // --- 👥 กลุ่มบริหารงานบุคคล ---
-            {
-                id: 'personnel', category: 'personnel', moduleId: 'personnel',
-                title: 'ระบบบริหารจัดการบุคลากร', desc: 'ข้อมูลครูและบุคลากร, ตำแหน่ง, วิทยฐานะ และประวัติการทำงาน',
-                icon: 'fa-solid fa-id-card', color: 'text-violet-600', bgIcon: 'bg-violet-100', url: 'personnel.html'
-            },
-            {
-                id: 'leave_system', category: 'personnel', moduleId: 'leave',
-                title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร',
-                icon: 'fa-solid fa-envelope-open-text', color: 'text-rose-500', bgIcon: 'bg-rose-100', url: 'leave_teacher.html'
-            },
-
-            // --- 🏢 กลุ่มบริหารทั่วไป / กิจการนักเรียน ---
-            {
-                id: 'attendance', category: 'general', moduleId: 'attendance',
-                title: 'ระบบเช็คชื่อหน้าเสาธง', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา',
-                icon: 'fa-solid fa-clipboard-user', color: 'text-orange-500', bgIcon: 'bg-orange-100', url: 'attendance_teacher.html'
-            },
-            {
-                id: 'discipline', category: 'general', moduleId: 'behavior',
-                title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน',
-                icon: 'fa-solid fa-gavel', color: 'text-red-500', bgIcon: 'bg-red-100',
-                url: 'behavior_teacher.html'
-            },
-            {
-                id: 'homevisit', category: 'general', moduleId: 'homevisit',
-                title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน',
-                icon: 'fa-solid fa-house-chimney-user', color: 'text-teal-600', bgIcon: 'bg-teal-100', url: 'homevisit.html'
-            },
-            // {
-            //     id: 'sdq_assessment', category: 'general', moduleId: 'sdq',
-            //     title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน',
-            //     icon: 'fa-solid fa-clipboard-question', color: 'text-indigo-500', bgIcon: 'bg-indigo-100', url: 'sdq_admin.html'
-            // },
-            // {
-            //     id: 'eq_assessment', category: 'general', moduleId: 'eq',
-            //     title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน',
-            //     icon: 'fa-solid fa-face-smile-beam', color: 'text-pink-500', bgIcon: 'bg-pink-100', url: 'eq_admin.html'
-            // }
+            { id: 'guidance_teacher', category: 'academic', moduleId: 'guidance', title: 'ปพ.5 กิจกรรมแนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ', icon: 'fa-solid fa-compass', url: 'guidance_teacher.html', reqAdmin: false },
+            { id: 'sdq_assessment', category: 'academic', moduleId: 'sdq', title: 'ระบบประเมิน SDQ', desc: 'คัดกรองจุดแข็งและจุดอ่อนนักเรียน 5 ด้าน', icon: 'fa-solid fa-clipboard-question', url: 'sdq_teacher.html' },
+            { id: 'eq_assessment', category: 'academic', moduleId: 'eq', title: 'ระบบประเมิน EQ', desc: 'ประเมินความฉลาดทางอารมณ์ (ดี เก่ง สุข) ประจำภาคเรียน', icon: 'fa-solid fa-face-smile-beam', url: 'eq_admin.html' },
+            { id: 'scholarship', category: 'academic', moduleId: 'scholarship', title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน', icon: 'fa-solid fa-hand-holding-dollar', url: 'scholarship.html' },
+            { id: 'personnel', category: 'personnel', moduleId: 'personnel', title: 'ระบบบริหารจัดการบุคลากร', desc: 'ข้อมูลครูและบุคลากร, ตำแหน่ง, วิทยฐานะ และประวัติการทำงาน', icon: 'fa-solid fa-id-card', url: 'personnel.html' },
+            { id: 'leave_system', category: 'personnel', moduleId: 'leave', title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร', icon: 'fa-solid fa-envelope-open-text', url: 'leave_teacher.html' },
+            { id: 'attendance', category: 'general', moduleId: 'attendance', title: 'ระบบเช็คชื่อหน้าเสาธง', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา', icon: 'fa-solid fa-clipboard-user', url: 'attendance_teacher.html' },
+            { id: 'discipline', category: 'general', moduleId: 'behavior', title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน', icon: 'fa-solid fa-gavel', url: 'behavior_teacher.html' },
+            { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
         ];
 
         window.onload = async () => {
@@ -187,8 +274,6 @@
 
         async function checkAuth() {
             const { data: { session }, error } = await db.auth.getSession();
-
-            // 🌟 เด้งไปหน้า login.html ถ้ายังไม่เข้าระบบ
             if (error || !session) {
                 window.location.replace('login.html');
                 return;
@@ -197,7 +282,6 @@
             document.getElementById('portalView').classList.remove('hidden');
 
             const { data: profile, error: profileError } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-
             if (profileError || !profile) {
                 await db.auth.signOut();
                 Swal.fire('เซสชันไม่ถูกต้อง', 'ไม่พบข้อมูลบุคลากรในระบบ กรุณาล็อกอินใหม่อีกครั้ง', 'warning').then(() => {
@@ -211,28 +295,26 @@
             const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
-            // --- 🌟 เปลี่ยนเป็นโค้ดชุดนี้แทน ---
             const { data: allCustomModules } = await db.from('core_system_modules')
                 .select('*')
                 .order('display_order', { ascending: true });
 
             window.moduleOverrides = {};
-            activeModules = []; // ล้างค่าเดิมก่อน
-
+            activeModules = [];
             if (allCustomModules) {
                 allCustomModules.forEach(m => {
                     window.moduleOverrides[m.module_id] = m;
-                    // จัดเก็บตัวที่เปิดใช้งานเอาไว้ใน activeModules ด้วยเลย
                     if (m.is_active) {
                         activeModules.push({
                             module_id: m.module_id,
                             is_active: m.is_active,
-                            target_blank: m.target_blank // 🌟 1. เพิ่มบรรทัดนี้เข้ามาครับ!
+                            target_blank: m.target_blank
                         });
                     }
                 });
             }
             updateUI();
+            await checkCalendarAdminAccess();   // ✅ ตรวจสอบสิทธิ์ปุ่มจัดการปฏิทิน
             renderAppCards();
         }
 
@@ -242,7 +324,7 @@
                     if (result.isConfirmed) {
                         localStorage.removeItem('activeMode');
                         await db.auth.signOut();
-                        window.location.replace('login.html'); // 🌟 เด้งไปหน้า login
+                        window.location.replace('login.html');
                     }
                 });
         }
@@ -250,17 +332,27 @@
         function updateUI() {
             if (!currentUser) return;
             document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-
             let roleText = 'ครูผู้สอน (Teacher)';
             if (currentUser.role === 'super_admin') {
                 roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
                 document.getElementById('btnSuperAdmin').classList.remove('hidden');
-            }
-            else if (currentUser.role === 'admin') {
+            } else if (currentUser.role === 'admin') {
                 roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
             }
-
             document.getElementById('userRole').innerText = roleText;
+        }
+
+        // ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็นแอดมินกลุ่มใด (แสดงปุ่มจัดการปฏิทิน)
+        async function checkCalendarAdminAccess() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) return;
+            const managedDepts = await getUserManagedDepts(session.user.id);
+            const btn = document.getElementById('calendarAdminBtn');
+            if (btn && managedDepts.length > 0) {
+                btn.classList.remove('hidden');
+            } else if (btn) {
+                btn.classList.add('hidden');
+            }
         }
 
         function switchMainTab(category, btnElement) {
@@ -275,57 +367,35 @@
         function renderAppCards() {
             const grid = document.getElementById('appGrid');
             grid.innerHTML = '';
-
-            // เตรียมข้อมูลโมดูลที่กำหนดเอง (Override map)
             const overrides = window.moduleOverrides || {};
-
-            // รวบรวมแอปจาก ALL_APPS + โมดูลที่เพิ่มเข้ามาใหม่จาก DB
             let appsToDisplay = [];
 
-            // 1. เพิ่มแอปที่อยู่ใน ALL_APPS (ปรับแต่งด้วย override)
             ALL_APPS.forEach(app => {
                 if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
-
                 const modOverride = overrides[app.moduleId];
-                const finalApp = { ...app }; // clone
-
+                const finalApp = { ...app };
                 if (modOverride) {
-                    // ให้เปลี่ยนสีและไอคอนได้ตามปกติ
                     finalApp.icon = modOverride.icon || app.icon;
-                    finalApp.bgIcon = '';
                     finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0';
                     finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
                     finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
-
-                    // 🌟 1. ดึงค่า target_blank มาใส่ใน finalApp
                     finalApp.target_blank = modOverride.target_blank || false;
-
-                    // 🌟 ป้องกันการเขียนทับแอปที่มีหลายสิทธิ์ (เช่น guidance_admin กับ guidance_teacher)
                     if (app.id === app.moduleId) {
                         finalApp.url = modOverride.url || app.url;
                         finalApp.desc = modOverride.description || app.desc;
                         finalApp.title = modOverride.module_name || app.title;
                     }
                 } else {
-                    // ไม่มี override → ใช้ค่าเดิมจาก ALL_APPS
-                    finalApp.iconBgColor = '#e2e8f0'; // สีพื้นหลังไอคอน (default)
-                    finalApp.iconTextColor = '#4a5568'; // สีตัวไอคอน (default)
+                    finalApp.iconBgColor = '#e2e8f0';
+                    finalApp.iconTextColor = '#4a5568';
                     finalApp.isActive = activeModules.some(m => m.module_id === app.moduleId && m.is_active);
-
-                    // 🌟 กำหนดค่าตั้งต้นหากไม่มี override
                     finalApp.target_blank = false;
                 }
-
                 appsToDisplay.push(finalApp);
             });
 
-            // 2. เพิ่มโมดูลใหม่จาก DB ที่ไม่มีใน ALL_APPS
             Object.values(overrides).forEach(mod => {
-                // ถ้ามี module_id นี้ใน ALL_APPS แล้ว ข้าม (ใช้ override ด้านบนแล้ว)
-                const alreadyExists = ALL_APPS.some(app => app.moduleId === mod.module_id);
-                if (alreadyExists) return;
-
-                // สร้าง app object ใหม่
+                if (ALL_APPS.some(app => app.moduleId === mod.module_id)) return;
                 const newApp = {
                     id: mod.module_id,
                     category: mod.category || 'general',
@@ -339,26 +409,20 @@
                     isActive: mod.is_active !== false,
                     reqAdmin: false,
                     reqSuperAdmin: false,
-                    // 🌟 2. ดึงค่า target_blank สำหรับโมดูลที่สร้างใหม่
                     target_blank: mod.target_blank || false
                 };
                 appsToDisplay.push(newApp);
             });
 
-            // 3. กรองตามหมวดหมู่ปัจจุบัน
             const appsToShow = appsToDisplay.filter(app => app.category === currentCategory);
-
             if (appsToShow.length === 0) {
                 grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>ยังไม่มีระบบในกลุ่มบริหารงานนี้</div>`;
                 return;
             }
 
-            // 4. สร้างการ์ด
             appsToShow.forEach(app => {
                 let isLocked = false;
                 let lockReason = '';
-
-                // ตรวจสอบสิทธิ์การเข้าใช้งาน
                 if (!app.isActive) {
                     isLocked = true;
                     lockReason = 'ปิดปรับปรุงระบบชั่วคราว';
@@ -372,12 +436,10 @@
 
                 const card = document.createElement('div');
                 card.className = `app-card glass-panel rounded-2xl p-6 border ${isLocked ? 'locked border-gray-200 bg-gray-50' : 'border-gray-200 bg-white hover:border-blue-300 cursor-pointer'} flex flex-col h-full`;
-
                 if (isLocked) {
                     card.onclick = () => Swal.fire('ไม่สามารถเข้าใช้งานได้', lockReason, 'warning');
                 } else {
                     card.onclick = () => {
-                        // 🌟 ตอนนี้ app.target_blank จะมีค่าส่งมาแน่นอนแล้วครับ
                         if (app.target_blank === true || app.target_blank === 'true') {
                             window.open(app.url, '_blank');
                         } else {
@@ -392,10 +454,7 @@
                 } else {
                     badgeHtml = `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-200 flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> เปิดใช้งาน</span>`;
                 }
-
-                // ใช้ inline style สำหรับไอคอน หากมีการตั้งค่าสีจาก DB
                 const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
-
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
                         <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
@@ -411,7 +470,6 @@
                         ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
                     </div>
                 `;
-
                 grid.appendChild(card);
             });
         }
@@ -441,7 +499,6 @@
             if (formValues) {
                 Swal.fire({ title: 'กำลังอัปเดต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
                 const { error } = await db.auth.updateUser({ password: formValues });
-
                 if (error) {
                     Swal.fire('ผิดพลาด', error.message, 'error');
                 } else {
@@ -449,6 +506,14 @@
                 }
             }
         }
+
+        // เริ่มต้นส่วนปฏิทิน
+        document.addEventListener('DOMContentLoaded', () => {
+            populateYearSelect();
+            document.getElementById('monthSelect').value = currentMonth;
+            document.getElementById('btnLoadCalendar').addEventListener('click', loadEventsByMonth);
+            loadEventsByMonth();
+        });
     </script>
 </body>
 

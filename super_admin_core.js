@@ -51,38 +51,43 @@ function handleLogout() {
 }
 
 // ==========================================
-// ระบบจัดการเมนู
+// ระบบจัดการเมนู (รองรับปฏิทินแล้ว)
 // ==========================================
 function switchMenu(menuId) {
+    // ซ่อนทุกเมนู
     document.getElementById('menu-school').classList.add('hidden');
     document.getElementById('menu-personnel').classList.add('hidden');
     document.getElementById('menu-students').classList.add('hidden');
     document.getElementById('menu-student-portal').classList.add('hidden');
+    document.getElementById('menu-calendar')?.classList.add('hidden');   // ✅ เพิ่มบรรทัดนี้
 
-    const btns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal'];
+    // เปลี่ยนสถานะปุ่มเมนู
+    const btns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal', 'btn-menu-calendar'];
     btns.forEach(id => {
         const btn = document.getElementById(id);
-        if (btn) btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-300 hover:bg-gray-800 font-medium transition-all";
+        if (btn) btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all";
     });
 
+    // แสดงเมนูที่เลือก และเปลี่ยนปุ่มให้ active
     document.getElementById(menuId).classList.remove('hidden');
     const activeBtn = document.getElementById('btn-' + menuId);
     if (activeBtn) activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
 
+    // ตั้งชื่อหัวข้อ
     const titles = {
         'menu-school': '<i class="fa-solid fa-gear text-gray-500 mr-2"></i>ข้อมูลโรงเรียนและการตั้งค่าระบบ',
         'menu-personnel': '<i class="fa-solid fa-address-book text-gray-500 mr-2"></i>จัดการบุคลากรและข้าราชการครู',
         'menu-students': '<i class="fa-solid fa-users-rectangle text-gray-500 mr-2"></i>จัดการห้องเรียนและรายชื่อนักเรียน',
-        'menu-student-portal': '<i class="fa-solid fa-graduation-cap text-gray-500 mr-2"></i>ตั้งค่าระบบสำหรับนักเรียน (Student Portal)'
+        'menu-student-portal': '<i class="fa-solid fa-graduation-cap text-gray-500 mr-2"></i>ตั้งค่าระบบสำหรับนักเรียน (Student Portal)',
+        'menu-calendar': '<i class="fa-regular fa-calendar-days mr-2"></i>จัดการปฏิทินกิจกรรม'
     };
     document.getElementById('pageTitle').innerHTML = titles[menuId];
 
-    // โหลดข้อมูลตามเมนูที่เลือก
+    // โหลดข้อมูลตามเมนู
     if (menuId === 'menu-school') {
         if (typeof loadSchoolInfo === 'function') loadSchoolInfo();
         if (typeof loadMicroServices === 'function') loadMicroServices();
     }
-    // ✅ เพิ่มส่วนนี้
     if (menuId === 'menu-personnel') {
         if (typeof loadPersonnel === 'function') loadPersonnel();
     }
@@ -92,6 +97,9 @@ function switchMenu(menuId) {
     if (menuId === 'menu-student-portal') {
         if (typeof loadStudentModules === 'function') loadStudentModules();
         if (typeof loadGasAvatarSettings === 'function') loadGasAvatarSettings();
+    }
+    if (menuId === 'menu-calendar') {
+        if (typeof loadCalendarAdminUI === 'function') loadCalendarAdminUI();
     }
 }
 
