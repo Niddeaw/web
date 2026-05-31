@@ -552,9 +552,14 @@ async function printLeavePDF(id) {
         const priorPersonal = personal - (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0);
         const priorMat = maternity - (leave.type.includes('คลอด') ? leave.total_days : 0);
 
-        // 5. จัดรูปแบบข้อมูล
+        // 5. จัดรูปแบบข้อมูล (แยก position, rank, academic_standing)
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-        const position = `${p.position || 'ครู'}${p.academic_standing ? ' วิทยฐานะ' + p.academic_standing : ''}`;
+        const position = p.position || 'ครู';           // ตำแหน่ง เช่น ครู, หัวหน้ากลุ่มสาระฯ
+        const rank = p.rank || '';                      // วิทยฐานะ (ถ้ามี) เช่น ชำนาญการ, ชำนาญการพิเศษ
+        const academicStanding = p.academic_standing || '';  // ข้อมูลเพิ่มเติม (ถ้ามี)
+
+        // (ถ้าต้องการรวมตำแหน่ง+วิทยฐานะไว้ด้วยกัน สำหรับที่ที่ยังใช้อยู่)
+        const fullPosition = `${position}${rank ? ' ' + rank : ''}${academicStanding ? ' ' + academicStanding : ''}`;
 
         const formatDateThai = (isoString) => {
             if (!isoString) return '-';
@@ -591,7 +596,10 @@ async function printLeavePDF(id) {
                 "{{SCHOOL_NAME}}": schoolName,
                 "{{LEAVE_TYPE}}": leave.type,
                 "{{FULL_NAME}}": fullName,
-                "{{POSITION}}": position,
+                "{{POSITION}}": position,               // <-- แยก
+                "{{RANK}}": rank,                       // <-- เพิ่ม
+                "{{ACADEMIC_STANDING}}": academicStanding, // <-- เพิ่ม
+                "{{FULL_POSITION}}": fullPosition,      // <-- optional
                 "{{DEPARTMENT}}": p.department || '-',
                 "{{REASON}}": leave.reason,
                 "{{START_DATE}}": formatDateThai(leave.start_date),
@@ -613,6 +621,9 @@ async function printLeavePDF(id) {
                 "{{DIRECTOR_NAME}}": directorName
             }
         };
+
+        console.log('📄 Payload ที่จะส่งไป GAS:', payload);
+        console.log('📝 Replacements:', payload.replacements);
 
         // 6. ส่งข้อมูลไป GAS พร้อม timeout (ใช้ text/plain ตามตัวอย่างที่ใช้งานได้)
         const controller = new AbortController();
