@@ -87,16 +87,20 @@ async function loadSystemSettings() {
     systemSettings = leaveData?.settings || {
         fiscal_year: (new Date().getFullYear() + 543).toString(),
         eval_round: '1',
-        sign_leave_admin: ''
+        sign_leave_admin: '',
+        gas_url: '',
+        slide_template_id: '',
+        pdf_folder_id: ''   // ✅ เพิ่มบรรทัดนี้
     };
 
     $('#fiscal_year').val(systemSettings.fiscal_year);
     $('#evaluation_round').val(systemSettings.eval_round);
     $('#dash-fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
 
-    // 🌟 โหลดค่าตั้งค่า PDF
+    // โหลดค่าตั้งค่า PDF
     $('#set_gas_url').val(systemSettings.gas_url || '');
     $('#set_slide_template_id').val(systemSettings.slide_template_id || '');
+    $('#set_pdf_folder_id').val(systemSettings.pdf_folder_id || '');   // ✅ เพิ่ม
 
     // 🌟 อัปเดตช่องเลือกเจ้าหน้าที่ (Tom Select)
     const signAdminEl = document.getElementById('sign_leave_admin');
@@ -121,14 +125,14 @@ async function saveSystemSettings(e) {
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    // 🌟 บันทึกค่าตั้งค่า PDF
     const rawFiscal = $('#fiscal_year').val() || '';
     const newSettings = {
         fiscal_year: rawFiscal.trim(),
         eval_round: $('#evaluation_round').val() || '1',
         sign_leave_admin: $('#sign_leave_admin').val() || '',
         gas_url: ($('#set_gas_url').val() || '').trim(),
-        slide_template_id: ($('#set_slide_template_id').val() || '').trim()
+        slide_template_id: ($('#set_slide_template_id').val() || '').trim(),
+        pdf_folder_id: ($('#set_pdf_folder_id').val() || '').trim()   // ✅ เพิ่ม
     };
 
     const { error } = await db.from('core_system_modules').update({ settings: newSettings, updated_at: new Date().toISOString() }).eq('module_id', 'leave');
@@ -384,11 +388,16 @@ function calculateEditDays() {
         $('#edit_end_date').val(''); return;
     }
 
-    let count = 0, curDate = new Date(startDate);
+    let count = 0;
+    let curDate = new Date(startDate);
     while (curDate <= endDate) {
         const dayOfWeek = curDate.getDay();
-        if (type.includes('คลอด')) count++;
-        else if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+        // ✅ เฉพาะ "ลาคลอดบุตร" ที่นับทุกวัน
+        if (type === 'ลาคลอดบุตร') {
+            count++;
+        } else {
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+        }
         curDate.setDate(curDate.getDate() + 1);
     }
     $('#edit_calc_days').text(count);
@@ -600,58 +609,75 @@ async function deleteAttendance(id) {
     }
 }
 
-// ฟังก์ชั่นพิมพ์ PDF
+// ฟังก์ชั่นพิมพ์ PDF (เวอร์ชันสมบูรณ์ ส่ง action และ pdfFolderId)
 async function printLeavePDF(id) {
-    if (!systemSettings.gas_url || !systemSettings.slide_template_id) {
-        return Swal.fire('ยังไม่ได้ตั้งค่า', 'กรุณาระบุ GAS URL และ Slide ID ในเมนู "ตั้งค่าระบบ" ก่อนใช้งาน', 'warning');
+    // ตรวจสอบค่าที่จำเป็น
+    if (!systemSettings.gas_url || !systemSettings.slide_template_id || !systemSettings.pdf_folder_id) {
+        let missing = [];
+        if (!systemSettings.gas_url) missing.push('GAS URL');
+        if (!systemSettings.slide_template_id) missing.push('Slide Template ID');
+        if (!systemSettings.pdf_folder_id) missing.push('PDF Folder ID');
+        return Swal.fire('ตั้งค่าไม่สมบูรณ์', `กรุณาตั้งค่า ${missing.join(', ')} ในเมนู "ตั้งค่าระบบ" ก่อนพิมพ์ PDF`, 'warning');
     }
 
     Swal.fire({
         title: 'กำลังสร้างไฟล์ PDF...',
-        html: 'ระบบกำลังดึงข้อมูลและประมวลผลผ่านระบบส่วนกลาง<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>',
+        html: 'ระบบกำลังดึงข้อมูลและประมวลผลผ่าน Google Apps Script<br><span class="text-xs text-slate-400">อาจใช้เวลา 5-10 วินาที</span>',
         didOpen: () => Swal.showLoading(),
-        allowOutsideClick: false
+        allowOutsideClick: false,
+        showConfirmButton: false
     });
 
     try {
-        // 1. ดึงข้อมูลใบลา
-        const { data: leave, error } = await db.from('leave_requests').select('*, core_personnel(*)').eq('id', id).single();
+        // 1. ดึงข้อมูลใบลา + ข้อมูลบุคลากร
+        const { data: leave, error } = await db.from('leave_requests')
+            .select('*, core_personnel(*)')
+            .eq('id', id)
+            .single();
         if (error) throw error;
         const p = leave.core_personnel;
 
-        // 2. ดึงข้อมูลจากส่วนกลาง (เพิ่ม รองฯ วิชาการ เข้ามาด้วย)
+        // 2. ดึงข้อมูลโรงเรียน
         const { data: school } = await db.from('core_school_info').select('*').single();
         const directorName = school?.director_name || '...................................................';
         const schoolName = school?.school_name || '........................';
-
-        // สมมติว่าคอลัมน์รองฯ วิชาการ ชื่อ deputy_academic (แก้ไขให้ตรงกับฐานข้อมูลของคุณครูได้เลยครับ)
         const deputyAcademicName = school?.deputy_academic || '...................................................';
 
-        // 🌟 3. โลจิกตรวจสอบสายการบังคับบัญชา (หัวหน้ากลุ่มสาระฯ vs ครู)
-        let commanderName = '...................................................';
-        let commanderPosition = `หัวหน้ากลุ่มสาระการเรียนรู้${p.department || ''}`;
+        // 3. กำหนดผู้บังคับบัญชาชั้นต้น (COMMANDER)
+        let commanderName = '';
+        let commanderPosition = '';
 
-        // เช็คว่าผู้ลาเป็น "หัวหน้ากลุ่มสาระฯ" หรือไม่ (เช็คจากคำว่า 'หัวหน้า' ใน position)
-        const isHeadOfDepartment = p.position?.includes('หัวหน้า');
-
-        if (isHeadOfDepartment) {
-            // กรณีผู้ลาเป็น "หัวหน้ากลุ่มสาระฯ" -> ให้เสนอ "รองผู้อำนวยการกลุ่มบริหารวิชาการ"
-            commanderName = deputyAcademicName;
-            commanderPosition = 'รองผู้อำนวยการกลุ่มบริหารวิชาการ';
+        const isDeputyDirector = p.position?.startsWith('รองผู้อำนวยการ');
+        if (isDeputyDirector) {
+            commanderName = '';
+            commanderPosition = '';
         } else {
-            // กรณีผู้ลาเป็น "ครู" -> ให้หาชื่อ "หัวหน้ากลุ่มสาระฯ" ของกลุ่มนั้นๆ
-            const { data: headPerson } = await db.from('core_personnel')
-                .select('prefix, first_name, last_name')
-                .eq('department', p.department)
-                .ilike('position', '%หัวหน้า%') // หาคนที่มีคำว่าหัวหน้าในกลุ่มสาระเดียวกัน
+            const { data: isHead } = await db.from('core_department_heads')
+                .select('department_id, department_name')
+                .eq('personnel_id', p.id)
                 .maybeSingle();
-
-            if (headPerson) {
-                commanderName = `${headPerson.prefix || ''}${headPerson.first_name} ${headPerson.last_name}`;
+            
+            if (isHead) {
+                commanderName = deputyAcademicName;
+                commanderPosition = 'รองผู้อำนวยการกลุ่มบริหารวิชาการ';
+            } else {
+                const { data: headPerson } = await db.from('core_department_heads')
+                    .select('core_personnel!inner(prefix, first_name, last_name)')
+                    .eq('department_name', p.department)
+                    .maybeSingle();
+                
+                if (headPerson?.core_personnel) {
+                    const head = headPerson.core_personnel;
+                    commanderName = `${head.prefix || ''}${head.first_name} ${head.last_name}`;
+                    commanderPosition = `หัวหน้ากลุ่มสาระการเรียนรู้${p.department || ''}`;
+                } else {
+                    commanderName = '...................................................';
+                    commanderPosition = '...................................................';
+                }
             }
         }
 
-        // 4. คำนวณสถิติ
+        // 4. คำนวณสถิติการใช้ลาก่อนหน้านี้
         const { data: stats } = await db.from('leave_requests')
             .select('type, total_days')
             .eq('personnel_id', leave.personnel_id)
@@ -666,10 +692,15 @@ async function printLeavePDF(id) {
             if (s.type.includes('คลอด')) maternity += s.total_days;
         });
 
+        const priorSick = sick - (leave.type === 'ลาป่วย' ? leave.total_days : 0);
+        const priorPersonal = personal - (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0);
+        const priorMat = maternity - (leave.type.includes('คลอด') ? leave.total_days : 0);
+
+        // 5. จัดรูปแบบข้อมูล
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const position = `${p.position || 'ครู'}${p.academic_standing ? ' วิทยฐานะ' + p.academic_standing : ''}`;
 
-        const formatDate = (isoString) => {
+        const formatDateThai = (isoString) => {
             if (!isoString) return '-';
             const d = new Date(isoString);
             const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
@@ -679,48 +710,27 @@ async function printLeavePDF(id) {
         const writeDate = new Date(leave.created_at);
         const strWriteDate = `วันที่ ${writeDate.getDate()} เดือน ${['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'][writeDate.getMonth()]} พ.ศ. ${writeDate.getFullYear() + 543}`;
 
-        const priorSick = sick - (leave.type === 'ลาป่วย' ? leave.total_days : 0);
-        const priorPersonal = personal - (leave.type === 'ลากิจส่วนตัว' ? leave.total_days : 0);
-        const priorMat = maternity - (leave.type.includes('คลอด') ? leave.total_days : 0);
-
-        // 5. แพ็ก Payload เพื่อส่งไป GAS
         const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-
-        // 1. แยกวัน เดือน ปี ของวันที่เริ่มลา (Start Date)
         const sDate = new Date(leave.start_date);
-        const startDay = sDate.getDate().toString();
-        const startMonth = thMonths[sDate.getMonth()];
-        const startYear = (sDate.getFullYear() + 543).toString();
-
-        // 2. แยกวัน เดือน ปี ของวันที่เขียนใบลา (Write Date)
-        const wDate = new Date(leave.created_at);
-        const writeDay = wDate.getDate().toString();
-        const writeMonth = thMonths[wDate.getMonth()];
-        const writeYear = (wDate.getFullYear() + 543).toString();
-
-        // 3. แยกวัน เดือน ปี ของวันสิ้นสุดการลา (End Date)
         const eDate = new Date(leave.end_date);
-        const endDay = eDate.getDate().toString();
-        const endMonth = thMonths[eDate.getMonth()];
-        const endYear = (eDate.getFullYear() + 543).toString();
+        const wDateObj = new Date(leave.created_at);
 
+        // ✅ สร้าง payload ตามที่ GAS ต้องการ (ตรงกับตัวอย่างที่ใช้ได้)
         const payload = {
+            action: 'generate_pdf',
             templateId: systemSettings.slide_template_id,
+            pdfFolderId: systemSettings.pdf_folder_id,
             fileName: `ใบลา_${p.first_name}_${leave.start_date.replace(/-/g, '')}`,
             replacements: {
-                // แทนที่จะส่งก้อนยาวๆ ก็ส่งแบบแยกชิ้นไปเลยครับ
-                "{{W_DAY}}": writeDay,
-                "{{W_MONTH}}": writeMonth,
-                "{{W_YEAR}}": writeYear,
-
-                "{{START_D}}": startDay,
-                "{{START_M}}": startMonth,
-                "{{START_Y}}": startYear,
-
-                "{{END_D}}": endDay,
-                "{{END_M}}": endMonth,
-                "{{END_Y}}": endYear,
-
+                "{{W_DAY}}": wDateObj.getDate().toString(),
+                "{{W_MONTH}}": thMonths[wDateObj.getMonth()],
+                "{{W_YEAR}}": (wDateObj.getFullYear() + 543).toString(),
+                "{{START_D}}": sDate.getDate().toString(),
+                "{{START_M}}": thMonths[sDate.getMonth()],
+                "{{START_Y}}": (sDate.getFullYear() + 543).toString(),
+                "{{END_D}}": eDate.getDate().toString(),
+                "{{END_M}}": thMonths[eDate.getMonth()],
+                "{{END_Y}}": (eDate.getFullYear() + 543).toString(),
                 "{{WRITE_DATE}}": strWriteDate,
                 "{{SCHOOL_NAME}}": schoolName,
                 "{{LEAVE_TYPE}}": leave.type,
@@ -728,18 +738,13 @@ async function printLeavePDF(id) {
                 "{{POSITION}}": position,
                 "{{DEPARTMENT}}": p.department || '-',
                 "{{REASON}}": leave.reason,
-                "{{START_DATE}}": formatDate(leave.start_date),
-                "{{END_DATE}}": formatDate(leave.end_date),
+                "{{START_DATE}}": formatDateThai(leave.start_date),
+                "{{END_DATE}}": formatDateThai(leave.end_date),
                 "{{TOTAL_DAYS}}": leave.total_days.toString(),
-
-                // 🌟 เพิ่มข้อมูลติดต่อเข้าไปใน Payload ส่งให้ GAS
                 "{{CONTACT_ADDRESS}}": leave.contact_address || '-',
                 "{{PHONE_NUMBER}}": leave.phone_number || '-',
-
-                // 🌟 เพิ่มตัวแปรผู้บังคับบัญชาชั้นต้น
                 "{{COMMANDER_NAME}}": commanderName,
                 "{{COMMANDER_POSITION}}": commanderPosition,
-
                 "{{STAT_SICK_PRIOR}}": priorSick.toString(),
                 "{{STAT_SICK_NOW}}": (leave.type === 'ลาป่วย' ? leave.total_days : 0).toString(),
                 "{{STAT_SICK_TOTAL}}": sick.toString(),
@@ -751,17 +756,23 @@ async function printLeavePDF(id) {
                 "{{STAT_MAT_TOTAL}}": maternity.toString(),
                 "{{DIRECTOR_NAME}}": directorName
             }
-
         };
 
-        // 6. ยิงข้อมูลไปที่ GAS
+        // 6. ส่งข้อมูลไป GAS (ใช้ Content-Type: text/plain ตามตัวอย่าง)
         const response = await fetch(systemSettings.gas_url, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(payload)
         });
 
-        const result = await response.json();
+        // ป้องกัน GAS ส่ง HTML error กลับมา
+        const rawText = await response.text();
+        let result;
+        try {
+            result = JSON.parse(rawText);
+        } catch {
+            throw new Error('GAS ตอบกลับไม่ใช่ JSON: ' + rawText.substring(0, 200));
+        }
 
         if (result.status === 'success' && result.url) {
             Swal.close();
@@ -771,7 +782,7 @@ async function printLeavePDF(id) {
         }
 
     } catch (err) {
-        console.error(err);
+        console.error('PrintLeavePDF Error:', err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }

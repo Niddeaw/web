@@ -247,7 +247,7 @@
 
         function renderTable(events) {
             const tbody = document.getElementById('eventsTbody');
-            const deptNames = { academic:'วิชาการ', budget:'แผนงานและงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
+            const deptNames = { academic:'บริหารวิชาการ', budget:'บริหารงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
             if (events.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-slate-400">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
                 return;
@@ -300,7 +300,7 @@
             
             // ถ้าไม่มีกลุ่มย่อยใดเลย (ยกเว้น academic) ก็ยังสามารถดู academic ได้ แต่จะไม่มีปุ่มเพิ่ม
             // แสดงกลุ่มที่ดูแลใน badge (เฉพาะที่สามารถเพิ่ม/แก้ไขได้)
-            const deptNames = { academic:'วิชาการ', budget:'แผนงานและงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
+            const deptNames = { academic:'บริหารวิชาการ', budget:'บริหารงบประมาณ', personnel:'บริหารงานบุคคล', general:'บริหารทั่วไป' };
             const displayDepts = managedDepts.map(d => deptNames[d] || d);
             document.getElementById('deptCount').innerText = managedDepts.length;
             document.getElementById('userRoleBadge').innerHTML = `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">แอดมินประจำกลุ่ม: ${displayDepts.join(', ') || 'ไม่มี (ดูได้เฉพาะกลุ่มวิชาการ)'}</span>`;
