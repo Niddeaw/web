@@ -157,7 +157,7 @@ async function loadLogsData(dateFrom = null, dateTo = null) {
                 { extend: 'searchBuilder', text: '<i class="fa-solid fa-filter mr-1"></i> ตัวกรองขั้นสูง', className: 'bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium border-none' }
             ],
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-            order: [[0, 'asc']]
+            order: [[0, 'desc']] // ASC (Ascending): เรียงลำดับจาก น้อยไปหามาก (ก-ฮ, 0-9, วันที่เก่าไปใหม่) // DESC (Descending): เรียงลำดับจาก มากไปหาน้อย (ฮ-ก, 9-0, วันที่ใหม่ไปเก่า)
         });
         Swal.close();
     } catch (error) {
