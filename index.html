@@ -315,6 +315,7 @@
             }
             updateUI();
             await checkCalendarAdminAccess();   // ✅ ตรวจสอบสิทธิ์ปุ่มจัดการปฏิทิน
+            await logUserAction('VIEW_PAGE', 'CENTRAL_PORTAL');
             renderAppCards();
         }
 

@@ -57,19 +57,48 @@ if (document.readyState === 'loading') {
     injectGlobalFooter();
 }
 
-// ฟังก์ชันส่วนกลางสำหรับบันทึก Log การเข้าใช้งาน
-async function logUserAction(action, module) {
+// ==========================================
+// ฟังก์ชันบันทึก Log (ใช้ได้ทุกหน้า)
+// ==========================================
+async function getUserIP() {
+    try {
+        const res = await fetch('https://api.ipify.org?format=json');
+        const data = await res.json();
+        return data.ip;
+    } catch { return null; }
+}
+
+async function logUserAction(action, module, options = {}) {
     try {
         const { data: { session } } = await db.auth.getSession();
         if (!session) return;
-
-        await db.from('core_access_logs').insert([{
-            user_id: session.user.id,
-            action: action,
-            module: module,
-            user_agent: navigator.userAgent
-        }]);
-    } catch (error) {
-        console.error("Failed to save log:", error);
+        const userIp = await getUserIP();
+        const logData = {
+            action, module,
+            entity_type: options.entity_type || null,
+            entity_id: options.entity_id || null,
+            old_values: options.old_values || null,
+            new_values: options.new_values || null,
+            performed_by: session.user.id,
+            ip_address: userIp,
+            user_agent: navigator.userAgent,
+            status: options.status || 'SUCCESS',
+            error_message: options.error_message || null,
+            source: options.source || 'UI',
+            reason: options.reason || null,
+            metadata: options.metadata || null
+        };
+        const { error } = await db.from('system_audit_logs').insert([logData]);
+        if (error) {
+            // fallback ไป core_access_logs (ถ้าจำเป็น)
+            await db.from('core_access_logs').insert([{
+                user_id: session.user.id,
+                action, module,
+                ip_address: userIp,
+                user_agent: navigator.userAgent
+            }]);
+        }
+    } catch (err) {
+        console.error("Failed to save log:", err);
     }
 }

@@ -59,8 +59,11 @@ async function loadLogsData(dateFrom = null, dateTo = null) {
 
         try {
             let query = db.from('system_audit_logs')
-                .select(`id, action, module, ip_address, user_agent, created_at,
-                         core_personnel!system_audit_logs_performed_by_fkey (prefix, first_name, last_name, role)`);
+                .select(`
+                    id, action, module, ip_address, user_agent, created_at,
+                    performed_by,
+                    core_personnel!performed_by (prefix, first_name, last_name, role)
+                `);
             if (dateFrom) {
                 const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
                 query = query.gte('created_at', start.toISOString());
@@ -77,8 +80,10 @@ async function loadLogsData(dateFrom = null, dateTo = null) {
             console.warn('system_audit_logs unavailable, fallback to core_access_logs:', auditErr.message);
             useAuditTable = false;
             let query = db.from('core_access_logs')
-                .select(`id, action, module, ip_address, user_agent, created_at,
-                         core_personnel (prefix, first_name, last_name, role)`);
+                .select(`
+                    id, action, module, ip_address, user_agent, created_at,
+                    core_personnel!user_id (prefix, first_name, last_name, role)
+                `);
             if (dateFrom) {
                 const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
                 query = query.gte('created_at', start.toISOString());
