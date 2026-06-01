@@ -128,6 +128,54 @@
             </div>
         </div>
 
+        <!-- ========================================== -->
+<!-- 🌟 Dashboard 4 การ์ดสำหรับแอดมิน (อัปเดต) -->
+<!-- ========================================== -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+    <!-- การ์ด 1: นักเรียนทั้งหมด -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shrink-0">
+            <i class="fa-solid fa-users"></i>
+        </div>
+        <div>
+            <p class="text-xs font-bold text-slate-500 uppercase">นักเรียนทั้งหมด (เทอมนี้)</p>
+            <h3 class="text-2xl font-black text-blue-800" id="dash-total-students">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
+        </div>
+    </div>
+
+    <!-- การ์ด 2: อนุมัติแล้ว -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl shrink-0">
+            <i class="fa-solid fa-user-check"></i>
+        </div>
+        <div>
+            <p class="text-xs font-bold text-slate-500 uppercase">อนุมัติเข้าชุมนุมแล้ว</p>
+            <h3 class="text-2xl font-black text-emerald-700" id="dash-approved">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
+        </div>
+    </div>
+
+    <!-- การ์ด 3: รอพิจารณา (คลิกได้) -->
+    <div onclick="showPendingStudentsModal()" class="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-amber-50 hover:shadow-md transition-all group">
+        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-hourglass-half"></i>
+        </div>
+        <div>
+            <p class="text-xs font-bold text-amber-600 uppercase group-hover:text-amber-700 transition-colors">รอพิจารณา <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
+            <h3 class="text-2xl font-black text-amber-700" id="dash-pending">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
+        </div>
+    </div>
+
+    <!-- การ์ด 4: ยังไม่เลือกชุมนุม (คลิกได้) -->
+    <div onclick="showUnassignedStudentsModal()" class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-rose-50 hover:shadow-md transition-all group">
+        <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
+            <i class="fa-solid fa-user-xmark"></i>
+        </div>
+        <div>
+            <p class="text-xs font-bold text-rose-500 uppercase group-hover:text-rose-700 transition-colors">ยังไม่เลือกชุมนุม <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
+            <h3 class="text-2xl font-black text-rose-700" id="dash-unassigned">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
+        </div>
+    </div>
+</div>
         <div id="admin-view" class="space-y-6 hidden fade-in">
             <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
                 <button onclick="switchAdminTab('admin-tab-clubs')" id="btn-admin-tab-clubs"
