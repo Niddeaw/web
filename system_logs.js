@@ -156,9 +156,8 @@ async function loadLogsData(dateFrom = null, dateTo = null) {
                 { extend: 'pdfHtml5', text: '<i class="fa-solid fa-file-pdf mr-1"></i> Export PDF', className: 'bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium border-none', title: 'ระบบ_logs_' + new Date().toLocaleDateString('th-TH'), orientation: 'landscape', pageSize: 'A3' },
                 { extend: 'searchBuilder', text: '<i class="fa-solid fa-filter mr-1"></i> ตัวกรองขั้นสูง', className: 'bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium border-none' }
             ],
-            // language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/th.json', searchBuilder: { title: 'ตัวกรองเงื่อนไขขั้นสูง', add: 'เพิ่มเงื่อนไข', clearAll: 'ล้างทั้งหมด' } },
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-            order: [[0, 'asc']]
+            order: [[0, 'desc']]
         });
         Swal.close();
     } catch (error) {
