@@ -1,5 +1,6 @@
 // ==========================================
 // ไฟล์ guidance_admin.js (ระบบเครื่องมือผู้ดูแลระบบแนะแนว)
+// ปรับปรุง: เพิ่ม Tom Select ใน Modal, ปรับปรุง UI, แก้ไขบัคเล็กน้อย
 // ==========================================
 
 let currentUserProfile = null;
@@ -19,6 +20,7 @@ let weekDatesArray = [];
 
 let currentTeacherId = null;
 let teacherModalData = []; 
+let tomSelectInstances = []; // เก็บ TomSelect instances ใน modal
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
@@ -57,7 +59,7 @@ async function checkAuth() {
         await loadSystemSettings();
         await loadMonitoringData();
 
-// ตรวจสอบสิทธิ์ว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด
+        // ตรวจสอบสิทธิ์ว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด
         const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', session.user.id).single();
         if (isGui) {
             const btnAdmin = document.getElementById('btnAdminMode');
@@ -206,12 +208,12 @@ function renderMonitoringTable(dataArray) {
     tbody.innerHTML = dataArray.map(item => {
         let statusHtml = item.studentCount === 0 ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-500">ไม่มีเด็ก</span>' : (item.isComplete ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">🟢 เรียบร้อย</span>' : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-600">🔴 ยังไม่ครบ</span>');
         return `
-        <tr class="hover:bg-gray-50">
+        <tr class="hover:bg-gray-50 transition">
             <td class="px-4 py-3 text-center font-bold text-gray-700">${item.name}</td>
             <td class="px-4 py-3 text-gray-600">${item.teacherName}</td>
             <td class="px-4 py-3 text-center">${item.studentCount}</td>
             <td class="px-4 py-3 text-center">${statusHtml}</td>
-            <td class="px-4 py-3 text-center"><button onclick="openAdminEditor('${item.id}', '${item.name}')" class="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded shadow-sm">จัดการ</button></td>
+            <td class="px-4 py-3 text-center"><button onclick="openAdminEditor('${item.id}', '${item.name}')" class="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition btn-hover-lift">จัดการ</button></td>
         </tr>`;
     }).join('');
 
@@ -219,7 +221,7 @@ function renderMonitoringTable(dataArray) {
 }
 
 // -----------------------------------
-// 3. ระบบจัดการครูแนะแนว
+// 3. ระบบจัดการครูแนะแนว (พร้อม Tom Select)
 // -----------------------------------
 function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
@@ -233,25 +235,25 @@ function renderTeacherManageTable(mappedClasses) {
             if(cls) {
                 const mon = monitorData.find(m => m.id === cls.id);
                 const color = (mon && mon.isComplete && mon.studentCount > 0) ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600';
-                badgesHtml += `<button onclick="openAdminEditor('${cls.id}', 'ม.${cls.grade_level}/${cls.room_number}')" class="px-2.5 py-1.5 ${color} text-white text-xs font-bold rounded-lg shadow-sm">ม.${cls.grade_level}/${cls.room_number}</button>`;
+                badgesHtml += `<button onclick="openAdminEditor('${cls.id}', 'ม.${cls.grade_level}/${cls.room_number}')" class="px-2.5 py-1.5 ${color} text-white text-xs font-bold rounded-lg shadow-sm transition">ม.${cls.grade_level}/${cls.room_number}</button>`;
             }
         });
         badgesHtml += '</div>';
         if(tMappings.length === 0) badgesHtml = '<span class="text-gray-400 italic">ยังไม่ได้จัดห้องสอน</span>';
 
         html += `
-        <tr class="hover:bg-gray-50">
+        <tr class="hover:bg-gray-50 transition">
             <td class="px-5 py-4 w-4/12">
                 <div class="flex flex-col">
                     <div class="flex items-center gap-2">
                         <span class="font-bold text-blue-700">${teacher.first_name} ${teacher.last_name}</span>
-                        <button onclick="removeGuidanceRole('${teacher.id}', '${teacher.first_name}')" class="text-gray-400 hover:text-red-500" title="ถอดสิทธิ์วิชาแนะแนว"><i class="fa-solid fa-trash"></i></button>
+                        <button onclick="removeGuidanceRole('${teacher.id}', '${teacher.first_name}')" class="text-gray-400 hover:text-red-500 transition" title="ถอดสิทธิ์วิชาแนะแนว"><i class="fa-solid fa-trash"></i></button>
                     </div>
                     <span class="text-[11px] text-gray-500">${teacher.email}</span>
                 </div>
             </td>
             <td class="px-5 py-4 w-6/12">${badgesHtml}</td>
-            <td class="px-5 py-4 text-center w-2/12"><button onclick="openTeacherModal('${teacher.id}', '${teacher.first_name}')" class="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-lg hover:bg-blue-50">จัดการห้องสอน</button></td>
+            <td class="px-5 py-4 text-center w-2/12"><button onclick="openTeacherModal('${teacher.id}', '${teacher.first_name} ${teacher.last_name}')" class="px-4 py-2 text-xs font-bold text-blue-600 border border-blue-400 rounded-lg hover:bg-blue-50 transition">จัดการห้องสอน</button></td>
         </tr>`;
     });
     tbody.innerHTML = html || '<tr><td colspan="3" class="p-8 text-center text-gray-400">ยังไม่มีครูแนะแนวในระบบ</td></tr>';
@@ -349,28 +351,63 @@ async function openTeacherModal(teacherId, name) {
 }
 
 function renderModalRows() {
-    let optionsHtml = '<option value="" disabled selected>+ เลือกห้องเรียน...</option>';
-    allSystemClasses.forEach(c => { optionsHtml += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`; });
-    
     const container = document.getElementById('modalRowsBody');
+    // ทำลาย TomSelect instances เดิม
+    if (tomSelectInstances.length) {
+        tomSelectInstances.forEach(ts => ts.destroy());
+        tomSelectInstances = [];
+    }
+    
+    let optionsHtml = '';
+    allSystemClasses.forEach(c => {
+        optionsHtml += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
+    });
+    
     container.innerHTML = teacherModalData.map((row, idx) => `
-        <tr>
+        <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
             <td class="p-4 align-middle border-r border-gray-200">
-                <input type="date" value="${row.date}" onchange="teacherModalData[${idx}].date=this.value" class="w-full border border-gray-300 rounded p-2 outline-none">
+                <input type="date" value="${row.date}" onchange="teacherModalData[${idx}].date=this.value" class="w-full border border-gray-300 rounded-xl p-2 outline-none focus:ring-2 focus:ring-blue-200">
             </td>
             <td class="p-4 align-top">
-                <div class="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-lg min-h-[50px] bg-gray-50 items-center">
+                <div class="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-xl min-h-[80px] bg-gray-50 items-center" id="class-badge-container-${idx}">
                     ${row.classes.map((clsId, cIdx) => {
                         const cInfo = allSystemClasses.find(c => c.id === clsId);
                         const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
-                        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded text-sm font-bold">${cName}<button onclick="teacherModalData[${idx}].classes.splice(${cIdx}, 1); renderModalRows();" class="ml-2 text-red-400 hover:text-red-600">&times;</button></span>`;
+                        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+                                    ${cName}
+                                    <button onclick="teacherModalData[${idx}].classes.splice(${cIdx}, 1); renderModalRows();" class="ml-2 text-red-400 hover:text-red-600">&times;</button>
+                                </span>`;
                     }).join('')}
-                    <select onchange="if(this.value && !teacherModalData[${idx}].classes.includes(this.value)){ teacherModalData[${idx}].classes.push(this.value); renderModalRows(); }" class="flex-1 min-w-[150px] border border-gray-300 rounded px-2 py-1 outline-none text-sm">${optionsHtml}</select>
                 </div>
+                <select id="class-select-${idx}" class="mt-2 w-full tom-selector" data-idx="${idx}">
+                    <option value="">-- เลือกห้องเรียน --</option>
+                    ${optionsHtml}
+                </select>
             </td>
-            <td class="p-4 text-center"><button onclick="teacherModalData.splice(${idx}, 1); renderModalRows();" class="bg-red-500 text-white p-2 rounded">ลบ</button></td>
+            <td class="p-4 text-center">
+                <button onclick="teacherModalData.splice(${idx}, 1); renderModalRows();" class="bg-red-500 hover:bg-red-600 text-white p-2 rounded-xl transition shadow-sm">
+                    <i class="fa-regular fa-trash-can"></i>
+                </button>
+            </td>
         </tr>
     `).join('');
+    
+    // สร้าง Tom Select สำหรับทุก select ใหม่
+    document.querySelectorAll('.tom-selector').forEach(select => {
+        const idx = parseInt(select.getAttribute('data-idx'));
+        const ts = new TomSelect(select, {
+            create: false,
+            placeholder: '-- เลือกห้องเรียน --',
+            onChange: function(value) {
+                if (value && !teacherModalData[idx].classes.includes(value)) {
+                    teacherModalData[idx].classes.push(value);
+                    renderModalRows(); // รีเฟรชเพื่อแสดง badge และ select ใหม่
+                }
+                this.clear(); // เคลียร์ค่า select หลังเลือก
+            }
+        });
+        tomSelectInstances.push(ts);
+    });
 }
 
 function addModalRow() { 
@@ -379,7 +416,14 @@ function addModalRow() {
     renderModalRows(); 
 }
 
-function closeTeacherModal() { document.getElementById('teacherModal').classList.add('hidden'); }
+function closeTeacherModal() { 
+    document.getElementById('teacherModal').classList.add('hidden');
+    // ทำลาย TomSelect instances เพื่อป้องกันหน่วยความจำรั่ว
+    if (tomSelectInstances.length) {
+        tomSelectInstances.forEach(ts => ts.destroy());
+        tomSelectInstances = [];
+    }
+}
 
 async function saveTeacherClasses() {
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -444,17 +488,39 @@ function closeAdminEditor() {
 }
 
 function switchAdminTab(tabId, btnElement) {
-    document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.className = "admin-tab-btn px-6 py-3 font-bold text-gray-500 bg-gray-50");
-    btnElement.className = "admin-tab-btn px-6 py-3 font-bold text-blue-700 border-b-2 border-blue-600 bg-white";
+    document.querySelectorAll('.admin-tab-btn').forEach(btn => btn.classList.remove('active', 'text-blue-700', 'border-b-2', 'border-blue-600', 'bg-white'));
+    btnElement.classList.add('active', 'text-blue-700', 'border-b-2', 'border-blue-600', 'bg-white');
     document.querySelectorAll('.admin-tab-content').forEach(c => c.classList.add('hidden'));
     document.getElementById(tabId).classList.remove('hidden');
 }
 
 function selectColor(el) { if(el) el.setAttribute('data-val', el.value); }
-function calcAttTotal(stdId) { let t = 0; for(let w=1;w<=20;w++){ const s = document.getElementById(`att_${stdId}_w${w}`); if(s && s.value==='มา') t++; } document.getElementById(`att_total_${stdId}`).innerText = t; calcAttr(stdId, t); }
-function calcScoreTotal(stdId) { let t = 0; for(let i=1;i<=5;i++){ const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value; if(v) t += parseFloat(v); } document.getElementById(`sc_total_${stdId}`).innerText = t; }
+function calcAttTotal(stdId) { 
+    let t = 0; 
+    for(let w=1;w<=20;w++){ 
+        const s = document.getElementById(`att_${stdId}_w${w}`); 
+        if(s && s.value==='มา') t++; 
+    } 
+    document.getElementById(`att_total_${stdId}`).innerText = t; 
+    calcAttr(stdId, t); 
+}
+function calcScoreTotal(stdId) { 
+    let t = 0; 
+    for(let i=1;i<=5;i++){ 
+        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value; 
+        if(v && !isNaN(parseFloat(v))) t += parseFloat(v); 
+    } 
+    document.getElementById(`sc_total_${stdId}`).innerText = t.toFixed(2); 
+}
 function calcAttr(stdId, attTotal) {
-    let pass = true; ATTR_COLS.forEach(c => { const el=document.getElementById(`at_${stdId}_${c}`); if(el){ selectColor(el); if(el.value==="0") pass=false; } });
+    let pass = true; 
+    ATTR_COLS.forEach(c => { 
+        const el=document.getElementById(`at_${stdId}_${c}`); 
+        if(el){ 
+            selectColor(el); 
+            if(el.value==="0") pass=false; 
+        } 
+    });
     const p1 = document.getElementById(`at_sum1_${stdId}`), p2 = document.getElementById(`at_sum2_${stdId}`), p3 = document.getElementById(`at_sum3_${stdId}`);
     if(p1) p1.innerHTML = pass ? '<span class="text-blue-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
     if(p2) p2.innerHTML = attTotal>=16 ? '<span class="text-indigo-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
@@ -463,7 +529,7 @@ function calcAttr(stdId, attTotal) {
 
 function renderAttendanceTab() {
     const tbody = document.getElementById('tb-attendance'), tr1 = document.getElementById('att-header-row-1'), tr2 = document.getElementById('att-header-row-2');
-    if(!globalStudents.length) { tbody.innerHTML = '<tr><td colspan=\"24\" class=\"p-8 text-center text-gray-400\">ยังไม่มีรายชื่อนักเรียนจากส่วนกลาง</td></tr>'; return; }
+    if(!globalStudents.length) { tbody.innerHTML = '<tr><td colspan="24" class="p-8 text-center text-gray-400">ยังไม่มีรายชื่อนักเรียนจากส่วนกลาง</td></tr>'; return; }
     document.querySelectorAll('.dynamic-th').forEach(el => el.remove()); const targetTh = tr1.children[2]; 
     weekDatesArray.forEach((d, i) => {
         const th1 = document.createElement('th'); th1.className = 'dynamic-th w-16 px-1'; th1.innerText = `ส.${i+1}`; tr1.insertBefore(th1, targetTh); 
@@ -473,9 +539,9 @@ function renderAttendanceTab() {
         const myAtt = globalAttendance.filter(a => a.student_id === std.id);
         const drops = Array.from({length:20}, (_,i) => {
             const w=i+1, v = myAtt.find(a=>a.week_number===w)?.status || 'มา';
-            return `<td class=\"p-1\"><select id=\"att_${std.id}_w${w}\" class=\"tiny-select w-full\" data-val=\"${v}\" onchange=\"selectColor(this); calcAttTotal('${std.id}')\"><option value=\"มา\" ${v==='มา'?'selected':''}>มา</option><option value=\"ป่วย\" ${v==='ป่วย'?'selected':''}>ป่วย</option><option value=\"ลา\" ${v==='ลา'?'selected':''}>ลา</option><option value=\"ขาด\" ${v==='ขาด'?'selected':''}>ขาด</option></select></td>`;
+            return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v==='มา'?'selected':''}>มา</option><option value="ป่วย" ${v==='ป่วย'?'selected':''}>ป่วย</option><option value="ลา" ${v==='ลา'?'selected':''}>ลา</option><option value="ขาด" ${v==='ขาด'?'selected':''}>ขาด</option></select></td>`;
         }).join('');
-        return `<tr><td class=\"col-no\">${std.student_number}</td><td class=\"col-name\">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class=\"font-bold text-green-700 bg-green-50 border-l-2 border-green-200\" id=\"att_total_${std.id}\">0</td><td class=\"p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm\">${std.student_status}</td></tr>`;
+        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td><td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm">${std.student_status}</td></tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
@@ -486,10 +552,10 @@ function renderScoresTab() {
         const mySc = globalScores.filter(s => s.student_id === std.id);
         const inps = SCORE_COLS.map(c => {
             const v = mySc.find(s=>s.column_name===c)?.score_value ?? '';
-            return `<td><input type=\"number\" id=\"sc_${std.id}_${c}\" class=\"w-full text-center\" value=\"${v}\" oninput=\"calcScoreTotal('${std.id}')\"></td>`;
+            return `<td><input type="number" id="sc_${std.id}_${c}" class="w-full text-center rounded-md border border-gray-200 p-1" value="${v}" oninput="calcScoreTotal('${std.id}')"></td>`;
         });
-        inps.splice(5, 0, `<td class=\"font-bold text-green-700 bg-green-50 border-l-2 border-green-200\" id=\"sc_total_${std.id}\">0</td>`);
-        return `<tr><td class=\"col-no\">${std.student_number}</td><td class=\"col-name\">${std.prefix}${std.first_name} ${std.last_name}</td>${inps.join('')}</tr>`;
+        inps.splice(5, 0, `<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="sc_total_${std.id}">0</td>`);
+        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${inps.join('')}</tr>`;
     }).join('');
     globalStudents.forEach(std => calcScoreTotal(std.id));
 }
@@ -500,9 +566,9 @@ function renderAttributesTab() {
         const myAt = globalAttributes.filter(a => a.student_id === std.id);
         const drops = ATTR_COLS.map(c => {
             const v = myAt.find(a=>a.attribute_name===c)?.score ?? 1;
-            return `<td class=\"p-1\"><select id=\"at_${std.id}_${c}\" class=\"tiny-select w-full\" data-val=\"${v}\" onchange=\"calcAttTotal('${std.id}')\"><option value=\"1\" ${v===1?'selected':''}>ผ</option><option value=\"0\" ${v===0?'selected':''}>มผ</option></select></td>`;
+            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="calcAttTotal('${std.id}')"><option value="1" ${v===1?'selected':''}>ผ</option><option value="0" ${v===0?'selected':''}>มผ</option></select></td>`;
         }).join('');
-        return `<tr><td class=\"col-no\">${std.student_number}</td><td class=\"col-name\">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class=\"bg-blue-50/50 border-l-2 border-gray-300 text-center\" id=\"at_sum1_${std.id}\"></td><td class=\"bg-indigo-50/50 border-l border-gray-300 text-center\" id=\"at_sum2_${std.id}\"></td><td class=\"bg-emerald-50/50 border-l-2 border-emerald-300 text-center\" id=\"at_sum3_${std.id}\"></td></tr>`;
+        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="bg-blue-50/50 border-l-2 border-gray-300 text-center" id="at_sum1_${std.id}"></td><td class="bg-indigo-50/50 border-l border-gray-300 text-center" id="at_sum2_${std.id}"></td><td class="bg-emerald-50/50 border-l-2 border-emerald-300 text-center" id="at_sum3_${std.id}"></td></tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
@@ -517,7 +583,7 @@ async function adminSaveAllData() {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
                 if(s && weekDatesArray[w-1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w-1].toISOString().split('T')[0] });
             }
-            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if(v!=='') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
+            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if(v && v.trim()!=='') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if(s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
 

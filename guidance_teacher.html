@@ -40,19 +40,28 @@
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.5);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .glass:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
         }
 
         /* Tom Select ปรับแต่ง */
         .ts-wrapper .ts-control {
-            border-radius: 1rem;
+            border-radius: 2rem;
             border: 2px solid #bfdbfe;
             background: white;
-            padding: 0.5rem 1rem;
+            padding: 0.6rem 1rem;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
             font-weight: 600;
             color: #1e40af;
+            transition: all 0.2s;
         }
-
+        .ts-wrapper.focus .ts-control {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
         .ts-wrapper .ts-dropdown {
             border-radius: 1rem;
             margin-top: 4px;
@@ -61,12 +70,10 @@
             backdrop-filter: blur(8px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
-
         .ts-wrapper .ts-dropdown .option.active {
             background-color: #dbeafe;
             color: #1e40af;
         }
-
         .ts-wrapper .ts-dropdown .option:hover {
             background-color: #eff6ff;
         }
@@ -84,12 +91,10 @@
             cursor: pointer;
             margin-right: 4px;
         }
-
         .tab-btn:hover {
             background: #e2e8f0;
             color: #0f172a;
         }
-
         .tab-btn.active {
             background: #2563eb;
             color: #ffffff;
@@ -102,15 +107,13 @@
             flex: 1;
             overflow: hidden;
             position: relative;
-            /* สำคัญ: ให้ .table-responsive ใช้ absolute ได้ */
         }
-
         .tab-content.active {
             display: flex;
             flex-direction: column;
         }
 
-        /* ตาราง responsive: ใช้ absolute ให้เต็ม parent */
+        /* ตาราง responsive */
         .table-responsive {
             position: absolute;
             top: 0;
@@ -121,17 +124,14 @@
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 #f1f5f9;
         }
-
         .table-responsive::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
-
         .table-responsive::-webkit-scrollbar-track {
             background: #f1f5f9;
             border-radius: 10px;
         }
-
         .table-responsive::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 10px;
@@ -145,21 +145,23 @@
             background: white;
             font-size: 12px;
             outline: none;
+            transition: all 0.2s;
         }
-
         .tiny-select:focus {
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
-        /* Animation ปุ่ม */
+        /* ปุ่ม */
         .btn-hover-lift {
             transition: all 0.2s ease;
         }
-
         .btn-hover-lift:hover {
             transform: translateY(-1px);
             box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
+        }
+        .btn-hover-lift:active {
+            transform: scale(0.97);
         }
 
         .col-no {
@@ -167,25 +169,27 @@
             text-align: center;
             font-weight: 600;
         }
-
         .col-name {
             text-align: left;
             padding-left: 1rem;
             white-space: nowrap;
         }
 
+        /* สถานะห้อง badge */
+        .status-badge {
+            transition: all 0.2s;
+        }
+        .status-badge:hover {
+            transform: translateY(-2px);
+        }
+
         /* Print */
         @media print {
-
-            /* ซ่อนทุกอย่างยกเว้น print-area */
             body>*:not(#print-area) {
                 display: none !important;
             }
-
-            /* แสดงผลบนหน้าจอ (preview) */
             #print-area {
                 display: none;
-                /* ปกติซ่อน */
                 position: fixed;
                 top: 0;
                 left: 0;
@@ -194,30 +198,22 @@
                 z-index: 9999;
                 background: white;
                 overflow-y: auto;
-                /* ให้ scroll ได้ */
                 padding: 20px;
             }
-
             #print-area.visible {
                 display: block;
             }
-
-            /* ใน preview ให้ page-break ไม่ต้อง fix ความสูง */
             #print-area .page-break {
                 height: auto;
                 min-height: auto;
                 page-break-after: always;
                 margin-bottom: 20px;
                 border-bottom: 1px dashed #ccc;
-                /* เส้นแบ่งหน้า */
             }
-
-            /* เมื่อพิมพ์ (print) */
             @media print {
                 body>*:not(#print-area) {
                     display: none !important;
                 }
-
                 #print-area {
                     display: block !important;
                     position: static;
@@ -226,10 +222,8 @@
                     overflow: visible;
                     background: white;
                 }
-
                 #print-area .page-break {
                     height: 297mm;
-                    /* กลับมาใช้ความสูงกระดาษจริงตอนพิมพ์ */
                     min-height: 297mm;
                     page-break-after: always;
                     border-bottom: none;
@@ -237,7 +231,6 @@
                     padding: 10mm 15mm;
                     box-sizing: border-box;
                 }
-
                 @page {
                     size: A4;
                     margin: 0;
@@ -326,7 +319,7 @@
                                     รวม<br>เวลาเรียน</th>
                                 <th rowspan="2" class="w-16 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
                             </tr>
-                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"></tr>
+                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"><tr>
                         </thead>
                         <tbody id="tb-attendance" class="divide-y divide-gray-100"></tbody>
                     </table>
@@ -346,8 +339,7 @@
                                 <th class="w-16">ครั้งที่ 3</th>
                                 <th class="w-16">ครั้งที่ 4</th>
                                 <th class="w-16 border-r border-gray-200">ครั้งที่ 5</th>
-                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน
-                                </th>
+                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน</th>
                                 <th class="w-16 bg-orange-50 text-orange-700 border-l-2 border-orange-200">Pretest</th>
                                 <th class="w-16 bg-purple-50 text-purple-700 border-l-2 border-purple-200">Posttest</th>
                             </tr>

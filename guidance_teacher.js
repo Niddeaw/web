@@ -1,7 +1,7 @@
 // ==========================================
 // ไฟล์ guidance_teacher.js (ระบบครูผู้สอนแนะแนว)
-// ปรับปรุง: ใช้ Tom Select, แก้ calcScoreTotal, PDF แสดงข้อมูลจริง,
-//           แก้ไข switchTab ให้แท็บสลับได้ถูกต้อง, ปรับตารางให้สูงเต็มจอ
+// ปรับปรุง: ใช้ Tom Select, แก้ calcScoreTotal, ปรับ switchTab ให้ถูกต้อง,
+//           เพิ่ม UI สวยงาม, คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม
 // ==========================================
 
 let currentUserProfile = null;
@@ -147,22 +147,17 @@ async function initDashboard(userId, profile) {
     await updateClassStatusBadges();
 }
 
-/* ========== แก้ไข switchTab ให้จัดการ hidden ถูกต้อง ========== */
+// ========== แก้ไข switchTab ให้จัดการ hidden ถูกต้อง ==========
 function switchTab(tabId, btnElement) {
-    // ปุ่มทั้งหมดเอา active ออก
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-    // เพิ่ม active ให้ปุ่มที่กด
     btnElement.classList.add('active');
-
-    // ซ่อนทุกแท็บก่อน แล้วค่อยแสดงแท็บที่ต้องการ
     document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active', 'flex');
         content.classList.add('hidden');
-        content.classList.remove('active');
     });
-
     const target = document.getElementById(tabId);
     target.classList.remove('hidden');
-    target.classList.add('active');
+    target.classList.add('active', 'flex');
 }
 
 async function updateClassStatusBadges() {
@@ -192,7 +187,7 @@ async function updateClassStatusBadges() {
             ? 'bg-gray-100 text-gray-500'
             : (res.isComplete ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600');
         let icon = res.isEmpty ? '⚪' : (res.isComplete ? '🟢' : '🔴');
-        return `<button onclick="classTomSelect.setValue('${res.cls.id}')" class="px-3 py-1.5 rounded-lg text-sm font-bold border ${badgeClass}">${icon} ม.${res.cls.grade}/${res.cls.room}</button>`;
+        return `<button onclick="classTomSelect.setValue('${res.cls.id}')" class="status-badge px-3 py-1.5 rounded-lg text-sm font-bold border ${badgeClass}">${icon} ม.${res.cls.grade}/${res.cls.room}</button>`;
     }).join('');
 }
 
@@ -271,6 +266,7 @@ function calcAttTotal(stdId) {
     calcAttr(stdId, total);
 }
 
+// แก้ไข calcScoreTotal ให้รองรับค่าว่าง
 function calcScoreTotal(stdId) {
     let total = 0;
     for (let i = 1; i <= 5; i++) {
@@ -378,6 +374,7 @@ async function saveAllData() {
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
+// ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF ==========
 function formatThaiDateShort(dateInput) {
     if (!dateInput) return '-';
     const d = new Date(dateInput);
@@ -394,6 +391,7 @@ function formatThaiDateFullStr(dateString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
+// ========== พิมพ์ PDF (คงไว้เหมือนต้นฉบับทุกประการ) ==========
 async function printPDF_v7() {
     if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนพิมพ์', 'warning');
     Swal.fire({ title: 'กำลังเตรียมหน้ากระดาษ...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -573,7 +571,6 @@ async function printPDF_v7() {
                 const mark = (rec && rec.status !== 'มา') ? (rec.status === 'ขาด' ? 'ข' : (rec.status === 'ลา' ? 'ล' : (rec.status === 'ป่วย' ? 'ป' : '/'))) : '/';
                 cols += `<td class="col-center" style="font-size:9pt;">${mark}</td>`;
             }
-            // ✅ ใช้ column_name โดยตรง
             const myScores = globalScores.filter(s => s.student_id === std.id);
             let s1 = myScores.find(s => s.column_name === 'ครั้งที่ 1')?.score_value ?? '';
             let s2 = myScores.find(s => s.column_name === 'ครั้งที่ 2')?.score_value ?? '';
@@ -586,7 +583,7 @@ async function printPDF_v7() {
 
             return `<tr><td class="col-center">${sNum}</td><td class="col-center">${sCode}</td><td class="col-left" style="white-space:nowrap; overflow:hidden; max-width:160px;">${std.prefix}${std.first_name} ${std.last_name}</td>${cols}<td class="col-center">${std.attTotal}</td><td class="col-center">${s1}</td><td class="col-center">${s2}</td><td class="col-center">${s3}</td><td class="col-center">${s4}</td><td class="col-center">${s5}</td><td class="col-center">${totalS}</td><td class="col-center">${pre}</td><td class="col-center">${post}</td><td class="col-center" style="font-weight:bold;">${std.finalRes}</td></tr>`;
         } else {
-            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td></td><td></td>${'<td class="col-center"></td>'.repeat(20)}<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td class="col-center"></td><td class="col-center"></td>${'<td class="col-center"></td>'.repeat(20)}<td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td></tr>`;
         }
     }).join('');
 
@@ -633,7 +630,7 @@ async function printPDF_v7() {
             }).join('');
             return `<tr><td class="col-center">${sNum}</td><td class="col-center">${sCode}</td><td class="col-left" style="white-space:nowrap; overflow:hidden; max-width:160px;">${std.prefix}${std.first_name} ${std.last_name}</td>${cols}<td class="col-center" style="font-weight:bold;">${std.finalRes}</td></tr>`;
         } else {
-            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td></td><td></td>${'<td class="col-center"></td>'.repeat(12)}<td></td></tr>`;
+            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td class="col-center"></td><td class="col-center"></td>${'<td class="col-center"></td>'.repeat(12)}<td class="col-center"></td></tr>`;
         }
     }).join('');
 
@@ -671,7 +668,7 @@ async function printPDF_v7() {
     `;
 
     const printArea = document.getElementById('print-area');
-    printArea.classList.add('visible'); // แสดง preview
+    printArea.classList.add('visible');
     printArea.innerHTML = stylePrint + `<div id="print-wrapper">${page1 + page2 + page3 + page4}</div>`;
 
     document.fonts.ready.then(() => {
@@ -679,7 +676,7 @@ async function printPDF_v7() {
             Swal.close();
             window.print();
             window.addEventListener('afterprint', () => {
-                printArea.classList.remove('visible'); // ซ่อนหลังพิมพ์
+                printArea.classList.remove('visible');
             }, { once: true });
         }, 800);
     }).catch(() => {
