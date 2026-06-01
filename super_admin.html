@@ -15,9 +15,12 @@
 <body id="mainBody" class="text-gray-800 flex h-screen overflow-hidden opacity-0 transition-opacity duration-300">
     <script>AOS.init();</script>
 
+    <!-- Mobile Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden" onclick="closeMobileSidebar()"></div>
+
     <!-- Sidebar -->
     <aside id="sidebar"
-        class="w-64 flex flex-col shadow-sm z-20 hidden md:flex transition-all duration-300 relative border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800">
+        class="w-64 flex flex-col shadow-sm z-40 transition-all duration-300 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 fixed top-0 left-0 h-full md:relative md:h-auto md:flex">
 
         <!-- ส่วนโลโก้ -->
         <div class="p-6 flex items-center gap-3 overflow-hidden whitespace-nowrap mb-4">

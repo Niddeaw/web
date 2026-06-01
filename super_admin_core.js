@@ -54,6 +54,7 @@ function handleLogout() {
 // ระบบจัดการเมนู (รองรับปฏิทินแล้ว)
 // ==========================================
 function switchMenu(menuId) {
+    if (window.innerWidth < 768) closeMobileSidebar();
     // ซ่อนทุกเมนู
     document.getElementById('menu-school').classList.add('hidden');
     document.getElementById('menu-personnel').classList.add('hidden');
@@ -104,23 +105,43 @@ function switchMenu(menuId) {
 }
 
 // ==========================================
-// ระบบจัดการ Sidebar (ย่อ-ขยาย)
+// ระบบจัดการ Sidebar (ย่อ-ขยาย + Mobile Drawer)
 // ==========================================
 function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const texts = document.querySelectorAll('.sidebar-text');
+    const isMobile = window.innerWidth < 768;
 
-    isSidebarCollapsed = !isSidebarCollapsed;
+    if (isMobile) {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        const isOpen = sidebar.classList.contains('mobile-sidebar-open');
 
-    if (isSidebarCollapsed) {
-        sidebar.classList.remove('w-64');
-        sidebar.classList.add('w-20');
-        texts.forEach(txt => txt.classList.add('hidden'));
+        if (isOpen) {
+            closeMobileSidebar();
+        } else {
+            sidebar.classList.add('mobile-sidebar-open');
+            overlay.classList.remove('hidden');
+            document.querySelectorAll('.sidebar-text').forEach(t => t.classList.remove('hidden'));
+        }
     } else {
-        sidebar.classList.remove('w-20');
-        sidebar.classList.add('w-64');
-        texts.forEach(txt => txt.classList.remove('hidden'));
+        // Desktop: ย่อ/ขยาย
+        const sidebar = document.getElementById('sidebar');
+        const texts = document.querySelectorAll('.sidebar-text');
+        isSidebarCollapsed = !isSidebarCollapsed;
+        if (isSidebarCollapsed) {
+            sidebar.classList.remove('w-64');
+            sidebar.classList.add('w-20');
+            texts.forEach(t => t.classList.add('hidden'));
+        } else {
+            sidebar.classList.remove('w-20');
+            sidebar.classList.add('w-64');
+            texts.forEach(t => t.classList.remove('hidden'));
+        }
     }
+}
+
+function closeMobileSidebar() {
+    document.getElementById('sidebar').classList.remove('mobile-sidebar-open');
+    document.getElementById('sidebar-overlay').classList.add('hidden');
 }
 
 // ==========================================

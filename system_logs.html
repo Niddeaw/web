@@ -1,12 +1,12 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>System Logs - ประวัติการเข้าใช้งานระบบ</title>
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
-    
     <!-- DataTables + extensions -->
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/dataTables.tailwindcss.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.tailwindcss.min.css">
@@ -14,102 +14,190 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/datetime/1.5.1/css/dataTables.dateTime.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
-        .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.02); }
-        .ua-full-text { word-break: break-all; white-space: normal; max-height: 200px; overflow-y: auto; }
+        .stat-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        .ua-full-text {
+            word-break: break-all;
+            white-space: normal;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* ปรับแต่งให้กลมกลืนกับระบบอื่น */
+        body {
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+        }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .btn-home {
+            transition: all 0.2s;
+        }
+
+        .btn-home:hover {
+            transform: translateY(-1px);
+        }
+
+        /* ทำให้ตาราง Responsive ดีขึ้น */
+        @media (max-width: 768px) {
+            .stat-card .text-2xl {
+                font-size: 1.5rem;
+            }
+
+            .dataTables_wrapper .dt-buttons {
+                margin-bottom: 0.75rem;
+            }
+        }
+
+        /* กำหนดให้คอลัมน์ระดับสิทธิ์ (index 2) กว้างพอดีตัว */
+        #logsTable th:nth-child(3),
+        #logsTable td:nth-child(3) {
+            min-width: 110px;
+            white-space: nowrap;
+        }
+
+        /* สำหรับหน้าจอมือถือ อาจให้ wrap หรือเลื่อนแนวนอนได้อยู่แล้ว */
+        @media (max-width: 768px) {
+
+            #logsTable th:nth-child(3),
+            #logsTable td:nth-child(3) {
+                white-space: normal;
+                min-width: 90px;
+            }
+        }
     </style>
 </head>
-<body id="mainBody" class="bg-slate-50 text-slate-800 font-sans h-screen flex overflow-hidden opacity-0 transition-opacity duration-300">
 
-    <!-- Sidebar -->
-    <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm hidden md:flex">
-        <div class="p-6 flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 rounded-xl shadow-sm">
-            <span class="font-bold text-lg text-primary-700">WRK System</span>
-        </div>
-        <nav class="flex-1 px-4 py-2 space-y-1 text-sm font-medium">
-            <a href="super_admin.html" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-primary-600 transition-colors"><i class="fa-solid fa-house w-5"></i> หน้าหลักแอดมิน</a>
-            <a href="#" class="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-primary-50 text-primary-600"><i class="fa-solid fa-clock-rotate-left w-5"></i> ประวัติการเข้าใช้งาน</a>
-        </nav>
-    </aside>
+<body id="mainBody"
+    class="text-slate-800 font-sans min-h-screen flex flex-col opacity-0 transition-opacity duration-300">
 
-    <!-- Main Content -->
-    <main class="flex-1 flex flex-col h-full overflow-hidden relative">
-        <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-8 py-4 flex justify-between items-center z-10 shadow-sm">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-800">System Logs</h1>
-                <p class="text-sm text-slate-500 mt-1">ประวัติการเข้าใช้งานและกิจกรรมของระบบ (เข้าถึงได้เฉพาะ Super Admin)</p>
+    <!-- Main Content (ไม่มี Sidebar) -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+        <!-- Header: พร้อมปุ่ม Home และ Logout -->
+        <header class="glass-header sticky top-0 z-20 px-6 py-4 flex justify-between items-center shadow-sm">
+            <div class="flex items-center gap-3">
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 rounded-xl shadow-sm">
+                <div>
+                    <h1 class="text-xl font-bold text-slate-800">System Logs</h1>
+                    <p class="text-xs text-slate-500">ประวัติการเข้าใช้งานและกิจกรรมของระบบ (เฉพาะ Super Admin)</p>
+                </div>
             </div>
-            <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 text-red-600 hover:bg-red-100 rounded-xl font-medium transition-colors text-sm"><i class="fa-solid fa-right-from-bracket mr-2"></i>ออกจากระบบ</button>
+            <div class="flex items-center gap-3">
+                <!-- ปุ่ม Home ไปยังหน้าหลักของ Super Admin -->
+                <a href="super_admin.html"
+                    class="btn-home px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-house"></i> <span class="hidden sm:inline">หน้าหลัก</span>
+                </a>
+                <button onclick="handleLogout()"
+                    class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">ออกจากระบบ</span>
+                </button>
+            </div>
         </header>
 
-        <div class="flex-1 overflow-auto p-8">
+        <!-- Scrollable content -->
+        <div class="flex-1 overflow-auto p-6 md:p-8">
             <!-- Statistics Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <div><p class="text-xs text-slate-500 uppercase tracking-wide">Logs ทั้งหมด</p><p class="text-2xl font-bold text-slate-800" id="totalLogsCount">0</p></div>
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">Logs ทั้งหมด</p>
+                            <p class="text-2xl font-bold text-slate-800" id="totalLogsCount">0</p>
+                        </div>
                         <i class="fa-solid fa-list text-3xl text-slate-300"></i>
                     </div>
                 </div>
-                <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <div><p class="text-xs text-slate-500 uppercase tracking-wide">LOGIN</p><p class="text-2xl font-bold text-green-600" id="loginCount">0</p></div>
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">LOGIN</p>
+                            <p class="text-2xl font-bold text-green-600" id="loginCount">0</p>
+                        </div>
                         <i class="fa-solid fa-right-to-bracket text-3xl text-green-200"></i>
                     </div>
                 </div>
-                <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <div><p class="text-xs text-slate-500 uppercase tracking-wide">LOGOUT</p><p class="text-2xl font-bold text-red-600" id="logoutCount">0</p></div>
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">LOGOUT</p>
+                            <p class="text-2xl font-bold text-red-600" id="logoutCount">0</p>
+                        </div>
                         <i class="fa-solid fa-right-from-bracket text-3xl text-red-200"></i>
                     </div>
                 </div>
-                <div class="stat-card bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div class="flex items-center justify-between">
-                        <div><p class="text-xs text-slate-500 uppercase tracking-wide">VIEW_PAGE</p><p class="text-2xl font-bold text-blue-600" id="viewCount">0</p></div>
+                        <div>
+                            <p class="text-xs text-slate-500 uppercase tracking-wide">VIEW_PAGE</p>
+                            <p class="text-2xl font-bold text-blue-600" id="viewCount">0</p>
+                        </div>
                         <i class="fa-solid fa-eye text-3xl text-blue-200"></i>
                     </div>
                 </div>
             </div>
 
-            <!-- Filter Bar -->
-            <div class="bg-white rounded-xl border border-slate-200 p-4 mb-6 shadow-sm">
+            <!-- Filter Bar + ปุ่มลบ Logs เก่า -->
+            <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6 shadow-sm">
                 <div class="flex flex-wrap gap-4 items-end">
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs font-medium text-slate-500 mb-1">วันที่เริ่มต้น</label>
-                        <input type="date" id="dateFrom" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
+                        <input type="date" id="dateFrom"
+                            class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
                     </div>
                     <div class="flex-1 min-w-[150px]">
                         <label class="block text-xs font-medium text-slate-500 mb-1">วันที่สิ้นสุด</label>
-                        <input type="date" id="dateTo" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
+                        <input type="date" id="dateTo"
+                            class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
                     </div>
                     <div class="flex gap-2">
-                        <button id="applyDateFilterBtn" class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors shadow-sm"><i class="fa-solid fa-filter mr-1"></i> กรอง</button>
-                        <button id="clearDateFilterBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"><i class="fa-solid fa-eraser mr-1"></i> ล้าง</button>
-                        <button id="refreshLogsBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"><i class="fa-solid fa-rotate-right mr-1"></i> รีเฟรช</button>
+                        <button id="applyDateFilterBtn"
+                            class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"><i
+                                class="fa-solid fa-filter mr-1"></i> กรอง</button>
+                        <button id="clearDateFilterBtn"
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors"><i
+                                class="fa-solid fa-eraser mr-1"></i> ล้าง</button>
+                        <button id="refreshLogsBtn"
+                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors"><i
+                                class="fa-solid fa-rotate-right mr-1"></i> รีเฟรช</button>
                     </div>
-                    <button id="clearOldLogsBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
+                    <button id="clearOldLogsBtn"
+                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm">
                         <i class="fa-solid fa-trash-can mr-1"></i> ลบ Logs เก่า
                     </button>
                 </div>
             </div>
 
-            <!-- Logs Table — FIX: เพิ่ม column IP Address -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                <table id="logsTable" class="w-full text-left border-collapse" style="width:100%">
-                    <thead>
-                        <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 text-sm">
-                            <th class="py-3 px-4 font-semibold">วัน-เวลา</th>
-                            <th class="py-3 px-4 font-semibold">ผู้ใช้งาน</th>
-                            <th class="py-3 px-4 font-semibold">ระดับสิทธิ์</th>
-                            <th class="py-3 px-4 font-semibold">โมดูล</th>
-                            <th class="py-3 px-4 font-semibold">การกระทำ</th>
-                            <th class="py-3 px-4 font-semibold">IP Address</th><!-- FIX: เพิ่ม column -->
-                            <th class="py-3 px-4 font-semibold">อุปกรณ์ (User Agent)</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
+            <!-- Logs Table -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                <div class="overflow-x-auto">
+                    <table id="logsTable" class="w-full text-left border-collapse" style="width:100%">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 text-sm">
+                                <th class="py-3 px-4 font-semibold">วัน-เวลา</th>
+                                <th class="py-3 px-4 font-semibold">ผู้ใช้งาน</th>
+                                <th class="py-3 px-4 font-semibold">ระดับสิทธิ์</th>
+                                <th class="py-3 px-4 font-semibold">โมดูล</th>
+                                <th class="py-3 px-4 font-semibold">การกระทำ</th>
+                                <th class="py-3 px-4 font-semibold">รายละเอียด</th>
+                                <th class="py-3 px-4 font-semibold">IP Address</th>
+                                <th class="py-3 px-4 font-semibold">อุปกรณ์ (User Agent)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </main>
@@ -119,7 +207,8 @@
         <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-lg font-bold text-slate-800">รายละเอียด User Agent</h3>
-                <button id="closeUaModal" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+                <button id="closeUaModal"
+                    class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             <div class="ua-full-text text-sm text-slate-600 bg-slate-50 p-3 rounded-lg font-mono" id="uaFullText"></div>
             <div class="mt-4 text-right">
@@ -142,7 +231,9 @@
     <script src="https://cdn.datatables.net/searchbuilder/1.6.0/js/searchBuilder.tailwindcss.min.js"></script>
     <script src="https://cdn.datatables.net/datetime/1.5.1/js/dataTables.dateTime.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    
+
+    <!-- Main logic -->
     <script src="system_logs.js"></script>
 </body>
+
 </html>
