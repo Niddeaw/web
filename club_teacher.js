@@ -1458,3 +1458,71 @@ async function loadAdminClubs() {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
 }
+
+// ==========================================
+// 🌟 Admin Dashboard Stats & Data Variables
+// ==========================================
+let unassignedStudentsData = []; 
+let pendingStudentsData = []; 
+
+async function loadClubDashboardStats() {
+    try {
+        // 1. ดึงข้อมูลนักเรียนทั้งหมด
+        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select(`
+                student_id, student_number,
+                core_classrooms!inner(grade_level, room_number, adviser_id_1, adviser_id_2),
+                core_students(student_id_card, prefix, first_name, last_name)
+            `)
+            .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
+            .eq('core_classrooms.semester', currentSchoolInfo.current_semester);
+
+        if (enrollErr) throw enrollErr;
+
+        // 2. ดึงข้อมูลการสมัครชุมนุม (✅ แก้ไขชื่อตารางเป็น club_lists และ club_name ให้ถูกต้อง)
+        const { data: regs, error: regErr } = await db.from('club_registrations')
+            .select(`
+                student_id, status,
+                club_lists(club_name) 
+            `)
+            .eq('academic_year', currentSchoolInfo.current_academic_year)
+            .eq('semester', currentSchoolInfo.current_semester);
+
+        if (regErr) throw regErr;
+
+        // แยกข้อมูลสถานะต่างๆ
+        const registeredStudentIds = new Set();
+        const pendingMap = new Map(); 
+        let approvedCount = 0;
+
+        (regs || []).forEach(r => {
+            registeredStudentIds.add(r.student_id);
+            if (r.status === 'approved') {
+                approvedCount++;
+            } else if (r.status === 'pending') {
+                // ✅ แก้ไขให้ดึงค่าจาก club_lists
+                pendingMap.set(r.student_id, r.club_lists?.club_name || 'ไม่ระบุข้อมูล');
+            }
+        });
+
+        // กรองข้อมูลเข้า Array เพื่อใช้ใน Modal
+        unassignedStudentsData = (enrolls || []).filter(e => !registeredStudentIds.has(e.student_id));
+        
+        pendingStudentsData = (enrolls || [])
+            .filter(e => pendingMap.has(e.student_id))
+            .map(e => ({
+                ...e,
+                requested_club: pendingMap.get(e.student_id) 
+            }));
+
+        // อัปเดต UI ให้กับการ์ดทั้ง 4 ใบ
+        const totalStudents = enrolls ? enrolls.length : 0;
+        document.getElementById('dash-total-students').innerHTML = `${totalStudents} <span class="text-sm font-medium text-slate-500">คน</span>`;
+        document.getElementById('dash-approved').innerHTML = `${approvedCount} <span class="text-sm font-medium text-slate-500">คน</span>`;
+        document.getElementById('dash-pending').innerHTML = `${pendingStudentsData.length} <span class="text-sm font-medium text-slate-500">คน</span>`;
+        document.getElementById('dash-unassigned').innerHTML = `${unassignedStudentsData.length} <span class="text-sm font-medium text-slate-500">คน</span>`;
+
+    } catch (err) {
+        console.error('Error loading dashboard stats:', err);
+    }
+}
