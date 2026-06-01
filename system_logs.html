@@ -12,8 +12,6 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.tailwindcss.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/searchbuilder/1.6.0/css/searchBuilder.tailwindcss.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/datetime/1.5.1/css/dataTables.dateTime.min.css">
-    
-    <!-- Flatpickr for better date picker (optional) -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <style>
         .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
@@ -91,12 +89,12 @@
                         <button id="refreshLogsBtn" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium transition-colors"><i class="fa-solid fa-rotate-right mr-1"></i> รีเฟรช</button>
                     </div>
                     <button id="clearOldLogsBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium">
-    <i class="fa-solid fa-trash-can mr-1"></i> ลบ Logs เก่า
-</button>
+                        <i class="fa-solid fa-trash-can mr-1"></i> ลบ Logs เก่า
+                    </button>
                 </div>
             </div>
 
-            <!-- Logs Table -->
+            <!-- Logs Table — FIX: เพิ่ม column IP Address -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                 <table id="logsTable" class="w-full text-left border-collapse" style="width:100%">
                     <thead>
@@ -106,6 +104,7 @@
                             <th class="py-3 px-4 font-semibold">ระดับสิทธิ์</th>
                             <th class="py-3 px-4 font-semibold">โมดูล</th>
                             <th class="py-3 px-4 font-semibold">การกระทำ</th>
+                            <th class="py-3 px-4 font-semibold">IP Address</th><!-- FIX: เพิ่ม column -->
                             <th class="py-3 px-4 font-semibold">อุปกรณ์ (User Agent)</th>
                         </tr>
                     </thead>

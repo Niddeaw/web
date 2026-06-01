@@ -1,4 +1,8 @@
-// system_logs.js
+// system_logs.js — FIXED
+// แก้ไข: ดึงข้อมูลจาก system_audit_logs (primary) + fallback core_access_logs
+//         เพิ่มคอลัมน์ IP Address ในตารางและ query
+//         Fallback insert ครบทุก field รวม ip_address
+
 let logsDataTable;
 let currentDateFrom = null;
 let currentDateTo = null;
@@ -42,49 +46,98 @@ async function checkSuperAdminAuth() {
 }
 
 // =========================================
-// 2. โหลดข้อมูล Logs (รองรับตัวกรองวันที่)
+// 2. โหลดข้อมูล Logs
+//    FIX: ดึงจาก system_audit_logs (primary) พร้อม ip_address
+//         ถ้า query ล้มเหลว fallback ไป core_access_logs
 // =========================================
 async function loadLogsData(dateFrom = null, dateTo = null) {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        let query = db.from('core_access_logs')
-            .select(`id, action, module, user_agent, created_at, core_personnel (prefix, first_name, last_name, role)`);
-        if (dateFrom) {
-            const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
-            query = query.gte('created_at', start.toISOString());
+        // --- FIX: ดึงจาก system_audit_logs เป็นหลัก ---
+        let logs = [];
+        let useAuditTable = true;
+
+        try {
+            let query = db.from('system_audit_logs')
+                .select(`id, action, module, ip_address, user_agent, created_at,
+                         core_personnel!system_audit_logs_performed_by_fkey (prefix, first_name, last_name, role)`);
+            if (dateFrom) {
+                const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
+                query = query.gte('created_at', start.toISOString());
+            }
+            if (dateTo) {
+                const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
+                query = query.lte('created_at', end.toISOString());
+            }
+            const { data, error } = await query.order('created_at', { ascending: false });
+            if (error) throw error;
+            logs = data || [];
+        } catch (auditErr) {
+            // Fallback: ดึงจาก core_access_logs (โครงสร้างเก่า)
+            console.warn('system_audit_logs unavailable, fallback to core_access_logs:', auditErr.message);
+            useAuditTable = false;
+            let query = db.from('core_access_logs')
+                .select(`id, action, module, ip_address, user_agent, created_at,
+                         core_personnel (prefix, first_name, last_name, role)`);
+            if (dateFrom) {
+                const start = new Date(dateFrom); start.setHours(0, 0, 0, 0);
+                query = query.gte('created_at', start.toISOString());
+            }
+            if (dateTo) {
+                const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
+                query = query.lte('created_at', end.toISOString());
+            }
+            const { data, error } = await query.order('created_at', { ascending: false });
+            if (error) throw error;
+            logs = data || [];
         }
-        if (dateTo) {
-            const end = new Date(dateTo); end.setHours(23, 59, 59, 999);
-            query = query.lte('created_at', end.toISOString());
-        }
-        const { data: logs, error } = await query.order('created_at', { ascending: false });
-        if (error) throw error;
 
         updateStatistics(logs);
+
         const tableData = logs.map(log => {
             const dateObj = new Date(log.created_at);
             const formattedDate = `${dateObj.toLocaleDateString('th-TH')} ${dateObj.toLocaleTimeString('th-TH')}`;
-            let fullName = 'ไม่ทราบชื่อ/ถูกลบ';
-            if (log.core_personnel) {
-                const prefix = log.core_personnel.prefix ? log.core_personnel.prefix : '';
-                const firstName = log.core_personnel.first_name || '';
-                const lastName = log.core_personnel.last_name || '';
-                fullName = `${prefix}${firstName} ${lastName}`.trim();
-                if (fullName === '') fullName = 'ไม่ระบุชื่อ';
-            }
-            const userRole = log.core_personnel ? getRoleBadge(log.core_personnel.role) : '-';
-            let actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700">${log.action}</span>`;
-            if (log.action === 'LOGIN') actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700"><i class="fa-solid fa-right-to-bracket mr-1"></i>LOGIN</span>`;
-            else if (log.action === 'LOGOUT') actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-red-100 text-red-700"><i class="fa-solid fa-right-from-bracket mr-1"></i>LOGOUT</span>`;
-            else if (log.action.includes('UPDATE') || log.action.includes('EDIT')) actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700"><i class="fa-solid fa-pen mr-1"></i>${log.action}</span>`;
-            else if (log.action.includes('CREATE') || log.action.includes('ADD')) actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-emerald-100 text-emerald-700"><i class="fa-solid fa-plus mr-1"></i>${log.action}</span>`;
-            else if (log.action.includes('DELETE') || log.action.includes('REMOVE')) actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-rose-100 text-rose-700"><i class="fa-solid fa-trash mr-1"></i>${log.action}</span>`;
-            else if (log.action === 'VIEW_PAGE') actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-700"><i class="fa-solid fa-eye mr-1"></i>VIEW_PAGE</span>`;
 
+            // ชื่อผู้ใช้
+            let fullName = 'ไม่ทราบชื่อ/ถูกลบ';
+            const personnel = log.core_personnel;
+            if (personnel) {
+                const prefix = personnel.prefix || '';
+                const firstName = personnel.first_name || '';
+                const lastName = personnel.last_name || '';
+                fullName = `${prefix}${firstName} ${lastName}`.trim() || 'ไม่ระบุชื่อ';
+            }
+
+            const userRole = personnel ? getRoleBadge(personnel.role) : '-';
+
+            // IP Address — FIX: แสดงคอลัมน์ IP
+            const ipText = log.ip_address || '-';
+            const ipHtml = ipText !== '-'
+                ? `<span class="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">${escapeHtml(ipText)}</span>`
+                : `<span class="text-xs text-slate-400">-</span>`;
+
+            // Action badge
+            let actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-slate-100 text-slate-700">${log.action}</span>`;
+            if (log.action === 'LOGIN')
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-green-100 text-green-700"><i class="fa-solid fa-right-to-bracket mr-1"></i>LOGIN</span>`;
+            else if (log.action === 'LOGOUT')
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-red-100 text-red-700"><i class="fa-solid fa-right-from-bracket mr-1"></i>LOGOUT</span>`;
+            else if (log.action.includes('UPDATE') || log.action.includes('EDIT'))
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-blue-100 text-blue-700"><i class="fa-solid fa-pen mr-1"></i>${log.action}</span>`;
+            else if (log.action.includes('CREATE') || log.action.includes('ADD'))
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-emerald-100 text-emerald-700"><i class="fa-solid fa-plus mr-1"></i>${log.action}</span>`;
+            else if (log.action.includes('DELETE') || log.action.includes('REMOVE'))
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-rose-100 text-rose-700"><i class="fa-solid fa-trash mr-1"></i>${log.action}</span>`;
+            else if (log.action === 'VIEW_PAGE')
+                actionBadge = `<span class="px-2 py-1 rounded-md text-xs font-medium bg-indigo-100 text-indigo-700"><i class="fa-solid fa-eye mr-1"></i>VIEW_PAGE</span>`;
+
+            // User Agent
             const uaText = log.user_agent || '-';
             const uaShort = uaText.length > 50 ? uaText.substring(0, 50) + '...' : uaText;
             const uaHtml = `<div class="cursor-pointer text-slate-500 hover:text-primary-600 transition-colors truncate w-48 text-xs" onclick="showUserAgentModal('${escapeHtml(uaText)}')" title="คลิกเพื่อดูรายละเอียด">${escapeHtml(uaShort)}</div>`;
-            return [formattedDate, fullName, userRole, `<span class="font-semibold text-primary-600">${log.module}</span>`, actionBadge, uaHtml];
+
+            // FIX: เพิ่ม ipHtml เป็น column ที่ 6
+            return [formattedDate, fullName, userRole, `<span class="font-semibold text-primary-600">${log.module}</span>`, actionBadge, ipHtml, uaHtml];
         });
 
         if ($.fn.DataTable.isDataTable('#logsTable')) $('#logsTable').DataTable().destroy();
@@ -98,8 +151,9 @@ async function loadLogsData(dateFrom = null, dateTo = null) {
                 { extend: 'pdfHtml5', text: '<i class="fa-solid fa-file-pdf mr-1"></i> Export PDF', className: 'bg-red-500 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium border-none', title: 'ระบบ_logs_' + new Date().toLocaleDateString('th-TH'), orientation: 'landscape', pageSize: 'A3' },
                 { extend: 'searchBuilder', text: '<i class="fa-solid fa-filter mr-1"></i> ตัวกรองขั้นสูง', className: 'bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium border-none' }
             ],
-            language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/th.json', searchBuilder: { title: 'ตัวกรองเงื่อนไขขั้นสูง', add: 'เพิ่มเงื่อนไข', clearAll: 'ล้างทั้งหมด' } },
-            order: [[0, 'desc']]
+            // language: { url: '//cdn.datatables.net/plug-ins/1.13.7/i18n/th.json', searchBuilder: { title: 'ตัวกรองเงื่อนไขขั้นสูง', add: 'เพิ่มเงื่อนไข', clearAll: 'ล้างทั้งหมด' } },
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            order: [[0, 'asc']]
         });
         Swal.close();
     } catch (error) {
@@ -129,10 +183,12 @@ function getRoleBadge(role) {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, function (m) {
+    return str.replace(/[&<>"']/g, function (m) {
         if (m === '&') return '&amp;';
         if (m === '<') return '&lt;';
         if (m === '>') return '&gt;';
+        if (m === '"') return '&quot;';
+        if (m === "'") return '&#39;';
         return m;
     });
 }
@@ -174,7 +230,7 @@ function closeUaModal() {
 }
 
 // =========================================
-// 6. การบันทึก Log แบบมีโครงสร้าง (เพิ่มเติม)
+// 6. บันทึก Log — FIX: fallback insert ครบ field + ip_address
 // =========================================
 async function logUserAction(action, module, options = {}) {
     try {
@@ -188,7 +244,7 @@ async function logUserAction(action, module, options = {}) {
             old_values: options.old_values || null,
             new_values: options.new_values || null,
             performed_by: session.user.id,
-            ip_address: userIp,
+            ip_address: userIp,           // FIX: บันทึก IP เสมอ
             user_agent: navigator.userAgent,
             status: options.status || 'SUCCESS',
             error_message: options.error_message || null,
@@ -196,13 +252,21 @@ async function logUserAction(action, module, options = {}) {
             reason: options.reason || null,
             metadata: options.metadata || null
         };
-        // ใช้ตาราง system_audit_logs ถ้ามี ถ้าไม่มีให้ใช้ core_access_logs แบบเดิม
+
         const { error } = await db.from('system_audit_logs').insert([logData]);
         if (error) {
-            // Fallback ไปใช้ core_access_logs แบบเดิม (เพื่อความเข้ากันได้)
-            await db.from('core_access_logs').insert([{ user_id: session.user.id, action, module, user_agent: navigator.userAgent }]);
+            // FIX: Fallback ครบ field รวม ip_address
+            await db.from('core_access_logs').insert([{
+                user_id: session.user.id,
+                action,
+                module,
+                ip_address: userIp,       // FIX: เพิ่ม ip_address ใน fallback
+                user_agent: navigator.userAgent
+            }]);
         }
-    } catch (err) { console.error("Failed to save structured log:", err); }
+    } catch (err) {
+        console.error("Failed to save log:", err);
+    }
 }
 
 async function getUserIP() {
@@ -228,7 +292,7 @@ function handleLogout() {
 }
 
 // =========================================
-// 8. เพิ่มการลบ Logs
+// 8. ลบ Logs เก่า — FIX: ลบจากทั้ง 2 ตาราง
 // =========================================
 document.getElementById('clearOldLogsBtn')?.addEventListener('click', async () => {
     const result = await Swal.fire({
@@ -250,24 +314,32 @@ document.getElementById('clearOldLogsBtn')?.addEventListener('click', async () =
         cancelButtonText: 'ยกเลิก',
         preConfirm: () => document.getElementById('logDeleteOption').value
     });
-    
+
     if (!result.isConfirmed) return;
     const days = result.value;
-    
+
     try {
         if (days === 'all') {
-            // ✅ วิธีที่ปลอดภัย: ใช้ .not('id', 'is', null) หรือ .neq กับ uuid ปลอม
-            const { error } = await db.from('core_access_logs').delete().not('id', 'is', null);
-            if (error) throw error;
-            Swal.fire('สำเร็จ', 'ลบ Logs ทั้งหมดเรียบร้อย', 'success');
+            // FIX: ลบทั้ง 2 ตาราง
+            const [r1, r2] = await Promise.all([
+                db.from('system_audit_logs').delete().not('id', 'is', null),
+                db.from('core_access_logs').delete().not('id', 'is', null)
+            ]);
+            if (r1.error) throw r1.error;
+            if (r2.error) console.warn('core_access_logs delete warn:', r2.error.message);
         } else {
             const cutoff = new Date();
             cutoff.setDate(cutoff.getDate() - parseInt(days));
-            const { error } = await db.from('core_access_logs').delete().lt('created_at', cutoff.toISOString());
-            if (error) throw error;
-            Swal.fire('สำเร็จ', `ลบ Logs ที่เก่ากว่า ${days} วัน เรียบร้อย`, 'success');
+            const iso = cutoff.toISOString();
+            // FIX: ลบทั้ง 2 ตาราง
+            const [r1, r2] = await Promise.all([
+                db.from('system_audit_logs').delete().lt('created_at', iso),
+                db.from('core_access_logs').delete().lt('created_at', iso)
+            ]);
+            if (r1.error) throw r1.error;
+            if (r2.error) console.warn('core_access_logs delete warn:', r2.error.message);
         }
-        // รีเฟรชตาราง
+        Swal.fire('สำเร็จ', days === 'all' ? 'ลบ Logs ทั้งหมดเรียบร้อย' : `ลบ Logs ที่เก่ากว่า ${days} วัน เรียบร้อย`, 'success');
         loadLogsData(currentDateFrom, currentDateTo);
     } catch (err) {
         Swal.fire('ผิดพลาด', 'ไม่สามารถลบ Logs: ' + err.message, 'error');

@@ -42,6 +42,7 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s, box-shadow 0.2s;
         }
+
         .glass:hover {
             transform: translateY(-2px);
             box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
@@ -58,10 +59,12 @@
             color: #1e40af;
             transition: all 0.2s;
         }
+
         .ts-wrapper.focus .ts-control {
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
+
         .ts-wrapper .ts-dropdown {
             border-radius: 1rem;
             margin-top: 4px;
@@ -70,10 +73,12 @@
             backdrop-filter: blur(8px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
+
         .ts-wrapper .ts-dropdown .option.active {
             background-color: #dbeafe;
             color: #1e40af;
         }
+
         .ts-wrapper .ts-dropdown .option:hover {
             background-color: #eff6ff;
         }
@@ -91,10 +96,12 @@
             cursor: pointer;
             margin-right: 4px;
         }
+
         .tab-btn:hover {
             background: #e2e8f0;
             color: #0f172a;
         }
+
         .tab-btn.active {
             background: #2563eb;
             color: #ffffff;
@@ -108,6 +115,7 @@
             overflow: hidden;
             position: relative;
         }
+
         .tab-content.active {
             display: flex;
             flex-direction: column;
@@ -124,14 +132,17 @@
             scrollbar-width: thin;
             scrollbar-color: #cbd5e1 #f1f5f9;
         }
+
         .table-responsive::-webkit-scrollbar {
             width: 6px;
             height: 6px;
         }
+
         .table-responsive::-webkit-scrollbar-track {
             background: #f1f5f9;
             border-radius: 10px;
         }
+
         .table-responsive::-webkit-scrollbar-thumb {
             background: #cbd5e1;
             border-radius: 10px;
@@ -147,6 +158,7 @@
             outline: none;
             transition: all 0.2s;
         }
+
         .tiny-select:focus {
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
@@ -156,10 +168,12 @@
         .btn-hover-lift {
             transition: all 0.2s ease;
         }
+
         .btn-hover-lift:hover {
             transform: translateY(-1px);
             box-shadow: 0 10px 20px rgba(59, 130, 246, 0.3);
         }
+
         .btn-hover-lift:active {
             transform: scale(0.97);
         }
@@ -169,6 +183,7 @@
             text-align: center;
             font-weight: 600;
         }
+
         .col-name {
             text-align: left;
             padding-left: 1rem;
@@ -179,6 +194,7 @@
         .status-badge {
             transition: all 0.2s;
         }
+
         .status-badge:hover {
             transform: translateY(-2px);
         }
@@ -188,6 +204,7 @@
             body>*:not(#print-area) {
                 display: none !important;
             }
+
             #print-area {
                 display: none;
                 position: fixed;
@@ -200,9 +217,11 @@
                 overflow-y: auto;
                 padding: 20px;
             }
+
             #print-area.visible {
                 display: block;
             }
+
             #print-area .page-break {
                 height: auto;
                 min-height: auto;
@@ -210,10 +229,12 @@
                 margin-bottom: 20px;
                 border-bottom: 1px dashed #ccc;
             }
+
             @media print {
                 body>*:not(#print-area) {
                     display: none !important;
                 }
+
                 #print-area {
                     display: block !important;
                     position: static;
@@ -222,6 +243,7 @@
                     overflow: visible;
                     background: white;
                 }
+
                 #print-area .page-break {
                     height: 297mm;
                     min-height: 297mm;
@@ -231,11 +253,109 @@
                     padding: 10mm 15mm;
                     box-sizing: border-box;
                 }
+
                 @page {
                     size: A4;
                     margin: 0;
                 }
             }
+        }
+
+        /* ====== ปรับปรุงการแสดงผลตารางให้กว้างเต็มหน้าจอ และ scroll ราบรื่น ====== */
+
+        /* ครอบ container ของตารางทุกตัว */
+        .table-responsive {
+            position: relative;
+            width: 100%;
+            overflow-x: auto;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: thin;
+            border-radius: 1rem;
+        }
+
+        /* กำหนด minimum width ของตารางหลัก */
+        .table-responsive table {
+            min-width: 1200px;
+            /* บังคับให้กว้างพอสำหรับ 20+ คอลัมน์ */
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            font-size: 0.8rem;
+        }
+
+        /* ปรับความกว้างของคอลัมน์แรก (เลขที่, ชื่อ) ให้คงที่ */
+        .table-responsive .col-no {
+            width: 50px;
+            min-width: 50px;
+            background-color: #f8fafc;
+            position: sticky;
+            left: 0;
+            z-index: 20;
+            box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        .table-responsive .col-name {
+            width: 180px;
+            min-width: 180px;
+            background-color: #f8fafc;
+            position: sticky;
+            left: 50px;
+            z-index: 20;
+            box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        /* ปรับแต่งคอลัมน์วันที่ (สัปดาห์) ให้กะทัดรัด */
+        .table-responsive th.dynamic-th,
+        .table-responsive td {
+            padding: 6px 4px;
+            white-space: nowrap;
+        }
+
+        .table-responsive select.tiny-select {
+            font-size: 0.7rem;
+            padding: 2px 2px;
+            width: 55px;
+        }
+
+        /* ปรับหัวตารางให้ sticky */
+        .table-responsive thead th {
+            position: sticky;
+            top: 0;
+            background-color: #f1f5f9;
+            z-index: 10;
+            border-bottom: 1px solid #cbd5e1;
+        }
+
+        /* กำหนดความสูงของแถวให้เหมาะสม */
+        .table-responsive tbody tr {
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        /* เพิ่ม hover effect */
+        .table-responsive tbody tr:hover {
+            background-color: #fef9c3;
+            transition: 0.1s;
+        }
+
+        /* ปรับแต่ง scrollbar ให้สวยงาม */
+        .table-responsive::-webkit-scrollbar {
+            height: 8px;
+            width: 8px;
+        }
+
+        .table-responsive::-webkit-scrollbar-track {
+            background: #e2e8f0;
+            border-radius: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb {
+            background: #94a3b8;
+            border-radius: 10px;
+        }
+
+        .table-responsive::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
         }
     </style>
 </head>
@@ -319,7 +439,8 @@
                                     รวม<br>เวลาเรียน</th>
                                 <th rowspan="2" class="w-16 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
                             </tr>
-                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"><tr>
+                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2">
+                            <tr>
                         </thead>
                         <tbody id="tb-attendance" class="divide-y divide-gray-100"></tbody>
                     </table>
@@ -339,7 +460,8 @@
                                 <th class="w-16">ครั้งที่ 3</th>
                                 <th class="w-16">ครั้งที่ 4</th>
                                 <th class="w-16 border-r border-gray-200">ครั้งที่ 5</th>
-                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน</th>
+                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน
+                                </th>
                                 <th class="w-16 bg-orange-50 text-orange-700 border-l-2 border-orange-200">Pretest</th>
                                 <th class="w-16 bg-purple-50 text-purple-700 border-l-2 border-purple-200">Posttest</th>
                             </tr>
