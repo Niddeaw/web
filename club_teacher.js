@@ -684,6 +684,7 @@ window.clearSelectedRejections = async (clubId, clubName) => {
 
             // รีเฟรชตารางของแอดมิน เพื่ออัปเดตยอดคงเหลือ
             await loadAdminClubs();
+            await loadClubDashboardStats(); // 🌟 เพิ่มบรรทัดนี้ลงไป เพื่อให้การ์ดแดชบอร์ดวิ่งอัปเดตด้วย
 
             // เปิดหน้าต่าง Modal เดิมขึ้นมาใหม่เพื่อดูผลลัพธ์ (หน่วงเวลาเล็กน้อยให้ Swal เก่าปิดเสร็จก่อน)
             setTimeout(() => {
