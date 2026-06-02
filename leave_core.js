@@ -165,10 +165,16 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         const isPersonal = leaveType === 'ลากิจส่วนตัว';
         const isMaternity = leaveType === 'ลาคลอดบุตร';
         const isOther = !isSick && !isPersonal && !isMaternity;
-        const checkSick = isSick ? '☑' : '☐';
-        const checkPersonal = isPersonal ? '☑' : '☐';
-        const checkMaternity = isMaternity ? '☑' : '☐';
-        const checkOther = isOther ? '☑' : '☐';
+        // const checkSick = isSick ? '☑' : '☐';
+        // const checkPersonal = isPersonal ? '☑' : '☐';
+        // const checkMaternity = isMaternity ? '☑' : '☐';
+        // const checkOther = isOther ? '☑' : '☐';
+
+        const checkSick = isSick ? '✓' : '';
+        const checkPersonal = isPersonal ? '✓' : '';
+        const checkMaternity = isMaternity ? '✓' : '';
+        const checkOther = isOther ? '✓' : '';
+
         let reasonRed = '', reasonBlue = '';
         if (isSick || isPersonal) reasonRed = leave.reason;
         else reasonBlue = leave.reason;
@@ -184,7 +190,7 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
             lastLeave = previousLeaves[0];
         }
         let lastStartDate = '', lastEndDate = '', lastTotalDays = '';
-        let lastCheckSick = '☐', lastCheckPersonal = '☐', lastCheckMaternity = '☐';
+        let lastCheckSick = '', lastCheckPersonal = '', lastCheckMaternity = '';
         let lastLeaveTypeName = '';
         let lastStartD = '', lastStartM = '', lastStartY = '';
         let lastEndD = '', lastEndM = '', lastEndY = '';
@@ -195,9 +201,9 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
                 lastStartDate = formatDateThai(lastLeave.start_date);
                 lastEndDate = formatDateThai(lastLeave.end_date);
                 lastTotalDays = lastLeave.total_days.toString();
-                if (lastLeave.type === 'ลาป่วย') lastCheckSick = '☑';
-                else if (lastLeave.type === 'ลากิจส่วนตัว') lastCheckPersonal = '☑';
-                else if (lastLeave.type === 'ลาคลอดบุตร' || lastLeave.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') lastCheckMaternity = '☑';
+                if (lastLeave.type === 'ลาป่วย') lastCheckSick = '✓';
+                else if (lastLeave.type === 'ลากิจส่วนตัว') lastCheckPersonal = '✓';
+                else if (lastLeave.type === 'ลาคลอดบุตร' || lastLeave.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') lastCheckMaternity = '✓';
                 else lastLeaveTypeName = lastLeave.type;
                 lastStartD = start.getDate().toString();
                 lastStartM = thMonths[start.getMonth()];
