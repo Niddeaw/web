@@ -115,7 +115,10 @@ window.toggleRoleView = () => {
         btnToggle.classList.replace('bg-purple-50', 'bg-blue-50');
         btnToggle.classList.replace('text-purple-600', 'text-blue-600');
         btnToggle.classList.replace('border-purple-200', 'border-blue-200');
+        
         loadAdminClubs();
+        loadClubDashboardStats(); // 🌟 สิ่งที่ต้องเพิ่ม: สั่งให้โหลดตัวเลขการ์ดทั้ง 4 ใบ
+        
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ผู้ดูแลระบบ' });
     } else {
         currentMode = 'teacher';
@@ -126,7 +129,9 @@ window.toggleRoleView = () => {
         btnToggle.classList.replace('bg-blue-50', 'bg-purple-50');
         btnToggle.classList.replace('text-blue-600', 'text-purple-600');
         btnToggle.classList.replace('border-blue-200', 'border-purple-200');
+        
         loadMyClub();
+        
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 };
@@ -1460,7 +1465,7 @@ async function loadAdminClubs() {
 }
 
 // ==========================================
-// 🌟 Admin Dashboard Stats & Data Variables
+// 🌟 Admin Dashboard Stats, Excel & Modals
 // ==========================================
 let unassignedStudentsData = []; 
 let pendingStudentsData = []; 
@@ -1479,11 +1484,14 @@ async function loadClubDashboardStats() {
 
         if (enrollErr) throw enrollErr;
 
-        // 2. ดึงข้อมูลการสมัครชุมนุม (✅ แก้ไขชื่อตารางเป็น club_lists และ club_name ให้ถูกต้อง)
+        // 2. ดึงข้อมูลการสมัครชุมนุม
         const { data: regs, error: regErr } = await db.from('club_registrations')
             .select(`
                 student_id, status,
-                club_lists(club_name) 
+                club_lists(
+                    club_name, 
+                    core_personnel(prefix, first_name, last_name)
+                ) 
             `)
             .eq('academic_year', currentSchoolInfo.current_academic_year)
             .eq('semester', currentSchoolInfo.current_semester);
@@ -1500,22 +1508,29 @@ async function loadClubDashboardStats() {
             if (r.status === 'approved') {
                 approvedCount++;
             } else if (r.status === 'pending') {
-                // ✅ แก้ไขให้ดึงค่าจาก club_lists
-                pendingMap.set(r.student_id, r.club_lists?.club_name || 'ไม่ระบุข้อมูล');
+                const club = r.club_lists;
+                const teacher = club?.core_personnel;
+                const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
+                
+                pendingMap.set(r.student_id, {
+                    club_name: club?.club_name || 'ไม่ระบุข้อมูล',
+                    teacher_name: teacherName
+                });
             }
         });
 
-        // กรองข้อมูลเข้า Array เพื่อใช้ใน Modal
+        // กรองข้อมูลเข้า Array
         unassignedStudentsData = (enrolls || []).filter(e => !registeredStudentIds.has(e.student_id));
         
         pendingStudentsData = (enrolls || [])
             .filter(e => pendingMap.has(e.student_id))
             .map(e => ({
                 ...e,
-                requested_club: pendingMap.get(e.student_id) 
+                requested_club: pendingMap.get(e.student_id).club_name,
+                requested_club_teacher: pendingMap.get(e.student_id).teacher_name
             }));
 
-        // อัปเดต UI ให้กับการ์ดทั้ง 4 ใบ
+        // อัปเดต UI 4 การ์ด
         const totalStudents = enrolls ? enrolls.length : 0;
         document.getElementById('dash-total-students').innerHTML = `${totalStudents} <span class="text-sm font-medium text-slate-500">คน</span>`;
         document.getElementById('dash-approved').innerHTML = `${approvedCount} <span class="text-sm font-medium text-slate-500">คน</span>`;
@@ -1526,3 +1541,203 @@ async function loadClubDashboardStats() {
         console.error('Error loading dashboard stats:', err);
     }
 }
+
+// ==========================================
+// 🌟 ฟังก์ชันส่งออก Excel ด้วย SheetJS (การ์ด 3 และ 4)
+// ==========================================
+window.exportDashboardToExcel = (dataType) => {
+    let rawData = dataType === 'unassigned' ? [...unassignedStudentsData] : [...pendingStudentsData];
+    let fileName = dataType === 'unassigned' ? 'รายชื่อนักเรียนตกหล่น_ยังไม่เลือกชุมนุม.xlsx' : 'รายชื่อนักเรียน_รอพิจารณาอนุมัติชุมนุม.xlsx';
+
+    if (rawData.length === 0) {
+        return Swal.fire({ icon: 'info', title: 'ไม่มีข้อมูลให้ส่งออก', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+    }
+
+    // จัดเรียง: ชั้น -> ห้อง -> รหัสนักเรียน
+    rawData.sort((a, b) => {
+        const gradeA = parseInt(a.core_classrooms?.grade_level) || 0;
+        const gradeB = parseInt(b.core_classrooms?.grade_level) || 0;
+        if (gradeA !== gradeB) return gradeA - gradeB; 
+
+        const roomA = parseInt(a.core_classrooms?.room_number) || 0;
+        const roomB = parseInt(b.core_classrooms?.room_number) || 0;
+        if (roomA !== roomB) return roomA - roomB; 
+
+        const idA = a.core_students?.student_id_card || '';
+        const idB = b.core_students?.student_id_card || '';
+        return idA.localeCompare(idB); 
+    });
+
+    const excelData = rawData.map((e, index) => {
+        const stu = e.core_students;
+        const cls = e.core_classrooms;
+        const adv1 = allTeachers.find(t => t.id === cls.adviser_id_1);
+        const adv2 = allTeachers.find(t => t.id === cls.adviser_id_2);
+        
+        let row = {
+            'ลำดับ': index + 1,
+            'ชั้น': `ม.${cls.grade_level}/${cls.room_number}`,
+            'เลขประจำตัว': stu.student_id_card || '-',
+            'คำนำหน้า': stu.prefix || '',
+            'ชื่อ': stu.first_name,
+            'นามสกุล': stu.last_name,
+            'ครูที่ปรึกษา 1': adv1 ? `${adv1.prefix || ''}${adv1.first_name} ${adv1.last_name}` : '-',
+            'ครูที่ปรึกษา 2': adv2 ? `${adv2.prefix || ''}${adv2.first_name} ${adv2.last_name}` : '-'
+        };
+
+        if (dataType === 'pending') {
+            row['ชุมนุมที่เลือก (รอพิจารณา)'] = e.requested_club;
+            row['ครูประจำชุมนุม'] = e.requested_club_teacher;
+        }
+        return row;
+    });
+
+    const ws = XLSX.utils.json_to_sheet(excelData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "รายชื่อนักเรียน");
+    XLSX.writeFile(wb, fileName);
+};
+
+// ==========================================
+// 🌟 Modal: ยังไม่เลือกชุมนุม (การ์ด 4)
+// ==========================================
+window.showUnassignedStudentsModal = () => {
+    if (unassignedStudentsData.length === 0) {
+        return Swal.fire({ icon: 'success', title: 'ยอดเยี่ยม!', text: 'นักเรียนทุกคนเลือกชุมนุมครบถ้วน' });
+    }
+
+    let tbodyHtml = '';
+    unassignedStudentsData.forEach(e => {
+        const stu = e.core_students;
+        const cls = e.core_classrooms;
+        const adv1 = allTeachers.find(t => t.id === cls.adviser_id_1);
+        const adv2 = allTeachers.find(t => t.id === cls.adviser_id_2);
+        
+        const adv1Name = adv1 ? `${adv1.prefix || ''}${adv1.first_name} ${adv1.last_name}` : '-';
+        const adv2Name = adv2 ? `${adv2.prefix || ''}${adv2.first_name} ${adv2.last_name}` : '-';
+
+        tbodyHtml += `
+            <tr class="border-b hover:bg-rose-50 transition-colors">
+                <td class="py-2 px-3 font-bold text-center">ม.${cls.grade_level}/${cls.room_number}</td>
+                <td class="py-2 px-3 font-mono text-slate-600 text-center">${stu.student_id_card || '-'}</td>
+                <td class="py-2 px-3 text-rose-700 font-medium">${stu.prefix || ''}${stu.first_name} ${stu.last_name}</td>
+                <td class="py-2 px-3 text-slate-600 text-xs">${adv1Name}</td>
+                <td class="py-2 px-3 text-slate-600 text-xs">${adv2Name}</td>
+            </tr>`;
+    });
+
+    const tableHtml = `
+        <div class="text-left">
+            <div class="flex flex-col md:flex-row justify-between md:items-center gap-3 mb-4 bg-rose-50 p-3 rounded-xl border border-rose-200">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-triangle-exclamation text-rose-500 text-2xl"></i>
+                    <div>
+                        <p class="font-bold text-rose-800">นักเรียนตกหล่น จำนวน ${unassignedStudentsData.length} คน</p>
+                        <p class="text-xs text-rose-600">กรุณาแจ้งครูที่ปรึกษาติดตาม</p>
+                    </div>
+                </div>
+                <button onclick="exportDashboardToExcel('unassigned')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Export Excel
+                </button>
+            </div>
+            <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <table id="dt-unassigned" class="w-full text-left text-sm display nowrap">
+                    <thead class="bg-slate-100 text-slate-700">
+                        <tr>
+                            <th class="py-3 px-3 text-center">ห้อง</th>
+                            <th class="py-3 px-3 text-center">รหัสนักเรียน</th>
+                            <th class="py-3 px-3">ชื่อ-สกุล</th>
+                            <th class="py-3 px-3">ครูที่ปรึกษา (1)</th>
+                            <th class="py-3 px-3">ครูที่ปรึกษา (2)</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tbodyHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    Swal.fire({ 
+        title: 'รายชื่อนักเรียนที่ยังไม่เลือกชุมนุม', 
+        html: tableHtml, 
+        width: '1000px', 
+        showCloseButton: true, 
+        showConfirmButton: false, 
+        didOpen: () => { 
+            $('#dt-unassigned').DataTable({ 
+                responsive: true, 
+                autoWidth: false, 
+                pageLength: 10, 
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+            }); 
+        }
+    });
+};
+
+// ==========================================
+// 🌟 Modal: รอพิจารณา (การ์ด 3)
+// ==========================================
+window.showPendingStudentsModal = () => {
+    if (pendingStudentsData.length === 0) {
+        return Swal.fire({ icon: 'success', title: 'ไม่มีค้าง!', text: 'ไม่มีรายการนักเรียนที่รอการพิจารณาครับ' });
+    }
+
+    let tbodyHtml = '';
+    pendingStudentsData.forEach(e => {
+        const stu = e.core_students;
+        const cls = e.core_classrooms;
+        tbodyHtml += `
+            <tr class="border-b hover:bg-amber-50 transition-colors">
+                <td class="py-2 px-3 font-bold text-center">ม.${cls.grade_level}/${cls.room_number}</td>
+                <td class="py-2 px-3 font-mono text-slate-600 text-center">${stu.student_id_card || '-'}</td>
+                <td class="py-2 px-3 text-slate-800 font-medium">${stu.prefix || ''}${stu.first_name} ${stu.last_name}</td>
+                <td class="py-2 px-3"><span class="bg-amber-100 text-amber-700 px-2 py-1 rounded-md text-xs font-bold">${e.requested_club}</span></td>
+                <td class="py-2 px-3 text-slate-600 text-xs">${e.requested_club_teacher}</td>
+            </tr>`;
+    });
+
+    const tableHtml = `
+        <div class="text-left">
+            <div class="flex flex-col md:flex-row justify-between md:items-center gap-3 mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-clock-rotate-left text-amber-500 text-2xl"></i>
+                    <div>
+                        <p class="font-bold text-amber-800">รอพิจารณาอนุมัติ จำนวน ${pendingStudentsData.length} คน</p>
+                        <p class="text-xs text-amber-600">รอดำเนินการจากครูที่ปรึกษาชุมนุม</p>
+                    </div>
+                </div>
+                <button onclick="exportDashboardToExcel('pending')" class="bg-emerald-500 hover:bg-emerald-600 text-white text-sm px-4 py-2 rounded-lg font-medium shadow-sm transition-colors flex items-center justify-center gap-2">
+                    <i class="fa-solid fa-file-excel"></i> Export Excel
+                </button>
+            </div>
+            <div class="border border-slate-200 rounded-xl overflow-hidden">
+                <table id="dt-pending" class="w-full text-left text-sm display nowrap">
+                    <thead class="bg-slate-100 text-slate-700">
+                        <tr>
+                            <th class="py-3 px-3 text-center">ห้อง</th>
+                            <th class="py-3 px-3 text-center">รหัสนักเรียน</th>
+                            <th class="py-3 px-3">ชื่อ-สกุล</th>
+                            <th class="py-3 px-3">ชุมนุมที่เลือก</th>
+                            <th class="py-3 px-3">ครูประจำชุมนุม</th>
+                        </tr>
+                    </thead>
+                    <tbody>${tbodyHtml}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    Swal.fire({ 
+        title: 'นักเรียนที่รออนุมัติเข้าชุมนุม', 
+        html: tableHtml, 
+        width: '1100px', 
+        showCloseButton: true, 
+        showConfirmButton: false, 
+        didOpen: () => { 
+            $('#dt-pending').DataTable({ 
+                responsive: true, 
+                autoWidth: false, 
+                pageLength: 10, 
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+            }); 
+        }
+    });
+};
