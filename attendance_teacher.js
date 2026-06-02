@@ -1051,101 +1051,212 @@ async function exportToExcel() {
     Swal.close();
 }
 
+// 辅助函数：安全转义 HTML（支持任意类型输入）
+function escapeHtml(str) {
+    if (str === undefined || str === null) return '';
+    const s = String(str);
+    return s.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
 async function generatePDFReport() {
     const className = $('#classroom-select option:selected').text();
     const checkDateStr = $('#check-date').val();
+
+    if (!currentDashboardStudents || currentDashboardStudents.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบรายชื่อนักเรียนในห้องนี้', 'warning');
+        return;
+    }
+
     if (Object.keys(attendanceData).length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'กรุณาเช็คชื่อนักเรียนให้เรียบร้อยก่อนออกรายงาน', 'warning');
         return;
     }
+
     Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน (ตั้งค่าชื่อโรงเรียนในระบบส่วนกลาง)';
-    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+
+    const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
+    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '1'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '2569'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDateStr);
+
+    // สร้าง studentsList พร้อมแปลงค่า undefined/null ให้เป็น string ที่ปลอดภัย
+    const studentsList = currentDashboardStudents.map(enroll => {
+        const std = enroll.core_students || {};
+        const studentId = enroll.student_id;
+        return {
+            no: enroll.student_number != null ? String(enroll.student_number) : '-',
+            studentCode: std.student_id_card != null ? String(std.student_id_card) : '-',
+            name: `${std.prefix || ''}${std.first_name || ''} ${std.last_name || ''}`.trim() || 'ไม่ระบุชื่อ',
+            status: attendanceData[studentId] || 'ยังไม่เช็ค'
+        };
+    }).sort((a, b) => {
+        const noA = parseInt(a.no, 10);
+        const noB = parseInt(b.no, 10);
+        if (isNaN(noA) && isNaN(noB)) return 0;
+        if (isNaN(noA)) return 1;
+        if (isNaN(noB)) return -1;
+        return noA - noB;
+    });
+
+    // คำนวณสถิติ
     let cPresent = 0, cAbsent = 0, cLate = 0, cLeave = 0, cSick = 0;
-    Object.values(attendanceData).forEach(status => {
-        if (status === 'มา') cPresent++;
-        else if (status === 'ขาด') cAbsent++;
-        else if (status === 'สาย') cLate++;
-        else if (status === 'ลา') cLeave++;
-        else if (status === 'ป่วย') cSick++;
+    studentsList.forEach(s => {
+        if (s.status === 'มา') cPresent++;
+        else if (s.status === 'ขาด') cAbsent++;
+        else if (s.status === 'สาย') cLate++;
+        else if (s.status === 'ลา') cLeave++;
+        else if (s.status === 'ป่วย') cSick++;
     });
-    const studentsList = [];
-    $('#student-list tr[data-student-id]').each(function () {
-        studentsList.push({
-            no: $(this).find('td').eq(0).text().trim(),
-            studentCode: $(this).data('student-code'),
-            name: $(this).find('td').eq(1).text().replace(' (คลิกชื่อเพื่อดูประวัติ)', '').trim(),
-            status: attendanceData[$(this).data('student-id')] || 'ยังไม่เช็ค'
-        });
-    });
-    const chunkSize = 20;
+
+    // A4 usable height @10mm margins = 277mm
+    // header ~52mm, row ~8mm, summary+sign ~30mm
+    // page 1..n-1: floor((277-52)/8) = 28 → safe 20 rows
+    // last page: needs to fit summary(~14mm) + sign(~22mm) = 36mm extra → floor((277-52-36)/8) = 23 → safe 17 rows
+    const ROWS_NORMAL = 20;
+    const ROWS_LAST = 17;
+
+    // Pre-calculate pages with correct sizes
     const pages = [];
-    for (let i = 0; i < studentsList.length; i += chunkSize) pages.push(studentsList.slice(i, i + chunkSize));
-    let htmlContent = `<div style="font-family: 'Anuphan', sans-serif; color: #333;">`;
-    pages.forEach((pageStudents, pageIndex) => {
-        const isLastPage = pageIndex === pages.length - 1;
-        htmlContent += `
-        <div style="padding: 10px 20px; box-sizing: border-box; ${!isLastPage ? 'page-break-after: always;' : ''}">
-            <div style="text-align: center; margin-bottom: 20px;">
-                <img src="${logoUrl}" crossorigin="anonymous" style="height: 60px; display: block; margin: 0 auto 10px auto;" alt="Logo">
-                <h2 style="margin: 0; font-size: 18px;">${schoolName}</h2>
-                <h3 style="margin: 5px 0 15px 0; font-size: 14px; font-weight: normal;">${termInfo}</h3>
-                <h2 style="margin: 0; font-size: 16px;">รายงานการเช็คชื่อกิจกรรมหน้าเสาธง/โฮมรูม</h2>
-                <h3 style="margin: 5px 0 0 0; font-size: 14px; font-weight: normal;">ชั้นเรียน: ${className} | ประจำวันที่: ${thaiDateText}</h3>
-                <p style="margin: 5px 0 0 0; font-size: 12px; color: #666;">(หน้าที่ ${pageIndex + 1} / ${pages.length})</p>
-            </div>
-            <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
-                <thead><tr style="background-color: #f1f5f9;">
-                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 10%; text-align: center;">เลขที่</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">เลขประจำตัว</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 50%; text-align: left;">ชื่อ - นามสกุล</th>
-                    <th style="border: 1px solid #cbd5e1; padding: 8px; width: 20%; text-align: center;">สถานะ</th>
-                </tr></thead>
-                <tbody>`;
-        pageStudents.forEach(std => {
-            let color = '';
-            if (std.status === 'มา') color = 'color: green;';
-            else if (std.status === 'ขาด') color = 'color: red;';
-            htmlContent += `<tr>
-                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.no}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center;">${std.studentCode}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 6px;">${std.name}</td>
-                <td style="border: 1px solid #cbd5e1; padding: 6px; text-align: center; font-weight: bold; ${color}">${std.status}</td>
-            </tr>`;
-        });
-        htmlContent += `</tbody></table>`;
-        if (isLastPage) {
-            htmlContent += `
-            <div style="margin-top: 20px; font-size: 14px; display: flex; gap: 15px; justify-content: center; flex-wrap: wrap; background-color: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0;">
-                <b>สรุป:</b> 
-                <span style="color: green;">มาเรียน ${cPresent} คน</span> | 
-                <span style="color: red;">ขาด ${cAbsent} คน</span> | 
-                <span style="color: orange;">สาย ${cLate} คน</span> | 
-                <span style="color: #ca8a04;">ลา ${cLeave} คน</span> | 
-                <span style="color: blue;">ป่วย ${cSick} คน</span>
-            </div>
-            <div style="margin-top: 50px; display: flex; justify-content: space-around; font-size: 14px;">
-                <div style="text-align: center;"><p>ลงชื่อ........................................................</p><p>( ${adviser1Name} )</p><p>ครูที่ปรึกษา</p></div>
-                <div style="text-align: center;"><p>ลงชื่อ........................................................</p><p>( ${adviser2Name} )</p><p>ครูที่ปรึกษา</p></div>
-            </div>`;
+    let remaining = [...studentsList];
+    while (remaining.length > 0) {
+        // Peek: if this is the last chunk, use ROWS_LAST limit
+        // We don't know yet if it's last, so build greedily:
+        // If remaining fits in one ROWS_LAST page → it IS the last page
+        // Otherwise take ROWS_NORMAL
+        const isOnlyRemaining = remaining.length <= ROWS_NORMAL;
+        const limit = isOnlyRemaining ? ROWS_LAST : ROWS_NORMAL;
+        // If remaining.length <= ROWS_LAST → last page
+        if (remaining.length <= ROWS_LAST) {
+            pages.push(remaining.splice(0, remaining.length));
+        } else {
+            pages.push(remaining.splice(0, ROWS_NORMAL));
         }
-        htmlContent += `</div>`;
+    }
+
+    if (pages.length === 0) {
+        Swal.close();
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'warning');
+        return;
+    }
+
+    const totalPages = pages.length;
+
+    // Build header HTML (reused on every page)
+    const headerHtml = (pageNum) => `
+        <div style="text-align:center; margin-bottom:12px;">
+            <img src="${logoUrl}" crossorigin="anonymous" alt="logo"
+                 style="height:55px; display:block; margin:0 auto 6px auto;"
+                 onerror="this.style.display='none'">
+            <div style="font-size:18px; font-weight:bold; margin:3px 0;">${escapeHtml(schoolName)}</div>
+            <div style="font-size:13px; margin-bottom:6px;">${escapeHtml(termInfo)}</div>
+            <div style="font-size:15px; font-weight:bold;">รายงานการเช็คชื่อกิจกรรมหน้าเสาธง/โฮมรูม</div>
+            <div style="font-size:13px; margin:4px 0;">ชั้นเรียน: ${escapeHtml(className)} | ประจำวันที่: ${escapeHtml(thaiDateText)}</div>
+            <div style="font-size:11px; color:#666;">หน้าที่ ${pageNum} / ${totalPages}</div>
+        </div>`;
+
+    // Build rows HTML
+    const rowHtml = (std) => {
+        const colorMap = { 'มา': '#2e7d32', 'ขาด': '#c62828', 'สาย': '#ef6c00', 'ลา': '#b26a00', 'ป่วย': '#1565c0' };
+        const color = colorMap[std.status] || '#333';
+        return `<tr>
+            <td style="border:1px solid #bbb; padding:7px 5px; text-align:center;">${escapeHtml(std.no)}</td>
+            <td style="border:1px solid #bbb; padding:7px 5px; text-align:center;">${escapeHtml(std.studentCode)}</td>
+            <td style="border:1px solid #bbb; padding:7px 8px;">${escapeHtml(std.name)}</td>
+            <td style="border:1px solid #bbb; padding:7px 5px; text-align:center; font-weight:bold; color:${color};">${escapeHtml(std.status)}</td>
+        </tr>`;
+    };
+
+    // Build each page as a separate complete HTML document rendered via iframe trick
+    // Strategy: render all pages in one document, separate with page-break-after on a wrapper div.
+    // Each wrapper contains ONLY the header + table for that page (no nested page structure).
+    let bodyHtml = '';
+    pages.forEach((pageStudents, idx) => {
+        const isLast = idx === totalPages - 1;
+        // page-break-after: always on every page except last
+        const breakStyle = isLast ? '' : 'page-break-after: always;';
+
+        const summaryAndSign = isLast ? `
+            <div style="margin-top:10px; display:flex; justify-content:center; flex-wrap:wrap;
+                        gap:12px; background:#f5f5f5; padding:7px 14px; border-radius:6px; font-size:13px;">
+                <span><strong>สรุป:</strong></span>
+                <span style="color:#2e7d32; font-weight:bold;">มาเรียน ${cPresent} คน</span>
+                <span style="color:#888;">|</span>
+                <span style="color:#c62828; font-weight:bold;">ขาด ${cAbsent} คน</span>
+                <span style="color:#888;">|</span>
+                <span style="color:#ef6c00; font-weight:bold;">สาย ${cLate} คน</span>
+                <span style="color:#888;">|</span>
+                <span style="color:#b26a00; font-weight:bold;">ลา ${cLeave} คน</span>
+                <span style="color:#888;">|</span>
+                <span style="color:#1565c0; font-weight:bold;">ป่วย ${cSick} คน</span>
+            </div>
+            <div style="margin-top:22px; display:flex; justify-content:space-around; font-size:13px; text-align:center;">
+                <div>
+                    <div style="width:200px; border-top:1px solid #000; margin:0 auto 4px auto;"></div>
+                    <div>(${escapeHtml(adviser1Name || '.......................................')})</div>
+                    <div>ครูที่ปรึกษา</div>
+                </div>
+                <div>
+                    <div style="width:200px; border-top:1px solid #000; margin:0 auto 4px auto;"></div>
+                    <div>(${escapeHtml(adviser2Name || '.......................................')})</div>
+                    <div>ครูที่ปรึกษา</div>
+                </div>
+            </div>` : '';
+
+        bodyHtml += `
+        <div style="${breakStyle} padding:0; margin:0;">
+            ${headerHtml(idx + 1)}
+            <table style="width:100%; border-collapse:collapse; font-size:13px;">
+                <thead>
+                    <tr style="background:#f0f0f0;">
+                        <th style="border:1px solid #bbb; padding:8px 5px; text-align:center; width:8%;">เลขที่</th>
+                        <th style="border:1px solid #bbb; padding:8px 5px; text-align:center; width:18%;">เลขประจำตัว</th>
+                        <th style="border:1px solid #bbb; padding:8px 8px; text-align:center; width:54%;">ชื่อ - นามสกุล</th>
+                        <th style="border:1px solid #bbb; padding:8px 5px; text-align:center; width:20%;">สถานะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${pageStudents.map(rowHtml).join('')}
+                </tbody>
+            </table>
+            ${summaryAndSign}
+        </div>`;
     });
-    htmlContent += `</div>`;
+
+    const htmlContent = `<!DOCTYPE html>
+    <html><head><meta charset="UTF-8">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:'Sarabun','Noto Sans Thai','Tahoma',sans-serif;
+            background:white; color:#1a1a1a;
+        }
+    </style>
+    </head><body>${bodyHtml}</body></html>`;
+
     const opt = {
-        margin: [4, 4, 4, 4],
+        margin: [10, 10, 10, 10],
         filename: `รายงานประจำวัน_${className.replace(/\s+/g, '')}_${checkDateStr}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true },
+        html2canvas: { scale: 2, useCORS: true, allowTaint: true, scrollY: 0, scrollX: 0 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css'], avoid: ['tr'] }
+        pagebreak: { mode: 'css', avoid: 'tr' }
     };
-    html2pdf().set(opt).from(htmlContent).save().then(() => {
-        Swal.close();
-        Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว', 'success');
-    });
+
+    html2pdf().set(opt).from(htmlContent).save()
+        .then(() => {
+            Swal.close();
+            Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว', 'success');
+        })
+        .catch(err => {
+            Swal.close();
+            console.error('PDF generation error:', err);
+            Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถสร้าง PDF ได้', 'error');
+        });
 }
 
 async function openHistoryModal() {
@@ -1458,6 +1569,117 @@ async function loadGradeOverviewData() {
         console.error("Overview Error:", err);
         $('#grade-overview-tbody').html(`<tr><td colspan="8" class="py-10 text-center text-rose-500 font-bold bg-rose-50">เกิดข้อผิดพลาด: ${err.message}</td></tr>`);
     }
+}
+
+// ==================== GRADE OVERVIEW PDF ====================
+function exportGradeOverviewPDF() {
+    const checkDate = $('#overview-date-select').val();
+    if (!checkDate) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกวันที่ก่อนพิมพ์รายงาน', 'warning');
+
+    const rows = $('#grade-overview-tbody tr');
+    if (!rows.length || rows.first().find('td[colspan]').length) {
+        return Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีข้อมูลที่จะพิมพ์', 'warning');
+    }
+
+    const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน';
+    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+    const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
+    const thaiDateText = formatThaiDateFull(checkDate);
+    const gradeTitle = `ม.${currentManagedGrades.join(', ม.')}`;
+
+    // รวบรวมข้อมูลจากตารางที่แสดงอยู่
+    const tableRows = [];
+    rows.each(function () {
+        const tds = $(this).find('td');
+        if (!tds.length) return;
+        const isSummary = $(this).hasClass('summary-row');
+        tableRows.push({
+            room: tds.eq(0).text().trim(),
+            total: tds.eq(1).text().trim(),
+            present: tds.eq(2).text().trim(),
+            absent: tds.eq(3).text().trim(),
+            late: tds.eq(4).text().trim(),
+            leave: tds.eq(5).text().trim(),
+            sick: tds.eq(6).text().trim(),
+            status: tds.eq(7).text().trim(),
+            isSummary
+        });
+    });
+
+    const tableRowsHtml = tableRows.map(r => {
+        const bg = r.isSummary ? 'background:#ede9fe;font-weight:900;' : '';
+        const roomStyle = r.isSummary ? 'color:#6d28d9;' : 'color:#1e293b;';
+        return `<tr style="${bg}">
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;font-weight:bold;${roomStyle}">${escapeHtml(r.room)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;">${escapeHtml(r.total)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;color:#16a34a;font-weight:bold;">${escapeHtml(r.present)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;color:#dc2626;font-weight:bold;">${escapeHtml(r.absent)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;color:#ea580c;font-weight:bold;">${escapeHtml(r.late)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;color:#ca8a04;font-weight:bold;">${escapeHtml(r.leave)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;color:#2563eb;font-weight:bold;">${escapeHtml(r.sick)}</td>
+            <td style="border:1px solid #ddd;padding:7px 8px;text-align:center;font-size:11px;">${escapeHtml(r.status)}</td>
+        </tr>`;
+    }).join('');
+
+    const htmlContent = `<!DOCTYPE html>
+    <html><head><meta charset="UTF-8">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Sarabun','Noto Sans Thai','Tahoma',sans-serif; background:white; }
+        .page { padding:15px 25px 25px 25px; }
+        .header { text-align:center; margin-bottom:18px; }
+        .logo { height:55px; margin-bottom:8px; }
+        .school-name { font-size:17px; font-weight:bold; margin:4px 0; }
+        .term { font-size:13px; margin-bottom:8px; }
+        .report-title { font-size:15px; font-weight:bold; color:#4c1d95; margin:8px 0 4px 0; }
+        .subtitle { font-size:13px; color:#334155; }
+        table { width:100%; border-collapse:collapse; margin-top:14px; font-size:13px; }
+        th { background:#ede9fe; border:1px solid #c4b5fd; padding:8px 6px; text-align:center; font-weight:bold; color:#4c1d95; }
+        .print-date { font-size:11px; color:#94a3b8; text-align:right; margin-top:10px; }
+    </style></head>
+    <body><div class="page">
+        <div class="header">
+            <img src="${logoUrl}" class="logo" crossorigin="anonymous" alt="logo" onerror="this.style.display='none'">
+            <div class="school-name">${escapeHtml(schoolName)}</div>
+            <div class="term">${escapeHtml(termInfo)}</div>
+            <div class="report-title">สรุปรายงานการเช็คชื่อระดับชั้น ${escapeHtml(gradeTitle)}</div>
+            <div class="subtitle">ประจำวันที่ ${escapeHtml(thaiDateText)}</div>
+        </div>
+        <table>
+            <thead><tr>
+                <th style="width:12%">ห้องเรียน</th>
+                <th style="width:10%">นร.ทั้งหมด</th>
+                <th style="width:10%">มา</th>
+                <th style="width:10%">ขาด</th>
+                <th style="width:10%">สาย</th>
+                <th style="width:10%">ลา</th>
+                <th style="width:10%">ป่วย</th>
+                <th style="width:28%">สถานะ</th>
+            </tr></thead>
+            <tbody>${tableRowsHtml}</tbody>
+        </table>
+        <div class="print-date">พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    </div></body></html>`;
+
+    Swal.fire({ title: 'กำลังสร้าง PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    html2pdf().set({
+        margin: [10, 8, 10, 8],
+        filename: `รายงานระดับชั้น_${gradeTitle.replace(/,\s*/g, '-')}_${checkDate}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, scrollY: 0 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css', 'legacy'] }
+    }).from(htmlContent).save()
+    .then(() => {
+        Swal.close();
+        Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF รายงานระดับชั้นเรียบร้อยแล้ว', 'success');
+    })
+    .catch(err => {
+        Swal.close();
+        console.error('Grade PDF error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถสร้าง PDF ได้', 'error');
+    });
 }
 
 // ✅ ส่วนที่เพิ่มเติม: closeGradeOverview (จำเป็น)
