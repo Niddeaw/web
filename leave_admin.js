@@ -134,8 +134,8 @@ async function saveSystemSettings(e) {
 // ==========================================
 async function loadPersonnelSearch() {
     const { data } = await db.from('core_personnel')
-        .select('id, prefix, first_name, last_name, department')
-        .order('first_name');
+        .select('id, prefix, first_name, last_name, department, position, academic_standing')
+    .order('first_name');
     allPersonnelData = data || [];
     if (data) {
         let htmlSearch = '<option value="">-- พิมพ์เพื่อค้นหา --</option>';
@@ -704,6 +704,7 @@ async function deleteLeave(id, name) {
         else Swal.fire('ผิดพลาด', error.message, 'error');
     }
 }
+
 function exportLeaveReport() {
     if (allLeavesData.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
     const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
@@ -720,6 +721,145 @@ function exportLeaveReport() {
     ws['!cols'] = [{ wch:15 }, { wch:25 }, { wch:12 }, { wch:12 }, { wch:15 }, { wch:15 }, { wch:15 }, { wch:12 }, { wch:12 }, { wch:35 }, { wch:15 }, { wch:30 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "สรุปการลา");
     XLSX.writeFile(wb, `สรุปการลา_ปีงบประมาณ_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
+}
+
+async function exportLeaveSummaryReport() {
+    try {
+        Swal.fire({ title: 'กำลังสร้างรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+        // 1. กรองบุคลากร (ไม่เอาผู้อำนวยการ (ไม่รวมรอง), พนักงานราชการ, ครูอัตราจ้าง)
+        let personnel = allPersonnelData.filter(p => {
+            const pos = p.position || '';
+            // ตรวจสอบว่าไม่ใช่ "ผู้อำนวยการ" (เฉพาะคำเดียว ไม่รวม "รอง")
+            if (pos === 'ผู้อำนวยการสถานศึกษา') return false;
+            if (pos.includes('พนักงานราชการ')) return false;
+            if (pos.includes('ครูอัตราจ้าง')) return false;
+            return true;
+        });
+
+        // 2. ดึงข้อมูลการลา
+        const { data: leaves, error: leavesErr } = await db.from('leave_requests')
+            .select('personnel_id, type, total_days')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round)
+            .neq('status', 'ไม่อนุมัติ');
+        if (leavesErr) throw leavesErr;
+
+        // 3. ดึงข้อมูลการมาสาย
+        const { data: attendances, error: attErr } = await db.from('personnel_attendance')
+            .select('personnel_id, record_type')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round);
+        if (attErr) throw attErr;
+
+        // 4. สร้าง Map เก็บสถิติ
+        const stats = new Map();
+        personnel.forEach(p => {
+            stats.set(p.id, {
+                lateCount: 0,
+                personalCount: 0, personalDays: 0,
+                sickCount: 0, sickDays: 0
+            });
+        });
+
+        for (const l of leaves) {
+            const s = stats.get(l.personnel_id);
+            if (s) {
+                if (l.type === 'ลากิจส่วนตัว') {
+                    s.personalCount++;
+                    s.personalDays += l.total_days;
+                } else if (l.type === 'ลาป่วย') {
+                    s.sickCount++;
+                    s.sickDays += l.total_days;
+                }
+            }
+        }
+        for (const a of attendances) {
+            if (a.record_type === 'มาสาย') {
+                const s = stats.get(a.personnel_id);
+                if (s) s.lateCount++;
+            }
+        }
+
+        // 5. เตรียมข้อมูลรายงาน
+        const reportData = [];
+        for (const p of personnel) {
+            const s = stats.get(p.id) || { lateCount:0, personalCount:0, personalDays:0, sickCount:0, sickDays:0 };
+            reportData.push({
+                fullName: `${p.prefix || ''}${p.first_name} ${p.last_name}`,
+                position: p.position || '',
+                rank: p.academic_standing || '',
+                department: p.department || '',
+                lateCount: s.lateCount,
+                personalCount: s.personalCount,
+                personalDays: s.personalDays,
+                sickCount: s.sickCount,
+                sickDays: s.sickDays
+            });
+        }
+
+        // 6. กำหนดลำดับกลุ่มสาระฯ (เหมือนเดิม)
+        const departmentOrder = [
+            'ภาษาไทย', 'คณิตศาสตร์',
+            'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
+            'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
+            'สังคมศึกษา ศาสนาและวัฒนธรรม',
+            'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
+            'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)', 'แนะแนว'
+        ];
+        function getDeptOrder(dept) {
+            const idx = departmentOrder.indexOf(dept);
+            return idx === -1 ? 999 : idx;
+        }
+
+        // 7. เรียงลำดับ: รองฯ → กลุ่มสาระฯ → ชื่อ
+        reportData.sort((a, b) => {
+            const aIsVice = a.position.includes('รองผู้อำนวยการ');
+            const bIsVice = b.position.includes('รองผู้อำนวยการ');
+            if (aIsVice && !bIsVice) return -1;
+            if (!aIsVice && bIsVice) return 1;
+            if (aIsVice && bIsVice) return a.fullName.localeCompare(b.fullName, 'th');
+            const deptA = getDeptOrder(a.department);
+            const deptB = getDeptOrder(b.department);
+            if (deptA !== deptB) return deptA - deptB;
+            return a.fullName.localeCompare(b.fullName, 'th');
+        });
+
+        // 8. สร้าง Excel
+        const excelRows = reportData.map((item, index) => ({
+            'ลำดับที่': index + 1,
+            'ชื่อ - สกุล': item.fullName,
+            'ตำแหน่ง': item.position,
+            'วิทยฐานะ': item.rank,
+            'มาสาย (ครั้ง)': item.lateCount,
+            'ลากิจ (ครั้ง)': item.personalCount,
+            'ลากิจ (วัน)': item.personalDays,
+            'ลาป่วย (ครั้ง)': item.sickCount,
+            'ลาป่วย (วัน)': item.sickDays,
+            'รวม (ครั้ง)': item.personalCount + item.sickCount,
+            'รวม (วัน)': item.personalDays + item.sickDays
+        }));
+
+        if (excelRows.length === 0) {
+            Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลบุคลากรในช่วงนี้', 'info');
+            return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(excelRows);
+        ws['!cols'] = [
+            { wch: 8 }, { wch: 30 }, { wch: 25 }, { wch: 20 },
+            { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 },
+            { wch: 12 }, { wch: 12 }
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'สรุปการลา_ตามกลุ่มสาระฯ');
+        XLSX.writeFile(wb, `สรุปการลา_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
+
+        Swal.fire({ icon: 'success', title: 'ส่งออกรายงานสำเร็จ', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 }
 
 async function importLeaveExcel(event) {
