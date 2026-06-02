@@ -43,7 +43,7 @@
                 </div>
 
                 <!-- ปุ่มจัดการปฏิทิน (แสดงเฉพาะผู้ที่มีสิทธิ์) -->
-                <button id="calendarAdminBtn" onclick="window.location.href='calendar_admin.html'" 
+                <button id="calendarAdminBtn" onclick="window.location.href='calendar_admin.html'"
                     class="hidden bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
                     <i class="fa-regular fa-calendar-alt"></i> <span class="hidden sm:inline">จัดการปฏิทิน</span>
                 </button>
@@ -51,6 +51,11 @@
                 <button onclick="changeMyPassword()"
                     class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
                     <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">เปลี่ยนรหัส</span>
+                </button>
+
+                <button id="adminHelpdeskBtn" onclick="window.location.href='helpdesk_admin.html'"
+                    class="hidden bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-headset"></i> <span class="hidden sm:inline">ศูนย์ช่วยเหลือ</span>
                 </button>
 
                 <button onclick="handleLogout()"
@@ -95,7 +100,8 @@
                                 <option value="10">พฤศจิกายน</option>
                                 <option value="11">ธันวาคม</option>
                             </select>
-                            <select id="yearSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
+                            <select id="yearSelect"
+                                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
                             <button id="btnLoadCalendar"
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
                                 <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
@@ -103,7 +109,8 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto overflow-y-auto border border-gray-200 rounded-lg" style="max-height: 300px;">
+                    <div class="overflow-x-auto overflow-y-auto border border-gray-200 rounded-lg"
+                        style="max-height: 300px;">
                         <table class="w-full text-left text-sm border-collapse relative">
                             <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
                                 <tr>
@@ -122,7 +129,7 @@
                     </div>
                 </div>
             </section>
-            
+
             <div
                 class="flex flex-wrap gap-2 mb-8 bg-white/50 backdrop-blur-md p-2 rounded-2xl border border-white shadow-sm">
                 <button onclick="switchMainTab('academic', this)"
@@ -142,7 +149,7 @@
                     <i class="fa-solid fa-building mr-2"></i> บริหารทั่วไป
                 </button>
             </div>
-            
+
             <div id="appGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="col-span-full text-center py-10 text-gray-400"><i
                         class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...
@@ -239,7 +246,7 @@
 
         function escapeHtml(str) {
             if (!str) return '';
-            return str.replace(/[&<>]/g, function(m) {
+            return str.replace(/[&<>]/g, function (m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
                 if (m === '>') return '&gt;';
@@ -315,7 +322,6 @@
             }
             updateUI();
             await checkCalendarAdminAccess();   // ✅ ตรวจสอบสิทธิ์ปุ่มจัดการปฏิทิน
-            await logUserAction('VIEW_PAGE', 'CENTRAL_PORTAL');
             renderAppCards();
         }
 
@@ -330,18 +336,23 @@
                 });
         }
 
-        function updateUI() {
-            if (!currentUser) return;
-            document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-            let roleText = 'ครูผู้สอน (Teacher)';
-            if (currentUser.role === 'super_admin') {
-                roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
-                document.getElementById('btnSuperAdmin').classList.remove('hidden');
-            } else if (currentUser.role === 'admin') {
-                roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
-            }
-            document.getElementById('userRole').innerText = roleText;
-        }
+function updateUI() {
+    if (!currentUser) return;
+    document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
+    let roleText = 'ครูผู้สอน (Teacher)';
+    
+    if (currentUser.role === 'super_admin') {
+        roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
+        document.getElementById('btnSuperAdmin').classList.remove('hidden');
+        
+        // เพิ่มบรรทัดนี้ลงไป เพื่อเปิดแสดงปุ่มศูนย์ช่วยเหลือบน Header
+        document.getElementById('adminHelpdeskBtn').classList.remove('hidden'); 
+        
+    } else if (currentUser.role === 'admin') {
+        roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
+    }
+    document.getElementById('userRole').innerText = roleText;
+}
 
         // ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็นแอดมินกลุ่มใด (แสดงปุ่มจัดการปฏิทิน)
         async function checkCalendarAdminAccess() {

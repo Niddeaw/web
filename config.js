@@ -57,48 +57,52 @@ if (document.readyState === 'loading') {
     injectGlobalFooter();
 }
 
-// ==========================================
-// ฟังก์ชันบันทึก Log (ใช้ได้ทุกหน้า)
-// ==========================================
-async function getUserIP() {
-    try {
-        const res = await fetch('https://api.ipify.org?format=json');
-        const data = await res.json();
-        return data.ip;
-    } catch { return null; }
-}
-
-async function logUserAction(action, module, options = {}) {
+// ฟังก์ชันส่วนกลางสำหรับบันทึก Log การเข้าใช้งาน
+async function logUserAction(action, module) {
     try {
         const { data: { session } } = await db.auth.getSession();
         if (!session) return;
-        const userIp = await getUserIP();
-        const logData = {
-            action, module,
-            entity_type: options.entity_type || null,
-            entity_id: options.entity_id || null,
-            old_values: options.old_values || null,
-            new_values: options.new_values || null,
-            performed_by: session.user.id,
-            ip_address: userIp,
-            user_agent: navigator.userAgent,
-            status: options.status || 'SUCCESS',
-            error_message: options.error_message || null,
-            source: options.source || 'UI',
-            reason: options.reason || null,
-            metadata: options.metadata || null
-        };
-        const { error } = await db.from('system_audit_logs').insert([logData]);
-        if (error) {
-            // fallback ไป core_access_logs (ถ้าจำเป็น)
-            await db.from('core_access_logs').insert([{
-                user_id: session.user.id,
-                action, module,
-                ip_address: userIp,
-                user_agent: navigator.userAgent
-            }]);
-        }
-    } catch (err) {
-        console.error("Failed to save log:", err);
+
+        await db.from('core_access_logs').insert([{
+            user_id: session.user.id,
+            action: action,
+            module: module,
+            user_agent: navigator.userAgent
+        }]);
+    } catch (error) {
+        console.error("Failed to save log:", error);
     }
+}
+
+// ==========================================
+// Global Helpdesk Button (ปุ่มลอยแจ้งปัญหา)
+// ==========================================
+function injectHelpdeskButton() {
+    // 1. เช็คก่อนว่ามีปุ่มนี้อยู่แล้วหรือยัง
+    if (document.getElementById('wrk-helpdesk-fab')) return;
+
+    // 2. สร้าง Container สำหรับปุ่ม
+    const fab = document.createElement('div');
+    fab.id = 'wrk-helpdesk-fab';
+    // ตั้งค่าให้อยู่มุมขวาล่าง และอยู่เหนือ Footer (bottom-16)
+    fab.className = 'fixed bottom-16 right-6 z-[100]';
+
+    // 3. ใส่ HTML ของปุ่ม พร้อม Tailwind CSS ตกแต่งสไตล์ Glassmorphism + title tooltip
+    fab.innerHTML = `
+        <button onclick="window.location.href='helpdesk_user.html'"
+                title="แจ้งปัญหา / ติดต่อแอดมิน"
+                class="bg-blue-600/90 backdrop-blur-sm hover:bg-blue-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-[0_8px_16px_rgba(37,99,235,0.3)] hover:shadow-[0_12px_20px_rgba(37,99,235,0.4)] transition-all duration-300 hover:scale-105 group relative border border-blue-400/30">
+            <i class="fa-solid fa-headset text-2xl"></i>
+        </button>
+    `;
+
+    // 4. นำไปแปะไว้ใน body
+    document.body.appendChild(fab);
+}
+
+// นำฟังก์ชันไปเรียกใช้ร่วมกับ Event Listener เดิมที่มีอยู่แล้วใน config.js
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectHelpdeskButton);
+} else {
+    injectHelpdeskButton();
 }
