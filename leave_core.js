@@ -165,11 +165,7 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         const isPersonal = leaveType === 'ลากิจส่วนตัว';
         const isMaternity = leaveType === 'ลาคลอดบุตร';
         const isOther = !isSick && !isPersonal && !isMaternity;
-        // const checkSick = isSick ? '☑' : '☐';
-        // const checkPersonal = isPersonal ? '☑' : '☐';
-        // const checkMaternity = isMaternity ? '☑' : '☐';
-        // const checkOther = isOther ? '☑' : '☐';
-
+ 
         const checkSick = isSick ? '✓' : '';
         const checkPersonal = isPersonal ? '✓' : '';
         const checkMaternity = isMaternity ? '✓' : '';
