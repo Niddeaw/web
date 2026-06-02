@@ -8,6 +8,7 @@
 
     <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
+    <script src="leave_core.js"></script>
     <link rel="stylesheet" href="style.css">
 
 </head>
@@ -135,6 +136,10 @@
                         <button id="btn-import-excel" onclick="document.getElementById('import-excel').click()"
                             class="hidden bg-amber-500 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-amber-600 transition shadow-sm text-sm items-center gap-2">
                             <i class="fas fa-file-import"></i> นำเข้า (Excel)
+                        </button>
+                        <button onclick="openAdminLeaveModal()"
+                            class="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition shadow-sm text-sm flex items-center gap-2">
+                            <i class="fas fa-user-plus"></i> เขียนใบลาแทนบุคลากร
                         </button>
                     </div>
 
@@ -488,6 +493,93 @@
         </div>
     </div>
 
+    <!-- Modal สำหรับ Admin เขียนใบลาแทนบุคลากร -->
+    <div id="adminLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdminLeaveModal()"></div>
+        <div
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-pen"></i>
+                    เขียนใบลาแทนบุคลากร</h3>
+                <button type="button" onclick="closeAdminLeaveModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <form id="adminLeaveForm" onsubmit="saveLeaveForAdmin(event)" class="p-6 overflow-y-auto">
+                <input type="hidden" id="admin_leave_id">
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
+                    <div class="md:col-span-7 space-y-4">
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i
+                                class="fas fa-file-alt text-purple-500 mr-2"></i> ข้อมูลการลา</h4>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร *</label>
+                            <select id="admin_personnel_id" class="w-full" required></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ประเภทการลา *</label>
+                            <select id="admin_leave_type" required onchange="adminUpdateLeaveGuide()"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 bg-white">
+                                <option value="">-- กรุณาเลือกประเภท --</option>
+                                <option value="ลาป่วย">ลาป่วย</option>
+                                <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                                <option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+                                <option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option>
+                                <option value="ลาพักผ่อน">ลาพักผ่อน</option>
+                                <option value="ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์">ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์
+                                </option>
+                                <option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">
+                                    ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+                                <option value="ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน">ลาไปศึกษา ฝึกอบรม
+                                    ปฏิบัติการวิจัย หรือดูงาน</option>
+                                <option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">
+                                    ลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option>
+                                <option value="ลาติดตามคู่สมรส">ลาติดตามคู่สมรส</option>
+                                <option value="ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
+                            </select>
+                        </div>
+                        <div id="admin_leave_guide"
+                            class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl"></div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่
+                                    *</label><input type="text" id="admin_start_date" required
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input
+                                    type="hidden" id="admin_start_date_iso"></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label><input
+                                    type="text" id="admin_end_date" required
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input
+                                    type="hidden" id="admin_end_date_iso"></div>
+                        </div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">สาเหตุการลา *</label><input
+                                type="text" id="admin_reason" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
+                        <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl"><span
+                                class="font-bold text-purple-800">รวมระยะเวลาลา:</span> <span id="admin_calc_days"
+                                class="text-2xl font-black text-purple-600">0</span> วัน</div>
+                    </div>
+                    <div class="md:col-span-5 space-y-4">
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm"><i
+                                class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ระหว่างลา
+                                *</label><textarea id="admin_contact_address" required rows="4"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 resize-none"></textarea>
+                        </div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์โทรติดต่อ *</label><input
+                                type="tel" id="admin_phone_number" required pattern="[0-9]{9,10}"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
+                    </div>
+                </div>
+                <div class="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
+                    <button type="button" onclick="closeAdminLeaveModal()"
+                        class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-purple-200 flex items-center gap-2"><i
+                            class="fas fa-paper-plane"></i> บันทึกใบลา</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         function toggleSidebar() {
             const sidebar = document.getElementById('sidebar');
@@ -508,7 +600,6 @@
             }
         }
     </script>
-
     <script src="leave_admin.js"></script>
 </body>
 
