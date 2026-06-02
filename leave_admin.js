@@ -23,6 +23,7 @@ $(document).ready(async function () {
     updateUI();
     await loadDashboardStats();
     await loadAttendanceTable();
+    initAttendanceFlatpickr();
     initEditFlatpickr();
     initAdminFlatpickr(); // สำหรับ modal เขียนใบลาแทน
     Swal.close();
@@ -46,9 +47,15 @@ async function checkAdminAuth() {
 }
 
 function updateUI() {
-    $('#admin-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
-    $('#admin-role').text(currentProfile.role === 'super_admin' ? 'Super Admin' : 'Module Admin');
+    // อัปเดตชื่อผู้ใช้ใน Navbar
+    $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
+    
+    // กำหนดสิทธิ์ Super Admin
     isSuperAdmin = (currentProfile.role === 'super_admin');
+
+    // ✅ เพิ่มบรรทัดนี้
+    if (typeof toggleSettingsTab !== 'undefined') toggleSettingsTab(isSuperAdmin);
+    
     if (currentProfile.role === 'super_admin') {
         $('#btn-import-excel').removeClass('hidden').addClass('flex');
     } else {
@@ -214,6 +221,7 @@ async function loadDashboardStats() {
     $('#total-pending').html(`${pendingCount} <span class="text-sm font-medium text-slate-500">รายการ</span>`);
     $('#total-people').html(`${uniquePeople} <span class="text-sm font-medium text-slate-500">คน</span>`);
     checkLeaveLimits(validLeaves);
+    await loadPromotionWarnings();   // <-- เพิ่มบรรทัดนี้
     renderTable();
 }
 
@@ -221,33 +229,166 @@ function checkLeaveLimits(validLeaves) {
     const personnelStats = {};
     validLeaves.forEach(l => {
         if (!personnelStats[l.personnel_id]) {
-            personnelStats[l.personnel_id] = { name: `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`, sick: 0, personal: 0 };
+            personnelStats[l.personnel_id] = {
+                name: `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`,
+                sick: 0,
+                personal: 0,
+                totalCount: 0
+            };
         }
         if (l.type === 'ลาป่วย') personnelStats[l.personnel_id].sick += l.total_days;
         if (l.type === 'ลากิจส่วนตัว') personnelStats[l.personnel_id].personal += l.total_days;
+        personnelStats[l.personnel_id].totalCount++;
     });
+
     const alertZone = $('#alert-zone');
     alertZone.empty();
     let hasAlert = false;
+
     Object.values(personnelStats).forEach(p => {
-        if (p.sick >= 25 || p.personal >= 40) {
+        const warnings = [];
+
+        if (p.sick >= 25) {
+            warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
+        }
+        if (p.personal >= 40) {
+            warnings.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
+        }
+        if (p.totalCount >= 4) {
+            let msg = '';
+            if (p.totalCount > 6) {
+                msg = `<span class="text-red-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (เกินเกณฑ์ 6 ครั้ง)</span>`;
+            } else if (p.totalCount === 6) {
+                msg = `<span class="text-orange-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ถึงเกณฑ์ 6 ครั้ง)</span>`;
+            } else {
+                msg = `<span class="text-amber-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ใกล้เกณฑ์ 6 ครั้ง)</span>`;
+            }
+            warnings.push(msg);
+        }
+
+        if (warnings.length > 0) {
             hasAlert = true;
-            let alertMsg = [];
-            if (p.sick >= 25) alertMsg.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
-            if (p.personal >= 40) alertMsg.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
             alertZone.append(`
                 <div class="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl shadow-sm">
                     <div class="text-sm">
                         <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
                         <span class="font-bold text-slate-800">${p.name}</span>
                         <span class="mx-2 text-slate-400">|</span> 
-                        ${alertMsg.join(', ')}
+                        ${warnings.join(', ')}
                     </div>
                 </div>
             `);
         }
     });
-    if (!hasAlert) alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนยังอยู่ในเกณฑ์ปกติครับ</div>');
+
+    if (!hasAlert) {
+        alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนยังอยู่ในเกณฑ์ปกติครับ</div>');
+    }
+}
+
+async function loadPromotionWarnings() {
+    try {
+        // 1. ดึงข้อมูลการลาทั้งหมดของปีงบประมาณ/รอบประเมินปัจจุบัน (ไม่รวม "ไม่อนุมัติ")
+        const { data: leaves, error: leavesErr } = await db.from('leave_requests')
+            .select('personnel_id, type, total_days, status')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round)
+            .neq('status', 'ไม่อนุมัติ');
+        if (leavesErr) throw leavesErr;
+
+        // 2. ดึงข้อมูลการขาด/มาสายทั้งหมดในรอบประเมินปัจจุบัน
+        const { data: attendances, error: attErr } = await db.from('personnel_attendance')
+            .select('personnel_id, record_type')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round);
+        if (attErr) throw attErr;
+
+        // สร้างแผนที่เก็บสถิติบุคลากร
+        const statsMap = new Map(); // key = personnel_id
+
+        // รวมข้อมูลการลา
+        for (const l of leaves) {
+            if (!statsMap.has(l.personnel_id)) {
+                statsMap.set(l.personnel_id, {
+                    sickDays: 0,
+                    personalDays: 0,
+                    totalLeaveCount: 0,
+                    lateCount: 0
+                });
+            }
+            const stat = statsMap.get(l.personnel_id);
+            if (l.type === 'ลาป่วย') stat.sickDays += l.total_days;
+            else if (l.type === 'ลากิจส่วนตัว') stat.personalDays += l.total_days;
+            stat.totalLeaveCount++; // นับทุกชนิด (รวมคลอดด้วย)
+        }
+
+        // รวมข้อมูลมาสาย
+        for (const a of attendances) {
+            if (a.record_type === 'มาสาย') {
+                if (!statsMap.has(a.personnel_id)) {
+                    statsMap.set(a.personnel_id, {
+                        sickDays: 0, personalDays: 0, totalLeaveCount: 0, lateCount: 0
+                    });
+                }
+                statsMap.get(a.personnel_id).lateCount++;
+            }
+        }
+
+        // สร้างอาร์เรย์ผลการประเมิน
+        const evaluation = [];
+        for (const [personnelId, stat] of statsMap.entries()) {
+            const totalSickPersonal = stat.sickDays + stat.personalDays;
+            let isEligible = true;
+            const reasons = [];
+
+            if (totalSickPersonal > 23) {
+                isEligible = false;
+                reasons.push(`ลาป่วย+ลากิจรวม ${totalSickPersonal} วัน (เกิน 23 วัน)`);
+            }
+            if (stat.totalLeaveCount > 6) {
+                isEligible = false;
+                reasons.push(`ลาทั้งหมด ${stat.totalLeaveCount} ครั้ง (เกิน 6 ครั้ง)`);
+                // หมายเหตุ: กรณีมีผลงานดีเด่นและวันลาไม่เกิน 15 วันอาจยังพิจารณาได้ – ยังไม่ได้ implement
+            }
+            if (stat.lateCount > 23) {
+                isEligible = false;
+                reasons.push(`มาสาย ${stat.lateCount} ครั้ง (เกิน 23 ครั้ง)`);
+            }
+
+            if (!isEligible) {
+                const personnel = allPersonnelData.find(p => p.id === personnelId);
+                const name = personnel ? `${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}` : 'ไม่พบชื่อ';
+                evaluation.push({ name, reasons, totalSickPersonal, totalLeaveCount: stat.totalLeaveCount, lateCount: stat.lateCount });
+            }
+        }
+
+        // แสดงผล
+        const alertZone = $('#promotion-alert-zone');
+        if (evaluation.length === 0) {
+            alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนผ่านเกณฑ์การเลื่อนเงินเดือน</div>');
+            return;
+        }
+
+        let html = '';
+        for (const p of evaluation) {
+            html += `
+                <div class="flex flex-col p-3 bg-yellow-50 border border-yellow-200 rounded-xl shadow-sm">
+                    <div class="flex items-start gap-2">
+                        <i class="fas fa-exclamation-triangle text-yellow-600 mt-1"></i>
+                        <div class="flex-1">
+                            <div class="font-bold text-slate-800">${p.name}</div>
+                            <div class="text-sm text-slate-600">${p.reasons.join(', ')}</div>
+                            <div class="text-xs text-slate-400 mt-1">(ลาป่วย+กิจ ${p.totalSickPersonal} วัน | ลาทั้งหมด ${p.totalLeaveCount} ครั้ง | มาสาย ${p.lateCount} ครั้ง)</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        alertZone.html(html);
+    } catch (err) {
+        console.error('loadPromotionWarnings error:', err);
+        $('#promotion-alert-zone').html('<div class="text-center text-red-500 py-4 text-sm">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>');
+    }
 }
 
 // ==========================================
@@ -304,8 +445,14 @@ function renderTable() {
         }).join('');
     } else tbody.innerHTML = '';
     dataTable = $('#adminLeaveTable').DataTable({
-        responsive: true, scrollX: false, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [7] }], pageLength: 25
+        responsive: true, scrollX: false, 
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        order: [[0, 'desc']], 
+        columnDefs: [
+            { responsivePriority: 1, targets: -1}, 
+            { orderable: false, targets: [7] }
+        ], 
+        pageLength: 25
     });
 }
 
@@ -368,6 +515,7 @@ function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLea
 function initAttendanceFlatpickr() {
     flatpickr(".att-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y" });
 }
+
 async function loadAttendanceTable() {
     try {
         const { data, error } = await db.from('personnel_attendance')
@@ -411,32 +559,64 @@ function renderAttendanceTable() {
         order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [5] }]
     });
 }
+
 function openAttendanceModal(mode, id = null) {
     $('#attendanceForm')[0].reset();
     $('#att_id').val('');
     $('#att_department').val('');
+
     const optionsHtml = $('#filter-personnel').html();
     const attEl = document.getElementById('att_personnel_id');
     if (attEl.tomselect) attEl.tomselect.destroy();
     attEl.innerHTML = optionsHtml;
-    new TomSelect(attEl, { create: false, placeholder: '-- ค้นหาและเลือกรายชื่อ --', dropdownParent: 'body', onChange: function(value) { const person = allPersonnelData.find(p => p.id === value); $('#att_department').val(person?.department || 'ไม่ระบุ/ไม่มีกลุ่มสาระฯ'); } });
+    new TomSelect(attEl, {
+        create: false,
+        placeholder: '-- ค้นหาและเลือกรายชื่อ --',
+        dropdownParent: 'body',
+        onChange: function(value) {
+            const person = allPersonnelData.find(p => p.id === value);
+            $('#att_department').val(person?.department || 'ไม่ระบุ/ไม่มีกลุ่มสาระฯ');
+        }
+    });
     attEl.tomselect.clear(true);
+
+    // ✅ ป้องกัน flatpickr undefined
+    const recordDateInput = document.querySelector("#att_record_date");
+    if (!recordDateInput._flatpickr) {
+        flatpickr("#att_record_date", {
+            locale: "th",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "j F Y"
+        });
+    }
+
     if (mode === 'add') {
         $('#att_modal_title').html('<i class="fas fa-plus-circle mr-2"></i>เพิ่มรายการ ขาด/มาสาย');
-        document.querySelector("#att_record_date")._flatpickr.setDate(new Date());
+        if (recordDateInput._flatpickr) {
+            recordDateInput._flatpickr.setDate(new Date());
+        } else {
+            document.querySelector("#att_record_date").value = new Date().toISOString().split('T')[0];
+        }
     } else if (mode === 'edit') {
         $('#att_modal_title').html('<i class="fas fa-edit mr-2"></i>แก้ไขรายการ');
         const record = allAttendanceData.find(r => r.id === id);
         if (record) {
             $('#att_id').val(record.id);
             attEl.tomselect.setValue(record.personnel_id);
-            document.querySelector("#att_record_date")._flatpickr.setDate(record.record_date);
+            if (recordDateInput._flatpickr) {
+                recordDateInput._flatpickr.setDate(record.record_date);
+            } else {
+                document.querySelector("#att_record_date").value = record.record_date;
+            }
             $('#att_record_type').val(record.record_type);
             $('#att_reason').val(record.reason);
         }
     }
+
     $('#attendanceModal').removeClass('hidden');
 }
+
 function closeAttendanceModal() { $('#attendanceModal').addClass('hidden'); }
 $('#attendanceForm').on('submit', async function(e) {
     e.preventDefault();
@@ -541,6 +721,7 @@ function exportLeaveReport() {
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "สรุปการลา");
     XLSX.writeFile(wb, `สรุปการลา_ปีงบประมาณ_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
 }
+
 async function importLeaveExcel(event) {
     const file = event.target.files[0]; if (!file) return; event.target.value = '';
     Swal.fire({ title: 'กำลังนำเข้าข้อมูล...', html: 'กรุณารอสักครู่ ระบบกำลังอ่านไฟล์ Excel', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -570,6 +751,68 @@ async function importLeaveExcel(event) {
     };
     reader.readAsArrayBuffer(file);
 }
+
+async function exportAttendanceReport() {
+    try {
+        // ดึงข้อมูลสถิติจาก personnel_attendance ตามปีงบประมาณและรอบประเมินปัจจุบัน
+        const { data: attendanceStats, error } = await db.from('personnel_attendance')
+            .select('personnel_id, record_type')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round);
+        if (error) throw error;
+
+        // นับจำนวนครั้งของแต่ละบุคลากร แยกประเภท
+        const counts = {};
+        attendanceStats.forEach(att => {
+            if (!counts[att.personnel_id]) {
+                counts[att.personnel_id] = { late: 0, absent: 0 };
+            }
+            if (att.record_type === 'มาสาย') {
+                counts[att.personnel_id].late++;
+            } else if (att.record_type === 'ขาดราชการ') {
+                counts[att.personnel_id].absent++;
+            }
+        });
+
+        // ดึงรายชื่อบุคลากรทั้งหมด (จาก allPersonnelData ที่โหลดไว้แล้ว)
+        const personnelList = allPersonnelData;
+        // สร้างข้อมูลสำหรับ Excel เฉพาะผู้ที่มีสถิติอย่างน้อย 1 ครั้ง (ตามที่ต้องการ)
+        const exportData = personnelList
+            .map(p => {
+                const c = counts[p.id] || { late: 0, absent: 0 };
+                return {
+                    'ชื่อ-สกุล': `${p.prefix || ''}${p.first_name} ${p.last_name}`,
+                    'มาสาย (ครั้ง)': c.late,
+                    'ขาดราชการ (ครั้ง)': c.absent,
+                    'รวม': c.late + c.absent
+                };
+            })
+            .filter(item => item['รวม'] > 0);  // แสดงเฉพาะผู้ที่มีสถิติ (ถ้าต้องการแสดงทั้งหมดให้ลบ filter ออก)
+
+        if (exportData.length === 0) {
+            Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลการขาด/มาสายในช่วงนี้', 'info');
+            return;
+        }
+
+        // สร้าง Excel
+        const ws = XLSX.utils.json_to_sheet(exportData);
+        ws['!cols'] = [
+            { wch: 30 },   // ชื่อ-สกุล
+            { wch: 15 },   // มาสาย
+            { wch: 15 },   // ขาดราชการ
+            { wch: 10 }    // รวม
+        ];
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'สรุปการขาด-มาสาย');
+        XLSX.writeFile(wb, `สรุปการขาด_มาสาย_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
+
+        Swal.fire({ icon: 'success', title: 'ส่งออกข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false });
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
 function showRejectComment(comment) {
     Swal.fire({ icon: 'info', title: 'เหตุผลที่ไม่อนุมัติ', html: `<div class="text-left bg-rose-50 p-4 rounded-xl border border-rose-100 text-rose-800 mt-2 font-medium">${comment}</div>`, confirmButtonColor: '#4f46e5', confirmButtonText: 'ปิดหน้าต่าง' });
 }

@@ -332,3 +332,34 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         return false;
     }
 }
+
+// สลับโหมดจาก Admin ไป Teacher (ใช้ในหน้า leave_admin.html)
+function switchToTeacherMode() {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'สลับเป็นโหมดครูผู้สอน',
+        showConfirmButton: false,
+        timer: 1000,
+        timerProgressBar: true
+    });
+    setTimeout(() => {
+        window.location.href = 'leave_teacher.html';
+    }, 500);
+}
+
+function switchToAdminMode() {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'สลับเป็นโหมดผู้ดูแลระบบ',
+        showConfirmButton: false,
+        timer: 1000,
+        timerProgressBar: true
+    });
+    setTimeout(() => {
+        window.location.href = 'leave_admin.html';
+    }, 500);
+}

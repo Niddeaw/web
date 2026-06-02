@@ -129,17 +129,45 @@ async function loadLeaveData() {
         .order('created_at', { ascending: false });
     if (error) { console.error(error); return; }
     allMyLeaves = data || [];
-    const validLeaves = allMyLeaves.filter(l => l.fiscal_year === systemSettings.fiscal_year && l.eval_round === systemSettings.eval_round && l.status !== 'ไม่อนุมัติ');
-    let sick = 0, personal = 0, maternity = 0, times = validLeaves.length;
+    
+    // กรองเฉพาะรายการที่อยู่ในปีงบประมาณและรอบประเมินปัจจุบัน และไม่ถูกไม่อนุมัติ
+    const validLeaves = allMyLeaves.filter(l => 
+        l.fiscal_year === systemSettings.fiscal_year && 
+        l.eval_round === systemSettings.eval_round && 
+        l.status !== 'ไม่อนุมัติ'
+    );
+    
+    // ตัวแปรนับ
+    let sickCount = 0, sickDays = 0;
+    let personalCount = 0, personalDays = 0;
+    let maternityCount = 0, maternityDays = 0;
+    
     validLeaves.forEach(l => {
-        if (l.type === 'ลาป่วย') sick += l.total_days;
-        if (l.type === 'ลากิจส่วนตัว') personal += l.total_days;
-        if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') maternity += l.total_days;
+        if (l.type === 'ลาป่วย') {
+            sickCount++;
+            sickDays += l.total_days;
+        } else if (l.type === 'ลากิจส่วนตัว') {
+            personalCount++;
+            personalDays += l.total_days;
+        } else if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') {
+            maternityCount++;
+            maternityDays += l.total_days;
+        }
     });
-    $('#stat-sick').text(sick);
-    $('#stat-personal').text(personal);
-    $('#stat-maternity').text(maternity);
-    $('#stat-times').text(times);
+    
+    const totalCount = sickCount + personalCount + maternityCount;
+    const totalDays = sickDays + personalDays + maternityDays;
+    
+    // อัปเดต DOM
+    $('#stat-sick-count').text(sickCount);
+    $('#stat-sick-days').text(sickDays);
+    $('#stat-personal-count').text(personalCount);
+    $('#stat-personal-days').text(personalDays);
+    $('#stat-maternity-count').text(maternityCount);
+    $('#stat-maternity-days').text(maternityDays);
+    $('#stat-total-count').text(totalCount);
+    $('#stat-total-days').text(totalDays);
+    
     renderTable();
 }
 
