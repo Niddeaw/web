@@ -355,6 +355,7 @@ function switchToTeacherMode() {
     }, 500);
 }
 
+// สลับโหมดจาก Teacher ไป Admin (ใช้ในหน้า leave_teacher.html)
 function switchToAdminMode() {
     Swal.fire({
         toast: true,
