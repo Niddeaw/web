@@ -159,9 +159,10 @@ async function checkAuth() {
         $('#user-display').html(userDisplayText);
 
         const toggleBtn = document.getElementById('btnAdminMode');
+        // admin/super_admin เริ่มต้นในโหมดครูก่อนเสมอ
+        currentViewRole = 'teacher';
         if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
-            currentViewRole = 'admin';
-            $('#admin-settings-btn').removeClass('hidden').addClass('flex');
+            $('#admin-settings-btn').addClass('hidden').removeClass('flex');
             if (actualUserRole === 'super_admin') {
                 $('#super-admin-section').removeClass('hidden');
             }
@@ -171,7 +172,6 @@ async function checkAuth() {
                 updateToggleButtonUI();
             }
         } else {
-            currentViewRole = 'teacher';
             if (toggleBtn) toggleBtn.classList.add('hidden');
             $('#admin-settings-btn').addClass('hidden').removeClass('flex');
         }
@@ -188,48 +188,18 @@ async function checkAuth() {
         if (classError) throw classError;
         window.globalClassroomsList = allClassrooms;
 
-        const isAdviser = allClassrooms.some(cls => cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id);
+        // เก็บห้องเรียนที่ user เป็นครูที่ปรึกษา
+        window.adviserClassrooms = allClassrooms.filter(cls =>
+            cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id
+        );
+
+        const isAdviser = window.adviserClassrooms.length > 0;
         const btnStatsReport = document.getElementById('btn-stats-report');
         if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && actualUserRole !== 'admin' && actualUserRole !== 'super_admin');
 
-        let classrooms = [];
-        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
-            classrooms = allClassrooms;
-        } else if (isDisciplineHead) {
-            classrooms = [];
-        } else {
-            classrooms = allClassrooms.filter(cls =>
-                cls.adviser_id_1 === user.id || cls.adviser_id_2 === user.id
-            );
-        }
-
-        const selectEl = document.getElementById('classroom-select');
-        if (window.classroomTomSelect) window.classroomTomSelect.destroy();
-        selectEl.innerHTML = '';
-
-        if (classrooms.length === 0) {
-            selectEl.innerHTML = '<option value="">ไม่มีสิทธิ์เช็คชื่อ</option>';
-            $('#student-list').html('<tr><td colspan="3" class="text-center py-16 text-slate-500 font-bold">คุณไม่มีสิทธิ์บันทึกการเช็คชื่อในห้องเรียนใด ๆ</td></tr>');
-            updateStatsClear();
-            currentDashboardStudents = [];
-            renderDashboardSummary();
-            return;
-        }
-
-        classrooms.forEach(cls => {
-            const option = document.createElement('option');
-            option.value = cls.id;
-            option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
-            selectEl.appendChild(option);
-        });
-
-        window.classroomTomSelect = new TomSelect(selectEl, {
-            placeholder: '-- เลือกห้องเรียน --',
-            searchField: ['text'],
-        });
-
-        window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });
-        loadStudentList(classrooms[0].id);
+        // โหมดครู: แสดงเฉพาะห้องที่เป็นครูที่ปรึกษา (ทุก role รวม admin)
+        await populateClassroomSelect(user.id, isDisciplineHead);
+        return;
 
     } catch (err) {
         console.error('❌ checkAuth error:', err);
@@ -241,6 +211,62 @@ async function checkAuth() {
         });
         $('#user-display').html('<span class="text-rose-600 font-bold">โหลดข้อมูลล้มเหลว</span>');
     }
+}
+
+/**
+ * เติมรายการห้องเรียนใน dropdown ตาม currentViewRole
+ * - โหมดครู (teacher): เฉพาะห้องที่ user เป็นครูที่ปรึกษา
+ * - โหมดแอดมิน (admin): ทุกห้อง
+ */
+async function populateClassroomSelect(userId, isDisciplineHead = false) {
+    const allClassrooms = window.globalClassroomsList || [];
+    const adviserClassrooms = window.adviserClassrooms || [];
+
+    let classrooms = [];
+    if (currentViewRole === 'teacher') {
+        // โหมดครู: แสดงเฉพาะห้องที่ตัวเองเป็นครูที่ปรึกษา
+        classrooms = adviserClassrooms;
+    } else {
+        // โหมดแอดมิน: แสดงทุกห้อง (ยกเว้น isDisciplineHead ไม่ได้เป็นครูที่ปรึกษาด้วย)
+        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+            classrooms = allClassrooms;
+        } else if (isDisciplineHead) {
+            classrooms = [];
+        } else {
+            classrooms = adviserClassrooms;
+        }
+    }
+
+    const selectEl = document.getElementById('classroom-select');
+    if (window.classroomTomSelect) window.classroomTomSelect.destroy();
+    selectEl.innerHTML = '';
+
+    if (classrooms.length === 0) {
+        const msgTeacher = currentViewRole === 'teacher'
+            ? 'คุณยังไม่ได้รับมอบหมายห้องเรียน (ครูที่ปรึกษา)'
+            : 'ไม่มีสิทธิ์เช็คชื่อ';
+        selectEl.innerHTML = `<option value="">${msgTeacher}</option>`;
+        $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-slate-500 font-bold">${msgTeacher}</td></tr>`);
+        updateStatsClear();
+        currentDashboardStudents = [];
+        renderDashboardSummary();
+        return;
+    }
+
+    classrooms.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls.id;
+        option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
+        selectEl.appendChild(option);
+    });
+
+    window.classroomTomSelect = new TomSelect(selectEl, {
+        placeholder: '-- เลือกห้องเรียน --',
+        searchField: ['text'],
+    });
+
+    window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });
+    loadStudentList(classrooms[0].id);
 }
 
 function updateToggleButtonUI() {
@@ -1337,11 +1363,21 @@ async function saveAdminSettings() {
         });
     }
 }
-function toggleRoleView() {
+async function toggleRoleView() {
     currentViewRole = currentViewRole === 'admin' ? 'teacher' : 'admin';
     updateToggleButtonUI();
     $('#admin-settings-btn').toggleClass('hidden', currentViewRole === 'teacher');
-    Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: `เปลี่ยนเป็นมุมมอง${currentViewRole === 'admin' ? ' Admin' : 'ครู'}`, showConfirmButton: false, timer: 1500 });
+
+    // Refresh dropdown ห้องเรียนตาม role ใหม่
+    await populateClassroomSelect(currentUser ? currentUser.id : null);
+
+    Swal.fire({
+        toast: true, position: 'bottom-end', icon: 'info',
+        title: currentViewRole === 'admin'
+            ? '<i class="fas fa-user-shield mr-1"></i> เปลี่ยนเป็นโหมดแอดมิน (ทุกห้องเรียน)'
+            : '<i class="fas fa-chalkboard-user mr-1"></i> เปลี่ยนเป็นโหมดครู (เฉพาะห้องที่ปรึกษา)',
+        showConfirmButton: false, timer: 2000
+    });
 }
 
 async function adminMarkAllPresentBatch() {
