@@ -91,12 +91,14 @@ function formatThaiDateTime(dateString) {
     return d.locale('th').format('DD MMM ') + yearBE + d.format(' HH:mm');
 }
 
+// โหลดรายการเรื่องที่ผู้ใช้คนนี้เคยส่งไว้ (อัปเดต: เพิ่มระบบแจ้งเตือนจุดแดง)
 async function loadUserTickets() {
     try {
         const { data, error } = await db.from('module_helpdesk_tickets')
             .select('*')
             .eq('sender_id', currentUserId)
             .order('created_at', { ascending: false });
+
         if (error) throw error;
 
         const ticketList = document.getElementById('userTicketList');
@@ -104,26 +106,36 @@ async function loadUserTickets() {
             ticketList.innerHTML = data.map(ticket => {
                 let statusColor = 'bg-amber-100 text-amber-700';
                 let statusText = 'รอแอดมินตรวจสอบ';
+                
+                // 🔴 จุดแดงจะโชว์เมื่อสถานะคือ 'replied' (แอดมินตอบแล้ว) และยังไม่ได้เปิดอ่าน (เราจะถือว่าถ้ากดเปิดแล้วคือ Active)
+                let redBadgeHtml = '';
+
                 if (ticket.status === 'replied') {
                     statusColor = 'bg-green-100 text-green-700';
                     statusText = 'แอดมินตอบกลับแล้ว';
+                    // ใส่จุดกะพริบเตือนถ้ายังไม่ได้คลิกเลือกห้องแชทนี้
+                    if (ticket.id !== currentTicketId) {
+                        redBadgeHtml = `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>`;
+                    }
                 } else if (ticket.status === 'closed') {
                     statusColor = 'bg-gray-100 text-gray-500';
                     statusText = 'ปิดงานแล้ว';
                 }
-                const thaiDate = formatThaiDateTime(ticket.created_at);
+                
                 return `
                 <div onclick="openTicket('${ticket.id}', '${ticket.topic.replace(/'/g, "\\'")}', '${ticket.status}')" 
-                     class="p-3 bg-white border border-gray-100 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors ${ticket.id === currentTicketId ? 'ring-2 ring-blue-500 bg-blue-50/50' : ''}">
-                    <h4 class="font-bold text-gray-800 text-sm truncate mb-1">${escapeHtml(ticket.topic)}</h4>
+                     class="relative p-3 bg-white border border-gray-100 rounded-xl hover:bg-slate-50 cursor-pointer transition-colors ${ticket.id === currentTicketId ? 'ring-2 ring-blue-500 bg-blue-50/50' : ''}">
+                    ${redBadgeHtml}
+                    <h4 class="font-bold text-gray-800 text-sm truncate mb-1 pr-4">${ticket.topic}</h4>
                     <div class="flex justify-between items-center mt-2">
                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full ${statusColor}">${statusText}</span>
-                        <span class="text-[10px] text-gray-400">${thaiDate}</span>
+                        <span>${formatThaiDateTime(ticket.created_at)}</span>
                     </div>
                 </div>`;
             }).join('');
         } else {
-            ticketList.innerHTML = `<div class="text-center py-12 text-gray-400 text-xs px-4">
+            ticketList.innerHTML = `
+            <div class="text-center py-12 text-gray-400 text-xs px-4">
                 <p class="mb-2">ยังไม่มีประวัติการส่งข้อความ</p>
                 <span class="text-[10px] text-gray-300">หากพบปัญหาการใช้งาน สามารถกดสร้างเรื่องใหม่ได้ทันที</span>
             </div>`;
@@ -203,6 +215,7 @@ async function openTicket(ticketId, topic, status) {
 
     loadUserTickets();
     await fetchMessages();
+    showChatOnMobile();
 }
 
 async function fetchMessages() {
@@ -258,5 +271,44 @@ async function sendMessage(e) {
         await fetchMessages();
     } catch (err) {
         Swal.fire('ส่งข้อความล้มเหลว', err.message, 'error');
+    }
+}
+
+// ==========================================
+// Mobile Responsive UI Handlers (อัปเดตใหม่)
+// ==========================================
+
+function showChatOnMobile() {
+    // ถ้าหน้าจอเป็นคอมพิวเตอร์ หรือแท็บเล็ตแนวนอน (> 768px) ไม่ต้องสลับหน้าจอ
+    if (window.innerWidth >= 768) return; 
+
+    const sidebar = document.getElementById('sidebarPanel');
+    const chat = document.getElementById('chatPanel');
+    
+    // 1. บังคับซ่อน Sidebar (ต้องเอา flex ออกก่อน ไม่งั้นจะไม่ยอมซ่อน)
+    sidebar.classList.remove('flex');
+    sidebar.classList.add('hidden');
+    
+    // 2. บังคับโชว์ Chat 
+    chat.classList.remove('hidden');
+    chat.classList.add('flex');
+}
+
+function showSidebarOnMobile() {
+    const sidebar = document.getElementById('sidebarPanel');
+    const chat = document.getElementById('chatPanel');
+    
+    // 1. โชว์ Sidebar กลับมา
+    sidebar.classList.remove('hidden');
+    sidebar.classList.add('flex');
+    
+    // 2. ซ่อน Chat
+    chat.classList.remove('flex');
+    chat.classList.add('hidden');
+    
+    // เคลียร์สถานะการโฟกัสตั๋ว (เฉพาะฝั่ง Admin ที่มีตัวแปร currentTicketId)
+    if (typeof currentTicketId !== 'undefined') {
+        currentTicketId = null; 
+        if (typeof loadTickets === 'function') loadTickets();
     }
 }

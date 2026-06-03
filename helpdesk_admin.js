@@ -3,6 +3,8 @@ let currentTicketId = null;
 let currentTicketSenderId = null;
 let currentTicketSenderType = null;
 let isProcessing = false; // Prevent rapid-fire requests
+let allTicketsList = []; // เก็บตั๋วทั้งหมดไว้บนเครื่องเพื่อค้นหาแบบ Realtime
+let currentFilterStatus = 'all'; // สถานะตัวกรองปัจจุบัน
 
 window.onload = async () => {
     await checkAuth();
@@ -139,75 +141,126 @@ async function loadSenderMaps(teacherIds, studentIds) {
     return { teachersMap, studentsMap };
 }
 
-// โหลดรายการ Ticket ทาง Sidebar และแสดงชื่อผู้แจ้งจริง
+// ==========================================
+// ระบบค้นหา กรอง และ แจ้งเตือนตั๋ว (Admin)
+// ==========================================
+
+// 1. ดึงข้อมูลทั้งหมดจากฐานข้อมูล (เรียกใช้ตอนโหลดหน้าแรก หรือเวลามีอัปเดต)
 async function loadTickets() {
     try {
-        // 1. ดึงตั๋วทั้งหมดออกมาก่อน
         const { data: tickets, error } = await db.from('module_helpdesk_tickets')
             .select('*')
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
-        const ticketList = document.getElementById('ticketList');
         if (tickets && tickets.length > 0) {
-            
-            // 2. ใช้ Promise.all เพื่อไปดึงชื่อจริงของผู้แจ้งแต่ละคนแบบ Dynamic
-            const ticketsWithSenderNames = await Promise.all(tickets.map(async (ticket) => {
+            allTicketsList = await Promise.all(tickets.map(async (ticket) => {
                 let senderName = "ไม่พบข้อมูลผู้ใช้งาน";
-                
                 try {
                     if (ticket.sender_type === 'teacher') {
-                        // ดึงชื่อครู/บุคลากร
-                        const { data: teacher } = await db.from('core_personnel')
-                            .select('first_name, last_name')
-                            .eq('id', ticket.sender_id)
-                            .single();
+                        const { data: teacher } = await db.from('core_personnel').select('first_name, last_name').eq('id', ticket.sender_id).maybeSingle();
                         if (teacher) senderName = `ครู ${teacher.first_name} ${teacher.last_name}`;
                     } else if (ticket.sender_type === 'student') {
-                        // ดึงชื่อนักเรียน
-                        const { data: student } = await db.from('core_students')
-                            .select('prefix, first_name, last_name')
-                            .eq('id', ticket.sender_id)
-                            .single();
+                        const { data: student } = await db.from('core_students').select('prefix, first_name, last_name').eq('id', ticket.sender_id).maybeSingle();
                         if (student) senderName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
                     }
-                } catch (nameErr) {
-                    console.error("Error fetching sender name:", nameErr);
-                }
-
-                // คืนค่าตั๋วกลับไปพร้อมกับแปะชื่อผู้ส่งชื่อจริงเข้าวัตถุ (Object)
+                } catch (e) {}
                 return { ...ticket, sender_display_name: senderName };
             }));
-
-            // 3. นำข้อมูลที่ได้มาร้อยเรียงลงใน HTML (เปลี่ยนจาก ticket.sender_type เป็นชื่อที่เราหามาได้)
-            ticketList.innerHTML = ticketsWithSenderNames.map(ticket => {
-                const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700' : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700');
-                const statusText = ticket.status === 'open' ? 'รอตรวจสอบ' : (ticket.status === 'closed' ? 'ปิดงาน' : 'ตอบแล้ว');
-                
-                return `
-                <div onclick="openTicket('${ticket.id}', '${ticket.topic.replace(/'/g, "\\'")}', '${ticket.sender_id}', '${ticket.sender_type}')" 
-                     class="p-3 bg-white border border-gray-100 rounded-xl hover:bg-blue-50 cursor-pointer transition-colors ${ticket.id === currentTicketId ? 'ring-2 ring-blue-500 bg-blue-50' : ''}">
-                    <div class="flex justify-between items-start mb-1">
-                        <h4 class="font-bold text-gray-800 text-sm truncate pr-2">${ticket.topic}</h4>
-                        <span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor}">${statusText}</span>
-                    </div>
-                    <div class="text-[11px] text-gray-500 flex justify-between items-center mt-1">
-                        <span class="truncate max-w-[150px]"><i class="fa-solid fa-user text-gray-400 mr-1"></i>${ticket.sender_display_name}</span>
-                        <span>${formatThaiDateTime(ticket.created_at)}</span>
-                    </div>
-                </div>`;
-            }).join('');
         } else {
-            ticketList.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">ไม่มีข้อความใหม่</div>';
+            allTicketsList = [];
         }
+
+        // อัปเดตตัวเลขแจ้งเตือน (นับเฉพาะตั๋วที่เป็น 'open')
+        updateBadgeCount();
+        // สั่งประมวลผลการค้นหาและแสดงผล
+        filterTickets();
+
     } catch (err) {
         console.error(err);
-        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้', 'error');
     }
 }
 
-// เปิดหน้าต่างแชท (อัปเดตใหม่ให้ดึงชื่อผู้ส่งจริงมาแสดงที่หัวแชทด้วย)
+// 2. ฟังก์ชันอัปเดตตัวเลขแจ้งเตือน (Badge ด้านบน)
+function updateBadgeCount() {
+    const openCount = allTicketsList.filter(t => t.status === 'open').length;
+    const badge = document.getElementById('unreadCountBadge');
+    if (openCount > 0) {
+        badge.innerText = `${openCount} ข้อความใหม่`;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+// 3. ฟังก์ชันค้นหาและกรอง (เมื่อพิมพ์ค้นหา หรือกดปุ่มเปลี่ยนหมวดหมู่)
+function filterTickets() {
+    const keyword = document.getElementById('searchTicketInput').value.toLowerCase();
+    
+    // คัดกรองข้อมูลจาก Array ในเครื่อง
+    const filtered = allTicketsList.filter(t => {
+        // เช็คหมวดหมู่ (All, Open, Closed)
+        if (currentFilterStatus !== 'all' && t.status !== currentFilterStatus) return false;
+        
+        // เช็คคำค้นหา (ค้นได้ทั้งชื่อเรื่อง และ ชื่อผู้ส่ง)
+        if (keyword) {
+            const topic = (t.topic || '').toLowerCase();
+            const senderName = (t.sender_display_name || '').toLowerCase();
+            return topic.includes(keyword) || senderName.includes(keyword);
+        }
+        return true;
+    });
+    
+    renderTicketList(filtered);
+}
+
+// 4. ฟังก์ชันเปลี่ยนสีปุ่มตัวกรอง
+function setFilter(status) {
+    currentFilterStatus = status;
+    ['all', 'open', 'closed'].forEach(s => {
+        const btn = document.getElementById('btnFilter_' + s);
+        if (s === status) {
+            btn.className = "flex-1 py-1 text-xs font-bold rounded-md bg-slate-800 text-white transition-colors";
+        } else {
+            btn.className = "flex-1 py-1 text-xs font-bold rounded-md bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors";
+        }
+    });
+    filterTickets();
+}
+
+// 5. นำข้อมูลที่ผ่านการกรองมาแปลงเป็น HTML แสดงผล (ใส่จุดแดงกะพริบที่ตั๋วใหม่ด้วย)
+function renderTicketList(tickets) {
+    const ticketList = document.getElementById('ticketList');
+    if (tickets.length > 0) {
+        ticketList.innerHTML = tickets.map(ticket => {
+            const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700' : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700');
+            const statusText = ticket.status === 'open' ? 'รอตรวจสอบ' : (ticket.status === 'closed' ? 'ปิดงาน' : 'ตอบแล้ว');
+            
+            // 🔴 เพิ่มจุดแดงแจ้งเตือน หากเป็นตั๋วใหม่ (open)
+            const redBadgeHtml = ticket.status === 'open' 
+                ? `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>` 
+                : '';
+
+            return `
+            <div onclick="openTicket('${ticket.id}', '${ticket.topic.replace(/'/g, "\\'")}', '${ticket.sender_id}', '${ticket.sender_type}')" 
+                 class="relative p-3 bg-white border border-gray-100 rounded-xl hover:bg-blue-50 cursor-pointer transition-colors ${ticket.id === currentTicketId ? 'ring-2 ring-blue-500 bg-blue-50' : ''}">
+                ${redBadgeHtml}
+                <div class="flex justify-between items-start mb-1">
+                    <h4 class="font-bold text-gray-800 text-sm truncate pr-4">${ticket.topic}</h4>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${statusColor}">${statusText}</span>
+                </div>
+                <div class="text-[11px] text-gray-500 flex justify-between items-center mt-1">
+                    <span class="truncate max-w-[150px]"><i class="fa-solid fa-user text-gray-400 mr-1"></i>${ticket.sender_display_name}</span>
+                    <span>${formatThaiDateTime(ticket.created_at)}</span>
+                </div>
+            </div>`;
+        }).join('');
+    } else {
+        ticketList.innerHTML = '<div class="text-center py-8 text-gray-400 text-sm">ไม่พบข้อความ</div>';
+    }
+}
+
 // เปิดหน้าต่างแชท และดึงข้อมูลผู้ใช้ (รองรับ Avatar และ รหัสนักเรียน)
 async function openTicket(ticketId, topic, senderId, senderType) {
     currentTicketId = ticketId;
@@ -273,48 +326,79 @@ async function openTicket(ticketId, topic, senderId, senderType) {
         avatarImgElement.src = avatarUrl;
     }
 
+    // เช็คว่าคนนี้ถูกแบนอยู่ไหม เพื่อสลับปุ่ม Ban / Unban บนหัวแชท
+    await checkUserBanStatus();
+
     // โหลดข้อความแชท
     await fetchMessages();
+    
+    // โหมดมือถือ
+    showChatOnMobile();
 }
 
+// 3. ฟังก์ชันตรวจสอบว่าผู้ใช้คนนี้ "ถูกแบน" อยู่หรือไม่ (ใช้สลับปุ่ม Ban/Unban)
+async function checkUserBanStatus() {
+    if (!currentTicketSenderId || !currentTicketSenderType) return;
+    
+    try {
+        const table = currentTicketSenderType === 'teacher' ? 'core_personnel' : 'core_students';
+        const { data } = await db.from(table).select('helpdesk_banned').eq('id', currentTicketSenderId).maybeSingle();
+        
+        const btnBan = document.getElementById('btnBanUser');
+        const btnUnban = document.getElementById('btnUnbanUser');
+        
+        if (data && data.helpdesk_banned === true) {
+            btnBan.classList.add('hidden');
+            btnUnban.classList.remove('hidden');
+        } else {
+            btnBan.classList.remove('hidden');
+            btnUnban.classList.add('hidden');
+        }
+    } catch (err) {
+        console.error("เช็คสถานะแบนไม่ได้", err);
+    }
+}
+
+// ดึงข้อความแชท (เพิ่มปุ่มลบข้อความแต่ละบรรทัด)
 async function fetchMessages() {
     if (!currentTicketId) return;
+
     try {
         const { data, error } = await db.from('module_helpdesk_messages')
             .select('*')
             .eq('ticket_id', currentTicketId)
             .order('created_at', { ascending: true });
+
         if (error) throw error;
+
         const container = document.getElementById('messagesContainer');
         if (data) {
             container.innerHTML = data.map(msg => {
                 const isAdmin = msg.sender_id === currentUserId;
                 const alignment = isAdmin ? 'justify-end' : 'justify-start';
                 const bubbleColor = isAdmin ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none';
-                // FIX: Allow admins to delete messages
-                const showDeleteBtn = true; // All messages can be deleted by admin
+                const textColor = isAdmin ? 'text-blue-100' : 'text-gray-400';
+                
+                // 🗑️ ปุ่มลบข้อความ (ซ่อนไว้ โชว์ตอน hover ด้วยคำสั่ง group-hover)
+                const deleteBtnHtml = `<button onclick="deleteMessage('${msg.id}')" class="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[10px] bg-red-100 text-red-600 hover:bg-red-500 hover:text-white px-1.5 py-0.5 rounded cursor-pointer"><i class="fa-solid fa-trash"></i> ลบ</button>`;
+
                 return `
-                <div class="flex w-full ${alignment} group message-item">
-                    <div class="max-w-[70%] p-3 rounded-2xl shadow-sm ${bubbleColor} relative">
-                        ${showDeleteBtn ? `
-                        <button onclick="deleteMessage('${msg.id}')" 
-                                class="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center shadow-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10"
-                                title="ลบข้อความนี้">
-                            <i class="fa-solid fa-trash-can text-xs"></i>
-                        </button>
-                        ` : ''}
-                        <p class="text-sm whitespace-pre-wrap">${linkify(escapeHtml(msg.message))}</p>
-                        <p class="text-[9px] mt-1 text-right ${isAdmin ? 'text-blue-200' : 'text-gray-400'}">
-                            ${dayjs(msg.created_at).locale('th').format('HH:mm')}
-                        </p>
+                <div class="flex w-full ${alignment} group">
+                    <div class="max-w-[75%] p-3 rounded-2xl shadow-sm ${bubbleColor}">
+                        <p class="text-sm whitespace-pre-wrap break-words">${linkify(msg.message)}</p>
+                        <div class="flex justify-between items-center mt-1">
+                            <p class="text-[9px] ${textColor}">${dayjs(msg.created_at).locale('th').format('HH:mm')}</p>
+                            ${deleteBtnHtml}
+                        </div>
                     </div>
                 </div>`;
             }).join('');
+            
+            // เลื่อนลงล่างสุดอัตโนมัติ
             container.scrollTop = container.scrollHeight;
         }
     } catch (err) {
         console.error(err);
-        handleError(err, 'ไม่สามารถโหลดข้อความได้');
     }
 }
 
@@ -554,4 +638,43 @@ async function unbanUser() {
 function handleError(err, userMessage) {
     console.error('Error:', err);
     Swal.fire('ข้อผิดพลาด', userMessage || err.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ', 'error');
+}
+
+// ==========================================
+// Mobile Responsive UI Handlers (อัปเดตใหม่)
+// ==========================================
+
+function showChatOnMobile() {
+    // ถ้าหน้าจอเป็นคอมพิวเตอร์ หรือแท็บเล็ตแนวนอน (> 768px) ไม่ต้องสลับหน้าจอ
+    if (window.innerWidth >= 768) return; 
+
+    const sidebar = document.getElementById('sidebarPanel');
+    const chat = document.getElementById('chatPanel');
+    
+    // 1. บังคับซ่อน Sidebar (ต้องเอา flex ออกก่อน ไม่งั้นจะไม่ยอมซ่อน)
+    sidebar.classList.remove('flex');
+    sidebar.classList.add('hidden');
+    
+    // 2. บังคับโชว์ Chat 
+    chat.classList.remove('hidden');
+    chat.classList.add('flex');
+}
+
+function showSidebarOnMobile() {
+    const sidebar = document.getElementById('sidebarPanel');
+    const chat = document.getElementById('chatPanel');
+    
+    // 1. โชว์ Sidebar กลับมา
+    sidebar.classList.remove('hidden');
+    sidebar.classList.add('flex');
+    
+    // 2. ซ่อน Chat
+    chat.classList.remove('flex');
+    chat.classList.add('hidden');
+    
+    // เคลียร์สถานะการโฟกัสตั๋ว (เฉพาะฝั่ง Admin ที่มีตัวแปร currentTicketId)
+    if (typeof currentTicketId !== 'undefined') {
+        currentTicketId = null; 
+        if (typeof loadTickets === 'function') loadTickets();
+    }
 }
