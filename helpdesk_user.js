@@ -15,21 +15,47 @@ async function checkAuth() {
     }
     currentUserId = session.user.id;
 
-    const { data: teacherProfile } = await db.from('core_personnel').select('id, helpdesk_banned').eq('id', currentUserId).single();
-    if (teacherProfile) {
+    const userEmail = session.user.email;
+    const studentIdCard = userEmail.split('@')[0];
+
+    // ค้นหาใน core_personnel ก่อน (ครู/บุคลากร)
+    const { data: teacherProfile, error: teacherError } = await db
+        .from('core_personnel')
+        .select('id, helpdesk_banned')
+        .eq('id', currentUserId)
+        .maybeSingle();
+
+    if (teacherProfile && !teacherError) {
         currentUserType = 'teacher';
         isBanned = teacherProfile.helpdesk_banned || false;
     } else {
-        const { data: studentProfile } = await db.from('core_students').select('id, helpdesk_banned').eq('id', currentUserId).single();
-        if (studentProfile) {
+        // ค้นหาใน core_students ด้วย student_id_card จาก email
+        const { data: studentProfile, error: studentError } = await db
+            .from('core_students')
+            .select('id, helpdesk_banned')
+            .eq('student_id_card', studentIdCard)
+            .maybeSingle();
+
+        if (studentProfile && !studentError) {
             currentUserType = 'student';
+            currentUserId = studentProfile.id; // ✅ ใช้ UUID จาก core_students
             isBanned = studentProfile.helpdesk_banned || false;
         } else {
-            isBanned = false;
+            document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            Swal.fire({
+                title: 'ข้อผิดพลาดของบัญชี',
+                text: 'ไม่พบข้อมูลโปรไฟล์ของคุณในระบบ (รหัสผู้ใช้ไม่ตรงกับฐานข้อมูล) กรุณาแจ้งผู้ดูแลระบบ',
+                icon: 'error',
+                confirmButtonText: 'กลับหน้าหลัก'
+            }).then(() => {
+                window.location.replace('index.html');
+            });
+            return;
         }
     }
 
     if (isBanned) {
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.fire({
             title: 'ถูกระงับการใช้งาน',
             text: 'คุณถูกแบนไม่สามารถใช้ระบบ Helpdesk ได้ กรุณาติดต่อผู้ดูแลระบบ',
@@ -41,7 +67,6 @@ async function checkAuth() {
         return;
     }
 
-    // ตั้งปุ่มกลับหน้า dynamic
     const backBtn = document.getElementById('backToHomeBtn');
     if (backBtn) {
         backBtn.onclick = () => {
