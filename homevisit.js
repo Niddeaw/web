@@ -367,14 +367,12 @@ function buildFormData(studentId, classroomId) {
  * ใช้ Toast แทน SweetAlert2
  */
 async function autoSaveIfDirty() {
-    if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return;
-
+    if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return false;
     try {
         const formData = buildFormData(currentStudentId, window.currentClassroomId);
         const { data: existing } = await db.from('module_home_visits')
             .select('id').eq('student_id', currentStudentId)
             .eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
-
         let resError;
         if (existing) {
             const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
@@ -384,31 +382,17 @@ async function autoSaveIfDirty() {
             resError = error;
         }
         if (resError) throw resError;
-
         formIsDirty = false;
         updateStatusBadge('completed');
-
-        // ✅ Toast แจ้งเตือนแบบเงียบๆ (ไม่รบกวนผู้ใช้)
-        Swal.fire({
-            toast: true,
-            position: 'bottom-end',
-            icon: 'success',
-            title: '<span class="text-sm">บันทึกอัตโนมัติเรียบร้อย</span>',
-            showConfirmButton: false,
-            timer: 2500,
-            timerProgressBar: true,
-        });
+        return true;   // ✅ บันทึกสำเร็จ → แจ้งให้ caller แสดง toast เอง
     } catch (err) {
         console.warn('Auto-save failed:', err);
-        // ไม่โชว์ error popup — เพียงแต่บันทึก log ไว้
         Swal.fire({
-            toast: true,
-            position: 'bottom-end',
-            icon: 'warning',
+            toast: true, position: 'bottom-end', icon: 'warning',
             title: '<span class="text-sm">บันทึกอัตโนมัติไม่สำเร็จ กรุณาบันทึกด้วยตัวเอง</span>',
-            showConfirmButton: false,
-            timer: 3500,
+            showConfirmButton: false, timer: 3500,
         });
+        return false;
     }
 }
 
@@ -420,9 +404,16 @@ function initDirtyTracking() {
     const formContainer = document.getElementById('homeVisitForm');
     if (!formContainer) return;
 
-    // input / change ครอบคลุม: text, number, textarea, select, checkbox, radio, date
     formContainer.addEventListener('input', () => markDirty());
     formContainer.addEventListener('change', () => markDirty());
+
+    // ✅ เพิ่ม: แจ้งเตือนก่อนปิดหน้า/รีเฟรช/กด Back
+    window.addEventListener('beforeunload', (e) => {
+        if (formIsDirty) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    });
 }
 
 // ==========================================
@@ -592,9 +583,16 @@ async function loadStudentsForClassroom(classroomId) {
             options: options,
             onChange: async (val) => {
                 if (val) {
-                    // ✅ Auto-Save ก่อนเปลี่ยนไปโหลดนักเรียนคนใหม่
-                    await autoSaveIfDirty();
-                    loadStudentInfo(val);
+                    const didSave = await autoSaveIfDirty();  // บันทึก (ไม่แสดง Toast)
+                    await loadStudentInfo(val);                // โหลดคนใหม่ (Swal loading ปิดไปแล้ว)
+                    // ✅ แสดง Toast หลัง Swal loading ปิดแล้ว → ไม่ถูกทับ
+                    if (didSave) {
+                        Swal.fire({
+                            toast: true, position: 'bottom-end', icon: 'success',
+                            title: '<span class="text-sm">บันทึกอัตโนมัติเรียบร้อย</span>',
+                            showConfirmButton: false, timer: 2500, timerProgressBar: true,
+                        });
+                    }
                 } else {
                     clearStudentInfo();
                 }
@@ -608,7 +606,6 @@ async function loadStudentsForClassroom(classroomId) {
 async function loadStudentInfo(studentId) {
     // ✅ เคลียร์ฟอร์มก่อนโหลดข้อมูลนักเรียนใหม่
     clearStudentInfo();
-
     currentStudentId = studentId;
     Swal.fire({ title: 'กำลังโหลดข้อมูลประวัติ...', didOpen: () => Swal.showLoading() });
 
