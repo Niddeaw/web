@@ -8,9 +8,9 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
-    
+
     <link rel="stylesheet" href="https://cdn.datatables.net/responsive/3.0.2/css/responsive.dataTables.min.css">
-    
+
     <style>
         .glass-nav {
             background: rgba(255, 255, 255, 0.85);
@@ -22,14 +22,16 @@
 
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans transition-colors duration-300">
 
-    <nav class="glass-nav border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
+    <nav
+        class="glass-nav border border-slate-200 rounded-2xl mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-md">
         <div class="flex items-center gap-3">
             <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
                 <i class="fa-solid fa-users-rectangle text-xl"></i>
             </div>
             <div>
                 <h1 class="font-bold text-lg leading-tight text-blue-900 uppercase tracking-tight">Club Management</h1>
-                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest"><span id="term-info">โหลดปีการศึกษา...</span></p>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest"><span
+                        id="term-info">โหลดปีการศึกษา...</span></p>
             </div>
         </div>
 
@@ -47,7 +49,8 @@
             <button id="btnAdminMode" onclick="toggleRoleView()"
                 class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
                 title="สลับโหมด">
-                <i id="mode-icon" class="fa-solid fa-user-shield sm:mr-1"></i> <span id="mode-text" class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+                <i id="mode-icon" class="fa-solid fa-user-shield sm:mr-1"></i> <span id="mode-text"
+                    class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
             </button>
 
             <button onclick="window.location.href='index.html'"
@@ -61,7 +64,7 @@
     <main class="flex-1 mx-4 mt-6 mb-16 max-w-7xl w-full xl:mx-auto">
 
         <div id="teacher-view" class="space-y-6 block fade-in">
-            
+
             <div id="my-club-display" class="hidden animate-fade-in flex flex-col gap-6">
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
@@ -70,39 +73,46 @@
                             <h2 class="text-sm font-bold text-slate-500 mb-1">ชุมนุมในความดูแลของคุณ</h2>
                             <h1 class="text-3xl font-black text-indigo-900 mb-2" id="my-club-name">กำลังโหลด...</h1>
                             <p class="text-sm font-medium text-slate-600 flex items-center">
-                                <i class="fa-solid fa-layer-group text-indigo-400 mr-2"></i> 
+                                <i class="fa-solid fa-layer-group text-indigo-400 mr-2"></i>
                                 <span id="my-club-category">-</span>
                             </p>
                         </div>
-                        
+
                         <div class="flex flex-col sm:flex-row items-center gap-4 w-full md:w-auto">
-                            <div class="bg-indigo-50 px-8 py-3 rounded-xl border border-indigo-100 text-center w-full sm:w-auto">
+                            <div
+                                class="bg-indigo-50 px-8 py-3 rounded-xl border border-indigo-100 text-center w-full sm:w-auto">
                                 <div class="text-xs font-bold text-indigo-600 mb-1">ยอดรับนักเรียน</div>
                                 <div class="text-3xl font-black text-indigo-800">
-                                    <span id="enrolled-count">0</span> <span class="text-lg text-indigo-400 mx-1">/</span> <span id="max-capacity">0</span>
+                                    <span id="enrolled-count">0</span> <span
+                                        class="text-lg text-indigo-400 mx-1">/</span> <span id="max-capacity">0</span>
                                 </div>
                             </div>
-                            <button id="btn-lock-club" class="hidden w-full sm:w-auto px-6 py-4 rounded-xl font-bold shadow-md transition-all whitespace-nowrap text-lg">
-                                </button>
+                            <button id="btn-lock-club"
+                                class="hidden w-full sm:w-auto px-6 py-4 rounded-xl font-bold shadow-md transition-all whitespace-nowrap text-lg">
+                            </button>
                         </div>
                     </div>
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 md:p-8">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
+                    <div
+                        class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
                         <h2 class="text-xl font-bold text-slate-800 flex items-center">
-                            <div class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
+                            <div
+                                class="w-10 h-10 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center mr-3">
                                 <i class="fa-solid fa-address-book"></i>
                             </div>
                             นักเรียนที่สมัครเข้าชุมนุม
                         </h2>
-                        <button onclick="exportTeacherExcel()" class="bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm border border-emerald-200 flex items-center w-full sm:w-auto justify-center">
+                        <button onclick="exportTeacherExcel()"
+                            class="bg-emerald-50 text-emerald-700 hover:bg-emerald-500 hover:text-white px-5 py-2.5 rounded-xl font-bold transition-all shadow-sm border border-emerald-200 flex items-center w-full sm:w-auto justify-center">
                             <i class="fa-solid fa-file-excel mr-2"></i> Export Excel
                         </button>
                     </div>
-                    
+
                     <div class="overflow-x-auto">
-                        <table id="teacherStudentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                        <table id="teacherStudentsTable" class="w-full text-left text-sm display nowrap"
+                            style="width:100%">
                             <thead>
                                 <tr class="bg-slate-50 text-slate-700 border-b border-slate-200">
                                     <th class="py-3 px-4 font-bold">รหัสนักเรียน</th>
@@ -119,8 +129,10 @@
 
             </div>
 
-            <div id="no-club-display" class="hidden text-center py-12 bg-white rounded-2xl shadow-sm border border-slate-200">
-                <div class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 text-3xl">
+            <div id="no-club-display"
+                class="hidden text-center py-12 bg-white rounded-2xl shadow-sm border border-slate-200">
+                <div
+                    class="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 text-slate-400 text-3xl">
                     <i class="fa-solid fa-folder-open"></i>
                 </div>
                 <h3 class="text-xl font-bold text-slate-700 mb-2">คุณยังไม่ได้เปิดชุมนุมในภาคเรียนนี้</h3>
@@ -129,53 +141,65 @@
         </div>
 
         <!-- ========================================== -->
-<!-- 🌟 Dashboard 4 การ์ดสำหรับแอดมิน (อัปเดต) -->
-<!-- ========================================== -->
-<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-    <!-- การ์ด 1: นักเรียนทั้งหมด -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
-        <div class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shrink-0">
-            <i class="fa-solid fa-users"></i>
-        </div>
-        <div>
-            <p class="text-xs font-bold text-slate-500 uppercase">นักเรียนทั้งหมด (เทอมนี้)</p>
-            <h3 class="text-2xl font-black text-blue-800" id="dash-total-students">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
-        </div>
-    </div>
+        <!-- 🌟 Dashboard 4 การ์ดสำหรับแอดมิน (อัปเดต) -->
+        <!-- ========================================== -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <!-- การ์ด 1: นักเรียนทั้งหมด -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl shrink-0">
+                    <i class="fa-solid fa-users"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-500 uppercase">นักเรียนทั้งหมด (เทอมนี้)</p>
+                    <h3 class="text-2xl font-black text-blue-800" id="dash-total-students">0 <span
+                            class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
+            </div>
 
-    <!-- การ์ด 2: อนุมัติแล้ว -->
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
-        <div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl shrink-0">
-            <i class="fa-solid fa-user-check"></i>
-        </div>
-        <div>
-            <p class="text-xs font-bold text-slate-500 uppercase">อนุมัติเข้าชุมนุมแล้ว</p>
-            <h3 class="text-2xl font-black text-emerald-700" id="dash-approved">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
-        </div>
-    </div>
+            <!-- การ์ด 2: อนุมัติแล้ว -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex items-center gap-4">
+                <div
+                    class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl shrink-0">
+                    <i class="fa-solid fa-user-check"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-slate-500 uppercase">อนุมัติเข้าชุมนุมแล้ว</p>
+                    <h3 class="text-2xl font-black text-emerald-700" id="dash-approved">0 <span
+                            class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
+            </div>
 
-    <!-- การ์ด 3: รอพิจารณา (คลิกได้) -->
-    <div onclick="showPendingStudentsModal()" class="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-amber-50 hover:shadow-md transition-all group">
-        <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
-            <i class="fa-solid fa-hourglass-half"></i>
-        </div>
-        <div>
-            <p class="text-xs font-bold text-amber-600 uppercase group-hover:text-amber-700 transition-colors">รอพิจารณา <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
-            <h3 class="text-2xl font-black text-amber-700" id="dash-pending">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
-        </div>
-    </div>
+            <!-- การ์ด 3: รอพิจารณา (คลิกได้) -->
+            <div onclick="showPendingStudentsModal()"
+                class="bg-white rounded-2xl shadow-sm border border-amber-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-amber-50 hover:shadow-md transition-all group">
+                <div
+                    class="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-hourglass-half"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-amber-600 uppercase group-hover:text-amber-700 transition-colors">
+                        รอพิจารณา <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
+                    <h3 class="text-2xl font-black text-amber-700" id="dash-pending">0 <span
+                            class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
+            </div>
 
-    <!-- การ์ด 4: ยังไม่เลือกชุมนุม (คลิกได้) -->
-    <div onclick="showUnassignedStudentsModal()" class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-rose-50 hover:shadow-md transition-all group">
-        <div class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
-            <i class="fa-solid fa-user-xmark"></i>
+            <!-- การ์ด 4: ยังไม่เลือกชุมนุม (คลิกได้) -->
+            <div onclick="showUnassignedStudentsModal()"
+                class="bg-white rounded-2xl shadow-sm border border-rose-200 p-5 flex items-center gap-4 cursor-pointer hover:bg-rose-50 hover:shadow-md transition-all group">
+                <div
+                    class="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center text-2xl shrink-0 group-hover:scale-110 transition-transform">
+                    <i class="fa-solid fa-user-xmark"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-bold text-rose-500 uppercase group-hover:text-rose-700 transition-colors">
+                        ยังไม่เลือกชุมนุม <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
+                    <h3 class="text-2xl font-black text-rose-700" id="dash-unassigned">0 <span
+                            class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
+            </div>
         </div>
-        <div>
-            <p class="text-xs font-bold text-rose-500 uppercase group-hover:text-rose-700 transition-colors">ยังไม่เลือกชุมนุม <i class="fa-solid fa-arrow-pointer ml-1"></i></p>
-            <h3 class="text-2xl font-black text-rose-700" id="dash-unassigned">0 <span class="text-sm font-medium text-slate-500">คน</span></h3>
-        </div>
-    </div>
-</div>
         <div id="admin-view" class="space-y-6 hidden fade-in">
             <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
                 <button onclick="switchAdminTab('admin-tab-clubs')" id="btn-admin-tab-clubs"
@@ -396,7 +420,7 @@
     </div>
 
     <script src="https://cdn.sheetjs.com/xlsx-0.19.3/package/dist/xlsx.full.min.js"></script>
-    
+
     <script src="club_teacher.js"></script>
 
     <script src="https://cdn.datatables.net/responsive/3.0.2/js/dataTables.responsive.min.js"></script>

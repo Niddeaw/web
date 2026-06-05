@@ -943,7 +943,9 @@ window.deleteAdminClub = async (id, name) => {
 // ==========================================
 // Admin: Students Tracker
 // ==========================================
-// --- Admin: Students Tracker (All School) ---
+// ==========================================
+// --- Admin: ตารางตรวจสอบนักเรียน (เพิ่มปุ่ม Super Admin) ---
+// ==========================================
 async function loadAllStudentsReport() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งโรงเรียน...', didOpen: () => Swal.showLoading() });
     try {
@@ -951,10 +953,10 @@ async function loadAllStudentsReport() {
             .select(`student_id, student_number, core_classrooms!inner(grade_level, room_number), core_students(student_id_card, prefix, first_name, last_name)`)
             .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
             .eq('core_classrooms.semester', currentSchoolInfo.current_semester);
-
-        // 🌟 แก้ไข: ดึงข้อมูล core_personnel เพื่อเอาชื่อครูมาด้วย
+        
+        // 🌟 ดึง ID การสมัคร และรหัสชุมนุมมาด้วย
         const { data: mems } = await db.from('club_registrations')
-            .select(`student_id, status, club_lists(club_name, core_personnel(prefix, first_name, last_name))`)
+            .select(`id, student_id, club_id, status, club_lists(club_name, core_personnel(prefix, first_name, last_name))`)
             .eq('academic_year', currentSchoolInfo.current_academic_year)
             .eq('semester', currentSchoolInfo.current_semester);
 
@@ -964,14 +966,15 @@ async function loadAllStudentsReport() {
         allStudentsReportData = enrolls.map(e => {
             const stu = e.core_students;
             const club = memMap[e.student_id];
-
-            // 🌟 ดึงชื่อครู ถ้าไม่มีให้ใส่ '-'
             const teacher = club?.club_lists?.core_personnel;
-            const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : '-';
+            const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : '-';
 
             return {
+                reg_id: club?.id || null,             // 🌟 รหัสการสมัคร (เอาไว้ลบ/แก้ไข)
+                student_id: e.student_id,             // 🌟 รหัสนักเรียน
+                club_id: club?.club_id || null,       // 🌟 รหัสชุมนุมปัจจุบัน
                 id_card: stu.student_id_card,
-                full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
+                full_name: `${stu.prefix||''}${stu.first_name} ${stu.last_name}`,
                 classroom: `ม.${e.core_classrooms.grade_level}/${e.core_classrooms.room_number}`,
                 grade: parseInt(e.core_classrooms.grade_level),
                 room: parseInt(e.core_classrooms.room_number),
@@ -979,11 +982,11 @@ async function loadAllStudentsReport() {
                 number_text: e.student_number || '-',
                 club_name: club ? club.club_lists?.club_name : '-',
                 status: club ? club.status : 'not_applied',
-                teacher_name: teacherName // 🌟 เก็บค่าชื่อครูแทนคอมเมนต์
+                teacher_name: teacherName
             };
         });
 
-        // 🌟 เรียงลำดับ: ชั้น -> ห้อง -> เลขที่
+        // เรียงลำดับ: ชั้น -> ห้อง -> เลขที่
         allStudentsReportData.sort((a, b) => {
             if (a.grade !== b.grade) return a.grade - b.grade;
             if (a.room !== b.room) return a.room - b.room;
@@ -991,11 +994,31 @@ async function loadAllStudentsReport() {
         });
 
         if ($.fn.DataTable.isDataTable('#adminAllStudentsTable')) $('#adminAllStudentsTable').DataTable().destroy();
-
+        
         document.getElementById('tb-admin-all-students').innerHTML = allStudentsReportData.map(s => {
             let badge = s.status === 'not_applied' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>' : (s.status === 'approved' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>' : (s.status === 'rejected' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>' : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
+            
+            // 🌟 สร้างเครื่องมือจัดการ (เฉพาะ Super Admin)
+            let actionHtml = '<span class="text-slate-300">-</span>';
+            if (userRole === 'super_admin') {
+                if (s.reg_id) {
+                    // ถ้าเด็กมีประวัติสมัครแล้ว -> โชว์ปุ่ม อนุมัติ / ไม่อนุมัติ / ย้าย / ลบ
+                    actionHtml = `
+                    <div class="flex items-center justify-center gap-1">
+                        <button onclick="saSetStatus('${s.reg_id}', 'approved')" class="w-7 h-7 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-colors shadow-sm" title="อนุมัติทันที"><i class="fa-solid fa-check"></i></button>
+                        <button onclick="saSetStatus('${s.reg_id}', 'rejected')" class="w-7 h-7 flex items-center justify-center rounded bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white transition-colors shadow-sm" title="ไม่อนุมัติ"><i class="fa-solid fa-xmark"></i></button>
+                        <button onclick="saManageClub('${s.reg_id}', '${s.student_id}', '${s.club_id}', '${s.status}', '${s.full_name}')" class="w-7 h-7 flex items-center justify-center rounded bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors shadow-sm" title="ย้ายชุมนุม / แก้ไข"><i class="fa-solid fa-right-left text-xs"></i></button>
+                        <button onclick="saDeleteReg('${s.reg_id}')" class="w-7 h-7 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:bg-slate-500 hover:text-white transition-colors shadow-sm" title="ลบทิ้ง (กลับไปสถานะยังไม่เลือก)"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </div>`;
+                } else {
+                    // ถ้าเด็กยังไม่เลือกชุมนุม -> โชว์ปุ่ม จับเข้าชุมนุม
+                    actionHtml = `
+                    <div class="flex items-center justify-center">
+                        <button onclick="saManageClub('null', '${s.student_id}', 'null', 'approved', '${s.full_name}')" class="px-2 py-1 text-xs font-bold flex items-center justify-center rounded bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white transition-colors shadow-sm whitespace-nowrap"><i class="fa-solid fa-plus mr-1"></i> จับใส่ชุมนุม</button>
+                    </div>`;
+                }
+            }
 
-            // 🌟 แสดงผลชื่อครูในคอลัมน์สุดท้าย
             return `<tr class="hover:bg-purple-50">
                 <td class="py-3 px-4 font-mono">${s.id_card}</td>
                 <td class="py-3 px-4">${s.full_name}</td>
@@ -1003,18 +1026,161 @@ async function loadAllStudentsReport() {
                 <td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td>
                 <td class="py-3 px-4 text-center">${badge}</td>
                 <td class="py-3 px-4 text-sm text-slate-600">${s.teacher_name}</td>
-            </tr>`;
+                <td class="py-3 px-4 text-center">${actionHtml}</td> </tr>`;
         }).join('');
 
-        $('#adminAllStudentsTable').DataTable({
-            responsive: true,
-            autoWidth: false, // 🌟 ทำให้ตารางยืดหดพอดีจอ ไม่ต้อง scroll แนวนอน
-            order: [], // 🌟 ปิดออโต้เพื่อเรียงตามที่เราเขียนไว้
+        $('#adminAllStudentsTable').DataTable({ 
+            responsive: true, 
+            autoWidth: false, 
+            order: [], 
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
         });
         Swal.close();
     } catch (err) { Swal.fire('Error', err.message, 'error'); }
 }
+
+// ==========================================
+// 🌟 เครื่องมือด่วนของ Super Admin (Quick Actions)
+// ==========================================
+
+// 1. ปุ่ม อนุมัติ / ไม่อนุมัติ ด่วน
+window.saSetStatus = async (regId, status) => {
+    const statusText = status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ';
+    const { isConfirmed } = await Swal.fire({
+        title: `ยืนยัน${statusText}?`,
+        text: `คุณต้องการ${statusText}การสมัครนี้ใช่หรือไม่`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: status === 'approved' ? '#10b981' : '#ef4444',
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
+        const { error } = await db.from('club_registrations').update({ 
+            status, 
+            rejection_reason: status === 'rejected' ? 'Super Admin ยกเลิกสิทธิ์' : null 
+        }).eq('id', regId);
+        
+        if (error) return Swal.fire('Error', error.message, 'error');
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1000, showConfirmButton: false });
+        
+        await loadAllStudentsReport();
+        if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats(); // อัปเดตแดชบอร์ดถ้ามี
+    }
+};
+
+// 2. ปุ่ม ลบประวัติ (กลับไปเป็นยังไม่เลือกชุมนุม)
+window.saDeleteReg = async (regId) => {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบข้อมูล?',
+        text: 'ประวัติการเลือกชุมนุมของเด็กจะหายไป และกลับไปสถานะ "ยังไม่เลือกชุมนุม"',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ลบทิ้ง',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+        const { error } = await db.from('club_registrations').delete().eq('id', regId);
+        
+        if (error) return Swal.fire('Error', error.message, 'error');
+        Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1000, showConfirmButton: false });
+        
+        await loadAllStudentsReport();
+        if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats(); 
+    }
+};
+
+// 3. ปุ่ม ย้ายชุมนุม / เพิ่มเด็กเข้าชุมนุม
+window.saManageClub = async (regId, studentId, currentClubId, currentStatus, studentName) => {
+    try {
+        Swal.fire({ title: 'กำลังโหลดข้อมูลชุมนุม...', didOpen: () => Swal.showLoading() });
+
+        // โหลดรายชื่อชุมนุมทั้งหมดมาเป็นตัวเลือก
+        const { data: clubs } = await db.from('club_lists')
+            .select('id, club_name, max_capacity')
+            .eq('academic_year', currentSchoolInfo.current_academic_year)
+            .eq('semester', currentSchoolInfo.current_semester)
+            .order('club_name');
+
+        let clubOptions = '<option value="">-- กรุณาเลือกชุมนุม --</option>';
+        clubs.forEach(c => {
+            const selected = (c.id === currentClubId) ? 'selected' : '';
+            clubOptions += `<option value="${c.id}" ${selected}>${c.club_name} (โควตา ${c.max_capacity} คน)</option>`;
+        });
+
+        let statusOptions = `
+            <option value="pending" ${currentStatus === 'pending' ? 'selected' : ''}>รอพิจารณา</option>
+            <option value="approved" ${currentStatus === 'approved' ? 'selected' : ''}>อนุมัติ (รับเข้าชุมนุมทันที)</option>
+            <option value="rejected" ${currentStatus === 'rejected' ? 'selected' : ''}>ไม่อนุมัติ</option>
+        `;
+
+        const { value: formValues, isConfirmed } = await Swal.fire({
+            title: 'ย้าย / จัดการชุมนุม',
+            html: `
+                <div class="text-left text-sm space-y-4 mt-2">
+                    <div class="p-3 bg-indigo-50 text-indigo-800 rounded-lg border border-indigo-100 font-medium">
+                        <span class="font-bold text-indigo-600">นักเรียน:</span> ${studentName}
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">เลือกชุมนุมเป้าหมาย</label>
+                        <select id="swal-club" class="w-full border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 font-medium">${clubOptions}</select>
+                    </div>
+                    <div>
+                        <label class="block font-bold text-slate-700 mb-1">สถานะเมื่อย้ายเสร็จ</label>
+                        <select id="swal-status" class="w-full border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 font-medium">${statusOptions}</select>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'บันทึกข้อมูล',
+            cancelButtonText: 'ยกเลิก',
+            preConfirm: () => {
+                const clubId = document.getElementById('swal-club').value;
+                if (!clubId) {
+                    Swal.showValidationMessage('กรุณาเลือกชุมนุม');
+                    return false;
+                }
+                return { clubId, status: document.getElementById('swal-status').value };
+            }
+        });
+
+        if (isConfirmed && formValues) {
+            Swal.fire({ title: 'กำลังบันทึกข้อมูล...', didOpen: () => Swal.showLoading() });
+            
+            if (regId && regId !== 'null') {
+                // กรณี: มีการเลือกชุมนุมอยู่แล้ว ให้ Update
+                const { error } = await db.from('club_registrations').update({
+                    club_id: formValues.clubId,
+                    status: formValues.status,
+                    rejection_reason: formValues.status === 'rejected' ? 'Super Admin ย้าย/เปลี่ยนแปลงข้อมูล' : null
+                }).eq('id', regId);
+                if (error) throw error;
+            } else {
+                // กรณี: ยังไม่เคยเลือกชุมนุม ให้ Insert ใหม่เลย
+                const { error } = await db.from('club_registrations').insert({
+                    student_id: studentId,
+                    club_id: formValues.clubId,
+                    status: formValues.status,
+                    academic_year: currentSchoolInfo.current_academic_year,
+                    semester: currentSchoolInfo.current_semester,
+                    rejection_reason: formValues.status === 'rejected' ? 'Super Admin ปฏิเสธ' : null
+                });
+                if (error) throw error;
+            }
+            
+            Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+            await loadAllStudentsReport();
+            if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats();
+        }
+    } catch (err) {
+        Swal.fire('Error', err.message, 'error');
+    }
+};
 
 // 🌟 อัปเดตฟังก์ชันโหลดไฟล์ Excel (ส่งออกชื่อครูแทน)
 window.exportAllStudentsExcel = () => {
