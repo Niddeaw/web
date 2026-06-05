@@ -815,13 +815,21 @@ async function exportTable() {
                         <span class="text-sm font-medium"><i class="fas fa-calendar-week mr-1 text-slate-400"></i>รายสัปดาห์</span>
                     </label>
                     <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-                        <input type="radio" name="exp_period" value="month" class="accent-blue-500">
+                        <input type="radio" name="exp_period" value="month" class="accent-blue-500" onchange="document.getElementById('month_picker').classList.toggle('hidden', this.value !== 'month')">
                         <span class="text-sm font-medium"><i class="fas fa-calendar-alt mr-1 text-slate-400"></i>รายเดือน</span>
                     </label>
                     <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
-                        <input type="radio" name="exp_period" value="all" class="accent-blue-500" checked>
+                        <input type="radio" name="exp_period" value="all" class="accent-blue-500" checked onchange="document.getElementById('month_picker').classList.add('hidden')">
                         <span class="text-sm font-medium"><i class="fas fa-calendar mr-1 text-slate-400"></i>ทั้งหมด</span>
                     </label>
+                </div>
+                <div id="month_picker" class="hidden mt-2 flex gap-2">
+                    <select id="sel_month" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        ${['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'].map((m,i) => `<option value="${i}" ${i === new Date().getMonth() ? 'selected' : ''}>${m}</option>`).join('')}
+                    </select>
+                    <select id="sel_year" class="w-28 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">
+                        ${Array.from({length: 5}, (_,i) => new Date().getFullYear() - i).map(y => `<option value="${y}" ${y === new Date().getFullYear() ? 'selected' : ''}>${y + 543}</option>`).join('')}
+                    </select>
                 </div>
             </div>
 
@@ -879,7 +887,9 @@ async function exportTable() {
             const grade  = document.querySelector('input[name="exp_grade"]:checked')?.value;
             if (!type || !period || !grade)
                 return Swal.showValidationMessage('กรุณาเลือกให้ครบทุกข้อ');
-            return { type, period, grade };
+            const month  = period === 'month' ? parseInt(document.getElementById('sel_month')?.value ?? new Date().getMonth()) : null;
+            const year   = period === 'month' ? parseInt(document.getElementById('sel_year')?.value ?? new Date().getFullYear()) : null;
+            return { type, period, grade, month, year };
         }
     });
 
@@ -897,7 +907,13 @@ async function exportTable() {
         const diff = (day === 0) ? 6 : day - 1; // จันทร์ = วันแรกของสัปดาห์
         dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
     } else if (exportType.period === 'month') {
-        dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+        const m = exportType.month ?? now.getMonth();
+        const y = exportType.year ?? now.getFullYear();
+        dateFrom = new Date(y, m, 1);
+        // dateTo = สิ้นเดือนที่เลือก
+        const dateToMonth = new Date(y, m + 1, 0, 23, 59, 59);
+        // store for use in query
+        exportType._dateTo = dateToMonth;
     }
 
     // ── กำหนดระดับชั้น ─────────────────────────────────────────────────────
