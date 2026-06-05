@@ -775,19 +775,334 @@ function filterCustomScore(mode) {
     renderTable(allStudents.filter(s => mode === 'more' ? s.score > val : s.score < val));
 }
 
-function exportTable() {
-    const exportData = allStudents.map(s => ({
-        'เลขประจำตัว': s.sid,
-        'ชื่อ-นามสกุล': s.fullName,
-        'ชั้นเรียน': s.roomDisplay,
-        'คะแนนปัจจุบัน': s.score,
-        'จำนวนครั้งที่ทำดี': s.pos,
-        'จำนวนครั้งที่ผิดระเบียบ': s.neg
-    }));
+async function exportTable() {
+    // ── Step 1: เลือกประเภทรายการ ──────────────────────────────────────────
+    const { value: exportType } = await Swal.fire({
+        title: '<i class="fas fa-file-excel mr-2 text-green-600"></i>ส่งออก Excel',
+        html: `
+        <div class="text-left space-y-4 pt-2">
+            <div>
+                <p class="text-xs font-bold text-slate-500 mb-2">1. เลือกประเภทรายการ</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_type" value="positive" class="accent-blue-500">
+                        <span class="text-sm font-medium text-green-700"><i class="fas fa-plus-circle mr-1"></i>เพิ่มคะแนน</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_type" value="negative" class="accent-blue-500">
+                        <span class="text-sm font-medium text-red-700"><i class="fas fa-minus-circle mr-1"></i>ตัดคะแนน</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_type" value="both" class="accent-blue-500">
+                        <span class="text-sm font-medium text-blue-700"><i class="fas fa-exchange-alt mr-1"></i>เพิ่ม+ตัดคะแนน</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_type" value="all_students" class="accent-blue-500" checked>
+                        <span class="text-sm font-medium text-slate-700"><i class="fas fa-users mr-1"></i>นักเรียนทุกคน</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <p class="text-xs font-bold text-slate-500 mb-2">2. เลือกช่วงเวลา</p>
+                <div class="grid grid-cols-2 gap-2">
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_period" value="day" class="accent-blue-500">
+                        <span class="text-sm font-medium"><i class="fas fa-calendar-day mr-1 text-slate-400"></i>รายวัน (วันนี้)</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_period" value="week" class="accent-blue-500">
+                        <span class="text-sm font-medium"><i class="fas fa-calendar-week mr-1 text-slate-400"></i>รายสัปดาห์</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_period" value="month" class="accent-blue-500">
+                        <span class="text-sm font-medium"><i class="fas fa-calendar-alt mr-1 text-slate-400"></i>รายเดือน</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_period" value="all" class="accent-blue-500" checked>
+                        <span class="text-sm font-medium"><i class="fas fa-calendar mr-1 text-slate-400"></i>ทั้งหมด</span>
+                    </label>
+                </div>
+            </div>
+
+            <div>
+                <p class="text-xs font-bold text-slate-500 mb-2">3. เลือกระดับชั้น</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="1" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.1</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="2" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.2</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="3" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.3</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="4" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.4</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="5" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.5</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="6" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.6</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="1-3" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.1-3</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="4-6" class="accent-blue-500">
+                        <span class="text-sm font-medium">ม.4-6</span>
+                    </label>
+                    <label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                        <input type="radio" name="exp_grade" value="all" class="accent-blue-500" checked>
+                        <span class="text-sm font-medium">ทุกระดับ</span>
+                    </label>
+                </div>
+            </div>
+        </div>`,
+        width: '600px',
+        showCancelButton: true,
+        confirmButtonColor: '#16a34a',
+        confirmButtonText: '<i class="fas fa-file-excel mr-1"></i> ส่งออก Excel',
+        cancelButtonText: 'ยกเลิก',
+        focusConfirm: false,
+        preConfirm: () => {
+            const type   = document.querySelector('input[name="exp_type"]:checked')?.value;
+            const period = document.querySelector('input[name="exp_period"]:checked')?.value;
+            const grade  = document.querySelector('input[name="exp_grade"]:checked')?.value;
+            if (!type || !period || !grade)
+                return Swal.showValidationMessage('กรุณาเลือกให้ครบทุกข้อ');
+            return { type, period, grade };
+        }
+    });
+
+    if (!exportType) return;
+
+    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    // ── กำหนดช่วงเวลา ──────────────────────────────────────────────────────
+    const now = new Date();
+    let dateFrom = null;
+    if (exportType.period === 'day') {
+        dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    } else if (exportType.period === 'week') {
+        const day = now.getDay(); // 0=อาทิตย์
+        const diff = (day === 0) ? 6 : day - 1; // จันทร์ = วันแรกของสัปดาห์
+        dateFrom = new Date(now.getFullYear(), now.getMonth(), now.getDate() - diff);
+    } else if (exportType.period === 'month') {
+        dateFrom = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    // ── กำหนดระดับชั้น ─────────────────────────────────────────────────────
+    let gradeFilter = null;
+    if (exportType.grade === '1-3')       gradeFilter = [1, 2, 3];
+    else if (exportType.grade === '4-6')  gradeFilter = [4, 5, 6];
+    else if (exportType.grade !== 'all')  gradeFilter = [parseInt(exportType.grade)];
+
+    // ── กรองนักเรียน ────────────────────────────────────────────────────────
+    let filteredStudents = allStudents;
+    if (gradeFilter) {
+        filteredStudents = filteredStudents.filter(s => gradeFilter.includes(s.grade_level));
+    }
+
+    // ── สร้างชื่อไฟล์ ───────────────────────────────────────────────────────
+    const typeLabel   = { positive: 'เพิ่มคะแนน', negative: 'ตัดคะแนน', both: 'เพิ่มและตัดคะแนน', all_students: 'นักเรียนทุกคน' };
+    const periodLabel = { day: 'รายวัน', week: 'รายสัปดาห์', month: 'รายเดือน', all: 'ทั้งหมด' };
+    const gradeLabel  = exportType.grade === 'all' ? 'ทุกระดับ' : (exportType.grade === '1-3' ? 'ม.1-3' : (exportType.grade === '4-6' ? 'ม.4-6' : `ม.${exportType.grade}`));
+    const dateStr     = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const fileName    = `ความประพฤติ_${typeLabel[exportType.type]}_${periodLabel[exportType.period]}_${gradeLabel}_${dateStr}.xlsx`;
+
+    // สร้าง Set ของ student_id ที่ผ่านกรองระดับชั้น (ใช้กรองใน JS แทน .in() ที่ทำให้ URL ยาวเกิน)
+    const filteredStudentIdSet = gradeFilter
+        ? new Set(filteredStudents.map(s => s.id))
+        : null;
+
+    // ── โหมด "นักเรียนทุกคน" → สรุปรายนักเรียน ────────────────────────────
+    if (exportType.type === 'all_students') {
+        let periodScores = {};
+        if (exportType.period !== 'all') {
+            // ดึง logs ตามช่วงเวลา ไม่ใช้ .in() → กรองระดับชั้นใน JS
+            const { data: periodLogs } = await db.from('behavior_logs')
+                .select('student_id, score_change')
+                .gte('created_at', dateFrom.toISOString());
+            (periodLogs || []).forEach(log => {
+                if (filteredStudentIdSet && !filteredStudentIdSet.has(log.student_id)) return;
+                if (!periodScores[log.student_id]) periodScores[log.student_id] = { pos: 0, neg: 0 };
+                if (log.score_change > 0) periodScores[log.student_id].pos += log.score_change;
+                else periodScores[log.student_id].neg += Math.abs(log.score_change);
+            });
+        }
+
+        const exportData = filteredStudents.map(s => {
+            const row = {
+                'เลขประจำตัว': s.sid,
+                'ชื่อ-นามสกุล': s.fullName,
+                'ชั้นเรียน': s.roomDisplay,
+                'คะแนนปัจจุบัน': s.score
+            };
+            if (exportType.period !== 'all') {
+                const ps = periodScores[s.id] || { pos: 0, neg: 0 };
+                row['คะแนนที่ได้รับ (ช่วงนี้)'] = ps.pos;
+                row['คะแนนที่ถูกตัด (ช่วงนี้)'] = ps.neg;
+            } else {
+                row['จำนวนครั้งที่ทำดี'] = s.pos;
+                row['จำนวนครั้งที่ผิดระเบียบ'] = s.neg;
+            }
+            return row;
+        });
+
+        _writeExcel(exportData, fileName, `สรุปคะแนนความประพฤติ (${periodLabel[exportType.period]})`);
+        return;
+    }
+
+    // ── โหมดดู log รายรายการ ──────────────────────────────────────────────
+    // ไม่ใช้ .in('student_id', ...) เพื่อหลีกเลี่ยง 400 Bad Request (URL ยาวเกิน)
+    // กรองระดับชั้นใน JS หลังดึงข้อมูลมาแล้ว
+    let logQuery = db.from('behavior_logs')
+        .select(`
+            student_id, score_change, description, created_at,
+            behavior_criteria(title, category),
+            student:core_students!student_id(
+                student_id_card, prefix, first_name, last_name,
+                student_enrollments(student_number, core_classrooms(grade_level, room_number))
+            ),
+            recorder:core_personnel!recorder_id(prefix, first_name, last_name)
+        `)
+        .order('created_at', { ascending: false });
+
+    if (exportType.type === 'positive') logQuery = logQuery.gt('score_change', 0);
+    else if (exportType.type === 'negative') logQuery = logQuery.lt('score_change', 0);
+    if (dateFrom) logQuery = logQuery.gte('created_at', dateFrom.toISOString());
+
+    const { data: rawLogs, error } = await logQuery.limit(10000);
+    if (error) {
+        Swal.close();
+        return Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+
+    // กรองระดับชั้นใน JS
+    const logs = filteredStudentIdSet
+        ? (rawLogs || []).filter(log => filteredStudentIdSet.has(log.student_id))
+        : (rawLogs || []);
+
+    if (!logs || logs.length === 0) {
+        Swal.close();
+        return Swal.fire('ไม่พบข้อมูล', 'ไม่มีรายการในเงื่อนไขที่เลือก', 'info');
+    }
+
+    // ── สร้าง lookup คะแนนปัจจุบัน จาก allStudents ─────────────────────────
+    const scoreMap = {};
+    allStudents.forEach(s => { scoreMap[s.id] = s.score; });
+
+    const exportData = logs.map(log => {
+        const student  = log.student || {};
+        const enroll   = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
+        const classroom = enroll?.core_classrooms || {};
+        const roomDisplay = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+        const fullName    = ((student.prefix || '') + (student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-';
+        const recorder    = log.recorder
+            ? ((log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name).trim()
+            : '-';
+        const createdAt = new Date(log.created_at).toLocaleDateString('th-TH', {
+            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+        });
+        const categoryLabel = log.behavior_criteria?.category === 'positive' ? 'เพิ่มคะแนน' : 'ตัดคะแนน';
+
+        return {
+            'เลขประจำตัว':       student.student_id_card || '-',
+            'ชื่อ-นามสกุล':      fullName,
+            'ชั้นเรียน':          roomDisplay,
+            'รายการ':             log.behavior_criteria?.title || '-',
+            'ประเภท':             categoryLabel,
+            'คะแนน':              log.score_change > 0 ? `+${log.score_change}` : String(log.score_change),
+            'วันเวลา':            createdAt,
+            'คะแนนปัจจุบัน':     scoreMap[log.student_id] ?? '-',
+            'ผู้บันทึก':          recorder,
+            'รายละเอียด':         log.description || ''
+        };
+    });
+
+    _writeExcel(exportData, fileName, `รายการ${typeLabel[exportType.type]}`);
+}
+
+async function exportSummary() {
+    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    // ดึง logs ทั้งหมด (ไม่ใช้ .in() เพื่อหลีกเลี่ยง 400)
+    const { data: allLogs, error } = await db.from('behavior_logs')
+        .select('student_id, score_change, created_at');
+    if (error) {
+        Swal.close();
+        return Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+
+    // จัดกลุ่ม logs ตาม student_id
+    const logMap = {};
+    (allLogs || []).forEach(log => {
+        if (!logMap[log.student_id]) logMap[log.student_id] = [];
+        logMap[log.student_id].push(log);
+    });
+
+    const now = new Date();
+    const startOfDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const dayOfWeek    = now.getDay();
+    const startOfWeek  = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1));
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const sorted = [...allStudents].sort((a, b) => a.grade_level - b.grade_level || a.room_number - b.room_number || String(a.sid).localeCompare(String(b.sid)));
+    const exportData = sorted.map(s => {
+        const logs = logMap[s.id] || [];
+        const logsDay   = logs.filter(l => new Date(l.created_at) >= startOfDay);
+        const logsWeek  = logs.filter(l => new Date(l.created_at) >= startOfWeek);
+        const logsMonth = logs.filter(l => new Date(l.created_at) >= startOfMonth);
+
+        const sumScore = arr => arr.reduce((acc, l) => acc + l.score_change, 0);
+        const posScore = arr => arr.filter(l => l.score_change > 0).reduce((acc, l) => acc + l.score_change, 0);
+        const negScore = arr => arr.filter(l => l.score_change < 0).reduce((acc, l) => acc + Math.abs(l.score_change), 0);
+
+        return {
+            'เลขประจำตัว':          s.sid,
+            'ชื่อ-นามสกุล':          `${s.prefix}${s.firstName} ${s.lastName}`.trim(),
+            'ชั้นเรียน':              s.roomDisplay,
+            'คะแนนปัจจุบัน':         s.score,
+            'รวมได้รับ (ทั้งหมด)':   posScore(logs),
+            'รวมถูกตัด (ทั้งหมด)':   negScore(logs),
+            'รวมได้รับ (เดือนนี้)':  posScore(logsMonth),
+            'รวมถูกตัด (เดือนนี้)':  negScore(logsMonth),
+            'รวมได้รับ (สัปดาห์นี้)': posScore(logsWeek),
+            'รวมถูกตัด (สัปดาห์นี้)': negScore(logsWeek),
+            'รวมได้รับ (วันนี้)':    posScore(logsDay),
+            'รวมถูกตัด (วันนี้)':    negScore(logsDay),
+            'จำนวนครั้งทำดี':         s.pos,
+            'จำนวนครั้งผิดระเบียบ':   s.neg
+        };
+    });
+
+    const dateStr  = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const fileName = `สรุปคะแนนความประพฤติ_${dateStr}.xlsx`;
+    _writeExcel(exportData, fileName, 'สรุปคะแนน');
+}
+
+function _writeExcel(exportData, fileName, sheetName) {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // ปรับความกว้างคอลัมน์อัตโนมัติ
+    const cols = Object.keys(exportData[0] || {}).map(key => ({
+        wch: Math.max(key.length * 2, 12)
+    }));
+    worksheet['!cols'] = cols;
+
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Behavior");
-    XLSX.writeFile(workbook, `สรุปคะแนนความประพฤติ.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31));
+    XLSX.writeFile(workbook, fileName);
+    Swal.close();
 }
 
 // viewHistory → แทนด้วย inline modal ด้านล่าง
