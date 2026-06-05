@@ -1093,7 +1093,7 @@ window.saDeleteReg = async (regId) => {
     }
 };
 
-// 3. ปุ่ม ย้ายชุมนุม / เพิ่มเด็กเข้าชุมนุม
+// 3. ปุ่ม ย้ายชุมนุม / เพิ่มเด็กเข้าชุมนุม (รองรับ Tom Select ค้นหาชุมนุม)
 window.saManageClub = async (regId, studentId, currentClubId, currentStatus, studentName) => {
     try {
         Swal.fire({ title: 'กำลังโหลดข้อมูลชุมนุม...', didOpen: () => Swal.showLoading() });
@@ -1105,7 +1105,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
             .eq('semester', currentSchoolInfo.current_semester)
             .order('club_name');
 
-        let clubOptions = '<option value="">-- กรุณาเลือกชุมนุม --</option>';
+        let clubOptions = '<option value="">-- พิมพ์เพื่อค้นหาชุมนุม... --</option>';
         clubs.forEach(c => {
             const selected = (c.id === currentClubId) ? 'selected' : '';
             clubOptions += `<option value="${c.id}" ${selected}>${c.club_name} (โควตา ${c.max_capacity} คน)</option>`;
@@ -1120,13 +1120,12 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
         const { value: formValues, isConfirmed } = await Swal.fire({
             title: 'ย้าย / จัดการชุมนุม',
             html: `
-                <div class="text-left text-sm space-y-4 mt-2">
-                    <div class="p-3 bg-indigo-50 text-indigo-800 rounded-lg border border-indigo-100 font-medium">
+                <div class="text-left text-sm space-y-4 mt-2" style="min-height: 250px;"> <div class="p-3 bg-indigo-50 text-indigo-800 rounded-lg border border-indigo-100 font-medium">
                         <span class="font-bold text-indigo-600">นักเรียน:</span> ${studentName}
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 mb-1">เลือกชุมนุมเป้าหมาย</label>
-                        <select id="swal-club" class="w-full border border-slate-300 rounded-xl px-3 py-2 outline-none focus:border-indigo-500 font-medium">${clubOptions}</select>
+                        <select id="swal-club" class="w-full font-medium" placeholder="พิมพ์ค้นหาชุมนุม...">${clubOptions}</select>
                     </div>
                     <div>
                         <label class="block font-bold text-slate-700 mb-1">สถานะเมื่อย้ายเสร็จ</label>
@@ -1137,10 +1136,18 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
             showCancelButton: true,
             confirmButtonText: 'บันทึกข้อมูล',
             cancelButtonText: 'ยกเลิก',
+            didOpen: () => {
+                // 🌟 เรียกใช้ Tom Select ทันทีที่ SweetAlert เปิดหน้าต่างขึ้นมาเสร็จ
+                new TomSelect("#swal-club", {
+                    create: false,
+                    sortField: { field: "text", direction: "asc" },
+                    maxOptions: null // ให้โชว์ผลลัพธ์ทั้งหมด
+                });
+            },
             preConfirm: () => {
                 const clubId = document.getElementById('swal-club').value;
                 if (!clubId) {
-                    Swal.showValidationMessage('กรุณาเลือกชุมนุม');
+                    Swal.showValidationMessage('กรุณาเลือกชุมนุมเป้าหมาย');
                     return false;
                 }
                 return { clubId, status: document.getElementById('swal-status').value };
@@ -1149,13 +1156,13 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
 
         if (isConfirmed && formValues) {
             Swal.fire({ title: 'กำลังบันทึกข้อมูล...', didOpen: () => Swal.showLoading() });
-
+            
             if (regId && regId !== 'null') {
                 // กรณี: มีการเลือกชุมนุมอยู่แล้ว ให้ Update
                 const { error } = await db.from('club_registrations').update({
                     club_id: formValues.clubId,
                     status: formValues.status,
-                    rejection_reason: formValues.status === 'rejected' ? 'Super Admin ย้าย/เปลี่ยนแปลงข้อมูล' : null
+                    rejection_reason: formValues.status === 'rejected' ? 'Super/Module Admin ย้ายชุมนุม' : null
                 }).eq('id', regId);
                 if (error) throw error;
             } else {
@@ -1166,20 +1173,21 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
                     status: formValues.status,
                     academic_year: currentSchoolInfo.current_academic_year,
                     semester: currentSchoolInfo.current_semester,
-                    rejection_reason: formValues.status === 'rejected' ? 'Super Admin ปฏิเสธ' : null
+                    rejection_reason: formValues.status === 'rejected' ? 'Super/Module Admin ปฏิเสธ' : null
                 });
                 if (error) throw error;
             }
-
+            
             Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-            await loadAllStudentsReport();
+            
+            // อัปเดตตารางและแดชบอร์ด
+            if (typeof loadAllStudentsReport === 'function') await loadAllStudentsReport();
             if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats();
         }
     } catch (err) {
         Swal.fire('Error', err.message, 'error');
     }
 };
-
 // 🌟 อัปเดตฟังก์ชันโหลดไฟล์ Excel (ส่งออกชื่อครูแทน)
 window.exportAllStudentsExcel = () => {
     if (allStudentsReportData.length === 0) return;
