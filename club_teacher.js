@@ -115,10 +115,10 @@ window.toggleRoleView = () => {
         btnToggle.classList.replace('bg-purple-50', 'bg-blue-50');
         btnToggle.classList.replace('text-purple-600', 'text-blue-600');
         btnToggle.classList.replace('border-purple-200', 'border-blue-200');
-        
+
         loadAdminClubs();
         loadClubDashboardStats(); // 🌟 สิ่งที่ต้องเพิ่ม: สั่งให้โหลดตัวเลขการ์ดทั้ง 4 ใบ
-        
+
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ผู้ดูแลระบบ' });
     } else {
         currentMode = 'teacher';
@@ -129,9 +129,9 @@ window.toggleRoleView = () => {
         btnToggle.classList.replace('bg-blue-50', 'bg-purple-50');
         btnToggle.classList.replace('text-blue-600', 'text-purple-600');
         btnToggle.classList.replace('border-blue-200', 'border-purple-200');
-        
+
         loadMyClub();
-        
+
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 };
@@ -494,9 +494,6 @@ window.exportTeacherExcel = () => {
 // ==========================================
 // 4. Admin Module
 // ==========================================
-
-// ✅ [FIX #5] ลบ loadAdminClubs ตัวแรก (ซ้ำและไม่สมบูรณ์) เหลือเพียงตัวเดียวด้านล่าง
-
 // 🌟 1. ฟังก์ชันดูรายชื่อนักเรียน (ปรับปรุงเพิ่มระบบ Checkbox สำหรับ Super Admin)
 // ==========================================
 // แก้ไขฟังก์ชัน viewClubStudents ให้แสดงปุ่มลบสำหรับ Super Admin
@@ -505,9 +502,10 @@ window.viewClubStudents = async (clubId, clubName) => {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
+        // 🌟 เพิ่มการ select ค่า student_id และ club_id เข้ามาด้วย เพื่อใช้กับระบบจัดการ
         const { data: members, error } = await db.from('club_registrations')
             .select(`
-                id, status, rejection_reason,
+                id, student_id, club_id, status, rejection_reason,
                 core_students!inner(
                     student_id_card, prefix, first_name, last_name,
                     student_enrollments(
@@ -524,8 +522,8 @@ window.viewClubStudents = async (clubId, clubName) => {
             return;
         }
 
-        // ตรวจสอบสิทธิ์ว่าเป็น Super Admin หรือไม่
-        const isSuperAdmin = userRole === 'super_admin';
+        // 🌟 แก้ไขเงื่อนไขให้สิทธิ์ทั้ง Super Admin และ แอดมินระบบชุมนุม (Module Admin)
+        const hasAdminAccess = userRole === 'super_admin' || isModuleAdmin;
 
         const rows = members.map(m => {
             const stu = m.core_students;
@@ -540,6 +538,8 @@ window.viewClubStudents = async (clubId, clubName) => {
 
             return {
                 reg_id: m.id,
+                student_id: m.student_id, // เก็บไว้ใช้ตอนย้ายชุมนุม
+                club_id: m.club_id,       // เก็บไว้ใช้ตอนย้ายชุมนุม
                 id_card: stu.student_id_card,
                 full_name: `${stu.prefix || ''}${stu.first_name} ${stu.last_name}`,
                 classroom,
@@ -556,12 +556,12 @@ window.viewClubStudents = async (clubId, clubName) => {
                 <table class="w-full text-sm border-collapse" id="admin-club-students-table">
                     <thead class="bg-gray-100 sticky top-0 shadow-sm z-10">
                         <tr>
-                            ${isSuperAdmin ? `<th class="py-2 px-3 border-b text-center w-12">#</th>` : ''}
+                            ${hasAdminAccess ? `<th class="py-2 px-3 border-b text-center w-12">#</th>` : ''}
                             <th class="py-2 px-3 border-b text-left">เลขประจำตัว</th>
                             <th class="py-2 px-3 border-b text-left">ชื่อ-สกุล</th>
                             <th class="py-2 px-3 border-b text-left">ชั้น</th>
                             <th class="py-2 px-3 border-b text-left">สถานะของครู</th>
-                            ${isSuperAdmin ? `<th class="py-2 px-3 border-b text-center">จัดการ</th>` : ''}
+                            ${hasAdminAccess ? `<th class="py-2 px-3 border-b text-center">จัดการ</th>` : ''}
                         </tr>
                     </thead>
                     <tbody>`;
@@ -569,22 +569,22 @@ window.viewClubStudents = async (clubId, clubName) => {
         rows.forEach(r => {
             // Escape อักขระพิเศษในชื่อเพื่อความปลอดภัย (ป้องกัน XSS)
             const safeFullName = r.full_name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            const safeClubName = clubName.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-
+            
             html += `
                 <tr class="border-t hover:bg-gray-50">
-                    ${isSuperAdmin ? `<td class="py-2 px-3 text-center border-r border-slate-100 bg-slate-50/50">-</td>` : ''}
+                    ${hasAdminAccess ? `<td class="py-2 px-3 text-center border-r border-slate-100 bg-slate-50/50">-</td>` : ''}
                     <td class="py-2 px-3 font-mono text-gray-700">${r.id_card}</td>
                     <td class="py-2 px-3 font-medium">${r.full_name}</td>
                     <td class="py-2 px-3">${r.classroom}</td>
                     <td class="py-2 px-3 font-bold ${r.statusColor}">${r.status}</td>
-                    ${isSuperAdmin ? `
+                    ${hasAdminAccess ? `
                         <td class="py-2 px-3 text-center">
-                            <button onclick="removeStudentFromClub('${r.reg_id}', '${safeFullName}', '${clubId}', '${safeClubName}')" 
-                                    class="bg-red-50 text-red-600 hover:bg-red-600 hover:text-white text-sm font-bold w-8 h-8 rounded-lg transition-colors"
-                                    title="ลบนักเรียนออกจากชุมนุมนี้">
-                                <i class="fa-solid fa-trash"></i>
-                            </button>
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="saSetStatus('${r.reg_id}', 'approved')" class="w-7 h-7 flex items-center justify-center rounded bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-colors shadow-sm" title="อนุมัติทันที"><i class="fa-solid fa-check"></i></button>
+                                <button onclick="saSetStatus('${r.reg_id}', 'rejected')" class="w-7 h-7 flex items-center justify-center rounded bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white transition-colors shadow-sm" title="ไม่อนุมัติ"><i class="fa-solid fa-xmark"></i></button>
+                                <button onclick="saManageClub('${r.reg_id}', '${r.student_id}', '${r.club_id}', '${r.raw_status}', '${safeFullName}')" class="w-7 h-7 flex items-center justify-center rounded bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors shadow-sm" title="ย้ายชุมนุม / แก้ไข"><i class="fa-solid fa-right-left text-xs"></i></button>
+                                <button onclick="saDeleteReg('${r.reg_id}')" class="w-7 h-7 flex items-center justify-center rounded bg-slate-100 text-slate-500 hover:bg-slate-500 hover:text-white transition-colors shadow-sm" title="ลบทิ้ง (กลับไปสถานะยังไม่เลือก)"><i class="fa-solid fa-trash text-xs"></i></button>
+                            </div>
                         </td>
                     ` : ''}
                 </tr>`;
@@ -941,10 +941,7 @@ window.deleteAdminClub = async (id, name) => {
 };
 
 // ==========================================
-// Admin: Students Tracker
-// ==========================================
-// ==========================================
-// --- Admin: ตารางตรวจสอบนักเรียน (เพิ่มปุ่ม Super Admin) ---
+// --- Admin: ตารางตรวจสอบนักเรียน (เพิ่มปุ่ม Super Admin + ขยายสิทธิ์ให้ Module Admin) ---
 // ==========================================
 async function loadAllStudentsReport() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งโรงเรียน...', didOpen: () => Swal.showLoading() });
@@ -954,7 +951,7 @@ async function loadAllStudentsReport() {
             .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
             .eq('core_classrooms.semester', currentSchoolInfo.current_semester);
         
-        // 🌟 ดึง ID การสมัคร และรหัสชุมนุมมาด้วย
+        // ดึง ID การสมัคร และรหัสชุมนุมมาด้วย
         const { data: mems } = await db.from('club_registrations')
             .select(`id, student_id, club_id, status, club_lists(club_name, core_personnel(prefix, first_name, last_name))`)
             .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -970,9 +967,9 @@ async function loadAllStudentsReport() {
             const teacherName = teacher ? `${teacher.prefix||''}${teacher.first_name} ${teacher.last_name}` : '-';
 
             return {
-                reg_id: club?.id || null,             // 🌟 รหัสการสมัคร (เอาไว้ลบ/แก้ไข)
-                student_id: e.student_id,             // 🌟 รหัสนักเรียน
-                club_id: club?.club_id || null,       // 🌟 รหัสชุมนุมปัจจุบัน
+                reg_id: club?.id || null,             
+                student_id: e.student_id,             
+                club_id: club?.club_id || null,       
                 id_card: stu.student_id_card,
                 full_name: `${stu.prefix||''}${stu.first_name} ${stu.last_name}`,
                 classroom: `ม.${e.core_classrooms.grade_level}/${e.core_classrooms.room_number}`,
@@ -998,9 +995,9 @@ async function loadAllStudentsReport() {
         document.getElementById('tb-admin-all-students').innerHTML = allStudentsReportData.map(s => {
             let badge = s.status === 'not_applied' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>' : (s.status === 'approved' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>' : (s.status === 'rejected' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>' : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
             
-            // 🌟 สร้างเครื่องมือจัดการ (เฉพาะ Super Admin)
+            // 🌟 1. แก้ไขเงื่อนไขตรงนี้: อนุญาตให้ทั้ง Super Admin และ Module Admin (แอดมินระบบชุมนุม) ใช้งานได้
             let actionHtml = '<span class="text-slate-300">-</span>';
-            if (userRole === 'super_admin') {
+            if (userRole === 'super_admin' || isModuleAdmin) { 
                 if (s.reg_id) {
                     // ถ้าเด็กมีประวัติสมัครแล้ว -> โชว์ปุ่ม อนุมัติ / ไม่อนุมัติ / ย้าย / ลบ
                     actionHtml = `
@@ -1026,7 +1023,8 @@ async function loadAllStudentsReport() {
                 <td class="py-3 px-4 font-bold text-purple-700">${s.club_name}</td>
                 <td class="py-3 px-4 text-center">${badge}</td>
                 <td class="py-3 px-4 text-sm text-slate-600">${s.teacher_name}</td>
-                <td class="py-3 px-4 text-center">${actionHtml}</td> </tr>`;
+                <td class="py-3 px-4 text-center">${actionHtml}</td>
+            </tr>`;
         }).join('');
 
         $('#adminAllStudentsTable').DataTable({ 
@@ -1058,14 +1056,14 @@ window.saSetStatus = async (regId, status) => {
 
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-        const { error } = await db.from('club_registrations').update({ 
-            status, 
-            rejection_reason: status === 'rejected' ? 'Super Admin ยกเลิกสิทธิ์' : null 
+        const { error } = await db.from('club_registrations').update({
+            status,
+            rejection_reason: status === 'rejected' ? 'Super Admin ยกเลิกสิทธิ์' : null
         }).eq('id', regId);
-        
+
         if (error) return Swal.fire('Error', error.message, 'error');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1000, showConfirmButton: false });
-        
+
         await loadAllStudentsReport();
         if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats(); // อัปเดตแดชบอร์ดถ้ามี
     }
@@ -1086,12 +1084,12 @@ window.saDeleteReg = async (regId) => {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
         const { error } = await db.from('club_registrations').delete().eq('id', regId);
-        
+
         if (error) return Swal.fire('Error', error.message, 'error');
         Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1000, showConfirmButton: false });
-        
+
         await loadAllStudentsReport();
-        if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats(); 
+        if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats();
     }
 };
 
@@ -1151,7 +1149,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
 
         if (isConfirmed && formValues) {
             Swal.fire({ title: 'กำลังบันทึกข้อมูล...', didOpen: () => Swal.showLoading() });
-            
+
             if (regId && regId !== 'null') {
                 // กรณี: มีการเลือกชุมนุมอยู่แล้ว ให้ Update
                 const { error } = await db.from('club_registrations').update({
@@ -1172,7 +1170,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
                 });
                 if (error) throw error;
             }
-            
+
             Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
             await loadAllStudentsReport();
             if (typeof loadClubDashboardStats === 'function') loadClubDashboardStats();
@@ -1634,8 +1632,8 @@ async function loadAdminClubs() {
 // ==========================================
 // 🌟 Admin Dashboard Stats, Excel & Modals
 // ==========================================
-let unassignedStudentsData = []; 
-let pendingStudentsData = []; 
+let unassignedStudentsData = [];
+let pendingStudentsData = [];
 
 async function loadClubDashboardStats() {
     try {
@@ -1667,7 +1665,7 @@ async function loadClubDashboardStats() {
 
         // แยกข้อมูลสถานะต่างๆ
         const registeredStudentIds = new Set();
-        const pendingMap = new Map(); 
+        const pendingMap = new Map();
         let approvedCount = 0;
 
         (regs || []).forEach(r => {
@@ -1678,7 +1676,7 @@ async function loadClubDashboardStats() {
                 const club = r.club_lists;
                 const teacher = club?.core_personnel;
                 const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่ระบุ';
-                
+
                 pendingMap.set(r.student_id, {
                     club_name: club?.club_name || 'ไม่ระบุข้อมูล',
                     teacher_name: teacherName
@@ -1688,7 +1686,7 @@ async function loadClubDashboardStats() {
 
         // กรองข้อมูลเข้า Array
         unassignedStudentsData = (enrolls || []).filter(e => !registeredStudentIds.has(e.student_id));
-        
+
         pendingStudentsData = (enrolls || [])
             .filter(e => pendingMap.has(e.student_id))
             .map(e => ({
@@ -1724,15 +1722,15 @@ window.exportDashboardToExcel = (dataType) => {
     rawData.sort((a, b) => {
         const gradeA = parseInt(a.core_classrooms?.grade_level) || 0;
         const gradeB = parseInt(b.core_classrooms?.grade_level) || 0;
-        if (gradeA !== gradeB) return gradeA - gradeB; 
+        if (gradeA !== gradeB) return gradeA - gradeB;
 
         const roomA = parseInt(a.core_classrooms?.room_number) || 0;
         const roomB = parseInt(b.core_classrooms?.room_number) || 0;
-        if (roomA !== roomB) return roomA - roomB; 
+        if (roomA !== roomB) return roomA - roomB;
 
         const idA = a.core_students?.student_id_card || '';
         const idB = b.core_students?.student_id_card || '';
-        return idA.localeCompare(idB); 
+        return idA.localeCompare(idB);
     });
 
     const excelData = rawData.map((e, index) => {
@@ -1740,7 +1738,7 @@ window.exportDashboardToExcel = (dataType) => {
         const cls = e.core_classrooms;
         const adv1 = allTeachers.find(t => t.id === cls.adviser_id_1);
         const adv2 = allTeachers.find(t => t.id === cls.adviser_id_2);
-        
+
         let row = {
             'ลำดับ': index + 1,
             'ชั้น': `ม.${cls.grade_level}/${cls.room_number}`,
@@ -1779,7 +1777,7 @@ window.showUnassignedStudentsModal = () => {
         const cls = e.core_classrooms;
         const adv1 = allTeachers.find(t => t.id === cls.adviser_id_1);
         const adv2 = allTeachers.find(t => t.id === cls.adviser_id_2);
-        
+
         const adv1Name = adv1 ? `${adv1.prefix || ''}${adv1.first_name} ${adv1.last_name}` : '-';
         const adv2Name = adv2 ? `${adv2.prefix || ''}${adv2.first_name} ${adv2.last_name}` : '-';
 
@@ -1823,19 +1821,19 @@ window.showUnassignedStudentsModal = () => {
             </div>
         </div>`;
 
-    Swal.fire({ 
-        title: 'รายชื่อนักเรียนที่ยังไม่เลือกชุมนุม', 
-        html: tableHtml, 
-        width: '1000px', 
-        showCloseButton: true, 
-        showConfirmButton: false, 
-        didOpen: () => { 
-            $('#dt-unassigned').DataTable({ 
-                responsive: true, 
-                autoWidth: false, 
-                pageLength: 10, 
+    Swal.fire({
+        title: 'รายชื่อนักเรียนที่ยังไม่เลือกชุมนุม',
+        html: tableHtml,
+        width: '1000px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        didOpen: () => {
+            $('#dt-unassigned').DataTable({
+                responsive: true,
+                autoWidth: false,
+                pageLength: 10,
                 language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
-            }); 
+            });
         }
     });
 };
@@ -1892,19 +1890,19 @@ window.showPendingStudentsModal = () => {
             </div>
         </div>`;
 
-    Swal.fire({ 
-        title: 'นักเรียนที่รออนุมัติเข้าชุมนุม', 
-        html: tableHtml, 
-        width: '1100px', 
-        showCloseButton: true, 
-        showConfirmButton: false, 
-        didOpen: () => { 
-            $('#dt-pending').DataTable({ 
-                responsive: true, 
-                autoWidth: false, 
-                pageLength: 10, 
+    Swal.fire({
+        title: 'นักเรียนที่รออนุมัติเข้าชุมนุม',
+        html: tableHtml,
+        width: '1100px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        didOpen: () => {
+            $('#dt-pending').DataTable({
+                responsive: true,
+                autoWidth: false,
+                pageLength: 10,
                 language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
-            }); 
+            });
         }
     });
 };
