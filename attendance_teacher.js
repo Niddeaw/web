@@ -1372,7 +1372,7 @@ async function toggleRoleView() {
     await populateClassroomSelect(currentUser ? currentUser.id : null);
 
     Swal.fire({
-        toast: true, position: 'bottom-end', icon: 'info',
+        toast: true, position: 'top-end', icon: 'info',
         title: currentViewRole === 'admin'
             ? '<i class="fas fa-user-shield mr-1"></i> เปลี่ยนเป็นโหมดแอดมิน (ทุกห้องเรียน)'
             : '<i class="fas fa-chalkboard-user mr-1"></i> เปลี่ยนเป็นโหมดครู (เฉพาะห้องที่ปรึกษา)',

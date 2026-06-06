@@ -10,24 +10,35 @@
 
 <body class="min-h-screen pb-10">
 
-    <nav class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-red-100 px-4 md:px-6 py-3 shadow-sm flex justify-between items-center">
+    <nav
+        class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-red-100 px-4 md:px-6 py-3 shadow-sm flex justify-between items-center">
         <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain hidden md:block">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo"
+                class="w-10 h-10 object-contain hidden md:block">
             <div>
                 <h1 class="font-bold text-red-900 leading-tight text-lg flex items-center gap-2">
                     <i class="fa-solid fa-gavel md:hidden"></i> ระบบงานปกครอง
                 </h1>
                 <div class="text-[10px] md:text-xs text-red-600 font-bold flex items-center gap-1">
-                    ครูที่ปรึกษา: <span id="my_room" class="bg-red-100 px-2 py-0.5 rounded-full text-red-700">กำลังโหลด...</span>
+                    ครูที่ปรึกษา: <span id="my_room"
+                        class="bg-red-100 px-2 py-0.5 rounded-full text-red-700">กำลังโหลด...</span>
                 </div>
             </div>
         </div>
         <div class="flex items-center gap-2 md:gap-3">
-            <span id="user_display" class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
+            <span id="user_display"
+                class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
 
-            <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
+            <!-- <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
                 class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm">
                 <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
+            </button> -->
+
+            <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
+                class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
+                title="สลับโหมด">
+                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span
+                    class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
             </button>
 
             <button onclick="window.location.href='index.html'"
@@ -64,7 +75,9 @@
                     </tr>
                 </thead>
                 <tbody id="teacherBody">
-                    <tr><td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                    <tr>
+                        <td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลดข้อมูล...</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -183,4 +196,5 @@
         function viewHistory(id) { location.href = `student_history.html?id=${id}`; }
     </script>
 </body>
+
 </html>
