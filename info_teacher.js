@@ -172,7 +172,7 @@ async function saveSettings() {
 async function loadClassrooms() {
     await loadCurrentYearAndSemester();
     const isHighLevel = ['super_admin', 'admin', 'module_admin'].includes(actualUserRole);
-    let query = db.from('core_classrooms').select('id, grade_level, room_number').eq('academic_year', currentAcademicYear).eq('semester', currentSemester).order('grade_level').order('room_number');
+    let query = db.from('core_classrooms').select('id, grade_level, room_number, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)').eq('academic_year', currentAcademicYear).eq('semester', currentSemester).order('grade_level').order('room_number');
     if (!isHighLevel) query = query.or(`adviser_id_1.eq.${currentUserId},adviser_id_2.eq.${currentUserId}`);
     const { data: classrooms, error } = await query;
     if (error) { console.error(error); Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดห้องเรียนได้', 'error'); return; }
@@ -181,12 +181,62 @@ async function loadClassrooms() {
         document.getElementById('adminFilterSection')?.classList.remove('hidden');
         document.getElementById('no-classroom-msg')?.classList.remove('hidden');
         document.getElementById('studentDataTable')?.classList.add('hidden');
+
         const sel = document.getElementById('classSelector');
         if (sel) {
-            sel.innerHTML = '<option value="">-- เลือกห้องเรียน (ปี/ภาคปัจจุบัน) --</option>';
-            if (classrooms.length === 0) sel.innerHTML += '<option disabled>ไม่มีห้องเรียนในปี/ภาคนี้</option>';
-            else classrooms.forEach(c => sel.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`);
-            sel.onchange = () => { if (sel.value) loadStudentsData(sel.value); else { if ($.fn.DataTable.isDataTable('#studentDataTable')) $('#studentDataTable').DataTable().destroy(); safeSetHtml('tb-students', ''); document.getElementById('studentDataTable')?.classList.add('hidden'); document.getElementById('no-classroom-msg')?.classList.remove('hidden'); } };
+            // ล้าง TomSelect เดิม (กรณี reload)
+            if (sel.tomselect) sel.tomselect.destroy();
+
+            sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
+            if (classrooms.length === 0) {
+                sel.innerHTML += '<option disabled>ไม่มีห้องเรียนในปี/ภาคนี้</option>';
+            } else {
+                classrooms.forEach(c => {
+                    sel.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
+                });
+            }
+
+            // สร้าง map classroom id -> ชื่อครูที่ปรึกษา
+            const adviserMap = {};
+            classrooms.forEach(c => {
+                const names = [];
+                if (c.core_personnel_1) names.push(`${c.core_personnel_1.prefix || ''}${c.core_personnel_1.first_name} ${c.core_personnel_1.last_name}`);
+                if (c.core_personnel_2) names.push(`${c.core_personnel_2.prefix || ''}${c.core_personnel_2.first_name} ${c.core_personnel_2.last_name}`);
+                adviserMap[c.id] = names.length > 0 ? names.join(' / ') : null;
+            });
+
+            function showAdviser(value) {
+                const div = document.getElementById('adviserDisplay');
+                const nameEl = document.getElementById('adviserNames');
+                if (!div || !nameEl) return;
+                const name = value ? adviserMap[value] : null;
+                if (name) {
+                    nameEl.textContent = name;
+                    div.classList.remove('hidden');
+                    div.classList.add('flex');
+                } else {
+                    div.classList.add('hidden');
+                    div.classList.remove('flex');
+                }
+            }
+
+            // Init TomSelect
+            const tomSel = new TomSelect('#classSelector', {
+                placeholder: 'พิมพ์หรือเลือกห้องเรียน...',
+                allowEmptyOption: true,
+                maxOptions: null,
+                onChange(value) {
+                    showAdviser(value);
+                    if (value) {
+                        loadStudentsData(value);
+                    } else {
+                        if ($.fn.DataTable.isDataTable('#studentDataTable')) $('#studentDataTable').DataTable().destroy();
+                        safeSetHtml('tb-students', '');
+                        document.getElementById('studentDataTable')?.classList.add('hidden');
+                        document.getElementById('no-classroom-msg')?.classList.remove('hidden');
+                    }
+                }
+            });
         }
     } else {
         document.getElementById('adminFilterSection')?.classList.add('hidden');
@@ -243,7 +293,7 @@ async function loadStudentsData(classroomId) {
             const fullName = `${st.prefix || ''}${st.first_name} ${st.last_name}`;
             const avatarUrl = st.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true`;
             return `<tr>
-                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
+                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:scale-110 transition-all duration-200" onclick="openLightbox(this.src)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
                 <td class="py-3 px-4 text-center">ม.${cls.grade_level}/${cls.room_number}</td>
                 <td class="py-3 px-4 text-center">${enr.student_number || '-'}</td>
                 <td class="py-3 px-4">${st.student_id_card}</td>
@@ -383,6 +433,9 @@ async function toggleTeacherAdminMode() {
     isCurrentAdminMode = !isCurrentAdminMode;
     actualUserRole = isCurrentAdminMode ? currentUserRole : 'teacher';
     updateToggleModeUI();
+    // ล้างชื่อครูที่ปรึกษาทุกครั้งที่สลับโหมด
+    const adviserDiv = document.getElementById('adviserDisplay');
+    if (adviserDiv) { adviserDiv.classList.add('hidden'); adviserDiv.classList.remove('flex'); }
     Swal.fire({
         toast: true, position: 'top-end', icon: 'info',
         title: isCurrentAdminMode
