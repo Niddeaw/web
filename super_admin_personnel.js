@@ -68,11 +68,12 @@ async function loadPersonnel() {
 
         $('#personnelTable').DataTable({
             scrollX: true,
+            responsive: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 10,
             lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "ทั้งหมด"]],
             order: [],
-            columnDefs: [{ orderable: false, targets: -1 }],
+            columnDefs: [{ orderable: false, targets: -1 },{ responsivePriority: 1, targets: -1 }],
             destroy: true
         });
 

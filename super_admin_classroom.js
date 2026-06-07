@@ -303,12 +303,11 @@ async function loadStudents() {
 
         $('#studentsTable').DataTable({
             scrollX: true,
+            responsive: true,
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             pageLength: 50,
             lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, "ทั้งหมด"]],
-            columnDefs: [
-                { orderable: false, targets: [0, 1, 6] }
-            ],
+            columnDefs: [{ orderable: false, targets: [0, 1, 6] }, { responsivePriority: 1, targets: -1 }],
             destroy: true
         });
         Swal.close();

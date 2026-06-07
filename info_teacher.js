@@ -153,30 +153,6 @@ async function uploadPendingProfile() {
     if (spinner) spinner.classList.add('hidden');
 }
 
-// ========== ลบรูปโปรไฟล์ ==========
-async function deleteProfilePicture() {
-    if (!activeStudentId) return;
-    const result = await Swal.fire({
-        icon: 'warning',
-        title: 'ลบรูปโปรไฟล์?',
-        text: 'รูปจะถูกลบออกจากระบบ และไม่สามารถกู้คืนได้',
-        showCancelButton: true,
-        confirmButtonColor: '#ef4444',
-        confirmButtonText: 'ลบรูป',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (!result.isConfirmed) return;
-    const { error } = await db.from('core_students').update({ avatar_students_url: null }).eq('id', activeStudentId);
-    if (error) return Swal.fire('ผิดพลาด', 'ไม่สามารถลบรูปได้', 'error');
-    const el = document.getElementById('profileImage');
-    if (el) {
-        const fullName = document.getElementById('modalStudentName')?.innerText || '';
-        el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`;
-    }
-    pendingProfileFile = null;
-    Swal.fire({ icon: 'success', title: 'ลบรูปเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-}
-
 // Lightbox
 function openLightbox(src) { if (src) { const img = document.getElementById('lightboxImage'); if (img) img.src = src; document.getElementById('lightboxModal')?.classList.remove('hidden'); } }
 function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
@@ -267,7 +243,7 @@ async function loadStudentsData(classroomId) {
             const fullName = `${st.prefix || ''}${st.first_name} ${st.last_name}`;
             const avatarUrl = st.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true`;
             return `<tr>
-                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
+                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:scale-110 transition-all duration-200" onclick="openLightbox(this.src)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
                 <td class="py-3 px-4 text-center">ม.${cls.grade_level}/${cls.room_number}</td>
                 <td class="py-3 px-4 text-center">${enr.student_number || '-'}</td>
                 <td class="py-3 px-4">${st.student_id_card}</td>
@@ -294,7 +270,13 @@ async function loadStudentsData(classroomId) {
     }
     if (table) table.classList.remove('hidden');
     if (noMsg) noMsg.classList.add('hidden');
-    $('#studentDataTable').DataTable({ scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, columnDefs: [{ orderable: false, targets: 0 }] });
+    $('#studentDataTable').DataTable({
+        scrollX: true,
+        responsive: true,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        pageLength: 50,
+        columnDefs: [{ orderable: false, targets: 0 }, { responsivePriority: 1, targets: -1 }]
+    });
     Swal.close();
 }
 
@@ -313,7 +295,7 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
     safeSetText('view_fullname', fullName);
     safeSetText('view_class_info', extraInfo.grade && extraInfo.room ? `ม.${extraInfo.grade}/${extraInfo.room} เลขที่ ${extraInfo.number}` : '-');
     safeSetText('view_national_id', extraInfo.nationalId ? formatNationalId(extraInfo.nationalId) : 'ไม่มีข้อมูล');
-    if (studentCode) classInfo += ` (รหัสประจำตัว: ${studentCode})`;
+    if (studentCode) classInfo += ` (เลขประจำตัวนักเรียน: ${studentCode})`;
     document.getElementById('view_class_info').innerText = classInfo;
 
     try {
