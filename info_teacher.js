@@ -243,7 +243,7 @@ async function loadStudentsData(classroomId) {
             const fullName = `${st.prefix || ''}${st.first_name} ${st.last_name}`;
             const avatarUrl = st.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true`;
             return `<tr>
-                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:scale-110 transition-all duration-200" onclick="openLightbox(this.src)" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
+                <td class="py-2 px-2 text-center"><img src="${avatarUrl}" class="w-10 h-10 rounded-full object-cover mx-auto" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=4f46e5&color=fff&size=64&rounded=true'"></td>
                 <td class="py-3 px-4 text-center">ม.${cls.grade_level}/${cls.room_number}</td>
                 <td class="py-3 px-4 text-center">${enr.student_number || '-'}</td>
                 <td class="py-3 px-4">${st.student_id_card}</td>
@@ -270,13 +270,7 @@ async function loadStudentsData(classroomId) {
     }
     if (table) table.classList.remove('hidden');
     if (noMsg) noMsg.classList.add('hidden');
-    $('#studentDataTable').DataTable({
-        scrollX: true,
-        responsive: true,
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        pageLength: 50,
-        columnDefs: [{ orderable: false, targets: 0 }, { responsivePriority: 1, targets: -1 }]
-    });
+    $('#studentDataTable').DataTable({ scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, columnDefs: [{ orderable: false, targets: 0 }] });
     Swal.close();
 }
 
@@ -383,6 +377,13 @@ async function toggleTeacherAdminMode() {
     isCurrentAdminMode = !isCurrentAdminMode;
     actualUserRole = isCurrentAdminMode ? currentUserRole : 'teacher';
     updateToggleModeUI();
+    Swal.fire({
+        toast: true, position: 'top-end', icon: 'info',
+        title: isCurrentAdminMode
+            ? '<i class="fas fa-user-shield mr-1"></i> เปลี่ยนเป็นโหมดแอดมิน (ทุกห้องเรียน)'
+            : '<i class="fas fa-chalkboard-user mr-1"></i> เปลี่ยนเป็นโหมดครู (เฉพาะห้องที่ปรึกษา)',
+        showConfirmButton: false, timer: 2000
+    });
     if ($.fn.DataTable.isDataTable('#studentDataTable')) $('#studentDataTable').DataTable().destroy();
     safeSetHtml('tb-students', '');
     const table = document.getElementById('studentDataTable');
