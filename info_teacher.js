@@ -270,7 +270,13 @@ async function loadStudentsData(classroomId) {
     }
     if (table) table.classList.remove('hidden');
     if (noMsg) noMsg.classList.add('hidden');
-    $('#studentDataTable').DataTable({ scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }, columnDefs: [{ orderable: false, targets: 0 }] });
+    $('#studentDataTable').DataTable({
+        scrollX: true,
+        responsive: true,
+        pageLength: 50,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        columnDefs: [{ orderable: false, targets: 0 }, { responsivePriority: 1, targets: -1 }]
+    });
     Swal.close();
 }
 
