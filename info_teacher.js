@@ -153,6 +153,30 @@ async function uploadPendingProfile() {
     if (spinner) spinner.classList.add('hidden');
 }
 
+// ========== ลบรูปโปรไฟล์ ==========
+async function deleteProfilePicture() {
+    if (!activeStudentId) return;
+    const result = await Swal.fire({
+        icon: 'warning',
+        title: 'ลบรูปโปรไฟล์?',
+        text: 'รูปจะถูกลบออกจากระบบ และไม่สามารถกู้คืนได้',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'ลบรูป',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!result.isConfirmed) return;
+    const { error } = await db.from('core_students').update({ avatar_students_url: null }).eq('id', activeStudentId);
+    if (error) return Swal.fire('ผิดพลาด', 'ไม่สามารถลบรูปได้', 'error');
+    const el = document.getElementById('profileImage');
+    if (el) {
+        const fullName = document.getElementById('modalStudentName')?.innerText || '';
+        el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`;
+    }
+    pendingProfileFile = null;
+    Swal.fire({ icon: 'success', title: 'ลบรูปเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+}
+
 // Lightbox
 function openLightbox(src) { if (src) { const img = document.getElementById('lightboxImage'); if (img) img.src = src; document.getElementById('lightboxModal')?.classList.remove('hidden'); } }
 function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
@@ -289,7 +313,7 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
     safeSetText('view_fullname', fullName);
     safeSetText('view_class_info', extraInfo.grade && extraInfo.room ? `ม.${extraInfo.grade}/${extraInfo.room} เลขที่ ${extraInfo.number}` : '-');
     safeSetText('view_national_id', extraInfo.nationalId ? formatNationalId(extraInfo.nationalId) : 'ไม่มีข้อมูล');
-    if (studentCode) classInfo += ` (เลขประจำตัวนักเรียน: ${studentCode})`;
+    if (studentCode) classInfo += ` (รหัสประจำตัว: ${studentCode})`;
     document.getElementById('view_class_info').innerText = classInfo;
 
     try {

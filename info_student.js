@@ -135,17 +135,42 @@ async function uploadPendingProfile() {
     if (spinner) spinner.classList.add('hidden');
 }
 
+// ========== ลบรูปโปรไฟล์ ==========
+async function deleteProfilePicture() {
+    if (!currentStudentId) return;
+    const result = await Swal.fire({
+        icon: 'warning',
+        title: 'ลบรูปโปรไฟล์?',
+        text: 'รูปจะถูกลบออกจากระบบ และไม่สามารถกู้คืนได้',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'ลบรูป',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!result.isConfirmed) return;
+    const { error } = await db.from('core_students').update({ avatar_students_url: null }).eq('id', currentStudentId);
+    if (error) return Swal.fire('ผิดพลาด', 'ไม่สามารถลบรูปได้', 'error');
+    const el = document.getElementById('profileImage');
+    if (el) {
+        const fullName = document.getElementById('modalStudentName')?.innerText || '';
+        el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`;
+    }
+    pendingProfileFile = null;
+    Swal.fire({ icon: 'success', title: 'ลบรูปเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+}
+
 // ========== Lightbox ==========
 function openLightbox(imgSrc) { if(imgSrc){ const img = document.getElementById('lightboxImage'); if(img) img.src = imgSrc; document.getElementById('lightboxModal')?.classList.remove('hidden'); } }
 function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
 
 // ========== โหลดและแสดงข้อมูลนักเรียน ==========
+// ========== แก้ไข openMyData ให้แสดงข้อมูลครอบครัวและเพิ่มรหัสนักเรียน ==========
 async function openMyData(studentId, studentData) {
     const modal = document.getElementById('studentDetailModal');
-    if(!modal) return;
+    if (!modal) return;
     modal.classList.remove('hidden');
     const overlay = document.getElementById('modalLoadingOverlay');
-    if(overlay) overlay.classList.remove('hidden');
+    if (overlay) overlay.classList.remove('hidden');
 
     const fullName = `${studentData.prefix || ''}${studentData.first_name} ${studentData.last_name}`;
     safeSetText('modalStudentName', fullName);
@@ -155,99 +180,133 @@ async function openMyData(studentId, studentData) {
     safeSetText('view_national_id', studentData.national_id ? formatNationalId(studentData.national_id) : 'ไม่มีข้อมูล');
 
     try {
-        // หา enrollment ปัจจุบัน (ปี/ภาคปัจจุบัน)
+        // 1. ดึงข้อมูลชั้นเรียนและเลขที่ (ปี/ภาคปัจจุบัน)
         const { data: enroll } = await db.from('student_enrollments')
             .select('student_number, core_classrooms(grade_level, room_number)')
             .eq('student_id', studentId)
             .eq('academic_year', currentAcademicYear)
             .eq('semester', currentSemester)
             .maybeSingle();
+
+        let classInfoText = '-';
         if (enroll && enroll.core_classrooms) {
-            safeSetText('view_class_info', `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}  เลขที่ ${enroll.student_number || '-'}`);
+            classInfoText = `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}  เลขที่ ${enroll.student_number || '-'}`;
         } else {
-            // fallback (ไม่แสดงปี/ภาคอื่น)
+            // fallback กรณีไม่มีข้อมูลในปี/ภาคปัจจุบัน
             const { data: anyEnroll } = await db.from('student_enrollments')
                 .select('student_number, core_classrooms(grade_level, room_number)')
                 .eq('student_id', studentId)
                 .maybeSingle();
             if (anyEnroll && anyEnroll.core_classrooms) {
-                safeSetText('view_class_info', `ม.${anyEnroll.core_classrooms.grade_level}/${anyEnroll.core_classrooms.room_number}  เลขที่ ${anyEnroll.student_number || '-'}`);
-            } else {
-                safeSetText('view_class_info', '-');
+                classInfoText = `ม.${anyEnroll.core_classrooms.grade_level}/${anyEnroll.core_classrooms.room_number}  เลขที่ ${anyEnroll.student_number || '-'}`;
             }
         }
-
-        // ข้อมูลครอบครัวและที่อยู่ (จาก module_home_visits ล่าสุด)
-        const { data: homeVisit } = await db.from('module_home_visits')
-            .select('*')
-            .eq('student_id', studentId)
-            .order('visit_date', { ascending: false })
-            .maybeSingle();
-
-        if (homeVisit) {
-            safeSetText('view_parent_status', `สถานะครอบครัว: ${homeVisit.parents_status || 'ไม่ระบุ'}`);
-            safeSetText('view_father_name', homeVisit.father_name || '-');
-            safeSetText('view_father_job', homeVisit.father_job || '-');
-            safeSetText('view_father_phone', homeVisit.father_phone || '-');
-            safeSetText('view_mother_name', homeVisit.mother_name || '-');
-            safeSetText('view_mother_job', homeVisit.mother_job || '-');
-            safeSetText('view_mother_phone', homeVisit.mother_phone || '-');
-            safeSetText('view_guardian_name', homeVisit.guardian_name || '-');
-            safeSetText('view_guardian_relation', homeVisit.guardian_relation || '-');
-            safeSetText('view_guardian_job', homeVisit.guardian_job || '-');
-            safeSetText('view_guardian_phone', homeVisit.guardian_phone || '-');
-            const addrParts = [
-                homeVisit.house_number ? `บ้านเลขที่ ${homeVisit.house_number}` : '',
-                homeVisit.village_no ? `หมู่ ${homeVisit.village_no}` : '',
-                homeVisit.sub_district ? `ต.${homeVisit.sub_district}` : '',
-                homeVisit.district ? `อ.${homeVisit.district}` : '',
-                homeVisit.province ? `จ.${homeVisit.province}` : '',
-                homeVisit.zipcode ? `รหัสไปรษณีย์ ${homeVisit.zipcode}` : ''
-            ].filter(p => p).join(' ');
-            safeSetText('view_address', addrParts || 'ไม่มีข้อมูลที่อยู่');
-        } else {
-            safeSetText('view_parent_status', 'สถานะครอบครัว: ไม่มีข้อมูล');
-            ['father_name','father_job','father_phone','mother_name','mother_job','mother_phone',
-             'guardian_name','guardian_relation','guardian_job','guardian_phone'].forEach(id => safeSetText(`view_${id}`, '-'));
-            safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
+        // เพิ่มรหัสนักเรียนต่อท้าย (ตามที่ขอ)
+        if (studentData.student_id_card) {
+            classInfoText += ` (รหัสประจำตัว: ${studentData.student_id_card})`;
         }
+        safeSetText('view_class_info', classInfoText);
 
+        // 2. ดึงข้อมูลครอบครัวและที่อยู่ (จาก module_home_visits ล่าสุด)
+let homeVisit = null;
+try {
+    const { data, error } = await db.from('module_home_visits')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('visit_date', { ascending: false, nullsFirst: false })
+        .maybeSingle();
+    
+    if (error) {
+        console.error('❌ Error fetching homeVisit:', error);
+    } else {
+        homeVisit = data;
+        console.log('📋 homeVisit data:', homeVisit);
+    }
+} catch(err) {
+    console.error('❌ Exception fetching homeVisit:', err);
+}
+
+// ตรวจสอบว่า element ต่างๆ มีอยู่จริงก่อน set
+const requiredIds = ['view_parent_status', 'view_father_name', 'view_father_job', 'view_father_phone',
+                     'view_mother_name', 'view_mother_job', 'view_mother_phone',
+                     'view_guardian_name', 'view_guardian_relation', 'view_guardian_job', 'view_guardian_phone',
+                     'view_address'];
+
+const missingIds = requiredIds.filter(id => !document.getElementById(id));
+if (missingIds.length > 0) {
+    console.warn('⚠️ Missing elements in HTML:', missingIds);
+}
+
+if (homeVisit) {
+    safeSetText('view_parent_status', `สถานะครอบครัว: ${homeVisit.parents_status || 'ไม่ระบุ'}`);
+    safeSetText('view_father_name', homeVisit.father_name || '-');
+    safeSetText('view_father_job', homeVisit.father_job || '-');
+    safeSetText('view_father_phone', homeVisit.father_phone || '-');
+    safeSetText('view_mother_name', homeVisit.mother_name || '-');
+    safeSetText('view_mother_job', homeVisit.mother_job || '-');
+    safeSetText('view_mother_phone', homeVisit.mother_phone || '-');
+    safeSetText('view_guardian_name', homeVisit.guardian_name || '-');
+    safeSetText('view_guardian_relation', homeVisit.guardian_relation || '-');
+    safeSetText('view_guardian_job', homeVisit.guardian_job || '-');
+    safeSetText('view_guardian_phone', homeVisit.guardian_phone || '-');
+
+    const addrParts = [
+        homeVisit.house_number ? `บ้านเลขที่ ${homeVisit.house_number}` : '',
+        homeVisit.village_no ? `หมู่ ${homeVisit.village_no}` : '',
+        homeVisit.sub_district ? `ต.${homeVisit.sub_district}` : '',
+        homeVisit.district ? `อ.${homeVisit.district}` : '',
+        homeVisit.province ? `จ.${homeVisit.province}` : '',
+        homeVisit.zipcode ? `รหัสไปรษณีย์ ${homeVisit.zipcode}` : ''
+    ].filter(p => p).join(' ');
+    safeSetText('view_address', addrParts || 'ไม่มีข้อมูลที่อยู่');
+} else {
+    console.log('ℹ️ No home visit record for student', studentId);
+    safeSetText('view_parent_status', 'สถานะครอบครัว: ไม่มีข้อมูล');
+    ['father_name','father_job','father_phone','mother_name','mother_job','mother_phone',
+     'guardian_name','guardian_relation','guardian_job','guardian_phone'].forEach(id => safeSetText(`view_${id}`, '-'));
+    safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
+}
+
+        // 3. Attendance, Behavior, SDQ, EQ, Club (คงเดิม ไม่ต้องแก้)
         // Attendance
-        let present=0,absent=0,late=0,pleave=0,sleave=0;
+        let present = 0, absent = 0, late = 0, pleave = 0, sleave = 0;
         const { data: attData } = await db.from('homeroom_attendance').select('status').eq('student_id', studentId);
         if (attData) attData.forEach(r => {
-            if (r.status==='มา') present++;
-            else if (r.status==='ขาด') absent++;
-            else if (r.status==='สาย') late++;
-            else if (r.status==='ลา') pleave++;
-            else if (r.status==='ป่วย') sleave++;
+            if (r.status === 'มา') present++;
+            else if (r.status === 'ขาด') absent++;
+            else if (r.status === 'สาย') late++;
+            else if (r.status === 'ลา') pleave++;
+            else if (r.status === 'ป่วย') sleave++;
         });
-        safeSetText('total_school_days', present+absent+late+pleave+sleave);
+        safeSetText('total_school_days', present + absent + late + pleave + sleave);
         safeSetText('stat_present', present);
         safeSetText('stat_absent', absent);
         safeSetText('stat_late', late);
         safeSetText('stat_pleave', pleave);
         safeSetText('stat_sleave', sleave);
-        renderAttendanceChart(present,absent,late,pleave,sleave);
+        renderAttendanceChart(present, absent, late, pleave, sleave);
 
         // Behavior
         const { data: behaviors } = await db.from('behavior_scores').select('score_change').eq('student_id', studentId);
-        let added=0,deducted=0;
-        if (behaviors) behaviors.forEach(b => { if (b.score_change>0) added+=b.score_change; else deducted+=Math.abs(b.score_change); });
+        let added = 0, deducted = 0;
+        if (behaviors) behaviors.forEach(b => {
+            if (b.score_change > 0) added += b.score_change;
+            else deducted += Math.abs(b.score_change);
+        });
         safeSetText('score_added', `+${added}`);
         safeSetText('score_deducted', `-${deducted}`);
-        safeSetText('view_behavior_score', 100+added-deducted);
+        safeSetText('view_behavior_score', 100 + added - deducted);
 
         // SDQ
         const { data: sdqData } = await db.from('sdq_assessments').select('*').eq('student_id', studentId);
         const sdqDiv = document.getElementById('view_sdq');
         if (sdqDiv) {
-            if (!sdqData || sdqData.length===0) {
+            if (!sdqData || sdqData.length === 0) {
                 sdqDiv.innerHTML = '<div class="p-4 bg-slate-100 text-center rounded-xl">ยังไม่ได้ประเมิน</div>';
             } else {
                 sdqDiv.innerHTML = '';
                 sdqData.forEach(item => {
-                    const colorClass = item.result_summary==='ปกติ' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
+                    const colorClass = item.result_summary === 'ปกติ' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
                     sdqDiv.innerHTML += `<div class="flex justify-between p-3 rounded-lg border"><span>${getEvaluatorLabel(item.evaluator_type)}</span><span class="px-3 py-1 rounded-full text-xs ${colorClass}">${item.result_summary}</span></div>`;
                 });
             }
@@ -258,18 +317,18 @@ async function openMyData(studentId, studentData) {
         const eqDiv = document.getElementById('view_eq_container');
         if (eqDiv) {
             if (!eqData) eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation"></i> ยังไม่ได้ประเมิน</div>';
-            else eqDiv.innerHTML = `<div class="text-3xl font-black ${eqData.result_summary==='ปกติ'?'text-pink-600':'text-orange-500'}">${eqData.result_summary}</div><p class="text-sm">${eqData.detail || ''}</p>`;
+            else eqDiv.innerHTML = `<div class="text-3xl font-black ${eqData.result_summary === 'ปกติ' ? 'text-pink-600' : 'text-orange-500'}">${eqData.result_summary}</div><p class="text-sm">${eqData.detail || ''}</p>`;
         }
 
         // Club
         const clubName = await fetchStudentClub(studentId);
         safeSetText('view_club_name', clubName);
 
-    } catch(err) {
+    } catch (err) {
         console.error(err);
         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถแสดงข้อมูลบางส่วน', 'error');
     } finally {
-        if(overlay) overlay.classList.add('hidden');
+        if (overlay) overlay.classList.add('hidden');
     }
 }
 

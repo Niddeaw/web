@@ -2,43 +2,137 @@
 <html lang="th">
 
 <head>
-    <title>คะแนนของฉัน | WRK System</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
+    <title>คะแนนความประพฤติของฉัน | WRK System</title>
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
 
-<body class="bg-blue-600 min-h-screen p-4 flex flex-col items-center">
-    <div class="w-full max-w-md bg-white rounded-3xl shadow-2xl overflow-hidden mt-4">
-        <div class="p-6 text-center border-b border-slate-100 relative">
-            <a href="student_index.html"
-                class="absolute top-4 left-4 text-slate-400 hover:text-indigo-600 bg-slate-50 p-2 h-10 w-10 flex items-center justify-center rounded-full transition">
-                <i class="fas fa-home"></i>
-            </a>
-            <button onclick="logout()"
-                class="absolute top-4 right-4 text-slate-400 hover:text-red-500 bg-slate-50 p-2 rounded-full transition">
-                <i class="fa-solid fa-sign-out-alt"></i>
-            </button>
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-16 mx-auto mb-3">
-            <h2 id="display_name" class="text-xl font-bold text-slate-800">กำลังโหลด...</h2>
-            <p id="display_sid"
-                class="text-sm text-slate-500 font-bold bg-slate-100 inline-block px-3 py-1 rounded-full mt-2"></p>
-        </div>
-        <div class="p-6 bg-slate-50 text-center border-b border-slate-100">
-            <p class="text-sm text-slate-500 font-bold uppercase tracking-wider mb-2">คะแนนความประพฤติปัจจุบัน</p>
-            <h1 id="total_score" class="text-6xl font-black text-blue-600 drop-shadow-sm">--</h1>
-        </div>
-        <div class="p-6">
-            <h3 class="font-bold text-slate-800 mb-4 flex items-center"><i
-                    class="fas fa-history text-blue-500 mr-2"></i>ประวัติการบันทึก</h3>
-            <div id="history_list" class="space-y-3 max-h-80 overflow-y-auto pr-2">
-                <p class="text-center text-slate-400 text-sm py-4">กำลังดึงข้อมูล...</p>
+<body class="min-h-screen text-slate-800 pb-10">
+
+    <nav class="glass-panel mx-4 mt-4 p-4 sticky top-4 z-40 flex justify-between items-center shadow-sm">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200">
+                <i class="fas fa-shield-alt text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight text-blue-900 uppercase tracking-tight">My Behavior</h1>
+                <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">คะแนนความประพฤติของฉัน</p>
             </div>
         </div>
-    </div>
+
+        <div class="flex items-center gap-2">
+            <div class="text-right hidden md:block mr-2">
+                <span id="user-display" class="block text-sm font-bold text-slate-700">กำลังโหลด...</span>
+            </div>
+            <button onclick="window.location.href='student_index.html'"
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm"
+                title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="mx-4 mt-6 max-w-5xl md:mx-auto relative z-10">
+
+        <!-- Profile Card -->
+        <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(37,99,235,0.08)]">
+            <div class="absolute -right-10 -top-10 w-40 h-40 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
+            <div class="absolute -left-10 -bottom-10 w-32 h-32 bg-indigo-400/10 rounded-full blur-3xl pointer-events-none"></div>
+            <i class="fas fa-shield-alt absolute -right-6 -bottom-6 text-8xl text-blue-50/50 z-0 -rotate-12"></i>
+
+            <div class="w-28 h-28 shrink-0 rounded-[1.5rem] bg-blue-50 text-blue-300 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden z-10 rotate-3 transition-transform hover:rotate-0 duration-300">
+                <img id="student-avatar" src="" alt="Profile" class="w-full h-full object-cover hidden"
+                    onerror="this.onerror=null; this.src='https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';">
+                <i id="student-avatar-placeholder" class="fas fa-user text-5xl"></i>
+            </div>
+
+            <div class="text-center md:text-left z-10">
+                <p class="text-xs font-black text-blue-500 uppercase tracking-widest mb-1 bg-blue-50 inline-block px-3 py-1 rounded-full border border-blue-100">ข้อมูลนักเรียน</p>
+                <h2 id="student-fullname" class="text-2xl font-bold text-slate-800 mb-2 mt-2 leading-tight">กำลังโหลดข้อมูล...</h2>
+                <div id="student-info" class="text-sm font-medium text-slate-500 space-y-1">
+                    <p><i class="fas fa-spinner fa-spin mr-1"></i> กรุณารอสักครู่...</p>
+                </div>
+            </div>
+
+            <!-- คะแนนรวม -->
+            <div class="md:ml-auto z-10 mt-4 md:mt-0 text-center">
+                <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">คะแนนรวม</p>
+                <p id="total-score" class="text-6xl font-black text-blue-600 leading-none">--</p>
+                <p class="text-xs text-slate-400 mt-1">จาก 100 คะแนน</p>
+            </div>
+        </div>
+
+        <!-- Summary Cards -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mt-6 mb-8">
+            <div class="bg-gradient-to-br from-blue-50/90 to-white/90 backdrop-blur-md p-5 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm border border-blue-100 transition-all duration-300 hover:shadow-md hover:shadow-blue-100 hover:-translate-y-1 group">
+                <div class="w-10 h-10 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fa-solid fa-trophy text-lg"></i>
+                </div>
+                <p class="text-[11px] text-blue-600/70 font-bold uppercase tracking-wider mb-1">คะแนนเริ่มต้น</p>
+                <p class="text-3xl font-black text-blue-600">100</p>
+            </div>
+
+            <div class="bg-gradient-to-br from-emerald-50/90 to-white/90 backdrop-blur-md p-5 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm border border-emerald-100 transition-all duration-300 hover:shadow-md hover:shadow-emerald-100 hover:-translate-y-1 group">
+                <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fa-solid fa-circle-plus text-lg"></i>
+                </div>
+                <p class="text-[11px] text-emerald-600/70 font-bold uppercase tracking-wider mb-1">คะแนนที่ได้รับ</p>
+                <p class="text-3xl font-black text-emerald-600" id="count-added">0</p>
+            </div>
+
+            <div class="bg-gradient-to-br from-rose-50/90 to-white/90 backdrop-blur-md p-5 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm border border-rose-100 transition-all duration-300 hover:shadow-md hover:shadow-rose-100 hover:-translate-y-1 group">
+                <div class="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fa-solid fa-circle-minus text-lg"></i>
+                </div>
+                <p class="text-[11px] text-rose-600/70 font-bold uppercase tracking-wider mb-1">คะแนนที่ถูกหัก</p>
+                <p class="text-3xl font-black text-rose-600" id="count-deducted">0</p>
+            </div>
+
+            <div class="bg-gradient-to-br from-slate-50/90 to-white/90 backdrop-blur-md p-5 rounded-3xl flex flex-col items-center justify-center text-center shadow-sm border border-slate-200 transition-all duration-300 hover:shadow-md hover:shadow-slate-100 hover:-translate-y-1 group">
+                <div class="w-10 h-10 rounded-2xl bg-slate-100 text-slate-500 flex items-center justify-center mb-3 group-hover:scale-110 transition-transform duration-300">
+                    <i class="fa-solid fa-clock-rotate-left text-lg"></i>
+                </div>
+                <p class="text-[11px] text-slate-500/70 font-bold uppercase tracking-wider mb-1">รายการทั้งหมด</p>
+                <p class="text-3xl font-black text-slate-600" id="count-total">0</p>
+            </div>
+        </div>
+
+        <!-- History Table -->
+        <div class="bg-white/80 backdrop-blur-xl overflow-hidden shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-white rounded-[2rem] mb-10">
+            <div class="px-6 py-5 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                <div class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center">
+                    <i class="fas fa-history text-sm"></i>
+                </div>
+                <h3 class="font-bold text-slate-700 text-lg">ประวัติการบันทึกคะแนนทั้งหมด</h3>
+            </div>
+
+            <div class="overflow-x-auto min-h-[300px] p-2">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="text-slate-400">
+                            <th class="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] border-b border-slate-100">วันที่</th>
+                            <th class="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] border-b border-slate-100">รายการ</th>
+                            <th class="px-6 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-center border-b border-slate-100">คะแนน</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-list" class="divide-y divide-slate-50">
+                        <tr>
+                            <td colspan="3" class="px-6 py-24 text-center">
+                                <i class="fas fa-spinner fa-spin text-4xl text-blue-200 mb-4"></i>
+                                <p class="text-slate-400 font-medium tracking-wide">กำลังดึงข้อมูลประวัติของคุณ...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </main>
 
     <script>
         let studentProfile = null;
@@ -48,120 +142,128 @@
         });
 
         async function checkAuth() {
-            Swal.fire({
-                title: 'กำลังโหลดข้อมูล...',
-                didOpen: () => Swal.showLoading(),
-                allowOutsideClick: false
-            });
-
-            // 1. ตรวจสอบ Session จาก Supabase
             const { data: { session }, error: authError } = await db.auth.getSession();
-
             if (authError || !session) {
                 window.location.replace('login.html');
                 return;
             }
 
-            // 2. ดึงเลขประจำตัวจาก Email (sid@student.wrk)
-            const sidFromEmail = session.user.email.split('@')[0];
+            try {
+                const sidFromEmail = session.user.email.split('@')[0];
 
-            // 3. ดึงข้อมูลโปรไฟล์และประวัติคะแนนความประพฤติ (Join ตารางที่เกี่ยวข้อง)
-            const { data: student, error: dbError } = await db.from('core_students')
-                .select(`
-                *,
-                student_enrollments (
-                    core_classrooms (grade_level, room_number)
-                ),
-                behavior_logs (
-                    *,
-                    behavior_criteria (title)
-                )
-            `)
-                .eq('student_id_card', sidFromEmail)
-                .single();
+                const { data: student, error: dbError } = await db.from('core_students')
+                    .select(`
+                        *,
+                        student_enrollments (
+                            student_number,
+                            core_classrooms (grade_level, room_number)
+                        ),
+                        behavior_logs (
+                            *,
+                            behavior_criteria (title)
+                        )
+                    `)
+                    .eq('student_id_card', sidFromEmail)
+                    .single();
 
-            if (dbError || !student) {
-                Swal.fire('ไม่พบข้อมูล', 'ไม่สามารถดึงข้อมูลโปรไฟล์ของคุณได้', 'error')
-                    .then(() => logout());
-                return;
+                if (dbError || !student) {
+                    Swal.fire('ไม่พบข้อมูล', 'ไม่สามารถดึงข้อมูลโปรไฟล์ของคุณได้', 'error')
+                        .then(() => logout());
+                    return;
+                }
+
+                studentProfile = student;
+                updateUI();
+            } catch (err) {
+                console.error('Auth Error:', err);
+                window.location.replace('login.html');
             }
-
-            studentProfile = student;
-            updateUI();
-            Swal.close();
         }
 
         function updateUI() {
             const s = studentProfile;
+            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
 
-            // แสดงข้อมูลพื้นฐาน
-            $('#student_name').text(`${s.prefix || ''}${s.first_name} ${s.last_name}`);
-            $('#student_id_card').text(s.student_id_card);
-
-            // แสดงห้องเรียน
-            if (s.student_enrollments?.[0]?.core_classrooms) {
-                const cls = s.student_enrollments[0].core_classrooms;
-                $('#student_room').text(`ม.${cls.grade_level}/${cls.room_number}`);
+            // Avatar
+            const avatarUrl = s.avatar_students_url;
+            if (avatarUrl) {
+                $('#student-avatar').attr('src', avatarUrl).removeClass('hidden');
+                $('#student-avatar-placeholder').addClass('hidden');
+            } else {
+                const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(s.first_name)}&background=dbeafe&color=1d4ed8&font-size=0.4&bold=true`;
+                $('#student-avatar').attr('src', fallbackUrl).removeClass('hidden');
+                $('#student-avatar-placeholder').addClass('hidden');
             }
 
-            // คำนวณคะแนนและแสดงประวัติ
+            $('#student-fullname').text(fullName);
+            $('#user-display').html(`<i class="fas fa-user-graduate mr-1 text-blue-600"></i>${s.first_name} ${s.last_name}`);
+
+            // ห้องเรียน
+            const enrollment = s.student_enrollments?.[0];
+            const cls = enrollment?.core_classrooms;
+            $('#student-info').html(`
+                ${cls ? `<p><i class="fas fa-graduation-cap w-5 text-center text-blue-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ม.${cls.grade_level}/${cls.room_number}</p>` : ''}
+                ${enrollment?.student_number ? `<p><i class="fas fa-list-ol w-5 text-center text-blue-400 drop-shadow-sm"></i> เลขที่ ${enrollment.student_number}</p>` : ''}
+                <p><i class="fas fa-id-card w-5 text-center text-blue-400 drop-shadow-sm"></i> รหัสประจำตัว: ${s.student_id_card || '-'}</p>
+            `);
+
+            // คำนวณคะแนน
             let score = 100;
-            let html = '';
+            let added = 0, deducted = 0;
+            let rows = '';
 
             if (s.behavior_logs && s.behavior_logs.length > 0) {
-                // เรียงลำดับตามวันที่ล่าสุด
                 const sortedLogs = s.behavior_logs.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
                 sortedLogs.forEach(log => {
                     score += log.score_change;
-                    const isPositive = log.score_change > 0;
+                    if (log.score_change > 0) added += log.score_change;
+                    else deducted += Math.abs(log.score_change);
 
-                    html += `
-                    <div class="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 mb-3">
-                        <div class="w-10 h-10 rounded-full flex items-center justify-center ${isPositive ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'}">
-                            <i class="fa-solid ${isPositive ? 'fa-plus' : 'fa-minus'}"></i>
-                        </div>
-                        <div class="flex-1">
-                            <p class="font-bold text-slate-800">${log.behavior_criteria?.title || 'ไม่ได้ระบุหัวข้อ'}</p>
-                            <p class="text-[11px] text-slate-500">${log.description || 'ไม่มีรายละเอียด'}</p>
-                            <p class="text-[10px] text-slate-400 mt-1">${new Date(log.created_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' })} น.</p>
-                        </div>
-                        <div class="text-sm font-black ${isPositive ? 'text-green-600' : 'text-red-600'}">
-                            ${isPositive ? '+' : ''}${log.score_change}
-                        </div>
-                    </div>
-                `;
+                    const isPositive = log.score_change > 0;
+                    const scoreColorClass = isPositive
+                        ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        : 'text-rose-700 bg-rose-50 border-rose-200';
+                    const dateStr = new Date(log.created_at).toLocaleDateString('th-TH', {
+                        day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit'
+                    });
+
+                    rows += `
+                        <tr class="hover:bg-slate-50 transition-colors border-b border-slate-50">
+                            <td class="px-6 py-4 text-[13px] text-slate-500 whitespace-nowrap">${dateStr} น.</td>
+                            <td class="px-6 py-4">
+                                <p class="font-bold text-slate-700 text-[13px]">${log.behavior_criteria?.title || 'ไม่ได้ระบุหัวข้อ'}</p>
+                                ${log.description ? `<p class="text-[11px] text-slate-400 mt-0.5">${log.description}</p>` : ''}
+                            </td>
+                            <td class="px-6 py-4 text-center">
+                                <span class="px-3 py-1 text-xs font-black rounded-xl border ${scoreColorClass}">
+                                    ${isPositive ? '+' : ''}${log.score_change}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
                 });
+
+                $('#count-total').text(sortedLogs.length);
             } else {
-                html = '<div class="py-10 text-center text-slate-400 text-sm">ยังไม่มีประวัติการบันทึก</div>';
+                rows = '<tr><td colspan="3" class="px-6 py-16 text-center text-slate-400 font-medium">ยังไม่มีประวัติการบันทึกคะแนน</td></tr>';
             }
 
-            // อัปเดตคะแนนรวม
-            $('#total_score').text(score);
-            $('#total_score').removeClass('text-blue-600 text-red-600 text-green-600 text-orange-500');
+            $('#count-added').text(added);
+            $('#count-deducted').text(deducted);
+            $('#history-list').html(rows);
 
-            if (score < 50) $('#total_score').addClass('text-red-600');
-            else if (score >= 100) $('#total_score').addClass('text-green-600');
-            else $('#total_score').addClass('text-orange-500');
-
-            $('#history_list').html(html);
+            // แสดงคะแนนรวมพร้อมสี
+            const $score = $('#total-score');
+            $score.text(score).removeClass('text-blue-600 text-rose-600 text-emerald-600 text-orange-500');
+            if (score < 50) $score.addClass('text-rose-600');
+            else if (score >= 100) $score.addClass('text-emerald-600');
+            else $score.addClass('text-orange-500');
         }
 
         async function logout() {
-            const result = await Swal.fire({
-                title: 'ออกจากระบบ?',
-                text: 'คุณต้องการออกจากระบบใช่หรือไม่',
-                icon: 'question',
-                showCancelButton: true,
-                confirmButtonColor: '#ef4444',
-                confirmButtonText: 'ออกจากระบบ',
-                cancelButtonText: 'ยกเลิก'
-            });
-
-            if (result.isConfirmed) {
-                await db.auth.signOut();
-                window.location.replace('login.html');
-            }
+            await db.auth.signOut();
+            window.location.replace('login.html');
         }
     </script>
 </body>
