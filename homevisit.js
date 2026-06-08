@@ -3467,3 +3467,8 @@ window.applyReportVisibility = function () {
         }
     }
 };
+
+async function handleLogout() {
+    const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });
+    if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'index.html'; }
+}
