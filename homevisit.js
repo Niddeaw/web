@@ -370,18 +370,30 @@ async function autoSaveIfDirty() {
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return false;
     try {
         const formData = buildFormData(currentStudentId, window.currentClassroomId);
-        const { data: existing } = await db.from('module_home_visits')
-            .select('id').eq('student_id', currentStudentId)
-            .eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
-        let resError;
-        if (existing) {
-            const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
-            resError = error;
+
+        // ✅ ตรวจสอบว่ามี record เดิมหรือเปล่าก่อน
+        const { data: existingRecords } = await db
+            .from('module_home_visits')
+            .select('id')
+            .eq('student_id', currentStudentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .limit(1);
+
+        const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
+        let savedData, saveError;
+
+        if (existingRow) {
+            const { data, error } = await db.from('module_home_visits').update(formData).eq('id', existingRow.id).select('id');
+            savedData = data; saveError = error;
         } else {
-            const { error } = await db.from('module_home_visits').insert([formData]);
-            resError = error;
+            const { data, error } = await db.from('module_home_visits').insert([formData]).select('id');
+            savedData = data; saveError = error;
         }
-        if (resError) throw resError;
+
+        if (saveError) throw saveError;
+        if (!savedData || savedData.length === 0) throw new Error('RLS blocked auto-save — 0 rows written');
+
         formIsDirty = false;
         updateStatusBadge('completed');
         return true;   // ✅ บันทึกสำเร็จ → แจ้งให้ caller แสดง toast เอง
@@ -583,16 +595,51 @@ async function loadStudentsForClassroom(classroomId) {
             options: options,
             onChange: async (val) => {
                 if (val) {
-                    const didSave = await autoSaveIfDirty();  // บันทึก (ไม่แสดง Toast)
-                    await loadStudentInfo(val);                // โหลดคนใหม่ (Swal loading ปิดไปแล้ว)
-                    // ✅ แสดง Toast หลัง Swal loading ปิดแล้ว → ไม่ถูกทับ
-                    if (didSave) {
-                        Swal.fire({
-                            toast: true, position: 'bottom-end', icon: 'success',
-                            title: '<span class="text-sm">บันทึกอัตโนมัติเรียบร้อย</span>',
-                            showConfirmButton: false, timer: 2500, timerProgressBar: true,
+                    // ✅ ถ้ามีข้อมูลที่ยังไม่ได้บันทึก → แสดง SweetAlert ยืนยันก่อนเปลี่ยนนักเรียน
+                    if (formIsDirty && currentStudentId && !isReadOnly) {
+                        const result = await Swal.fire({
+                            title: 'มีข้อมูลที่ยังไม่ได้บันทึก',
+                            html: 'ต้องการบันทึกข้อมูลของนักเรียนคนปัจจุบัน<br>ก่อนเปลี่ยนไปยังนักเรียนคนใหม่หรือไม่?',
+                            icon: 'warning',
+                            showCancelButton: true,
+                            showDenyButton: true,
+                            confirmButtonColor: '#0284c7',
+                            denyButtonColor: '#64748b',
+                            cancelButtonColor: '#dc2626',
+                            confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึกแล้วเปลี่ยน',
+                            denyButtonText: '<i class="fas fa-arrow-right mr-1"></i> เปลี่ยนโดยไม่บันทึก',
+                            cancelButtonText: '<i class="fas fa-times mr-1"></i> ยกเลิก',
+                            reverseButtons: false,
                         });
+
+                        if (result.isDismissed) {
+                            // ✅ กด "ยกเลิก" → คืนค่า TomSelect กลับเป็นนักเรียนคนเดิม
+                            studentTomSelect.setValue(currentStudentId, true); // silent=true ป้องกัน onChange วนซ้ำ
+                            return;
+                        }
+
+                        if (result.isConfirmed) {
+                            // ✅ กด "บันทึกแล้วเปลี่ยน" → บันทึกก่อน แล้วค่อยเปลี่ยน
+                            const didSave = await autoSaveIfDirty();
+                            await loadStudentInfo(val);
+                            if (didSave) {
+                                Swal.fire({
+                                    toast: true, position: 'bottom-end', icon: 'success',
+                                    title: '<span class="text-sm">บันทึกอัตโนมัติเรียบร้อยแล้ว</span>',
+                                    showConfirmButton: false, timer: 2500, timerProgressBar: true,
+                                });
+                            }
+                            return;
+                        }
+
+                        // ✅ กด "เปลี่ยนโดยไม่บันทึก" → ล้าง dirty แล้วโหลดคนใหม่เลย
+                        formIsDirty = false;
+                        await loadStudentInfo(val);
+                        return;
                     }
+
+                    // ไม่มี dirty → โหลดคนใหม่ตรงๆ
+                    await loadStudentInfo(val);
                 } else {
                     clearStudentInfo();
                 }
@@ -604,6 +651,8 @@ async function loadStudentsForClassroom(classroomId) {
 }
 
 async function loadStudentInfo(studentId) {
+    // ✅ ป้องกัน dirty tracking ตลอด flow การโหลดข้อมูลนักเรียน
+    suppressDirty = true;
     // ✅ เคลียร์ฟอร์มก่อนโหลดข้อมูลนักเรียนใหม่
     clearStudentInfo();
     currentStudentId = studentId;
@@ -813,15 +862,198 @@ function clearStudentInfo() {
         updateRouteInfoPanel(null);
     }
 
-    suppressDirty = false;  // ✅ เปิดการติดตาม dirty อีกครั้ง
+    // ⚠️ ไม่ reset suppressDirty = false ที่นี่
+    // เพราะ loadStudentInfo จะเรียก loadExistingHomeVisit ต่อทันที
+    // suppressDirty จะถูก reset = false ใน loadExistingHomeVisit เท่านั้น
+    // (กรณีเรียก clearStudentInfo โดยตรงโดยไม่โหลดนักเรียนใหม่ เช่นเมื่อ val = '' จะไม่มีปัญหา)
+    suppressDirty = false;
 }
 
+// async function loadExistingHomeVisit(studentId) {
+//     const { data, error } = await db.from('module_home_visits')
+//         .select('*').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
+//     if (data && !error) {
+//         Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'พบข้อมูลเยี่ยมบ้านเดิม ระบบทำการโหลดให้แล้ว', showConfirmButton: false, timer: 3000 });
+//         populateFormWithData(data);
+//     }
+// }
 async function loadExistingHomeVisit(studentId) {
-    const { data, error } = await db.from('module_home_visits')
-        .select('*').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
-    if (data && !error) {
-        Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'พบข้อมูลเยี่ยมบ้านเดิม ระบบทำการโหลดให้แล้ว', showConfirmButton: false, timer: 3000 });
-        populateFormWithData(data);
+    try {
+        // 🛑 เปลี่ยนมาใช้ .limit(1) ป้องกันระบบค้างกรณีมีข้อมูลเก่าซ้ำซ้อนกัน
+        const { data: records, error } = await db.from('module_home_visits')
+            .select('*')
+            .eq('student_id', studentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .limit(1);
+
+        if (error) throw error;
+        
+        const data = records && records.length > 0 ? records[0] : null;
+        if (!data) {
+            // ไม่มีข้อมูลเดิม → reset suppressDirty แล้ว return
+            suppressDirty = false;
+            formIsDirty = false;
+            return;
+        }
+
+        suppressDirty = true;
+        const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
+        const setRadio = (name, val) => {
+            if (!val) return;
+            const el = document.querySelector(`input[name="${name}"][value="${val}"]`);
+            if (el) el.checked = true;
+        };
+
+        setVal('hv_date', data.visit_date ? data.visit_date.split('T')[0] : '');
+        setRadio('visit_status', data.visit_status);
+        setVal('visit_times', data.visit_times);
+        setVal('student_nickname', data.student_nickname);
+        setVal('student_phone', data.student_phone);
+        setVal('student_line', data.student_line);
+
+        setVal('father_name', data.father_name);
+        setVal('father_job', data.father_job);
+        setVal('father_phone', data.father_phone);
+
+        setVal('mother_name', data.mother_name);
+        setVal('mother_job', data.mother_job);
+        setVal('mother_phone', data.mother_phone);
+
+        setVal('guardian_name', data.guardian_name);
+        setVal('guardian_job', data.guardian_job);
+        setVal('guardian_phone', data.guardian_phone);
+        setVal('guardian_relation', data.guardian_relation);
+
+        if (data.living_with) window.tomLivingWith?.setValue(data.living_with, true);
+        if (data.parents_status) window.tomParentsStatus?.setValue(data.parents_status, true);
+
+        setVal('addr_house', data.house_number);
+        setVal('addr_moo', data.village_no);
+        setVal('addr_subdistrict', data.sub_district);
+        setVal('addr_district', data.district);
+        setVal('addr_province', data.province);
+        setVal('addr_zipcode', data.zipcode);
+
+        setVal('lat', data.latitude);
+        setVal('lng', data.longitude);
+        setVal('travel_distance', data.travel_distance);
+
+        if (data.house_type) window.tomHouseType?.setValue(data.house_type, true);
+
+        setVal('travel_hour', data.travel_hour);
+        setVal('travel_minute', data.travel_minute);
+
+        if (data.travel_method) window.tomTravelMethod?.setValue(data.travel_method, true);
+        if (data.env_house_status) window.tomEnvHouseStatus?.setValue(data.env_house_status, true);
+        if (data.env_clean_status) window.tomEnvCleanStatus?.setValue(data.env_clean_status, true);
+        if (data.env_location_status) window.tomEnvLocationStatus?.setValue(data.env_location_status, true);
+
+        setRadio('utility_electric', data.utility_electric);
+        setRadio('utility_water', data.utility_water);
+        setRadio('utility_toilet', data.utility_toilet);
+
+        const fm = data.family_members || {};
+        setVal('member_total', fm.total);
+        setVal('member_male', fm.male);
+        setVal('member_female', fm.female);
+        setVal('sib_same_total', fm.sib_same_total);
+        setVal('sib_same_male', fm.sib_same_male);
+        setVal('sib_same_female', fm.sib_same_female);
+        setVal('sib_diff_total', fm.sib_diff_total);
+        setVal('sib_diff_male', fm.sib_diff_male);
+        setVal('sib_diff_female', fm.sib_diff_female);
+
+        const eco = data.economic_data || {};
+        setVal('family_income_monthly', eco.income);
+        if (eco.allowance_source) window.tomAllowanceSource?.setValue(eco.allowance_source, true);
+        setVal('student_job_name', eco.student_job_name);
+        setVal('student_job_income', eco.student_job_income);
+        setVal('money_to_school', eco.money_to_school);
+
+        const fRel = data.family_relations || {};
+        if (fRel.status) window.tomFamilyRelationStatus?.setValue(fRel.status, true);
+        setVal('time_together_hours', fRel.time_together);
+
+        const relations = data.relations_data || data.relatives_data || [];
+        relations.forEach((item, i) => {
+            const el = document.querySelector(`input[name="rel_radio_${i}"][value="${item.relation}"]`);
+            if (el) el.checked = true;
+        });
+
+        const risk = data.risk_factors || data.risk_data || {};
+        const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
+        riskGroups.forEach(group => {
+            const values = risk[group] || [];
+            values.forEach(val => {
+                if (val.startsWith('อื่นๆ:')) {
+                    const otherCheckbox = Array.from(document.querySelectorAll(`input[name="risk_${group}"]`)).find(cb => cb.value.includes('อื่นๆ'));
+                    if (otherCheckbox) otherCheckbox.checked = true;
+                    const otherInput = document.getElementById(`risk_${group}_other_txt`);
+                    if (otherInput) {
+                        otherInput.value = val.replace('อื่นๆ: ', '').trim();
+                        otherInput.classList.remove('hidden');
+                    }
+                } else {
+                    const el = document.querySelector(`input[name="risk_${group}"][value="${val}"]`);
+                    if (el) el.checked = true;
+                }
+            });
+        });
+
+        setVal('special_help_details', data.special_help_details);
+        setVal('responsibilities_details', data.responsibilities_details);
+        setVal('hobbies_details', data.hobbies_details);
+        if (data.leave_with_whom_details) window.tomLeaveWithWhom?.setValue(data.leave_with_whom_details, true);
+
+        setVal('guardian_concerns_details', data.guardian_concerns);
+        setVal('guardian_requests_details', data.guardian_requests);
+        setVal('past_welfare_details', data.past_welfare);
+
+        if (data.informant_type) window.tomInformantType?.setValue(data.informant_type, true);
+
+        if (data.latitude && data.longitude && map) {
+            const lat = parseFloat(data.latitude);
+            const lng = parseFloat(data.longitude);
+            if (!isNaN(lat) && !isNaN(lng)) {
+                marker.setLatLng([lat, lng]);
+                map.setView([lat, lng], 16);
+            }
+        }
+
+        const loadPic = (id, previewId, btnId, delId, url) => {
+            const input = document.getElementById(id);
+            if (!input) return;
+            if (url && url !== 'null' && url !== '-') {
+                input.dataset.uploadedUrl = url;
+                const img = document.getElementById(previewId);
+                if (img) { img.src = url; img.classList.remove('hidden'); }
+                const delBtn = document.getElementById(delId);
+                if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
+                const cloudBtn = document.getElementById(btnId);
+                if (cloudBtn) {
+                    cloudBtn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> อัพโหลดแล้ว';
+                    cloudBtn.classList.add('bg-slate-700', 'text-white');
+                    cloudBtn.classList.remove('bg-green-600', 'opacity-40');
+                }
+            }
+        };
+
+        loadPic('pic_student', 'preview1', 'cloud_btn1', 'del_btn1', data.photo_student);
+        loadPic('pic_outside', 'preview2', 'cloud_btn2', 'del_btn2', data.photo_outside);
+        loadPic('pic_inside', 'preview3', 'cloud_btn3', 'del_btn3', data.photo_inside);
+        loadPic('pic_teacher', 'preview4', 'cloud_btn4', 'del_btn4', data.photo_teacher);
+
+        suppressDirty = false;
+        formIsDirty = false;
+
+        // ✅ อัปเดต status badge ให้แสดงว่ามีข้อมูลแล้ว
+        updateStatusBadge('completed');
+
+    } catch (err) {
+        console.error('Error loading existing home visit:', err);
+        suppressDirty = false;
+        formIsDirty = false;
     }
 }
 
@@ -1005,41 +1237,225 @@ function populateFormWithData(data) {
     formIsDirty = false;    // ✅ เพิ่งโหลดข้อมูลเดิมมา ถือว่ายังไม่ dirty
 }
 
-window.submitHomeVisit = async function () {
-    if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
+// window.submitHomeVisit = async function () {
+//     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
 
-    const studentId = document.getElementById('hv_student').value;
+//     const studentId = document.getElementById('hv_student').value;
+//     const classroomId = window.currentClassroomId;
+//     if (!studentId || !classroomId) return Swal.fire('ผิดพลาด', 'กรุณาเลือกห้องเรียนและนักเรียน', 'warning');
+
+//     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+//     // ✅ ใช้ buildFormData ร่วมกับ autoSave
+//     const formData = buildFormData(studentId, classroomId);
+
+//     try {
+//         const { data: existing } = await db.from('module_home_visits')
+//             .select('id').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
+//         let resError;
+//         if (existing) {
+//             const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
+//             resError = error;
+//         } else {
+//             const { error } = await db.from('module_home_visits').insert([formData]);
+//             resError = error;
+//         }
+//         if (resError) throw resError;
+
+//         formIsDirty = false;   // ✅ บันทึกสำเร็จ → reset dirty flag
+//         // ✅ การบันทึกปกติ ใช้ SweetAlert2
+//         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อย', confirmButtonText: 'ตกลง' });
+//         goToStep(1);
+//         updateStatusBadge('completed');
+//         // ✅ เพิ่มบรรทัดนี้
+//         if (typeof loadDataTable === 'function') loadDataTable();
+//         console.log('Saving with year:', currentYear, 'term:', currentTerm);
+//         console.log('Loading with year:', currentYear, 'term:', currentTerm);
+//     } catch (err) {
+//         console.error(err);
+//         Swal.fire('ผิดพลาด', err.message, 'error');
+//     }
+// };
+// ประกาศตัวแปรรักษาความปลอดภัยป้องกันการกดปุ่มซ้ำ
+let isSubmitting = false;
+
+window.submitHomeVisit = async function (isAutoSave = false) {
+    if (isReadOnly) {
+        if (!isAutoSave) Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
+        return;
+    }
+    
+    // 🛑 ป้องกันการรันฟังก์ชันซ้ำซ้อนกัน (Double Submit)
+    if (isSubmitting) return; 
+
+    const studentId = currentStudentId;
     const classroomId = window.currentClassroomId;
-    if (!studentId || !classroomId) return Swal.fire('ผิดพลาด', 'กรุณาเลือกห้องเรียนและนักเรียน', 'warning');
+    
+    if (!studentId || !classroomId) {
+        if (!isAutoSave) Swal.fire('ผิดพลาด', 'กรุณาเลือกห้องเรียนและนักเรียน', 'warning');
+        return;
+    }
 
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    // ✅ ใช้ buildFormData ร่วมกับ autoSave
-    const formData = buildFormData(studentId, classroomId);
+    isSubmitting = true; // ล็อคระบบชั่วคราว
 
     try {
-        const { data: existing } = await db.from('module_home_visits')
-            .select('id').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
-        let resError;
-        if (existing) {
-            const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
-            resError = error;
-        } else {
-            const { error } = await db.from('module_home_visits').insert([formData]);
-            resError = error;
-        }
-        if (resError) throw resError;
+        // 🔍 Debug log — ช่วย diagnose ปัญหา
+        console.log('[submitHomeVisit] studentId:', studentId, '| classroomId:', classroomId, '| year:', currentYear, '| term:', currentTerm, '| user:', currentUser?.id);
 
-        formIsDirty = false;   // ✅ บันทึกสำเร็จ → reset dirty flag
-        // ✅ การบันทึกปกติ ใช้ SweetAlert2
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อย', confirmButtonText: 'ตกลง' });
-        goToStep(1);
-        updateStatusBadge('completed');
+        if (!isAutoSave) {
+            Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        }
+
+        const getVal = (id) => document.getElementById(id)?.value || '';
+        const getRadio = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
+
+        const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
+        const riskData = {};
+        riskGroups.forEach(group => {
+            const checkedBoxes = document.querySelectorAll(`input[name="risk_${group}"]:checked`);
+            let values = Array.from(checkedBoxes).map(cb => cb.value);
+            const otherCheckbox = Array.from(checkedBoxes).find(cb => cb.value.includes('อื่นๆ'));
+            if (otherCheckbox) {
+                const otherInput = document.getElementById(`risk_${group}_other_txt`);
+                if (otherInput && otherInput.value.trim()) {
+                    values = values.map(v => v === otherCheckbox.value ? `อื่นๆ: ${otherInput.value.trim()}` : v);
+                }
+            }
+            riskData[group] = values;
+        });
+
+        riskData.internet_access = getRadio('internet_access');
+
+        const relatives = ['บิดา', 'มารดา', 'พี่ชาย/น้องชาย', 'พี่สาว/น้องสาว', 'ปู่/ย่า/ตา/ยาย', 'ญาติ'];
+        const relations = relatives.map((rel, i) => {
+            const radio = document.querySelector(`input[name="rel_radio_${i}"]:checked`);
+            return { relative: rel, relation: radio ? radio.value : 'ไม่มี' };
+        });
+
+        const formData = {
+            student_id: studentId, classroom_id: classroomId, teacher_id: currentUser.id,
+            academic_year: currentYear, semester: currentTerm,
+            visit_date: getVal('hv_date') || new Date().toISOString().split('T')[0],
+            visit_status: getRadio('visit_status') || 'เยี่ยมแล้ว',
+            visit_times: parseInt(getVal('visit_times')) || 1,
+            student_nickname: getVal('student_nickname'), student_phone: getVal('student_phone'), student_line: getVal('student_line'),
+            father_name: getVal('father_name'), father_job: getVal('father_job'), father_phone: getVal('father_phone'),
+            mother_name: getVal('mother_name'), mother_job: getVal('mother_job'), mother_phone: getVal('mother_phone'),
+            guardian_name: getVal('guardian_name'), guardian_job: getVal('guardian_job'), guardian_phone: getVal('guardian_phone'),
+            guardian_relation: getVal('guardian_relation'),
+            living_with: window.tomLivingWith?.getValue() || '', parents_status: window.tomParentsStatus?.getValue() || '',
+            house_number: getVal('addr_house'), village_no: getVal('addr_moo'), sub_district: getVal('addr_subdistrict'),
+            district: getVal('addr_district'), province: getVal('addr_province'), zipcode: getVal('addr_zipcode'),
+            latitude: getVal('lat') || null, longitude: getVal('lng') || null, travel_distance: getVal('travel_distance') || null,
+            house_type: window.tomHouseType?.getValue() || '',
+            travel_hour: parseInt(getVal('travel_hour')) || 0, travel_minute: parseInt(getVal('travel_minute')) || 0,
+            travel_method: window.tomTravelMethod?.getValue() || '',
+            env_house_status: window.tomEnvHouseStatus?.getValue() || '',
+            env_clean_status: window.tomEnvCleanStatus?.getValue() || '',
+            env_location_status: window.tomEnvLocationStatus?.getValue() || '',
+            utility_electric: getRadio('utility_electric'), utility_water: getRadio('utility_water'), utility_toilet: getRadio('utility_toilet'),
+            family_members: {
+                total: getVal('member_total'), male: getVal('member_male'), female: getVal('member_female'),
+                sib_same_total: getVal('sib_same_total'), sib_same_male: getVal('sib_same_male'), sib_same_female: getVal('sib_same_female'),
+                sib_diff_total: getVal('sib_diff_total'), sib_diff_male: getVal('sib_diff_male'), sib_diff_female: getVal('sib_diff_female'),
+            },
+            economic_data: {
+                income: getVal('family_income_monthly'),
+                allowance_source: window.tomAllowanceSource?.getValue() || '',
+                student_job_name: getVal('student_job_name'), student_job_income: getVal('student_job_income'), money_to_school: getVal('money_to_school'),
+            },
+            family_relations: { status: window.tomFamilyRelationStatus?.getValue() || '', time_together: getVal('time_together_hours') },
+            special_help_details: getVal('special_help_details'), responsibilities_details: getVal('responsibilities_details'),
+            hobbies_details: getVal('hobbies_details'), leave_with_whom_details: window.tomLeaveWithWhom?.getValue() || '',
+            photo_student: document.getElementById('pic_student')?.dataset.uploadedUrl || null,
+            photo_outside: document.getElementById('pic_outside')?.dataset.uploadedUrl || null,
+            photo_inside: document.getElementById('pic_inside')?.dataset.uploadedUrl || null,
+            photo_teacher: document.getElementById('pic_teacher')?.dataset.uploadedUrl || null,
+            guardian_concerns: getVal('guardian_concerns_details'), guardian_requests: getVal('guardian_requests_details'),
+            past_welfare: getVal('past_welfare_details'), informant_type: window.tomInformantType?.getValue() || '',
+            risk_data: riskData,
+            relations_data: relations,
+            updated_at: new Date().toISOString()
+        };
+
+        // ✅ ดึง record ที่มีอยู่ก่อน (ถ้ามี) แล้วค่อย update หรือ insert
+        // เพิ่ม .select() ทุก operation เพื่อตรวจสอบว่า write จริงๆ (ป้องกัน RLS block เงียบๆ)
+        const { data: existingRecords, error: selectError } = await db
+            .from('module_home_visits')
+            .select('id')
+            .eq('student_id', studentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .limit(1);
+
+        if (selectError) {
+            console.error('Select error:', selectError);
+            throw selectError;
+        }
+
+        const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
+        let savedData, saveError;
+
+        if (existingRow) {
+            // UPDATE พร้อม .select() เพื่อตรวจสอบว่า write สำเร็จจริง
+            const { data, error } = await db
+                .from('module_home_visits')
+                .update(formData)
+                .eq('id', existingRow.id)
+                .select('id');
+            savedData = data;
+            saveError = error;
+        } else {
+            // INSERT พร้อม .select() เพื่อตรวจสอบว่า write สำเร็จจริง
+            const { data, error } = await db
+                .from('module_home_visits')
+                .insert([formData])
+                .select('id');
+            savedData = data;
+            saveError = error;
+        }
+
+        if (saveError) {
+            console.error('Save error:', saveError);
+            throw saveError;
+        }
+
+        // ✅ ตรวจสอบว่า Supabase write data จริงๆ (ถ้า RLS block → savedData จะว่าง)
+        if (!savedData || savedData.length === 0) {
+            console.error('Save returned no rows — likely blocked by RLS policy');
+            throw new Error('บันทึกไม่สำเร็จ — ระบบไม่ได้รับยืนยันการบันทึก กรุณาตรวจสอบสิทธิ์ (RLS Policy)');
+        }
+
+        console.log('✅ Saved successfully, row id:', savedData[0]?.id);
+        
+        formIsDirty = false; // รีเซ็ตการแก้ไขให้เป็น false
+
+        if (isAutoSave) {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกข้อมูลอัตโนมัติสำเร็จ', showConfirmButton: false, timer: 1500 });
+        } else {
+            await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อย', confirmButtonText: 'ตกลง' });
+            goToStep(1);
+            updateStatusBadge('completed');
+            // ✅ Reload ข้อมูลจาก DB หลังบันทึก เพื่อให้ฟอร์มแสดงข้อมูลล่าสุด
+            if (currentStudentId) {
+                await loadExistingHomeVisit(currentStudentId);
+            }
+            if (typeof loadDataTable === 'function') loadDataTable();
+        }
+
     } catch (err) {
-        console.error(err);
-        Swal.fire('ผิดพลาด', err.message, 'error');
+        console.error('HomeVisit Save Error:', err);
+        if (!isAutoSave) {
+            Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        } else {
+            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'บันทึกอัตโนมัติล้มเหลว', showConfirmButton: false, timer: 2500 });
+            throw err; 
+        }
+    } finally {
+        isSubmitting = false; // ปลดล็อคเมื่อทำงานเสร็จ
     }
 };
+
 
 // ==========================================
 // ฟังก์ชันบีบอัดรูปภาพให้ไม่เกินขนาดที่กำหนด (หน่วยเป็น MB)
@@ -1849,6 +2265,8 @@ window.loadDataTable = async function () {
         // ✅ นับเฉพาะที่ visit_status === 'เยี่ยมแล้ว' ให้ตรงกับตาราง
         const visitedCount = Object.values(visitMap).filter(v => v.visit_status === 'เยี่ยมแล้ว').length;
         renderDashboard(totalStudents, visitedCount, true);
+        console.log('Saving with year:', currentYear, 'term:', currentTerm);
+        console.log('Loading with year:', currentYear, 'term:', currentTerm);
     } catch (err) {
         console.error(err);
         tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-500">เกิดข้อผิดพลาด</td></tr>';
@@ -3468,7 +3886,7 @@ window.applyReportVisibility = function () {
     }
 };
 
-async function handleLogout() {
+async function logout() {
     const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });
     if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'index.html'; }
 }
