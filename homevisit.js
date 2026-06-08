@@ -503,7 +503,7 @@ window.toggleRoleView = function () {
     isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
-        btn.innerHTML = currentViewRole === 'teacher' ? '<i class="fas fa-sync-alt mr-1"></i> โหมดแอดมิน' : '<i class="fas fa-sync-alt mr-1"></i> โหมดครู';
+        btn.innerHTML = currentViewRole === 'teacher' ? '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>' : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
     }
     updateUIByRole();
     loadClassrooms();
@@ -1846,7 +1846,8 @@ window.loadDataTable = async function () {
         }).join('');
 
         const totalStudents = enrolls.length;
-        const visitedCount = Object.keys(visitMap).length;
+        // ✅ นับเฉพาะที่ visit_status === 'เยี่ยมแล้ว' ให้ตรงกับตาราง
+        const visitedCount = Object.values(visitMap).filter(v => v.visit_status === 'เยี่ยมแล้ว').length;
         renderDashboard(totalStudents, visitedCount, true);
     } catch (err) {
         console.error(err);

@@ -101,12 +101,21 @@
                 </div>
             </div>
             <button id="btnAdminMode" onclick="toggleRoleView()"
-                class="hidden px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all">
-                <i class="fas fa-sync-alt mr-1"></i> โหมดครู
+                class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
+                title="สลับโหมด">
+                 <i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>
             </button>
             <button onclick="window.location.href='index.html'"
-                class="w-10 h-10 bg-slate-50 hover:bg-red-50 hover:text-red-600 rounded-xl flex items-center justify-center text-slate-400 border border-slate-200 transition-all"><i
-                    class="fas fa-house-user"></i></button>
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
+                title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
         </div>
     </nav>
 
@@ -644,15 +653,15 @@
                                 </button>
                             </div>
                             <div class="flex flex-col sm:flex-row gap-2 mt-2">
-    <button type="button" onclick="openInGoogleMaps()"
-        class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition">
-        <i class="fas fa-map-marked-alt mr-1"></i> เปิด Google Maps จากที่อยู่
-    </button>
-    <button type="button" onclick="openRouteInGoogleMaps()"
-        class="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition">
-        <i class="fas fa-directions mr-1"></i> เปิดเส้นทาง (โรงเรียน → บ้าน)
-    </button>
-</div>
+                                <button type="button" onclick="openInGoogleMaps()"
+                                    class="flex-1 px-4 py-2 bg-blue-500 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition">
+                                    <i class="fas fa-map-marked-alt mr-1"></i> เปิด Google Maps จากที่อยู่
+                                </button>
+                                <button type="button" onclick="openRouteInGoogleMaps()"
+                                    class="flex-1 px-4 py-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition">
+                                    <i class="fas fa-directions mr-1"></i> เปิดเส้นทาง (โรงเรียน → บ้าน)
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -1116,7 +1125,7 @@
                         </button>
                         <button type="button" onclick="submitHomeVisit()"
                             class="px-8 py-4 bg-sky-600 hover:bg-sky-700 text-white text-base font-black rounded-xl transition shadow-lg shadow-sky-200 flex items-center gap-2">
-                            <i class="fa-solid fa-cloud-arrow-up text-lg"></i> บันทึกข้อมูลเยี่ยมบ้านทั้งหมดสำเร็จ
+                            <i class="fa-solid fa-cloud-arrow-up text-lg"></i> บันทึกข้อมูลเยี่ยมบ้านทั้งหมด
                         </button>
                     </div>
                 </div>
