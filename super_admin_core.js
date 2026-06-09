@@ -40,7 +40,7 @@ async function checkAuth() {
     }
 }
 
-function handleLogout() {
+function logout() {
     Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
         .then(async (result) => {
             if (result.isConfirmed) {
@@ -145,40 +145,6 @@ function closeMobileSidebar() {
 }
 
 // ==========================================
-// ระบบจัดการ Theme และปุ่มสลับโหมด
-// ==========================================
-function toggleThemeManually() {
-    const html = document.documentElement;
-    const isDark = html.classList.contains('dark');
-    const newTheme = isDark ? 'light' : 'dark';
-    changeTheme(newTheme);
-}
-
-function changeTheme(theme) {
-    const html = document.documentElement;
-    const btnIcon = document.querySelector('#theme-toggle-btn i');
-
-    html.classList.add('theme-transitioning');
-
-    if (theme === 'dark' || (theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-        html.classList.add('dark');
-        if (btnIcon) {
-            btnIcon.classList.remove('fa-moon');
-            btnIcon.classList.add('fa-sun', 'text-amber-500');
-        }
-    } else {
-        html.classList.remove('dark');
-        if (btnIcon) {
-            btnIcon.classList.remove('fa-sun', 'text-amber-500');
-            btnIcon.classList.add('fa-moon');
-        }
-    }
-
-    setTimeout(() => html.classList.remove('theme-transitioning'), 80);
-    localStorage.setItem('super_admin_theme', theme);
-}
-
-// ==========================================
 // Helper: Escape HTML
 // ==========================================
 function escapeHtml(str) {
@@ -235,14 +201,3 @@ window.onload = async () => {
     // โหลดข้อมูลภาพรวมระบบ (เมนูแรก)
     switchMenu('menu-school');
 };
-
-// ==========================================
-// จัดการ Theme เมื่อโหลด
-// ==========================================
-document.addEventListener('DOMContentLoaded', () => {
-    const savedTheme = localStorage.getItem('super_admin_theme') || 'auto';
-    changeTheme(savedTheme);
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-        if (localStorage.getItem('super_admin_theme') === 'auto') changeTheme('auto');
-    });
-});

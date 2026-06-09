@@ -20,7 +20,7 @@
 
     <!-- Sidebar -->
     <aside id="sidebar"
-        class="w-64 flex flex-col shadow-sm z-40 transition-all duration-300 border-r border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 fixed top-0 left-0 h-full md:relative md:h-auto md:flex">
+        class="w-64 flex flex-col shadow-sm z-40 transition-all duration-300 border-r border-slate-200 bg-white fixed top-0 left-0 h-full md:relative md:h-auto md:flex">
 
         <!-- ส่วนโลโก้ -->
         <div class="p-6 flex items-center gap-3 overflow-hidden whitespace-nowrap mb-4">
@@ -40,49 +40,49 @@
         <nav class="flex-1 px-4 space-y-1.5 overflow-y-auto">
             <!-- ปุ่ม Active State (เมนูแรก) -->
             <button onclick="switchMenu('menu-school')" id="btn-menu-school"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 font-bold border border-primary-200 dark:border-primary-800 transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 text-primary-600 font-bold border border-primary-200 transition-all whitespace-nowrap">
                 <i class="fa-solid fa-school w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">ภาพรวมระบบ</span>
             </button>
 
             <!-- ปุ่ม Inactive State -->
             <button onclick="switchMenu('menu-personnel')" id="btn-menu-personnel"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-regular fa-address-card w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">จัดการบุคลากร/ครู</span>
             </button>
 
             <button onclick="switchMenu('menu-students')" id="btn-menu-students"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-solid fa-users-viewfinder w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">ห้องเรียน & นักเรียน</span>
             </button>
 
             <button onclick="switchMenu('menu-student-portal')" id="btn-menu-student-portal"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-solid fa-graduation-cap w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">Student Portal</span>
             </button>
             <!-- 🔽 ปฏิทินกิจกรรม -->
             <button onclick="switchMenu('menu-calendar')" id="btn-menu-calendar"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-regular fa-calendar-days w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">ปฏิทินกิจกรรม</span>
             </button>
             <!-- 🔽 Logs -->
             <button onclick="window.location.href='system_logs.html'"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all whitespace-nowrap">
+                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
                 <i class="fa-solid fa-clock-rotate-left w-5 text-center text-lg shrink-0"></i>
                 <span class="sidebar-text">ประวัติการเข้าใช้งาน</span>
             </button>
         </nav>
 
         <!-- โปรไฟล์ส่วนล่างของ Sidebar -->
-        <div class="p-4 border-t border-slate-100 dark:border-slate-700">
-            <button onclick="handleLogout()"
-                class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50 dark:hover:bg-rose-900/20 text-slate-600 dark:text-slate-300 hover:text-rose-600 transition-colors group">
+        <div class="p-4 border-t border-slate-100">
+            <button onclick="logout()"
+                class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-colors group">
                 <div
-                    class="bg-slate-100 dark:bg-slate-700 rounded-full h-8 w-8 flex items-center justify-center shrink-0 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
+                    class="bg-slate-100 rounded-full h-8 w-8 flex items-center justify-center shrink-0 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
                     <i class="fa-solid fa-user text-sm"></i>
                 </div>
                 <div class="sidebar-text text-left flex-1 overflow-hidden">
@@ -94,32 +94,27 @@
         </div>
     </aside>
 
-    <main
-        class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+    <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 transition-colors duration-300">
         <header
-            class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center z-10 sticky top-0">
+            class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 sticky top-0">
             <div class="flex items-center gap-4">
                 <!-- ปุ่มแฮมเบอร์เกอร์ -->
                 <button onclick="toggleSidebar()"
-                    class="text-slate-500 hover:text-primary-600 dark:text-slate-400 dark:hover:text-primary-400 h-10 w-10 flex items-center justify-center rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors">
+                    class="text-slate-500 hover:text-primary-600 h-10 w-10 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">
                     <i class="fa-solid fa-bars"></i>
                 </button>
-                <h2 id="pageTitle" class="text-xl font-bold text-slate-800 dark:text-slate-100">ภาพรวมระบบ (Dashboard)
+                <h2 id="pageTitle" class="text-xl font-bold text-slate-800">ภาพรวมระบบ (Dashboard)
                 </h2>
             </div>
 
             <div class="flex items-center gap-3">
-                <!-- ปุ่มสลับโหมด Dark/Light -->
-                <button id="theme-toggle-btn" onclick="toggleThemeManually()"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700 transition-all shadow-sm">
-                    <i class="fa-solid fa-moon"></i>
-                </button>
-
-                <!-- ปุ่มออกจากระบบ (แทนด้วยไอคอนแชทในภาพ) -->
+                <!-- ปุ่มออกจากระบบ -->
                 <button onclick="window.location.replace('index.html')"
-                    class="text-sm font-bold text-gray-500 hover:text-red-600 transition-colors">
-                    <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> ออกจากโหมดแอดมิน
-                </button>
+                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                    title="กลับหน้าแรก"><i class="fas fa-house text-sm"></i></button>
+                <button onclick="logout()"
+                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
+                    title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
             </div>
         </header>
 
@@ -127,11 +122,10 @@
             <!-- เมนู school -->
             <div id="menu-school" class="max-w-6xl mx-auto space-y-6">
                 <!-- กล่องข้อมูลโรงเรียน -->
-                <div
-                    class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 transition-colors">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-colors">
                     <h3
-                        class="text-lg font-bold text-slate-800 dark:text-white mb-4 border-b border-slate-100 dark:border-slate-700 pb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-building-columns text-primary-600 dark:text-primary-400"></i>
+                        class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                        <i class="fa-solid fa-building-columns text-primary-600"></i>
                         โครงสร้างการบริหารโรงเรียนและการตั้งค่าระบบ
                     </h3>
                     <form id="schoolInfoForm" class="grid grid-cols-1 md:grid-cols-2 gap-5"
@@ -139,78 +133,72 @@
 
                         <!-- กล่องสีเหลือง (ปรับเป็นโทนเข้มเมื่ออยู่ Dark Mode) -->
                         <div
-                            class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50 dark:bg-slate-900/50 p-5 rounded-xl border border-amber-200 dark:border-slate-700 mb-2 shadow-inner transition-colors">
+                            class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50 p-5 rounded-xl border border-amber-200 mb-2 shadow-inner transition-colors">
                             <div>
-                                <label class="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1"><i
-                                        class="fa-solid fa-calendar-days text-amber-600 dark:text-amber-500 mr-1"></i>
+                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
+                                        class="fa-solid fa-calendar-days text-amber-600 mr-1"></i>
                                     ปีการศึกษาปัจจุบัน *</label>
                                 <input type="text" id="inp_current_year" required placeholder="เช่น 2569"
-                                    class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 font-bold text-blue-700 dark:text-blue-400 text-lg transition-colors">
+                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1"><i
-                                        class="fa-solid fa-clock text-amber-600 dark:text-amber-500 mr-1"></i>
+                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
+                                        class="fa-solid fa-clock text-amber-600 mr-1"></i>
                                     ภาคเรียนปัจจุบัน *</label>
                                 <select id="inp_current_term" required
-                                    class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 font-bold text-blue-700 dark:text-blue-400 text-lg transition-colors">
+                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
                                     <option value="1">ภาคเรียนที่ 1</option>
                                     <option value="2">ภาคเรียนที่ 2</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-slate-800 dark:text-slate-200 mb-1"><i
-                                        class="fa-solid fa-calendar-check text-emerald-600 dark:text-emerald-500 mr-1"></i>
+                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
+                                        class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i>
                                     วันเปิดภาคเรียน *</label>
                                 <input type="date" id="inp_term_start_date" required
-                                    class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 font-bold text-emerald-700 dark:text-emerald-400 text-lg transition-colors">
+                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-emerald-700 text-lg transition-colors">
                             </div>
                         </div>
 
                         <!-- Input อื่นๆ -->
                         <div class="md:col-span-2">
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">ชื่อโรงเรียน</label>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ชื่อโรงเรียน</label>
                             <input type="text" id="inp_school"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-medium transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-slate-50 text-slate-800 font-medium transition-colors">
                         </div>
                         <div>
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">ผู้อำนวยการสถานศึกษา</label>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ผู้อำนวยการสถานศึกษา</label>
                             <input type="text" id="inp_dir"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                         </div>
                         <div>
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">รองผู้อำนวยการ
+                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
                                 กลุ่มบริหารวิชาการ</label>
                             <input type="text" id="inp_dep_acad"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                         </div>
                         <div>
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">รองผู้อำนวยการ
+                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
                                 กลุ่มบริหารงบประมาณ</label>
                             <input type="text" id="inp_dep_budg"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                         </div>
                         <div>
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">รองผู้อำนวยการ
+                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
                                 กลุ่มบริหารงานบุคคล</label>
                             <input type="text" id="inp_dep_hr"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                         </div>
                         <div>
-                            <label
-                                class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-1">รองผู้อำนวยการ
+                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
                                 กลุ่มบริหารทั่วไป</label>
                             <input type="text" id="inp_dep_gen"
-                                class="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 transition-colors">
+                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                         </div>
 
                         <div class="md:col-span-2 flex justify-end mt-4">
                             <button type="submit"
-                                class="bg-primary-600 hover:bg-primary-700 dark:bg-primary-500 dark:hover:bg-primary-600 text-white font-bold py-2.5 px-8 rounded-xl shadow-md transition-all">
+                                class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md transition-all">
                                 <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึกข้อมูลโรงเรียน
                             </button>
                         </div>
@@ -791,16 +779,14 @@
 
             <!-- เมนูจัดการปฏิทินกิจกรรม -->
             <div id="menu-calendar" class="hidden max-w-6xl mx-auto space-y-6">
-                <div
-                    class="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6">
-                    <h2
-                        class="text-xl font-bold text-slate-800 dark:text-white mb-4 border-b pb-2 flex items-center gap-2">
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                    <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
                         <i class="fa-regular fa-calendar-check text-indigo-600"></i> ตั้งค่าระบบปฏิทินกิจกรรม
                     </h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
                         <!-- กลุ่มวิชาการ -->
-                        <div class="border rounded-xl p-4 bg-blue-50 dark:bg-slate-900/50">
-                            <h3 class="font-bold text-blue-800 dark:text-blue-400 flex justify-between items-center">
+                        <div class="border rounded-xl p-4 bg-blue-50">
+                            <h3 class="font-bold text-blue-800 flex justify-between items-center">
                                 <span><i class="fa-regular fa-calendar-alt mr-1"></i> กลุ่มวิชาการ</span>
                                 <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
                                         type="checkbox" id="cfg_academic_active" data-dept="academic"
@@ -808,16 +794,16 @@
                             </h3>
                             <div class="mt-3 space-y-2">
                                 <input type="text" id="cfg_academic_cal_id" placeholder="Google Calendar ID"
-                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800">
+                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
                                 <input type="text" id="cfg_academic_api_key" placeholder="Google API Key"
-                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white dark:bg-slate-800">
+                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
                                 <button onclick="saveCalendarConfig('academic')"
                                     class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">บันทึกการตั้งค่า</button>
                             </div>
                         </div>
                         <!-- กลุ่มแผนงานและงบประมาณ -->
-                        <div class="border rounded-xl p-4 bg-green-50 dark:bg-slate-900/50">
-                            <h3 class="font-bold text-green-800 dark:text-green-400 flex justify-between items-center">
+                        <div class="border rounded-xl p-4 bg-green-50">
+                            <h3 class="font-bold text-green-800 flex justify-between items-center">
                                 <span><i class="fa-solid fa-coins mr-1"></i> กลุ่มแผนงานและงบประมาณ</span>
                                 <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
                                         type="checkbox" id="cfg_budget_active" data-dept="budget"
@@ -828,9 +814,8 @@
                                         class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
                         </div>
                         <!-- กลุ่มบริหารงานบุคคล -->
-                        <div class="border rounded-xl p-4 bg-purple-50 dark:bg-slate-900/50">
-                            <h3
-                                class="font-bold text-purple-800 dark:text-purple-400 flex justify-between items-center">
+                        <div class="border rounded-xl p-4 bg-purple-50">
+                            <h3 class="font-bold text-purple-800 flex justify-between items-center">
                                 <span><i class="fa-solid fa-users mr-1"></i> กลุ่มบริหารงานบุคคล</span>
                                 <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
                                         type="checkbox" id="cfg_personnel_active" data-dept="personnel"
@@ -841,9 +826,8 @@
                                         class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
                         </div>
                         <!-- กลุ่มบริหารทั่วไป -->
-                        <div class="border rounded-xl p-4 bg-orange-50 dark:bg-slate-900/50">
-                            <h3
-                                class="font-bold text-orange-800 dark:text-orange-400 flex justify-between items-center">
+                        <div class="border rounded-xl p-4 bg-orange-50">
+                            <h3 class="font-bold text-orange-800 flex justify-between items-center">
                                 <span><i class="fa-solid fa-building mr-1"></i> กลุ่มบริหารทั่วไป</span>
                                 <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
                                         type="checkbox" id="cfg_general_active" data-dept="general"
@@ -855,7 +839,7 @@
                         </div>
                     </div>
                     <div class="border-t pt-6 mt-4">
-                        <h3 class="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2"><i
+                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i
                                 class="fa-solid fa-user-shield text-emerald-600"></i> แต่งตั้ง Admin ประจำกลุ่มงาน</h3>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
                             <div><label class="block text-sm font-bold mb-1">กลุ่มวิชาการ</label><select
@@ -894,30 +878,22 @@
             <!-- Modal สำหรับเพิ่ม/แก้ไขกิจกรรม (internal) -->
             <div id="eventModal"
                 class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
-                <div class="bg-white dark:bg-slate-800 rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
+                <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
                     <button onclick="closeEventModal()"
                         class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
-                    <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800 dark:text-white">เพิ่มกิจกรรม
+                    <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม
                     </h3>
                     <form id="eventForm" onsubmit="saveEvent(event)">
                         <input type="hidden" id="event_id"><input type="hidden" id="event_dept_key">
-                        <div class="mb-3"><label
-                                class="block font-bold mb-1 text-slate-700 dark:text-slate-300">ชื่อกิจกรรม</label><input
-                                type="text" id="event_title" required
-                                class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
-                        <div class="mb-3"><label
-                                class="block font-bold mb-1 text-slate-700 dark:text-slate-300">รายละเอียด</label><textarea
-                                id="event_desc" rows="3"
-                                class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></textarea></div>
+                        <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">ชื่อกิจกรรม</label><input
+                                type="text" id="event_title" required class="w-full border rounded-lg px-3 py-2"></div>
+                        <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">รายละเอียด</label><textarea
+                                id="event_desc" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea></div>
                         <div class="grid grid-cols-2 gap-3 mb-3">
-                            <div><label
-                                    class="block font-bold text-slate-700 dark:text-slate-300">วันที่เริ่ม</label><input
-                                    type="date" id="event_start" required
-                                    class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
-                            <div><label
-                                    class="block font-bold text-slate-700 dark:text-slate-300">วันที่สิ้นสุด</label><input
-                                    type="date" id="event_end"
-                                    class="w-full border rounded-lg px-3 py-2 dark:bg-slate-900"></div>
+                            <div><label class="block font-bold text-slate-700">วันที่เริ่ม</label><input type="date"
+                                    id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
+                            <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label><input type="date"
+                                    id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
                         </div>
                         <div class="flex justify-end gap-2"><button type="button" onclick="closeEventModal()"
                                 class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button><button type="submit"

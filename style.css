@@ -16,17 +16,6 @@
     --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
 
-html.dark {
-    --color-bg-body: #0f172a;
-    --color-surface: #1e293b;
-    --color-border: #334155;
-    --color-text-main: #f8fafc;
-    --color-text-muted: #94a3b8;
-    --color-primary: #1C69A8;
-    --color-primary-hover: #42D3F2;
-    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-}
-
 body {
     background-color: var(--color-bg-body);
     color: var(--color-text-main);
@@ -119,12 +108,6 @@ textarea:focus {
     border-color: var(--color-primary) !important;
     box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
     outline: none;
-}
-
-html.dark input,
-html.dark select,
-html.dark textarea {
-    background-color: var(--color-bg-body);
 }
 
 /* DataTables Integration */
@@ -498,20 +481,6 @@ canvas {
     background-color: #DB2777 !important;
     color: white !important;
 }
-
-/* Pink */
-
-/* .step-btn {
-            @apply px-4 py-2 rounded-xl font-bold text-xs transition-all bg-slate-100 text-slate-500 hover:bg-slate-200;
-        }
-
-        .field-label {
-            @apply block text-[10px] font-black text-slate-400 mb-1 uppercase tracking-wider;
-        }
-
-        .field-input {
-            @apply w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl outline-none focus:border-blue-500 transition-all text-sm;
-        } */
 
 @media (max-width: 767px) {
     #sidebar {

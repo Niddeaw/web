@@ -1397,3 +1397,303 @@ async function deleteLog(logId, studentId) {
 function closeHistoryModal() {
     $('#historyModal').addClass('hidden').removeClass('flex');
 }
+// =====================================================================
+// LOGS MODAL — ดูบันทึกพฤติกรรม รายวัน / รายสัปดาห์ / รายเดือน
+// =====================================================================
+
+let _logsType   = 'negative';   // 'positive' | 'negative'
+let _logsTab    = 'day';        // 'day' | 'week' | 'month'
+let _weekOffset = 0;            // จำนวนสัปดาห์ที่เลื่อนจากปัจจุบัน
+let _monthOffset = 0;           // จำนวนเดือนที่เลื่อนจากปัจจุบัน
+
+// ── เปิด Modal ──────────────────────────────────────────────────────
+function openLogsModal(type) {
+    _logsType    = type;
+    _weekOffset  = 0;
+    _monthOffset = 0;
+
+    const isPos = type === 'positive';
+
+    // ตั้ง header
+    $('#logsModalIcon').html(
+        isPos
+            ? '<i class="fas fa-star text-green-600"></i>'
+            : '<i class="fas fa-exclamation-triangle text-red-600"></i>'
+    ).removeClass('bg-green-100 bg-red-100')
+     .addClass(isPos ? 'bg-green-100' : 'bg-red-100');
+
+    $('#logsModalTitle').text(isPos ? 'บันทึกทำความดี' : 'บันทึกผิดระเบียบ');
+
+    // ตั้ง badge สี
+    $('#logsCountBadge')
+        .removeClass('bg-green-100 text-green-700 bg-red-100 text-red-700')
+        .addClass(isPos ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700');
+
+    // กำหนดวันที่เริ่มต้นเป็นวันนี้
+    const today = new Date().toISOString().slice(0, 10);
+    $('#logsPickerDay').val(today);
+
+    // เริ่มต้นที่แท็บ "รายวัน"
+    setLogsTab('day');
+
+    $('#logsModal').removeClass('hidden').addClass('flex');
+}
+
+// ── ปิด Modal ──────────────────────────────────────────────────────
+function closeLogsModal() {
+    $('#logsModal').addClass('hidden').removeClass('flex');
+}
+
+// ── สลับแท็บ ────────────────────────────────────────────────────────
+function setLogsTab(tab) {
+    _logsTab = tab;
+
+    // รีเซ็ต offset เมื่อเปลี่ยน tab
+    _weekOffset  = 0;
+    _monthOffset = 0;
+
+    // UI ปุ่ม tab
+    ['day', 'week', 'month'].forEach(t => {
+        $('#logsTab' + t.charAt(0).toUpperCase() + t.slice(1))
+            .toggleClass('active', t === tab);
+    });
+
+    // แสดง/ซ่อน filter
+    $('#filterDay').toggleClass('hidden', tab !== 'day').toggleClass('flex', tab === 'day');
+    $('#filterWeek').toggleClass('hidden', tab !== 'week').toggleClass('flex', tab === 'week');
+    $('#filterMonth').toggleClass('hidden', tab !== 'month').toggleClass('flex', tab === 'month');
+
+    if (tab === 'week')  updateWeekLabel();
+    if (tab === 'month') updateMonthLabel();
+
+    fetchLogsData();
+}
+
+// ── ป้ายชื่อสัปดาห์ ─────────────────────────────────────────────────
+function getWeekRange(offset) {
+    const now  = new Date();
+    const day  = now.getDay() === 0 ? 6 : now.getDay() - 1;   // จันทร์=0
+    const mon  = new Date(now);
+    mon.setDate(now.getDate() - day + offset * 7);
+    const sun  = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    return { start: mon, end: sun };
+}
+
+function updateWeekLabel() {
+    const { start, end } = getWeekRange(_weekOffset);
+    const fmt = d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' });
+    const label = _weekOffset === 0 ? 'สัปดาห์นี้' : (_weekOffset === -1 ? 'สัปดาห์ที่แล้ว' : '');
+    $('#logsWeekLabel').text((label ? label + '  ' : '') + fmt(start) + ' – ' + fmt(end));
+}
+
+function shiftWeek(dir) {
+    _weekOffset += dir;
+    updateWeekLabel();
+    fetchLogsData();
+}
+
+// ── ป้ายชื่อเดือน ───────────────────────────────────────────────────
+function getMonthRange(offset) {
+    const now   = new Date();
+    const year  = now.getFullYear();
+    const month = now.getMonth() + offset;
+    const start = new Date(year, month, 1);
+    const end   = new Date(year, month + 1, 0);
+    return { start, end };
+}
+
+function updateMonthLabel() {
+    const { start } = getMonthRange(_monthOffset);
+    const label = start.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+    const rel   = _monthOffset === 0 ? ' (เดือนนี้)' : (_monthOffset === -1 ? ' (เดือนที่แล้ว)' : '');
+    $('#logsMonthLabel').text(label + rel);
+}
+
+function shiftMonth(dir) {
+    _monthOffset += dir;
+    updateMonthLabel();
+    fetchLogsData();
+}
+
+// ── โหลดข้อมูลจาก Supabase ─────────────────────────────────────────
+async function fetchLogsData() {
+    // แสดง loading
+    $('#logsLoading').removeClass('hidden').addClass('flex');
+    $('#logsEmpty').removeClass('flex').addClass('hidden');
+    $('#logsTableWrap').addClass('hidden');
+    $('#logsCountBadge').addClass('hidden');
+    $('#logsModalSub').text('กำลังโหลด...');
+
+    // คำนวณช่วงวันที่
+    let dateStart, dateEnd;
+    const pad = n => String(n).padStart(2, '0');
+    const toISO = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+
+    if (_logsTab === 'day') {
+        const val = $('#logsPickerDay').val();
+        if (!val) { showLogsEmpty(); return; }
+        dateStart = val + 'T00:00:00';
+        dateEnd   = val + 'T23:59:59';
+    } else if (_logsTab === 'week') {
+        const { start, end } = getWeekRange(_weekOffset);
+        dateStart = toISO(start) + 'T00:00:00';
+        dateEnd   = toISO(end)   + 'T23:59:59';
+    } else {
+        const { start, end } = getMonthRange(_monthOffset);
+        dateStart = toISO(start) + 'T00:00:00';
+        dateEnd   = toISO(end)   + 'T23:59:59';
+    }
+
+    const scoreFilter = _logsType === 'positive' ? 'gt' : 'lt';
+    const cols = 'id, student_id, score_change, created_at, behavior_criteria(title), recorder:core_personnel!recorder_id(prefix, first_name, last_name), student:core_students!student_id(student_id_card, first_name, last_name, student_enrollments(student_number, core_classrooms(grade_level, room_number)))';
+
+    try {
+        let query = db.from('behavior_logs')
+            .select(cols)
+            .gte('created_at', dateStart)
+            .lte('created_at', dateEnd)
+            .order('created_at', { ascending: false });
+
+        if (_logsType === 'positive') query = query.gt('score_change', 0);
+        else                          query = query.lt('score_change', 0);
+
+        const { data, error } = await query;
+
+        $('#logsLoading').addClass('hidden').removeClass('flex');
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            showLogsEmpty();
+            return;
+        }
+
+        // อัปเดต subtitle
+        const subMap = {
+            day:   'วันที่ ' + (dateStart.slice(0, 10)),
+            week:  $('#logsWeekLabel').text(),
+            month: $('#logsMonthLabel').text()
+        };
+        $('#logsModalSub').text(subMap[_logsTab]);
+
+        // Badge
+        const isPos = _logsType === 'positive';
+        $('#logsCountBadge').text(data.length + ' รายการ').removeClass('hidden');
+
+        // Render
+        renderLogsModalTable(data);
+
+    } catch (err) {
+        $('#logsLoading').addClass('hidden').removeClass('flex');
+        console.error('fetchLogsData error:', err);
+        showLogsEmpty();
+    }
+}
+
+function showLogsEmpty() {
+    $('#logsLoading').addClass('hidden').removeClass('flex');
+    $('#logsTableWrap').addClass('hidden');
+    $('#logsCountBadge').addClass('hidden');
+    $('#logsExportBtn').addClass('hidden').removeClass('flex');
+    $('#logsEmpty').removeClass('hidden').addClass('flex');
+    $('#logsModalSub').text('ไม่พบข้อมูล');
+}
+
+// cache ข้อมูลดิบไว้ export
+let _logsRawData = [];
+
+// ── Render ตาราง ────────────────────────────────────────────────────
+function renderLogsModalTable(logs) {
+    _logsRawData = logs;   // เก็บไว้ให้ exportLogsModal ใช้
+
+    const isPos = _logsType === 'positive';
+    let html = '';
+
+    logs.forEach(function(log) {
+        const date = new Date(log.created_at).toLocaleDateString('th-TH', {
+            day: '2-digit', month: 'short', year: '2-digit',
+            hour: '2-digit', minute: '2-digit'
+        });
+
+        const student   = log.student || {};
+        const enroll    = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
+        const classroom = enroll?.core_classrooms || {};
+        const room      = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+        const sid       = student.student_id_card || '-';
+        const fullName  = ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-';
+        const criteria  = log.behavior_criteria?.title || '-';
+        const scoreVal  = (isPos ? '+' : '') + log.score_change;
+        const scoreClass = isPos
+            ? 'bg-green-100 text-green-700 font-black px-2 py-0.5 rounded-lg'
+            : 'bg-red-100 text-red-700 font-black px-2 py-0.5 rounded-lg';
+        const rec = log.recorder
+            ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name
+            : '-';
+
+        html += `<tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition"
+                     onclick="closeLogsModal(); setTimeout(()=>viewHistory('${log.student_id}'), 300)"
+                     title="ดูประวัติ ${fullName}">
+            <td class="py-3 px-4 text-slate-400 whitespace-nowrap text-xs">${date}</td>
+            <td class="py-3 px-4 whitespace-nowrap font-medium text-slate-600 text-xs">${room}</td>
+            <td class="py-3 px-4 text-slate-500 text-xs">${sid}</td>
+            <td class="py-3 px-4 font-bold text-blue-800 whitespace-nowrap">${fullName}</td>
+            <td class="py-3 px-4 text-slate-500 truncate text-xs" title="${criteria}">${criteria}</td>
+            <td class="py-3 px-4 text-center"><span class="${scoreClass}">${scoreVal}</span></td>
+            <td class="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">${rec}</td>
+        </tr>`;
+    });
+
+    $('#logsTableBody').html(html);
+    $('#logsTableWrap').removeClass('hidden').addClass('flex').css('flex-direction', 'column');
+    // แสดงปุ่ม Export
+    $('#logsExportBtn').removeClass('hidden').addClass('flex');
+}
+
+// ── Export Excel จาก Modal ──────────────────────────────────────────
+function exportLogsModal() {
+    if (!_logsRawData.length) return;
+
+    const isPos     = _logsType === 'positive';
+    const typeLabel = isPos ? 'ทำความดี' : 'ผิดระเบียบ';
+
+    // ชื่อไฟล์ตามช่วงเวลาที่เลือก
+    const pad = n => String(n).padStart(2, '0');
+    let periodLabel = '';
+    if (_logsTab === 'day') {
+        periodLabel = $('#logsPickerDay').val() || 'รายวัน';
+    } else if (_logsTab === 'week') {
+        const { start, end } = getWeekRange(_weekOffset);
+        const fmt = d => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`;
+        periodLabel = `สัปดาห์_${fmt(start)}-${fmt(end)}`;
+    } else {
+        periodLabel = $('#logsMonthLabel').text().replace(/\s*\(.*\)/, '').trim();
+    }
+
+    const fileName = `บันทึก${typeLabel}_${periodLabel}.xlsx`;
+    const sheetName = `${typeLabel} (${periodLabel})`.slice(0, 31);
+
+    // สร้างข้อมูล export จาก raw data
+    const exportData = _logsRawData.map(log => {
+        const student   = log.student || {};
+        const enroll    = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
+        const classroom = enroll?.core_classrooms || {};
+        const room      = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+        const rec       = log.recorder
+            ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name
+            : '-';
+        const dateStr   = new Date(log.created_at).toLocaleString('th-TH');
+
+        return {
+            'วันที่/เวลา':   dateStr,
+            'ชั้นเรียน':     room,
+            'เลขประจำตัว':   student.student_id_card || '-',
+            'ชื่อ-สกุล':     ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-',
+            'รายการ':        log.behavior_criteria?.title || '-',
+            'คะแนน':         log.score_change,
+            'ผู้บันทึก':     rec
+        };
+    });
+
+    _writeExcel(exportData, fileName, sheetName);
+}

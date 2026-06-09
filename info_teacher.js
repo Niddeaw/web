@@ -420,11 +420,11 @@ function updateToggleModeUI() {
     const btn = document.getElementById('btnToggleMode');
     const badge = document.getElementById('pageBadge');
     if (isCurrentAdminMode) {
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-toggle-on text-emerald-500 text-lg"></i> <span>โหมด: ผู้ดูแลระบบ</span>';
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
         if (btn) btn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-slate-100 border';
         if (badge) badge.innerText = 'มุมมองผู้ดูแลระบบ (Admin View - เลือกดูทีละห้อง)';
     } else {
-        if (btn) btn.innerHTML = '<i class="fa-solid fa-toggle-off text-slate-400 text-lg"></i> <span>โหมด: ครูที่ปรึกษา</span>';
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
         if (btn) btn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-slate-50 border';
         if (badge) badge.innerText = 'มุมมองครูที่ปรึกษา (Teacher View - เฉพาะห้องโฮมรูม)';
     }

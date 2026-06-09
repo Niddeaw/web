@@ -6,25 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ข้อมูลนักเรียนรายบุคคล (Teacher View) - WRK System</title>
 
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 
     <style>
-        body {
-            font-family: 'Anuphan', sans-serif;
-        }
-
         .hide-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -92,7 +78,8 @@
                         class="w-full md:w-1/3 border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-blue-500 font-sans">
                         <option value="">-- เลือกห้องเรียน --</option>
                     </select>
-                    <div id="adviserDisplay" class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
+                    <div id="adviserDisplay"
+                        class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
                         <i class="fas fa-chalkboard-user text-blue-500"></i>
                         <span class="text-slate-400 font-bold">ครูที่ปรึกษา:</span>
                         <span id="adviserNames" class="font-bold text-slate-700">-</span>
@@ -155,7 +142,8 @@
                 </div>
                 <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700"><i
                         class="fa-solid fa-database mr-1"></i> การตั้งค่านี้จะถูกบันทึกลงในฐานข้อมูล
-                    <strong>core_school_info</strong> (ใช้ร่วมกันทุกคน)</div>
+                    <strong>core_school_info</strong> (ใช้ร่วมกันทุกคน)
+                </div>
                 <div class="flex gap-3 pt-1"><button onclick="saveSettings()"
                         class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition text-sm"><i
                             class="fa-solid fa-floppy-disk mr-1"></i> บันทึกการตั้งค่า</button><button
@@ -174,7 +162,8 @@
             <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shrink-0">
                 <div class="flex items-center gap-4">
                     <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl font-bold">
-                        <i class="fa-solid fa-user-graduate"></i></div>
+                        <i class="fa-solid fa-user-graduate"></i>
+                    </div>
                     <div>
                         <h3 id="modalStudentName" class="text-xl font-bold">กำลังโหลด...</h3>
                         <p id="modalStudentCode" class="text-sm opacity-80">รหัสประจำตัว: -</p>
@@ -370,7 +359,8 @@
                     <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
                         <div
                             class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-4 mx-auto">
-                            <i class="fa-solid fa-people-group"></i></div>
+                            <i class="fa-solid fa-people-group"></i>
+                        </div>
                         <h4 class="font-bold text-slate-500 mb-1">ชุมนุมที่เลือกเรียน (เทอมปัจจุบัน)</h4>
                         <p id="view_club_name" class="text-2xl font-black text-blue-800">กำลังโหลด...</p>
                     </div>
