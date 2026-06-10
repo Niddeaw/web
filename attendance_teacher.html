@@ -73,7 +73,7 @@
     <main class="container mx-auto p-4 lg:p-6 space-y-6">
         <!-- เลือกการเช็คชื่อสำหรับห้องเรียนและวันที่ต้องการ จากนั้นตรวจสอบข้อมูลและกดปุ่ม "บันทึกมาครบทุกคน" หรือเลือกสถานะอื่นๆ เป็นรายคนเพื่อบันทึกข้อมูลการเช็คชื่อในแต่ละวันอย่างถูกต้อง -->
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-2 glass-panel p-6 shadow-xl space-y-4">
+            <div class="lg:col-span-2 glass-panel p-6 shadow-xl space-y-4 rounded-2xl">
                 <div class="flex items-center gap-2 mb-2">
                     <i class="fas fa-search text-blue-600"></i>
                     <h2 class="font-bold text-slate-700">เลือกข้อมูลการเช็คชื่อ</h2>
@@ -94,39 +94,47 @@
                 </div>
             </div>
 
-<div class="glass-panel p-5 bg-blue-50/50 flex flex-col justify-center border-blue-100 shadow-lg relative overflow-hidden rounded-2xl">
-    <i class="fas fa-chart-pie absolute -right-4 -bottom-4 text-6xl text-blue-100/50 z-0"></i>
-    
-    <div id="homeroom-advisor-container" class="flex items-center gap-3 mb-4 z-10 transition-all duration-300">
-        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-200">
-            <i class="fa-solid fa-chalkboard-user text-lg"></i>
-        </div>
-        <div>
-            <p class="text-[10px] md:text-xs text-slate-500 font-bold uppercase mb-0.5">ครูที่ปรึกษาประจำชั้น</p>
-            <h4 id="homeroom-advisor-names" class="text-sm md:text-base font-bold text-blue-900 leading-tight">
-                <i class="fa-solid fa-spinner fa-spin text-blue-400"></i> กำลังโหลดข้อมูล...
-            </h4>
-        </div>
-    </div>
+            <div
+                class="glass-panel p-5 bg-blue-50/50 flex flex-col justify-center border-blue-100 shadow-lg relative overflow-hidden rounded-2xl">
+                <i class="fas fa-chart-pie absolute -right-4 -bottom-4 text-6xl text-blue-100/50 z-0"></i>
 
-    <h3 class="text-sm font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2 z-10">ภาพรวมการเช็คชื่อ (เทอมนี้)</h3>
-    <div class="grid grid-cols-2 gap-2 z-10">
-        <div>
-            <p class="text-[10px] font-black text-slate-500 uppercase">เช็คแล้ว</p>
-            <p class="text-2xl font-black text-blue-600 cursor-pointer hover:text-blue-800 transition-colors" onclick="showCheckedDates()">
-                <span id="days-checked-count">0</span> <span class="text-sm font-medium">วัน</span>
-                <i class="fas fa-info-circle text-[10px] align-top"></i>
-            </p>
-        </div>
-        <div>
-            <p class="text-[10px] font-black text-rose-500 uppercase">ลืมเช็ค/ขาดเช็ค</p>
-            <p class="text-2xl font-black text-rose-600 cursor-pointer hover:text-rose-800 transition-colors" onclick="showMissingDates()">
-                <span id="missing-days-count">0</span> <span class="text-sm font-medium">วัน</span>
-                <i class="fas fa-info-circle text-[10px] align-top"></i>
-            </p>
-        </div>
-    </div>
-</div>
+                <div id="homeroom-advisor-container"
+                    class="flex items-center gap-3 mb-4 z-10 transition-all duration-300">
+                    <div
+                        class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-200">
+                        <i class="fa-solid fa-chalkboard-user text-lg"></i>
+                    </div>
+                    <div>
+                        <p class="text-[10px] md:text-xs text-slate-500 font-bold uppercase mb-0.5">
+                            ครูที่ปรึกษาประจำชั้น</p>
+                        <h4 id="homeroom-advisor-names"
+                            class="text-sm md:text-base font-bold text-blue-900 leading-tight">
+                            <i class="fa-solid fa-spinner fa-spin text-blue-400"></i> กำลังโหลดข้อมูล...
+                        </h4>
+                    </div>
+                </div>
+
+                <h3 class="text-sm font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2 z-10">ภาพรวมการเช็คชื่อ
+                    (เทอมนี้)</h3>
+                <div class="grid grid-cols-2 gap-2 z-10">
+                    <div>
+                        <p class="text-[10px] font-black text-slate-500 uppercase">เช็คแล้ว</p>
+                        <p class="text-2xl font-black text-blue-600 cursor-pointer hover:text-blue-800 transition-colors"
+                            onclick="showCheckedDates()">
+                            <span id="days-checked-count">0</span> <span class="text-sm font-medium">วัน</span>
+                            <i class="fas fa-info-circle text-[10px] align-top"></i>
+                        </p>
+                    </div>
+                    <div>
+                        <p class="text-[10px] font-black text-rose-500 uppercase">ลืมเช็ค/ขาดเช็ค</p>
+                        <p class="text-2xl font-black text-rose-600 cursor-pointer hover:text-rose-800 transition-colors"
+                            onclick="showMissingDates()">
+                            <span id="missing-days-count">0</span> <span class="text-sm font-medium">วัน</span>
+                            <i class="fas fa-info-circle text-[10px] align-top"></i>
+                        </p>
+                    </div>
+                </div>
+            </div>
 
         </div>
 
