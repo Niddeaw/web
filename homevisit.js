@@ -1,5 +1,5 @@
 // ==========================================
-// homevisit.js (ฉบับแก้ไข) 3/6/2026
+// homevisit.js (ฉบับแก้ไข) 10/6/2026
 // ==========================================
 
 let currentUser = null;
@@ -727,8 +727,8 @@ async function loadStudentInfo(studentId) {
             if (delBtn) { delBtn.classList.add('hidden'); delBtn.classList.remove('flex'); }
             if (cloudBtn) {
                 cloudBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้`;
-                cloudBtn.classList.add('bg-green-600', 'opacity-40');
-                cloudBtn.classList.remove('bg-slate-700', 'text-white');
+                cloudBtn.classList.add('bg-green-600', 'text-white', 'opacity-40');
+                cloudBtn.classList.remove('bg-slate-700');
                 cloudBtn.disabled = true;
             }
         }
@@ -822,7 +822,7 @@ function clearStudentInfo() {
         const cloudBtn = document.getElementById(p.cloudBtnId);
         if (cloudBtn) {
             cloudBtn.disabled = true;
-            cloudBtn.classList.add('opacity-40');
+            cloudBtn.classList.add('opacity-40', 'bg-green-600', 'text-white');
             cloudBtn.classList.remove('bg-slate-700');
             cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
         }
@@ -2671,7 +2671,8 @@ window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
     const cloudBtn = document.getElementById(cloudBtnId);
     if (cloudBtn) {
         cloudBtn.disabled = true;
-        cloudBtn.classList.add('opacity-40');
+        cloudBtn.classList.add('opacity-40', 'bg-green-600', 'text-white');
+        cloudBtn.classList.remove('bg-slate-700');
         cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
     }
     const fileInput = document.getElementById(inputId);
