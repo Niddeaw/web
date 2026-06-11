@@ -1,5 +1,5 @@
 // ==========================================
-// homevisit.js (ฉบับแก้ไข) 10/6/2026
+// homevisit.js (ฉบับแก้ไข) 3/6/2026
 // ==========================================
 
 let currentUser = null;
@@ -2312,16 +2312,68 @@ function editFromTable(classroomId) {
     switchTab('form');
 }
 
+// ฟังก์ชันอัปเดตสถานะห้อง + แสดงครูที่ปรึกษา
 function updateStatusBadge(status) {
     const badge = document.getElementById('status-badge');
     const text = document.getElementById('status-text');
     if (!badge || !text) return;
+    
+    // ตั้งค่าสีและข้อความสถานะ
     if (status === 'completed') {
         badge.className = "px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-center border border-emerald-100";
         text.innerHTML = '<i class="fas fa-check-circle mr-1"></i> บันทึกข้อมูลแล้ว';
     } else {
         badge.className = "px-3 py-2 bg-amber-50 text-amber-600 rounded-xl text-center border border-amber-100";
         text.innerHTML = '<i class="fas fa-exclamation-circle mr-1"></i> ยังไม่มีข้อมูล';
+    }
+
+    // ถ้ามีห้องเรียนที่เลือก → โหลดชื่อครูมาแสดง
+    if (window.currentClassroomId) {
+        loadAndDisplayTeachers(window.currentClassroomId, text);
+    }
+}
+
+// ฟังก์ชันโหลดและแสดงชื่อครูที่ปรึกษา
+async function loadAndDisplayTeachers(classroomId, textElement) {
+    try {
+        const oldInfo = textElement.querySelector('.teacher-info');
+        if (oldInfo) oldInfo.remove();
+
+        const { data: classroom, error } = await db.from('core_classrooms')
+            .select('adviser_id_1, adviser_id_2')
+            .eq('id', classroomId)
+            .single();
+        if (error || !classroom) return;
+
+        const teacherIds = [classroom.adviser_id_1, classroom.adviser_id_2].filter(id => id);
+        if (teacherIds.length === 0) return;
+
+        const { data: teachers } = await db.from('core_personnel')
+            .select('id, prefix, first_name, last_name')
+            .in('id', teacherIds);
+        
+        const teacherMap = {};
+        teachers.forEach(t => { teacherMap[t.id] = `${t.prefix || ''}${t.first_name} ${t.last_name}`; });
+
+        // ✅ เปลี่ยนสีและรูปแบบให้แตกต่างจากสถานะหลัก
+        let teacherHtml = `<div class="teacher-info text-xs mt-2 pt-2 border-t border-slate-200 text-slate-500">`;
+        if (classroom.adviser_id_1) {
+            teacherHtml += `<div class="flex items-center gap-1 mt-1">
+                <i class="fas fa-chalkboard-user text-slate-400 text-[10px] w-4"></i>
+                <span>ครูที่ปรึกษาคนที่ 1: <strong class="font-semibold text-slate-600">${teacherMap[classroom.adviser_id_1] || '-'}</strong></span>
+            </div>`;
+        }
+        if (classroom.adviser_id_2) {
+            teacherHtml += `<div class="flex items-center gap-1 mt-1">
+                <i class="fas fa-chalkboard-user text-slate-400 text-[10px] w-4"></i>
+                <span>ครูที่ปรึกษาคนที่ 2: <strong class="font-semibold text-slate-600">${teacherMap[classroom.adviser_id_2] || '-'}</strong></span>
+            </div>`;
+        }
+        teacherHtml += `</div>`;
+        
+        textElement.insertAdjacentHTML('beforeend', teacherHtml);
+    } catch (err) {
+        console.warn('Cannot load teachers:', err);
     }
 }
 
