@@ -40,14 +40,14 @@
     </nav>
 
     <!-- MAIN CONTAINER -->
-    <div class="max-w-2xl mx-auto px-4 pt-8" id="main-container">
+    <div class="w-full max-w-7xl mx-auto px-4 pt-8" id="main-container">
         <!-- Loading -->
         <div id="view-loading" class="text-center py-20">
             <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-400 mb-4"></i>
             <p class="text-slate-500">กำลังตรวจสอบข้อมูล...</p>
         </div>
 
-        <!-- Assessment View -->
+        <!-- Assessment View (ทำแบบประเมิน) -->
         <div id="view-assessment" class="hidden fade-up">
             <div class="glass rounded-3xl shadow-2xl overflow-hidden">
                 <!-- Header -->
@@ -59,7 +59,6 @@
                     <div class="w-full bg-white/20 rounded-full h-2 mb-4">
                         <div id="progress-bar" class="bg-white rounded-full h-2 progress-bar" style="width:0%"></div>
                     </div>
-                    <!-- Timer -->
                     <div id="timer-section" class="flex items-center gap-2 text-xs opacity-80">
                         <i class="fas fa-clock"></i>
                         <span id="timer-text">กรุณารอ <span id="timer-count">10</span> วินาที</span>
@@ -72,30 +71,8 @@
                     </div>
                     <p class="text-xl font-bold text-slate-800 mb-8 leading-relaxed" id="q-text"></p>
 
-                    <!-- Choices -->
-                    <div class="space-y-3" id="choices-container">
-                        <button data-val="1" onclick="selectChoice(1)"
-                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                            <div
-                                class="w-10 h-10 rounded-xl bg-red-100 text-red-500 flex items-center justify-center font-bold flex-shrink-0">
-                                1</div>
-                            <span class="font-semibold text-slate-700">ไม่จริง</span>
-                        </button>
-                        <button data-val="2" onclick="selectChoice(2)"
-                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                            <div
-                                class="w-10 h-10 rounded-xl bg-amber-100 text-amber-500 flex items-center justify-center font-bold flex-shrink-0">
-                                2</div>
-                            <span class="font-semibold text-slate-700">จริงบางครั้ง</span>
-                        </button>
-                        <button data-val="3" onclick="selectChoice(3)"
-                            class="choice-btn w-full flex items-center gap-4 p-4 rounded-2xl bg-slate-50 text-left">
-                            <div
-                                class="w-10 h-10 rounded-xl bg-green-100 text-green-500 flex items-center justify-center font-bold flex-shrink-0">
-                                3</div>
-                            <span class="font-semibold text-slate-700">จริงเสมอ</span>
-                        </button>
-                    </div>
+                    <!-- Choices (จะถูกสร้างด้วย JS จาก EQ_CHOICES) -->
+                    <div class="space-y-3" id="choices-container"></div>
 
                     <!-- Navigation -->
                     <div class="flex justify-between mt-8 gap-3">
@@ -113,11 +90,11 @@
             <p class="text-center text-xs text-slate-400 mt-4">คำตอบของคุณจะถูกบันทึกอัตโนมัติ</p>
         </div>
 
-        <!-- Result View -->
-        <div id="view-result" class="hidden fade-up space-y-4">
+        <!-- Result View (แสดงผลลัพธ์) - ตาม layout ใหม่ -->
+        <div id="view-result" class="hidden fade-up space-y-6">
+            <!-- แถวที่ 1: การ์ดสรุปผล -->
             <div class="glass rounded-3xl shadow-xl p-6 text-center">
-                <div
-                    class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
                     <i class="fas fa-brain text-white text-3xl"></i>
                 </div>
                 <h2 class="text-2xl font-bold text-slate-800">ผลการประเมิน EQ</h2>
@@ -125,24 +102,28 @@
                 <div class="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl" id="res-total-badge">
                     <i class="fas fa-star"></i>
                     <span class="font-bold text-lg" id="res-total-score"></span>
-                    <span class="text-sm opacity-80">/ 156 คะแนน</span>
+                    <span class="text-sm opacity-80">/ 208 คะแนน</span>
                 </div>
                 <p class="text-sm font-bold mt-2" id="res-total-level"></p>
             </div>
 
-            <!-- Dimension scores -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="res-dims"></div>
+            <!-- แถวที่ 2: กราฟแสดงคะแนนรายด้านย่อย -->
+            <div id="chart-container" class="glass rounded-3xl shadow-xl p-5">
+                <h3 class="font-bold text-slate-800 text-lg mb-3 flex items-center gap-2">
+                    <i class="fas fa-chart-line text-indigo-500"></i> กราฟแสดงคะแนนรายด้านย่อย
+                </h3>
+                <div id="bar-chart" class="space-y-3"></div>
+            </div>
 
-            <!-- Actions -->
-            <div class="flex flex-col sm:flex-row gap-3">
-                <button onclick="printResult()"
-                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-2xl font-bold flex items-center justify-center gap-2">
+            <!-- แถวที่ 3: 3 การ์ด ด้านดี / ด้านเก่ง / ด้านสุข -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5" id="groups-container"></div>
+
+            <!-- ปุ่มพิมพ์ PDF -->
+            <div class="flex justify-center">
+                <button onclick="printResult()" class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-2xl font-bold flex items-center gap-2 shadow-md transition">
                     <i class="fas fa-print"></i> พิมพ์ผล PDF
                 </button>
             </div>
-
-            <!-- Hidden PDF content -->
-            <div id="pdf-content" class="hidden"></div>
         </div>
     </div>
 
