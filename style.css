@@ -1,7 +1,6 @@
 /* =========================================================
    WRK System - Clean & Modern Theme
 ========================================================= */
-@import url('https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap');
 
 :root {
     --color-bg-body: #f1f5f9;
@@ -26,11 +25,9 @@ body {
 /* =========================================================
    UI Components
 ========================================================= */
-/* Glass / Card Components */
+/* Glass / Card Components - ไม่ override .bg-white/.bg-slate-800 เพราะทำให้ปุ่มสีต่างๆ ถูกบังสี */
 .glass,
-.card,
-.bg-white,
-.bg-slate-800 {
+.card {
     background-color: var(--color-surface) !important;
     border-color: var(--color-border) !important;
     box-shadow: var(--shadow-card) !important;
@@ -74,22 +71,22 @@ header.sticky {
     color: var(--color-text-muted);
 }
 
-/* Navigation Buttons in Sidebar */
-nav button {
+/* Navigation Buttons in Sidebar only */
+#sidebar nav button {
     color: var(--color-text-muted) !important;
     transition: all 0.2s ease;
 }
 
-nav button:hover {
+#sidebar nav button:hover {
     background-color: var(--color-bg-body) !important;
     color: var(--color-text-main) !important;
 }
 
-nav button.bg-blue-600 {
+#sidebar nav button.bg-blue-600 {
     /* Active state */
     background-color: var(--color-primary) !important;
     color: #ffffff !important;
-    box-shadow: 0 4px 10px rgba(99, 102, 241, 0.2) !important;
+    box-shadow: 0 4px 10px rgba(33, 188, 255, 0.2) !important;
 }
 
 /* Form Inputs */
@@ -106,7 +103,7 @@ input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--color-primary) !important;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15) !important;
+    box-shadow: 0 0 0 3px rgba(33, 188, 255, 0.15) !important;
     outline: none;
 }
 
@@ -161,9 +158,9 @@ table.dataTable.display>tbody>tr:hover>* {
 }
 
 .tab-pill.active {
-    background: #6366f1;
+    background: var(--color-primary);
     color: #fff;
-    box-shadow: 0 4px 12px rgba(99, 102, 241, .3);
+    box-shadow: 0 4px 12px rgba(33, 188, 255, .3);
 }
 
 .tab-panel {
@@ -222,8 +219,8 @@ table.dataTable.display>tbody>tr:hover>* {
 }
 
 .field-input:focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(33, 188, 255, .12);
 }
 
 .field-input.readonly {
@@ -275,7 +272,7 @@ select.field-input {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: .1em;
-    color: #6366f1;
+    color: var(--color-primary);
     border-bottom: 2px solid #eef2ff;
     padding-bottom: .5rem;
     margin-bottom: 1rem;
@@ -290,7 +287,7 @@ select.field-input {
     height: 120px;
     border-radius: 1.5rem;
     position: relative;
-    background: #6366f1;
+    background: var(--color-primary);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -299,7 +296,7 @@ select.field-input {
     color: #fff;
     overflow: hidden;
     flex-shrink: 0;
-    box-shadow: 0 8px 24px rgba(99, 102, 241, .25);
+    box-shadow: 0 8px 24px rgba(33, 188, 255, .25);
     border: 4px solid #fff;
 }
 
@@ -364,7 +361,7 @@ select.field-input {
 /* ตอน focus */
 .ts-wrapper.focus .ts-control {
     border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+    box-shadow: 0 0 0 3px rgba(33, 188, 255, 0.15);
     outline: none;
 }
 
@@ -376,6 +373,7 @@ select.field-input {
     margin-top: 0.25rem;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
     color: var(--color-text-main);
+    z-index: 99999 !important;
 }
 
 /* แต่ละตัวเลือก */
@@ -417,35 +415,6 @@ select.field-input {
 
 .ts-wrapper .ts-control .clear-button:hover {
     color: #ef4444;
-}
-
-/* ── TOM SELECT CUSTOM THEME ── */
-.ts-control {
-    border: 1.5px solid #e2e8f0;
-    border-radius: .875rem;
-    padding: .65rem .9rem;
-    font-family: 'Anuphan', sans-serif;
-    background: #fff;
-    min-height: 42px;
-}
-
-.ts-control.focus {
-    border-color: #6366f1;
-    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
-}
-
-.ts-dropdown {
-    border-radius: .875rem;
-    border: 1px solid #e2e8f0;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-    font-family: 'Anuphan', sans-serif;
-    z-index: 99999 !important;
-    /* การันตีว่าต้องอยู่บนสุด */
-}
-
-.ts-dropdown .active {
-    background-color: #e0e7ff !important;
-    color: #4f46e5 !important;
 }
 
 canvas {
