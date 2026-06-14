@@ -888,7 +888,7 @@ async function loadExistingHomeVisit(studentId) {
             .limit(1);
 
         if (error) throw error;
-        
+
         const data = records && records.length > 0 ? records[0] : null;
         if (!data) {
             // ไม่มีข้อมูลเดิม → reset suppressDirty แล้ว return
@@ -1237,45 +1237,6 @@ function populateFormWithData(data) {
     formIsDirty = false;    // ✅ เพิ่งโหลดข้อมูลเดิมมา ถือว่ายังไม่ dirty
 }
 
-// window.submitHomeVisit = async function () {
-//     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
-
-//     const studentId = document.getElementById('hv_student').value;
-//     const classroomId = window.currentClassroomId;
-//     if (!studentId || !classroomId) return Swal.fire('ผิดพลาด', 'กรุณาเลือกห้องเรียนและนักเรียน', 'warning');
-
-//     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-//     // ✅ ใช้ buildFormData ร่วมกับ autoSave
-//     const formData = buildFormData(studentId, classroomId);
-
-//     try {
-//         const { data: existing } = await db.from('module_home_visits')
-//             .select('id').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
-//         let resError;
-//         if (existing) {
-//             const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
-//             resError = error;
-//         } else {
-//             const { error } = await db.from('module_home_visits').insert([formData]);
-//             resError = error;
-//         }
-//         if (resError) throw resError;
-
-//         formIsDirty = false;   // ✅ บันทึกสำเร็จ → reset dirty flag
-//         // ✅ การบันทึกปกติ ใช้ SweetAlert2
-//         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อย', confirmButtonText: 'ตกลง' });
-//         goToStep(1);
-//         updateStatusBadge('completed');
-//         // ✅ เพิ่มบรรทัดนี้
-//         if (typeof loadDataTable === 'function') loadDataTable();
-//         console.log('Saving with year:', currentYear, 'term:', currentTerm);
-//         console.log('Loading with year:', currentYear, 'term:', currentTerm);
-//     } catch (err) {
-//         console.error(err);
-//         Swal.fire('ผิดพลาด', err.message, 'error');
-//     }
-// };
 // ประกาศตัวแปรรักษาความปลอดภัยป้องกันการกดปุ่มซ้ำ
 let isSubmitting = false;
 
@@ -1284,13 +1245,13 @@ window.submitHomeVisit = async function (isAutoSave = false) {
         if (!isAutoSave) Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
         return;
     }
-    
+
     // 🛑 ป้องกันการรันฟังก์ชันซ้ำซ้อนกัน (Double Submit)
-    if (isSubmitting) return; 
+    if (isSubmitting) return;
 
     const studentId = currentStudentId;
     const classroomId = window.currentClassroomId;
-    
+
     if (!studentId || !classroomId) {
         if (!isAutoSave) Swal.fire('ผิดพลาด', 'กรุณาเลือกห้องเรียนและนักเรียน', 'warning');
         return;
@@ -1427,7 +1388,7 @@ window.submitHomeVisit = async function (isAutoSave = false) {
         }
 
         console.log('✅ Saved successfully, row id:', savedData[0]?.id);
-        
+
         formIsDirty = false; // รีเซ็ตการแก้ไขให้เป็น false
 
         if (isAutoSave) {
@@ -1449,7 +1410,7 @@ window.submitHomeVisit = async function (isAutoSave = false) {
             Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
         } else {
             Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'บันทึกอัตโนมัติล้มเหลว', showConfirmButton: false, timer: 2500 });
-            throw err; 
+            throw err;
         }
     } finally {
         isSubmitting = false; // ปลดล็อคเมื่อทำงานเสร็จ
@@ -2119,27 +2080,28 @@ window.loadDataTable = async function () {
         if (exportBtn) exportBtn.style.display = '';
     }
 
+    // ==================== ส่วนสำหรับผู้ดูแลระบบ / หัวหน้า ====================
     if (!isTeacher) {
         const tbody = document.getElementById('tb-class-summary');
         if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด......</td></tr>';
+
         try {
             let classQuery = db.from('core_classrooms')
                 .select('*')
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm)
                 .order('grade_level').order('room_number');
+
             if (currentViewRole === 'head_grade') {
                 const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
                 if (gh) classQuery = classQuery.eq('grade_level', gh.grade_level);
                 else classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000');
             }
 
-            // ================== ให้คัดลอกส่วนนี้ไปทับของเดิม ==================
             const [{ data: classrooms }, { data: visits }, staffMap] = await Promise.all([
                 classQuery,
                 db.from('module_home_visits')
-                    // ✅ 1. เพิ่มการดึง visit_status มาด้วย
                     .select('classroom_id, student_id, visit_status')
                     .eq('academic_year', currentYear)
                     .eq('semester', currentTerm),
@@ -2151,20 +2113,18 @@ window.loadDataTable = async function () {
                 renderDashboard(0, 0);
                 return;
             }
+
             const { data: enrolls } = await db.from('student_enrollments')
                 .select('classroom_id, student_id')
                 .in('classroom_id', classrooms.map(c => c.id));
 
             const totalMap = {}, visitedMap = {};
             (enrolls || []).forEach(e => { totalMap[e.classroom_id] = (totalMap[e.classroom_id] || 0) + 1; });
-
-            // ✅ 2. เปลี่ยนการนับ ให้นับเพิ่มเฉพาะคนที่สถานะเป็น 'เยี่ยมแล้ว' เท่านั้น
             (visits || []).forEach(v => {
                 if (v.visit_status === 'เยี่ยมแล้ว') {
                     visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1;
                 }
             });
-            // =============================================================
 
             let doneCount = 0;
             tbody.innerHTML = classrooms.map(c => {
@@ -2193,14 +2153,16 @@ window.loadDataTable = async function () {
         return;
     }
 
+    // ==================== ส่วนสำหรับครูที่ปรึกษา ====================
     const classroomId = window.currentClassroomId;
     const tbody = document.getElementById('tb-teacher-students');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</td></tr>';
+    // เปลี่ยน colspan เป็น 8 เพราะเพิ่มคอลัมน์ "ความสมบูรณ์ของข้อมูล"
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</td></tr>';
 
     try {
         if (!classroomId) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-400">กรุณาเลือกห้องเรียนในแท็บฟอร์มก่อน</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">กรุณาเลือกห้องเรียนในแท็บฟอร์มก่อน</td></tr>';
             renderDashboard(0, 0, true);
             return;
         }
@@ -2211,7 +2173,7 @@ window.loadDataTable = async function () {
             .order('student_number');
 
         if (!enrolls || enrolls.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-400">ไม่มีนักเรียนในห้องนี้</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">ไม่มีนักเรียนในห้องนี้</td></tr>';
             return;
         }
 
@@ -2225,51 +2187,57 @@ window.loadDataTable = async function () {
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
 
+        // สร้างแถวข้อมูลพร้อมคอลัมน์ความสมบูรณ์
         tbody.innerHTML = enrolls.map(e => {
             const s = e.core_students;
             const visit = visitMap[s.id] || null;
-
-            // ✅ แก้ไข: เช็คสถานะ visit_status อย่างชัดเจน ว่าต้องเป็นคำว่า 'เยี่ยมแล้ว' เท่านั้น
             const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
+
+            // ตรวจสอบความครบถ้วน (เฉพาะกรณีที่เยี่ยมแล้ว)
+            const completeness = getCompletenessStatus(visit);
+            const completeBadge = completeness.complete
+                ? '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>'
+                : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>';
+
+            // ปุ่ม "รายการที่ขาด" สำหรับผู้ที่เยี่ยมแล้วแต่ข้อมูลไม่ครบ
+            const checkButton = (!completeness.complete && isVisited)
+                ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>`
+                : (isVisited ? '<span class="text-slate-400 text-xs px-2">-</span>' : '');
+
             const statusHtml = isVisited
                 ? '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>'
                 : '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
             let actions = '';
-            // ✅ เปลี่ยนจาก if (visit) เป็น if (isVisited)
             if (isVisited) {
-                actions += `<button onclick="editStudentVisit('${visit.id}')" class="text-blue-500 hover:text-blue-700 p-1" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
-                actions += `<button onclick="printPDF('${visit.id}')" class="text-green-500 hover:text-green-700 p-1" title="พิมพ์ PDF"><i class="fas fa-file-pdf"></i></button>`;
-                if (visit.pdf_url) {
-                    actions += `<a href="${visit.pdf_url}" target="_blank" class="text-sky-500 hover:text-sky-700 p-1" title="ดู PDF"><i class="fas fa-eye"></i></a>`;
-                } else {
-                    actions += `<span class="text-slate-300 p-1" title="ยังไม่มี PDF"><i class="fas fa-eye"></i></span>`;
-                }
+                actions = `<div class="flex justify-center gap-2 flex-wrap">
+                    <button onclick="editStudentVisit('${visit.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
+                    <button onclick="printPDF('${visit.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
+                    ${visit.pdf_url ? `<button onclick="viewExistingPDF('${visit.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>` : ''}
+                    ${checkButton}
+                </div>`;
             } else {
-                actions += `<button onclick="selectStudentForForm('${s.id}')" class="text-blue-500 hover:text-blue-700 p-1" title="กรอกข้อมูล"><i class="fas fa-edit"></i></button>`;
+                actions = `<button onclick="selectStudentForForm('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
             }
+
             return `<tr class="hover:bg-slate-50">
                 <td class="py-3 px-4 text-center font-bold">${e.student_number || '-'}</td>
                 <td class="py-3 px-4">${s.student_id_card || '-'}</td>
                 <td class="py-3 px-4">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
-                
                 <td class="py-3 px-4">${visit?.visit_date || '-'}</td>
                 <td class="py-3 px-4 text-center">${visit?.visit_times || '-'}</td>
-                
                 <td class="py-3 px-4 text-center">${statusHtml}</td>
-                <td class="py-3 px-4 text-center flex items-center justify-center gap-1">${actions}</td>
+                <td class="py-3 px-4 text-center">${completeBadge}</td>
+                <td class="py-3 px-4 text-center">${actions}</td>
             </tr>`;
         }).join('');
 
         const totalStudents = enrolls.length;
-        // ✅ นับเฉพาะที่ visit_status === 'เยี่ยมแล้ว' ให้ตรงกับตาราง
         const visitedCount = Object.values(visitMap).filter(v => v.visit_status === 'เยี่ยมแล้ว').length;
         renderDashboard(totalStudents, visitedCount, true);
-        console.log('Saving with year:', currentYear, 'term:', currentTerm);
-        console.log('Loading with year:', currentYear, 'term:', currentTerm);
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-red-500">เกิดข้อผิดพลาด</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center text-red-500">เกิดข้อผิดพลาด</td></tr>';
     }
 };
 
@@ -2317,7 +2285,7 @@ function updateStatusBadge(status) {
     const badge = document.getElementById('status-badge');
     const text = document.getElementById('status-text');
     if (!badge || !text) return;
-    
+
     // ตั้งค่าสีและข้อความสถานะ
     if (status === 'completed') {
         badge.className = "px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-center border border-emerald-100";
@@ -2351,7 +2319,7 @@ async function loadAndDisplayTeachers(classroomId, textElement) {
         const { data: teachers } = await db.from('core_personnel')
             .select('id, prefix, first_name, last_name')
             .in('id', teacherIds);
-        
+
         const teacherMap = {};
         teachers.forEach(t => { teacherMap[t.id] = `${t.prefix || ''}${t.first_name} ${t.last_name}`; });
 
@@ -2370,7 +2338,7 @@ async function loadAndDisplayTeachers(classroomId, textElement) {
             </div>`;
         }
         teacherHtml += `</div>`;
-        
+
         textElement.insertAdjacentHTML('beforeend', teacherHtml);
     } catch (err) {
         console.warn('Cannot load teachers:', err);
@@ -3667,14 +3635,134 @@ window.importFromExcel = function () {
 // ==========================================
 // ระบบแสดงภาพรวม & รายงาน (Overview & Report Tabs)
 // ==========================================
-
 window.openOverviewModal = async function (tab = 'overview') {
     const modal = document.getElementById('overview-modal');
     if (modal) {
         modal.classList.remove('hidden');
         modal.classList.add('flex');
     }
+
+    // ✅ เรียกอัปเดตชื่อครูที่ปรึกษา (สำหรับโหมดครู)
+    await updateOverviewAdvisorName();
+
+    // โหลดรายการห้องสำหรับ dropdown (เฉพาะบทบาท admin/หัวหน้า)
+    if (currentViewRole !== 'teacher') {
+        await loadClassroomsForOverview();
+    }
+
     await switchOverviewTab(tab);
+};
+
+let overviewClassroomTom = null;
+
+async function loadClassroomsForOverview() {
+    const select = document.getElementById('overview-classroom-select');
+    if (!select) return;
+
+    let query = db.from('core_classrooms')
+        .select('id, grade_level, room_number')
+        .eq('academic_year', currentYear)
+        .eq('semester', currentTerm)
+        .order('grade_level').order('room_number');
+
+    if (currentViewRole === 'head_grade') {
+        const { data: gh } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', currentUser.id)
+            .single();
+        if (gh) query = query.eq('grade_level', gh.grade_level);
+    }
+
+    const { data: classrooms } = await query;
+
+    if (overviewClassroomTom) overviewClassroomTom.destroy();
+
+    const options = (classrooms || []).map(c => ({
+        value: c.id,
+        text: `ม.${c.grade_level}/${c.room_number}`
+    }));
+
+    overviewClassroomTom = new TomSelect('#overview-classroom-select', {
+        create: false,
+        placeholder: 'พิมพ์ค้นหาห้องเรียน...',
+        options: options
+    });
+}
+
+window.loadOverviewByClassroom = async function () {
+    const classroomId = overviewClassroomTom ? overviewClassroomTom.getValue() : document.getElementById('overview-classroom-select')?.value;
+    if (!classroomId) {
+        Swal.fire('กรุณาเลือกห้องเรียน', 'เลือกห้องเรียนที่ต้องการดูภาพรวมก่อน', 'warning');
+        return;
+    }
+
+    const tbody = document.getElementById('tb-overview-admin');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูล...</td></tr>';
+
+    try {
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .eq('classroom_id', classroomId)
+            .order('student_number');
+
+        if (!enrolls || enrolls.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่มีนักเรียนในห้องนี้</td></tr>';
+            return;
+        }
+
+        const studentIds = enrolls.map(e => e.student_id);
+        const { data: visits } = await db.from('module_home_visits')
+            .select('*')
+            .in('student_id', studentIds)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm);
+
+        const visitMap = {};
+        (visits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        tbody.innerHTML = enrolls.map(e => {
+            const s = e.core_students;
+            const visit = visitMap[s.id] || null;
+            const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
+
+            const completeness = getCompletenessStatus(visit);
+            const completeBadge = !isVisited ?
+                '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>' :
+                (completeness.complete ?
+                    '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>' :
+                    '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>');
+
+            const statusHtml = isVisited ?
+                '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>' :
+                '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
+
+            let actionHtml = '';
+            if (isVisited) {
+                actionHtml = `
+                    <div class="flex justify-center gap-2 flex-wrap">
+                        <button onclick="editHomeVisit('${s.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
+                        <button onclick="printPDF('${visit.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
+                        ${visit.pdf_url ? `<button onclick="viewExistingPDF('${visit.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>` : ''}
+                        ${!completeness.complete ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>` : ''}
+                    </div>`;
+            } else {
+                actionHtml = `<button onclick="editHomeVisit('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
+            }
+
+            return `<tr class="hover:bg-slate-50">
+                <td class="p-3 text-center font-bold">${e.student_number || '-'}</td>
+                <td class="p-3 font-mono text-slate-500">${s.student_id_card || '-'}</td>
+                <td class="p-3 font-bold text-slate-700">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
+                <td class="p-3 text-center">${statusHtml}</td>
+                <td class="p-3 text-center">${completeBadge}</td>
+                <td class="p-3 text-center">${actionHtml}</td>
+            </tr>`;
+        }).join('');
+    } catch (err) {
+        console.error(err);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลด数据</td></tr>';
+    }
 };
 
 window.closeOverviewModal = function () {
@@ -3685,6 +3773,31 @@ window.closeOverviewModal = function () {
     }
 };
 
+async function updateOverviewAdvisorName() {
+    const container = document.getElementById('overview-advisor-name');
+    if (!container) return;
+
+    if (currentViewRole === 'teacher') {
+        // หาห้องที่ครูเป็นที่ปรึกษา (อาจมีหลายห้อง? เลือกห้องแรก)
+        const { data: classrooms } = await db.from('core_classrooms')
+            .select('grade_level, room_number')
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`)
+            .limit(1);
+
+        if (classrooms && classrooms.length > 0) {
+            const c = classrooms[0];
+            container.innerHTML = `<i class="fas fa-chalkboard-user mr-1"></i> ครูที่ปรึกษา: ${currentUser.first_name} ${currentUser.last_name} (ม.${c.grade_level}/${c.room_number})`;
+        } else {
+            container.innerHTML = `<i class="fas fa-chalkboard-user mr-1"></i> ครูที่ปรึกษา: ${currentUser.first_name} ${currentUser.last_name}`;
+        }
+    } else {
+        // โหมด admin/หัวหน้า: แสดงข้อความทั่วไป
+        container.innerHTML = `<i class="fas fa-users-viewfinder mr-1"></i> แสดงข้อมูลตามห้องที่เลือก`;
+    }
+}
+
 window.switchOverviewTab = async function (tab) {
     const tabs = ['overview', 'report'];
     tabs.forEach(t => {
@@ -3692,15 +3805,19 @@ window.switchOverviewTab = async function (tab) {
 
         // สลับ Class ปุ่ม (Desktop)
         const btn = document.getElementById(`tab-btn-${t}`);
-        if (btn) btn.className = isMatch
-            ? "px-4 py-2 rounded-lg font-bold text-sm bg-white text-sky-700 shadow-sm transition"
-            : "px-4 py-2 rounded-lg font-bold text-sm text-slate-500 hover:text-slate-700 transition";
+        if (btn) {
+            btn.className = isMatch
+                ? "px-4 py-2 rounded-lg font-bold text-sm bg-white text-sky-700 shadow-sm transition"
+                : "px-4 py-2 rounded-lg font-bold text-sm text-slate-500 hover:text-slate-700 transition";
+        }
 
         // สลับ Class ปุ่ม (Mobile)
         const btnMobile = document.getElementById(`tab-btn-${t}-mobile`);
-        if (btnMobile) btnMobile.className = isMatch
-            ? "flex-1 py-2 rounded-lg font-bold text-xs bg-white text-sky-700 shadow-sm transition"
-            : "flex-1 py-2 rounded-lg font-bold text-xs text-slate-500 hover:text-slate-700 transition";
+        if (btnMobile) {
+            btnMobile.className = isMatch
+                ? "flex-1 py-2 rounded-lg font-bold text-xs bg-white text-sky-700 shadow-sm transition"
+                : "flex-1 py-2 rounded-lg font-bold text-xs text-slate-500 hover:text-slate-700 transition";
+        }
 
         // แสดง/ซ่อน Content
         const content = document.getElementById(`tab-content-${t}`);
@@ -3710,20 +3827,40 @@ window.switchOverviewTab = async function (tab) {
         }
     });
 
+    // ซ่อนรายงานสรุปถ้ามีฟังก์ชัน (สำหรับ report)
     if (typeof hideReportStudentList === 'function') hideReportStudentList();
 
-    // ประมวลผลข้อมูลตามแท็บที่ถูกเปิด
+    // จัดการแต่ละแท็บ
     if (tab === 'overview') {
+        // อัปเดตชื่อครูที่ปรึกษาในหัวข้อ (ถ้ามี element)
+        const overviewTitle = document.querySelector('#overview-modal .modal-title') ||
+            document.querySelector('#overview-modal h2');
+        if (overviewTitle && currentViewRole === 'teacher') {
+            const teacherName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
+            overviewTitle.innerHTML = `<i class="fas fa-chart-line mr-2 text-indigo-600"></i>ภาพรวมข้อมูลเยี่ยมบ้าน (ครูที่ปรึกษา: ${teacherName})`;
+        } else if (overviewTitle && currentViewRole !== 'teacher') {
+            overviewTitle.innerHTML = `<i class="fas fa-chart-line mr-2 text-indigo-600"></i>ภาพรวมข้อมูลเยี่ยมบ้าน (ผู้ดูแลระบบ)`;
+        }
+
         if (currentViewRole === 'teacher') {
+            // ครูที่ปรึกษา: แสดงตารางห้องตัวเอง (โหลดอัตโนมัติ)
             document.getElementById('admin-overview-container')?.classList.add('hidden');
             document.getElementById('teacher-overview-container')?.classList.remove('hidden');
             await loadTeacherOverview();
         } else {
             document.getElementById('teacher-overview-container')?.classList.add('hidden');
             document.getElementById('admin-overview-container')?.classList.remove('hidden');
-            await loadAdminOverview();
+
+            // ✅ ล้างตารางทุกครั้งเมื่อเปิด Modal (ไม่ตรวจสอบเงื่อนไข)
+            const tbody = document.getElementById('tb-overview-admin');
+            if (tbody) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">กรุณาเลือกห้องเรียนและกดปุ่ม "แสดงข้อมูล"</td></tr>';
+            }
+
+            await loadClassroomsForOverview();
         }
-    } else if (tab === 'report') {
+    }
+    else if (tab === 'report') {
         const scopeSelect = document.getElementById('report-scope');
         const gradeContainer = document.getElementById('grade-select-container');
         if (scopeSelect && !scopeSelect.value) {
@@ -3740,79 +3877,115 @@ window.switchOverviewTab = async function (tab) {
 async function loadTeacherOverview() {
     const tbody = document.getElementById('tb-overview-teacher');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลนักเรียน...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลนักเรียน...</td></tr>';
 
     try {
-        const { data: classrooms } = await db.from('core_classrooms')
-            .select('id').eq('academic_year', currentYear).eq('semester', currentTerm)
+        // 1. ห้องเรียนที่ครูเป็นที่ปรึกษา (ปีการศึกษา/เทอมปัจจุบัน)
+        const { data: classrooms, error: classError } = await db.from('core_classrooms')
+            .select('id')
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
             .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
 
+        if (classError) throw classError;
+
         if (!classrooms || classrooms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ไม่พบห้องเรียนที่คุณเป็นที่ปรึกษา</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่พบห้องเรียนที่คุณเป็นที่ปรึกษา</td></tr>';
             return;
         }
+
         const classIds = classrooms.map(c => c.id);
 
-        const { data: students } = await db.from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name, class_room_number')
-            .in('classroom_id', classIds).order('class_room_number');
+        // 2. ดึงรายชื่อนักเรียนจาก student_enrollments พร้อมเลขที่และข้อมูลนักเรียน
+        const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
+            .select(`
+                student_number,
+                student_id,
+                core_students (
+                    id,
+                    student_id_card,
+                    prefix,
+                    first_name,
+                    last_name
+                )
+            `)
+            .in('classroom_id', classIds)
+            .order('student_number');
 
-        const { data: visits } = await db.from('module_home_visits')
-            .select('id, student_id, pdf_url, visit_status')
-            .eq('academic_year', currentYear).eq('semester', currentTerm).in('classroom_id', classIds);
+        if (enrollError) throw enrollError;
 
-        const visitMap = {};
-        (visits || []).forEach(v => visitMap[v.student_id] = v);
-
-        if (!students || students.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ยังไม่มีนักเรียนในระบบ</td></tr>';
+        if (!enrolls || enrolls.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่มีนักเรียนในระบบ</td></tr>';
             return;
         }
 
-        tbody.innerHTML = students.map(s => {
-            const v = visitMap[s.id];
-            const isVisited = v && v.visit_status === 'เยี่ยมแล้ว';
+        const studentIds = enrolls.map(e => e.student_id);
 
-            const statusHtml = isVisited
-                ? `<span class="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-circle mr-1"></i> เยี่ยมแล้ว</span>`
-                : `<span class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-clock mr-1"></i> ยังไม่เยี่ยม</span>`;
+        // 3. ดึงข้อมูลการเยี่ยมบ้านของนักเรียนเหล่านี้
+        const { data: visits, error: visitError } = await db.from('module_home_visits')
+            .select('*')
+            .in('student_id', studentIds)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm);
+
+        if (visitError) throw visitError;
+
+        const visitMap = {};
+        (visits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        // 4. สร้างแถวตาราง
+        tbody.innerHTML = enrolls.map(enroll => {
+            const s = enroll.core_students;
+            const visit = visitMap[s.id] || null;
+            const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
+
+            // ความสมบูรณ์ของข้อมูล (ถ้ามี visit)
+            const completeness = getCompletenessStatus(visit);
+            const completeBadge = !isVisited ?
+                '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>' :
+                (completeness.complete ?
+                    '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>' :
+                    '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>');
+
+            const statusHtml = isVisited ?
+                '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>' :
+                '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
             let actionHtml = '';
             if (isVisited) {
                 actionHtml = `
-                    <div class="flex justify-center gap-2">
+                    <div class="flex justify-center gap-2 flex-wrap">
                         <button onclick="editHomeVisit('${s.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
-                        <button onclick="printPDF('${v.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF ใหม่"><i class="fas fa-print"></i></button>
-                        <button onclick="viewExistingPDF('${v.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดูไฟล์ PDF ล่าสุด"><i class="fas fa-file-pdf"></i></button>
+                        <button onclick="printPDF('${visit.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
+                        ${visit.pdf_url ? `<button onclick="viewExistingPDF('${visit.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>` : ''}
+                        ${!completeness.complete ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>` : ''}
                     </div>`;
             } else {
                 actionHtml = `<button onclick="editHomeVisit('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
             }
 
-            return `<tr class="hover:bg-slate-50 transition">
-                <td class="p-3 text-center">${s.class_room_number || '-'}</td>
+            return `<tr class="hover:bg-slate-50">
+                <td class="p-3 text-center font-bold">${enroll.student_number || '-'}</td>
                 <td class="p-3 font-mono text-slate-500">${s.student_id_card || '-'}</td>
                 <td class="p-3 font-bold text-slate-700">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
                 <td class="p-3 text-center">${statusHtml}</td>
+                <td class="p-3 text-center">${completeBadge}</td>
                 <td class="p-3 text-center">${actionHtml}</td>
             </tr>`;
         }).join('');
     } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+        console.error('loadTeacherOverview error:', err);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
     }
 }
 
 // ==========================================
 // ฟังก์ชันโหลดข้อมูล (ตารางแอดมิน)
 // ==========================================
-// ==========================================
-// ฟังก์ชันโหลดข้อมูล (ตารางแอดมิน)
-// ==========================================
 async function loadAdminOverview() {
     const tbody = document.getElementById('tb-overview-admin');
     if (!tbody) return;
-    tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังคำนวณข้อมูล...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูลนักเรียน...</td></tr>';
 
     try {
         let roomQuery = db.from('core_classrooms').select('id, grade_level, room_number')
@@ -3825,58 +3998,68 @@ async function loadAdminOverview() {
 
         const { data: classrooms } = await roomQuery;
         if (!classrooms || classrooms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-slate-400">ไม่พบข้อมูลห้องเรียน</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่พบข้อมูลห้องเรียน</td></tr>';
             return;
         }
 
         const classIds = classrooms.map(c => c.id);
+        const roomMap = {};
+        classrooms.forEach(c => { roomMap[c.id] = `ม.${c.grade_level}/${c.room_number}`; });
 
-        const [{ data: students }, { data: visits }] = await Promise.all([
-            db.from('core_students').select('classroom_id').in('classroom_id', classIds),
-            db.from('module_home_visits').select('classroom_id, visit_status').in('classroom_id', classIds).eq('academic_year', currentYear).eq('semester', currentTerm)
-        ]);
+        // ดึงนักเรียนทั้งหมดในห้องที่เกี่ยวข้อง
+        const { data: students } = await db.from('core_students')
+            .select('id, student_id_card, prefix, first_name, last_name, classroom_id')
+            .in('classroom_id', classIds)
+            .order('classroom_id');
 
-        const stdCount = {};
-        const visitCount = {};
-        classIds.forEach(id => { stdCount[id] = 0; visitCount[id] = 0; });
+        if (!students || students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่มีนักเรียนในระบบ</td></tr>';
+            return;
+        }
 
-        // นับนักเรียนทั้งหมด
-        (students || []).forEach(s => { if (stdCount[s.classroom_id] !== undefined) stdCount[s.classroom_id]++; });
+        const { data: visits } = await db.from('module_home_visits')
+            .select('*')
+            .eq('academic_year', currentYear).eq('semester', currentTerm)
+            .in('classroom_id', classIds);
 
-        // ✅ นับเฉพาะที่เยี่ยมแล้วจริงๆ 
-        (visits || []).forEach(v => {
-            if (visitCount[v.classroom_id] !== undefined && v.visit_status === 'เยี่ยมแล้ว') {
-                visitCount[v.classroom_id]++;
+        const visitMap = {};
+        (visits || []).forEach(v => visitMap[v.student_id] = v);
+
+        tbody.innerHTML = students.map(s => {
+            const v = visitMap[s.id];
+            const isVisited = v && v.visit_status === 'เยี่ยมแล้ว';
+            const completeness = getCompletenessStatus(v);
+            const completeBadge = completeness.complete
+                ? `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>`
+                : `<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>`;
+
+            let actionHtml = '';
+            if (isVisited) {
+                actionHtml = `
+                    <div class="flex justify-center gap-2 flex-wrap">
+                        <button onclick="editHomeVisit('${s.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
+                        <button onclick="printPDF('${v.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
+                        <button onclick="viewExistingPDF('${v.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>
+                        ${!completeness.complete ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list"></i></button>` : ''}
+                    </div>`;
+            } else {
+                actionHtml = `<button onclick="editHomeVisit('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
             }
-        });
-
-        tbody.innerHTML = classrooms.map(c => {
-            const total = stdCount[c.id] || 0;
-            const visited = visitCount[c.id] || 0;
-            const pending = total - visited;
-            const percent = total > 0 ? Math.round((visited / total) * 100) : 0;
-            let colorClass = percent === 100 ? 'bg-green-500' : (percent >= 50 ? 'bg-yellow-500' : 'bg-rose-500');
 
             return `<tr class="hover:bg-slate-50 transition">
-                <td class="p-3 font-bold text-slate-700">ม.${c.grade_level}/${c.room_number}</td>
-                <td class="p-3 text-center">${total}</td>
-                <td class="p-3 text-center text-green-600 font-bold">${visited}</td>
-                <td class="p-3 text-center text-rose-500 font-bold">${pending}</td>
-                <td class="p-3 w-48">
-                    <div class="flex items-center gap-2">
-                        <div class="w-full bg-slate-200 rounded-full h-2.5">
-                            <div class="${colorClass} h-2.5 rounded-full" style="width: ${percent}%"></div>
-                        </div>
-                        <span class="text-xs font-bold text-slate-600 w-8 text-right">${percent}%</span>
-                    </div>
-                </td>
-            </tr>`;
+                <td class="p-3 font-bold text-slate-700">${roomMap[s.classroom_id] || '-'}</td>
+                <td class="p-3 font-mono text-slate-500">${s.student_id_card || '-'}</td>
+                <td class="p-3 font-bold text-slate-700">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
+                <td class="p-3 text-center">${completeBadge}</td>
+                <td class="p-3 text-center">${actionHtml}</td>
+             </tr>`;
         }).join('');
     } catch (err) {
         console.error(err);
-        tbody.innerHTML = '<tr><td colspan="5" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
     }
 }
+
 
 // ==========================================
 // ฟังก์ชันย่อยสำหรับปุ่ม Action ในตาราง
@@ -3937,6 +4120,133 @@ window.applyReportVisibility = function () {
             tabBtnMobile.classList.remove('flex-1');
         }
     }
+};
+
+// ==========================================
+// ฟังก์ชันตรวจสอบความครบถ้วนของข้อมูล (ยกเว้น Risk)
+// ==========================================
+function getCompletenessStatus(visit) {
+    if (!visit) return { complete: false, missingFields: ['ยังไม่มีข้อมูลการเยี่ยมบ้าน'] };
+
+    const missing = [];
+
+    // Step 1: ข้อมูลนักเรียนและวันเวลา
+    if (!visit.visit_date) missing.push('วันที่เยี่ยมบ้าน');
+    if (!visit.visit_times) missing.push('ครั้งที่');
+    if (!visit.student_nickname?.trim()) missing.push('ชื่อเล่น');
+    if (!visit.student_phone?.trim()) missing.push('เบอร์โทรศัพท์นักเรียน');
+    if (!visit.student_line?.trim()) missing.push('ID Line');
+
+    // บิดา
+    if (!visit.father_name?.trim()) missing.push('ชื่อบิดา');
+    if (!visit.father_job?.trim()) missing.push('อาชีพบิดา');
+    if (!visit.father_phone?.trim()) missing.push('เบอร์โทรบิดา');
+
+    // มารดา
+    if (!visit.mother_name?.trim()) missing.push('ชื่อมารดา');
+    if (!visit.mother_job?.trim()) missing.push('อาชีพมารดา');
+    if (!visit.mother_phone?.trim()) missing.push('เบอร์โทรมารดา');
+
+    // ผู้ปกครอง
+    if (!visit.guardian_name?.trim()) missing.push('ชื่อผู้ปกครอง');
+    if (!visit.guardian_job?.trim()) missing.push('อาชีพผู้ปกครอง');
+    if (!visit.guardian_phone?.trim()) missing.push('เบอร์โทรผู้ปกครอง');
+    if (!visit.guardian_relation?.trim()) missing.push('ความสัมพันธ์ผู้ปกครอง');
+    if (!visit.living_with?.trim()) missing.push('อาศัยอยู่กับ');
+    if (!visit.parents_status?.trim()) missing.push('สถานภาพบิดามารดา');
+
+    // Step 2: ที่อยู่และพิกัด
+    if (!visit.house_number?.trim()) missing.push('บ้านเลขที่');
+    if (!visit.village_no?.trim()) missing.push('หมู่ที่');
+    if (!visit.sub_district?.trim()) missing.push('ตำบล');
+    if (!visit.district?.trim()) missing.push('อำเภอ');
+    if (!visit.province?.trim()) missing.push('จังหวัด');
+    if (!visit.zipcode?.trim()) missing.push('รหัสไปรษณีย์');
+    if (!visit.latitude || !visit.longitude) missing.push('พิกัด GPS');
+    if (!visit.house_type?.trim()) missing.push('ประเภทบ้าน');
+    if (visit.travel_hour === undefined || visit.travel_minute === undefined) missing.push('เวลาเดินทาง');
+    if (!visit.travel_method?.trim()) missing.push('วิธีการเดินทาง');
+    if (!visit.env_house_status?.trim()) missing.push('สภาพตัวบ้าน');
+    if (!visit.env_clean_status?.trim()) missing.push('ความสะอาด');
+    if (!visit.env_location_status?.trim()) missing.push('สภาพแวดล้อม');
+    if (!visit.utility_electric) missing.push('ไฟฟ้า');
+    if (!visit.utility_water) missing.push('น้ำอุปโภคบริโภค');
+    if (!visit.utility_toilet) missing.push('ห้องสุขา');
+
+    // Step 3: ข้อมูลครอบครัว (ยกเว้น risk)
+    const fm = visit.family_members || {};
+    if (!fm.total) missing.push('สมาชิกในครอบครัว (รวม)');
+    if (fm.male === undefined || fm.male === null) missing.push('สมาชิกชาย');
+    if (fm.female === undefined || fm.female === null) missing.push('สมาชิกหญิง');
+    if (!fm.sib_same_total && fm.sib_same_total !== 0) missing.push('พี่น้องร่วมบิดามารดา (รวม)');
+    if (fm.sib_same_male === undefined) missing.push('พี่น้องร่วมฯ ชาย');
+    if (fm.sib_same_female === undefined) missing.push('พี่น้องร่วมฯ หญิง');
+    if (!fm.sib_diff_total && fm.sib_diff_total !== 0) missing.push('พี่น้องต่างบิดามารดา (รวม)');
+    if (fm.sib_diff_male === undefined) missing.push('พี่น้องต่างฯ ชาย');
+    if (fm.sib_diff_female === undefined) missing.push('พี่น้องต่างฯ หญิง');
+
+    const eco = visit.economic_data || {};
+    if (!eco.income && eco.income !== 0) missing.push('รายได้ครอบครัวต่อเดือน');
+    if (!eco.allowance_source?.trim()) missing.push('นักเรียนได้รับค่าใช้จ่ายจาก');
+    if (!eco.student_job_name?.trim()) missing.push('อาชีพนักเรียน (ถ้ามี)');
+    if (!eco.student_job_income && eco.student_job_income !== 0) missing.push('รายได้นักเรียนต่อวัน');
+    if (!eco.money_to_school && eco.money_to_school !== 0) missing.push('เงินไปโรงเรียนต่อวัน');
+
+    const fRel = visit.family_relations || {};
+    if (!fRel.status?.trim()) missing.push('ความสัมพันธ์ในครอบครัว');
+    if (!fRel.time_together && fRel.time_together !== 0) missing.push('เวลาอยู่ร่วมกันต่อวัน');
+
+    if (!visit.special_help_details?.trim()) missing.push('กรณีต้องการการช่วยเหลือพิเศษ');
+    if (!visit.responsibilities_details?.trim()) missing.push('ภาระงานรับผิดชอบ');
+    if (!visit.hobbies_details?.trim()) missing.push('กิจกรรมยามว่าง');
+    if (!visit.leave_with_whom_details?.trim()) missing.push('ฝากเด็กอยู่กับใคร');
+
+    // Step 4: รูปภาพ (ทั้ง 4 รูป)
+    if (!visit.photo_student) missing.push('ภาพถ่ายตัวนักเรียน');
+    if (!visit.photo_outside) missing.push('ภาพถ่ายสภาพบ้านภายนอก');
+    if (!visit.photo_inside) missing.push('ภาพถ่ายสภาพบ้านภายใน');
+    if (!visit.photo_teacher) missing.push('ภาพครูกำลังเยี่ยมบ้าน');
+
+    // Step 5: ข้อห่วงใยและความช่วยเหลือ
+    if (!visit.guardian_concerns?.trim()) missing.push('ข้อห่วงใยของผู้ปกครอง');
+    if (!visit.guardian_requests?.trim()) missing.push('สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ');
+    if (!visit.past_welfare?.trim()) missing.push('ความช่วยเหลือที่เคยได้รับ');
+    if (!visit.informant_type?.trim()) missing.push('ผู้ให้ข้อมูล');
+
+    return {
+        complete: missing.length === 0,
+        missingFields: missing
+    };
+}
+
+window.showMissingFields = async function (studentId) {
+    // ดึงข้อมูลการเยี่ยมบ้านล่าสุดของนักเรียนคนนี้
+    const { data: visit } = await db.from('module_home_visits')
+        .select('*')
+        .eq('student_id', studentId)
+        .eq('academic_year', currentYear)
+        .eq('semester', currentTerm)
+        .maybeSingle();
+
+    const completeness = getCompletenessStatus(visit);
+    if (completeness.complete) {
+        Swal.fire('ข้อมูลครบถ้วน', 'นักเรียนคนนี้กรอกข้อมูลครบทุกส่วน (ยกเว้นหัวข้อความเสี่ยง)', 'success');
+        return;
+    }
+
+    let missingHtml = '<ul class="text-left max-h-80 overflow-y-auto list-disc pl-5 space-y-1">';
+    completeness.missingFields.forEach(field => {
+        missingHtml += `<li class="text-slate-700">${field}</li>`;
+    });
+    missingHtml += '</ul>';
+
+    Swal.fire({
+        title: 'รายการข้อมูลที่ยังไม่ครบ',
+        html: missingHtml,
+        icon: 'warning',
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#3085d6'
+    });
 };
 
 async function logout() {
