@@ -981,26 +981,29 @@
                     </div>
 
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                        <!-- Card 1 -->
                         <div id="card_upload_1"
                             class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                             <div>
-                                <span class="block text-sm font-extrabold text-slate-700 mb-2.5">1.
-                                    ภาพถ่ายตัวนักเรียน</span>
-                                <label
-                                    class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
-                                    <i class="fa-solid fa-images text-sm"></i> เลือกภาพ/ถ่ายรูป
-                                    <input type="file" id="pic_student" accept="image/*"
-                                        class="hidden"
-                                        onchange="previewSelectedImage(this, 'preview1', 'cloud_btn1', 'del_btn1')">
-                                </label>
+                                <span class="block text-sm font-extrabold text-slate-700 mb-3">1. ภาพถ่ายตัวนักเรียน</span>
+                                <div class="flex justify-center gap-2">
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                        <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
+                                        <input type="file" id="pic_student_cam" accept="image/*" capture="environment" class="hidden"
+                                            onchange="syncCamToMain(this,'pic_student','preview1','cloud_btn1','del_btn1')">
+                                    </label>
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                        <i class="fa-solid fa-images text-sm"></i> คลังภาพ
+                                        <input type="file" id="pic_student" accept="image/*" class="hidden"
+                                            onchange="previewSelectedImage(this, 'preview1', 'cloud_btn1', 'del_btn1')">
+                                    </label>
+                                </div>
                             </div>
                             <div class="mt-2 relative max-w-[180px] mx-auto">
-                                <img id="preview1"
-                                    class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
+                                <img id="preview1" class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
                                 <button type="button" id="del_btn1"
-                                    onclick="clearSelectedImage(event, 'pic_student', 'preview1', 'cloud_btn1')"
-                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
-                                        class="fa-solid fa-xmark"></i></button>
+                                    onclick="clearSelectedImage(event, 'pic_student', 'preview1', 'cloud_btn1'); document.getElementById('pic_student_cam').value='';"
+                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                             <div class="mt-3">
                                 <button type="button" id="cloud_btn1" disabled
@@ -1010,26 +1013,29 @@
                             </div>
                         </div>
 
+                        <!-- Card 2 -->
                         <div id="card_upload_2"
                             class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                             <div>
-                                <span class="block text-sm font-extrabold text-slate-700 mb-2.5">2. ภาพถ่ายสภาพบ้าน
-                                    (ภายนอก)</span>
-                                <label
-                                    class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
-                                    <i class="fa-solid fa-images text-sm"></i> เลือกภาพ/ถ่ายรูป
-                                    <input type="file" id="pic_outside" accept="image/*"
-                                        class="hidden"
-                                        onchange="previewSelectedImage(this, 'preview2', 'cloud_btn2', 'del_btn2')">
-                                </label>
+                                <span class="block text-sm font-extrabold text-slate-700 mb-3">2. ภาพถ่ายสภาพบ้าน (ภายนอก)</span>
+                                <div class="flex justify-center gap-2">
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                        <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
+                                        <input type="file" id="pic_outside_cam" accept="image/*" capture="environment" class="hidden"
+                                            onchange="syncCamToMain(this,'pic_outside','preview2','cloud_btn2','del_btn2')">
+                                    </label>
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                        <i class="fa-solid fa-images text-sm"></i> คลังภาพ
+                                        <input type="file" id="pic_outside" accept="image/*" class="hidden"
+                                            onchange="previewSelectedImage(this, 'preview2', 'cloud_btn2', 'del_btn2')">
+                                    </label>
+                                </div>
                             </div>
                             <div class="mt-2 relative max-w-[180px] mx-auto">
-                                <img id="preview2"
-                                    class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
+                                <img id="preview2" class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
                                 <button type="button" id="del_btn2"
-                                    onclick="clearSelectedImage(event, 'pic_outside', 'preview2', 'cloud_btn2')"
-                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
-                                        class="fa-solid fa-xmark"></i></button>
+                                    onclick="clearSelectedImage(event, 'pic_outside', 'preview2', 'cloud_btn2'); document.getElementById('pic_outside_cam').value='';"
+                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                             <div class="mt-3">
                                 <button type="button" id="cloud_btn2" disabled
@@ -1039,26 +1045,29 @@
                             </div>
                         </div>
 
+                        <!-- Card 3 -->
                         <div id="card_upload_3"
                             class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                             <div>
-                                <span class="block text-sm font-extrabold text-slate-700 mb-2.5">3. ภาพถ่ายสภาพบ้าน
-                                    (ภายใน)</span>
-                                <label
-                                    class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
-                                    <i class="fa-solid fa-images text-sm"></i> เลือกภาพ/ถ่ายรูป
-                                    <input type="file" id="pic_inside" accept="image/*"
-                                        class="hidden"
-                                        onchange="previewSelectedImage(this, 'preview3', 'cloud_btn3', 'del_btn3')">
-                                </label>
+                                <span class="block text-sm font-extrabold text-slate-700 mb-3">3. ภาพถ่ายสภาพบ้าน (ภายใน)</span>
+                                <div class="flex justify-center gap-2">
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                        <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
+                                        <input type="file" id="pic_inside_cam" accept="image/*" capture="environment" class="hidden"
+                                            onchange="syncCamToMain(this,'pic_inside','preview3','cloud_btn3','del_btn3')">
+                                    </label>
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                        <i class="fa-solid fa-images text-sm"></i> คลังภาพ
+                                        <input type="file" id="pic_inside" accept="image/*" class="hidden"
+                                            onchange="previewSelectedImage(this, 'preview3', 'cloud_btn3', 'del_btn3')">
+                                    </label>
+                                </div>
                             </div>
                             <div class="mt-2 relative max-w-[180px] mx-auto">
-                                <img id="preview3"
-                                    class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
+                                <img id="preview3" class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
                                 <button type="button" id="del_btn3"
-                                    onclick="clearSelectedImage(event, 'pic_inside', 'preview3', 'cloud_btn3')"
-                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
-                                        class="fa-solid fa-xmark"></i></button>
+                                    onclick="clearSelectedImage(event, 'pic_inside', 'preview3', 'cloud_btn3'); document.getElementById('pic_inside_cam').value='';"
+                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                             <div class="mt-3">
                                 <button type="button" id="cloud_btn3" disabled
@@ -1068,26 +1077,29 @@
                             </div>
                         </div>
 
+                        <!-- Card 4 -->
                         <div id="card_upload_4"
                             class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                             <div>
-                                <span class="block text-sm font-extrabold text-slate-700 mb-2.5">4.
-                                    ภาพครูกำลังเยี่ยมบ้านร่วมกับผู้ปกครอง</span>
-                                <label
-                                    class="cursor-pointer inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
-                                    <i class="fa-solid fa-images text-sm"></i> เลือกภาพ/ถ่ายรูป
-                                    <input type="file" id="pic_teacher" accept="image/*"
-                                        class="hidden"
-                                        onchange="previewSelectedImage(this, 'preview4', 'cloud_btn4', 'del_btn4')">
-                                </label>
+                                <span class="block text-sm font-extrabold text-slate-700 mb-3">4. ภาพครูกำลังเยี่ยมบ้านร่วมกับผู้ปกครอง</span>
+                                <div class="flex justify-center gap-2">
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                        <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
+                                        <input type="file" id="pic_teacher_cam" accept="image/*" capture="environment" class="hidden"
+                                            onchange="syncCamToMain(this,'pic_teacher','preview4','cloud_btn4','del_btn4')">
+                                    </label>
+                                    <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                        <i class="fa-solid fa-images text-sm"></i> คลังภาพ
+                                        <input type="file" id="pic_teacher" accept="image/*" class="hidden"
+                                            onchange="previewSelectedImage(this, 'preview4', 'cloud_btn4', 'del_btn4')">
+                                    </label>
+                                </div>
                             </div>
                             <div class="mt-2 relative max-w-[180px] mx-auto">
-                                <img id="preview4"
-                                    class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
+                                <img id="preview4" class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover">
                                 <button type="button" id="del_btn4"
-                                    onclick="clearSelectedImage(event, 'pic_teacher', 'preview4', 'cloud_btn4')"
-                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
-                                        class="fa-solid fa-xmark"></i></button>
+                                    onclick="clearSelectedImage(event, 'pic_teacher', 'preview4', 'cloud_btn4'); document.getElementById('pic_teacher_cam').value='';"
+                                    class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i class="fa-solid fa-xmark"></i></button>
                             </div>
                             <div class="mt-3">
                                 <button type="button" id="cloud_btn4" disabled
@@ -1555,6 +1567,19 @@
             renderRiskCheckBoxes();
             renderRelationTable();
         });
+
+        // ซิงค์ไฟล์จากปุ่มกล้องไปยัง input หลัก แล้วแสดง preview
+        function syncCamToMain(camInput, mainId, previewId, cloudBtnId, delBtnId) {
+            if (!camInput.files || !camInput.files[0]) return;
+            const file = camInput.files[0];
+            // สร้าง DataTransfer เพื่อ assign ไฟล์ไปยัง input หลัก
+            const dt = new DataTransfer();
+            dt.items.add(file);
+            const mainInput = document.getElementById(mainId);
+            mainInput.files = dt.files;
+            // แสดง preview ผ่าน input หลัก
+            previewSelectedImage(mainInput, previewId, cloudBtnId, delBtnId);
+        }
     </script>
 </body>
 
