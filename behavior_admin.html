@@ -228,7 +228,7 @@
                     </div>
                 </div>
                 <div style="height:220px;"><canvas id="severityChart"></canvas></div>
-                <p class="text-[10px] text-slate-400 mt-2 text-center">คลิกที่แท่งกราฟเพื่อกรองรายชื่อ</p>
+                <p class="text-[10px] text-slate-400 mt-2 text-center">คลิกที่ระดับชั้นเพื่อกรองจำนวนนักเรียนตามกลุ่ม</p>
             </div>
         </div>
 
@@ -256,46 +256,63 @@
             </div>
         </div>
 
-        <!-- ── 4 การ์ดระดับความผิด ───────────────────────────────────────── -->
+        <!-- ── 4 การ์ดระดับความผิด (กลุ่มคะแนน) ───────────────────────── -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-amber-400 cursor-pointer"
+            <!-- กลุ่ม 1: 90+ -->
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-amber-400 cursor-pointer relative overflow-hidden"
                 onclick="filterByScore('sev_light')">
-                <div class="flex items-center gap-2 mb-1"><span
-                        class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">1–3 คะแนน</span>
+                <div class="absolute text-8xl text-amber-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i
+                        class="fas fa-star"></i></div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">90
+                        คะแนนขึ้นไป</span>
                 </div>
-                <p class="text-gray-500 text-sm font-bold">⚠️ ขั้นเบา</p>
+                <p class="text-gray-500 text-sm font-bold">⭐ กลุ่ม 1</p>
                 <h3 id="stat_sev_light" class="text-3xl font-black text-amber-500 mt-1">0</h3>
                 <p class="text-[10px] text-slate-400 mt-1">คน</p>
             </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-orange-500 cursor-pointer"
+
+            <!-- กลุ่ม 2: 60-89 -->
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-orange-500 cursor-pointer relative overflow-hidden"
                 onclick="filterByScore('sev_medium')">
-                <div class="flex items-center gap-2 mb-1"><span
-                        class="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">4–7 คะแนน</span>
+                <div class="absolute text-8xl text-orange-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i
+                        class="fas fa-circle"></i></div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">60–89
+                        คะแนน</span>
                 </div>
-                <p class="text-gray-500 text-sm font-bold">🔶 ขั้นกลาง</p>
+                <p class="text-gray-500 text-sm font-bold">🔶 กลุ่ม 2</p>
                 <h3 id="stat_sev_medium" class="text-3xl font-black text-orange-500 mt-1">0</h3>
                 <p class="text-[10px] text-slate-400 mt-1">คน</p>
             </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-red-500 cursor-pointer"
+
+            <!-- กลุ่ม 3: 30-59 -->
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-red-500 cursor-pointer relative overflow-hidden"
                 onclick="filterByScore('sev_heavy')">
-                <div class="flex items-center gap-2 mb-1"><span
-                        class="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">8–15 คะแนน</span>
+                <div class="absolute text-8xl text-red-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i
+                        class="fas fa-exclamation-triangle"></i></div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">30–59 คะแนน</span>
                 </div>
-                <p class="text-gray-500 text-sm font-bold">🔴 ขั้นร้ายแรง</p>
+                <p class="text-gray-500 text-sm font-bold">🔴 กลุ่ม 3</p>
                 <h3 id="stat_sev_heavy" class="text-3xl font-black text-red-600 mt-1">0</h3>
                 <p class="text-[10px] text-slate-400 mt-1">คน</p>
             </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-purple-600 cursor-pointer"
+
+            <!-- กลุ่ม 4: <30 -->
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-purple-600 cursor-pointer relative overflow-hidden"
                 onclick="filterByScore('sev_very_heavy')">
-                <div class="flex items-center gap-2 mb-1"><span
-                        class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">16+ คะแนน</span>
+                <div class="absolute text-8xl text-purple-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i
+                        class="fas fa-skull"></i></div>
+                <div class="flex items-center gap-2 mb-1">
+                    <span class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">ต่ำกว่า 30
+                        คะแนน</span>
                 </div>
-                <p class="text-gray-500 text-sm font-bold">🚨 ขั้นร้ายแรงมาก</p>
+                <p class="text-gray-500 text-sm font-bold">🚨 กลุ่ม 4</p>
                 <h3 id="stat_sev_very_heavy" class="text-3xl font-black text-purple-700 mt-1">0</h3>
                 <p class="text-[10px] text-slate-400 mt-1">คน</p>
             </div>
         </div>
-
 
         <!-- ── เลือกชั้นเรียน + ตัวกรองคะแนน (อยู่ในแถวเดียวกัน) ──────────────── -->
         <div class="glass-card rounded-2xl px-5 py-4 mb-4">
