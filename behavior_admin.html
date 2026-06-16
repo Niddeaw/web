@@ -6,15 +6,55 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <!-- Tom Select -->
+    <!-- <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script> -->
+    <!-- Chart.js -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script> -->
     <style>
-        .logs-tab-btn { color: #64748b; background: #fff; }
-        .logs-tab-btn.active { background: #1e40af; color: #fff; }
+        .logs-tab-btn {
+            color: #64748b;
+            background: #fff;
+        }
+
+        .logs-tab-btn.active {
+            background: #1e40af;
+            color: #fff;
+        }
+
+        .ts-control {
+            border-radius: 0.75rem !important;
+            border: 2px solid #e2e8f0 !important;
+            padding: 0.5rem 0.75rem !important;
+        }
+
+        .ts-dropdown {
+            border-radius: 0.75rem !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        .glass-card {
+            background: #fff;
+            border-radius: 1.5rem;
+            box-shadow: 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
+            border: 1px solid #f1f5f9;
+        }
+
+        .stat-card {
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 
-<body class="min-h-screen text-slate-800 pb-10">
+<body class="min-h-screen text-slate-800 pb-10 bg-slate-50">
 
-    <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-red-100 px-6 py-3 shadow-sm flex justify-between items-center">
+    <nav
+        class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-red-100 px-6 py-3 shadow-sm flex justify-between items-center">
         <div class="flex items-center gap-3">
             <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain">
             <div>
@@ -22,56 +62,64 @@
                 <p class="text-[10px] text-red-600 uppercase tracking-widest" id="role_label">ส่วนผู้ดูแลระบบ</p>
             </div>
         </div>
-
         <div class="flex items-center gap-2 md:gap-3">
-            <span id="user_display" class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
-            <button id="btn_settings" onclick="location.href='behavior_settings.html'" class="hidden h-10 px-3 items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200 shadow-sm" title="ตั้งค่าระบบ">
+            <span id="user_display"
+                class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
+            <button id="btn_settings" onclick="location.href='behavior_settings.html'"
+                class="hidden h-10 px-3 items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200 shadow-sm"
+                title="ตั้งค่าระบบ">
                 <i class="fas fa-cog sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">ตั้งค่า</span>
             </button>
-            <button id="btnAdminMode" onclick="window.location.href='behavior_teacher.html'" class="h-10 px-3 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm">
-                <i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>
+            <button id="btnAdminMode" onclick="window.location.href='behavior_teacher.html'"
+                class="h-10 px-3 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm">
+                <i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span
+                    class="hidden sm:inline text-sm font-bold">โหมดครู</span>
             </button>
-            <button onclick="window.location.href='index.html'" class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm">
+            <button onclick="window.location.href='index.html'"
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm">
                 <i class="fas fa-house text-sm"></i>
             </button>
-            <button onclick="logout()" class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm">
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm">
                 <i class="fas fa-sign-out-alt"></i>
             </button>
         </div>
     </nav>
 
     <main class="container mx-auto px-4 mt-8 pb-12">
-        <!-- สถิติ 4 การ์ด -->
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="glass p-6 rounded-3xl border-l-4 border-green-500 cursor-pointer hover:scale-105 transition" onclick="filterByScore('positive')">
-                <p class="text-gray-500 text-sm font-bold">นักเรียนทำความดี</p>
-                <h3 id="stat_positive" class="text-3xl font-black text-green-600 mt-2">0</h3>
-            </div>
-            <div class="glass p-6 rounded-3xl border-l-4 border-red-500 cursor-pointer hover:scale-105 transition" onclick="filterByScore('negative')">
-                <p class="text-gray-500 text-sm font-bold">ผิดระเบียบ</p>
-                <h3 id="stat_negative" class="text-3xl font-black text-red-600 mt-2">0</h3>
-            </div>
-            <div class="glass p-6 rounded-3xl border-l-4 border-blue-500 cursor-pointer hover:scale-105 transition" onclick="filterByScore('high')">
-                <p class="text-gray-500 text-sm font-bold">คะแนน > 100</p>
-                <h3 id="stat_high" class="text-3xl font-black text-blue-600 mt-2">0</h3>
-            </div>
-            <div class="glass p-6 rounded-3xl border-l-4 border-orange-500 cursor-pointer hover:scale-105 transition" onclick="filterByScore('low')">
-                <p class="text-gray-500 text-sm font-bold">คะแนน < 50 (เสี่ยง)</p>
-                <h3 id="stat_low" class="text-3xl font-black text-orange-600 mt-2">0</h3>
-            </div>
+        <!-- ปุ่มดำเนินการ + ตัวกรอง -->
+        <div class="flex flex-wrap gap-3 mb-6 items-center">
+            <button onclick="openRecordModal('positive')"
+                class="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 transition shadow-md flex items-center gap-2"><i
+                    class="fas fa-plus-circle"></i> เพิ่มคะแนน (ทำดี)</button>
+            <button onclick="openRecordModal('negative')"
+                class="bg-rose-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-rose-700 transition shadow-md flex items-center gap-2"><i
+                    class="fas fa-minus-circle"></i> ตัดคะแนน (ผิดระเบียบ)</button>
+            <button onclick="exportTable()"
+                class="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2"><i
+                    class="fas fa-file-excel"></i> ส่งออก Excel</button>
+            <button onclick="location.href='behavior_settings.html'" id="btn_settings"
+                class="bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition shadow-md hidden items-center gap-2"><i
+                    class="fas fa-cog"></i> ตั้งค่าเกณฑ์</button>
+            <button onclick="exportSummary()" id="btn_export_summary"
+                class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition shadow-md flex items-center gap-2"><i
+                    class="fas fa-table"></i> ส่งออก Excel (สรุปคะแนน)</button>
+            <!-- <button onclick="importFromExcel()" id="btn_import_excel"
+                class="bg-violet-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-violet-700 transition shadow-md hidden items-center gap-2"><i
+                    class="fas fa-file-excel"></i> นำเข้าประวัติเก่า (.xlsx)</button>
+            <input type="file" id="excel_import_input" accept=".xlsx,.xls" class="hidden"
+                onchange="handleExcelImport(this)"> -->
         </div>
 
         <!-- การ์ดบันทึกล่าสุด 2 คอลัมน์ -->
         <div class="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-8">
-            <!-- การ์ด 1: ทำความดีล่าสุด -->
-            <div class="glass rounded-3xl p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="w-3 h-3 rounded-full bg-green-500 inline-block"></span>
-                    <h2 class="font-bold text-slate-700 text-sm">บันทึกทำความดีล่าสุด</h2>
-                    <span class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span>
-                    <button onclick="openLogsModal('positive')" class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม
-                    </button>
+            <div class="glass-card rounded-3xl p-5">
+                <div class="flex items-center gap-2 mb-4"><span class="w-3 h-3 rounded-full bg-green-500"></span>
+                    <h2 class="font-bold text-slate-700 text-sm">บันทึกทำความดีล่าสุด</h2><span
+                        class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span><button
+                        onclick="openLogsModal('positive')"
+                        class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1.5 rounded-lg transition"><i
+                            class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม</button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
@@ -87,20 +135,21 @@
                             </tr>
                         </thead>
                         <tbody id="recent_positive_body">
-                            <tr><td colspan="7" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td</tr>
+                            <tr>
+                                <td colspan="7" class="py-6 text-center text-slate-300"><i
+                                        class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-            <!-- การ์ด 2: ผิดระเบียบล่าสุด -->
-            <div class="glass rounded-3xl p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="w-3 h-3 rounded-full bg-red-500 inline-block"></span>
-                    <h2 class="font-bold text-slate-700 text-sm">บันทึกผิดระเบียบล่าสุด</h2>
-                    <span class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span>
-                    <button onclick="openLogsModal('negative')" class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม
-                    </button>
+            <div class="glass-card rounded-3xl p-5">
+                <div class="flex items-center gap-2 mb-4"><span class="w-3 h-3 rounded-full bg-red-500"></span>
+                    <h2 class="font-bold text-slate-700 text-sm">บันทึกผิดระเบียบล่าสุด</h2><span
+                        class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span><button
+                        onclick="openLogsModal('negative')"
+                        class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition"><i
+                            class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม</button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-xs">
@@ -116,44 +165,183 @@
                             </tr>
                         </thead>
                         <tbody id="recent_negative_body">
-                            <tr><td colspan="7" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td</td>
+                            <tr>
+                                <td colspan="7" class="py-6 text-center text-slate-300"><i
+                                        class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
             </div>
-        </div> <!-- ปิด grid การ์ดล่าสุด -->
+        </div>
 
-        <!-- ปุ่มดำเนินการ + ตัวกรอง -->
-        <div class="flex flex-wrap gap-3 mb-6 items-center">
-            <button onclick="openRecordModal('positive')" class="bg-green-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-green-700 transition shadow-md flex items-center gap-2">
-                <i class="fas fa-plus-circle"></i> เพิ่มคะแนน (ทำดี)
-            </button>
-            <button onclick="openRecordModal('negative')" class="bg-rose-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-rose-700 transition shadow-md flex items-center gap-2">
-                <i class="fas fa-minus-circle"></i> ตัดคะแนน (ผิดระเบียบ)
-            </button>
-            <button onclick="exportTable()" class="bg-blue-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition shadow-md flex items-center gap-2">
-                <i class="fas fa-file-excel"></i> ส่งออก Excel
-            </button>
-            <button onclick="location.href='behavior_settings.html'" id="btn_settings" class="bg-slate-700 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition shadow-md hidden items-center gap-2">
-                <i class="fas fa-cog"></i> ตั้งค่าเกณฑ์
-            </button>
-            <button onclick="exportSummary()" id="btn_export_summary" class="bg-emerald-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition shadow-md flex items-center gap-2">
-                <i class="fas fa-table"></i> ส่งออก Excel (สรุปคะแนน)
-            </button>
-            <button onclick="importFromExcel()" id="btn_import_excel" class="bg-violet-600 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-violet-700 transition shadow-md hidden items-center gap-2">
-                <i class="fas fa-file-excel"></i> นำเข้าประวัติเก่า (.xlsx)
-            </button>
-            <input type="file" id="excel_import_input" accept=".xlsx,.xls" class="hidden" onchange="handleExcelImport(this)">
-            <div class="ml-auto flex gap-2">
-                <input type="number" id="filter_score_val" class="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm w-32 outline-none focus:border-blue-500" placeholder="ระบุคะแนน...">
-                <button onclick="filterCustomScore('more')" class="bg-slate-100 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-200 transition">มากกว่า</button>
-                <button onclick="filterCustomScore('less')" class="bg-slate-100 font-bold px-4 py-2 rounded-xl text-sm hover:bg-slate-200 transition">น้อยกว่า</button>
+        <!-- ── กราฟ 2 รายการ แสดงเคียงข้างกัน ───────────────────────────── -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- ซ้าย: กราฟสถิติการทำความดีแยกชั้น -->
+            <div class="glass-card rounded-3xl p-5">
+                <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                    <h2 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i
+                            class="fas fa-chart-line text-green-500"></i> สถิติการทำความดีแยกชั้นเรียน</h2>
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            class="pos-grade-btn bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="all" onclick="renderPositiveChartForGrade('all')">ทั้งหมด</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="1" onclick="renderPositiveChartForGrade(1)">ม.1</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="2" onclick="renderPositiveChartForGrade(2)">ม.2</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="3" onclick="renderPositiveChartForGrade(3)">ม.3</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="4" onclick="renderPositiveChartForGrade(4)">ม.4</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="5" onclick="renderPositiveChartForGrade(5)">ม.5</button>
+                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-pos-grade="6" onclick="renderPositiveChartForGrade(6)">ม.6</button>
+                    </div>
+                </div>
+                <div style="height:220px;"><canvas id="positiveChart"></canvas></div>
+                <p class="text-[10px] text-slate-400 mt-2 text-center">จำนวนครั้งทำความดีรวม (แยกตามระดับชั้น)</p>
+            </div>
+
+            <!-- ขวา: กราฟสถิติระดับความผิดแยกชั้น (เดิม) -->
+            <div class="glass-card rounded-3xl p-5">
+                <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
+                    <h2 class="font-bold text-slate-700 text-sm flex items-center gap-2"><i
+                            class="fas fa-chart-bar text-red-500"></i> สถิติระดับความผิดแยกชั้นเรียน</h2>
+                    <div class="flex flex-wrap gap-1">
+                        <button
+                            class="sev-grade-btn bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="all" onclick="renderSeverityChartForGrade('all')">ทั้งหมด</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="1" onclick="renderSeverityChartForGrade(1)">ม.1</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="2" onclick="renderSeverityChartForGrade(2)">ม.2</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="3" onclick="renderSeverityChartForGrade(3)">ม.3</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="4" onclick="renderSeverityChartForGrade(4)">ม.4</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="5" onclick="renderSeverityChartForGrade(5)">ม.5</button>
+                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition"
+                            data-sev-grade="6" onclick="renderSeverityChartForGrade(6)">ม.6</button>
+                    </div>
+                </div>
+                <div style="height:220px;"><canvas id="severityChart"></canvas></div>
+                <p class="text-[10px] text-slate-400 mt-2 text-center">คลิกที่แท่งกราฟเพื่อกรองรายชื่อ</p>
             </div>
         </div>
 
-        <!-- ตารางนักเรียนหลัก -->
-        <div class="glass rounded-3xl p-6">
-            <table id="studentTable" class="w-full text-sm display nowrap">
+        <!-- 4 การ์ด -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8">
+            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-green-500 cursor-pointer"
+                onclick="filterByScore('positive')">
+                <p class="text-gray-500 text-sm font-bold">นักเรียนทำความดี</p>
+                <h3 id="stat_positive" class="text-3xl font-black text-green-600 mt-2">0</h3>
+            </div>
+            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-red-500 cursor-pointer"
+                onclick="filterByScore('negative')">
+                <p class="text-gray-500 text-sm font-bold">ผิดระเบียบ</p>
+                <h3 id="stat_negative" class="text-3xl font-black text-red-600 mt-2">0</h3>
+            </div>
+            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-blue-500 cursor-pointer"
+                onclick="filterByScore('high')">
+                <p class="text-gray-500 text-sm font-bold">คะแนน > 100</p>
+                <h3 id="stat_high" class="text-3xl font-black text-blue-600 mt-2">0</h3>
+            </div>
+            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-orange-500 cursor-pointer"
+                onclick="filterByScore('low')">
+                <p class="text-gray-500 text-sm font-bold">คะแนน < 50 (เสี่ยง)</p>
+                        <h3 id="stat_low" class="text-3xl font-black text-orange-600 mt-2">0</h3>
+            </div>
+        </div>
+
+        <!-- ── 4 การ์ดระดับความผิด ───────────────────────────────────────── -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-amber-400 cursor-pointer"
+                onclick="filterByScore('sev_light')">
+                <div class="flex items-center gap-2 mb-1"><span
+                        class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">1–3 คะแนน</span>
+                </div>
+                <p class="text-gray-500 text-sm font-bold">⚠️ ขั้นเบา</p>
+                <h3 id="stat_sev_light" class="text-3xl font-black text-amber-500 mt-1">0</h3>
+                <p class="text-[10px] text-slate-400 mt-1">คน</p>
+            </div>
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-orange-500 cursor-pointer"
+                onclick="filterByScore('sev_medium')">
+                <div class="flex items-center gap-2 mb-1"><span
+                        class="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">4–7 คะแนน</span>
+                </div>
+                <p class="text-gray-500 text-sm font-bold">🔶 ขั้นกลาง</p>
+                <h3 id="stat_sev_medium" class="text-3xl font-black text-orange-500 mt-1">0</h3>
+                <p class="text-[10px] text-slate-400 mt-1">คน</p>
+            </div>
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-red-500 cursor-pointer"
+                onclick="filterByScore('sev_heavy')">
+                <div class="flex items-center gap-2 mb-1"><span
+                        class="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">8–15 คะแนน</span>
+                </div>
+                <p class="text-gray-500 text-sm font-bold">🔴 ขั้นร้ายแรง</p>
+                <h3 id="stat_sev_heavy" class="text-3xl font-black text-red-600 mt-1">0</h3>
+                <p class="text-[10px] text-slate-400 mt-1">คน</p>
+            </div>
+            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-purple-600 cursor-pointer"
+                onclick="filterByScore('sev_very_heavy')">
+                <div class="flex items-center gap-2 mb-1"><span
+                        class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">16+ คะแนน</span>
+                </div>
+                <p class="text-gray-500 text-sm font-bold">🚨 ขั้นร้ายแรงมาก</p>
+                <h3 id="stat_sev_very_heavy" class="text-3xl font-black text-purple-700 mt-1">0</h3>
+                <p class="text-[10px] text-slate-400 mt-1">คน</p>
+            </div>
+        </div>
+
+
+        <!-- ── เลือกชั้นเรียน + ตัวกรองคะแนน (อยู่ในแถวเดียวกัน) ──────────────── -->
+        <div class="glass-card rounded-2xl px-5 py-4 mb-4">
+            <div class="flex flex-wrap items-center gap-3">
+                <!-- ซ้าย: Tom Select + label -->
+                <div class="flex items-center gap-2 flex-1 min-w-[200px]">
+                    <div class="flex items-center gap-2 text-slate-600 font-bold text-sm flex-shrink-0">
+                        <i class="fas fa-door-open text-blue-500"></i> ห้องเรียน
+                    </div>
+                    <div class="flex-1 min-w-[120px]">
+                        <select id="classroom_select" class="w-full"></select>
+                    </div>
+                </div>
+
+                <!-- ขวา: ตัวกรองคะแนน -->
+                <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-sm font-bold text-slate-600 flex items-center gap-1 whitespace-nowrap">
+                        <i class="fas fa-filter text-blue-500"></i> กรองคะแนน:
+                    </span>
+                    <input type="number" id="filter_score_val"
+                        class="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm w-28 outline-none focus:border-blue-500"
+                        placeholder="ระบุคะแนน..." onkeyup="if(event.key === 'Enter') filterCustomScore('more')">
+                    <button onclick="filterCustomScore('more')"
+                        class="bg-blue-600 text-white font-bold px-3 py-2 rounded-xl text-sm hover:bg-blue-700 transition shadow-sm whitespace-nowrap">
+                        <i class="fas fa-greater-than mr-1"></i> มากกว่า
+                    </button>
+                    <button onclick="filterCustomScore('less')"
+                        class="bg-orange-500 text-white font-bold px-3 py-2 rounded-xl text-sm hover:bg-orange-600 transition shadow-sm whitespace-nowrap">
+                        <i class="fas fa-less-than mr-1"></i> น้อยกว่า
+                    </button>
+                    <button onclick="resetFilter()"
+                        class="bg-slate-200 text-slate-700 font-bold px-3 py-2 rounded-xl text-sm hover:bg-slate-300 transition whitespace-nowrap">
+                        <i class="fas fa-undo-alt mr-1"></i> รีเซ็ต
+                    </button>
+                    <span id="filter_result_count" class="text-xs text-slate-400 ml-1"></span>
+                </div>
+            </div>
+
+            <!-- คำอธิบายเล็กๆ ใต้บรรทัด (ถ้าต้องการ) -->
+            <p class="text-[10px] text-slate-400 mt-2">เลือกห้องเพื่อแสดงรายชื่อ | คลิกการ์ดด้านบนเพื่อกรองทั้งโรงเรียน
+            </p>
+        </div>
+
+        <!-- ตารางนักเรียนหลัก (กว้างเต็มจอ) -->
+        <div class="glass-card rounded-3xl p-4 md:p-6 overflow-x-auto shadow-sm border border-slate-100 mb-8">
+            <table id="studentTable" class="w-full text-sm display nowrap min-w-[600px]">
                 <thead>
                     <tr class="bg-slate-100 text-slate-600 uppercase text-xs">
                         <th class="py-3 px-4 text-left">ชั้น</th>
@@ -167,67 +355,89 @@
                 <tbody id="studentBody"></tbody>
             </table>
         </div>
+
     </main>
 
     <!-- Modal บันทึกพฤติกรรม -->
-    <div id="recordModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div id="recordModal"
+        class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-3xl p-8 max-w-2xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
-            <h2 class="text-2xl font-bold mb-6 flex items-center" id="modalTitle"><i class="fas fa-edit mr-3 text-blue-600"></i>บันทึกความประพฤติ</h2>
+            <h2 class="text-2xl font-bold mb-6 flex items-center" id="modalTitle"><i
+                    class="fas fa-edit mr-3 text-blue-600"></i>บันทึกความประพฤติ</h2>
             <div class="space-y-4">
                 <div class="relative">
                     <label class="block text-sm font-bold text-gray-700">ค้นหานักเรียน (เลขประจำตัว/ชื่อ)</label>
-                    <input type="text" id="search_student" onkeyup="searchStudent(this.value)" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 focus:border-red-500 outline-none transition" autocomplete="off" placeholder="พิมพ์เพื่อค้นหา...">
-                    <div id="search_results" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1 hidden max-h-48 overflow-y-auto border border-slate-100"></div>
+                    <input type="text" id="search_student" onkeyup="searchStudent(this.value)"
+                        class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 focus:border-red-500 outline-none transition"
+                        autocomplete="off" placeholder="พิมพ์เพื่อค้นหา...">
+                    <div id="search_results"
+                        class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1 hidden max-h-48 overflow-y-auto border border-slate-100">
+                    </div>
                     <input type="hidden" id="selected_student_id">
                 </div>
-                <div id="selected_student_info" class="p-3 bg-red-50 border border-red-100 rounded-xl hidden text-red-700 text-sm font-bold flex justify-between items-center">
+                <div id="selected_student_info"
+                    class="p-3 bg-red-50 border border-red-100 rounded-xl hidden text-red-700 text-sm font-bold flex justify-between items-center">
                     <span id="selected_student_name"></span>
-                    <button onclick="clearSelectedStudent()" class="text-red-400 hover:text-red-600"><i class="fas fa-times-circle"></i></button>
+                    <button onclick="clearSelectedStudent()" class="text-red-400 hover:text-red-600"><i
+                            class="fas fa-times-circle"></i></button>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-bold text-gray-700">รายการเกณฑ์</label>
-                        <select id="criteria_select" onchange="updateDefaultScore()" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none bg-white"></select>
+                        <select id="criteria_select" onchange="updateDefaultScore()"
+                            class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none bg-white"></select>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-gray-700">ระบุคะแนน</label>
-                        <input type="number" id="score_input" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none text-center font-bold text-lg">
+                        <input type="number" id="score_input"
+                            class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none text-center font-bold text-lg">
                     </div>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700">รายละเอียดเพิ่มเติม</label>
-                    <textarea id="description_text" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none" rows="2"></textarea>
+                    <textarea id="description_text"
+                        class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none" rows="2"></textarea>
                 </div>
                 <div>
-                    <label class="block text-sm font-bold text-gray-700">อัปโหลดรูปภาพหลักฐาน (จะถูกย่อขนาดอัตโนมัติ)</label>
-                    <input type="file" id="evidence_file" accept="image/*" class="w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-                    <img id="evidence_preview" class="hidden mt-3 w-full max-h-40 object-contain rounded-lg border border-slate-200 bg-slate-50">
+                    <label class="block text-sm font-bold text-gray-700">อัปโหลดรูปภาพหลักฐาน
+                        (จะถูกย่อขนาดอัตโนมัติ)</label>
+                    <input type="file" id="evidence_file" accept="image/*"
+                        class="w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                    <img id="evidence_preview"
+                        class="hidden mt-3 w-full max-h-40 object-contain rounded-lg border border-slate-200 bg-slate-50">
                 </div>
                 <div class="flex gap-3 pt-4">
-                    <button onclick="closeRecordModal()" class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600 hover:bg-gray-200">ยกเลิก</button>
-                    <button onclick="saveBehaviorRecord()" class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md">บันทึกข้อมูล</button>
+                    <button onclick="closeRecordModal()"
+                        class="flex-1 py-3 rounded-xl bg-gray-100 font-bold text-gray-600 hover:bg-gray-200">ยกเลิก</button>
+                    <button onclick="saveBehaviorRecord()"
+                        class="flex-1 py-3 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-md">บันทึกข้อมูล</button>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Modal ประวัติ + ลบ -->
-    <div id="historyModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
+    <div id="historyModal"
+        class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-50 p-4 backdrop-blur-sm">
         <div class="bg-white rounded-3xl p-6 max-w-3xl w-full shadow-2xl max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-start mb-5">
                 <div class="flex items-center gap-4">
                     <div id="historyAvatarWrap" class="hidden flex-shrink-0">
-                        <img id="historyAvatar" src="" alt="รูปนักเรียน" class="w-16 h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-sm bg-slate-100 cursor-zoom-in hover:opacity-90 transition" onclick="Swal.fire({ imageUrl: this.src, imageAlt: 'รูปนักเรียน', showConfirmButton: false, background: 'transparent', backdrop: 'rgba(0,0,0,0.85)', width: 'auto', padding: 0, customClass: { popup: 'rounded-2xl overflow-hidden shadow-2xl' } })" onerror="this.closest('#historyAvatarWrap').classList.add('hidden')">
+                        <img id="historyAvatar" src="" alt="รูปนักเรียน"
+                            class="w-16 h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-sm bg-slate-100 cursor-zoom-in hover:opacity-90 transition"
+                            onclick="Swal.fire({ imageUrl: this.src, imageAlt: 'รูปนักเรียน', showConfirmButton: false, background: 'transparent', backdrop: 'rgba(0,0,0,0.85)', width: 'auto', padding: 0, customClass: { popup: 'rounded-2xl overflow-hidden shadow-2xl' } })"
+                            onerror="this.closest('#historyAvatarWrap').classList.add('hidden')">
                     </div>
                     <div>
-                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                            <i class="fas fa-history text-blue-500"></i>
-                            <span id="historyStudentName">-</span>
-                        </h2>
-                        <p class="text-sm text-slate-500 mt-1">คะแนนปัจจุบัน: <span id="historyStudentScore" class="font-black text-blue-700 text-lg ml-1">-</span></p>
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i
+                                class="fas fa-history text-blue-500"></i><span id="historyStudentName">-</span></h2>
+                        <p class="text-sm text-slate-500 mt-1">คะแนนปัจจุบัน: <span id="historyStudentScore"
+                                class="font-black text-blue-700 text-lg ml-1">-</span></p>
                     </div>
                 </div>
-                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-slate-600 text-xl w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition"><i class="fas fa-times"></i></button>
+                <button onclick="closeHistoryModal()"
+                    class="text-slate-400 hover:text-slate-600 text-xl w-9 h-9 flex items-center justify-center rounded-xl hover:bg-slate-100 transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <div class="overflow-x-auto rounded-2xl border border-slate-100">
                 <table class="w-full text-sm">
@@ -243,94 +453,75 @@
                     <tbody id="historyBody"></tbody>
                 </table>
             </div>
-            <div class="mt-5 flex justify-end">
-                <button onclick="closeHistoryModal()" class="px-6 py-2.5 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition"><i class="fas fa-times mr-1"></i> ปิด</button>
-            </div>
+            <div class="mt-5 flex justify-end"><button onclick="closeHistoryModal()"
+                    class="px-6 py-2.5 rounded-xl bg-slate-100 font-bold text-slate-600 hover:bg-slate-200 transition"><i
+                        class="fas fa-times mr-1"></i> ปิด</button></div>
         </div>
     </div>
 
-
-    <!-- ===== Modal ดูบันทึกพฤติกรรม (เต็มหน้าจอ) ===== -->
-    <div id="logsModal" class="fixed inset-0 bg-slate-900/70 hidden items-center justify-center z-50 backdrop-blur-sm p-0">
+    <!-- Modal ดูบันทึกพฤติกรรม (เต็มหน้าจอ) -->
+    <div id="logsModal"
+        class="fixed inset-0 bg-slate-900/70 hidden items-center justify-center z-50 backdrop-blur-sm p-0">
         <div class="bg-white w-full h-full flex flex-col overflow-hidden md:rounded-none">
-
-            <!-- Header -->
             <div id="logsModalHeader" class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0">
-                <div id="logsModalIcon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
+                <div id="logsModalIcon"
+                    class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
                 <div>
                     <h2 id="logsModalTitle" class="text-lg font-black text-slate-800"></h2>
                     <p id="logsModalSub" class="text-xs text-slate-400 font-medium mt-0.5"></p>
                 </div>
-                <button onclick="closeLogsModal()" class="ml-auto w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button onclick="closeLogsModal()"
+                    class="ml-auto w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0"><i
+                        class="fas fa-times"></i></button>
             </div>
-
-            <!-- Filter Bar -->
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex-shrink-0">
                 <div class="flex flex-wrap gap-3 items-center">
-                    <!-- ปุ่มโหมด -->
-                    <div class="flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-xs font-bold">
-                        <button id="logsTabDay"   onclick="setLogsTab('day')"   class="px-4 py-2.5 transition logs-tab-btn">รายวัน</button>
-                        <button id="logsTabWeek"  onclick="setLogsTab('week')"  class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายสัปดาห์</button>
-                        <button id="logsTabMonth" onclick="setLogsTab('month')" class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายเดือน</button>
+                    <div
+                        class="flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-xs font-bold">
+                        <button id="logsTabDay" onclick="setLogsTab('day')"
+                            class="px-4 py-2.5 transition logs-tab-btn">รายวัน</button>
+                        <button id="logsTabWeek" onclick="setLogsTab('week')"
+                            class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายสัปดาห์</button>
+                        <button id="logsTabMonth" onclick="setLogsTab('month')"
+                            class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายเดือน</button>
                     </div>
-
-                    <!-- รายวัน: date picker -->
-                    <div id="filterDay" class="flex items-center gap-2">
-                        <label class="text-xs font-bold text-slate-500">วันที่</label>
-                        <input type="date" id="logsPickerDay" onchange="fetchLogsData()"
+                    <div id="filterDay" class="flex items-center gap-2"><label
+                            class="text-xs font-bold text-slate-500">วันที่</label><input type="date" id="logsPickerDay"
+                            onchange="fetchLogsData()"
                             class="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 font-medium">
                     </div>
-
-                    <!-- รายสัปดาห์: ปุ่มเลื่อนสัปดาห์ -->
-                    <div id="filterWeek" class="hidden items-center gap-2">
-                        <button onclick="shiftWeek(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center">
-                            <i class="fas fa-chevron-left text-xs"></i>
-                        </button>
-                        <span id="logsWeekLabel" class="text-sm font-bold text-slate-700 min-w-[180px] text-center"></span>
-                        <button onclick="shiftWeek(1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center">
-                            <i class="fas fa-chevron-right text-xs"></i>
-                        </button>
-                    </div>
-
-                    <!-- รายเดือน: ปุ่มเลื่อนเดือน -->
-                    <div id="filterMonth" class="hidden items-center gap-2">
-                        <button onclick="shiftMonth(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center">
-                            <i class="fas fa-chevron-left text-xs"></i>
-                        </button>
-                        <span id="logsMonthLabel" class="text-sm font-bold text-slate-700 min-w-[120px] text-center"></span>
-                        <button onclick="shiftMonth(1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center">
-                            <i class="fas fa-chevron-right text-xs"></i>
-                        </button>
-                    </div>
-
-                    <!-- Badge จำนวนรายการ -->
+                    <div id="filterWeek" class="hidden items-center gap-2"><button onclick="shiftWeek(-1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
+                                class="fas fa-chevron-left text-xs"></i></button><span id="logsWeekLabel"
+                            class="text-sm font-bold text-slate-700 min-w-[180px] text-center"></span><button
+                            onclick="shiftWeek(1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
+                                class="fas fa-chevron-right text-xs"></i></button></div>
+                    <div id="filterMonth" class="hidden items-center gap-2"><button onclick="shiftMonth(-1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
+                                class="fas fa-chevron-left text-xs"></i></button><span id="logsMonthLabel"
+                            class="text-sm font-bold text-slate-700 min-w-[120px] text-center"></span><button
+                            onclick="shiftMonth(1)"
+                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
+                                class="fas fa-chevron-right text-xs"></i></button></div>
                     <div id="logsCountBadge" class="ml-auto text-xs font-bold px-3 py-1.5 rounded-full hidden"></div>
                 </div>
             </div>
-
-            <!-- Content: ตาราง — ใช้ flex column เพื่อให้ header ตรึง body scroll -->
             <div class="flex-1 overflow-hidden flex flex-col px-6 py-4 gap-4">
-
-                <!-- Loading state -->
                 <div id="logsLoading" class="hidden flex-col items-center justify-center py-20 gap-3 flex-1">
                     <div class="w-12 h-12 rounded-full border-4 border-slate-200 border-t-blue-500 animate-spin"></div>
                     <p class="text-slate-400 text-sm font-medium">กำลังโหลดข้อมูล...</p>
                 </div>
-
-                <!-- Empty state -->
                 <div id="logsEmpty" class="hidden flex-col items-center justify-center py-20 gap-3 text-center flex-1">
-                    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2">
+                    <div
+                        class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2">
                         <i class="fas fa-inbox"></i>
                     </div>
                     <p class="text-slate-500 font-bold">ไม่พบรายการในช่วงเวลานี้</p>
                     <p class="text-slate-400 text-xs">ลองเลือกช่วงเวลาอื่น</p>
                 </div>
-
-                <!-- ตาราง: wrapper ตรึง header, body scroll -->
-                <div id="logsTableWrap" class="hidden flex-1 overflow-hidden flex flex-col rounded-2xl border border-slate-100 shadow-sm">
-                    <!-- thead ตรึง -->
+                <div id="logsTableWrap"
+                    class="hidden flex-1 overflow-hidden flex flex-col rounded-2xl border border-slate-100 shadow-sm">
                     <div class="flex-shrink-0 bg-slate-50 rounded-t-2xl overflow-hidden">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
@@ -355,7 +546,6 @@
                             </thead>
                         </table>
                     </div>
-                    <!-- tbody scroll -->
                     <div class="flex-1 overflow-y-auto">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
@@ -372,17 +562,14 @@
                     </div>
                 </div>
             </div>
-
-            <!-- Footer -->
-            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
-                <button id="logsExportBtn" onclick="exportLogsModal()" class="hidden items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
-                    <i class="fas fa-file-excel"></i> ส่งออก Excel
-                </button>
-                <div class="ml-auto">
-                    <button onclick="closeLogsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm">
-                        <i class="fas fa-times mr-1.5"></i> ปิด
-                    </button>
-                </div>
+            <div
+                class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
+                <button id="logsExportBtn" onclick="exportLogsModal()"
+                    class="hidden items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm"><i
+                        class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                <div class="ml-auto"><button onclick="closeLogsModal()"
+                        class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm"><i
+                            class="fas fa-times mr-1.5"></i> ปิด</button></div>
             </div>
         </div>
     </div>
