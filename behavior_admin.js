@@ -301,14 +301,43 @@ function renderRecentTable(tbodyId, logs, type) {
 }
 
 async function searchStudent(val) {
-    if (val.length < 2) { $('#search_results').hide(); return; }
-    const matched = allStudents.filter(s => (s.sid || '').includes(val) || (s.fullName || '').includes(val)).slice(0, 5);
+    if (val.length < 2) { 
+        $('#search_results').hide(); 
+        return; 
+    }
+    
+    // ค้นหาจาก schoolStats ทั้งโรงเรียน (ไม่จำกัดเฉพาะห้องที่เลือก)
+    const matched = schoolStats.filter(s => 
+        (s.sid || '').includes(val) || 
+        (s.fullName || '').includes(val)
+    ).slice(0, 10); // แสดงสูงสุด 10 ราย
+
     let html = '';
-    matched.forEach(s => { html += `<div onclick="selectStudent('${s.id}', '${s.sid} - ${s.fullName}')" class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">${s.sid} - ${s.fullName} (${s.roomDisplay})</div>`; });
+    matched.forEach(s => {
+        html += `<div onclick="selectStudent('${s.id}')" 
+                 class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">
+                 ${s.sid} - ${s.fullName} (${s.roomDisplay})
+                 </div>`;
+    });
+    
     $('#search_results').html(html || '<div class="p-3 text-sm text-slate-400">ไม่พบนักเรียน</div>').show();
 }
 
-function selectStudent(id, info) { $('#selected_student_id').val(id); $('#selected_student_name').text(`นักเรียนที่เลือก: ${info}`); $('#selected_student_info').removeClass('hidden').addClass('flex'); $('#search_results').hide(); $('#search_student').val(''); }
+function selectStudent(id) {
+    // ค้นหาจาก schoolStats ทั้งหมด
+    const student = schoolStats.find(s => s.id === id);
+    if (!student) {
+        Swal.fire('ไม่พบข้อมูล', 'กรุณาลองค้นหาใหม่', 'error');
+        return;
+    }
+    
+    $('#selected_student_id').val(student.id);
+    $('#selected_student_name').text(`นักเรียนที่เลือก: ${student.sid} - ${student.fullName} (${student.roomDisplay})`);
+    $('#selected_student_info').removeClass('hidden').addClass('flex');
+    $('#search_results').hide();
+    $('#search_student').val('');
+}
+
 function clearSelectedStudent() { $('#selected_student_id').val(''); $('#selected_student_info').addClass('hidden').removeClass('flex'); }
 
 function openRecordModal(type = 'all') {
@@ -352,31 +381,71 @@ async function saveBehaviorRecord() {
     const criteriaId = $('#criteria_select').val();
     const score = parseInt($('#score_input').val());
     const fileInput = $('#evidence_file')[0].files[0];
-    if (!studentId || !criteriaId || isNaN(score)) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
-    if (!fileInput) return Swal.fire('กรุณาแนบรูปหลักฐาน', 'ต้องอัปโหลดรูปภาพหลักฐานทุกครั้ง', 'warning');
-    const student = allStudents.find(s => s.id === studentId);
-    const studentSid = student?.sid || studentId;
-    const studentFirstName = student?.firstName || '';
-    const studentLastName = student?.lastName || '';
+    
+    if (!studentId || !criteriaId || isNaN(score)) {
+        return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียนและเกณฑ์ให้ถูกต้อง', 'warning');
+    }
+    if (!fileInput) {
+        return Swal.fire('กรุณาแนบรูปหลักฐาน', 'ต้องอัปโหลดรูปภาพหลักฐานทุกครั้ง', 'warning');
+    }
+    
+    // ค้นหาข้อมูลนักเรียนจาก schoolStats (หรือ allStudents สำรอง)
+    const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
+    if (!student) {
+        return Swal.fire('ไม่พบข้อมูลนักเรียน', 'กรุณาลองค้นหาใหม่', 'error');
+    }
+    
+    const studentSid = student.sid || studentId;
+    const studentFirstName = student.firstName || '';
+    const studentLastName = student.lastName || '';
     const now = new Date();
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
     const safeName = `${studentFirstName}_${studentLastName}`.replace(/[\/\\:*?"<>|\s]/g, '_');
     const fileName = `behavior_${studentSid}-${safeName}_${dateStr}.jpg`;
+    
     let finalImageUrl = null;
     if (fileInput) {
-        if (!systemConfig || !systemConfig.gas_url || !systemConfig.drive_folder_id) return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'แอดมินยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive API', 'error');
+        if (!systemConfig || !systemConfig.gas_url || !systemConfig.drive_folder_id) {
+            return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'แอดมินยังไม่ได้ตั้งค่าการเชื่อมต่อ Google Drive API', 'error');
+        }
         try {
             Swal.fire({ title: 'กำลังย่อขนาดและอัปโหลดรูปภาพ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
             const resizedBlob = await resizeImage(fileInput);
             const base64Data = await blobToBase64(resizedBlob);
-            const response = await fetch(systemConfig.gas_url, { method: "POST", body: JSON.stringify({ action: 'upload', base64: base64Data, fileName: fileName, folderId: systemConfig.drive_folder_id }) });
+            const response = await fetch(systemConfig.gas_url, { 
+                method: "POST", 
+                body: JSON.stringify({ 
+                    action: 'upload', 
+                    base64: base64Data, 
+                    fileName: fileName, 
+                    folderId: systemConfig.drive_folder_id 
+                }) 
+            });
             const resData = await response.json();
-            if (resData.status === 'success') finalImageUrl = resData.url;
-            else throw new Error(resData.message);
-        } catch (err) { console.error(err); return Swal.fire('อัปโหลดรูปไม่สำเร็จ', 'โปรดตรวจสอบการเชื่อมต่อ API ของ Google', 'error'); }
+            if (resData.status === 'success') {
+                finalImageUrl = resData.url;
+            } else {
+                throw new Error(resData.message);
+            }
+        } catch (err) {
+            console.error(err);
+            return Swal.fire('อัปโหลดรูปไม่สำเร็จ', 'โปรดตรวจสอบการเชื่อมต่อ API ของ Google', 'error');
+        }
     }
+    
     Swal.fire({ title: 'กำลังจัดเก็บลงฐานข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    const { error } = await db.from('behavior_logs').insert([{ student_id: studentId, criteria_id: criteriaId, score_change: score, recorder_id: currentUser.id, description: $('#description_text').val(), evidence_url: finalImageUrl, academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester }]);
+    
+    const { error } = await db.from('behavior_logs').insert([{
+        student_id: studentId,
+        criteria_id: criteriaId,
+        score_change: score,
+        recorder_id: currentUser.id,
+        description: $('#description_text').val(),
+        evidence_url: finalImageUrl,
+        academic_year: schoolInfo.current_academic_year,
+        semester: schoolInfo.current_semester
+    }]);
+    
     if (!error) {
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
         clearSelectedStudent();
@@ -386,7 +455,9 @@ async function saveBehaviorRecord() {
         closeRecordModal();
         initStudentTable();
         loadDashboard();
-    } else { Swal.fire('Error', error.message, 'error'); }
+    } else {
+        Swal.fire('Error', error.message, 'error');
+    }
 }
 
 function importFromExcel() { document.getElementById('excel_import_input').value = ''; document.getElementById('excel_import_input').click(); }
@@ -566,12 +637,55 @@ async function exportSummary() {
 function _writeExcel(exportData, fileName, sheetName) { const worksheet = XLSX.utils.json_to_sheet(exportData); const cols = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length * 2, 12) })); worksheet['!cols'] = cols; const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31)); XLSX.writeFile(workbook, fileName); Swal.close(); }
 
 function viewHistory(studentId) {
-    const student = allStudents.find(s => s.id === studentId);
-    if (!student) return;
+    // ค้นจาก schoolStats (ทั้งโรงเรียน) ก่อน แล้วค่อย allStudents
+    const student = schoolStats.find(s => s.id === studentId)
+                 || allStudents.find(s => s.id === studentId);
+    if (!student) {
+        // กรณีหาไม่เจอเลย (เช่น data ยังโหลดไม่เสร็จ) — โหลดประวัติตรงจาก DB
+        $('#historyStudentName').text('กำลังโหลด...');
+        $('#historyStudentScore').text('-');
+        $('#historyAvatar').addClass('hidden');
+        $('#historyAvatarWrap').addClass('hidden');
+        $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
+        // ดึงข้อมูลนักเรียนจาก DB เพื่อแสดงชื่อ
+        db.from('core_students')
+            .select('id, student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(student_number, core_classrooms(grade_level, room_number)), behavior_logs(score_change)')
+            .eq('id', studentId).single()
+            .then(({ data: s }) => {
+                if (!s) return;
+                const mapped = mapStudent(s, s.avatar_students_url);
+                $('#historyStudentName').text(mapped.fullName + ' (' + mapped.roomDisplay + ')');
+                $('#historyStudentScore').text(mapped.score);
+                if (mapped.avatar) {
+                    $('#historyAvatar').attr('src', mapped.avatar).removeClass('hidden');
+                    $('#historyAvatarWrap').removeClass('hidden');
+                }
+            });
+        loadStudentHistory(studentId);
+        return;
+    }
+
     $('#historyStudentName').text(student.fullName + ' (' + student.roomDisplay + ')');
     $('#historyStudentScore').text(student.score);
-    const $avatar = $('#historyAvatar'); const $avatarWrap = $('#historyAvatarWrap');
-    if (student.avatar) { $avatar.attr('src', student.avatar).removeClass('hidden'); $avatarWrap.removeClass('hidden'); } else { $avatar.addClass('hidden'); $avatarWrap.addClass('hidden'); }
+
+    const $avatar = $('#historyAvatar');
+    const $avatarWrap = $('#historyAvatarWrap');
+    if (student.avatar) {
+        $avatar.attr('src', student.avatar).removeClass('hidden');
+        $avatarWrap.removeClass('hidden');
+    } else {
+        // avatar อาจยังไม่ได้โหลด (schoolStats ไม่มี) — ดึงเพิ่มเติม
+        $avatar.addClass('hidden');
+        $avatarWrap.addClass('hidden');
+        db.from('core_students').select('avatar_students_url').eq('id', studentId).single()
+            .then(({ data }) => {
+                if (data?.avatar_students_url) {
+                    $avatar.attr('src', data.avatar_students_url).removeClass('hidden');
+                    $avatarWrap.removeClass('hidden');
+                }
+            });
+    }
+
     $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
     loadStudentHistory(studentId);
 }
@@ -598,9 +712,9 @@ async function editLog(logId, studentId) {
     if (formValues.newImageUrl !== undefined) updateData.evidence_url = formValues.newImageUrl;
     const { error: updErr } = await db.from('behavior_logs').update(updateData).eq('id', logId);
     if (updErr) return Swal.fire('ผิดพลาด', updErr.message, 'error');
-    await initStudentTable(); loadDashboard(); const student = allStudents.find(s => s.id === studentId); if (student) $('#historyStudentScore').text(student.score); await loadStudentHistory(studentId); Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1200, showConfirmButton: false });
+    await initStudentTable(); loadDashboard(); const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId); if (student) $('#historyStudentScore').text(student.score); await loadStudentHistory(studentId); Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1200, showConfirmButton: false });
 }
-async function deleteLog(logId, studentId) { const result = await Swal.fire({ title: 'ยืนยันการลบ', text: 'ลบรายการนี้? ไม่สามารถกู้คืนได้', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> ลบเลย', cancelButtonText: 'ยกเลิก' }); if (!result.isConfirmed) return; Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false }); const { error } = await db.from('behavior_logs').delete().eq('id', logId); if (error) return Swal.fire('ผิดพลาด', error.message, 'error'); await initStudentTable(); loadDashboard(); const student = allStudents.find(s => s.id === studentId); if (student) $('#historyStudentScore').text(student.score); await loadStudentHistory(studentId); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1200, showConfirmButton: false }); }
+async function deleteLog(logId, studentId) { const result = await Swal.fire({ title: 'ยืนยันการลบ', text: 'ลบรายการนี้? ไม่สามารถกู้คืนได้', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> ลบเลย', cancelButtonText: 'ยกเลิก' }); if (!result.isConfirmed) return; Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false }); const { error } = await db.from('behavior_logs').delete().eq('id', logId); if (error) return Swal.fire('ผิดพลาด', error.message, 'error'); await initStudentTable(); loadDashboard(); const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId); if (student) $('#historyStudentScore').text(student.score); await loadStudentHistory(studentId); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1200, showConfirmButton: false }); }
 function closeHistoryModal() { $('#historyModal').addClass('hidden').removeClass('flex'); }
 
 let _logsType = 'negative', _logsTab = 'day', _weekOffset = 0, _monthOffset = 0, _logsRawData = [];
