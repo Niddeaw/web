@@ -1,0 +1,1493 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎮 Quiz Game - Hand Tracking</title>
+<link href="https://fonts.googleapis.com/css2?family=Itim&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  :root {
+    --neon-green: #39ff14;
+    --neon-yellow: #ffff00;
+    --neon-red: #ff073a;
+    --neon-blue: #00f3ff;
+    --neon-purple: #bf5fff;
+    --neon-orange: #ff8c00;
+    --neon-pink: #ff69b4;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Itim', sans-serif;
+    background: #050010;
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+    color: white;
+  }
+  #game-container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+  }
+  #video-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    pointer-events: none;
+  }
+  #canvas-bg {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: cover;
+  }
+  #ui-layer {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #ui-layer * { pointer-events: auto; }
+  .glass-card {
+    background: rgba(255,255,255,0.07);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 18px;
+    box-shadow: 0 0 30px rgba(0,243,255,0.15), inset 0 0 20px rgba(255,255,255,0.03);
+  }
+  .rainbow-border {
+    position: relative;
+    border-radius: 18px;
+    padding: 2px;
+    background: linear-gradient(135deg, #ff073a, #ff8c00, #ffff00, #39ff14, #00f3ff, #bf5fff, #ff073a);
+    background-size: 300% 300%;
+    animation: rainbowShift 3s linear infinite;
+  }
+  .rainbow-border-inner {
+    border-radius: 16px;
+    background: rgba(5,0,16,0.85);
+    backdrop-filter: blur(18px);
+    width: 100%; height: 100%;
+  }
+  @keyframes rainbowShift {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+  .neon-text-green { color: #39ff14; text-shadow: 0 0 10px #39ff14, 0 0 20px #39ff14, 0 0 40px #39ff14; }
+  .neon-text-yellow { color: #ffff00; text-shadow: 0 0 10px #ffff00, 0 0 20px #ffff00, 0 0 40px #ffff00; }
+  .neon-text-red { color: #ff073a; text-shadow: 0 0 10px #ff073a, 0 0 20px #ff073a, 0 0 40px #ff073a; }
+  .neon-text-blue { color: #00f3ff; text-shadow: 0 0 10px #00f3ff, 0 0 20px #00f3ff, 0 0 40px #00f3ff; }
+  .neon-text-orange { color: #ff8c00; text-shadow: 0 0 10px #ff8c00, 0 0 20px #ff8c00, 0 0 40px #ff8c00; }
+
+  .team-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 18px;
+    border-radius: 999px;
+    font-family: 'Itim', cursive;
+    font-size: 1.1rem;
+    font-weight: bold;
+    animation: badgePulse 1.5s ease-in-out infinite;
+  }
+  .team-badge.green {
+    background: rgba(57,255,20,0.2);
+    border: 2px solid #39ff14;
+    color: #39ff14;
+    box-shadow: 0 0 20px rgba(57,255,20,0.6), inset 0 0 10px rgba(57,255,20,0.1);
+  }
+  .team-badge.yellow {
+    background: rgba(255,255,0,0.2);
+    border: 2px solid #ffff00;
+    color: #ffff00;
+    box-shadow: 0 0 20px rgba(255,255,0,0.6), inset 0 0 10px rgba(255,255,0,0.1);
+  }
+  .team-badge.red {
+    background: rgba(255,7,58,0.2);
+    border: 2px solid #ff073a;
+    color: #ff073a;
+    box-shadow: 0 0 20px rgba(255,7,58,0.6), inset 0 0 10px rgba(255,7,58,0.1);
+  }
+  @keyframes badgePulse {
+    0%,100% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+  }
+
+  #neon-cursor {
+    position: fixed;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(0,243,255,0.9) 0%, rgba(0,243,255,0.3) 60%, transparent 100%);
+    box-shadow: 0 0 15px #00f3ff, 0 0 30px #00f3ff, 0 0 60px rgba(0,243,255,0.5);
+    pointer-events: none;
+    z-index: 9999;
+    transform: translate(-50%, -50%);
+    transition: width 0.1s, height 0.1s;
+  }
+  #neon-cursor.pinching {
+    width: 18px;
+    height: 18px;
+    background: radial-gradient(circle, rgba(255,255,0,1) 0%, rgba(255,255,0,0.5) 60%, transparent 100%);
+    box-shadow: 0 0 15px #ffff00, 0 0 30px #ffff00;
+  }
+
+  .timer-bar-container {
+    position: relative;
+    height: 18px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.1);
+    overflow: hidden;
+    border: 1px solid rgba(255,140,0,0.4);
+    box-shadow: 0 0 10px rgba(255,140,0,0.3);
+  }
+  #timer-bar {
+    height: 100%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, #ff4500, #ff8c00, #ffd700);
+    box-shadow: 0 0 15px #ff8c00, 0 0 30px rgba(255,140,0,0.5);
+    transition: width 0.1s linear;
+    position: relative;
+  }
+  #timer-bar::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 5px; right: 5px; height: 5px;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.4);
+  }
+
+  .score-panel {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+  }
+  .score-card {
+    text-align: center;
+    padding: 8px 16px;
+    border-radius: 12px;
+    min-width: 90px;
+  }
+  .score-card.green {
+    background: rgba(57,255,20,0.15);
+    border: 1.5px solid rgba(57,255,20,0.6);
+  }
+  .score-card.yellow {
+    background: rgba(255,255,0,0.15);
+    border: 1.5px solid rgba(255,255,0,0.6);
+  }
+  .score-card.red {
+    background: rgba(255,7,58,0.15);
+    border: 1.5px solid rgba(255,7,58,0.6);
+  }
+
+  /* Stage 1 - True/False circles */
+  .answer-circle {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 3.5rem;
+    cursor: pointer;
+    position: absolute;
+    user-select: none;
+    transition: transform 0.1s;
+  }
+  .answer-circle.true-circle {
+    background: radial-gradient(circle at 40% 40%, #39ff14, #1a8c00);
+    box-shadow: 0 0 30px #39ff14, 0 0 60px rgba(57,255,20,0.4), inset 0 0 20px rgba(57,255,20,0.2);
+    border: 3px solid rgba(57,255,20,0.8);
+  }
+  .answer-circle.false-circle {
+    background: radial-gradient(circle at 40% 40%, #ff073a, #8c0000);
+    box-shadow: 0 0 30px #ff073a, 0 0 60px rgba(255,7,58,0.4), inset 0 0 20px rgba(255,7,58,0.2);
+    border: 3px solid rgba(255,7,58,0.8);
+  }
+  .hover-ring {
+    position: absolute;
+    top: -6px; left: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    border-radius: 50%;
+    border: 4px solid transparent;
+    pointer-events: none;
+    transform-origin: center;
+  }
+  .hover-ring-fill {
+    position: absolute;
+    top: -6px; left: -6px;
+    width: calc(100% + 12px);
+    height: calc(100% + 12px);
+    border-radius: 50%;
+    border: 4px solid white;
+    pointer-events: none;
+    clip-path: inset(0 100% 0 0);
+    transition: clip-path 0.05s linear;
+  }
+
+  /* Stage 2 - Drag & Drop */
+  .choice-card {
+    position: absolute;
+    padding: 18px 24px;
+    border-radius: 14px;
+    background: #00c820;
+    border: 3px solid #39ff14;
+    box-shadow: 0 0 20px rgba(57,255,20,0.6), 0 0 40px rgba(57,255,20,0.3);
+    color: #000;
+    font-family: 'Itim', cursive;
+    font-size: 1.5rem;
+    font-weight: 900;
+    cursor: grab;
+    user-select: none;
+    min-width: 140px;
+    text-align: center;
+    z-index: 100;
+    touch-action: none;
+  }
+  .choice-card:active { cursor: grabbing; }
+  .drop-zone {
+    border: 3px dashed #00f3ff;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,243,255,0.05);
+    box-shadow: 0 0 20px rgba(0,243,255,0.3), inset 0 0 20px rgba(0,243,255,0.05);
+    transition: background 0.2s, box-shadow 0.2s;
+    font-family: 'Itim', cursive;
+    font-size: 1.2rem;
+    color: rgba(0,243,255,0.7);
+  }
+  .drop-zone.active {
+    background: rgba(0,243,255,0.15);
+    box-shadow: 0 0 30px rgba(0,243,255,0.5);
+    border-color: #fff;
+  }
+
+  /* Stage 3 - Falling cards */
+  .falling-card {
+    position: absolute;
+    padding: 16px 22px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, #006400, #004a00);
+    border: 3px solid #39ff14;
+    box-shadow: 0 0 20px rgba(57,255,20,0.5), 0 8px 20px rgba(0,0,0,0.5);
+    color: #39ff14;
+    font-family: 'Itim', cursive;
+    font-size: 2.2rem;
+    font-weight: bold;
+    cursor: default;
+    user-select: none;
+    text-align: center;
+    min-width: 120px;
+    text-shadow: 0 0 10px #39ff14;
+    z-index: 50;
+  }
+  .falling-card.wrong {
+    background: linear-gradient(135deg, #400000, #200000);
+    border-color: #ff073a;
+    color: #ff073a;
+    box-shadow: 0 0 20px rgba(255,7,58,0.5), 0 8px 20px rgba(0,0,0,0.5);
+    text-shadow: 0 0 10px #ff073a;
+  }
+
+  /* Intermission */
+  #intermission-screen, #countdown-screen, #result-screen, #podium-screen, #start-screen {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    background: rgba(5,0,16,0.88);
+    backdrop-filter: blur(8px);
+  }
+  .countdown-number {
+    font-family: 'Itim', cursive;
+    font-size: 20vw;
+    font-weight: 900;
+    animation: countPop 0.8s ease-out forwards;
+  }
+  @keyframes countPop {
+    0% { transform: scale(2); opacity: 0; }
+    40% { transform: scale(0.9); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  /* OK Gesture progress ring */
+  #ok-progress-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
+    margin: 20px auto;
+  }
+  #ok-svg { transform: rotate(-90deg); }
+  #ok-ring {
+    stroke: #39ff14;
+    stroke-width: 8;
+    fill: none;
+    stroke-dasharray: 339;
+    stroke-dashoffset: 339;
+    stroke-linecap: round;
+    filter: drop-shadow(0 0 8px #39ff14);
+    transition: stroke-dashoffset 0.05s linear;
+  }
+  .ok-center-text {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2.5rem;
+  }
+
+  /* Podium */
+  .podium-bar {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    border-radius: 12px 12px 0 0;
+    transition: height 1s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes confettiFall {
+    0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+  .confetti-piece {
+    position: fixed;
+    width: 10px;
+    height: 10px;
+    top: -10px;
+    animation: confettiFall linear forwards;
+    z-index: 9999;
+    pointer-events: none;
+  }
+
+  @keyframes floatUp {
+    0% { transform: translateY(0); opacity: 1; }
+    100% { transform: translateY(-80px); opacity: 0; }
+  }
+  .score-popup {
+    position: absolute;
+    font-family: 'Itim', cursive;
+    font-size: 2rem;
+    font-weight: bold;
+    color: #ffd700;
+    text-shadow: 0 0 10px #ffd700;
+    pointer-events: none;
+    animation: floatUp 1.2s ease-out forwards;
+    z-index: 1000;
+  }
+
+  .btn-neon {
+    font-family: 'Itim', cursive;
+    font-size: 1.3rem;
+    padding: 14px 36px;
+    border-radius: 999px;
+    border: none;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.1s;
+  }
+  .btn-neon:hover { transform: scale(1.05); }
+  .btn-neon:active { transform: scale(0.97); }
+  .btn-neon-blue {
+    background: linear-gradient(135deg, #00f3ff, #0077ff);
+    color: #000;
+    box-shadow: 0 0 20px rgba(0,243,255,0.7), 0 0 40px rgba(0,119,255,0.4);
+  }
+  .btn-neon-rainbow {
+    background: linear-gradient(135deg, #ff073a, #ff8c00, #ffff00, #39ff14, #00f3ff, #bf5fff);
+    color: #fff;
+    font-size: 1.5rem;
+    padding: 18px 48px;
+    box-shadow: 0 0 30px rgba(255,140,0,0.7), 0 0 60px rgba(0,243,255,0.4);
+    text-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  .feedback-overlay {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 5000;
+    pointer-events: none;
+    font-family: 'Itim', cursive;
+    font-size: 8vw;
+    font-weight: 900;
+    animation: feedbackAnim 1s ease-out forwards;
+  }
+  @keyframes feedbackAnim {
+    0% { transform: scale(0.5); opacity: 1; }
+    60% { transform: scale(1.2); opacity: 1; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  .correct-feedback {
+    color: #39ff14;
+    text-shadow: 0 0 30px #39ff14, 0 0 60px #39ff14;
+  }
+  .wrong-feedback {
+    color: #ff073a;
+    text-shadow: 0 0 30px #ff073a, 0 0 60px #ff073a;
+  }
+</style>
+</head>
+<body>
+<div id="game-container">
+  <video id="video-bg" autoplay muted playsinline></video>
+  <canvas id="canvas-bg"></canvas>
+  <div id="neon-cursor"></div>
+
+  <!-- START SCREEN -->
+  <div id="start-screen">
+    <div class="text-center p-8">
+      <div class="rainbow-border mb-6 inline-block">
+        <div class="rainbow-border-inner p-8">
+          <div style="font-family:'Itim',cursive;font-size:3rem;margin-bottom:8px;" class="neon-text-blue">🎮 QUIZ MASTER</div>
+          <div style="font-family:'Itim',cursive;font-size:1.2rem;color:rgba(255,255,255,0.7);margin-bottom:24px;">Hand Tracking Interactive Quiz Game</div>
+          <div class="flex gap-4 justify-center mb-6">
+            <div class="team-badge green">🟢 ทีมเขียว</div>
+            <div class="team-badge yellow">🟡 ทีมเหลือง</div>
+            <div class="team-badge red">🔴 ทีมแดง</div>
+          </div>
+          <div style="font-family:'Itim',cursive;font-size:1rem;color:rgba(255,255,255,0.6);margin-bottom:20px;">
+            📹 ระบบจะขอสิทธิ์กล้อง หากไม่อนุญาต จะใช้เมาส์/ทัชแทน
+          </div>
+          <button class="btn-neon btn-neon-rainbow" onclick="startGame()">🚀 เริ่มเกม!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- UI LAYER -->
+  <div id="ui-layer" style="display:none;">
+    <!-- TOP BAR -->
+    <div id="top-bar" style="position:absolute;top:0;left:0;right:0;padding:10px 16px;z-index:20;">
+      <div class="score-panel">
+        <div class="score-card green">
+          <div style="font-family:'Itim',cursive;font-size:0.75rem;color:#39ff14;">🟢 ทีมเขียว</div>
+          <div id="score-green" style="font-family:'Itim',cursive;font-size:1.6rem;color:#39ff14;text-shadow:0 0 10px #39ff14;">0</div>
+        </div>
+        <div class="score-card yellow">
+          <div style="font-family:'Itim',cursive;font-size:0.75rem;color:#ffff00;">🟡 ทีมเหลือง</div>
+          <div id="score-yellow" style="font-family:'Itim',cursive;font-size:1.6rem;color:#ffff00;text-shadow:0 0 10px #ffff00;">0</div>
+        </div>
+        <div class="score-card red">
+          <div style="font-family:'Itim',cursive;font-size:0.75rem;color:#ff073a;">🔴 ทีมแดง</div>
+          <div id="score-red" style="font-family:'Itim',cursive;font-size:1.6rem;color:#ff073a;text-shadow:0 0 10px #ff073a;">0</div>
+        </div>
+        <div style="flex:1;max-width:180px;text-align:center;">
+          <div id="stage-label" style="font-family:'Itim',cursive;font-size:0.75rem;color:rgba(255,255,255,0.5);margin-bottom:2px;"></div>
+          <div id="question-counter" style="font-family:'Itim',cursive;font-size:1.1rem;color:#00f3ff;text-shadow:0 0 10px #00f3ff;"></div>
+        </div>
+      </div>
+
+      <!-- Question Box -->
+      <div id="question-box" class="glass-card" style="margin-top:8px;padding:12px 20px;text-align:center;">
+        <div id="team-turn-badge" style="margin-bottom:6px;"></div>
+        <div id="question-text" style="font-family:'Itim',cursive;font-size:2rem;line-height:1.5;font-weight:bold;text-shadow:0 0 8px rgba(255,255,255,0.3);"></div>
+      </div>
+    </div>
+
+    <!-- TIMER BAR at bottom -->
+    <div style="position:absolute;bottom:10px;left:16px;right:16px;z-index:20;">
+      <div class="timer-bar-container">
+        <div id="timer-bar" style="width:100%;"></div>
+      </div>
+      <div id="timer-text" style="text-align:center;font-family:'Itim',cursive;font-size:1rem;color:#ff8c00;margin-top:4px;text-shadow:0 0 8px #ff8c00;">⏱ 10 วินาที</div>
+    </div>
+
+    <!-- GAME AREA -->
+    <div id="game-area" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+  </div>
+
+  <!-- INTERMISSION SCREEN -->
+  <div id="intermission-screen" style="display:none;">
+    <div class="text-center">
+      <div id="intermission-content"></div>
+      <div id="ok-progress-container">
+        <svg id="ok-svg" width="120" height="120" viewBox="0 0 120 120">
+          <circle cx="60" cy="60" r="54" stroke="rgba(255,255,255,0.1)" stroke-width="8" fill="none"/>
+          <circle id="ok-ring" cx="60" cy="60" r="54"/>
+        </svg>
+        <div class="ok-center-text">👌</div>
+      </div>
+      <div style="font-family:'Itim',cursive;font-size:1rem;color:rgba(255,255,255,0.6);margin-top:8px;">ทำท่า OK ค้างไว้ หรือ คลิก เพื่อเริ่มต่อ</div>
+      <button class="btn-neon btn-neon-blue" style="margin-top:16px;" onclick="onOKConfirmed()">✅ พร้อมแล้ว!</button>
+    </div>
+  </div>
+
+  <!-- COUNTDOWN SCREEN -->
+  <div id="countdown-screen" style="display:none;">
+    <div id="countdown-number" class="countdown-number neon-text-blue">3</div>
+  </div>
+
+  <!-- RESULT SCREEN (trophy button) -->
+  <div id="result-screen" style="display:none;">
+    <div class="text-center p-8">
+      <div class="rainbow-border inline-block mb-6">
+        <div class="rainbow-border-inner p-8">
+          <div style="font-family:'Itim',cursive;font-size:3rem;margin-bottom:16px;">🏆 เกมจบแล้ว!</div>
+          <div style="font-family:'Itim',cursive;font-size:1.2rem;color:rgba(255,255,255,0.7);margin-bottom:24px;">ทุกคนพร้อมลุ้นผลแล้วหรือยัง?</div>
+          <div class="flex gap-4 justify-center mb-6">
+            <div class="score-card green p-4">
+              <div style="color:#39ff14;font-size:0.9rem;">🟢 ทีมเขียว</div>
+              <div style="color:#39ff14;font-size:2rem;font-family:'Itim',cursive;">???</div>
+            </div>
+            <div class="score-card yellow p-4">
+              <div style="color:#ffff00;font-size:0.9rem;">🟡 ทีมเหลือง</div>
+              <div style="color:#ffff00;font-size:2rem;font-family:'Itim',cursive;">???</div>
+            </div>
+            <div class="score-card red p-4">
+              <div style="color:#ff073a;font-size:0.9rem;">🔴 ทีมแดง</div>
+              <div style="color:#ff073a;font-size:2rem;font-family:'Itim',cursive;">???</div>
+            </div>
+          </div>
+          <button class="btn-neon btn-neon-rainbow" onclick="showPodium()">🏆 ดูผลการแข่งขัน!</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PODIUM SCREEN -->
+  <div id="podium-screen" style="display:none;">
+    <div class="text-center p-8 w-full">
+      <div style="font-family:'Itim',cursive;font-size:2.5rem;margin-bottom:8px;" class="neon-text-yellow">🏆 ผลการแข่งขัน 🏆</div>
+      <div id="podium-display" style="display:flex;align-items:flex-end;justify-content:center;gap:16px;margin:20px 0;height:220px;"></div>
+      <button class="btn-neon btn-neon-blue" style="margin-top:16px;" onclick="restartGame()">🔄 เล่นใหม่อีกครั้ง</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const TEAMS = ['green','yellow','red'];
+const TEAM_NAMES = { green:'🟢 ทีมเขียว', yellow:'🟡 ทีมเหลือง', red:'🔴 ทีมแดง' };
+const TEAM_COLORS = { green:'#39ff14', yellow:'#ffff00', red:'#ff073a' };
+
+const STAGE1_QS = [
+  { q:'ทวีปออสเตรเลียเป็นทวีปที่ใหญ่ที่สุดในโลก', ans:false },
+  { q:'ม้าลายมีพื้นลำตัวเป็นสีดำ มีลายสีขาว', ans:true },
+  { q:'โลโก้ร้านอเมซอนมีนกเงือก 1 ตัว', ans:false },
+  { q:'นุ่น 1,000 กรัม มีน้ำหนักเบากว่า เหล็ก 1 กิโลกรัม', ans:false },
+  { q:'ราชาแห่งผลไม้คือ ทุเรียน', ans:true },
+  { q:'ที่มาของ Meme 67 มีต้นกำเนิดจากเพลงแร็ปที่ชื่อว่า "Doot Doot"', ans:true }
+];
+const STAGE2_QS = [
+  { q:'ตับมีหน้าที่อะไรในระบบย่อยอาหาร?', choices:['ก. สร้างน้ำดี','ข. สร้างน้ำตาล','ค. สร้างเลือด','ง. สร้างเอนไซม์โปรตีน'], ans:'ก. สร้างน้ำดี' },
+  { q:'ซออู้และซอด้วงเป็นเครื่องดนตรีประเภทใด?', choices:['ก. เครื่องเป่า','ข. เครื่องดีด','ค. เครื่องตี','ง. เครื่องสี'], ans:'ง. เครื่องสี' },
+  { q:'1 นิ้ว = กี่มิลลิเมตร?', choices:['ก. 25.1','ข. 25.2','ค. 25.3','ง. 25.4'], ans:'ง. 25.4' },
+  { q:'ตัวอะไรเอ่ยอยู่ในห้องสมุด', choices:['ก.ตัวเอง','ข.ตัวหนอน','ค.ตัวต่อ','ง.ตัวหนังสือ'], ans:'ง.ตัวหนังสือ' },
+  { q:'กระดูกร่างกายมนุษย์มีกี่ชิ้น', choices:['ก.205 ชิ้น','ข.206 ชิ้น','ค.207 ชิ้น','ง. 208 ชิ้น'], ans:'ข.206 ชิ้น' },
+  { q:'ข้อใดเป็นพุทธสาวก', choices:['ก. พระสารีบุตร','ข. ทศกัณฐ์','ค. พระอินทร์','ง. หนุมาน'], ans:'ก. พระสารีบุตร' }
+];
+const STAGE3_QS = [
+  { q:'เมื่อเพื่อนกำลังเศร้า', ans:'รับฟัง', decoys:['แกล้งหัวเราะ','เดินหนี','บอกให้หยุด'] },
+  { q:'รู้ว่าตนเองกำลังโกรธเรียกว่า', ans:'รู้จักตนเอง', decoys:['เข้าสังคม','กล้าหาญ','อดทน'] },
+  { q:'คนที่มี EQ สูงมักจะ...', ans:'ควบคุมอารมณ์', decoys:['ฉลาดที่สุด','ชนะทุกคน','มั่นหน้า'] },
+  { q:'หากเพื่อนทำของคุณเสียหายโดยไม่ได้ตั้งใจ', ans:'ฟังคำอธิบาย', decoys:['ด่า','ใส่เดี่ยว','ตัดเพื่อน'] },
+  { q:'เข้าใจความรู้สึกของผู้อื่นเรียกว่า', ans:'เห็นใจ', decoys:['มั่นใจ','อดทน','กล้าหาญ'] },
+  { q:'หากคุณเครียดมาก ควรจะ...', ans:'ผ่อนคลาย', decoys:['ร้องไห้','ตะโกนดังๆ','ระบายใส่เพื่อน'] }
+];
+
+let scores = { green:0, yellow:0, red:0 };
+let currentStage = 1;
+let currentQIdx = 0;
+let currentTeamIdx = 0;
+let globalQCount = 0;
+let timerInterval = null;
+let timeLeft = 10;
+let maxTime = 10;
+let answered = false;
+let cameraReady = false;
+let useMouseFallback = false;
+let cursorX = -200, cursorY = -200;
+let handsModel = null;
+let cameraUtil = null;
+let handPresent = false;
+let isPinching = false;
+
+let okHoldStart = null;
+let okProgress = 0;
+let okConfirmed = false;
+
+let stage2DragCard = null;
+let stage2DragOffset = { x:0, y:0 };
+let stage2PinchStart = null;
+let stage2CardStartPos = null;
+let dragActive = false;
+let pinchHysteresisActive = false;
+
+let stage1HoverCard = null;
+let stage1HoverStart = null;
+let stage1HoverProgress = 0;
+const S1_HOVER_TIME = 800;
+
+let stage3Cards = [];
+let stage3Answered = false;
+
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playBeep(freq=440, dur=0.15, vol=0.3) {
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
+    osc.start(); osc.stop(audioCtx.currentTime + dur);
+  } catch(e){}
+}
+
+function playFanfare() {
+  const notes = [523,659,784,1047,784,1047];
+  const times = [0,0.15,0.3,0.45,0.6,0.75];
+  notes.forEach((f,i) => {
+    setTimeout(() => playBeep(f, 0.25, 0.4), times[i]*1000);
+  });
+}
+
+function playCorrect() {
+  playBeep(784,0.15,0.4);
+  setTimeout(()=>playBeep(1047,0.2,0.4),150);
+}
+
+function playWrong() {
+  playBeep(200,0.3,0.4);
+}
+
+function updateScoreDisplay() {
+  document.getElementById('score-green').textContent = scores.green;
+  document.getElementById('score-yellow').textContent = scores.yellow;
+  document.getElementById('score-red').textContent = scores.red;
+}
+
+async function startGame() {
+  document.getElementById('start-screen').style.display = 'none';
+  document.getElementById('ui-layer').style.display = 'block';
+  await initCamera();
+  showIntermission();
+}
+
+async function initCamera() {
+  try {
+    const video = document.getElementById('video-bg');
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width:1280, height:720, facingMode:'user' } });
+    video.srcObject = stream;
+    await new Promise(r => { video.onloadedmetadata = r; });
+    video.play();
+    cameraReady = true;
+    await loadMediaPipe(video);
+  } catch(e) {
+    console.warn('Camera not available, using mouse fallback', e);
+    useMouseFallback = true;
+    setupMouseFallback();
+  }
+}
+
+async function loadMediaPipe(video) {
+  try {
+    const { Hands } = await new Promise((resolve, reject) => {
+      const s1 = document.createElement('script');
+      s1.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js';
+      s1.crossOrigin = 'anonymous';
+      s1.onload = () => {
+        const s2 = document.createElement('script');
+        s2.src = 'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js';
+        s2.crossOrigin = 'anonymous';
+        s2.onload = () => resolve(window);
+        s2.onerror = reject;
+        document.head.appendChild(s2);
+      };
+      s1.onerror = reject;
+      document.head.appendChild(s1);
+    });
+
+    handsModel = new window.Hands({
+      locateFile: f => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/${f}`
+    });
+    handsModel.setOptions({ maxNumHands:1, modelComplexity:1, minDetectionConfidence:0.7, minTrackingConfidence:0.5 });
+    handsModel.onResults(onHandResults);
+
+    cameraUtil = new window.Camera(video, {
+      onFrame: async () => { await handsModel.send({ image: video }); },
+      width: 1280, height: 720
+    });
+    cameraUtil.start();
+  } catch(e) {
+    console.warn('MediaPipe load failed, mouse fallback', e);
+    useMouseFallback = true;
+    setupMouseFallback();
+  }
+}
+
+function onHandResults(results) {
+  const canvas = document.getElementById('canvas-bg');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+
+  ctx.save();
+  ctx.translate(canvas.width, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+  ctx.restore();
+
+  if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+    handPresent = true;
+    const lm = results.multiHandLandmarks[0];
+    const ix = (1 - lm[8].x) * window.innerWidth;
+    const iy = lm[8].y * window.innerHeight;
+    cursorX = ix;
+    cursorY = iy;
+
+    const tx = lm[4].x, ty = lm[4].y;
+    const iix = lm[8].x, iiy = lm[8].y;
+    const pinchDist = Math.hypot(tx - iix, ty - iiy);
+    const wasPinching = isPinching;
+
+    if (!isPinching && pinchDist < 0.06) { isPinching = true; pinchHysteresisActive = true; }
+    else if (isPinching && pinchDist > 0.1) { isPinching = false; pinchHysteresisActive = false; }
+
+    const cursor = document.getElementById('neon-cursor');
+    cursor.style.left = cursorX + 'px';
+    cursor.style.top = cursorY + 'px';
+    if(isPinching) cursor.classList.add('pinching');
+    else cursor.classList.remove('pinching');
+
+    checkOKGesture(lm);
+    handleStageInteraction(lm, wasPinching);
+  } else {
+    handPresent = false;
+    if (okHoldStart) { okHoldStart = null; okProgress = 0; updateOKRing(); }
+  }
+}
+
+function dist(a,b) { return Math.hypot(a.x-b.x, a.y-b.y); }
+
+function checkOKGesture(lm) {
+  const screen = document.getElementById('intermission-screen');
+  if (screen.style.display === 'none') { okHoldStart = null; okProgress = 0; return; }
+
+  const thumbTip = lm[4], indexTip = lm[8];
+  const middle = lm[12], ring = lm[16], pinky = lm[20];
+  const middleMcp = lm[9], ringMcp = lm[13], pinkyMcp = lm[17];
+
+  const pinchD = dist(thumbTip, indexTip);
+  const isOKPinch = pinchD < 0.07;
+  const middleUp = middle.y < middleMcp.y - 0.04;
+  const ringUp = ring.y < ringMcp.y - 0.04;
+  const pinkyUp = pinky.y < pinkyMcp.y - 0.04;
+
+  if (isOKPinch && middleUp && ringUp && pinkyUp) {
+    if (!okHoldStart) okHoldStart = Date.now();
+    okProgress = Math.min((Date.now() - okHoldStart) / 1000, 1);
+    updateOKRing();
+    if (okProgress >= 1 && !okConfirmed) { okConfirmed = true; onOKConfirmed(); }
+  } else {
+    okHoldStart = null;
+    okProgress = Math.max(okProgress - 0.05, 0);
+    updateOKRing();
+  }
+}
+
+function updateOKRing() {
+  const ring = document.getElementById('ok-ring');
+  if(!ring) return;
+  const circumference = 339;
+  ring.style.strokeDashoffset = circumference * (1 - okProgress);
+}
+
+function setupMouseFallback() {
+  document.addEventListener('mousemove', e => {
+    cursorX = e.clientX;
+    cursorY = e.clientY;
+    const cursor = document.getElementById('neon-cursor');
+    cursor.style.left = cursorX + 'px';
+    cursor.style.top = cursorY + 'px';
+    handleMouseMove(e);
+  });
+  document.addEventListener('mousedown', e => {
+    isPinching = true;
+    document.getElementById('neon-cursor').classList.add('pinching');
+    handleMouseDown(e);
+  });
+  document.addEventListener('mouseup', e => {
+    isPinching = false;
+    document.getElementById('neon-cursor').classList.remove('pinching');
+    handleMouseUp(e);
+  });
+  document.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const t = e.touches[0];
+    cursorX = t.clientX; cursorY = t.clientY;
+    document.getElementById('neon-cursor').style.left = cursorX+'px';
+    document.getElementById('neon-cursor').style.top = cursorY+'px';
+  }, { passive:false });
+  document.addEventListener('touchstart', e => {
+    const t = e.touches[0];
+    cursorX = t.clientX; cursorY = t.clientY;
+    isPinching = true;
+    handleMouseDown({ clientX:t.clientX, clientY:t.clientY });
+  });
+  document.addEventListener('touchend', () => {
+    isPinching = false;
+    handleMouseUp({});
+  });
+
+  const canvas = document.getElementById('canvas-bg');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#050010';
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+function handleMouseMove(e) {
+  if (currentStage === 2 && dragActive && stage2DragCard !== null) {
+    const cards = document.querySelectorAll('.choice-card');
+    if (cards[stage2DragCard]) {
+      const nx = e.clientX + stage2DragOffset.x;
+      const ny = e.clientY + stage2DragOffset.y;
+      cards[stage2DragCard].style.left = nx + 'px';
+      cards[stage2DragCard].style.top = ny + 'px';
+    }
+  }
+}
+
+function handleMouseDown(e) {
+  if (currentStage === 2) {
+    const cards = document.querySelectorAll('.choice-card');
+    cards.forEach((card, idx) => {
+      const rect = card.getBoundingClientRect();
+      if (e.clientX >= rect.left && e.clientX <= rect.right && e.clientY >= rect.top && e.clientY <= rect.bottom) {
+        stage2DragCard = idx;
+        stage2DragOffset = { x: rect.left - e.clientX, y: rect.top - e.clientY };
+        dragActive = true;
+        card.style.zIndex = 200;
+        card.style.transform = 'scale(1.05) rotate(3deg)';
+      }
+    });
+  }
+}
+
+function handleMouseUp(e) {
+  if (currentStage === 2 && dragActive && stage2DragCard !== null) {
+    const cards = document.querySelectorAll('.choice-card');
+    const card = cards[stage2DragCard];
+    if (card) {
+      card.style.transform = '';
+      card.style.zIndex = 100;
+      const dropZone = document.querySelector('.drop-zone');
+      if (dropZone) {
+        const dz = dropZone.getBoundingClientRect();
+        const cr = card.getBoundingClientRect();
+        const overlap = !(cr.right < dz.left || cr.left > dz.right || cr.bottom < dz.top || cr.top > dz.bottom);
+        if (overlap) {
+          const qData = STAGE2_QS[currentQIdx];
+          const choiceText = card.textContent.trim();
+          const correct = choiceText === qData.ans;
+          submitAnswer(correct);
+        }
+      }
+    }
+    dragActive = false;
+    stage2DragCard = null;
+  }
+}
+
+function handleStageInteraction(lm, wasPinching) {
+  if (answered) return;
+  const ix = (1 - lm[8].x) * window.innerWidth;
+  const iy = lm[8].y * window.innerHeight;
+
+  if (currentStage === 1) {
+    handleStage1Hover(ix, iy);
+  } else if (currentStage === 2) {
+    handleStage2Drag(lm, wasPinching, ix, iy);
+  } else if (currentStage === 3) {
+    handleStage3Collision(ix, iy);
+  }
+}
+
+function handleStage1Hover(ix, iy) {
+  const circles = document.querySelectorAll('.answer-circle');
+  let hovering = null;
+  circles.forEach((circle, idx) => {
+    const rect = circle.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    const d = Math.hypot(ix-cx, iy-cy);
+    if (d < rect.width/2) hovering = idx;
+  });
+
+  if (hovering !== null) {
+    if (stage1HoverCard !== hovering) {
+      stage1HoverCard = hovering;
+      stage1HoverStart = Date.now();
+      stage1HoverProgress = 0;
+    } else {
+      stage1HoverProgress = Math.min((Date.now() - stage1HoverStart) / S1_HOVER_TIME, 1);
+      const rings = document.querySelectorAll('.hover-ring-fill');
+      if (rings[hovering]) {
+        const pct = stage1HoverProgress * 100;
+        rings[hovering].style.clipPath = `inset(0 ${100-pct}% 0 0)`;
+      }
+      if (stage1HoverProgress >= 1) {
+        const isTrue = circles[hovering].classList.contains('true-circle');
+        const qData = STAGE1_QS[currentQIdx];
+        submitAnswer(isTrue === qData.ans);
+      }
+    }
+  } else {
+    stage1HoverCard = null;
+    stage1HoverStart = null;
+    stage1HoverProgress = 0;
+    document.querySelectorAll('.hover-ring-fill').forEach(r => r.style.clipPath='inset(0 100% 0 0)');
+  }
+}
+
+function handleStage2Drag(lm, wasPinching, ix, iy) {
+  const thumbTip = lm[4], indexTip = lm[8];
+  const pinchDist = dist(thumbTip, indexTip);
+  const pix = (1 - thumbTip.x) * window.innerWidth;
+  const piy = thumbTip.y * window.innerHeight;
+  const pinchMidX = (ix + pix) / 2;
+  const pinchMidY = (iy + piy) / 2;
+
+  if (!isPinching && !dragActive) {
+    const cards = document.querySelectorAll('.choice-card');
+    cards.forEach(card => { card.style.boxShadow = '0 0 20px rgba(57,255,20,0.6), 0 0 40px rgba(57,255,20,0.3)'; });
+  }
+
+  if (isPinching && !dragActive) {
+    const cards = document.querySelectorAll('.choice-card');
+    cards.forEach((card, idx) => {
+      const rect = card.getBoundingClientRect();
+      if (pinchMidX >= rect.left && pinchMidX <= rect.right && pinchMidY >= rect.top && pinchMidY <= rect.bottom) {
+        stage2DragCard = idx;
+        stage2DragOffset = { x: rect.left - pinchMidX, y: rect.top - pinchMidY };
+        dragActive = true;
+        card.style.zIndex = 200;
+        card.style.transform = 'scale(1.05) rotate(3deg)';
+      }
+    });
+  }
+
+  if (dragActive && stage2DragCard !== null) {
+    const cards = document.querySelectorAll('.choice-card');
+    const card = cards[stage2DragCard];
+    if (card) {
+      card.style.left = (pinchMidX + stage2DragOffset.x) + 'px';
+      card.style.top = (pinchMidY + stage2DragOffset.y) + 'px';
+
+      const dropZone = document.querySelector('.drop-zone');
+      if (dropZone) {
+        const dz = dropZone.getBoundingClientRect();
+        const cr = card.getBoundingClientRect();
+        const overlap = !(cr.right < dz.left || cr.left > dz.right || cr.bottom < dz.top || cr.top > dz.bottom);
+        dropZone.classList.toggle('active', overlap);
+      }
+    }
+
+    if (!isPinching) {
+      const card = cards[stage2DragCard];
+      if(card) {
+        card.style.transform = '';
+        card.style.zIndex = 100;
+        const dropZone = document.querySelector('.drop-zone');
+        if (dropZone) {
+          const dz = dropZone.getBoundingClientRect();
+          const cr = card.getBoundingClientRect();
+          const overlap = !(cr.right < dz.left || cr.left > dz.right || cr.bottom < dz.top || cr.top > dz.bottom);
+          if (overlap) {
+            const qData = STAGE2_QS[currentQIdx];
+            const choiceText = card.textContent.trim();
+            const correct = choiceText === qData.ans;
+            submitAnswer(correct);
+          }
+          dropZone.classList.remove('active');
+        }
+      }
+      dragActive = false;
+      stage2DragCard = null;
+    }
+  }
+}
+
+function handleStage3Collision(ix, iy) {
+  if (stage3Answered) return;
+  stage3Cards.forEach(cardInfo => {
+    if (!cardInfo.el || cardInfo.hit) return;
+    const rect = cardInfo.el.getBoundingClientRect();
+    if (ix >= rect.left && ix <= rect.right && iy >= rect.top && iy <= rect.bottom) {
+      cardInfo.hit = true;
+      const qData = STAGE3_QS[currentQIdx];
+      const correct = cardInfo.text === qData.ans;
+      if (correct) {
+        stage3Answered = true;
+        cardInfo.el.style.background = 'linear-gradient(135deg, #39ff14, #00c820)';
+        cardInfo.el.style.color = '#000';
+        cardInfo.el.style.border = '3px solid #fff';
+        cardInfo.el.style.transform = 'scale(1.3)';
+        submitAnswer(true);
+      } else {
+        cardInfo.el.style.opacity = '0.2';
+        cardInfo.el.style.border = '3px solid #ff073a';
+        playWrong();
+      }
+    }
+  });
+}
+
+function getCurrentTeam() { return TEAMS[currentTeamIdx]; }
+
+function showIntermission() {
+  answered = false;
+  okConfirmed = false;
+  okProgress = 0;
+  okHoldStart = null;
+  updateOKRing();
+
+  clearInterval(timerInterval);
+  document.getElementById('game-area').innerHTML = '';
+
+  const nextTeam = getCurrentTeam();
+  const nextStageName = currentStage === 1 ? '🔵 ด่านถูก-ผิด' : currentStage === 2 ? '🟣 ด่านลากวาง' : '🟠 ด่านตะปบจากฟ้า';
+
+  document.getElementById('intermission-content').innerHTML = `
+    <div style="font-family:'Itim',cursive;font-size:1.5rem;margin-bottom:10px;color:rgba(255,255,255,0.7);">ด่าน ${currentStage} - ข้อที่ ${currentQIdx+1}</div>
+    <div style="font-family:'Itim',cursive;font-size:2.2rem;margin-bottom:6px;">${nextStageName}</div>
+    <div style="font-family:'Itim',cursive;font-size:1.2rem;margin-bottom:16px;color:rgba(255,255,255,0.6);">ตาของ...</div>
+    <div class="team-badge ${nextTeam}" style="font-size:1.8rem;padding:12px 32px;margin:0 auto;">${TEAM_NAMES[nextTeam]}</div>
+  `;
+
+  document.getElementById('intermission-screen').style.display = 'flex';
+  document.getElementById('countdown-screen').style.display = 'none';
+}
+
+function onOKConfirmed() {
+  if(audioCtx.state==='suspended') audioCtx.resume();
+  okConfirmed = true;
+  document.getElementById('intermission-screen').style.display = 'none';
+  startCountdown();
+}
+
+function startCountdown() {
+  document.getElementById('countdown-screen').style.display = 'flex';
+  let count = 3;
+  const el = document.getElementById('countdown-number');
+  const colors = ['#ff073a','#ffff00','#39ff14'];
+
+  function tick() {
+    el.textContent = count;
+    el.style.color = colors[3-count];
+    el.style.textShadow = `0 0 30px ${colors[3-count]}, 0 0 60px ${colors[3-count]}`;
+    el.style.animation = 'none';
+    void el.offsetWidth;
+    el.style.animation = 'countPop 0.8s ease-out forwards';
+    playBeep(count===1?880:440, 0.2, 0.4);
+    count--;
+    if (count >= 0) setTimeout(tick, 900);
+    else {
+      setTimeout(() => {
+        document.getElementById('countdown-screen').style.display = 'none';
+        startQuestion();
+      }, 900);
+    }
+  }
+  tick();
+}
+
+function startQuestion() {
+  answered = false;
+  stage3Answered = false;
+  stage3Cards = [];
+  stage2DragCard = null;
+  dragActive = false;
+  stage1HoverCard = null;
+  stage1HoverProgress = 0;
+
+  const team = getCurrentTeam();
+  const teamColor = TEAM_COLORS[team];
+
+  document.getElementById('stage-label').textContent = `ด่าน ${currentStage}/3`;
+  document.getElementById('question-counter').textContent = `ข้อ ${currentQIdx+1}/6`;
+  document.getElementById('team-turn-badge').innerHTML = `<div class="team-badge ${team}" style="display:inline-flex;">${TEAM_NAMES[team]}</div>`;
+
+  let qData, qText;
+  if (currentStage === 1) {
+    qData = STAGE1_QS[currentQIdx];
+    qText = qData.q;
+    maxTime = 10; timeLeft = 10;
+    buildStage1UI(qData);
+  } else if (currentStage === 2) {
+    qData = STAGE2_QS[currentQIdx];
+    qText = qData.q;
+    maxTime = 15; timeLeft = 15;
+    buildStage2UI(qData);
+  } else {
+    qData = STAGE3_QS[currentQIdx];
+    qText = qData.q;
+    maxTime = 10; timeLeft = 10;
+    buildStage3UI(qData);
+  }
+
+  document.getElementById('question-text').textContent = qText;
+  startTimer();
+}
+
+function buildStage1UI(qData) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+
+  const positions = Math.random() < 0.5
+    ? [{ left:'15%', top:'55%' }, { left:'62%', top:'60%' }]
+    : [{ left:'60%', top:'55%' }, { left:'13%', top:'60%' }];
+
+  const leftIsTrue = Math.random() < 0.5;
+
+  [0,1].forEach(i => {
+    const isTrue = i === 0 ? leftIsTrue : !leftIsTrue;
+    const circle = document.createElement('div');
+    circle.className = `answer-circle ${isTrue ? 'true-circle' : 'false-circle'}`;
+    circle.style.left = positions[i].left;
+    circle.style.top = positions[i].top;
+    circle.style.transform = 'translate(-50%, -50%)';
+    circle.innerHTML = `${isTrue ? '✓' : '✗'}<div class="hover-ring"></div><div class="hover-ring-fill"></div>`;
+
+    circle.addEventListener('click', () => {
+      if(answered) return;
+      submitAnswer(isTrue === qData.ans);
+    });
+
+    area.appendChild(circle);
+  });
+}
+
+function buildStage2UI(qData) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+
+  const dropZone = document.createElement('div');
+  dropZone.className = 'drop-zone';
+  dropZone.style.cssText = 'position:absolute;left:50%;top:22%;transform:translateX(-50%);width:280px;height:70px;z-index:30;';
+  dropZone.textContent = '📦 วางคำตอบที่นี่';
+  area.appendChild(dropZone);
+
+  const shuffled = [...qData.choices].sort(() => Math.random()-0.5);
+  const positions = [
+    { left:'8%', top:'55%' },
+    { left:'35%', top:'65%' },
+    { left:'58%', top:'55%' },
+    { left:'76%', top:'65%' }
+  ];
+
+  shuffled.forEach((choice, idx) => {
+    const card = document.createElement('div');
+    card.className = 'choice-card';
+    card.style.left = positions[idx].left;
+    card.style.top = positions[idx].top;
+    card.textContent = choice;
+
+    card.addEventListener('mousedown', e => {
+      stage2DragCard = idx;
+      const rect = card.getBoundingClientRect();
+      stage2DragOffset = { x: rect.left - e.clientX, y: rect.top - e.clientY };
+      dragActive = true;
+      card.style.zIndex = 200;
+      card.style.transform = 'scale(1.05) rotate(3deg)';
+      e.preventDefault();
+    });
+
+    area.appendChild(card);
+  });
+
+  document.addEventListener('mousemove', onMouseMoveGlobal);
+  document.addEventListener('mouseup', onMouseUpGlobal);
+}
+
+function onMouseMoveGlobal(e) {
+  if (currentStage===2 && dragActive && stage2DragCard!==null) {
+    const cards = document.querySelectorAll('.choice-card');
+    const card = cards[stage2DragCard];
+    if(card) {
+      card.style.left = (e.clientX + stage2DragOffset.x) + 'px';
+      card.style.top = (e.clientY + stage2DragOffset.y) + 'px';
+      const dz = document.querySelector('.drop-zone');
+      if(dz) {
+        const dzr = dz.getBoundingClientRect();
+        const cr = card.getBoundingClientRect();
+        const over = !(cr.right<dzr.left||cr.left>dzr.right||cr.bottom<dzr.top||cr.top>dzr.bottom);
+        dz.classList.toggle('active', over);
+      }
+    }
+  }
+}
+
+function onMouseUpGlobal(e) {
+  if (currentStage===2 && dragActive && stage2DragCard!==null) {
+    const cards = document.querySelectorAll('.choice-card');
+    const card = cards[stage2DragCard];
+    if(card) {
+      card.style.transform = '';
+      card.style.zIndex = 100;
+      const dz = document.querySelector('.drop-zone');
+      if(dz) {
+        const dzr = dz.getBoundingClientRect();
+        const cr = card.getBoundingClientRect();
+        const over = !(cr.right<dzr.left||cr.left>dzr.right||cr.bottom<dzr.top||cr.top>dzr.bottom);
+        if(over) {
+          const qData = STAGE2_QS[currentQIdx];
+          submitAnswer(card.textContent.trim()===qData.ans);
+        }
+        dz.classList.remove('active');
+      }
+    }
+    dragActive = false;
+    stage2DragCard = null;
+  }
+}
+
+function buildStage3UI(qData) {
+  const area = document.getElementById('game-area');
+  area.innerHTML = '';
+
+  const allWords = [qData.ans, ...qData.decoys].sort(() => Math.random()-0.5);
+  const cols = allWords.length;
+  const colWidth = window.innerWidth / cols;
+
+  allWords.forEach((word, idx) => {
+    const isAnswer = word === qData.ans;
+    const card = document.createElement('div');
+    card.className = `falling-card ${isAnswer ? '' : 'wrong'}`;
+    card.textContent = word;
+
+    const startX = colWidth * idx + colWidth/2 - 60;
+    const delay = Math.random() * 1500;
+    const speed = 80 + Math.random() * 60;
+    let posY = -80 - Math.random() * 200;
+
+    card.style.left = startX + 'px';
+    card.style.top = posY + 'px';
+    area.appendChild(card);
+
+    const cardInfo = { el: card, text: word, hit: false };
+    stage3Cards.push(cardInfo);
+
+    let lastTime = null;
+    function animate(ts) {
+      if (!lastTime) lastTime = ts;
+      if (answered || stage3Answered) return;
+      const dt = (ts - lastTime) / 1000;
+      lastTime = ts;
+      posY += speed * dt;
+      card.style.top = posY + 'px';
+      if (posY > window.innerHeight + 100) { posY = -80 - Math.random()*200; }
+      requestAnimationFrame(animate);
+    }
+    setTimeout(() => requestAnimationFrame(animate), delay);
+
+    card.addEventListener('click', () => {
+      if (answered || stage3Answered) return;
+      cardInfo.hit = true;
+      const correct = word === qData.ans;
+      if (correct) {
+        stage3Answered = true;
+        card.style.background = 'linear-gradient(135deg, #39ff14, #00c820)';
+        card.style.color = '#000';
+        card.style.transform = 'scale(1.3)';
+        submitAnswer(true);
+      } else {
+        card.style.opacity = '0.2';
+        playWrong();
+      }
+    });
+  });
+}
+
+function startTimer() {
+  clearInterval(timerInterval);
+  const bar = document.getElementById('timer-bar');
+  const txt = document.getElementById('timer-text');
+  bar.style.width = '100%';
+
+  timerInterval = setInterval(() => {
+    timeLeft -= 0.1;
+    const pct = Math.max((timeLeft / maxTime) * 100, 0);
+    bar.style.width = pct + '%';
+    txt.textContent = `⏱ ${Math.ceil(timeLeft)} วินาที`;
+    if (timeLeft <= 3) {
+      bar.style.background = 'linear-gradient(90deg, #ff0000, #ff4500)';
+      if (Math.abs(timeLeft - Math.ceil(timeLeft)) < 0.15) playBeep(220, 0.1, 0.2);
+    }
+    if (timeLeft <= 0) {
+      clearInterval(timerInterval);
+      if (!answered) { submitAnswer(false, true); }
+    }
+  }, 100);
+}
+
+function submitAnswer(correct, timeout=false) {
+  if (answered) return;
+  answered = true;
+  clearInterval(timerInterval);
+  document.removeEventListener('mousemove', onMouseMoveGlobal);
+  document.removeEventListener('mouseup', onMouseUpGlobal);
+
+  const team = getCurrentTeam();
+  let pts = 0;
+
+  if (correct && !timeout) {
+    const speedBonus = Math.round((timeLeft / maxTime) * 50);
+    pts = 50 + speedBonus;
+    scores[team] += pts;
+    updateScoreDisplay();
+    playCorrect();
+    showFeedback(true, pts, team);
+  } else {
+    playWrong();
+    showFeedback(false, 0, team);
+  }
+
+  setTimeout(() => {
+    advanceGame();
+  }, 1800);
+}
+
+function showFeedback(correct, pts, team) {
+  const fb = document.createElement('div');
+  fb.className = `feedback-overlay ${correct ? 'correct-feedback' : 'wrong-feedback'}`;
+  fb.textContent = correct ? `✅ +${pts}` : '❌ หมดเวลา!';
+  document.getElementById('game-container').appendChild(fb);
+  setTimeout(() => fb.remove(), 1100);
+}
+
+function advanceGame() {
+  currentTeamIdx = (currentTeamIdx + 1) % 3;
+  globalQCount++;
+
+  const totalPerStage = 6;
+  if (currentQIdx < totalPerStage - 1) {
+    currentQIdx++;
+    showIntermission();
+  } else {
+    currentQIdx = 0;
+    if (currentStage < 3) {
+      currentStage++;
+      showIntermission();
+    } else {
+      endGame();
+    }
+  }
+}
+
+function endGame() {
+  clearInterval(timerInterval);
+  document.getElementById('ui-layer').style.display = 'none';
+  document.getElementById('result-screen').style.display = 'flex';
+}
+
+function showPodium() {
+  document.getElementById('result-screen').style.display = 'none';
+  document.getElementById('podium-screen').style.display = 'flex';
+  playFanfare();
+  spawnConfetti();
+
+  const sorted = [...TEAMS].sort((a,b) => scores[b]-scores[a]);
+  const podiumOrder = [sorted[1], sorted[0], sorted[2]];
+  const podiumHeights = [140, 200, 100];
+  const medals = ['🥈','🥇','🥉'];
+  const rankLabels = [2,1,3];
+
+  const display = document.getElementById('podium-display');
+  display.innerHTML = '';
+
+  podiumOrder.forEach((team, pos) => {
+    const col = document.createElement('div');
+    col.style.cssText = 'display:flex;flex-direction:column;align-items:center;';
+
+    const teamColor = TEAM_COLORS[team];
+    const infoDiv = document.createElement('div');
+    infoDiv.style.cssText = `text-align:center;margin-bottom:8px;`;
+    infoDiv.innerHTML = `
+      <div style="font-size:2rem;">${medals[pos]}</div>
+      <div style="font-family:'Itim',cursive;font-size:1.1rem;color:${teamColor};text-shadow:0 0 10px ${teamColor};">${TEAM_NAMES[team]}</div>
+      <div style="font-family:'Itim',cursive;font-size:2rem;color:${teamColor};text-shadow:0 0 15px ${teamColor};">${scores[team]}</div>
+      <div style="font-size:0.75rem;color:rgba(255,255,255,0.5);">คะแนน</div>
+    `;
+
+    const bar = document.createElement('div');
+    bar.className = 'podium-bar';
+    bar.style.cssText = `width:100px;background:linear-gradient(180deg,${teamColor}44,${teamColor}22);border:2px solid ${teamColor};box-shadow:0 0 20px ${teamColor}66;height:0;`;
+    setTimeout(() => { bar.style.height = podiumHeights[pos] + 'px'; }, 300 + pos*200);
+
+    const rankDiv = document.createElement('div');
+    rankDiv.style.cssText = `font-family:'Itim',cursive;font-size:1.5rem;color:${teamColor};text-align:center;padding:8px 0;width:100px;background:${teamColor}33;border-left:2px solid ${teamColor};border-right:2px solid ${teamColor};border-bottom:2px solid ${teamColor};`;
+    rankDiv.textContent = `#${rankLabels[pos]}`;
+
+    col.appendChild(infoDiv);
+    col.appendChild(bar);
+    col.appendChild(rankDiv);
+    display.appendChild(col);
+  });
+}
+
+function spawnConfetti() {
+  const colors = ['#ff073a','#ff8c00','#ffff00','#39ff14','#00f3ff','#bf5fff','#ff69b4'];
+  for (let i=0; i<80; i++) {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.left = Math.random()*100 + 'vw';
+      el.style.background = colors[Math.floor(Math.random()*colors.length)];
+      el.style.borderRadius = Math.random() > 0.5 ? '50%' : '0';
+      el.style.animationDuration = (1.5+Math.random()*2) + 's';
+      el.style.animationDelay = (Math.random()*1) + 's';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 4000);
+    }, Math.random()*500);
+  }
+}
+
+function restartGame() {
+  scores = { green:0, yellow:0, red:0 };
+  currentStage = 1;
+  currentQIdx = 0;
+  currentTeamIdx = 0;
+  globalQCount = 0;
+  answered = false;
+  updateScoreDisplay();
+
+  document.getElementById('podium-screen').style.display = 'none';
+  document.getElementById('ui-layer').style.display = 'block';
+  showIntermission();
+}
+
+window.addEventListener('resize', () => {
+  const canvas = document.getElementById('canvas-bg');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+});
+
+setInterval(() => {
+  const cursor = document.getElementById('neon-cursor');
+  cursor.style.left = cursorX + 'px';
+  cursor.style.top = cursorY + 'px';
+}, 16);
+</script>
+</body>
+</html>
