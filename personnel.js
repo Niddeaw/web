@@ -1027,7 +1027,7 @@ function updateDashboard(data) {
     let retire = 0, lic = 0, eligible = 0, paPass = 0, paProc = 0;
     data.forEach(p => {
         if (p.birth_date) { const b = dayjs(p.birth_date); let ry = b.year() + 60; if (b.month() > 8) ry++; if (ry + 543 === cyBE) retire++; }
-        if (p.license_expiry) { const dl = dayjs(p.license_expiry).diff(today, 'day'); if (dl >= 0 && dl <= 30) lic++; }
+        if (p.license_expiry) { const dl = dayjs(p.license_expiry).diff(today, 'day'); if (dl <= 90) lic++; }
         if (p.appointment_date && !['ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
             if (today.diff(dayjs(p.appointment_date), 'year') >= 4) eligible++;
         }
@@ -1105,15 +1105,26 @@ function renderInfoBlocks(data) {
     const licList = data.filter(p => {
         if (!p.license_expiry) return false;
         const dl = dayjs(p.license_expiry).diff(today, 'day');
-        return dl >= 0 && dl <= 90;
+        return dl <= 90;
     }).sort((a, b) => dayjs(a.license_expiry).diff(dayjs(b.license_expiry), 'day'));
 
     const blockLic = document.getElementById('block-license');
     blockLic.innerHTML = licList.length ? licList.map(p => {
         const dl = dayjs(p.license_expiry).diff(today, 'day');
-        const urgency = dl <= 30 ? 'text-red-600 font-bold' : 'text-orange-600 font-bold';
         const expStr = isoToBE(p.license_expiry);
-        return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition">
+        let urgency, statusText;
+        if (dl < 0) {
+            urgency = 'text-red-700 font-bold';
+            statusText = `หมดแล้ว ${Math.abs(dl)} วัน`;
+        } else if (dl <= 30) {
+            urgency = 'text-red-600 font-bold';
+            statusText = `เหลือ ${dl} วัน`;
+        } else {
+            urgency = 'text-orange-600 font-bold';
+            statusText = `เหลือ ${dl} วัน`;
+        }
+        const expiredBg = dl < 0 ? 'background:#fff1f1;' : '';
+        return `<div class="flex items-center justify-between px-4 py-2.5 hover:bg-slate-50 transition" style="${expiredBg}">
             <div class="flex items-center gap-2.5 min-w-0">
                 <div style="width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.8rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">${(p.first_name || '?').charAt(0)}</div>
                 <div class="min-w-0">
@@ -1121,7 +1132,7 @@ function renderInfoBlocks(data) {
                     <p class="text-[10px] text-slate-400">เลขที่: ${p.license_number || '-'}</p>
                 </div>
             </div>
-            <span class="flex-shrink-0 text-xs ${urgency} ml-2 text-right">หมด ${expStr}<br><span class="font-normal">(เหลือ ${dl} วัน)</span></span>
+            <span class="flex-shrink-0 text-xs ${urgency} ml-2 text-right">หมด ${expStr}<br><span class="font-normal">(${statusText})</span></span>
         </div>`;
     }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ไม่มีใบอนุญาตหมดใน 3 เดือน</p>';
 
