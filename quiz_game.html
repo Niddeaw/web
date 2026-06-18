@@ -571,6 +571,12 @@
       <button class="btn-neon btn-neon-blue" style="margin-top:16px;" onclick="restartGame()">🔄 เล่นใหม่อีกครั้ง</button>
     </div>
   </div>
+
+  <div id="next-btn-container" style="display: none; position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); z-index: 100;">
+    <button onclick="clickNextQuestion()" style="padding: 15px 40px; font-size: 1.8rem; font-family: 'Itim', cursive; font-weight: bold; background: var(--neon-blue); border: none; border-radius: 20px; color: #000; cursor: pointer; box-shadow: 0 0 15px var(--neon-blue); transition: transform 0.2s;">
+      ➡️ เปลี่ยนคน! ลุยข้อถัดไป
+    </button>
+  </div>
 </div>
 
 <script>
@@ -1365,9 +1371,18 @@ function submitAnswer(correct, timeout=false) {
     showFeedback(false, 0, team, timeout); 
   }
 
+    // แสดงปุ่ม "ไปข้อถัดไป" หลังจากแสดงผลถูก/ผิดประมาณ 1.5 วินาที
   setTimeout(() => {
-    advanceGame();
-  }, 1800);
+    document.getElementById('next-btn-container').style.display = 'block';
+  }, 1500);
+}
+
+// ฟังก์ชันเมื่อคุณครูกดปุ่มไปข้อถัดไป
+function clickNextQuestion() {
+  // ซ่อนปุ่มกลับไปเหมือนเดิม
+  document.getElementById('next-btn-container').style.display = 'none';
+  // สั่งให้เกมเดินหน้าไปข้อต่อไป
+  advanceGame();
 }
 
 // แก้ไข: เพิ่ม parameter ชื่อ timeout มารับค่า
