@@ -48,6 +48,7 @@
                 <h1 class="font-bold text-lg leading-tight text-indigo-900 uppercase tracking-tight">SDQ System</h1>
                 <p id="mode-subtitle" class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
                     กำลังโหลด...</p>
+                <p id="pageBadge" class="text-[9px] text-slate-400 tracking-wide hidden md:block"></p>
             </div>
         </div>
         <div class="flex items-center gap-2 md:gap-3">
@@ -110,6 +111,9 @@
             </div>
         </div>
 
+        <!-- 🏫 Admin: Classroom Selector Section (สร้างโดย JS, placeholder ว่าง) -->
+        <!-- Tom Select อยู่ใน toolbar ด้านบนของตาราง -->
+
         <!-- ตารางรายชื่อนักเรียน -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
             <div
@@ -118,15 +122,12 @@
                     <i class="fa-solid fa-list mr-2 text-indigo-500"></i> รายชื่อนักเรียน
                 </h3>
                 <div class="flex flex-wrap gap-2 justify-end items-center">
-                    <div id="adminFilters" class="hidden flex items-center gap-2">
-                        <select id="filterGrade"
-                            class="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">ทุกระดับชั้น</option>
-                        </select>
-                        <select id="filterRoom"
-                            class="px-3 py-2 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-500">
-                            <option value="">ทุกห้อง</option>
-                        </select>
+                    <!-- Admin: Tom Select เลือกห้องเรียน (hidden โดย default) -->
+                    <div id="adminFilters" class="hidden items-center gap-3">
+                        <!-- <i class="fa-solid fa-door-open text-rose-400 text-sm"></i> -->
+                        <div class="w-48">
+                            <select id="classroomPicker" placeholder="เลือกชั้น/ห้อง..."></select>
+                        </div>
                     </div>
                     <button onclick="exportExcel()"
                         class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-sm font-bold shadow-sm transition-colors flex items-center">
@@ -270,7 +271,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- <script src="https://cdn.jsdelivr.net/npm/chart.js"></script> -->
     <script src="sdq_teacher.js"></script>
     <script>
         window.onload = () => {
