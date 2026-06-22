@@ -224,6 +224,7 @@ function renderTable(rows) {
         };
         
         const actions = `<div class="flex gap-1 justify-center">
+            <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผลการประเมิน"><i class="fas fa-eye text-xs"></i></button>
             <button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
             <button onclick='printStudentPdf("${r.student_id}")' class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="PDF"><i class="fas fa-print text-xs"></i></button>
             <button onclick='deleteResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="ลบ"><i class="fas fa-trash text-xs"></i></button>
@@ -250,6 +251,110 @@ function renderTable(rows) {
         pageLength: 50,
         columnDefs: [{ orderable: false, targets: [8] }]
     });
+}
+
+/* ── VIEW RESULT ─────────────────────────────────────── */
+function closeViewModal() {
+    document.getElementById('view-result-modal').classList.add('hidden');
+    document.getElementById('view-result-modal').classList.remove('flex');
+}
+
+async function openViewResult(studentId) {
+    const row = allResults.find(r => r.student_id === studentId);
+    if (!row) return;
+
+    const std  = row.core_students;
+    const cls  = row.core_classrooms;
+    const eq   = row.eq;
+    const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+    const room     = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
+
+    document.getElementById('vr-name').textContent = fullName;
+    document.getElementById('vr-room').textContent = room;
+
+    if (!eq) {
+        document.getElementById('vr-body').innerHTML = '<p class="text-center text-slate-400 py-8">ยังไม่มีข้อมูลการประเมิน</p>';
+        document.getElementById('view-result-modal').classList.remove('hidden');
+        document.getElementById('view-result-modal').classList.add('flex');
+        return;
+    }
+
+    const levelObj = (score, norm) => {
+        if (score < norm.min) return { label: 'ต่ำกว่าเกณฑ์', cls: 'bg-red-100 text-red-700' };
+        if (score <= norm.max) return { label: 'เกณฑ์ปกติ',   cls: 'bg-blue-100 text-blue-700' };
+        return { label: 'สูงกว่าเกณฑ์', cls: 'bg-green-100 text-green-700' };
+    };
+    const badge = (score, norm) => {
+        const l = levelObj(score, norm);
+        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${l.cls}">${l.label}</span>`;
+    };
+    const bar = (score, max, norm) => {
+        const pct   = Math.round((score / max) * 100);
+        const color = score < norm.min ? 'bg-red-400' : score <= norm.max ? 'bg-blue-400' : 'bg-green-400';
+        return `<div class="w-full bg-slate-100 rounded-full h-2 mt-1"><div class="${color} h-2 rounded-full" style="width:${pct}%"></div></div>`;
+    };
+
+    const totalScore = eq.score_total || 0;
+    const totalLvl   = levelObj(totalScore, EQ_NORM.total);
+
+    const subDims = [
+        { label: '1.1 ควบคุมตนเอง',      score: eq.score_self_control,      max: 24, norm: EQ_NORM.self_control      },
+        { label: '1.2 เห็นใจผู้อื่น',     score: eq.score_empathy,           max: 24, norm: EQ_NORM.empathy           },
+        { label: '1.3 รับผิดชอบ',         score: eq.score_responsibility,    max: 24, norm: EQ_NORM.responsibility    },
+        { label: '2.1 มีแรงจูงใจ',        score: eq.score_motivation,        max: 24, norm: EQ_NORM.motivation        },
+        { label: '2.2 ตัดสินใจ/แก้ปัญหา',score: eq.score_problem_solving,   max: 24, norm: EQ_NORM.problem_solving   },
+        { label: '2.3 สัมพันธภาพ',        score: eq.score_relationship,      max: 24, norm: EQ_NORM.relationship      },
+        { label: '3.1 ภูมิใจตนเอง',       score: eq.score_self_esteem,       max: 16, norm: EQ_NORM.self_esteem       },
+        { label: '3.2 พอใจชีวิต',         score: eq.score_life_satisfaction, max: 24, norm: EQ_NORM.life_satisfaction },
+        { label: '3.3 สุขสงบทางใจ',       score: eq.score_peace_of_mind,     max: 24, norm: EQ_NORM.peace_of_mind    },
+    ];
+
+    const groups = [
+        { label: 'ด้านดี',   score: eq.score_good,  max: 72, norm: EQ_NORM.good,  color: 'indigo', dims: subDims.slice(0, 3) },
+        { label: 'ด้านเก่ง', score: eq.score_skill, max: 72, norm: EQ_NORM.skill, color: 'purple', dims: subDims.slice(3, 6) },
+        { label: 'ด้านสุข',  score: eq.score_happy, max: 64, norm: EQ_NORM.happy, color: 'teal',   dims: subDims.slice(6, 9) },
+    ];
+
+    const groupsHtml = groups.map(g => `
+        <div class="border border-slate-200 rounded-2xl overflow-hidden">
+            <div class="bg-${g.color}-50 px-4 py-2.5 flex justify-between items-center">
+                <span class="font-bold text-${g.color}-700">${g.label}</span>
+                <div class="flex items-center gap-2">
+                    <span class="text-sm font-bold text-slate-700">${g.score || 0}/${g.max}</span>
+                    ${badge(g.score || 0, g.norm)}
+                </div>
+            </div>
+            <div class="divide-y divide-slate-100">
+                ${g.dims.map(d => `
+                <div class="px-4 py-2.5">
+                    <div class="flex justify-between items-center">
+                        <span class="text-xs text-slate-600">${d.label}</span>
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs font-bold text-slate-700">${d.score || 0}/${d.max}</span>
+                            ${badge(d.score || 0, d.norm)}
+                        </div>
+                    </div>
+                    ${bar(d.score || 0, d.max, d.norm)}
+                </div>`).join('')}
+            </div>
+        </div>
+    `).join('');
+
+    document.getElementById('vr-body').innerHTML = `
+        <div class="flex justify-center mb-5">
+            <div class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl ${totalLvl.cls}">
+                <i class="fas fa-star"></i>
+                <span class="font-black text-2xl">${totalScore}</span>
+                <span class="text-sm opacity-80">/ 208 คะแนน</span>
+                <span class="font-bold">&nbsp;·&nbsp;${totalLvl.label}</span>
+            </div>
+        </div>
+        <div class="space-y-3">${groupsHtml}</div>
+        ${eq.note ? `<div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800"><i class="fas fa-note-sticky mr-1"></i><strong>หมายเหตุ:</strong> ${eq.note}</div>` : ''}
+    `;
+
+    document.getElementById('view-result-modal').classList.remove('hidden');
+    document.getElementById('view-result-modal').classList.add('flex');
 }
 
 /* ── EDIT (CRUD 9 ด้าน) ────────────────────────────── */
