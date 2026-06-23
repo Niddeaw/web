@@ -2,7 +2,7 @@
 <html lang="th">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AR Math: ตรรกยะ หรือ อตรรกยะ?</title>
     
     <!-- Tailwind CSS -->
@@ -25,6 +25,8 @@
             overflow: hidden;
             background-color: #111;
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Prevent scroll on touch */
         }
 
         /* Glassmorphism Classes */
@@ -48,7 +50,7 @@
             text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #0fa, 0 0 40px #0fa;
         }
 
-        /* Video element for processing (hidden visually but plays) */
+        /* Video element for processing */
         #webcam {
             position: absolute;
             width: 100vw;
@@ -101,29 +103,39 @@
     <!-- Main Game Canvas -->
     <canvas id="gameCanvas"></canvas>
 
+    <!-- Fullscreen Button -->
+    <button id="btn-fullscreen" class="pointer-events-auto fixed top-4 right-4 sm:top-6 sm:right-6 z-50 glass p-2 sm:p-3 rounded-full text-white hover:bg-white/30 transition-all shadow-lg">
+        <svg id="icon-fullscreen" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+        </svg>
+        <svg id="icon-exit-fullscreen" class="hidden" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"></path>
+        </svg>
+    </button>
+
     <!-- UI Overlay Layer -->
-    <div class="ui-layer flex flex-col justify-between p-4 sm:p-8 text-white">
+    <div class="ui-layer flex flex-col justify-between p-3 sm:p-8 text-white">
         
         <!-- Header: Top Left Score, Top Right Timer -->
         <div id="game-hud" class="hidden flex justify-between items-start w-full">
-            <div class="glass px-6 py-4 rounded-2xl flex flex-col gap-2">
-                <h2 class="text-xl font-bold text-yellow-300">กระดานคะแนน</h2>
-                <div id="team-scores" class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:text-base font-semibold">
-                    <div id="score-t0" class="text-white">ทีม 1: <span class="text-2xl">0</span></div>
-                    <div id="score-t1" class="text-gray-400">ทีม 2: <span class="text-2xl">0</span></div>
-                    <div id="score-t2" class="text-gray-400">ทีม 3: <span class="text-2xl">0</span></div>
-                    <div id="score-t3" class="text-gray-400">ทีม 4: <span class="text-2xl">0</span></div>
+            <div class="glass px-3 py-2 sm:px-6 sm:py-4 rounded-xl sm:rounded-2xl flex flex-col gap-1 sm:gap-2 max-w-[60%] sm:max-w-none">
+                <h2 class="text-sm sm:text-xl font-bold text-yellow-300 hidden sm:block">กระดานคะแนน</h2>
+                <div id="team-scores" class="grid grid-cols-2 gap-x-3 sm:gap-x-6 gap-y-1 sm:gap-y-2 text-xs sm:text-base font-semibold">
+                    <div id="score-t0" class="text-white">ทีม 1: <span class="text-lg sm:text-2xl">0</span></div>
+                    <div id="score-t1" class="text-gray-400">ทีม 2: <span class="text-lg sm:text-2xl">0</span></div>
+                    <div id="score-t2" class="text-gray-400">ทีม 3: <span class="text-lg sm:text-2xl">0</span></div>
+                    <div id="score-t3" class="text-gray-400">ทีม 4: <span class="text-lg sm:text-2xl">0</span></div>
                 </div>
             </div>
 
-            <div class="glass px-8 py-4 rounded-3xl text-center">
-                <p class="text-sm font-semibold uppercase tracking-wider text-gray-300">เวลาเหลือ</p>
-                <p id="timer-display" class="text-5xl font-bold font-mono text-white">15</p>
+            <div class="glass px-4 py-2 sm:px-8 sm:py-4 rounded-xl sm:rounded-3xl text-center mt-12 sm:mt-0 mr-12 sm:mr-0">
+                <p class="text-[10px] sm:text-sm font-semibold uppercase tracking-wider text-gray-300">เวลาเหลือ</p>
+                <p id="timer-display" class="text-3xl sm:text-5xl font-bold font-mono text-white">15</p>
             </div>
         </div>
 
         <!-- Hand detection status -->
-        <div id="hand-status" class="absolute top-4 left-1/2 -translate-x-1/2 glass px-6 py-2 rounded-full text-yellow-300 font-bold hidden animate-pulse">
+        <div id="hand-status" class="absolute top-20 sm:top-4 left-1/2 -translate-x-1/2 glass px-4 py-2 sm:px-6 sm:py-2 rounded-full text-sm sm:text-base text-yellow-300 font-bold hidden animate-pulse whitespace-nowrap">
             กำลังเชื่อมต่อกล้อง... 📷
         </div>
 
@@ -132,64 +144,64 @@
     <!-- Screen Managers (Full Screen DOM elements) -->
     
     <!-- 1. Start Screen -->
-    <div id="screen-start" class="ui-layer pointer-events-auto flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-500">
-        <div class="glass p-10 rounded-3xl text-center max-w-2xl transform scale-100 transition-transform">
-            <h1 class="text-5xl font-bold text-white mb-4 neon-text-green">AR Math Game</h1>
-            <h2 class="text-2xl text-yellow-300 font-semibold mb-6">ตรรกยะ VS อตรรกยะ</h2>
-            <p class="text-gray-200 mb-8 text-lg">ทดสอบความแม่นยำทางคณิตศาสตร์ด้วยเทคโนโลยี AR<br>เล่นเป็นทีม 4 ทีม ตอบคำถาม 20 ข้อ</p>
-            <button id="btn-start" class="bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 text-white font-bold py-4 px-12 rounded-full text-2xl shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-all hover:scale-105 active:scale-95">
+    <div id="screen-start" class="ui-layer pointer-events-auto flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-500 p-4">
+        <div class="glass p-6 sm:p-10 rounded-2xl sm:rounded-3xl text-center max-w-2xl w-full transform scale-100 transition-transform">
+            <h1 class="text-3xl sm:text-5xl font-bold text-white mb-2 sm:mb-4 neon-text-green">AR Math Game</h1>
+            <h2 class="text-xl sm:text-2xl text-yellow-300 font-semibold mb-4 sm:mb-6">ตรรกยะ VS อตรรกยะ</h2>
+            <p class="text-gray-200 mb-6 sm:mb-8 text-sm sm:text-lg">ทดสอบความแม่นยำทางคณิตศาสตร์ด้วยเทคโนโลยี AR<br>เล่นเป็นทีม 4 ทีม ตอบคำถาม 20 ข้อ</p>
+            <button id="btn-start" class="bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 text-white font-bold py-3 px-8 sm:py-4 sm:px-12 rounded-full text-xl sm:text-2xl shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-all hover:scale-105 active:scale-95">
                 เข้าสู่เกม (Start)
             </button>
-            <p class="mt-6 text-sm text-gray-400">รองรับการควบคุมด้วย 'มือผ่านกล้อง' หรือ 'เมาส์/สัมผัส'</p>
+            <p class="mt-4 sm:mt-6 text-xs sm:text-sm text-gray-400">รองรับการควบคุมด้วย 'มือผ่านกล้อง' หรือ 'สัมผัสหน้าจอ'</p>
         </div>
     </div>
 
     <!-- 2. Instruction Screen (Managed by Canvas for AR button interaction) -->
-    <div id="screen-instruction" class="ui-layer hidden items-center justify-center bg-black/80">
+    <div id="screen-instruction" class="ui-layer hidden items-center justify-center bg-black/80 p-4">
         <!-- Text is here, AR button is drawn on canvas -->
-        <div class="text-center absolute top-20 w-full">
-            <h2 class="text-4xl font-bold text-white mb-4">วิธีการเล่น</h2>
-            <p class="text-xl text-yellow-200">1. ใช้ <b class="text-green-400">"นิ้วชี้ + นิ้วโป้ง"</b> จีบเข้าหากันเพื่อ <b class="text-white">หยิบการ์ด</b> (หรือคลิกเมาส์ค้าง)</p>
-            <p class="text-xl text-yellow-200 mt-2">2. ลากการ์ดคำตอบ ไปวางใน <b class="text-cyan-400">ช่องตลับเป้าหมายด้านบน</b> แล้วปล่อยนิ้ว</p>
-            <p class="text-xl text-red-400 mt-2">3. มีเวลาข้อละ 15 วินาที!</p>
+        <div class="text-center absolute top-10 sm:top-20 w-full px-4">
+            <h2 class="text-2xl sm:text-4xl font-bold text-white mb-2 sm:mb-4">วิธีการเล่น</h2>
+            <p class="text-sm sm:text-xl text-yellow-200">1. ใช้ <b class="text-green-400">"นิ้วชี้ + นิ้วโป้ง"</b> จีบเข้าหากันเพื่อ <b class="text-white">หยิบการ์ด</b></p>
+            <p class="text-sm sm:text-xl text-yellow-200 mt-1 sm:mt-2">2. ลากการ์ดคำตอบ ไปวางใน <b class="text-cyan-400">ช่องเป้าหมายด้านบน</b> แล้วปล่อยนิ้ว</p>
+            <p class="text-sm sm:text-xl text-red-400 mt-1 sm:mt-2">3. มีเวลาข้อละ 15 วินาที!</p>
             
-            <div class="flex justify-center gap-8 mt-10">
-                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-blue-400 mx-auto mb-2"></div>ปกติ</div>
-                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-yellow-400 border-dashed mx-auto mb-2"></div>เล็งเป้า</div>
-                <div class="text-center"><div class="w-12 h-12 rounded-full bg-green-500/50 border-4 border-green-400 flex items-center justify-center text-white font-bold mx-auto mb-2">✔️</div>จับสำเร็จ</div>
-                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-red-500 mx-auto mb-2"></div>จีบวืด</div>
+            <div class="flex flex-wrap justify-center gap-4 sm:gap-8 mt-6 sm:mt-10 text-xs sm:text-base">
+                <div class="text-center"><div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-[3px] sm:border-4 border-blue-400 mx-auto mb-1 sm:mb-2"></div>ปกติ</div>
+                <div class="text-center"><div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-[3px] sm:border-4 border-yellow-400 border-dashed mx-auto mb-1 sm:mb-2"></div>เล็งเป้า</div>
+                <div class="text-center"><div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full bg-green-500/50 border-[3px] sm:border-4 border-green-400 flex items-center justify-center text-white font-bold mx-auto mb-1 sm:mb-2 text-sm sm:text-base">✔️</div>จับสำเร็จ</div>
+                <div class="text-center"><div class="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-[3px] sm:border-4 border-red-500 mx-auto mb-1 sm:mb-2"></div>จีบวืด</div>
             </div>
-            <p class="mt-12 text-white animate-pulse">( ใช้มือจีบ หรือ เมาส์คลิก ที่ปุ่มสีเขียวเพื่อเริ่ม )</p>
+            <p class="mt-6 sm:mt-12 text-white animate-pulse text-sm sm:text-base">( ใช้มือจีบ หรือ สัมผัส ที่ปุ่มสีเขียวเพื่อเริ่ม )</p>
         </div>
     </div>
 
     <!-- 2.5 Next Team Screen -->
-    <div id="screen-next-team" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300">
-        <div class="glass p-10 rounded-3xl text-center transform scale-100 transition-transform">
-            <h2 class="text-4xl font-bold text-yellow-300 mb-4">เปลี่ยนตัวผู้เล่น!</h2>
-            <p id="next-team-name" class="text-2xl text-white mb-8">ทีม X เตรียมตัว</p>
-            <button id="btn-next-team" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-12 rounded-full text-2xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all hover:scale-105 active:scale-95">
-                พร้อมแล้ว (แตะ/คลิก เพื่อเริ่มข้อถัดไป)
+    <div id="screen-next-team" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300 p-4">
+        <div class="glass p-6 sm:p-10 rounded-2xl sm:rounded-3xl text-center w-full max-w-xl transform scale-100 transition-transform">
+            <h2 class="text-3xl sm:text-4xl font-bold text-yellow-300 mb-2 sm:mb-4">เปลี่ยนตัวผู้เล่น!</h2>
+            <p id="next-team-name" class="text-xl sm:text-2xl text-white mb-6 sm:mb-8">ทีม X เตรียมตัว</p>
+            <button id="btn-next-team" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-3 px-6 sm:py-4 sm:px-12 rounded-full text-lg sm:text-2xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all hover:scale-105 active:scale-95 w-full sm:w-auto">
+                พร้อมแล้ว (แตะเพื่อเริ่มข้อถัดไป)
             </button>
         </div>
     </div>
 
     <!-- 3. End Game Screen -->
-    <div id="screen-end" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-1000">
-        <div class="text-center">
-            <h1 class="text-6xl font-bold text-white mb-10">จบการแข่งขัน!</h1>
-            <p class="text-2xl text-gray-300 mb-10">ทุกคนพร้อมดูผลการแข่งขันแล้วหรือยัง?</p>
-            <button id="btn-show-results" class="bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-500 hover:to-orange-700 text-white font-bold py-6 px-16 rounded-full text-3xl shadow-[0_0_40px_rgba(245,158,11,0.6)] transition-all hover:scale-110 active:scale-95 animate-pulse">
+    <div id="screen-end" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-1000 p-4">
+        <div class="text-center w-full">
+            <h1 class="text-4xl sm:text-6xl font-bold text-white mb-6 sm:mb-10">จบการแข่งขัน!</h1>
+            <p class="text-lg sm:text-2xl text-gray-300 mb-8 sm:mb-10">ทุกคนพร้อมดูผลการแข่งขันแล้วหรือยัง?</p>
+            <button id="btn-show-results" class="bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-500 hover:to-orange-700 text-white font-bold py-4 px-8 sm:py-6 sm:px-16 rounded-full text-xl sm:text-3xl shadow-[0_0_40px_rgba(245,158,11,0.6)] transition-all hover:scale-110 active:scale-95 animate-pulse w-full sm:w-auto">
                 🏆 ดูผลการแข่งขัน 🏆
             </button>
         </div>
     </div>
 
     <!-- 4. Podium / Results Screen -->
-    <div id="screen-podium" class="ui-layer hidden pointer-events-auto items-end justify-center bg-gradient-to-b from-gray-900 via-indigo-950 to-black pb-10 sm:pb-20">
-        <div class="absolute top-10 w-full text-center">
-            <h1 class="text-5xl font-bold text-white mb-4 neon-text-green">สรุปผลการแข่งขัน</h1>
-            <div class="flex justify-center gap-6 text-lg text-gray-300 font-semibold bg-black/40 inline-block px-8 py-3 rounded-full border border-gray-600">
+    <div id="screen-podium" class="ui-layer hidden pointer-events-auto items-end justify-center bg-gradient-to-b from-gray-900 via-indigo-950 to-black pb-4 sm:pb-20 p-2 sm:p-4">
+        <div class="absolute top-6 sm:top-10 w-full text-center px-2">
+            <h1 class="text-3xl sm:text-5xl font-bold text-white mb-2 sm:mb-4 neon-text-green">สรุปผลการแข่งขัน</h1>
+            <div class="flex flex-wrap justify-center gap-2 sm:gap-6 text-xs sm:text-lg text-gray-300 font-semibold bg-black/40 inline-block px-4 py-2 sm:px-8 sm:py-3 rounded-full border border-gray-600">
                 <span>เกณฑ์: </span>
                 <span class="text-green-400">A (18-20)</span> | 
                 <span class="text-blue-400">B (15-17)</span> | 
@@ -199,11 +211,11 @@
         </div>
 
         <!-- Podium Container -->
-        <div id="podium-container" class="flex items-end justify-center gap-2 sm:gap-6 w-full max-w-4xl h-96 mt-32">
+        <div id="podium-container" class="flex items-end justify-center gap-1 sm:gap-6 w-full max-w-4xl h-[40vh] sm:h-96 mt-24 sm:mt-32">
             <!-- Bars injected by JS -->
         </div>
 
-        <button id="btn-restart" class="absolute top-10 right-10 bg-white/10 hover:bg-white/20 border border-white/50 text-white font-bold py-3 px-6 rounded-full transition-all backdrop-blur-md">
+        <button id="btn-restart" class="absolute top-20 right-4 sm:top-10 sm:right-20 bg-white/10 hover:bg-white/20 border border-white/50 text-white font-bold py-2 px-4 sm:py-3 sm:px-6 rounded-full transition-all backdrop-blur-md text-sm sm:text-base z-50">
             🔄 เริ่มเกมใหม่
         </button>
     </div>
@@ -280,7 +292,6 @@ let synth, errorSynth, fanfareSynth;
 let cards = [];
 let dropZone = {};
 let arStartButton = null;
-let arQuestionTitle = null;
 let currentQText = "";
 
 // Feedback Message
@@ -337,7 +348,8 @@ function init() {
 function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    // ป้องกัน Error หากอัปเดตเลย์เอาต์ตอนตัวแปรยังไม่พร้อม
+    
+    // อัปเดตเลย์เอาต์ทั้งหมดเมื่อหมุนจอหรือเปลี่ยนขนาด
     if(typeof updateEntityLayouts === 'function') {
         updateEntityLayouts();
     }
@@ -380,17 +392,17 @@ async function initMediaPipe() {
             onFrame: async () => {
                 await hands.send({image: video});
             },
-            width: 1280,
-            height: 720
+            width: 640,  // Reduced for better mobile performance
+            height: 480
         });
         
         await camera.start();
         handStatus.innerText = "กำลังหามือของคุณ... ✋";
     } catch (error) {
-        console.warn("สลับไปใช้เมาส์เนื่องจากปัญหากล้อง:", error.message);
+        console.warn("สลับไปใช้โหมดสัมผัส/เมาส์เนื่องจากปัญหากล้อง:", error.message);
         
-        handStatus.innerText = "ไม่พบกล้อง (ใช้เมาส์/สัมผัสแทน) 🖱️";
-        handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full text-white bg-red-500/90 font-bold shadow-lg";
+        handStatus.innerText = "ไม่พบกล้อง (ใช้โหมดสัมผัส/เมาส์แทน) 🖱️";
+        handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full text-white bg-red-500/90 font-bold shadow-lg text-sm sm:text-base whitespace-nowrap";
         inputMode = 'mouse';
         
         setTimeout(() => {
@@ -438,7 +450,7 @@ function onHandResults(results) {
         if (handFound) {
             handFound = false;
             const handStatus = document.getElementById('hand-status');
-            handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 glass px-6 py-2 rounded-full text-yellow-300 font-bold animate-pulse";
+            handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 glass px-4 py-2 sm:px-6 sm:py-2 rounded-full text-sm sm:text-base text-yellow-300 font-bold animate-pulse whitespace-nowrap";
             handStatus.innerText = "กำลังหามือของคุณ... ✋";
             handStatus.classList.remove('hidden');
         }
@@ -480,7 +492,11 @@ function setupInputListeners() {
     window.addEventListener('mouseup', handleUp);
     
     canvas.addEventListener('touchmove', handleMove, {passive: false});
-    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(e); }, {passive: false});
+    canvas.addEventListener('touchstart', (e) => { 
+        // Allow clicking standard DOM buttons even on canvas overlap
+        if(e.target.tagName !== 'BUTTON') e.preventDefault(); 
+        handleDown(e); 
+    }, {passive: false});
     window.addEventListener('touchend', handleUp);
 }
 
@@ -510,6 +526,40 @@ function setupDOMEventListeners() {
         currentTeam = (currentTeam + 1) % NUM_TEAMS;
         loadQuestion(currentQuestionIndex);
     });
+
+    // Fullscreen Toggle Event
+    document.getElementById('btn-fullscreen').addEventListener('click', toggleFullScreen);
+    document.addEventListener('fullscreenchange', updateFullscreenIcon);
+    document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
+}
+
+function toggleFullScreen() {
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen();
+        } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+            document.documentElement.webkitRequestFullscreen();
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        }
+    }
+}
+
+function updateFullscreenIcon() {
+    const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+    if (isFull) {
+        document.getElementById('icon-fullscreen').classList.add('hidden');
+        document.getElementById('icon-exit-fullscreen').classList.remove('hidden');
+    } else {
+        document.getElementById('icon-fullscreen').classList.remove('hidden');
+        document.getElementById('icon-exit-fullscreen').classList.add('hidden');
+    }
+    // Resize after transition
+    setTimeout(resizeCanvas, 100);
 }
 
 /**
@@ -520,12 +570,8 @@ function showInstructions() {
     document.getElementById('screen-instruction').classList.remove('hidden');
     document.getElementById('screen-instruction').classList.add('flex');
     
-    arStartButton = {
-        w: 300, h: 100,
-        text: "เริ่มเกม! (จีบที่นี่)",
-        color: "#10b981",
-        hoverColor: "#34d399"
-    };
+    // Initialize dummy AR Start Button
+    arStartButton = { w: 0, h: 0, text: "เริ่มเกม! (จีบที่นี่)", color: "#10b981", hoverColor: "#34d399" };
     updateEntityLayouts();
 }
 
@@ -561,23 +607,10 @@ function loadQuestion(index) {
     
     updateScoreUI();
 
-    const cardW = 200;
-    const cardH = 250;
-    const yPos = canvas.height * 0.6;
-    
+    // Create dummy cards first, layout will size them properly
     cards = [
-        { 
-            id: 'rational', text: "ตรรกยะ", value: "rational", 
-            x: canvas.width * 0.25 - cardW/2, y: yPos, 
-            baseX: canvas.width * 0.25 - cardW/2, baseY: yPos,
-            w: cardW, h: cardH, color: "#3b82f6" 
-        },
-        { 
-            id: 'irrational', text: "อตรรกยะ", value: "irrational", 
-            x: canvas.width * 0.75 - cardW/2, y: yPos, 
-            baseX: canvas.width * 0.75 - cardW/2, baseY: yPos,
-            w: cardW, h: cardH, color: "#ef4444" 
-        }
+        { id: 'rational', text: "ตรรกยะ", value: "rational", x: 0, y: 0, baseX: 0, baseY: 0, w: 0, h: 0, color: "#3b82f6" },
+        { id: 'irrational', text: "อตรรกยะ", value: "irrational", x: 0, y: 0, baseX: 0, baseY: 0, w: 0, h: 0, color: "#ef4444" }
     ];
 
     updateEntityLayouts();
@@ -694,17 +727,17 @@ function showPodium() {
         const isWinner = team.rank === 1;
 
         const el = document.createElement('div');
-        el.className = `flex flex-col items-center podium-bar w-1/4 max-w-[120px]`;
+        el.className = `flex flex-col items-center podium-bar w-1/4 max-w-[80px] sm:max-w-[120px]`;
         el.style.animationDelay = `${index * 0.2}s`;
         
         el.innerHTML = `
-            <div class="mb-4 text-center">
-                <div class="text-3xl font-bold text-white shadow-lg ${isWinner ? 'text-yellow-400 text-5xl mb-2' : ''}">${team.score}</div>
-                <div class="text-xl font-bold px-3 py-1 rounded-full bg-white/20 text-${team.color.replace('bg-', '')}">${team.grade}</div>
+            <div class="mb-2 sm:mb-4 text-center">
+                <div class="text-xl sm:text-3xl font-bold text-white shadow-lg ${isWinner ? 'text-yellow-400 text-3xl sm:text-5xl mb-1 sm:mb-2' : ''}">${team.score}</div>
+                <div class="text-sm sm:text-xl font-bold px-2 py-1 rounded-full bg-white/20 text-${team.color.replace('bg-', '')}">${team.grade}</div>
             </div>
-            <div class="${team.color} w-full rounded-t-xl border-t-2 border-white/50 relative flex items-start justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)]" style="height: ${heightPercent}px">
-                ${isWinner ? '<div class="absolute -top-10 text-4xl animate-bounce">👑</div>' : ''}
-                <div class="mt-4 font-bold text-white text-lg sm:text-2xl">${team.name}</div>
+            <div class="${team.color} w-full rounded-t-lg sm:rounded-t-xl border-t-2 border-white/50 relative flex items-start justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)]" style="height: ${heightPercent}px">
+                ${isWinner ? '<div class="absolute -top-8 sm:-top-10 text-2xl sm:text-4xl animate-bounce">👑</div>' : ''}
+                <div class="mt-2 sm:mt-4 font-bold text-white text-sm sm:text-2xl whitespace-nowrap overflow-hidden text-ellipsis px-1">${team.name}</div>
             </div>
         `;
         container.appendChild(el);
@@ -760,16 +793,44 @@ function hitTest(px, py, rect) {
 }
 
 function updateEntityLayouts() {
+    const isPortrait = canvas.height > canvas.width;
+    const isMobile = canvas.width < 768;
+
+    // --- Drop Zone Responsive Layout ---
     dropZone = {
-        w: Math.min(600, canvas.width * 0.8),
-        h: 150
+        w: isMobile ? Math.min(400, canvas.width * 0.85) : Math.min(600, canvas.width * 0.8),
+        h: isPortrait ? 120 : 150
     };
     dropZone.x = canvas.width / 2 - dropZone.w / 2;
-    dropZone.y = canvas.height * 0.25;
+    dropZone.y = isPortrait ? canvas.height * 0.15 : canvas.height * 0.25;
 
+    // --- AR Start Button Responsive Layout ---
     if (arStartButton) {
+        arStartButton.w = isMobile ? Math.min(250, canvas.width * 0.7) : 300;
+        arStartButton.h = arStartButton.w * 0.35;
         arStartButton.x = canvas.width / 2 - arStartButton.w / 2;
-        arStartButton.y = canvas.height * 0.7;
+        arStartButton.y = isPortrait ? canvas.height * 0.75 : canvas.height * 0.7;
+    }
+
+    // --- Cards Responsive Layout ---
+    if (cards && cards.length === 2) {
+        const cardW = isPortrait ? canvas.width * 0.38 : Math.min(200, canvas.width * 0.25);
+        const cardH = isPortrait ? cardW * 1.3 : Math.min(250, canvas.height * 0.4);
+        const yBase = isPortrait ? canvas.height * 0.65 : canvas.height * 0.6;
+        
+        cards.forEach((card, index) => {
+            card.w = cardW;
+            card.h = cardH;
+            // Position Left (0) or Right (1)
+            card.baseX = index === 0 ? canvas.width * 0.25 - cardW/2 : canvas.width * 0.75 - cardW/2;
+            card.baseY = yBase;
+            
+            // Snap back to base if not currently being dragged
+            if (activeCard !== card) {
+                card.x = card.baseX;
+                card.y = card.baseY;
+            }
+        });
     }
 }
 
@@ -779,7 +840,7 @@ function updateScoreUI() {
         if(el) {
             el.querySelector('span').innerText = teamScores[i];
             if (i === currentTeam) {
-                el.className = "text-yellow-300 transform scale-110 transition-all font-bold";
+                el.className = "text-yellow-300 transform scale-110 sm:scale-125 transition-all font-bold origin-left";
             } else {
                 el.className = "text-gray-400";
             }
@@ -835,6 +896,7 @@ function update(dt) {
 
 function render() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const isPortrait = canvas.height > canvas.width;
 
     if (currentState === GAME_STATE.INSTRUCTIONS && arStartButton) {
         const isHover = hitTest(cursor.x, cursor.y, arStartButton);
@@ -846,7 +908,8 @@ function render() {
         ctx.stroke();
 
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 28px Prompt";
+        const btnFontSize = Math.max(18, arStartButton.h * 0.3);
+        ctx.font = `bold ${btnFontSize}px Prompt`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.fillText(arStartButton.text, arStartButton.x + arStartButton.w/2, arStartButton.y + arStartButton.h/2);
@@ -867,25 +930,30 @@ function render() {
         ctx.fill();
         ctx.restore();
 
+        // Responsive text sizes
+        const targetTextSize = isPortrait ? "16px" : "20px";
+        const questionTextSize = isPortrait ? Math.min(50, canvas.width*0.12) : 60;
+        const teamTextSize = isPortrait ? "18px" : "24px";
+
         ctx.fillStyle = "rgba(255,255,255,0.8)";
-        ctx.font = "20px Prompt";
+        ctx.font = `${targetTextSize} Prompt`;
         ctx.textAlign = "center";
-        ctx.fillText("ลากคำตอบมาวางที่นี่", dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 + 40);
+        ctx.fillText("ลากคำตอบมาวางที่นี่", dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 + (isPortrait?30:40));
 
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 60px Prompt";
+        ctx.font = `bold ${questionTextSize}px Prompt`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
         ctx.shadowBlur = 10;
         ctx.shadowColor = "#fff";
         
         let displayQ = currentQText;
-        ctx.fillText(displayQ, dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 - 10);
+        ctx.fillText(displayQ, dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 - (isPortrait?15:10));
         ctx.shadowBlur = 0;
 
         ctx.fillStyle = "#fef08a";
-        ctx.font = "bold 24px Prompt";
-        ctx.fillText(`ตาของ: ทีม ${currentTeam + 1}`, dropZone.x + dropZone.w/2, dropZone.y - 30);
+        ctx.font = `bold ${teamTextSize} Prompt`;
+        ctx.fillText(`ตาของ: ทีม ${currentTeam + 1}`, dropZone.x + dropZone.w/2, dropZone.y - 20);
 
         for (let card of cards) {
             ctx.save();
@@ -913,8 +981,9 @@ function render() {
             ctx.fill();
             ctx.restore();
 
+            const cardFontSize = Math.max(18, card.w * 0.18);
             ctx.fillStyle = "#fff";
-            ctx.font = "bold 36px Prompt";
+            ctx.font = `bold ${cardFontSize}px Prompt`;
             ctx.textAlign = "center";
             ctx.textBaseline = "middle";
             ctx.fillText(card.text, card.x + card.w/2, card.y + card.h/2);
@@ -925,9 +994,12 @@ function render() {
         ctx.fillStyle = "rgba(0,0,0,0.7)";
         ctx.fillRect(0,0,canvas.width, canvas.height);
         
-        // วาดข้อความผลลัพธ์ (Feedback)
+        // Responsive Feedback Text
+        const fbTextSize = isPortrait ? Math.min(60, canvas.width * 0.12) : 80;
+        const prepareTextSize = isPortrait ? 24 : 30;
+
         ctx.fillStyle = feedbackColor;
-        ctx.font = "bold 80px Prompt";
+        ctx.font = `bold ${fbTextSize}px Prompt`;
         ctx.textAlign = "center";
         ctx.shadowBlur = 20;
         ctx.shadowColor = feedbackColor;
@@ -935,9 +1007,9 @@ function render() {
         ctx.shadowBlur = 0; // Reset
         
         ctx.fillStyle = "#fff";
-        ctx.font = "bold 30px Prompt";
+        ctx.font = `bold ${prepareTextSize}px Prompt`;
         ctx.textAlign = "center";
-        ctx.fillText("เตรียมตัว...", canvas.width/2, canvas.height/2 + 60);
+        ctx.fillText("เตรียมตัว...", canvas.width/2, canvas.height/2 + (isPortrait?40:60));
     }
 
     drawParticles();
