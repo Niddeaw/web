@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <title>ประเมินพหุปัญญา | WRK System</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <script src="mit_data.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="min-h-screen pb-10">
+
+    <nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
+        <div class="flex items-center gap-3">
+            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
+            <div>
+                <p class="font-bold text-indigo-900 text-base leading-tight">แบบประเมินพหุปัญญา</p>
+                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">8 ด้าน 40 ข้อ</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="std-name" class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1 rounded-xl"></span>
+            <a href="student_index.html" title="กลับหน้าหลัก" class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center transition-colors">
+                <i class="fas fa-home text-sm"></i>
+            </a>
+            <button onclick="logout()" title="ออกจากระบบ" class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center transition-colors">
+                <i class="fas fa-sign-out-alt text-sm"></i>
+            </button>
+        </div>
+    </nav>
+
+    <div class="w-full max-w-7xl mx-auto px-4 pt-8" id="main-container">
+        <div id="view-loading" class="text-center py-20">
+            <i class="fas fa-circle-notch fa-spin text-4xl text-indigo-400 mb-4"></i>
+            <p class="text-slate-500">กำลังตรวจสอบข้อมูล...</p>
+        </div>
+
+        <div id="view-assessment" class="hidden fade-up">
+            <div class="glass rounded-3xl shadow-2xl overflow-hidden">
+                <div class="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
+                    <div class="flex justify-between items-center mb-3">
+                        <span class="text-xs font-bold uppercase tracking-widest opacity-70">ข้อที่</span>
+                        <span id="q-counter" class="text-sm font-bold bg-white/20 px-3 py-1 rounded-full">1 / 40</span>
+                    </div>
+                    <div class="w-full bg-white/20 rounded-full h-2 mb-4">
+                        <div id="progress-bar" class="bg-white rounded-full h-2 progress-bar" style="width:0%"></div>
+                    </div>
+                    <div id="timer-section" class="flex items-center gap-2 text-xs opacity-80">
+                        <i class="fas fa-clock"></i>
+                        <span id="timer-text">กรุณารอ <span id="timer-count">10</span> วินาที</span>
+                    </div>
+                </div>
+                <div class="p-6 sm:p-8">
+                    <div class="mb-4 text-xs font-bold text-indigo-500 uppercase tracking-widest" id="q-dim-label"></div>
+                    <p class="text-xl font-bold text-slate-800 mb-8 leading-relaxed" id="q-text"></p>
+                    <div class="space-y-3" id="choices-container"></div>
+                    <div class="flex justify-between mt-8 gap-3">
+                        <button id="btn-prev" onclick="prevQuestion()" class="flex items-center gap-2 px-5 py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition disabled:opacity-40">
+                            <i class="fas fa-arrow-left"></i> ย้อนกลับ
+                        </button>
+                        <button id="btn-next" onclick="nextQuestion()" disabled class="flex items-center gap-2 px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed">
+                            ถัดไป <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <p class="text-center text-xs text-slate-400 mt-4">คำตอบของคุณจะถูกบันทึกอัตโนมัติ</p>
+        </div>
+
+        <div id="view-result" class="hidden fade-up space-y-6">
+            <div class="glass rounded-3xl shadow-xl p-6 text-center">
+                <div class="w-20 h-20 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i class="fas fa-brain text-white text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">ผลการประเมินพหุปัญญา</h2>
+                <p id="res-name" class="text-slate-500 text-sm mt-1"></p>
+                <div class="mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl" id="res-total-badge">
+                    <i class="fas fa-star"></i>
+                    <span class="font-bold text-lg" id="res-total-score"></span>
+                    <span class="text-sm opacity-80">/ 200 คะแนน</span>
+                </div>
+                <p class="text-sm font-bold mt-2" id="res-total-level"></p>
+                <p class="text-sm mt-1" id="res-top-dim"></p>
+            </div>
+
+            <div id="chart-container" class="glass rounded-3xl shadow-xl p-5">
+                <h3 class="font-bold text-slate-800 text-lg mb-3 flex items-center gap-2">
+                    <i class="fas fa-chart-line text-indigo-500"></i> กราฟแสดงคะแนนรายด้าน (8 ด้าน)
+                </h3>
+                <div id="bar-chart" class="space-y-3"></div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-5" id="top-cards-container"></div>
+
+            <div class="flex justify-center">
+                <button onclick="printResult()" class="bg-indigo-600 hover:bg-indigo-700 text-white py-3 px-6 rounded-2xl font-bold flex items-center gap-2 shadow-md transition">
+                    <i class="fas fa-print"></i> พิมพ์ผล PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="mit_student.js"></script>
+</body>
+</html>
