@@ -1,0 +1,1052 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AR Math: ตรรกยะ หรือ อตรรกยะ?</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MediaPipe Hands & Camera Utils -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    
+    <!-- Tone.js for Audio -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&display=swap');
+        
+        body {
+            font-family: 'Prompt', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            background-color: #111;
+            user-select: none;
+        }
+
+        /* Glassmorphism Classes */
+        .glass {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+        }
+
+        .glass-dark {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Neon Glow Effects */
+        .neon-text-green {
+            text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #0fa, 0 0 40px #0fa;
+        }
+
+        /* Video element for processing (hidden visually but plays) */
+        #webcam {
+            position: absolute;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror */
+            z-index: 1;
+            opacity: 0.4; /* Dim video to see game clearly */
+        }
+
+        #gameCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 10;
+        }
+
+        .ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 20;
+            pointer-events: none; /* Let clicks pass through to canvas */
+        }
+
+        .pointer-events-auto {
+            pointer-events: auto;
+        }
+
+        /* Podium Animations */
+        @keyframes riseUp {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .podium-bar {
+            animation: riseUp 1.5s cubic-bezier(0.1, 0.8, 0.1, 1) forwards;
+            transform-origin: bottom;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Camera Feed -->
+    <video id="webcam" autoplay playsinline></video>
+    
+    <!-- Main Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay Layer -->
+    <div class="ui-layer flex flex-col justify-between p-4 sm:p-8 text-white">
+        
+        <!-- Header: Top Left Score, Top Right Timer -->
+        <div id="game-hud" class="hidden flex justify-between items-start w-full">
+            <div class="glass px-6 py-4 rounded-2xl flex flex-col gap-2">
+                <h2 class="text-xl font-bold text-yellow-300">กระดานคะแนน</h2>
+                <div id="team-scores" class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:text-base font-semibold">
+                    <div id="score-t0" class="text-white">ทีม 1: <span class="text-2xl">0</span></div>
+                    <div id="score-t1" class="text-gray-400">ทีม 2: <span class="text-2xl">0</span></div>
+                    <div id="score-t2" class="text-gray-400">ทีม 3: <span class="text-2xl">0</span></div>
+                    <div id="score-t3" class="text-gray-400">ทีม 4: <span class="text-2xl">0</span></div>
+                </div>
+            </div>
+
+            <div class="glass px-8 py-4 rounded-3xl text-center">
+                <p class="text-sm font-semibold uppercase tracking-wider text-gray-300">เวลาเหลือ</p>
+                <p id="timer-display" class="text-5xl font-bold font-mono text-white">15</p>
+            </div>
+        </div>
+
+        <!-- Hand detection status -->
+        <div id="hand-status" class="absolute top-4 left-1/2 -translate-x-1/2 glass px-6 py-2 rounded-full text-yellow-300 font-bold hidden animate-pulse">
+            กำลังเชื่อมต่อกล้อง... 📷
+        </div>
+
+    </div>
+
+    <!-- Screen Managers (Full Screen DOM elements) -->
+    
+    <!-- 1. Start Screen -->
+    <div id="screen-start" class="ui-layer pointer-events-auto flex items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-500">
+        <div class="glass p-10 rounded-3xl text-center max-w-2xl transform scale-100 transition-transform">
+            <h1 class="text-5xl font-bold text-white mb-4 neon-text-green">AR Math Game</h1>
+            <h2 class="text-2xl text-yellow-300 font-semibold mb-6">ตรรกยะ VS อตรรกยะ</h2>
+            <p class="text-gray-200 mb-8 text-lg">ทดสอบความแม่นยำทางคณิตศาสตร์ด้วยเทคโนโลยี AR<br>เล่นเป็นทีม 4 ทีม ตอบคำถาม 20 ข้อ</p>
+            <button id="btn-start" class="bg-gradient-to-r from-green-400 to-emerald-600 hover:from-green-500 hover:to-emerald-700 text-white font-bold py-4 px-12 rounded-full text-2xl shadow-[0_0_20px_rgba(16,185,129,0.5)] transition-all hover:scale-105 active:scale-95">
+                เข้าสู่เกม (Start)
+            </button>
+            <p class="mt-6 text-sm text-gray-400">รองรับการควบคุมด้วย 'มือผ่านกล้อง' หรือ 'เมาส์/สัมผัส'</p>
+        </div>
+    </div>
+
+    <!-- 2. Instruction Screen (Managed by Canvas for AR button interaction) -->
+    <div id="screen-instruction" class="ui-layer hidden items-center justify-center bg-black/80">
+        <!-- Text is here, AR button is drawn on canvas -->
+        <div class="text-center absolute top-20 w-full">
+            <h2 class="text-4xl font-bold text-white mb-4">วิธีการเล่น</h2>
+            <p class="text-xl text-yellow-200">1. ใช้ <b class="text-green-400">"นิ้วชี้ + นิ้วโป้ง"</b> จีบเข้าหากันเพื่อ <b class="text-white">หยิบการ์ด</b> (หรือคลิกเมาส์ค้าง)</p>
+            <p class="text-xl text-yellow-200 mt-2">2. ลากการ์ดคำตอบ ไปวางใน <b class="text-cyan-400">ช่องตลับเป้าหมายด้านบน</b> แล้วปล่อยนิ้ว</p>
+            <p class="text-xl text-red-400 mt-2">3. มีเวลาข้อละ 15 วินาที!</p>
+            
+            <div class="flex justify-center gap-8 mt-10">
+                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-blue-400 mx-auto mb-2"></div>ปกติ</div>
+                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-yellow-400 border-dashed mx-auto mb-2"></div>เล็งเป้า</div>
+                <div class="text-center"><div class="w-12 h-12 rounded-full bg-green-500/50 border-4 border-green-400 flex items-center justify-center text-white font-bold mx-auto mb-2">✔️</div>จับสำเร็จ</div>
+                <div class="text-center"><div class="w-12 h-12 rounded-full border-4 border-red-500 mx-auto mb-2"></div>จีบวืด</div>
+            </div>
+            <p class="mt-12 text-white animate-pulse">( ใช้มือจีบ หรือ เมาส์คลิก ที่ปุ่มสีเขียวเพื่อเริ่ม )</p>
+        </div>
+    </div>
+
+    <!-- 2.5 Next Team Screen -->
+    <div id="screen-next-team" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-sm transition-opacity duration-300">
+        <div class="glass p-10 rounded-3xl text-center transform scale-100 transition-transform">
+            <h2 class="text-4xl font-bold text-yellow-300 mb-4">เปลี่ยนตัวผู้เล่น!</h2>
+            <p id="next-team-name" class="text-2xl text-white mb-8">ทีม X เตรียมตัว</p>
+            <button id="btn-next-team" class="bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-bold py-4 px-12 rounded-full text-2xl shadow-[0_0_20px_rgba(59,130,246,0.5)] transition-all hover:scale-105 active:scale-95">
+                พร้อมแล้ว (แตะ/คลิก เพื่อเริ่มข้อถัดไป)
+            </button>
+        </div>
+    </div>
+
+    <!-- 3. End Game Screen -->
+    <div id="screen-end" class="ui-layer hidden pointer-events-auto items-center justify-center bg-black/80 backdrop-blur-md transition-opacity duration-1000">
+        <div class="text-center">
+            <h1 class="text-6xl font-bold text-white mb-10">จบการแข่งขัน!</h1>
+            <p class="text-2xl text-gray-300 mb-10">ทุกคนพร้อมดูผลการแข่งขันแล้วหรือยัง?</p>
+            <button id="btn-show-results" class="bg-gradient-to-r from-yellow-400 to-orange-600 hover:from-yellow-500 hover:to-orange-700 text-white font-bold py-6 px-16 rounded-full text-3xl shadow-[0_0_40px_rgba(245,158,11,0.6)] transition-all hover:scale-110 active:scale-95 animate-pulse">
+                🏆 ดูผลการแข่งขัน 🏆
+            </button>
+        </div>
+    </div>
+
+    <!-- 4. Podium / Results Screen -->
+    <div id="screen-podium" class="ui-layer hidden pointer-events-auto items-end justify-center bg-gradient-to-b from-gray-900 via-indigo-950 to-black pb-10 sm:pb-20">
+        <div class="absolute top-10 w-full text-center">
+            <h1 class="text-5xl font-bold text-white mb-4 neon-text-green">สรุปผลการแข่งขัน</h1>
+            <div class="flex justify-center gap-6 text-lg text-gray-300 font-semibold bg-black/40 inline-block px-8 py-3 rounded-full border border-gray-600">
+                <span>เกณฑ์: </span>
+                <span class="text-green-400">A (18-20)</span> | 
+                <span class="text-blue-400">B (15-17)</span> | 
+                <span class="text-yellow-400">C (11-14)</span> | 
+                <span class="text-red-400">D (<10)</span>
+            </div>
+        </div>
+
+        <!-- Podium Container -->
+        <div id="podium-container" class="flex items-end justify-center gap-2 sm:gap-6 w-full max-w-4xl h-96 mt-32">
+            <!-- Bars injected by JS -->
+        </div>
+
+        <button id="btn-restart" class="absolute top-10 right-10 bg-white/10 hover:bg-white/20 border border-white/50 text-white font-bold py-3 px-6 rounded-full transition-all backdrop-blur-md">
+            🔄 เริ่มเกมใหม่
+        </button>
+    </div>
+
+<script>
+/**
+ * --- GAME DATA & CONFIG ---
+ */
+const questionsData = [
+    { text: "√2", ans: "irrational" },
+    { text: "-5", ans: "rational" },
+    { text: "-π", ans: "irrational" },
+    { text: "√16", ans: "rational" },
+    { text: "1 - √6", ans: "irrational" },
+    { text: "-7.148̇", ans: "rational" },
+    { text: "√5", ans: "irrational" },
+    { text: "9.9̇", ans: "rational" },
+    { text: "7 1/3", ans: "rational" },
+    { text: "√3", ans: "irrational" },
+    { text: "√4", ans: "rational" },
+    { text: "0.131131113...", ans: "irrational" },
+    { text: "-45.571571571...", ans: "rational" },
+    { text: "0.939393...", ans: "rational" },
+    { text: "³√11", ans: "irrational" },
+    { text: "-7.158̇", ans: "rational" },
+    { text: "√2 + √3", ans: "irrational" },
+    { text: "π", ans: "irrational" },
+    { text: "√2 × √8", ans: "rational" },
+    { text: "1", ans: "rational" }
+];
+
+const GAME_STATE = {
+    START: 0,
+    INSTRUCTIONS: 1,
+    PLAYING: 2,
+    QUESTION_TRANSITION: 3,
+    GAME_OVER: 4,
+    PODIUM: 5,
+    WAITING_NEXT_TEAM: 6
+};
+
+const NUM_TEAMS = 4;
+const TIME_PER_QUESTION = 15;
+
+/**
+ * --- SYSTEM VARIABLES ---
+ */
+let currentState = GAME_STATE.START;
+let canvas, ctx;
+let video;
+let animationFrameId;
+
+// Game State
+let currentQuestionIndex = 0;
+let currentTeam = 0; // 0 to 3
+let teamScores = [0, 0, 0, 0];
+let timer = TIME_PER_QUESTION;
+let lastTime = 0;
+let handFound = false;
+
+// AR & Mouse Physics
+const PINCH_THRESHOLD_IN = 0.05; // Distance to Grab
+const PINCH_THRESHOLD_OUT = 0.08; // Distance to Release (Hysteresis)
+
+let cursor = { x: 0, y: 0, state: 'normal', isPinching: false, drawX: 0, drawY: 0 };
+let inputMode = 'mouse'; // 'ar' or 'mouse'
+let dragOffset = { x: 0, y: 0 };
+let activeCard = null;
+
+// Audio Synthesizers (Tone.js)
+let synth, errorSynth, fanfareSynth;
+
+// Game Entities
+let cards = [];
+let dropZone = {};
+let arStartButton = null;
+let arQuestionTitle = null;
+let currentQText = "";
+
+// Feedback Message
+let feedbackText = "";
+let feedbackColor = "";
+
+/**
+ * --- AUDIO SETUP ---
+ */
+function initAudio() {
+    synth = new Tone.PolySynth(Tone.Synth).toDestination();
+    synth.set({ oscillator: { type: "triangle" }, envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 } });
+    
+    errorSynth = new Tone.Synth().toDestination();
+    errorSynth.set({ oscillator: { type: "sawtooth" }, envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.2 } });
+
+    fanfareSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+    fanfareSynth.set({ oscillator: { type: "square" }, envelope: { attack: 0.1, decay: 0.2, sustain: 0.5, release: 2 } });
+}
+
+function playCorrect() { if(synth) synth.triggerAttackRelease(["E5", "G5", "C6"], "8n"); }
+function playWrong() { if(errorSynth) errorSynth.triggerAttackRelease("D3", "8n"); }
+function playGrab() { if(synth) synth.triggerAttackRelease("C5", "32n", Tone.now(), 0.5); }
+function playDrop() { if(synth) synth.triggerAttackRelease("G4", "32n", Tone.now(), 0.5); }
+function playTick() { if(synth) synth.triggerAttackRelease("C6", "64n", Tone.now(), 0.1); }
+function playFanfare() {
+    if(!fanfareSynth) return;
+    const now = Tone.now();
+    fanfareSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n", now);
+    fanfareSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now + 0.5);
+    fanfareSynth.triggerAttackRelease(["C4", "E4", "G4", "C5"], "8n", now + 0.75);
+    fanfareSynth.triggerAttackRelease(["D4", "F#4", "A4", "D5"], "2n", now + 1.0);
+    fanfareSynth.triggerAttackRelease(["G4", "B4", "D5", "G5"], "1n", now + 1.5);
+}
+
+/**
+ * --- CORE INIT ---
+ */
+function init() {
+    canvas = document.getElementById('gameCanvas');
+    ctx = canvas.getContext('2d');
+    video = document.getElementById('webcam');
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    setupInputListeners();
+    setupDOMEventListeners();
+
+    lastTime = performance.now();
+    requestAnimationFrame(gameLoop);
+}
+
+function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    // ป้องกัน Error หากอัปเดตเลย์เอาต์ตอนตัวแปรยังไม่พร้อม
+    if(typeof updateEntityLayouts === 'function') {
+        updateEntityLayouts();
+    }
+}
+
+/**
+ * --- MEDIAPIPE HANDS SETUP ---
+ */
+async function initMediaPipe() {
+    const handStatus = document.getElementById('hand-status');
+    handStatus.classList.remove('hidden');
+    handStatus.innerText = "กำลังเชื่อมต่อกล้อง... 📷";
+
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            throw new Error("เบราว์เซอร์ไม่รองรับการใช้งานกล้องในโหมดนี้ (อาจไม่ใช่ HTTPS)");
+        }
+
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const hasVideoInput = devices.some(device => device.kind === 'videoinput');
+        
+        if (!hasVideoInput) {
+            throw new Error("ไม่พบอุปกรณ์กล้องในเครื่องของคุณ (NotFoundError)");
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onHandResults);
+
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({image: video});
+            },
+            width: 1280,
+            height: 720
+        });
+        
+        await camera.start();
+        handStatus.innerText = "กำลังหามือของคุณ... ✋";
+    } catch (error) {
+        console.warn("สลับไปใช้เมาส์เนื่องจากปัญหากล้อง:", error.message);
+        
+        handStatus.innerText = "ไม่พบกล้อง (ใช้เมาส์/สัมผัสแทน) 🖱️";
+        handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 px-6 py-2 rounded-full text-white bg-red-500/90 font-bold shadow-lg";
+        inputMode = 'mouse';
+        
+        setTimeout(() => {
+            handStatus.classList.add('hidden');
+        }, 5000);
+    }
+}
+
+function onHandResults(results) {
+    if (currentState !== GAME_STATE.INSTRUCTIONS && currentState !== GAME_STATE.PLAYING) return;
+
+    if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        if (!handFound) {
+            handFound = true;
+            document.getElementById('hand-status').classList.add('hidden');
+        }
+        
+        inputMode = 'ar';
+        const landmarks = results.multiHandLandmarks[0];
+        
+        const indexTip = landmarks[8];
+        const thumbTip = landmarks[4];
+
+        const ix = (1 - indexTip.x) * canvas.width;
+        const iy = indexTip.y * canvas.height;
+        const tx = (1 - thumbTip.x) * canvas.width;
+        const ty = thumbTip.y * canvas.height;
+
+        cursor.x = (ix + tx) / 2;
+        cursor.y = (iy + ty) / 2;
+
+        const dx = (ix - tx) / canvas.width;
+        const dy = (iy - ty) / canvas.height;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+
+        if (!cursor.isPinching && dist < PINCH_THRESHOLD_IN) {
+            cursor.isPinching = true;
+            handlePinchStart();
+        } else if (cursor.isPinching && dist > PINCH_THRESHOLD_OUT) {
+            cursor.isPinching = false;
+            handlePinchEnd();
+        }
+
+    } else {
+        if (handFound) {
+            handFound = false;
+            const handStatus = document.getElementById('hand-status');
+            handStatus.className = "absolute top-4 left-1/2 -translate-x-1/2 glass px-6 py-2 rounded-full text-yellow-300 font-bold animate-pulse";
+            handStatus.innerText = "กำลังหามือของคุณ... ✋";
+            handStatus.classList.remove('hidden');
+        }
+        if (cursor.isPinching) {
+            cursor.isPinching = false;
+            handlePinchEnd();
+        }
+    }
+}
+
+/**
+ * --- FALLBACK MOUSE/TOUCH INPUT ---
+ */
+function setupInputListeners() {
+    const handleMove = (e) => {
+        if (inputMode === 'ar') return;
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+        cursor.x = clientX;
+        cursor.y = clientY;
+    };
+
+    const handleDown = (e) => {
+        if (inputMode === 'ar') return;
+        inputMode = 'mouse';
+        handleMove(e);
+        cursor.isPinching = true;
+        handlePinchStart();
+    };
+
+    const handleUp = (e) => {
+        if (inputMode === 'ar') return;
+        cursor.isPinching = false;
+        handlePinchEnd();
+    };
+
+    canvas.addEventListener('mousemove', handleMove);
+    canvas.addEventListener('mousedown', handleDown);
+    window.addEventListener('mouseup', handleUp);
+    
+    canvas.addEventListener('touchmove', handleMove, {passive: false});
+    canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleDown(e); }, {passive: false});
+    window.addEventListener('touchend', handleUp);
+}
+
+/**
+ * --- EVENT HANDLERS ---
+ */
+function setupDOMEventListeners() {
+    document.getElementById('btn-start').addEventListener('click', async () => {
+        await Tone.start();
+        initAudio();
+        document.getElementById('screen-start').classList.add('opacity-0');
+        setTimeout(() => {
+            document.getElementById('screen-start').classList.add('hidden');
+            showInstructions();
+        }, 500);
+        initMediaPipe();
+    });
+
+    document.getElementById('btn-show-results').addEventListener('click', showPodium);
+    document.getElementById('btn-restart').addEventListener('click', resetGame);
+    
+    document.getElementById('btn-next-team').addEventListener('click', () => {
+        document.getElementById('screen-next-team').classList.add('hidden');
+        document.getElementById('screen-next-team').classList.remove('flex');
+        
+        currentQuestionIndex++;
+        currentTeam = (currentTeam + 1) % NUM_TEAMS;
+        loadQuestion(currentQuestionIndex);
+    });
+}
+
+/**
+ * --- GAME STATE TRANSITIONS ---
+ */
+function showInstructions() {
+    currentState = GAME_STATE.INSTRUCTIONS;
+    document.getElementById('screen-instruction').classList.remove('hidden');
+    document.getElementById('screen-instruction').classList.add('flex');
+    
+    arStartButton = {
+        w: 300, h: 100,
+        text: "เริ่มเกม! (จีบที่นี่)",
+        color: "#10b981",
+        hoverColor: "#34d399"
+    };
+    updateEntityLayouts();
+}
+
+function startGame() {
+    currentState = GAME_STATE.PLAYING;
+    document.getElementById('screen-instruction').classList.add('hidden');
+    document.getElementById('screen-instruction').classList.remove('flex');
+    document.getElementById('game-hud').classList.remove('hidden');
+    
+    for (let i = questionsData.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [questionsData[i], questionsData[j]] = [questionsData[j], questionsData[i]];
+    }
+    
+    currentQuestionIndex = 0;
+    currentTeam = 0;
+    teamScores = [0, 0, 0, 0];
+    updateScoreUI();
+    
+    loadQuestion(currentQuestionIndex);
+}
+
+function loadQuestion(index) {
+    if (index >= questionsData.length) {
+        endGame();
+        return;
+    }
+
+    currentState = GAME_STATE.PLAYING;
+    const q = questionsData[index];
+    currentQText = q.text;
+    timer = TIME_PER_QUESTION;
+    
+    updateScoreUI();
+
+    const cardW = 200;
+    const cardH = 250;
+    const yPos = canvas.height * 0.6;
+    
+    cards = [
+        { 
+            id: 'rational', text: "ตรรกยะ", value: "rational", 
+            x: canvas.width * 0.25 - cardW/2, y: yPos, 
+            baseX: canvas.width * 0.25 - cardW/2, baseY: yPos,
+            w: cardW, h: cardH, color: "#3b82f6" 
+        },
+        { 
+            id: 'irrational', text: "อตรรกยะ", value: "irrational", 
+            x: canvas.width * 0.75 - cardW/2, y: yPos, 
+            baseX: canvas.width * 0.75 - cardW/2, baseY: yPos,
+            w: cardW, h: cardH, color: "#ef4444" 
+        }
+    ];
+
+    updateEntityLayouts();
+}
+
+function checkAnswer() {
+    if (!activeCard) return;
+    
+    const cardCenter = {
+        x: activeCard.x + activeCard.w / 2,
+        y: activeCard.y + activeCard.h / 2
+    };
+
+    if (cardCenter.x > dropZone.x && cardCenter.x < dropZone.x + dropZone.w &&
+        cardCenter.y > dropZone.y && cardCenter.y < dropZone.y + dropZone.h) {
+        
+        const q = questionsData[currentQuestionIndex];
+        
+        if (activeCard.value === q.ans) {
+            teamScores[currentTeam]++;
+            playCorrect();
+            createParticles(dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2, '#4ade80');
+            feedbackText = "คุณตอบถูก!";
+            feedbackColor = "#4ade80"; // Green
+        } else {
+            playWrong();
+            createParticles(dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2, '#f87171');
+            feedbackText = "คุณตอบผิด!";
+            feedbackColor = "#f87171"; // Red
+        }
+        
+        nextTurn();
+    } else {
+        activeCard.x = activeCard.baseX;
+        activeCard.y = activeCard.baseY;
+        playDrop();
+    }
+    
+    activeCard = null;
+}
+
+function timeOut() {
+    playWrong();
+    feedbackText = "หมดเวลา!";
+    feedbackColor = "#facc15"; // Yellow
+    nextTurn();
+}
+
+function nextTurn() {
+    currentState = GAME_STATE.QUESTION_TRANSITION;
+    cards = [];
+    
+    setTimeout(() => {
+        if (currentQuestionIndex >= questionsData.length - 1) {
+            endGame();
+        } else {
+            showNextTeamScreen();
+        }
+    }, 1500);
+}
+
+function showNextTeamScreen() {
+    currentState = GAME_STATE.WAITING_NEXT_TEAM;
+    document.getElementById('screen-next-team').classList.remove('hidden');
+    document.getElementById('screen-next-team').classList.add('flex');
+    
+    const nextTeamIdx = (currentTeam + 1) % NUM_TEAMS;
+    document.getElementById('next-team-name').innerText = `ตัวแทน ทีมที่ ${nextTeamIdx + 1} ก้าวออกมา!`;
+}
+
+function endGame() {
+    currentState = GAME_STATE.GAME_OVER;
+    document.getElementById('game-hud').classList.add('hidden');
+    
+    const endScreen = document.getElementById('screen-end');
+    endScreen.classList.remove('hidden');
+    endScreen.classList.add('flex');
+    setTimeout(() => endScreen.classList.remove('opacity-0'), 50);
+}
+
+function showPodium() {
+    playFanfare();
+    
+    document.getElementById('screen-end').classList.add('hidden');
+    document.getElementById('screen-podium').classList.remove('hidden');
+    document.getElementById('screen-podium').classList.add('flex');
+
+    const container = document.getElementById('podium-container');
+    container.innerHTML = '';
+
+    let teamData = teamScores.map((score, index) => {
+        let finalScore = score * 4; 
+        let grade, color;
+        if (finalScore >= 18) { grade = 'A'; color = 'bg-green-500'; }
+        else if (finalScore >= 15) { grade = 'B'; color = 'bg-blue-500'; }
+        else if (finalScore >= 11) { grade = 'C'; color = 'bg-yellow-500'; }
+        else { grade = 'D'; color = 'bg-red-500'; }
+        
+        return { name: `ทีม ${index + 1}`, score: finalScore, grade: grade, color: color, id: index };
+    });
+
+    let sortedData = [...teamData].sort((a, b) => b.score - a.score);
+    const positions = [1, 0, 2, 3]; 
+    
+    let displayData = [];
+    for(let i=0; i<4; i++) {
+        if(sortedData[positions[i]]) {
+            displayData.push({rank: positions[i]+1, ...sortedData[positions[i]]});
+        }
+    }
+
+    displayData.forEach((team, index) => {
+        const heightPercent = 20 + (team.score / 20) * 80;
+        const isWinner = team.rank === 1;
+
+        const el = document.createElement('div');
+        el.className = `flex flex-col items-center podium-bar w-1/4 max-w-[120px]`;
+        el.style.animationDelay = `${index * 0.2}s`;
+        
+        el.innerHTML = `
+            <div class="mb-4 text-center">
+                <div class="text-3xl font-bold text-white shadow-lg ${isWinner ? 'text-yellow-400 text-5xl mb-2' : ''}">${team.score}</div>
+                <div class="text-xl font-bold px-3 py-1 rounded-full bg-white/20 text-${team.color.replace('bg-', '')}">${team.grade}</div>
+            </div>
+            <div class="${team.color} w-full rounded-t-xl border-t-2 border-white/50 relative flex items-start justify-center shadow-[0_0_30px_rgba(255,255,255,0.2)]" style="height: ${heightPercent}px">
+                ${isWinner ? '<div class="absolute -top-10 text-4xl animate-bounce">👑</div>' : ''}
+                <div class="mt-4 font-bold text-white text-lg sm:text-2xl">${team.name}</div>
+            </div>
+        `;
+        container.appendChild(el);
+    });
+}
+
+function resetGame() {
+    document.getElementById('screen-podium').classList.add('hidden');
+    document.getElementById('screen-podium').classList.remove('flex');
+    document.getElementById('screen-start').classList.remove('hidden');
+    document.getElementById('screen-start').classList.remove('opacity-0');
+    
+    document.getElementById('screen-next-team').classList.add('hidden');
+    document.getElementById('screen-next-team').classList.remove('flex');
+    
+    currentState = GAME_STATE.START;
+}
+
+/**
+ * --- PHYSICS & INTERACTION LOGIC ---
+ */
+function handlePinchStart() {
+    playGrab();
+
+    if (currentState === GAME_STATE.INSTRUCTIONS && arStartButton) {
+        if (hitTest(cursor.x, cursor.y, arStartButton)) {
+            startGame();
+            return;
+        }
+    }
+
+    if (currentState === GAME_STATE.PLAYING) {
+        for (let card of cards) {
+            if (hitTest(cursor.x, cursor.y, card)) {
+                activeCard = card;
+                dragOffset.x = card.x - cursor.x;
+                dragOffset.y = card.y - cursor.y;
+                return;
+            }
+        }
+    }
+}
+
+function handlePinchEnd() {
+    if (currentState === GAME_STATE.PLAYING && activeCard) {
+        checkAnswer();
+    }
+}
+
+function hitTest(px, py, rect) {
+    return px >= rect.x && px <= rect.x + rect.w &&
+           py >= rect.y && py <= rect.y + rect.h;
+}
+
+function updateEntityLayouts() {
+    dropZone = {
+        w: Math.min(600, canvas.width * 0.8),
+        h: 150
+    };
+    dropZone.x = canvas.width / 2 - dropZone.w / 2;
+    dropZone.y = canvas.height * 0.25;
+
+    if (arStartButton) {
+        arStartButton.x = canvas.width / 2 - arStartButton.w / 2;
+        arStartButton.y = canvas.height * 0.7;
+    }
+}
+
+function updateScoreUI() {
+    for (let i=0; i<NUM_TEAMS; i++) {
+        const el = document.getElementById(`score-t${i}`);
+        if(el) {
+            el.querySelector('span').innerText = teamScores[i];
+            if (i === currentTeam) {
+                el.className = "text-yellow-300 transform scale-110 transition-all font-bold";
+            } else {
+                el.className = "text-gray-400";
+            }
+        }
+    }
+}
+
+/**
+ * --- GAME LOOP & RENDERING ---
+ */
+function update(dt) {
+    cursor.drawX += (cursor.x - cursor.drawX) * 0.3;
+    cursor.drawY += (cursor.y - cursor.drawY) * 0.3;
+
+    if (cursor.isPinching) {
+        if (activeCard || (currentState===GAME_STATE.INSTRUCTIONS && hitTest(cursor.x,cursor.y,arStartButton))) {
+            cursor.state = 'grabbed';
+        } else {
+            cursor.state = 'missed';
+        }
+    } else {
+        let hovering = false;
+        if (currentState === GAME_STATE.PLAYING) {
+            hovering = cards.some(c => hitTest(cursor.x, cursor.y, c));
+        } else if (currentState === GAME_STATE.INSTRUCTIONS) {
+            hovering = hitTest(cursor.x, cursor.y, arStartButton);
+        }
+        cursor.state = hovering ? 'hover' : 'normal';
+    }
+
+    if (currentState === GAME_STATE.PLAYING) {
+        if (activeCard && cursor.isPinching) {
+            activeCard.x = cursor.x + dragOffset.x;
+            activeCard.y = cursor.y + dragOffset.y;
+        }
+
+        timer -= dt;
+        if (timer <= 0) {
+            timer = 0;
+            timeOut();
+        }
+        document.getElementById('timer-display').innerText = Math.ceil(timer);
+        if (timer <= 3) document.getElementById('timer-display').classList.add('text-red-500');
+        else document.getElementById('timer-display').classList.remove('text-red-500');
+        
+        if (Math.ceil(timer) !== Math.ceil(timer + dt) && timer <= 3 && timer > 0) {
+            playTick();
+        }
+    }
+
+    updateParticles(dt);
+}
+
+function render() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (currentState === GAME_STATE.INSTRUCTIONS && arStartButton) {
+        const isHover = hitTest(cursor.x, cursor.y, arStartButton);
+        ctx.fillStyle = isHover ? arStartButton.hoverColor : arStartButton.color;
+        drawRoundRect(ctx, arStartButton.x, arStartButton.y, arStartButton.w, arStartButton.h, 25);
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = "rgba(255,255,255,0.5)";
+        ctx.stroke();
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 28px Prompt";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(arStartButton.text, arStartButton.x + arStartButton.w/2, arStartButton.y + arStartButton.h/2);
+    }
+
+    if (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.QUESTION_TRANSITION) {
+        const inZone = activeCard && hitTest(activeCard.x + activeCard.w/2, activeCard.y + activeCard.h/2, dropZone);
+        
+        ctx.save();
+        ctx.shadowBlur = inZone ? 30 : 15;
+        ctx.shadowColor = inZone ? "#0fa" : "#0ff";
+        ctx.strokeStyle = inZone ? "#0fa" : "rgba(0, 255, 255, 0.6)";
+        ctx.lineWidth = 4;
+        ctx.setLineDash([15, 10]);
+        drawRoundRect(ctx, dropZone.x, dropZone.y, dropZone.w, dropZone.h, 20);
+        ctx.stroke();
+        ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+        ctx.fill();
+        ctx.restore();
+
+        ctx.fillStyle = "rgba(255,255,255,0.8)";
+        ctx.font = "20px Prompt";
+        ctx.textAlign = "center";
+        ctx.fillText("ลากคำตอบมาวางที่นี่", dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 + 40);
+
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 60px Prompt";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#fff";
+        
+        let displayQ = currentQText;
+        ctx.fillText(displayQ, dropZone.x + dropZone.w/2, dropZone.y + dropZone.h/2 - 10);
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#fef08a";
+        ctx.font = "bold 24px Prompt";
+        ctx.fillText(`ตาของ: ทีม ${currentTeam + 1}`, dropZone.x + dropZone.w/2, dropZone.y - 30);
+
+        for (let card of cards) {
+            ctx.save();
+            ctx.shadowBlur = 20;
+            ctx.shadowColor = "rgba(0,0,0,0.5)";
+            
+            ctx.fillStyle = card.color;
+            ctx.globalAlpha = 0.9;
+            if (activeCard === card) {
+                ctx.globalAlpha = 1.0;
+                ctx.shadowColor = card.color;
+                ctx.translate(card.x + card.w/2, card.y + card.h/2);
+                ctx.scale(1.05, 1.05);
+                ctx.translate(-(card.x + card.w/2), -(card.y + card.h/2));
+            }
+
+            drawRoundRect(ctx, card.x, card.y, card.w, card.h, 15);
+            ctx.fill();
+
+            ctx.fillStyle = "rgba(255,255,255,0.2)";
+            ctx.beginPath();
+            ctx.arc(card.x + card.w*0.8, card.y + card.h*0.2, card.w*0.5, 0, Math.PI*2);
+            ctx.clip();
+            drawRoundRect(ctx, card.x, card.y, card.w, card.h, 15);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.fillStyle = "#fff";
+            ctx.font = "bold 36px Prompt";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+            ctx.fillText(card.text, card.x + card.w/2, card.y + card.h/2);
+        }
+    }
+
+    if (currentState === GAME_STATE.QUESTION_TRANSITION) {
+        ctx.fillStyle = "rgba(0,0,0,0.7)";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        
+        // วาดข้อความผลลัพธ์ (Feedback)
+        ctx.fillStyle = feedbackColor;
+        ctx.font = "bold 80px Prompt";
+        ctx.textAlign = "center";
+        ctx.shadowBlur = 20;
+        ctx.shadowColor = feedbackColor;
+        ctx.fillText(feedbackText, canvas.width/2, canvas.height/2 - 40);
+        ctx.shadowBlur = 0; // Reset
+        
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 30px Prompt";
+        ctx.textAlign = "center";
+        ctx.fillText("เตรียมตัว...", canvas.width/2, canvas.height/2 + 60);
+    }
+
+    drawParticles();
+    drawCursor();
+}
+
+function drawCursor() {
+    if (currentState === GAME_STATE.START || currentState === GAME_STATE.GAME_OVER || currentState === GAME_STATE.PODIUM || currentState === GAME_STATE.WAITING_NEXT_TEAM) return;
+
+    ctx.save();
+    ctx.translate(cursor.drawX, cursor.drawY);
+    
+    ctx.lineWidth = 4;
+    ctx.setLineDash([]);
+
+    if (cursor.state === 'normal') {
+        ctx.strokeStyle = "#60a5fa";
+        ctx.fillStyle = "rgba(96, 165, 250, 0.3)";
+        ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    } 
+    else if (cursor.state === 'hover') {
+        ctx.strokeStyle = "#facc15";
+        ctx.setLineDash([8, 4]);
+        ctx.beginPath(); ctx.arc(0, 0, 25, 0, Math.PI*2); ctx.stroke();
+    }
+    else if (cursor.state === 'missed') {
+        ctx.strokeStyle = "#ef4444";
+        ctx.fillStyle = "rgba(239, 68, 68, 0.5)";
+        ctx.beginPath(); ctx.arc(0, 0, 15, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    }
+    else if (cursor.state === 'grabbed') {
+        ctx.strokeStyle = "#22c55e";
+        ctx.fillStyle = "rgba(34, 197, 94, 0.6)";
+        ctx.beginPath(); ctx.arc(0, 0, 20, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+        
+        ctx.fillStyle = "#fff";
+        ctx.font = "20px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("✔️", 0, 0);
+    }
+
+    ctx.restore();
+}
+
+let particles = [];
+function createParticles(x, y, color) {
+    for(let i=0; i<30; i++) {
+        particles.push({
+            x: x, y: y,
+            vx: (Math.random() - 0.5) * 10,
+            vy: (Math.random() - 0.5) * 10,
+            life: 1.0,
+            color: color
+        });
+    }
+}
+function updateParticles(dt) {
+    for(let i = particles.length - 1; i >= 0; i--) {
+        let p = particles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.2;
+        p.life -= dt * 1.5;
+        if(p.life <= 0) particles.splice(i, 1);
+    }
+}
+function drawParticles() {
+    particles.forEach(p => {
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1.0;
+}
+
+function drawRoundRect(ctx, x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+}
+
+/**
+ * --- MAIN LOOP ---
+ */
+function gameLoop(now) {
+    const dt = (now - lastTime) / 1000;
+    lastTime = now;
+    
+    if (dt < 0.1) {
+        update(dt);
+        render();
+    }
+    
+    animationFrameId = requestAnimationFrame(gameLoop);
+}
+
+window.onload = init;
+
+</script>
+</body>
+</html>

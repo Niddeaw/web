@@ -1,0 +1,830 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AR Game: ความฉลาดทางอารมณ์ (EQ)</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- MediaPipe -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <!-- Tone.js for Sound -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        /* ป้องกันการลากจอ, ซูม, และ Pull-to-refresh บนมือถือ */
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #1a1a2e; 
+            font-family: 'Sarabun', sans-serif; 
+            user-select: none; 
+            touch-action: none; 
+            overscroll-behavior: none; 
+        }
+        
+        /* ซ่อนวิดีโอแต่ยังประมวลผลได้ */
+        #videoElement { 
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; 
+            object-fit: cover; transform: scaleX(-1); z-index: 1; 
+            opacity: 0; pointer-events: none; 
+        }
+        
+        #gameCanvas { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; z-index: 10; }
+        
+        /* Glassmorphism UI */
+        .glass {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        
+        #uiLayer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 20; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .interactive-btn { pointer-events: auto; cursor: pointer; transition: transform 0.2s; }
+        .interactive-btn:hover { transform: scale(1.05); }
+        .interactive-btn:active { transform: scale(0.95); }
+
+        .team-score { font-size: 1.5rem; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.5); }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <!-- Camera Video -->
+    <video id="videoElement" autoplay playsinline></video>
+    
+    <!-- Fullscreen Button -->
+    <button id="btnFullscreen" class="interactive-btn absolute top-4 right-4 z-50 bg-black/50 hover:bg-black/80 text-white p-2 md:p-3 rounded-full backdrop-blur-md border border-white/30 transition-all">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>
+    </button>
+
+    <!-- Main Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay Layer -->
+    <div id="uiLayer" class="px-4">
+        <!-- Start Screen -->
+        <div id="startScreen" class="glass rounded-2xl p-6 md:p-8 text-center text-white max-w-lg w-full mx-auto pointer-events-auto">
+            <h1 class="text-3xl md:text-4xl font-bold mb-4 text-blue-300">วิชาแนะแนว: EQ Master</h1>
+            <p class="mb-4 md:mb-6 text-base md:text-lg">ทดสอบความฉลาดทางอารมณ์ของคุณผ่าน AR<br>เล่นเป็นทีม 3 ทีม ทีมละ 3 คน</p>
+            <div class="mb-4 text-sm text-yellow-300 bg-black/30 p-4 rounded-lg text-left">
+                🎮 <b>วิธีเล่น:</b><br>
+                1. ฟันผลไม้สะสมคะแนน (30 วินาที)<br>
+                2. ตอบคำถาม EQ ด้วยการใช้มือ "จีบ" (Pinch) ลากคำตอบไปใส่กล่อง (10 วินาที)<br>
+                👉 <i>หากกล้องยังไม่เปิด สามารถใช้ "เมาส์" ลาก/คลิกแทนได้เลย</i>
+            </div>
+            <button id="btnStartGame" class="interactive-btn bg-gradient-to-r from-green-400 to-blue-500 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg mt-2 w-full md:w-auto">
+                เข้าสู่เกม (Start)
+            </button>
+        </div>
+
+        <!-- Next Turn Screen -->
+        <div id="nextTurnScreen" class="glass rounded-2xl p-8 text-center text-white hidden pointer-events-auto">
+            <h2 class="text-3xl font-bold mb-2 text-yellow-300" id="turnTitle">ทีมที่ 1 : ผู้เล่นคนที่ 1</h2>
+            <p class="mb-6 text-xl">เตรียมตัวฟันผลไม้ 30 วินาที!</p>
+            <button id="btnNextTurn" class="interactive-btn bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-full text-xl shadow-lg">
+                พร้อมแล้ว ลุย! (คลิก/สัมผัส)
+            </button>
+        </div>
+
+        <!-- End Game Button -->
+        <div id="endGameScreen" class="glass rounded-2xl p-8 text-center text-white hidden pointer-events-auto">
+            <h2 class="text-4xl font-bold mb-6 text-yellow-400">จบการแข่งขัน!</h2>
+            <button id="btnShowResults" class="interactive-btn bg-gradient-to-r from-purple-500 to-pink-500 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-[0_0_20px_rgba(236,72,153,0.8)] animate-pulse">
+                ดูผลการแข่งขัน 🏆
+            </button>
+        </div>
+
+        <!-- Podium Screen -->
+        <div id="podiumScreen" class="glass rounded-2xl p-4 md:p-8 text-center text-white hidden w-11/12 max-w-4xl h-5/6 flex-col justify-between pointer-events-auto overflow-y-auto">
+            <h2 class="text-3xl md:text-5xl font-bold text-yellow-300 drop-shadow-lg mt-4">ประกาศผลรางวัล!</h2>
+            
+            <div class="flex justify-center items-end h-64 gap-2 md:gap-4 mt-10" id="podiumContainer">
+                <!-- Generated by JS -->
+            </div>
+            
+            <button id="btnRestart" class="interactive-btn bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-full text-xl mx-auto mt-8 mb-4 w-48 shadow-lg">
+                เริ่มเกมใหม่
+            </button>
+        </div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud" class="absolute top-0 left-0 w-full p-2 md:p-4 flex flex-col md:flex-row justify-between items-center pointer-events-none z-10 hidden gap-2 mt-2 md:mt-0">
+        <div class="flex gap-3 md:gap-6 glass px-4 md:px-6 py-2 rounded-full text-white text-sm md:text-base w-[90%] md:w-auto justify-center">
+            <div class="team-score text-red-400">ทีม 1: <span id="score1">0</span></div>
+            <div class="team-score text-blue-400">ทีม 2: <span id="score2">0</span></div>
+            <div class="team-score text-green-400">ทีม 3: <span id="score3">0</span></div>
+        </div>
+        <div class="glass px-4 md:px-6 py-2 rounded-full text-white text-lg md:text-xl font-bold">
+            เวลา: <span id="timerDisplay" class="text-yellow-300">30</span>s
+        </div>
+    </div>
+
+    <script>
+        // --- 1. Sound System (Tone.js) ---
+        const Sound = {
+            ready: false,
+            init: async () => {
+                try {
+                    await Tone.start();
+                    Sound.ready = true;
+                } catch (e) {
+                    console.log("Audio API not ready yet.");
+                }
+            },
+            playSlice: () => { if(Sound.ready) new Tone.Synth({oscillator:{type:'triangle'}}).toDestination().triggerAttackRelease("C6", "32n", "+0", 0.3); },
+            playBomb: () => { if(Sound.ready) new Tone.MembraneSynth().toDestination().triggerAttackRelease("C1", "8n"); },
+            playGrab: () => { if(Sound.ready) new Tone.Synth().toDestination().triggerAttackRelease("G4", "16n"); },
+            playDrop: () => { if(Sound.ready) new Tone.Synth().toDestination().triggerAttackRelease("E4", "16n"); },
+            playCorrect: () => { if(Sound.ready) new Tone.PolySynth().toDestination().triggerAttackRelease(["C4", "E4", "G4", "C5"], "4n"); },
+            playWrong: () => { if(Sound.ready) new Tone.Synth({oscillator:{type:'sawtooth'}}).toDestination().triggerAttackRelease("G2", "4n"); },
+            playFanfare: () => {
+                if(!Sound.ready) return;
+                const synth = new Tone.PolySynth().toDestination();
+                const now = Tone.now();
+                synth.triggerAttackRelease(["C4","E4","G4"], "8n", now);
+                synth.triggerAttackRelease(["C4","E4","G4"], "8n", now + 0.2);
+                synth.triggerAttackRelease(["C4","E4","G4"], "8n", now + 0.4);
+                synth.triggerAttackRelease(["C4","F4","A4","C5"], "2n", now + 0.6);
+            }
+        };
+
+        // --- 2. Game Data & State ---
+        const questionsDB = [
+            { q: "เมื่อถูกเพื่อนล้อ คุณจะ...", choices: ["โกรธทันที", "ควบคุมอารมณ์", "ล้อกลับ"], ans: 1 },
+            { q: "เมื่อผิดหวัง คุณควร...", choices: ["ยอมแพ้", "เรียนรู้จากมัน", "โทษคนอื่น"], ans: 1 },
+            { q: "หากเพื่อนเศร้า คุณจะ...", choices: ["รับฟัง", "เมินเฉย", "หัวเราะ"], ans: 0 },
+            { q: "เมื่อโกรธมาก ควร...", choices: ["ตะโกน", "ตั้งสติ", "ทำลายของ"], ans: 1 },
+            { q: "การรู้เท่าทันอารมณ์ตนเองคือ...", choices: ["EQ", "IQ", "GPA"], ans: 0 },
+            { q: "หากมีคนเห็นต่าง ควร...", choices: ["รับฟัง", "เถียงทันที", "ไม่คุยด้วย"], ans: 0 },
+            { q: "เมื่อทำผิด ควร...", choices: ["ยอมรับ", "ปฏิเสธ", "โทษคนอื่น"], ans: 0 },
+            { q: "หากเครียด ควร...", choices: ["พักผ่อน", "เก็บกด", "ระบายใส่คนอื่น"], ans: 0 },
+            { q: "คนที่มี EQ ดี มัก...", choices: ["เข้าใจผู้อื่น", "เอาแต่ใจ", "โมโหง่าย"], ans: 0 },
+            { q: "เมื่อถูกวิจารณ์ ควร...", choices: ["รับฟัง", "โกรธ", "หนี"], ans: 0 }
+        ];
+
+        let questions = []; 
+        let currentQuestion = null;
+
+        const GameState = { INIT: 0, READY_TURN: 1, FRUIT_NINJA: 2, QUIZ: 3, EVALUATE: 4, END: 5, PODIUM: 6 };
+
+        const state = {
+            gameState: GameState.INIT,
+            teams: 3,
+            playersPerTeam: 3,
+            currentTurnIndex: 0, 
+            scores: [0, 0, 0],
+            timeLeft: 0,
+            
+            // Input
+            cursorX: window.innerWidth / 2,
+            cursorY: window.innerHeight / 2,
+            prevCursorX: window.innerWidth / 2,
+            prevCursorY: window.innerHeight / 2,
+            isPinching: false,
+            wasPinching: false,
+            handDetected: false,
+            
+            // Fruit Ninja
+            fruits: [],
+            fruitSpawnTimer: 0,
+            sliceTrail: [],
+
+            // Quiz
+            cards: [],
+            dropZone: { x: 0, y: 0, w: 400, h: 100 },
+            draggedCard: null
+        };
+
+        // --- 3. Setup Canvas ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        function resize() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            const isMobile = canvas.width < 768;
+            state.dropZone.w = isMobile ? canvas.width * 0.8 : 400;
+            state.dropZone.h = isMobile ? 80 : 100;
+            state.dropZone.x = (canvas.width - state.dropZone.w) / 2;
+            state.dropZone.y = isMobile ? 120 : 80;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Cross-browser Fullscreen ---
+        document.getElementById('btnFullscreen').addEventListener('click', () => {
+            const docEl = document.documentElement;
+            try {
+                if (!document.fullscreenElement && !document.mozFullScreenElement && !document.webkitFullscreenElement && !document.msFullscreenElement) {
+                    if (docEl.requestFullscreen) { 
+                        const p = docEl.requestFullscreen();
+                        if (p) p.catch(err => console.warn("Fullscreen blocked:", err));
+                    } 
+                    else if (docEl.msRequestFullscreen) { docEl.msRequestFullscreen(); } 
+                    else if (docEl.mozRequestFullScreen) { docEl.mozRequestFullScreen(); } 
+                    else if (docEl.webkitRequestFullscreen) { docEl.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT); }
+                } else {
+                    if (document.exitFullscreen) { 
+                        const p = document.exitFullscreen();
+                        if (p) p.catch(err => console.warn("Exit fullscreen blocked:", err));
+                    } 
+                    else if (document.msExitFullscreen) { document.msExitFullscreen(); } 
+                    else if (document.mozCancelFullScreen) { document.mozCancelFullScreen(); } 
+                    else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+                }
+            } catch (err) {
+                console.warn("Fullscreen API error:", err);
+            }
+        });
+
+        // --- 4. Input Handling (Mouse/Touch Fallback) ---
+        function updateCursor(x, y) {
+            state.prevCursorX = state.cursorX;
+            state.prevCursorY = state.cursorY;
+            state.cursorX = x;
+            state.cursorY = y;
+            state.handDetected = true; 
+        }
+
+        canvas.addEventListener('mousemove', (e) => updateCursor(e.clientX, e.clientY));
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            updateCursor(e.touches[0].clientX, e.touches[0].clientY);
+        }, {passive: false});
+
+        const downEvent = (e) => { 
+            // ให้กดเมาส์บน UI ได้ปกติ
+            if(e.target.closest('.interactive-btn')) return; 
+            state.isPinching = true; 
+        };
+        const upEvent = () => { state.isPinching = false; };
+        
+        canvas.addEventListener('mousedown', downEvent);
+        canvas.addEventListener('mouseup', upEvent);
+        canvas.addEventListener('touchstart', downEvent, {passive: false});
+        canvas.addEventListener('touchend', upEvent);
+
+        // --- 5. MediaPipe Hands (AR) ---
+        const videoElement = document.getElementById('videoElement');
+        let cameraReady = false;
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7, minTrackingConfidence: 0.7 });
+
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                state.handDetected = true;
+                const landmarks = results.multiHandLandmarks[0];
+                const indexTip = landmarks[8];
+                const thumbTip = landmarks[4];
+                
+                const screenX = (1 - indexTip.x) * canvas.width;
+                const screenY = indexTip.y * canvas.height;
+                updateCursor(screenX, screenY);
+
+                const dx = indexTip.x - thumbTip.x;
+                const dy = indexTip.y - thumbTip.y;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+
+                if (!state.isPinching && distance < 0.05) state.isPinching = true;
+                else if (state.isPinching && distance > 0.08) state.isPinching = false;
+            } else {
+                state.handDetected = false;
+                state.isPinching = false;
+            }
+        });
+
+        const camera = new Camera(videoElement, {
+            onFrame: async () => { await hands.send({image: videoElement}); },
+            width: 640, height: 480
+        });
+
+        // --- 6. UI Logic ---
+        document.getElementById('btnStartGame').addEventListener('click', async () => {
+            // 1. Initialize Sound (Requires user gesture)
+            Sound.init();
+            
+            // 2. ข้ามไปเริ่มเกมเลย (ไม่ต้องรอกล้องโหลด AI เสร็จ)
+            startGameFlow();
+
+            // 3. เริ่มโหลดกล้องเป็น Background
+            if(!cameraReady) {
+                camera.start().then(() => {
+                    cameraReady = true;
+                }).catch(err => {
+                    console.warn("ไม่สามารถเข้าถึงกล้องได้ ระบบจะใช้เมาส์แทน", err);
+                });
+            }
+        });
+
+        function startGameFlow() {
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('hud').classList.remove('hidden');
+            questions = [...questionsDB].sort(() => Math.random() - 0.5);
+            startTurn();
+        }
+
+        document.getElementById('btnNextTurn').addEventListener('click', () => {
+            document.getElementById('nextTurnScreen').classList.add('hidden');
+            startFruitNinja();
+        });
+
+        document.getElementById('btnShowResults').addEventListener('click', () => {
+            document.getElementById('endGameScreen').classList.add('hidden');
+            document.getElementById('hud').classList.add('hidden');
+            showPodium();
+        });
+
+        document.getElementById('btnRestart').addEventListener('click', () => { location.reload(); });
+
+        function updateHUD() {
+            document.getElementById('score1').innerText = state.scores[0];
+            document.getElementById('score2').innerText = state.scores[1];
+            document.getElementById('score3').innerText = state.scores[2];
+            document.getElementById('timerDisplay').innerText = Math.ceil(Math.max(0, state.timeLeft));
+            
+            const team = state.currentTurnIndex % 3;
+            document.querySelectorAll('.team-score').forEach((el, idx) => {
+                if(idx === team) el.classList.add('scale-125', 'underline');
+                else el.classList.remove('scale-125', 'underline');
+            });
+        }
+
+        // --- 7. Game Flow Functions ---
+        function startTurn() {
+            if (state.currentTurnIndex >= 9) { 
+                state.gameState = GameState.END;
+                document.getElementById('endGameScreen').classList.remove('hidden');
+                return;
+            }
+            const teamIndex = (state.currentTurnIndex % 3) + 1;
+            const playerIndex = Math.floor(state.currentTurnIndex / 3) + 1;
+            
+            document.getElementById('turnTitle').innerText = `ทีมที่ ${teamIndex} : ผู้เล่นคนที่ ${playerIndex}`;
+            document.getElementById('nextTurnScreen').classList.remove('hidden');
+            state.gameState = GameState.READY_TURN;
+            updateHUD();
+        }
+
+        function startFruitNinja() {
+            state.gameState = GameState.FRUIT_NINJA;
+            state.timeLeft = 30; // 30 seconds limit
+            state.fruits = [];
+            state.sliceTrail = [];
+        }
+
+        function startQuiz() {
+            state.gameState = GameState.QUIZ;
+            state.timeLeft = 10;
+            currentQuestion = questions[state.currentTurnIndex % questions.length];
+            
+            state.cards = [];
+            const isMobile = canvas.width < 768;
+            
+            currentQuestion.choices.forEach((choice, i) => {
+                let cw, ch, cx, cy;
+                if (isMobile) {
+                    cw = canvas.width * 0.85;
+                    ch = 70;
+                    cx = (canvas.width - cw) / 2;
+                    cy = canvas.height - (3 - i) * (ch + 15) - 20; 
+                } else {
+                    const gap = 30;
+                    cw = 250;
+                    ch = 120;
+                    const startX = (canvas.width - (cw * 3 + gap * 2)) / 2;
+                    cx = startX + i * (cw + gap);
+                    cy = canvas.height - 200;
+                }
+                
+                state.cards.push({
+                    id: i, text: choice, w: cw, h: ch,
+                    x: cx, y: cy,
+                    isDragging: false, offsetX: 0, offsetY: 0
+                });
+            });
+        }
+
+        function endTurn() {
+            state.currentTurnIndex++;
+            startTurn();
+        }
+
+        function showPodium() {
+            state.gameState = GameState.PODIUM;
+            document.getElementById('podiumScreen').classList.remove('hidden');
+            document.getElementById('podiumScreen').style.display = 'flex';
+            Sound.playFanfare();
+            
+            const results = [
+                { team: 1, score: state.scores[0], color: 'bg-red-500' },
+                { team: 2, score: state.scores[1], color: 'bg-blue-500' },
+                { team: 3, score: state.scores[2], color: 'bg-green-500' }
+            ].sort((a, b) => b.score - a.score);
+
+            const container = document.getElementById('podiumContainer');
+            container.innerHTML = '';
+            
+            const displayOrder = [results[1], results[0], results[2]];
+            const heights = ['h-32 md:h-40', 'h-48 md:h-64', 'h-20 md:h-24'];
+            const labels = ['อันดับ 2', 'อันดับ 1 👑', 'อันดับ 3'];
+
+            displayOrder.forEach((r, i) => {
+                const pod = document.createElement('div');
+                pod.className = `flex flex-col items-center justify-end w-24 md:w-32 ${i===1 ? 'z-10' : ''}`;
+                pod.innerHTML = `
+                    <div class="text-lg md:text-xl font-bold mb-1 md:mb-2">ทีม ${r.team}</div>
+                    <div class="text-xl md:text-2xl font-black mb-1 md:mb-2 text-yellow-300">${r.score} pt</div>
+                    <div class="${r.color} w-full ${heights[i]} rounded-t-lg border-2 border-white/50 shadow-[0_0_15px_rgba(255,255,255,0.5)] flex items-center justify-center text-white font-bold text-sm md:text-lg flex-col text-center p-1">
+                        ${labels[i]}
+                    </div>
+                `;
+                container.appendChild(pod);
+            });
+        }
+
+        // --- 8. Core Drawing & Logic Loop ---
+        let lastTimestamp = 0;
+        
+        function drawLoop(timestamp) {
+            requestAnimationFrame(drawLoop);
+            
+            const dt = (timestamp - lastTimestamp) / 1000;
+            lastTimestamp = timestamp;
+            if (dt > 0.1) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (cameraReady) {
+                ctx.save();
+                ctx.scale(-1, 1);
+                ctx.drawImage(videoElement, -canvas.width, 0, canvas.width, canvas.height);
+                ctx.restore();
+                ctx.fillStyle = 'rgba(0,0,0,0.5)';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+            } else {
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+            }
+
+            if (state.gameState === GameState.FRUIT_NINJA) {
+                updateAndDrawFruitNinja(dt);
+            } else if (state.gameState === GameState.QUIZ) {
+                updateAndDrawQuiz(dt);
+            } else if (state.gameState === GameState.EVALUATE) {
+                drawQuizBg();
+                state.timeLeft -= dt;
+                if(state.timeLeft <= 0) endTurn();
+            }
+
+            if (state.gameState === GameState.FRUIT_NINJA || state.gameState === GameState.QUIZ || state.gameState === GameState.EVALUATE) {
+                drawCursor();
+            }
+
+            state.wasPinching = state.isPinching;
+        }
+
+        // --- 9. Sub-routines ---
+        function updateAndDrawFruitNinja(dt) {
+            state.timeLeft -= dt;
+            updateHUD();
+
+            if (state.timeLeft <= 0) { startQuiz(); return; }
+
+            state.sliceTrail.push({x: state.cursorX, y: state.cursorY, life: 1.0});
+            for(let i = state.sliceTrail.length-1; i>=0; i--) {
+                state.sliceTrail[i].life -= dt * 5;
+                if(state.sliceTrail[i].life <= 0) state.sliceTrail.splice(i, 1);
+            }
+
+            if (state.sliceTrail.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(state.sliceTrail[0].x, state.sliceTrail[0].y);
+                for(let i = 1; i < state.sliceTrail.length; i++) ctx.lineTo(state.sliceTrail[i].x, state.sliceTrail[i].y);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.shadowBlur = 10;
+                ctx.shadowColor = 'cyan';
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+            }
+
+            state.fruitSpawnTimer -= dt;
+            if (state.fruitSpawnTimer <= 0) {
+                const isBomb = Math.random() < 0.2;
+                const isMobile = canvas.width < 768;
+                const r = isBomb ? (isMobile ? 35 : 45) : (isMobile ? 25 : 30) + Math.random() * (isMobile ? 30 : 40);
+                
+                let emoji = '🍎', pts = 10;
+                if (!isBomb) {
+                    if (r > (isMobile? 50 : 60)) { emoji = '🍉'; pts = 50; }
+                    else if (r > (isMobile? 40 : 50)) { emoji = '🥥'; pts = 30; }
+                    else if (r > (isMobile? 30 : 40)) { emoji = '🍍'; pts = 20; }
+                } else { emoji = '💣'; }
+
+                const margin = Math.min(80, canvas.width * 0.1);
+                state.fruits.push({
+                    x: margin + Math.random() * (canvas.width - 2 * margin),
+                    y: canvas.height + 50,
+                    vx: (Math.random() - 0.5) * (isMobile ? 300 : 500),
+                    vy: (isMobile ? -700 : -900) - Math.random() * 300,
+                    radius: r, isBomb: isBomb, points: pts, emoji: emoji,
+                    sliced: false, rotation: Math.random() * Math.PI, rotSpeed: (Math.random() - 0.5) * 5
+                });
+                state.fruitSpawnTimer = 0.4 + Math.random() * 0.8;
+            }
+
+            const sliceDist = Math.sqrt((state.cursorX - state.prevCursorX)**2 + (state.cursorY - state.prevCursorY)**2);
+            const isSlicing = sliceDist > 8; 
+
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            for (let i = state.fruits.length - 1; i >= 0; i--) {
+                const f = state.fruits[i];
+                if (f.sliced) continue;
+
+                f.x += f.vx * dt;
+                f.vy += 1200 * dt; 
+                f.y += f.vy * dt;
+                f.rotation += f.rotSpeed * dt;
+
+                const distToCursor = Math.sqrt((f.x - state.cursorX)**2 + (f.y - state.cursorY)**2);
+                
+                if (isSlicing && distToCursor < f.radius + 30) {
+                    f.sliced = true;
+                    const teamIdx = state.currentTurnIndex % 3;
+                    if (f.isBomb) {
+                        state.scores[teamIdx] = Math.max(0, state.scores[teamIdx] - 20);
+                        Sound.playBomb();
+                        createParticles(f.x, f.y, '💥');
+                    } else {
+                        state.scores[teamIdx] += f.points;
+                        Sound.playSlice();
+                        createParticles(f.x, f.y, f.emoji); 
+                        showFloatingScore(f.points, f.x, f.y);
+                    }
+                    updateHUD();
+                }
+
+                ctx.save();
+                ctx.translate(f.x, f.y);
+                ctx.rotate(f.rotation);
+                ctx.font = `${f.radius * 2}px Arial`;
+                ctx.fillText(f.emoji, 0, 0);
+                ctx.restore();
+
+                if (!f.isBomb) {
+                    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+                    ctx.font = 'bold 16px Sarabun';
+                    ctx.fillText(f.points, f.x, f.y + f.radius + 10);
+                }
+
+                if (f.y > canvas.height + 100) state.fruits.splice(i, 1);
+            }
+            
+            drawParticles(dt);
+            drawFloatingScores(dt);
+        }
+
+        function drawQuizBg() {
+            const isMobile = canvas.width < 768;
+            ctx.fillStyle = 'rgba(255,255,255,0.9)';
+            ctx.fillRoundRect = function(x, y, w, h, r) {
+                this.beginPath(); this.moveTo(x+r, y); this.lineTo(x+w-r, y); this.quadraticCurveTo(x+w, y, x+w, y+r); this.lineTo(x+w, y+h-r); this.quadraticCurveTo(x+w, y+h, x+w-r, y+h); this.lineTo(x+r, y+h); this.quadraticCurveTo(x, y+h, x, y+h-r); this.lineTo(x, y+r); this.quadraticCurveTo(x, y, x+r, y); this.closePath(); this.fill(); this.stroke();
+            }
+            
+            ctx.shadowColor = 'rgba(0,0,0,0.5)';
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = 'white';
+            ctx.lineWidth = 2;
+            
+            if(state.gameState !== GameState.INIT && state.gameState !== GameState.READY_TURN && state.gameState !== GameState.PODIUM) {
+                 const bgW = isMobile ? canvas.width * 0.9 : 800;
+                 const bgH = isMobile ? 100 : 150;
+                 const bgX = (canvas.width - bgW) / 2;
+                 const bgY = isMobile ? 220 : 220; 
+                 
+                 ctx.fillRoundRect(bgX, bgY, bgW, bgH, 20);
+                 ctx.shadowBlur = 0;
+                 ctx.fillStyle = '#333';
+                 ctx.font = isMobile ? 'bold 22px Sarabun' : 'bold 36px Sarabun';
+                 ctx.textAlign = 'center';
+                 ctx.textBaseline = 'middle';
+                 if(currentQuestion) ctx.fillText(currentQuestion.q, canvas.width/2, bgY + bgH/2);
+            }
+
+            if (state.gameState === GameState.QUIZ || state.gameState === GameState.EVALUATE) {
+                 const dz = state.dropZone;
+                ctx.strokeStyle = '#00ffcc';
+                ctx.setLineDash([10, 10]);
+                ctx.lineWidth = isMobile ? 2 : 4;
+                ctx.shadowColor = '#00ffcc';
+                ctx.shadowBlur = 20;
+                ctx.strokeRect(dz.x, dz.y, dz.w, dz.h);
+                ctx.setLineDash([]);
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = 'rgba(0, 255, 204, 0.1)';
+                ctx.fillRect(dz.x, dz.y, dz.w, dz.h);
+                ctx.fillStyle = '#00ffcc';
+                ctx.font = isMobile ? 'bold 18px Sarabun' : 'bold 24px Sarabun';
+                ctx.fillText("วางคำตอบที่นี่", dz.x + dz.w/2, dz.y + dz.h/2);
+            }
+
+            if (feedbackAlpha > 0) {
+                ctx.fillStyle = feedbackColor;
+                ctx.globalAlpha = feedbackAlpha;
+                ctx.font = isMobile ? 'bold 40px Sarabun' : 'bold 60px Sarabun';
+                ctx.textAlign = 'center';
+                ctx.shadowColor = 'black';
+                ctx.shadowBlur = 10;
+                ctx.fillText(feedbackMsg, canvas.width/2, canvas.height/2);
+                ctx.globalAlpha = 1.0;
+                ctx.shadowBlur = 0;
+                feedbackAlpha -= 0.02;
+            }
+        }
+
+        function updateAndDrawQuiz(dt) {
+            state.timeLeft -= dt;
+            updateHUD();
+
+            if (state.timeLeft <= 0) {
+                Sound.playWrong();
+                showFeedback("หมดเวลา!", "red");
+                state.gameState = GameState.EVALUATE;
+                state.timeLeft = 3;
+                return;
+            }
+
+            drawQuizBg();
+
+            let isHoveringCard = false;
+
+            if (state.isPinching && !state.wasPinching && !state.draggedCard) {
+                for (let i = state.cards.length - 1; i >= 0; i--) {
+                    const c = state.cards[i];
+                    if (state.cursorX > c.x && state.cursorX < c.x + c.w &&
+                        state.cursorY > c.y && state.cursorY < c.y + c.h) {
+                        c.isDragging = true;
+                        c.offsetX = state.cursorX - c.x;
+                        c.offsetY = state.cursorY - c.y;
+                        state.draggedCard = c;
+                        Sound.playGrab();
+                        break;
+                    }
+                }
+            }
+
+            if (!state.isPinching && state.draggedCard) {
+                const c = state.draggedCard;
+                c.isDragging = false;
+                state.draggedCard = null;
+                Sound.playDrop();
+
+                const dz = state.dropZone;
+                const cardCenter = { x: c.x + c.w/2, y: c.y + c.h/2 };
+                
+                if (cardCenter.x > dz.x && cardCenter.x < dz.x + dz.w && cardCenter.y > dz.y && cardCenter.y < dz.y + dz.h) {
+                    const teamIdx = state.currentTurnIndex % 3;
+                    if (c.id === currentQuestion.ans) {
+                        state.scores[teamIdx] += 10; 
+                        Sound.playCorrect();
+                        showFeedback("ถูกต้อง! +10", "#00ffcc");
+                    } else {
+                        Sound.playWrong();
+                        showFeedback("ผิดจ้า!", "red");
+                    }
+                    updateHUD();
+                    state.gameState = GameState.EVALUATE;
+                    state.timeLeft = 3; 
+                }
+            }
+
+            const isMobile = canvas.width < 768;
+            state.cards.forEach(c => {
+                if (c.isDragging) {
+                    c.x = state.cursorX - c.offsetX;
+                    c.y = state.cursorY - c.offsetY;
+                } else if (!state.draggedCard && state.cursorX > c.x && state.cursorX < c.x + c.w && state.cursorY > c.y && state.cursorY < c.y + c.h) {
+                    isHoveringCard = true;
+                }
+
+                ctx.fillStyle = c.isDragging ? 'rgba(255, 200, 0, 0.9)' : 'rgba(40, 40, 60, 0.8)';
+                ctx.shadowColor = c.isDragging ? 'yellow' : 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = c.isDragging ? 20 : 5;
+                ctx.strokeStyle = c.isDragging ? 'yellow' : '#aaa';
+                ctx.fillRoundRect(c.x, c.y, c.w, c.h, 15);
+                
+                ctx.shadowBlur = 0;
+                ctx.fillStyle = c.isDragging ? '#000' : '#fff';
+                ctx.font = isMobile ? 'bold 18px Sarabun' : 'bold 24px Sarabun';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                wrapText(ctx, c.text, c.x + c.w/2, c.y + c.h/2, c.w - 20, isMobile ? 22 : 30);
+            });
+
+            state.isHoveringTarget = isHoveringCard || (state.draggedCard !== null);
+        }
+
+        function wrapText(ctx, text, x, y, maxWidth, lineHeight) {
+            let words = text.split(' '), line = '', lines = [];
+            for(let n = 0; n < words.length; n++) {
+                let testLine = line + words[n] + ' ';
+                let metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && n > 0) { lines.push(line); line = words[n] + ' '; } 
+                else { line = testLine; }
+            }
+            lines.push(line);
+            let startY = y - ((lines.length - 1) * lineHeight) / 2;
+            for(let i = 0; i < lines.length; i++) ctx.fillText(lines[i], x, startY + (i * lineHeight));
+        }
+
+        let feedbackMsg = "", feedbackColor = "", feedbackAlpha = 0;
+        function showFeedback(msg, color) { feedbackMsg = msg; feedbackColor = color; feedbackAlpha = 1.0; }
+
+        function drawCursor() {
+            const x = state.cursorX, y = state.cursorY, r = 25;
+            ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+
+            if (!cameraReady) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.setLineDash([5, 5]); ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = 'white'; ctx.font = '16px Sarabun'; ctx.textAlign = 'center'; ctx.fillText("ระบบเมาส์", x, y - 40);
+            } else if (!state.handDetected) {
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)'; ctx.setLineDash([5, 5]); ctx.lineWidth = 2; ctx.stroke();
+                ctx.fillStyle = 'white'; ctx.font = '16px Sarabun'; ctx.textAlign = 'center'; ctx.fillText("กำลังหามือ...", x, y - 40);
+            } else if (state.isPinching) {
+                if (state.draggedCard) {
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'; ctx.fill(); ctx.strokeStyle = '#0f0'; ctx.lineWidth = 3; ctx.stroke();
+                    ctx.fillStyle = '#fff'; ctx.font = '20px Arial'; ctx.fillText("✔️", x, y);
+                } else if (state.gameState === GameState.QUIZ && !state.isHoveringTarget) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'; ctx.fill(); ctx.strokeStyle = '#f00'; ctx.lineWidth = 3; ctx.stroke();
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 0, 0.5)'; ctx.fill(); ctx.strokeStyle = '#ff0'; ctx.lineWidth = 3; ctx.stroke();
+                }
+            } else if (state.isHoveringTarget && state.gameState === GameState.QUIZ) {
+                ctx.strokeStyle = '#ff0'; ctx.setLineDash([8, 4]); ctx.lineWidth = 4; ctx.stroke();
+            } else {
+                ctx.fillStyle = 'rgba(0, 150, 255, 0.5)'; ctx.fill(); ctx.strokeStyle = '#09f'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.beginPath(); ctx.arc(x, y, 3, 0, Math.PI*2); ctx.fillStyle = 'white'; ctx.fill();
+            }
+            ctx.setLineDash([]); 
+        }
+
+        let particles = [];
+        function createParticles(x, y, emojiStr) {
+            for (let i = 0; i < 4; i++) {
+                particles.push({
+                    x: x, y: y, vx: (Math.random() - 0.5) * 600, vy: (Math.random() - 0.5) * 600,
+                    life: 1.0, emoji: emojiStr, rot: Math.random() * Math.PI, rotSpeed: (Math.random() - 0.5) * 10
+                });
+            }
+        }
+        function drawParticles(dt) {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx * dt; p.y += (p.vy + 800) * dt; p.rot += p.rotSpeed * dt; p.life -= dt * 1.5;
+                if (p.life <= 0) particles.splice(i, 1);
+                else {
+                    ctx.globalAlpha = p.life; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+                    ctx.font = '30px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(p.emoji, 0, 0);
+                    ctx.restore(); ctx.globalAlpha = 1.0;
+                }
+            }
+        }
+
+        let floatScores = [];
+        function showFloatingScore(pts, x, y) { floatScores.push({ pts: "+"+pts, x: x, y: y, life: 1.0 }); }
+        function drawFloatingScores(dt) {
+            for (let i = floatScores.length - 1; i >= 0; i--) {
+                let s = floatScores[i];
+                s.y -= 50 * dt; s.life -= dt;
+                if(s.life <= 0) floatScores.splice(i, 1);
+                else {
+                    ctx.globalAlpha = s.life; ctx.fillStyle = '#0f0'; ctx.font = 'bold 30px Sarabun';
+                    ctx.shadowColor = 'black'; ctx.shadowBlur = 5; ctx.fillText(s.pts, s.x, s.y);
+                    ctx.globalAlpha = 1.0; ctx.shadowBlur = 0;
+                }
+            }
+        }
+
+        requestAnimationFrame(drawLoop);
+
+    </script>
+</body>
+</html>

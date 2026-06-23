@@ -1,0 +1,1179 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Neon Brainclash: Interactive Quiz</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Itim&family=Sriracha&display=swap" rel="stylesheet">
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Tone.js -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <!-- MediaPipe Hands -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+  <!-- Hand.js (Fallback Support) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/handjs/1.3.11/hand.min.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            'itim': ['Itim', 'cursive'],
+            'sriracha': ['Sriracha', 'cursive'],
+          },
+          colors: {
+            'neon-green': '#39ff14',
+            'neon-yellow': '#ffff00',
+            'neon-red': '#ff073a',
+            'neon-orange': '#ff5e00',
+            'glass': 'rgba(20, 20, 30, 0.65)'
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #050505;
+      font-family: 'Itim', cursive;
+      user-select: none;
+      touch-action: none;
+    }
+
+    .glass-panel {
+      background: rgba(10, 10, 20, 0.4);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    }
+
+    .neon-border-green {
+      box-shadow: 0 0 10px #39ff14, inset 0 0 10px #39ff14;
+      border-color: #39ff14;
+    }
+
+    .neon-border-yellow {
+      box-shadow: 0 0 10px #ffff00, inset 0 0 10px #ffff00;
+      border-color: #ffff00;
+    }
+
+    .neon-border-red {
+      box-shadow: 0 0 10px #ff073a, inset 0 0 10px #ff073a;
+      border-color: #ff073a;
+    }
+
+    .neon-text-green {
+      text-shadow: 0 0 5px #39ff14, 0 0 15px #39ff14;
+      color: #39ff14;
+    }
+
+    .neon-text-yellow {
+      text-shadow: 0 0 5px #ffff00, 0 0 15px #ffff00;
+      color: #ffff00;
+    }
+
+    .neon-text-red {
+      text-shadow: 0 0 5px #ff073a, 0 0 15px #ff073a;
+      color: #ff073a;
+    }
+
+    .neon-text-white {
+      text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #0ff;
+      color: #fff;
+    }
+
+    .progress-glow {
+      box-shadow: 0 0 15px #ff5e00, 0 0 30px #ff5e00;
+    }
+
+    .rainbow-glow {
+      animation: rainbowBorder 3s linear infinite;
+    }
+
+    @keyframes rainbowBorder {
+      0% {
+        box-shadow: 0 0 15px #ff0000, inset 0 0 10px #ff0000;
+        border-color: #ff0000;
+      }
+
+      33% {
+        box-shadow: 0 0 15px #00ff00, inset 0 0 10px #00ff00;
+        border-color: #00ff00;
+      }
+
+      66% {
+        box-shadow: 0 0 15px #0000ff, inset 0 0 10px #0000ff;
+        border-color: #0000ff;
+      }
+
+      100% {
+        box-shadow: 0 0 15px #ff0000, inset 0 0 10px #ff0000;
+        border-color: #ff0000;
+      }
+    }
+
+    #gameCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 10;
+    }
+
+    .ui-layer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 20;
+      pointer-events: none;
+      /* Let canvas handle events */
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* Interactive UI elements need pointer events */
+    .interactive-ui {
+      pointer-events: auto;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- Hidden Video Element for MediaPipe -->
+  <video id="input_video" style="display:none;"></video>
+
+  <!-- Main Game Canvas -->
+  <canvas id="gameCanvas"></canvas>
+
+  <!-- HTML UI Layer -->
+  <div class="ui-layer" id="uiLayer">
+    <!-- Header: Teams & Scores -->
+    <div class="w-full p-4 flex justify-between items-start">
+      <div id="team0_card" class="glass-panel rounded-xl p-3 w-48 text-center transition-all duration-300">
+        <h2 class="text-2xl font-bold text-white mb-1">ทีมเขียว</h2>
+        <p id="score0" class="text-3xl font-sriracha text-neon-green neon-text-green">0</p>
+      </div>
+
+      <!-- Current Question Box -->
+      <div id="question_container" class="glass-panel rounded-2xl p-6 w-1/2 text-center hidden rainbow-glow">
+        <span id="turn_badge" class="inline-block px-4 py-1 rounded-full text-lg font-bold mb-2"></span>
+        <h1 id="question_text"
+          class="text-3xl md:text-4xl font-sriracha text-white leading-tight neon-text-white shadow-black drop-shadow-2xl">
+        </h1>
+      </div>
+
+      <div class="flex gap-4">
+        <div id="team1_card" class="glass-panel rounded-xl p-3 w-48 text-center transition-all duration-300">
+          <h2 class="text-2xl font-bold text-white mb-1">ทีมเหลือง</h2>
+          <p id="score1" class="text-3xl font-sriracha text-neon-yellow neon-text-yellow">0</p>
+        </div>
+        <div id="team2_card" class="glass-panel rounded-xl p-3 w-48 text-center transition-all duration-300">
+          <h2 class="text-2xl font-bold text-white mb-1">ทีมแดง</h2>
+          <p id="score2" class="text-3xl font-sriracha text-neon-red neon-text-red">0</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Center Overlays (Start, Intermission, Countdown, Podium) -->
+    <div class="flex-grow flex items-center justify-center pointer-events-none">
+
+      <!-- Start Screen -->
+      <div id="start_screen" class="glass-panel rounded-3xl p-10 text-center interactive-ui rainbow-glow">
+        <h1 class="text-6xl font-sriracha text-white neon-text-white mb-6">Neon Brainclash</h1>
+        <p class="text-xl text-gray-300 mb-8 max-w-lg mx-auto">วิชาภาษาไทย เรื่อง ระบบย่อยอาหาร
+          และความรู้ทั่วไป<br><br>แนะนำ: เปิดกล้องเว็บแคมเพื่อควบคุมด้วยมือ (ชู 1 มือ)
+          หรือใช้เมาส์/ทัชสกรีนหากกล้องไม่ทำงาน</p>
+        <button id="start_btn"
+          class="bg-gradient-to-r from-green-400 to-blue-500 hover:from-green-500 hover:to-blue-600 text-white font-bold py-4 px-10 rounded-full text-2xl shadow-[0_0_20px_rgba(0,255,0,0.5)] transition-transform transform hover:scale-110">
+          เริ่มเกมเข้าสู่โลกนีออน
+        </button>
+        <p id="loading_text" class="text-neon-yellow mt-4 hidden animate-pulse">กำลังเชื่อมต่อระบบ AI Camera...</p>
+      </div>
+
+      <!-- Intermission / OK Screen -->
+      <div id="intermission_screen" class="glass-panel rounded-3xl p-10 text-center hidden">
+        <h2 class="text-4xl text-white mb-4">ตาต่อไปของ...</h2>
+        <h1 id="next_team_text" class="text-6xl font-sriracha mb-8">ทีมเขียว</h1>
+        <div class="bg-black/50 rounded-xl p-6 border border-gray-500">
+          <p class="text-2xl text-white mb-4">ทำท่าทางมือ <span class="text-3xl">👌 OK</span> ใส่กล้อง</p>
+          <p class="text-lg text-gray-400">บีบนิ้วโป้งและนิ้วชี้เข้าหากัน กางนิ้วที่เหลือค้างไว้ 1
+            วินาที<br>(หรือคลิกเมาส์ค้างไว้ที่หน้าจอ)</p>
+          <!-- Loading Bar for OK -->
+          <div class="w-full h-4 bg-gray-800 rounded-full mt-6 overflow-hidden">
+            <div id="ok_progress"
+              class="h-full bg-neon-green w-0 transition-all duration-100 shadow-[0_0_10px_#39ff14]"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Giant Countdown -->
+      <div id="countdown_screen" class="hidden">
+        <h1 id="countdown_text"
+          class="text-[15rem] font-sriracha text-white neon-text-white drop-shadow-[0_0_50px_rgba(255,255,255,0.8)]">3
+        </h1>
+      </div>
+
+      <!-- End Game / Podium -->
+      <div id="end_screen"
+        class="glass-panel rounded-3xl p-10 text-center interactive-ui hidden rainbow-glow w-3/4 max-w-4xl">
+        <h1 class="text-6xl font-sriracha text-white neon-text-white mb-10">ผลการแข่งขัน 🏆</h1>
+        <div id="podium_container" class="flex justify-center items-end gap-4 h-64 mb-10 hidden">
+          <!-- 2nd Place -->
+          <div class="flex flex-col items-center w-1/3">
+            <p id="rank2_name" class="text-2xl text-white mb-2 font-bold"></p>
+            <p id="rank2_score" class="text-3xl text-neon-yellow mb-2"></p>
+            <div
+              class="w-full bg-gray-700/80 rounded-t-lg border-t-4 border-gray-400 flex items-center justify-center text-4xl text-white shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+              style="height: 60%;">2</div>
+          </div>
+          <!-- 1st Place -->
+          <div class="flex flex-col items-center w-1/3">
+            <p id="rank1_name" class="text-3xl text-white mb-2 font-bold"></p>
+            <p id="rank1_score" class="text-4xl text-neon-green mb-2"></p>
+            <div
+              class="w-full bg-yellow-500/80 rounded-t-lg border-t-4 border-yellow-300 flex items-center justify-center text-6xl text-white shadow-[0_0_30px_rgba(255,215,0,0.6)]"
+              style="height: 100%;">1</div>
+          </div>
+          <!-- 3rd Place -->
+          <div class="flex flex-col items-center w-1/3">
+            <p id="rank3_name" class="text-2xl text-white mb-2 font-bold"></p>
+            <p id="rank3_score" class="text-3xl text-neon-red mb-2"></p>
+            <div
+              class="w-full bg-amber-700/80 rounded-t-lg border-t-4 border-amber-600 flex items-center justify-center text-4xl text-white shadow-[0_0_15px_rgba(180,100,50,0.4)]"
+              style="height: 40%;">3</div>
+          </div>
+        </div>
+
+        <button id="show_result_btn"
+          class="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white font-bold py-4 px-10 rounded-full text-3xl shadow-[0_0_20px_rgba(200,0,255,0.5)] transition-transform transform hover:scale-110 mb-6">
+          ดูผลการแข่งขัน
+        </button>
+
+        <button id="restart_btn"
+          class="hidden bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-8 rounded-full text-xl mt-4 transition-transform transform hover:scale-105">
+          เริ่มท้าดวลใหม่อีกครั้ง
+        </button>
+      </div>
+
+      <!-- Feedback Overlay (Correct/Wrong) -->
+      <div id="feedback_screen"
+        class="hidden absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[8rem] font-bold z-50 drop-shadow-[0_0_30px_rgba(0,0,0,1)]">
+      </div>
+    </div>
+
+    <!-- Footer: Timer Bar -->
+    <div class="w-full h-4 bg-gray-900">
+      <div id="timer_bar" class="h-full bg-neon-orange progress-glow w-full origin-left"></div>
+    </div>
+  </div>
+
+  <script>
+    /**
+     * ==========================================
+     * DATA: GAME CONTENT & QUESTIONS
+     * ==========================================
+     */
+    const GAME_DATA = {
+      stage1: [
+        { q: "ทวีปออสเตรเลียเป็นทวีบที่ใหญ่ที่สุดในโลก", a: false },
+        { q: "ม้าลายมีพื้นลำตัวเป็นสีดำ มีลายสีขาว", a: true },
+        { q: "โลโก้ร้านอเมซอนมีนกเงือก 1 ตัว", a: false },
+        { q: "นุ่น 1000 กรัม มีน้ำหนักเบากว่า เหล็ก 1 กิโลกรัม", a: false },
+        { q: "ราชาแห่งผลไม้คือ ทุเรียน", a: true },
+        { q: "ที่มาของ Meme 67 มีต้นกำเนิดจากเพลงแร็ปที่ชื่อว่า “Doot Doot”", a: true },
+
+        // --- เพิ่มคำถามสำรองด่าน 1 ตรงนี้ได้ไม่จำกัด ---
+        { q: "พระอาทิตย์ขึ้นทางทิศตะวันตก", a: false },
+        { q: "แมงมุมทุกชนิดมี 8 ขา", a: true },
+        { q: "น้ำเดือดที่อุณหภูมิ 50 องศาเซลเซียส", a: false },
+        { q: "ประเทศญี่ปุ่นมีเมืองหลวงชื่อโตเกียว", a: true },
+        { q: "ดาวเสาร์มีวงแหวนล้อมรอบ", a: true },
+        { q: "มนุษย์สามารถหายใจใต้น้ำได้โดยไม่ใช้อุปกรณ์", a: false },
+        { q: "สุนัขมีจมูกช่วยดมกลิ่นได้ดีกว่ามนุษย์", a: true },
+        { q: "แมวเป็นสัตว์ครึ่งบกครึ่งน้ำ", a: false },
+        { q: "สีรุ้งมีทั้งหมด 7 สี", a: true },
+        { q: "ประเทศไทยอยู่ในทวีปยุโรป", a: false },
+        { q: "ไก่สามารถบินได้สูงเหมือนนกอินทรี", a: false },
+        { q: "น้ำทะเลมีรสเค็ม", a: true },
+        { q: "ต้นไม้ต้องการแสงแดดในการสังเคราะห์แสง", a: true },
+        { q: "หมีแพนด้ากินไม้ไผ่เป็นอาหารหลัก", a: true },
+        { q: "โลกมีดวงจันทร์ 2 ดวง", a: false },
+        { q: "ปลาโลมาเป็นสัตว์เลี้ยงลูกด้วยนม", a: true },
+        { q: "ภูเขาเอเวอเรสต์เป็นภูเขาที่สูงที่สุดในโลก", a: true },
+        { q: "ประเทศจีนใช้ภาษาอังกฤษเป็นภาษาราชการ", a: false },
+        { q: "มนุษย์มีหัวใจ 1 ดวง", a: true },
+        { q: "กล้วยเป็นผลไม้ที่มีเมล็ดใหญ่ตรงกลาง", a: false },
+        { q: "ประเทศออสเตรเลียเป็นทั้งประเทศและทวีป", a: true },
+        { q: "น้ำเดือดที่อุณหภูมิประมาณ 100 องศาเซลเซียส", a: true },
+        { q: "จระเข้เป็นสัตว์เลี้ยงลูกด้วยนม", a: false }
+      ],
+      stage2: [
+        { q: "ตับมีหน้าที่อะไรในระบบย่อยอาหาร?", choices: ["ก. สร้างน้ำดี", "ข. สร้างน้ำตาล", "ค. สร้างเลือด", "ง. สร้างเอนไซม์โปรตีน"], a: "ก. สร้างน้ำดี" },
+        { q: "ซออู้และซอด้วงเป็นเครื่องดนตรีประเภทใด?", choices: ["ก. เครื่องเป่า", "ข. เครื่องดีด", "ค. เครื่องตี", "ง. เครื่องสี"], a: "ง. เครื่องสี" },
+        { q: "1 นิ้ว = _______ มิลลิเมตร?", choices: ["ก. 25.1", "ข. 25.2", "ค. 25.3", "ง. 25.4"], a: "ง. 25.4" },
+        { q: "ตัวอะไรเอ่ยอยู่ในห้องสมุด", choices: ["ก. ตัวเอง", "ข. ตัวหนอน", "ค. ตัวต่อ", "ง. ตัวหนังสือ"], a: "ง. ตัวหนังสือ" },
+        { q: "กระดูกร่างกายมนุษย์มีกี่ชิ้น", choices: ["ก. 205 ชิ้น", "ข. 206 ชิ้น", "ค. 207 ชิ้น", "ง. 208 ชิ้น"], a: "ข. 206 ชิ้น" },
+        { q: "ข้อใดเป็นพุทธสาวก", choices: ["ก. พระสารีบุตร", "ข. ทศกัณฐ์", "ค. พระอินทร์", "ง. หนุมาน"], a: "ก. พระสารีบุตร" },
+
+        // --- เพิ่มคำถามสำรองด่าน 2 ตรงนี้ได้ไม่จำกัด ---
+        { q: "สัตว์ชนิดใดเป็นสัตว์เลี้ยงลูกด้วยนม?", choices: ["ก. ฉลาม", "ข. โลมา", "ค. จระเข้", "ง. เต่า"], a: "ข. โลมา" },
+        { q: "ใครคือผู้แต่งเรื่องพระอภัยมณี?", choices: ["ก. สุนทรภู่", "ข. รัชกาลที่ 2", "ค. รัชกาลที่ 6", "ง. ศรีปราชญ์"], a: "ก. สุนทรภู่" },
+        { q: "ประเทศใดมีประชากรมากที่สุดในโลก?", choices: ["ก. อินเดีย", "ข. จีน", "ค. สหรัฐอเมริกา", "ง. อินโดนีเซีย"], a: "ก. อินเดีย" },
+        { q: "สัตว์ชนิดใดเป็นสัตว์เลี้ยงลูกด้วยนมที่ใหญ่ที่สุดในโลก?", choices: ["ก. ช้างแอฟริกา", "ข. ฉลามวาฬ", "ค. วาฬสีน้ำเงิน", "ง. ฮิปโปโปเตมัส"], a: "ค. วาฬสีน้ำเงิน" },
+        { q: 'ดาวเคราะห์ดวงใดได้ชื่อว่า "ดาวเคราะห์สีแดง"?', choices: ["ก. ดาวศุกร์", "ข. ดาวอังคาร", "ค. ดาวพฤหัสบดี", "ง. ดาวเสาร์"], a: "ข. ดาวอังคาร" },
+        { q: "ประเทศไทยมีทั้งหมดกี่จังหวัด?", choices: ["ก. 75 จังหวัด", "ข. 76 จังหวัด", "ค. 77 จังหวัด", "ง. 78 จังหวัด"], a: "ค. 77 จังหวัด" },
+        { q: "สัตว์ชนิดใดบินได้แต่ไม่ใช่นก?", choices: ["ก. ค้างคาว", "ข. กระรอกบิน", "ค. ผีเสื้อ", "ง. แมลงปอ"], a: "ก. ค้างคาว" },
+        { q: "มหาสมุทรที่ใหญ่ที่สุดในโลกคือมหาสมุทรใด?", choices: ["ก. มหาสมุทรแอตแลนติก", "ข. มหาสมุทรอินเดีย", "ค. มหาสมุทรอาร์กติก", "ง. มหาสมุทรแปซิฟิก"], a: "ง. มหาสมุทรแปซิฟิก" },
+        { q: "สัญลักษณ์ทางเคมีของทองคำคืออะไร?", choices: ["ก. Ag", "ข. Au", "ค. Go", "ง. Gd"], a: "ข. Au" },
+        { q: 'สัตว์ชนิดใดได้ชื่อว่าเป็น "ราชาแห่งป่า"?', choices: ["ก. เสือโคร่ง", "ข. ช้าง", "ค. สิงโต", "ง. หมี"], a: "ค. สิงโต" },
+        { q: "ประเทศใดเป็นเจ้าภาพจัดโอลิมปิก 2024?", choices: ["ก. ญี่ปุ่น", "ข. ฝรั่งเศส", "ค. อังกฤษ", "ง. ออสเตรเลีย"], a: "ข. ฝรั่งเศส" },
+        { q: "ดอกไม้ประจำชาติไทยคือดอกอะไร?", choices: ["ก. ดอกบัว", "ข. ดอกราชพฤกษ์", "ค. ดอกมะลิ", "ง. ดอกกล้วยไม้"], a: "ข. ดอกราชพฤกษ์" }
+      ],
+      stage3: [
+        { q: "เมื่อเพื่อนกำลังเศร้า", target: "รับฟัง", decoys: ["แกล้งหัวเราะ", "เดินหนี", "บอกให้หยุด"] },
+        { q: "รู้ว่าตนเองกำลังโกรธเรียกว่า", target: "รู้จักตนเอง", decoys: ["เข้าสังคม", "กล้าหาญ", "อดทน"] },
+        { q: "คนที่มี EQ สูงมักจะ...", target: "ควบคุมอารมณ์", decoys: ["ฉลาดที่สุด", "ชนะทุกคน", "มั่นหน้า"] },
+        { q: "หากเพื่อนทำของคุณเสียหายโดยไม่ได้ตั้งใจ", target: "ฟังคำอธิบาย", decoys: ["ด่า", "ใส่เดี่ยว", "ตัดเพื่อน"] },
+        { q: "เข้าใจความรู้สึกของผู้อื่นเรียกว่า", target: "เห็นใจ", decoys: ["มั่นใจ", "อดทน", "กล้าหาญ"] },
+        { q: "หากคุณเครียดมาก ควรจะ...", target: "ผ่อนคลาย", decoys: ["ร้องไห้", "ตะโกนดังๆ", "ระบายใส่เพื่อน"] },
+
+        // --- เพิ่มคำถามสำรองด่าน 3 ตรงนี้ได้ไม่จำกัด ---
+        { q: "หากมีการบ้านจำนวนมาก ควรทำอย่างไร?", target: "วางแผนทำงาน", decoys: ["ผัดวันประกันพรุ่ง", "ไม่ทำเลย", "ทำอย่างเร่งรีบไม่ตรวจสอบ"] },
+        { q: "การรู้จักตนเองช่วยเรื่องใด?", target: "เลือกอนาคต", decoys: ["เล่นเกมเก่ง", "นอนมากขึ้น", "รู้จักเพื่อนมากขึ้น"] },
+        { q: "หากเครียดจากการเรียน ควร...", target: "ระบายกับคนที่ไว้ใจ", decoys: ["เก็บไว้คนเดียว", "หนีปัญหา", "กินอาหารเยอะๆ"] },
+        { q: "ข้อใดคือความรับผิดชอบ?", target: "ส่งงานตรงเวลา", decoys: ["ลอกงานเพื่อน", "โยนงานให้คนอื่น", "ขอขยายเวลาเสมอ"] },
+        { q: "เมื่อทำผิดควร...", target: "ยอมรับและแก้ไข", decoys: ["โทษคนอื่น", "ปิดบัง", "ปล่อยให้ผ่านไป"] },
+        { q: "การทำงานกลุ่มควรเน้น...", target: "ความร่วมมือ", decoys: ["แข่งขันกัน", "ทำคนเดียว", "พึ่งพาผู้อื่นมากเกินไป"] },
+        { q: "หากเพื่อนมีปัญหา ควร...", target: "รับฟัง", decoys: ["ล้อเลียน", "เมินเฉย", "ชี้นำโดยไม่ฟัง"] },
+        { q: "การออมเงินมีประโยชน์อย่างไร?", target: "มีเงินสำรอง", decoys: ["ใช้เงินหมดเร็ว", "ซื้อของฟุ่มเฟือย", "ไม่ต้องทำงาน"] },
+        { q: "หากไม่เข้าใจบทเรียน ควร...", target: "ถามครู", decoys: ["ปล่อยผ่าน", "เดาสุ่ม", "อ่านเองแล้วทิ้งทันที"] },
+        { q: "การตั้งเป้าหมายที่ดีควร...", target: "ชัดเจน", decoys: ["เลื่อนลอย", "เปลี่ยนทุกวัน", "คลุมเครือ"] },
+        { q: "อาชีพควรเลือกจาก...", target: "ความถนัด", decoys: ["ตามเพื่อน", "การเดา", "ตามกระแสสังคม"] },
+        { q: "การตรงต่อเวลาสะท้อนถึง...", target: "ความรับผิดชอบ", decoys: ["ความขี้เกียจ", "ความโชคดี", "ความบังเอิญ"] },
+        { q: "เมื่อถูกวิจารณ์ ควร...", target: "รับฟัง", decoys: ["โกรธทันที", "เถียงเสมอ", "ไม่สนใจ"] },
+        { q: "หากเพื่อนทะเลาะกัน ควร...", target: "ช่วยไกล่เกลี่ย", decoys: ["ยุให้ทะเลาะ", "ถ่ายคลิป", "เข้าข้างฝ่ายใดฝ่ายหนึ่ง"] },
+        { q: "การใช้เวลาว่างที่ดีคือ...", target: "พัฒนาตนเอง", decoys: ["นอนทั้งวัน", "เล่นเกมทั้งวัน", "ดูทีวีทั้งวัน"] },
+        { q: "ความสำเร็จเกิดจาก...", target: "ความพยายาม", decoys: ["โชคอย่างเดียว", "การลอกคนอื่น", "การรอคอยอย่างเดียว"] },
+        { q: "ข้อใดเป็นผู้นำที่ดี?", target: "รับฟังผู้อื่น", decoys: ["เอาแต่สั่ง", "เห็นแก่ตัว", "ตัดสินใจคนเดียว"] },
+        { q: "เมื่อเจอปัญหา ควร...", target: "หาทางแก้", decoys: ["หนีปัญหา", "โทษคนอื่น", "ปล่อยเวลาให้ผ่านไป"] },
+        { q: "การเคารพผู้อื่นคือ...", target: "ยอมรับความแตกต่าง", decoys: ["ล้อเลียน", "ดูถูก", "ไม่ยุ่งด้วย"] },
+        { q: "สิ่งสำคัญที่สุดในการเรียนคือ...", target: "ความตั้งใจ", decoys: ["โชค", "การคัดลอกงาน", "การท่องจำโดยไม่เข้าใจ"] }
+      ]
+    };
+
+    const TEAMS = [
+      { name: "ทีมเขียว", color: "#39ff14", class: "neon-border-green", textClass: "neon-text-green", score: 0 },
+      { name: "ทีมเหลือง", color: "#ffff00", class: "neon-border-yellow", textClass: "neon-text-yellow", score: 0 },
+      { name: "ทีมแดง", color: "#ff073a", class: "neon-border-red", textClass: "neon-text-red", score: 0 }
+    ];
+
+    /**
+     * ==========================================
+     * STATE MANAGEMENT
+     * ==========================================
+     */
+    let state = {
+      mode: 'intro', // intro, wait_ok, countdown, play_s1, play_s2, play_s3, result, podium
+      currentStage: 1,
+      globalQuestionIndex: 0, // 0 to 17
+      currentTeamIndex: 0,
+
+      timer: 0,
+      maxTime: 10,
+      lastFrameTime: 0,
+
+      okHoldTime: 0,
+
+      // Fallback & Input
+      cursor: { x: -100, y: -100, isPinching: false, isOK: false },
+      mouseMode: false,
+      mouseDown: false,
+
+      // Stage Specific Data
+      s1_circles: [], // {x, y, type(true/false), hoverTime, radius}
+      s2_cards: [], // {x, y, w, h, text, isDragging, offsetX, offsetY}
+      s2_dropZone: { x: 0, y: 0, w: 0, h: 0 },
+      s3_words: [], // {x, y, w, h, text, isTarget, speed}
+    };
+
+    /**
+     * ==========================================
+     * DOM ELEMENTS & AUDIO
+     * ==========================================
+     */
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const videoElement = document.getElementById('input_video');
+
+    // Audio (Tone.js)
+    let synth, errorSynth, fanfareSynth;
+    function initAudio() {
+      synth = new Tone.PolySynth(Tone.Synth).toDestination();
+      errorSynth = new Tone.MembraneSynth().toDestination();
+      fanfareSynth = new Tone.PolySynth(Tone.Synth, {
+        oscillator: { type: "sawtooth" },
+        envelope: { attack: 0.05, decay: 0.1, sustain: 0.3, release: 1 }
+      }).toDestination();
+      Tone.start();
+    }
+
+    function playBeep() { if (synth) synth.triggerAttackRelease("C5", "0.1s"); }
+    function playGo() { if (synth) synth.triggerAttackRelease("C6", "0.4s"); }
+    function playCorrect() { if (synth) synth.triggerAttackRelease(["C5", "E5", "G5", "C6"], "0.5s"); }
+    function playWrong() { if (errorSynth) errorSynth.triggerAttackRelease("G2", "0.4s"); }
+    function playTick() { if (synth) synth.triggerAttackRelease("C4", "0.05s", undefined, 0.1); }
+    function playFanfare() {
+      if (!fanfareSynth) return;
+      const now = Tone.now();
+      fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "0.2s", now);
+      fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "0.2s", now + 0.3);
+      fanfareSynth.triggerAttackRelease(["C4", "E4", "G4"], "0.2s", now + 0.6);
+      fanfareSynth.triggerAttackRelease(["E4", "G4", "C5", "E5"], "1.5s", now + 0.9);
+    }
+
+    /**
+     * ==========================================
+     * RESIZE & CANVAS SETUP
+     * ==========================================
+     */
+    let width, height;
+    function resize() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      width = canvas.width;
+      height = canvas.height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+
+    /**
+     * ==========================================
+     * INPUT HANDLING (MediaPipe & Mouse Fallback)
+     * ==========================================
+     */
+    // Mouse / Touch
+    canvas.addEventListener('pointermove', (e) => {
+      if (state.mouseMode || !window.cameraActive) {
+        state.cursor.x = e.clientX;
+        state.cursor.y = e.clientY;
+      }
+    });
+    canvas.addEventListener('pointerdown', (e) => {
+      if (state.mouseMode || !window.cameraActive) {
+        state.mouseDown = true;
+        state.cursor.isPinching = true;
+        state.cursor.isOK = true; // Mouse down acts as OK gesture
+      }
+    });
+    canvas.addEventListener('pointerup', (e) => {
+      if (state.mouseMode || !window.cameraActive) {
+        state.mouseDown = false;
+        state.cursor.isPinching = false;
+        state.cursor.isOK = false;
+      }
+    });
+
+    // MediaPipe
+    let camera;
+    function onResults(results) {
+      window.cameraActive = true;
+      state.mouseMode = false;
+      ctx.save();
+
+      // Clear canvas
+      ctx.clearRect(0, 0, width, height);
+
+      // Draw Video (Mirrored)
+      if (results.image) {
+        ctx.translate(width, 0);
+        ctx.scale(-1, 1);
+        // Fill cover
+        const videoAspect = results.image.width / results.image.height;
+        const canvasAspect = width / height;
+        let drawW, drawH, drawX, drawY;
+
+        if (canvasAspect > videoAspect) {
+          drawW = width;
+          drawH = width / videoAspect;
+          drawX = 0;
+          drawY = (height - drawH) / 2;
+        } else {
+          drawH = height;
+          drawW = height * videoAspect;
+          drawX = (width - drawW) / 2;
+          drawY = 0;
+        }
+
+        ctx.globalAlpha = state.mode === 'intro' || state.mode === 'podium' ? 0.3 : 0.8; // Dim background in non-play states
+        ctx.drawImage(results.image, drawX, drawY, drawW, drawH);
+        ctx.globalAlpha = 1.0;
+
+        // Reset transform for drawing game elements naturally
+        ctx.restore();
+      } else {
+        ctx.restore();
+      }
+
+      // Process Hand Landmarks
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+
+        // Map to Canvas (Mirrored X)
+        // Index finger tip is landmark 8
+        const indexTip = landmarks[8];
+        state.cursor.x = (1 - indexTip.x) * width;
+        state.cursor.y = indexTip.y * height;
+
+        // Gesture Detection Logic
+        const thumbTip = landmarks[4];
+        const middleTip = landmarks[12];
+        const wrist = landmarks[0];
+
+        // Euclidean distance function
+        const getDist = (p1, p2) => Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+
+        const pinchDist = getDist(thumbTip, indexTip);
+        const middleToWrist = getDist(middleTip, wrist);
+
+        // Hysteresis for Pinch (Stage 2)
+        if (!state.cursor.isPinching && pinchDist < 0.06) {
+          state.cursor.isPinching = true;
+        } else if (state.cursor.isPinching && pinchDist > 0.09) {
+          state.cursor.isPinching = false;
+        }
+
+        // OK Gesture (Pinch + Other fingers extended)
+        if (pinchDist < 0.06 && middleToWrist > 0.3) {
+          state.cursor.isOK = true;
+        } else {
+          state.cursor.isOK = false;
+        }
+      } else {
+        // Hand lost, reset flags but keep cursor position if in mouse mode
+        if (!state.mouseMode) {
+          state.cursor.isPinching = false;
+          state.cursor.isOK = false;
+        }
+      }
+
+      // Render Game State
+      updateGameLoop();
+    }
+
+    function startCamera() {
+      document.getElementById('loading_text').classList.remove('hidden');
+
+      const hands = new Hands({
+        locateFile: (file) => {
+          return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }
+      });
+      hands.setOptions({
+        maxNumHands: 1, // Single Hand Tracking Force
+        modelComplexity: 1,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.6
+      });
+      hands.onResults(onResults);
+
+      camera = new Camera(videoElement, {
+        onFrame: async () => {
+          await hands.send({ image: videoElement });
+        },
+        width: 640,
+        height: 480
+      });
+      camera.start().then(() => {
+        document.getElementById('loading_text').classList.add('hidden');
+        startGameFlow();
+      }).catch(err => {
+        console.error("Camera error:", err);
+        alert("ไม่สามารถเข้าถึงกล้องได้ ระบบจะเปลี่ยนเป็นโหมดเมาส์/ทัชสกรีน");
+        state.mouseMode = true;
+        window.cameraActive = false;
+        startGameFlow();
+        // Start manual loop since onResults won't fire
+        requestAnimationFrame(manualLoop);
+      });
+    }
+
+    function manualLoop() {
+      ctx.clearRect(0, 0, width, height);
+      // Draw generic background for mouse mode
+      ctx.fillStyle = "#111827";
+      ctx.fillRect(0, 0, width, height);
+      updateGameLoop();
+      requestAnimationFrame(manualLoop);
+    }
+
+    /**
+     * ==========================================
+     * GAME LOGIC & RENDERING
+     * ==========================================
+     */
+
+    // ฟังก์ชันสำหรับสับเปลี่ยนลำดับข้อมูลใน Array (Fisher-Yates Shuffle)
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+    }
+
+    function startGameFlow() {
+      document.getElementById('start_screen').classList.add('hidden');
+
+      // สุ่มลำดับคำถามใหม่ในแต่ละด่านทุกครั้งที่เริ่มเกม
+      shuffleArray(GAME_DATA.stage1);
+      shuffleArray(GAME_DATA.stage2);
+      shuffleArray(GAME_DATA.stage3);
+
+      state.globalQuestionIndex = 0;
+      state.currentTeamIndex = 0;
+      TEAMS.forEach(t => t.score = 0);
+      updateScoreUI();
+      prepareNextTurn();
+    }
+
+    function updateScoreUI() {
+      document.getElementById('score0').innerText = TEAMS[0].score;
+      document.getElementById('score1').innerText = TEAMS[1].score;
+      document.getElementById('score2').innerText = TEAMS[2].score;
+
+      // Highlight current team
+      [0, 1, 2].forEach(i => {
+        const card = document.getElementById(`team${i}_card`);
+        if (i === state.currentTeamIndex && state.mode !== 'intro' && state.mode !== 'podium') {
+          card.className = `glass-panel rounded-xl p-3 w-48 text-center transition-all duration-300 transform scale-110 ${TEAMS[i].class}`;
+        } else {
+          card.className = `glass-panel rounded-xl p-3 w-48 text-center transition-all duration-300 opacity-70`;
+        }
+      });
+    }
+
+    function prepareNextTurn() {
+      if (state.globalQuestionIndex >= 18) {
+        endGame();
+        return;
+      }
+
+      // Determine Stage
+      if (state.globalQuestionIndex < 6) { state.currentStage = 1; state.maxTime = 10; }
+      else if (state.globalQuestionIndex < 12) { state.currentStage = 2; state.maxTime = 15; }
+      else { state.currentStage = 3; state.maxTime = 10; }
+
+      state.currentTeamIndex = state.globalQuestionIndex % 3;
+      const team = TEAMS[state.currentTeamIndex];
+
+      updateScoreUI();
+
+      // Setup UI for Intermission
+      state.mode = 'wait_ok';
+      state.okHoldTime = 0;
+      document.getElementById('question_container').classList.add('hidden');
+      document.getElementById('intermission_screen').classList.remove('hidden');
+      document.getElementById('next_team_text').innerText = team.name;
+      document.getElementById('next_team_text').className = `text-7xl font-sriracha mb-8 ${team.textClass}`;
+      document.getElementById('ok_progress').style.width = '0%';
+
+      // Reveal scores if not stage 3
+      if (state.currentStage === 3) {
+        document.getElementById('score0').innerText = "???";
+        document.getElementById('score1').innerText = "???";
+        document.getElementById('score2').innerText = "???";
+      }
+    }
+
+    function startCountdown() {
+      state.mode = 'countdown';
+      document.getElementById('intermission_screen').classList.add('hidden');
+      const cdScreen = document.getElementById('countdown_screen');
+      const cdText = document.getElementById('countdown_text');
+      cdScreen.classList.remove('hidden');
+
+      let count = 3;
+      cdText.innerText = count;
+      playBeep();
+
+      const iv = setInterval(() => {
+        count--;
+        if (count > 0) {
+          cdText.innerText = count;
+          playBeep();
+        } else if (count === 0) {
+          cdText.innerText = "GO!";
+          cdText.classList.add('text-neon-green');
+          playGo();
+        } else {
+          clearInterval(iv);
+          cdScreen.classList.add('hidden');
+          cdText.classList.remove('text-neon-green');
+          setupStage();
+        }
+      }, 1000);
+    }
+
+    function setupStage() {
+      state.timer = state.maxTime;
+      state.lastFrameTime = performance.now();
+
+      const team = TEAMS[state.currentTeamIndex];
+      let qData;
+
+      // Common UI setup
+      const qc = document.getElementById('question_container');
+      const qt = document.getElementById('question_text');
+      const badge = document.getElementById('turn_badge');
+
+      if (state.currentStage !== 3) {
+        qc.classList.remove('hidden');
+      } else {
+        qc.classList.add('hidden'); // Hide middle box for Stage 3
+      }
+
+      badge.innerText = `ตาของ: ${team.name}`;
+      badge.style.backgroundColor = team.color;
+      badge.style.color = '#000';
+
+      if (state.currentStage === 1) {
+        state.mode = 'play_s1';
+        qData = GAME_DATA.stage1[state.globalQuestionIndex];
+        qt.innerText = qData.q;
+
+        // Randomly place True/False circles
+        const r = Math.min(width, height) * 0.15;
+        const marginY = height * 0.3; // Avoid top text
+        let leftRight = Math.random() > 0.5;
+
+        state.s1_circles = [
+          { x: width * 0.25, y: height * 0.6, r: r, type: leftRight, hoverTime: 0, maxHover: 0.8 },
+          { x: width * 0.75, y: height * 0.6, r: r, type: !leftRight, hoverTime: 0, maxHover: 0.8 }
+        ];
+
+      } else if (state.currentStage === 2) {
+        state.mode = 'play_s2';
+        const localIdx = state.globalQuestionIndex - 6;
+        qData = GAME_DATA.stage2[localIdx];
+        qt.innerText = qData.q;
+
+        // Setup Drop Zone
+        state.s2_dropZone = { x: width * 0.2, y: height * 0.1, w: width * 0.6, h: height * 0.15 };
+
+        // Setup Cards
+        state.s2_cards = [];
+        const cardW = width * 0.4;
+        const cardH = height * 0.12;
+        const startY = height * 0.4;
+
+        qData.choices.forEach((choice, idx) => {
+          let cx = (idx % 2 === 0) ? width * 0.05 : width * 0.55;
+          let cy = startY + Math.floor(idx / 2) * (cardH + 20);
+          state.s2_cards.push({
+            text: choice, x: cx, y: cy, w: cardW, h: cardH,
+            isDragging: false, offsetX: 0, offsetY: 0, isTarget: choice === qData.a
+          });
+        });
+
+      } else if (state.currentStage === 3) {
+        state.mode = 'play_s3';
+        const localIdx = state.globalQuestionIndex - 12;
+        qData = GAME_DATA.stage3[localIdx];
+
+        // Draw Question at the very top manually or using UI
+        qc.classList.remove('hidden');
+        qc.className = "absolute top-0 left-1/2 transform -translate-x-1/2 mt-4 glass-panel rounded-2xl p-4 text-center z-30 rainbow-glow w-3/4 pointer-events-none";
+        qt.innerText = qData.q;
+
+        state.s3_words = [];
+        const words = [qData.target, ...qData.decoys];
+        // Shuffle
+        words.sort(() => Math.random() - 0.5);
+
+        const cardW = 300;
+        const cardH = 100;
+        const spacing = width / words.length;
+
+        words.forEach((w, idx) => {
+          state.s3_words.push({
+            text: w,
+            x: (idx * spacing) + (spacing / 2) - (cardW / 2),
+            y: -100 - (Math.random() * 200), // Stagger start
+            w: cardW,
+            h: cardH,
+            isTarget: w === qData.target,
+            speed: (height / state.maxTime) * (0.8 + Math.random() * 0.4) // Fall rate
+          });
+        });
+      }
+    }
+
+    function processAnswer(isCorrect) {
+      state.mode = 'result';
+      const fb = document.getElementById('feedback_screen');
+      fb.classList.remove('hidden');
+
+      if (isCorrect) {
+        playCorrect();
+        fb.innerText = "ถูกต้อง! ✓";
+        fb.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[8rem] font-bold z-50 text-neon-green drop-shadow-[0_0_30px_#39ff14]";
+
+        // Calculate Score
+        let speedBonus = Math.floor((state.timer / state.maxTime) * 50);
+        let earned = 50 + speedBonus;
+        TEAMS[state.currentTeamIndex].score += earned;
+
+      } else {
+        playWrong();
+        fb.innerText = "ผิดพลาด! ✗";
+        fb.className = "absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-[8rem] font-bold z-50 text-neon-red drop-shadow-[0_0_30px_#ff073a]";
+      }
+
+      if (state.currentStage !== 3) updateScoreUI();
+
+      setTimeout(() => {
+        fb.classList.add('hidden');
+        document.getElementById('question_container').classList.add('hidden');
+        // Reset container style for stage 3 hack
+        document.getElementById('question_container').className = "glass-panel rounded-2xl p-6 w-1/2 text-center hidden rainbow-glow";
+        state.globalQuestionIndex++;
+        prepareNextTurn();
+      }, 2000);
+    }
+
+    function updateGameLoop() {
+      const now = performance.now();
+      const dt = (now - state.lastFrameTime) / 1000;
+      state.lastFrameTime = now;
+
+      // --- State: WAIT OK ---
+      if (state.mode === 'wait_ok') {
+        if (state.cursor.isOK) {
+          state.okHoldTime += dt;
+          let progress = Math.min(100, (state.okHoldTime / 1.0) * 100);
+          document.getElementById('ok_progress').style.width = progress + '%';
+          if (progress >= 100) {
+            startCountdown();
+          }
+        } else {
+          state.okHoldTime = 0;
+          document.getElementById('ok_progress').style.width = '0%';
+        }
+      }
+
+      // --- State: PLAYING ---
+      if (state.mode.startsWith('play_')) {
+        // Timer update
+        state.timer -= dt;
+        let pct = Math.max(0, (state.timer / state.maxTime) * 100);
+        document.getElementById('timer_bar').style.width = pct + '%';
+
+        // Time color change
+        if (pct < 30) {
+          document.getElementById('timer_bar').className = "h-full bg-neon-red progress-glow w-full origin-left rainbow-glow";
+          if (Math.floor(state.timer) !== Math.floor(state.timer + dt)) playTick();
+        } else {
+          document.getElementById('timer_bar').className = "h-full bg-neon-orange progress-glow w-full origin-left";
+        }
+
+        if (state.timer <= 0) {
+          processAnswer(false); // Time out = wrong
+        }
+      }
+
+      // Rendering Game Elements based on Stage
+      if (state.mode === 'play_s1') {
+        renderStage1(dt);
+      } else if (state.mode === 'play_s2') {
+        renderStage2();
+      } else if (state.mode === 'play_s3') {
+        renderStage3(dt);
+      }
+
+      // Always draw pointer if active and not in UI menus
+      if (state.cursor.x > 0 && state.cursor.y > 0 && !['intro', 'podium'].includes(state.mode)) {
+        drawPointer();
+      }
+    }
+
+    // Stage 1: True / False Hover
+    function renderStage1(dt) {
+      state.s1_circles.forEach(c => {
+        // Draw base circle
+        ctx.beginPath();
+        ctx.arc(c.x, c.y, c.r, 0, Math.PI * 2);
+        ctx.fillStyle = c.type ? 'rgba(57, 255, 20, 0.3)' : 'rgba(255, 7, 58, 0.3)';
+        ctx.fill();
+        ctx.lineWidth = 10;
+        ctx.strokeStyle = c.type ? '#39ff14' : '#ff073a';
+        ctx.stroke();
+
+        // Text
+        ctx.fillStyle = "#fff";
+        ctx.font = "bold 80px Sriracha";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.shadowColor = "#000";
+        ctx.shadowBlur = 10;
+        ctx.fillText(c.type ? "ถูก" : "ผิด", c.x, c.y);
+        ctx.shadowBlur = 0; // reset
+
+        // Collision Check (Point in Circle)
+        const dist = Math.sqrt(Math.pow(state.cursor.x - c.x, 2) + Math.pow(state.cursor.y - c.y, 2));
+        if (dist < c.r) {
+          c.hoverTime += dt;
+          // Draw Fill Arc
+          ctx.beginPath();
+          ctx.arc(c.x, c.y, c.r + 15, -Math.PI / 2, (-Math.PI / 2) + ((c.hoverTime / c.maxHover) * Math.PI * 2));
+          ctx.lineWidth = 20;
+          ctx.strokeStyle = "#fff";
+          ctx.stroke();
+
+          if (c.hoverTime >= c.maxHover) {
+            const qData = GAME_DATA.stage1[state.globalQuestionIndex];
+            processAnswer(c.type === qData.a);
+          }
+        } else {
+          c.hoverTime = Math.max(0, c.hoverTime - dt * 2); // Deplete fast
+        }
+      });
+    }
+
+    // Stage 2: Drag and Drop
+    function renderStage2() {
+      // Draw Drop Zone
+      ctx.setLineDash([15, 15]);
+      ctx.lineWidth = 5;
+      ctx.strokeStyle = "#39ff14";
+      ctx.fillStyle = "rgba(57, 255, 20, 0.1)";
+      ctx.beginPath();
+      ctx.roundRect(state.s2_dropZone.x, state.s2_dropZone.y, state.s2_dropZone.w, state.s2_dropZone.h, 20);
+      ctx.stroke();
+      ctx.fill();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#39ff14";
+      ctx.font = "30px Itim";
+      ctx.textAlign = "center";
+      ctx.fillText("ลากคำตอบมาวางที่นี่", state.s2_dropZone.x + state.s2_dropZone.w / 2, state.s2_dropZone.y + state.s2_dropZone.h / 2 + 10);
+
+      let activeCard = null;
+
+      // Draw & Update Cards
+      // Reverse loop to handle top-most card first for dragging
+      for (let i = state.s2_cards.length - 1; i >= 0; i--) {
+        let c = state.s2_cards[i];
+
+        // Input Logic
+        const inBounds = state.cursor.x >= c.x && state.cursor.x <= c.x + c.w &&
+          state.cursor.y >= c.y && state.cursor.y <= c.y + c.h;
+
+        if (state.cursor.isPinching) {
+          if (!c.isDragging && inBounds && !state.s2_cards.some(other => other.isDragging)) {
+            c.isDragging = true;
+            c.offsetX = c.x - state.cursor.x;
+            c.offsetY = c.y - state.cursor.y;
+          }
+        } else {
+          if (c.isDragging) {
+            c.isDragging = false;
+            // Check drop intersection
+            const centerXP = c.x + c.w / 2;
+            const centerYP = c.y + c.h / 2;
+            if (centerXP > state.s2_dropZone.x && centerXP < state.s2_dropZone.x + state.s2_dropZone.w &&
+              centerYP > state.s2_dropZone.y && centerYP < state.s2_dropZone.y + state.s2_dropZone.h) {
+              processAnswer(c.isTarget);
+              return; // Stop rendering this frame
+            }
+          }
+        }
+
+        if (c.isDragging) {
+          c.x = state.cursor.x + c.offsetX;
+          c.y = state.cursor.y + c.offsetY;
+          activeCard = c; // Draw later to be on top
+        } else {
+          drawCard(c);
+        }
+      }
+
+      if (activeCard) {
+        // Draw dragged card larger/with shadow
+        ctx.shadowColor = "#39ff14";
+        ctx.shadowBlur = 30;
+        drawCard(activeCard, true);
+        ctx.shadowBlur = 0;
+      }
+    }
+
+    function drawCard(c, highlight = false) {
+      ctx.fillStyle = highlight ? "#4dff2a" : "#1a990a"; // Neon green solid
+      ctx.strokeStyle = "#39ff14";
+      ctx.lineWidth = highlight ? 6 : 3;
+      ctx.beginPath();
+      ctx.roundRect(c.x, c.y, c.w, c.h, 15);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = "#000";
+      ctx.font = "bold 40px Sriracha";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(c.text, c.x + c.w / 2, c.y + c.h / 2);
+    }
+
+    // Stage 3: Falling Words
+    function renderStage3(dt) {
+      state.s3_words.forEach(w => {
+        // Move
+        w.y += w.speed * dt;
+
+        // Draw Card
+        ctx.fillStyle = "rgba(10, 50, 20, 0.9)";
+        ctx.strokeStyle = "#39ff14";
+        ctx.lineWidth = 4;
+        ctx.shadowColor = "#39ff14";
+        ctx.shadowBlur = 15;
+        ctx.beginPath();
+        ctx.roundRect(w.x, w.y, w.w, w.h, 20);
+        ctx.fill();
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+
+        ctx.fillStyle = "#39ff14";
+        ctx.font = "bold 50px Sriracha";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(w.text, w.x + w.w / 2, w.y + w.h / 2);
+
+        // Collision Check
+        if (state.cursor.x >= w.x && state.cursor.x <= w.x + w.w &&
+          state.cursor.y >= w.y && state.cursor.y <= w.y + w.h) {
+          processAnswer(w.isTarget);
+        }
+      });
+    }
+
+    function drawPointer() {
+      ctx.beginPath();
+      ctx.arc(state.cursor.x, state.cursor.y, 15, 0, Math.PI * 2);
+
+      if (state.cursor.isOK) {
+        ctx.fillStyle = "#39ff14"; // Green for OK
+        ctx.shadowColor = "#39ff14";
+      } else if (state.cursor.isPinching) {
+        ctx.fillStyle = "#ffff00"; // Yellow for Grab
+        ctx.shadowColor = "#ffff00";
+      } else {
+        ctx.fillStyle = "#0ff"; // Cyan for default
+        ctx.shadowColor = "#0ff";
+      }
+
+      ctx.shadowBlur = 20;
+      ctx.fill();
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      ctx.shadowBlur = 0; // reset
+
+      // Draw little inner dot
+      ctx.beginPath();
+      ctx.arc(state.cursor.x, state.cursor.y, 4, 0, Math.PI * 2);
+      ctx.fillStyle = "#fff";
+      ctx.fill();
+    }
+
+    /**
+     * ==========================================
+     * END GAME LOGIC
+     * ==========================================
+     */
+    function endGame() {
+      state.mode = 'end_stage';
+      document.getElementById('question_container').classList.add('hidden');
+      document.getElementById('intermission_screen').classList.add('hidden');
+
+      // Reset timer
+      document.getElementById('timer_bar').style.width = '0%';
+
+      const endScreen = document.getElementById('end_screen');
+      endScreen.classList.remove('hidden');
+
+      document.getElementById('show_result_btn').classList.remove('hidden');
+      document.getElementById('podium_container').classList.add('hidden');
+      document.getElementById('restart_btn').classList.add('hidden');
+    }
+
+    document.getElementById('show_result_btn').addEventListener('click', () => {
+      state.mode = 'podium';
+      playFanfare();
+
+      document.getElementById('show_result_btn').classList.add('hidden');
+
+      // Sort Teams
+      let sorted = [...TEAMS].sort((a, b) => b.score - a.score);
+
+      // Populate Podium
+      document.getElementById('rank1_name').innerText = sorted[0].name;
+      document.getElementById('rank1_score').innerText = sorted[0].score;
+      document.getElementById('rank1_name').className = `text-3xl mb-2 font-bold ${sorted[0].textClass}`;
+
+      document.getElementById('rank2_name').innerText = sorted[1].name;
+      document.getElementById('rank2_score').innerText = sorted[1].score;
+      document.getElementById('rank2_name').className = `text-2xl mb-2 font-bold ${sorted[1].textClass}`;
+
+      document.getElementById('rank3_name').innerText = sorted[2].name;
+      document.getElementById('rank3_score').innerText = sorted[2].score;
+      document.getElementById('rank3_name').className = `text-2xl mb-2 font-bold ${sorted[2].textClass}`;
+
+      // Reveal actual scores in top bar
+      updateScoreUI();
+
+      document.getElementById('podium_container').classList.remove('hidden');
+      setTimeout(() => {
+        document.getElementById('restart_btn').classList.remove('hidden');
+      }, 2000);
+    });
+
+    document.getElementById('restart_btn').addEventListener('click', () => {
+      document.getElementById('end_screen').classList.add('hidden');
+      startGameFlow();
+    });
+
+    /**
+     * ==========================================
+     * INITIALIZATION
+     * ==========================================
+     */
+    document.getElementById('start_btn').addEventListener('click', () => {
+      initAudio();
+      startCamera();
+      // Prevent double click
+      document.getElementById('start_btn').disabled = true;
+      document.getElementById('start_btn').innerText = "กำลังเข้าสู่ระบบ...";
+    });
+
+  </script>
+</body>
+
+</html>
