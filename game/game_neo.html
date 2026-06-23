@@ -242,6 +242,7 @@
             pointer-events: none;
             text-align: center;
             text-shadow: 0 0 30px rgba(0, 0, 0, 0.9), 0 0 60px rgba(0, 0, 0, 0.6);
+            font-family: 'Sriracha', cursive;
         }
 
         /* ── Responsive Team Cards ── */
@@ -476,8 +477,8 @@
 </div>
 
 <!-- Countdown -->
-<div id="countdown_screen">
-    <h1 id="countdown_text">3</h1>
+<div id="countdown_screen" style="display:none;">
+    <h1 id="countdown_text"></h1>
 </div>
 
 <!-- End / Podium -->
@@ -1018,9 +1019,12 @@ class="hidden bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 sm:py-3 px
                 playGo();
             } else {
                 clearInterval(iv);
-                cdScreen.style.display = 'none';
-                cdText.className = '';
-                setupStage();
+                setTimeout(() => {
+                    cdScreen.style.display = 'none';
+                    cdText.innerText = '';
+                    cdText.className = '';
+                    setupStage();
+                }, 800);
             }
         }, 1000);
     }
@@ -1142,8 +1146,6 @@ class="hidden bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 sm:py-3 px
         if (isCorrect) {
             playCorrect();
             fb.innerText = "ถูกต้อง! ✓";
-            fb.className =
-                "text-neon-green drop-shadow-[0_0_30px_#39ff14]";
             fb.style.color = '#39ff14';
             fb.style.textShadow = '0 0 30px #39ff14, 0 0 60px #39ff14';
 
@@ -1153,8 +1155,6 @@ class="hidden bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 sm:py-3 px
         } else {
             playWrong();
             fb.innerText = "ผิดพลาด! ✗";
-            fb.className =
-                "text-neon-red drop-shadow-[0_0_30px_#ff073a]";
             fb.style.color = '#ff073a';
             fb.style.textShadow = '0 0 30px #ff073a, 0 0 60px #ff073a';
         }
@@ -1163,9 +1163,9 @@ class="hidden bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 sm:py-3 px
 
         setTimeout(() => {
             fb.classList.add('hidden');
-            fb.className = '';
             fb.style.color = '';
             fb.style.textShadow = '';
+            fb.innerText = '';
             document.getElementById('question_container').classList.add('hidden');
             document.getElementById('question_container').className =
                 'question-wrap glass-panel rounded-2xl text-center hidden rainbow-glow interactive-ui';
