@@ -314,13 +314,9 @@
 
         // --- 6. UI Logic ---
         document.getElementById('btnStartGame').addEventListener('click', async () => {
-            // 1. Initialize Sound (Requires user gesture)
             Sound.init();
-            
-            // 2. ข้ามไปเริ่มเกมเลย (ไม่ต้องรอกล้องโหลด AI เสร็จ)
             startGameFlow();
 
-            // 3. เริ่มโหลดกล้องเป็น Background
             if(!cameraReady) {
                 camera.start().then(() => {
                     cameraReady = true;
@@ -537,16 +533,42 @@
                     else if (r > (isMobile? 30 : 40)) { emoji = '🍍'; pts = 20; }
                 } else { emoji = '💣'; }
 
-                const margin = Math.min(80, canvas.width * 0.1);
+                // --- NEW: สุ่มตำแหน่งการเกิดทั้ง 4 ด้าน (บน, ขวา, ล่าง, ซ้าย) ---
+                const side = Math.floor(Math.random() * 4);
+                let startX, startY, velX, velY;
+                const margin = 50;
+
+                if (side === 0) { // เกิดจากด้านบน พุ่งลงล่าง
+                    startX = margin + Math.random() * (canvas.width - 2 * margin);
+                    startY = -50;
+                    velX = (Math.random() - 0.5) * 400;
+                    velY = 100 + Math.random() * 300; 
+                } else if (side === 1) { // เกิดจากด้านขวา พุ่งไปซ้าย
+                    startX = canvas.width + 50;
+                    startY = canvas.height * 0.2 + Math.random() * (canvas.height * 0.6);
+                    velX = -400 - Math.random() * 400; 
+                    velY = -300 - Math.random() * 300; // ลอยขึ้นนิดๆ สู้แรงโน้มถ่วง
+                } else if (side === 2) { // เกิดจากด้านล่าง พุ่งขึ้นบน
+                    startX = margin + Math.random() * (canvas.width - 2 * margin);
+                    startY = canvas.height + 50;
+                    velX = (Math.random() - 0.5) * 500;
+                    velY = -700 - Math.random() * 400;
+                } else { // เกิดจากด้านซ้าย พุ่งไปขวา
+                    startX = -50;
+                    startY = canvas.height * 0.2 + Math.random() * (canvas.height * 0.6);
+                    velX = 400 + Math.random() * 400; 
+                    velY = -300 - Math.random() * 300; // ลอยขึ้นนิดๆ สู้แรงโน้มถ่วง
+                }
+
                 state.fruits.push({
-                    x: margin + Math.random() * (canvas.width - 2 * margin),
-                    y: canvas.height + 50,
-                    vx: (Math.random() - 0.5) * (isMobile ? 300 : 500),
-                    vy: (isMobile ? -700 : -900) - Math.random() * 300,
+                    x: startX, y: startY,
+                    vx: velX, vy: velY,
                     radius: r, isBomb: isBomb, points: pts, emoji: emoji,
                     sliced: false, rotation: Math.random() * Math.PI, rotSpeed: (Math.random() - 0.5) * 5
                 });
-                state.fruitSpawnTimer = 0.4 + Math.random() * 0.8;
+                
+                // ให้ผลไม้เกิดเร็วขึ้นนิดหน่อย เพื่อให้หน้าจอไม่โล่งตอนมาจากหลายทิศทาง
+                state.fruitSpawnTimer = 0.3 + Math.random() * 0.6;
             }
 
             const sliceDist = Math.sqrt((state.cursorX - state.prevCursorX)**2 + (state.cursorY - state.prevCursorY)**2);
@@ -560,7 +582,7 @@
                 if (f.sliced) continue;
 
                 f.x += f.vx * dt;
-                f.vy += 1200 * dt; 
+                f.vy += 900 * dt; // ลด Gravity ลงนิดนึงให้ลอยค้างหน้าจอนานขึ้น
                 f.y += f.vy * dt;
                 f.rotation += f.rotSpeed * dt;
 
@@ -595,7 +617,8 @@
                     ctx.fillText(f.points, f.x, f.y + f.radius + 10);
                 }
 
-                if (f.y > canvas.height + 100) state.fruits.splice(i, 1);
+                // เปลี่ยนเงื่อนไขการลบทิ้ง เพื่อรองรับการลอยมาจากทุกทิศทาง
+                if (f.y > canvas.height + 150 || f.x < -150 || f.x > canvas.width + 150) state.fruits.splice(i, 1);
             }
             
             drawParticles(dt);
