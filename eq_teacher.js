@@ -17,19 +17,19 @@ let adviserMap = {};
 // Fallback สำหรับ EQ_NORM (เผื่อไม่มีใน eq_data.js)
 if (typeof EQ_NORM === 'undefined') {
     window.EQ_NORM = {
-        good: { min:48, max:58 },
-        skill: { min:45, max:57 },
-        happy: { min:40, max:55 },
-        total: { min:140, max:170 },
-        self_control: { min:13, max:17 },
-        empathy: { min:16, max:20 },
-        responsibility: { min:16, max:22 },
-        motivation: { min:14, max:20 },
-        problem_solving: { min:13, max:19 },
-        relationship: { min:14, max:20 },
-        self_esteem: { min:9, max:13 },
-        life_satisfaction: { min:16, max:22 },
-        peace_of_mind: { min:15, max:21 }
+        good: { min: 48, max: 58 },
+        skill: { min: 45, max: 57 },
+        happy: { min: 40, max: 55 },
+        total: { min: 140, max: 170 },
+        self_control: { min: 13, max: 17 },
+        empathy: { min: 16, max: 20 },
+        responsibility: { min: 16, max: 22 },
+        motivation: { min: 14, max: 20 },
+        problem_solving: { min: 13, max: 19 },
+        relationship: { min: 14, max: 20 },
+        self_esteem: { min: 9, max: 13 },
+        life_satisfaction: { min: 16, max: 22 },
+        peace_of_mind: { min: 15, max: 21 }
     };
 }
 
@@ -123,34 +123,72 @@ async function loadClassrooms() {
 }
 
 /* ── STATS (ใช้เกณฑ์ใหม่) ───────────────────────────── */
+/* ── STATS ───────────────────────────────────────────── */
 async function loadStats() {
-    const { data: eqs } = await db.from('eq_assessments')
-        .select('level_total')
-        .eq('academic_year', schoolInfo?.current_academic_year)
-        .eq('semester', schoolInfo?.current_semester);
+    const academicYear = String(schoolInfo?.current_academic_year);
+    const semester = String(schoolInfo?.current_semester);
 
-    const total = eqs?.length || 0;
+    // 1. ดึง assessment ตามปีการศึกษา
+    let eqQuery = db.from('eq_assessments')
+        .select('student_id, classroom_id, level_total')
+        .eq('academic_year', academicYear)
+        .eq('semester', semester);
+
+    // โหมดครู: กรอง classroom_id ตั้งแต่ query แรก
+    if (!isAdminMode) {
+        const roomIds = allClassrooms.map(r => r.id);
+        if (roomIds.length === 0) {
+            renderStatsCards(0, 0, 0, 0, 0);
+            return;
+        }
+        eqQuery = eqQuery.in('classroom_id', roomIds);
+    }
+
+    const { data: eqs } = await eqQuery;
+
+    // 2. ดึงจำนวนนักเรียนที่ visible
+    let totalStudents = 0;
+    if (!isAdminMode) {
+        const roomIds = allClassrooms.map(r => r.id);
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id')
+            .in('classroom_id', roomIds);   // ไม่กรอง academic_year (ไม่มี column นี้)
+        totalStudents = (enrolls || []).length;
+    } else {
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id');
+        totalStudents = (enrolls || []).length;
+    }
+
+    // 3. คำนวณสถิติ
+    const assessed = eqs?.length || 0;
     const high = eqs?.filter(e => e.level_total === 'สูงกว่าเกณฑ์').length || 0;
     const mid = eqs?.filter(e => e.level_total === 'เกณฑ์ปกติ').length || 0;
     const low = eqs?.filter(e => e.level_total === 'ต่ำกว่าเกณฑ์').length || 0;
 
-    const { data: allStd } = await db.from('core_students').select('id');
-    const stdTotal = allStd?.length || 0;
-    const pct = stdTotal > 0 ? Math.round(total / stdTotal * 100) : 0;
+    renderStatsCards(totalStudents, assessed, high, mid, low);
+}
+
+function renderStatsCards(totalStudents, assessed, high, mid, low) {
+    const notAssessed = totalStudents - assessed;
+    const pct = totalStudents > 0 ? Math.round(assessed / totalStudents * 100) : 0;
 
     document.getElementById('stat-cards').innerHTML = [
-        { icon: 'fa-users', label: 'นักเรียนทั้งหมด', val: stdTotal, color: 'slate' },
-        { icon: 'fa-check-circle', label: 'ประเมินแล้ว', val: `${total} (${pct}%)`, color: 'indigo' },
+        { icon: 'fa-users', label: 'นักเรียนทั้งหมด', val: totalStudents, color: 'slate' },
+        { icon: 'fa-check-circle', label: 'ประเมินแล้ว', val: `${assessed} (${pct}%)`, color: 'indigo' },
         { icon: 'fa-arrow-up', label: 'สูงกว่าเกณฑ์', val: high, color: 'green' },
         { icon: 'fa-equals', label: 'เกณฑ์ปกติ', val: mid, color: 'blue' },
         { icon: 'fa-arrow-down', label: 'ต่ำกว่าเกณฑ์', val: low, color: 'rose' },
-        { icon: 'fa-clock', label: 'ยังไม่ประเมิน', val: stdTotal - total, color: 'amber' },
+        { icon: 'fa-clock', label: 'ยังไม่ประเมิน', val: notAssessed, color: 'amber' },
     ].map(s => `
         <div class="glass rounded-2xl p-4 flex items-center gap-3 shadow-sm">
             <div class="h-11 w-11 bg-${s.color}-100 text-${s.color}-600 rounded-xl flex items-center justify-center">
                 <i class="fas ${s.icon}"></i>
             </div>
-            <div><p class="text-slate-400 text-[10px] font-bold uppercase">${s.label}</p><h3 class="text-2xl font-bold text-slate-800">${s.val}</h3></div>
+            <div>
+                <p class="text-slate-400 text-[10px] font-bold uppercase">${s.label}</p>
+                <h3 class="text-2xl font-bold text-slate-800">${s.val}</h3>
+            </div>
         </div>
     `).join('');
 }
@@ -190,14 +228,14 @@ function renderTable(rows) {
     if (eqTable) { eqTable.destroy(); eqTable = null; }
     const tbody = document.getElementById('eq-tbody');
     if (!tbody) return;
-    
+
     let html = '';
     for (const r of rows) {
         const cls = r.core_classrooms;
         const std = r.core_students;
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
         const eq = r.eq;
-        
+
         if (!eq) {
             // กรณีไม่เคยประเมิน
             html += `<tr>
@@ -210,26 +248,26 @@ function renderTable(rows) {
             </tr>`;
             continue;
         }
-        
+
         // มีข้อมูลแล้ว
-        const goodScore = (eq.score_self_control||0)+(eq.score_empathy||0)+(eq.score_responsibility||0);
-        const skillScore = (eq.score_motivation||0)+(eq.score_problem_solving||0)+(eq.score_relationship||0);
-        const happyScore = (eq.score_self_esteem||0)+(eq.score_life_satisfaction||0)+(eq.score_peace_of_mind||0);
+        const goodScore = (eq.score_self_control || 0) + (eq.score_empathy || 0) + (eq.score_responsibility || 0);
+        const skillScore = (eq.score_motivation || 0) + (eq.score_problem_solving || 0) + (eq.score_relationship || 0);
+        const happyScore = (eq.score_self_esteem || 0) + (eq.score_life_satisfaction || 0) + (eq.score_peace_of_mind || 0);
         const totalScore = goodScore + skillScore + happyScore;
-        
+
         const levelBadge = (level) => {
             if (!level) return '<span class="text-slate-300">-</span>';
             const cls = level === 'สูงกว่าเกณฑ์' ? 'bg-green-100 text-green-700' : level === 'เกณฑ์ปกติ' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700';
             return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
         };
-        
+
         const actions = `<div class="flex gap-1 justify-center">
             <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผลการประเมิน"><i class="fas fa-eye text-xs"></i></button>
             <button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
             <button onclick='printStudentPdf("${r.student_id}")' class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="PDF"><i class="fas fa-print text-xs"></i></button>
             <button onclick='deleteResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="ลบ"><i class="fas fa-trash text-xs"></i></button>
         </div>`;
-        
+
         html += `<tr>
             <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
             <td class="text-center font-bold text-slate-400">${r.student_number}</td>
@@ -242,7 +280,7 @@ function renderTable(rows) {
             <td class="text-center">${actions}</td>
         </tr>`;
     }
-    
+
     tbody.innerHTML = html;
     eqTable = new DataTable('#eq-table', {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
@@ -263,11 +301,11 @@ async function openViewResult(studentId) {
     const row = allResults.find(r => r.student_id === studentId);
     if (!row) return;
 
-    const std  = row.core_students;
-    const cls  = row.core_classrooms;
-    const eq   = row.eq;
+    const std = row.core_students;
+    const cls = row.core_classrooms;
+    const eq = row.eq;
     const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
-    const room     = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
+    const room = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
 
     document.getElementById('vr-name').textContent = fullName;
     document.getElementById('vr-room').textContent = room;
@@ -281,7 +319,7 @@ async function openViewResult(studentId) {
 
     const levelObj = (score, norm) => {
         if (score < norm.min) return { label: 'ต่ำกว่าเกณฑ์', cls: 'bg-red-100 text-red-700' };
-        if (score <= norm.max) return { label: 'เกณฑ์ปกติ',   cls: 'bg-blue-100 text-blue-700' };
+        if (score <= norm.max) return { label: 'เกณฑ์ปกติ', cls: 'bg-blue-100 text-blue-700' };
         return { label: 'สูงกว่าเกณฑ์', cls: 'bg-green-100 text-green-700' };
     };
     const badge = (score, norm) => {
@@ -289,30 +327,30 @@ async function openViewResult(studentId) {
         return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${l.cls}">${l.label}</span>`;
     };
     const bar = (score, max, norm) => {
-        const pct   = Math.round((score / max) * 100);
+        const pct = Math.round((score / max) * 100);
         const color = score < norm.min ? 'bg-red-400' : score <= norm.max ? 'bg-blue-400' : 'bg-green-400';
         return `<div class="w-full bg-slate-100 rounded-full h-2 mt-1"><div class="${color} h-2 rounded-full" style="width:${pct}%"></div></div>`;
     };
 
     const totalScore = eq.score_total || 0;
-    const totalLvl   = levelObj(totalScore, EQ_NORM.total);
+    const totalLvl = levelObj(totalScore, EQ_NORM.total);
 
     const subDims = [
-        { label: '1.1 ควบคุมตนเอง',      score: eq.score_self_control,      max: 24, norm: EQ_NORM.self_control      },
-        { label: '1.2 เห็นใจผู้อื่น',     score: eq.score_empathy,           max: 24, norm: EQ_NORM.empathy           },
-        { label: '1.3 รับผิดชอบ',         score: eq.score_responsibility,    max: 24, norm: EQ_NORM.responsibility    },
-        { label: '2.1 มีแรงจูงใจ',        score: eq.score_motivation,        max: 24, norm: EQ_NORM.motivation        },
-        { label: '2.2 ตัดสินใจ/แก้ปัญหา',score: eq.score_problem_solving,   max: 24, norm: EQ_NORM.problem_solving   },
-        { label: '2.3 สัมพันธภาพ',        score: eq.score_relationship,      max: 24, norm: EQ_NORM.relationship      },
-        { label: '3.1 ภูมิใจตนเอง',       score: eq.score_self_esteem,       max: 16, norm: EQ_NORM.self_esteem       },
-        { label: '3.2 พอใจชีวิต',         score: eq.score_life_satisfaction, max: 24, norm: EQ_NORM.life_satisfaction },
-        { label: '3.3 สุขสงบทางใจ',       score: eq.score_peace_of_mind,     max: 24, norm: EQ_NORM.peace_of_mind    },
+        { label: '1.1 ควบคุมตนเอง', score: eq.score_self_control, max: 24, norm: EQ_NORM.self_control },
+        { label: '1.2 เห็นใจผู้อื่น', score: eq.score_empathy, max: 24, norm: EQ_NORM.empathy },
+        { label: '1.3 รับผิดชอบ', score: eq.score_responsibility, max: 24, norm: EQ_NORM.responsibility },
+        { label: '2.1 มีแรงจูงใจ', score: eq.score_motivation, max: 24, norm: EQ_NORM.motivation },
+        { label: '2.2 ตัดสินใจ/แก้ปัญหา', score: eq.score_problem_solving, max: 24, norm: EQ_NORM.problem_solving },
+        { label: '2.3 สัมพันธภาพ', score: eq.score_relationship, max: 24, norm: EQ_NORM.relationship },
+        { label: '3.1 ภูมิใจตนเอง', score: eq.score_self_esteem, max: 16, norm: EQ_NORM.self_esteem },
+        { label: '3.2 พอใจชีวิต', score: eq.score_life_satisfaction, max: 24, norm: EQ_NORM.life_satisfaction },
+        { label: '3.3 สุขสงบทางใจ', score: eq.score_peace_of_mind, max: 24, norm: EQ_NORM.peace_of_mind },
     ];
 
     const groups = [
-        { label: 'ด้านดี',   score: eq.score_good,  max: 72, norm: EQ_NORM.good,  color: 'indigo', dims: subDims.slice(0, 3) },
+        { label: 'ด้านดี', score: eq.score_good, max: 72, norm: EQ_NORM.good, color: 'indigo', dims: subDims.slice(0, 3) },
         { label: 'ด้านเก่ง', score: eq.score_skill, max: 72, norm: EQ_NORM.skill, color: 'purple', dims: subDims.slice(3, 6) },
-        { label: 'ด้านสุข',  score: eq.score_happy, max: 64, norm: EQ_NORM.happy, color: 'teal',   dims: subDims.slice(6, 9) },
+        { label: 'ด้านสุข', score: eq.score_happy, max: 64, norm: EQ_NORM.happy, color: 'teal', dims: subDims.slice(6, 9) },
     ];
 
     const groupsHtml = groups.map(g => `
@@ -396,7 +434,7 @@ function closeEditModal() {
 
 async function saveEdit() {
     const studentId = document.getElementById('edit-student-id').value;
-    
+
     const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
         .select('classroom_id')
         .eq('student_id', studentId)
@@ -406,7 +444,7 @@ async function saveEdit() {
         return;
     }
     const classroomId = enroll.classroom_id;
-    
+
     const scores = {
         self_control: parseInt(document.getElementById('edit-self-control').value) || 0,
         empathy: parseInt(document.getElementById('edit-empathy').value) || 0,
@@ -423,13 +461,13 @@ async function saveEdit() {
     const skillScore = scores.motivation + scores.problem_solving + scores.relationship;
     const happyScore = scores.self_esteem + scores.life_satisfaction + scores.peace_of_mind;
     const total = goodScore + skillScore + happyScore;
-    
+
     const getLevel = (score, norm) => {
         if (score < norm.min) return 'ต่ำกว่าเกณฑ์';
         if (score <= norm.max) return 'เกณฑ์ปกติ';
         return 'สูงกว่าเกณฑ์';
     };
-    
+
     const payload = {
         student_id: studentId,
         classroom_id: classroomId,
@@ -458,7 +496,7 @@ async function saveEdit() {
         recorder_id: currentUser.id,
         completed_at: new Date().toISOString()
     };
-    
+
     const { error } = await db.from('eq_assessments').upsert(payload, { onConflict: 'student_id,academic_year,semester' });
     if (error) {
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
@@ -507,10 +545,10 @@ function exportExcel() {
         };
     }).filter(r => r);
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{wch:12},{wch:8},{wch:25},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+    ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 25 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'EQ_9dim');
-    XLSX.writeFile(wb, `EQ_Admin_${new Date().toLocaleDateString('th-TH').replace(/\//g,'-')}.xlsx`);
+    XLSX.writeFile(wb, `EQ_Admin_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
 
 /* ── PRINT PDF (รายบุคคล พร้อมกราฟ, รายละเอียดครบ, และรูปนักเรียน) ────────── */
@@ -519,7 +557,7 @@ async function printStudentPdf(studentId) {
     try {
         // ดึงข้อมูลการประเมิน พร้อมรูปนักเรียนและข้อมูลห้อง
         const { data: assessment, error } = await db.from('eq_assessments')
-            .select('*, core_students!student_id(prefix, first_name, last_name, avatar_students_url), core_classrooms!classroom_id(grade_level, room_number)')
+            .select('*, core_students!student_id(prefix, first_name, last_name, avatar_students_url, student_id_card), core_classrooms!classroom_id(grade_level, room_number)')
             .eq('student_id', studentId)
             .eq('academic_year', schoolInfo.current_academic_year)
             .eq('semester', schoolInfo.current_semester)
@@ -542,140 +580,212 @@ async function printStudentPdf(studentId) {
             }
         }
 
+        // ดึงรหัสประจำตัวนักเรียนจาก core_students (join มาแล้วใน query แรก)
+        const studentIdCard = assessment.core_students.student_id_card || '-';
+
         const schoolLogo = schoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
-        const schoolName = schoolInfo?.school_name || 'โรงเรียนเทพศาลาประชาสรรค์';
+        const schoolName = schoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
         const academicYear = assessment.academic_year;
         const semester = assessment.semester;
         const fullName = `${assessment.core_students.prefix || ''}${assessment.core_students.first_name} ${assessment.core_students.last_name}`;
         const avatarUrl = assessment.core_students.avatar_students_url || null;
+        const room = assessment.core_classrooms
+            ? `ม.${assessment.core_classrooms.grade_level}/${assessment.core_classrooms.room_number}`
+            : '-';
 
         Swal.close();
-        generateStudentPDF(assessment, schoolName, academicYear, semester, adviser1, adviser2, schoolLogo, fullName, avatarUrl);
+        generateStudentPDF(assessment, schoolName, academicYear, semester, adviser1, adviser2, schoolLogo, fullName, avatarUrl, room, studentIdCard);
     } catch (err) {
         Swal.close();
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
 
-function generateStudentPDF(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
+function generateStudentPDF(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl, room, studentNumber) {
     const subDims = [
-        { label: '1.1 ควบคุมตนเอง', score: assessment.score_self_control, max: 24, level: assessment.level_self_control, group: 'ดี' },
-        { label: '1.2 เห็นใจผู้อื่น', score: assessment.score_empathy, max: 24, level: assessment.level_empathy, group: 'ดี' },
-        { label: '1.3 รับผิดชอบ', score: assessment.score_responsibility, max: 24, level: assessment.level_responsibility, group: 'ดี' },
-        { label: '2.1 มีแรงจูงใจ', score: assessment.score_motivation, max: 24, level: assessment.level_motivation, group: 'เก่ง' },
+        { label: '1.1 ควบคุมตนเอง',       score: assessment.score_self_control,    max: 24, level: assessment.level_self_control,    group: 'ดี'   },
+        { label: '1.2 เห็นใจผู้อื่น',       score: assessment.score_empathy,         max: 24, level: assessment.level_empathy,         group: 'ดี'   },
+        { label: '1.3 รับผิดชอบ',           score: assessment.score_responsibility,  max: 24, level: assessment.level_responsibility,  group: 'ดี'   },
+        { label: '2.1 มีแรงจูงใจ',          score: assessment.score_motivation,      max: 24, level: assessment.level_motivation,      group: 'เก่ง' },
         { label: '2.2 ตัดสินใจและแก้ปัญหา', score: assessment.score_problem_solving, max: 24, level: assessment.level_problem_solving, group: 'เก่ง' },
-        { label: '2.3 สัมพันธภาพ', score: assessment.score_relationship, max: 24, level: assessment.level_relationship, group: 'เก่ง' },
-        { label: '3.1 ภูมิใจตนเอง', score: assessment.score_self_esteem, max: 16, level: assessment.level_self_esteem, group: 'สุข' },
-        { label: '3.2 พอใจชีวิต', score: assessment.score_life_satisfaction, max: 24, level: assessment.level_life_satisfaction, group: 'สุข' },
-        { label: '3.3 สุขสงบทางใจ', score: assessment.score_peace_of_mind, max: 24, level: assessment.level_peace_of_mind, group: 'สุข' }
+        { label: '2.3 สัมพันธภาพ',          score: assessment.score_relationship,    max: 24, level: assessment.level_relationship,    group: 'เก่ง' },
+        { label: '3.1 ภูมิใจตนเอง',         score: assessment.score_self_esteem,     max: 16, level: assessment.level_self_esteem,     group: 'สุข'  },
+        { label: '3.2 พอใจชีวิต',           score: assessment.score_life_satisfaction, max: 24, level: assessment.level_life_satisfaction, group: 'สุข' },
+        { label: '3.3 สุขสงบทางใจ',         score: assessment.score_peace_of_mind,   max: 24, level: assessment.level_peace_of_mind,   group: 'สุข'  }
     ];
 
-    // สร้าง HTML รูป หรือ placeholder
-    const avatarHtml = avatarUrl 
-        ? `<img src="${avatarUrl}" style="width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid #cbd5e1;" crossorigin="anonymous">`
-        : `<div style="width:60px; height:60px; border-radius:50%; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:24px; color:#94a3b8;"><i class="fas fa-user"></i></div>`;
+    // รูปนักเรียน — ขนาดใหญ่ขึ้น มุมมน
+    const avatarHtml = avatarUrl
+        ? `<img src="${avatarUrl}" style="width:90px; height:90px; border-radius:10px; object-fit:cover; border:2px solid #cbd5e1;" crossorigin="anonymous">`
+        : `<div style="width:90px; height:90px; border-radius:10px; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:36px; color:#94a3b8;">👤</div>`;
+
+    // สีตามระดับรวม
+    const totalColor = assessment.level_total === 'สูงกว่าเกณฑ์' ? '#15803d'
+        : (assessment.level_total === 'เกณฑ์ปกติ' ? '#1d4ed8' : '#b91c1c');
+    const totalBg = assessment.level_total === 'สูงกว่าเกณฑ์' ? '#dcfce7'
+        : (assessment.level_total === 'เกณฑ์ปกติ' ? '#dbeafe' : '#fee2e2');
+
+    const assessedDate = new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH', {
+        year: 'numeric', month: 'long', day: 'numeric'
+    });
 
     const html = `<!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><title>EQ Report</title>
-    <style>
-        @page { margin: 0.5cm 0.5cm 1.2cm 0.5cm; }
-        body { font-family: 'Sarabun', 'Anuphan', sans-serif; font-size: 13px; color: #1e293b; background: white; margin: 0; padding: 0; }
-        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #312e81; padding-bottom: 8px; margin-bottom: 15px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; }
-        .logo { height: 50px; width: auto; }
-        .school-title { margin: 0; color: #312e81; font-size: 18px; font-weight: bold; }
-        .school-sub { margin: 2px 0 0; font-size: 11px; color: #475569; }
-        .info-area { text-align: right; font-size: 12px; }
-        .student-card { background: #f8fafc; border-radius: 8px; padding: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
-        .student-details { flex: 1; }
-        .student-avatar { flex-shrink: 0; }
-        .total-card { text-align: center; background: #fef9e3; border-radius: 12px; padding: 12px; margin-bottom: 20px; }
-        .total-score { font-size: 28px; font-weight: 900; margin: 0; }
-        .total-level { font-size: 14px; font-weight: bold; margin-top: 5px; }
-        .chart-title { font-size: 16px; font-weight: bold; margin: 15px 0 10px; }
-        .bar-item { margin-bottom: 10px; }
-        .bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
-        .bar-bg { background: #e2e8f0; border-radius: 20px; height: 10px; width: 100%; }
-        .bar-fill { height: 10px; border-radius: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
-        th { background: #312e81; color: white; }
-        .sub-item { margin-bottom: 5px; }
-        .footer { font-size: 9px; text-align: center; color: #94a3b8; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-        body { margin: 0; padding: 0; }
-        .footer { margin-top: 15px; padding-top: 6px; font-size: 8px; page-break-inside: avoid; }
-        table { page-break-inside: avoid; }
-    </style>
-    </head>
-    <body>
-    <div class="header">
-        <div class="logo-area"><img class="logo" src="${logoUrl}" crossorigin="anonymous"><div><div class="school-title">${schoolName}</div><div class="school-sub">รายงานผลการประเมินความฉลาดทางอารมณ์ (EQ)</div></div></div>
-        <div class="info-area"><div><b>ภาคเรียนที่ ${semester}</b> ปีการศึกษา ${academicYear}</div><div>ครูที่ปรึกษา: ${adviser1} ${adviser2 !== '-' ? ' / ' + adviser2 : ''}</div></div>
-    </div>
-    <div class="student-card">
-        <div class="student-avatar">${avatarHtml}</div>
-        <div class="student-details"><b>ชื่อ-สกุล:</b> ${fullName}<br><span style="font-size:12px;color:#64748b">วันที่ประเมิน: ${new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH')}</span></div>
-    </div>
-    <div class="total-card"><div class="total-score" style="color:${assessment.level_total === 'สูงกว่าเกณฑ์' ? '#15803d' : (assessment.level_total === 'เกณฑ์ปกติ' ? '#1d4ed8' : '#b91c1c')}">${assessment.score_total} <span style="font-size:14px;font-weight:normal;">/ 208 คะแนน</span></div><div class="total-level">ระดับรวม: ${assessment.level_total}</div></div>
-    <div class="chart-title">📊 กราฟแสดงคะแนนรายด้านย่อย</div>
-    ${subDims.map(d => {
-        const percent = (d.score / d.max) * 100;
-        const barColor = d.level === 'สูงกว่าเกณฑ์' ? '#10b981' : (d.level === 'เกณฑ์ปกติ' ? '#3b82f6' : '#ef4444');
-        return `<div class="bar-item"><div class="bar-label"><span><b>${d.label}</b> (${d.score}/${d.max})</span><span>${Math.round(percent)}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${percent}%; background:${barColor};"></div></div></div>`;
-    }).join('')}
-    
-    <table>
-        <thead><tr><th>ด้าน</th><th>คะแนนรวม</th><th>ระดับ</th><th>รายละเอียดด้านย่อย (คะแนน)</th></tr></thead>
-        <tbody>
-            ${['ดี', 'เก่ง', 'สุข'].map(groupName => {
-                const items = subDims.filter(d => d.group === groupName);
-                const groupScore = items.reduce((s, i) => s + i.score, 0);
-                const groupMax = items.reduce((s, i) => s + i.max, 0);
-                const groupLevel = (groupName === 'ดี' ? assessment.level_good : (groupName === 'เก่ง' ? assessment.level_skill : assessment.level_happy));
-                const details = items.map(it => `<div class="sub-item"><strong>${it.label}</strong> ${it.score}/${it.max} (${it.level})</div>`).join('');
-                return `<tr><td style="font-weight:bold">ด้าน${groupName}</td><td style="text-align:center">${groupScore}/${groupMax}</td><td style="text-align:center">${groupLevel}</td><td>${details}</td></tr>`;
-            }).join('')}
-        </tbody>
-    </table>
-    <div class="footer">ระบบ WRK School Management System | EQ แบบประเมินกรมสุขภาพจิต (อายุ 12-17 ปี)</div>
-    </body></html>`;
+<html>
+<head><meta charset="UTF-8"><title>EQ Report</title>
+<style>
+    @page { margin: 0.5cm 0.5cm 1.2cm 0.5cm; }
+    body { font-family: 'Sarabun', 'Anuphan', sans-serif; font-size: 13px; color: #1e293b; background: white; margin: 0; padding: 0; }
 
-    const element = document.createElement('div');
-    element.innerHTML = html;
+    /* Header */
+    .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #312e81; padding-bottom: 8px; margin-bottom: 15px; }
+    .logo-area { display: flex; align-items: center; gap: 12px; }
+    .logo { height: 50px; width: auto; }
+    .school-title { margin: 0; color: #312e81; font-size: 18px; font-weight: bold; }
+    .school-sub { margin: 2px 0 0; font-size: 11px; color: #475569; }
+    .info-area { text-align: right; font-size: 12px; }
 
-    // รอให้โลโก้และรูปโหลดเสร็จ
-    const images = element.querySelectorAll('img');
-    if (images.length === 0) {
-        generateStudentPdfNow(element, fullName);
+    /* 2 คอลัมน์หลัก */
+    .two-col { display: flex; gap: 12px; margin-bottom: 15px; }
+    .col-left { flex: 1.1; background: #f8fafc; border-radius: 10px; padding: 14px; display: flex; align-items: flex-start; gap: 14px; }
+    .col-right { flex: 0.9; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
+    .student-info p { margin: 5px 0; font-size: 13px; }
+    .student-info .name { font-size: 15px; font-weight: bold; color: #1e293b; margin-bottom: 8px; }
+    .label { font-size: 11px; color: #64748b; }
+    .total-score { font-size: 48px; font-weight: 900; line-height: 1; }
+    .total-out { font-size: 14px; color: #64748b; margin-top: 2px; }
+    .total-label { font-size: 15px; font-weight: bold; margin-top: 8px; }
+    .group-summary { margin-top: 10px; font-size: 11px; color: #475569; }
+
+    /* กราฟ */
+    .chart-title { font-size: 16px; font-weight: bold; margin: 10px 0 8px; }
+    .bar-item { margin-bottom: 10px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
+    .bar-bg { background: #e2e8f0; border-radius: 20px; height: 10px; width: 100%; }
+    .bar-fill { height: 10px; border-radius: 20px; }
+
+    /* ตาราง */
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
+    th { background: #312e81; color: white; }
+    .sub-item { margin-bottom: 5px; }
+
+    /* Footer */
+    .footer { font-size: 8px; text-align: center; color: #94a3b8; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 6px; page-break-inside: avoid; }
+    table { page-break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<!-- Header โรงเรียน -->
+<div class="header">
+    <div class="logo-area">
+        <img class="logo" src="${logoUrl}" crossorigin="anonymous">
+        <div>
+            <div class="school-title">${schoolName}</div>
+            <div class="school-sub">รายงานผลการประเมินความฉลาดทางอารมณ์ (EQ)</div>
+        </div>
+    </div>
+    <div class="info-area">
+        <div><b>ภาคเรียนที่ ${semester}</b> ปีการศึกษา ${academicYear}</div>
+        <div>ครูที่ปรึกษา: ${adviser1}${adviser2 !== '-' ? ' / ' + adviser2 : ''}</div>
+    </div>
+</div>
+
+<!-- 2 คอลัมน์: ข้อมูลนักเรียน (ซ้าย) + ผลรวม (ขวา) -->
+<div class="two-col">
+
+    <!-- คอลัมน์ซ้าย: รูป + ข้อมูลนักเรียน -->
+    <div class="col-left">
+        <div style="flex-shrink:0;">${avatarHtml}</div>
+        <div class="student-info">
+            <p class="name">${fullName}</p>
+            <p><span class="label">เลขประจำตัว</span>&nbsp;&nbsp;${studentNumber}</p>
+            <p><span class="label">ชั้น</span>&nbsp;&nbsp;${room}</p>
+            <p><span class="label">วันที่ประเมิน</span>&nbsp;&nbsp;${assessedDate}</p>
+        </div>
+    </div>
+
+    <!-- คอลัมน์ขวา: คะแนนรวม + ระดับ -->
+    <div class="col-right" style="background:${totalBg};">
+        <div class="label" style="font-size:12px; margin-bottom:4px;">คะแนนรวม EQ</div>
+        <div class="total-score" style="color:${totalColor};">${assessment.score_total}</div>
+        <div class="total-out">/ 208 คะแนน</div>
+        <div class="total-label" style="color:${totalColor};">ระดับรวม: ${assessment.level_total}</div>
+        <div class="group-summary">
+            ดี ${assessment.score_good}/72 &nbsp;|&nbsp;
+            เก่ง ${assessment.score_skill}/72 &nbsp;|&nbsp;
+            สุข ${assessment.score_happy}/64
+        </div>
+    </div>
+</div>
+
+<!-- กราฟแท่งรายด้านย่อย -->
+<div class="chart-title">📊 กราฟแสดงคะแนนรายด้านย่อย</div>
+${subDims.map(d => {
+    const percent = (d.score / d.max) * 100;
+    const barColor = d.level === 'สูงกว่าเกณฑ์' ? '#10b981' : (d.level === 'เกณฑ์ปกติ' ? '#3b82f6' : '#ef4444');
+    return `<div class="bar-item">
+    <div class="bar-label">
+        <span><b>${d.label}</b> (${d.score}/${d.max})</span>
+        <span>${Math.round(percent)}%</span>
+    </div>
+    <div class="bar-bg"><div class="bar-fill" style="width:${percent}%; background:${barColor};"></div></div>
+</div>`;
+}).join('')}
+
+<!-- ตารางสรุปรายกลุ่ม -->
+<table>
+    <thead>
+        <tr><th>ด้าน</th><th>คะแนนรวม</th><th>ระดับ</th><th>รายละเอียดด้านย่อย (คะแนน)</th></tr>
+    </thead>
+    <tbody>
+        ${['ดี', 'เก่ง', 'สุข'].map(groupName => {
+            const items = subDims.filter(d => d.group === groupName);
+            const groupScore = items.reduce((s, i) => s + i.score, 0);
+            const groupMax   = items.reduce((s, i) => s + i.max, 0);
+            const groupLevel = groupName === 'ดี' ? assessment.level_good
+                : (groupName === 'เก่ง' ? assessment.level_skill : assessment.level_happy);
+            const details = items.map(it =>
+                `<div class="sub-item"><strong>${it.label}</strong> ${it.score}/${it.max} (${it.level})</div>`
+            ).join('');
+            return `<tr>
+                <td style="font-weight:bold">ด้าน${groupName}</td>
+                <td style="text-align:center">${groupScore}/${groupMax}</td>
+                <td style="text-align:center">${groupLevel}</td>
+                <td>${details}</td>
+            </tr>`;
+        }).join('')}
+    </tbody>
+</table>
+
+<div class="footer">ระบบ WRK School Management System | EQ แบบประเมินกรมสุขภาพจิต (อายุ 12–17 ปี)</div>
+</body></html>`;
+
+    // preload รูปก่อนแล้วค่อย generate — ส่ง html string โดยตรง
+    const imgUrls = [logoUrl, avatarUrl].filter(Boolean);
+    if (imgUrls.length === 0) {
+        generateStudentPdfNow(html, fullName);
     } else {
         let loaded = 0;
-        images.forEach(img => {
-            if (img.complete) {
+        imgUrls.forEach(url => {
+            const img = new Image();
+            img.onload = img.onerror = () => {
                 loaded++;
-                if (loaded === images.length) generateStudentPdfNow(element, fullName);
-            } else {
-                img.addEventListener('load', () => {
-                    loaded++;
-                    if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                });
-                img.addEventListener('error', () => {
-                    loaded++;
-                    if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                });
-            }
+                if (loaded === imgUrls.length) generateStudentPdfNow(html, fullName);
+            };
+            img.src = url;
         });
     }
 }
 
-function generateStudentPdfNow(element, fullName) {
+function generateStudentPdfNow(html, fullName) {
     html2pdf().set({
         margin: [0.5, 0.5, 1.2, 0.5],
         filename: `EQ_${fullName}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
-    }).from(element).save();
+    }).from(html, 'string').save();
 }
 
 /* ── IMPORT (9 ด้าน) ───────────────────────────────── */
@@ -685,8 +795,8 @@ function setImportMode(mode) {
     importMode = mode;
     document.getElementById('import-excel-section').classList.toggle('hidden', mode !== 'excel');
     document.getElementById('import-sheets-section').classList.toggle('hidden', mode !== 'sheets');
-    document.getElementById('tab-excel').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode==='excel'?'bg-amber-500 text-white':'bg-slate-100'}`;
-    document.getElementById('tab-sheets').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode==='sheets'?'bg-amber-500 text-white':'bg-slate-100'}`;
+    document.getElementById('tab-excel').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'excel' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
+    document.getElementById('tab-sheets').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'sheets' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
 }
 async function handleFileImport(input) {
     const file = input.files[0]; if (!file) return;
@@ -763,7 +873,7 @@ async function processImportRows(rows) {
         if (error) fail++; else success++;
     }
     Swal.close(); closeImportModal();
-    Swal.fire({ icon: success>0?'success':'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
+    Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
     loadResults(); loadStats();
 }
 
@@ -788,7 +898,7 @@ function openSettings() {
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    
+
     if (currentUserRole === 'super_admin') {
         const userMgmtSection = document.getElementById('user-management-section');
         userMgmtSection.classList.remove('hidden');
@@ -835,7 +945,7 @@ async function loadPersonnelForSettings() {
 
 function filterUsersForSettings() {
     const searchTerm = document.getElementById('user-search-settings')?.value.toLowerCase() || '';
-    const filtered = allPersonnel.filter(u => 
+    const filtered = allPersonnel.filter(u =>
         `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm) ||
         (u.email || '').toLowerCase().includes(searchTerm)
     );
@@ -848,8 +958,8 @@ function renderUserTableForSettings(users) {
     tbody.innerHTML = users.map(user => {
         const canEdit = currentUserRole === 'super_admin' && user.role !== 'super_admin';
         const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
-        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' : 
-                          (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
+        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+            (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
         return `<td>
             <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
             <td class="px-2 py-1">${user.email || '-'}</td>
@@ -865,7 +975,7 @@ function renderUserTableForSettings(users) {
             </td>
         </tr>`;
     }).join('');
-    
+
     const searchInput = document.getElementById('user-search-settings');
     if (searchInput && !searchInput._listener) {
         searchInput.addEventListener('input', filterUsersForSettings);

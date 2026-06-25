@@ -29,8 +29,8 @@ window.addEventListener('load', async () => {
         if (si) {
             const { data: setting } = await db.from('mi_settings')
                 .select('delay_seconds')
-                .eq('academic_year', si.current_academic_year)
-                .eq('semester', si.current_semester)
+                .eq('academic_year', String(si.current_academic_year))
+                .eq('semester', String(si.current_semester))
                 .maybeSingle();
             if (setting) delaySeconds = setting.delay_seconds;
         }
@@ -43,8 +43,8 @@ window.addEventListener('load', async () => {
         const { data: draft } = await db.from('mi_drafts')
             .select('*')
             .eq('student_id', currentStudent.id)
-            .eq('academic_year', si.current_academic_year)
-            .eq('semester', si.current_semester)
+            .eq('academic_year', String(si.current_academic_year))
+            .eq('semester', String(si.current_semester))
             .maybeSingle();
         if (draft && draft.answers) {
             answers = draft.answers;
@@ -65,8 +65,8 @@ async function checkExistingResult() {
     const { data, error } = await db.from('mi_assessments')
         .select('*')
         .eq('student_id', currentStudent.id)
-        .eq('academic_year', schoolInfo.current_academic_year)
-        .eq('semester', schoolInfo.current_semester)
+        .eq('academic_year', String(schoolInfo.current_academic_year))
+        .eq('semester', String(schoolInfo.current_semester))
         .maybeSingle();
     if (error) {
         console.error(error);
@@ -186,24 +186,40 @@ async function submitAssessment() {
         return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/40 ข้อ`, 'warning');
     }
     Swal.fire({ title: 'กำลังบันทึกผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    // ตรวจสอบ classroom_id
+    if (!currentClassroomId) {
+        console.warn('⚠️ ไม่พบ classroom_id ของนักเรียน');
+        // อาจใช้ null ก็ได้ แต่ควรมี
+    }
+
     const payload = buildAssessmentPayloadMI(
         currentStudent.id, currentClassroomId,
         schoolInfo.current_academic_year, schoolInfo.current_semester,
         answers
     );
-    const { data, error } = await db.from('mi_assessments')
-        .upsert(payload, { onConflict: 'student_id,academic_year,semester' })
-        .select().single();
-    if (error) {
-        Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
-        return;
+
+    try {
+        const { data, error } = await db.from('mi_assessments')
+            .upsert(payload, { onConflict: 'student_id,academic_year,semester' })
+            .select().single();
+
+        if (error) throw error;
+
+        // ✅ ลบ Draft ทันทีที่บันทึกสำเร็จ
+        await db.from('mi_drafts')
+            .delete()
+            .eq('student_id', currentStudent.id)
+            .eq('academic_year', String(schoolInfo.current_academic_year))
+            .eq('semester', String(schoolInfo.current_semester));
+
+        Swal.close();
+        showResult(data);
+    } catch (err) {
+        Swal.close();
+        Swal.fire('บันทึกไม่สำเร็จ', err.message, 'error');
+        console.error('❌ submitAssessment error:', err);
     }
-    await db.from('mi_drafts').delete()
-        .eq('student_id', currentStudent.id)
-        .eq('academic_year', schoolInfo.current_academic_year)
-        .eq('semester', schoolInfo.current_semester);
-    Swal.close();
-    showResult(data);
 }
 
 function showResult(data) {
@@ -214,14 +230,33 @@ function showResult(data) {
     const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
     document.getElementById('res-name').innerText = fullName;
 
+    // Helper: กำหนดสีและคลาสตามระดับ (ปรับให้เหมาะกับ MI)
+    const getLevelStyle = (level) => {
+        if (!level) {
+            return { bg: 'bg-slate-500', text: 'text-white', badge: 'bg-slate-100 text-slate-700', bar: '#94a3b8' };
+        }
+        if (level === 'โดดเด่น' || level === 'สูง' || level === 'สูงกว่าเกณฑ์') {
+            return { bg: 'bg-green-500', text: 'text-white', badge: 'bg-green-100 text-green-700', bar: '#10b981' };
+        } else if (level === 'ปานกลาง' || level === 'เกณฑ์ปกติ') {
+            return { bg: 'bg-blue-500', text: 'text-white', badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6' };
+        } else if (level === 'ควรพัฒนา' || level === 'ต่ำ' || level === 'ต่ำกว่าเกณฑ์') {
+            return { bg: 'bg-amber-500', text: 'text-white', badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b' };
+        } else {
+            return { bg: 'bg-slate-500', text: 'text-white', badge: 'bg-slate-100 text-slate-700', bar: '#94a3b8' };
+        }
+    };
+
+    // ---- ระดับรวม (Total) ----
     const totalLevel = data.level_total;
-    const totalColor = totalLevel === 'สูงกว่าเกณฑ์' ? 'bg-green-500 text-white' :
-        totalLevel === 'เกณฑ์ปกติ' ? 'bg-blue-500 text-white' : 'bg-red-500 text-white';
+    const totalStyle = getLevelStyle(totalLevel);
     const badge = document.getElementById('res-total-badge');
-    if (badge) badge.className = `mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl ${totalColor}`;
+    if (badge) {
+        badge.className = `mt-4 inline-flex items-center gap-2 px-6 py-3 rounded-2xl ${totalStyle.bg} ${totalStyle.text}`;
+    }
     document.getElementById('res-total-score').innerText = data.score_total;
     document.getElementById('res-total-level').innerText = `ระดับรวม: ${totalLevel}`;
 
+    // ---- เตรียมข้อมูลรายด้าน (8 ด้าน) ----
     const dims = MI_DIMENSIONS.map(d => ({
         key: d.key,
         label: d.label,
@@ -229,15 +264,18 @@ function showResult(data) {
         max: d.maxScore,
         level: data[`level_${d.key}`] || ''
     }));
-    const sorted = [...dims].sort((a,b) => b.score - a.score);
+
+    // เรียงลำดับจากคะแนนมากไปน้อย และแสดง 3 อันดับแรก
+    const sorted = [...dims].sort((a, b) => b.score - a.score);
     const top3 = sorted.slice(0, 3);
     document.getElementById('res-top-dim').innerHTML = `🧠 ด้านที่โดดเด่นที่สุด: ${top3.map(d => `${d.label} (${d.score}/${d.max})`).join(' | ')}`;
 
+    // ---- กราฟแท่ง (Bar Chart) ----
     const chartDiv = document.getElementById('bar-chart');
     if (chartDiv) {
         chartDiv.innerHTML = dims.map(d => {
             const percent = (d.score / d.max) * 100;
-            const barColor = d.level === 'สูงกว่าเกณฑ์' ? '#10b981' : (d.level === 'เกณฑ์ปกติ' ? '#3b82f6' : '#ef4444');
+            const style = getLevelStyle(d.level);
             return `
                 <div>
                     <div class="flex justify-between text-sm mb-1">
@@ -245,29 +283,30 @@ function showResult(data) {
                         <span>${Math.round(percent)}%</span>
                     </div>
                     <div class="w-full bg-slate-200 rounded-full h-3">
-                        <div class="h-3 rounded-full" style="width: ${percent}%; background-color: ${barColor};"></div>
+                        <div class="h-3 rounded-full" style="width: ${percent}%; background-color: ${style.bar};"></div>
                     </div>
                 </div>
             `;
         }).join('');
     }
 
+    // ---- การ์ดแสดง 3 อันดับแรก (Top 3 Cards) ----
     const cardsContainer = document.getElementById('top-cards-container');
     if (cardsContainer) {
         cardsContainer.innerHTML = top3.map((d, idx) => {
-            const colors = ['#10b981', '#3b82f6', '#f59e0b'];
-            const levelClass = d.level === 'สูงกว่าเกณฑ์' ? 'bg-green-100 text-green-700' :
-                d.level === 'เกณฑ์ปกติ' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700';
+            // สีขอบการ์ด: เขียว, ฟ้า, เหลือง (ตามอันดับ)
+            const borderColors = ['#10b981', '#3b82f6', '#f59e0b'];
+            const style = getLevelStyle(d.level);
             return `
-                <div class="glass rounded-2xl p-5 border-l-8 shadow-md" style="border-left-color: ${colors[idx]}">
+                <div class="glass rounded-2xl p-5 border-l-8 shadow-md" style="border-left-color: ${borderColors[idx]}">
                     <div class="flex justify-between items-center mb-3">
-                        <h3 class="font-bold text-xl text-slate-800">อันดับ ${idx+1}</h3>
-                        <span class="text-xs px-2 py-0.5 rounded-full ${levelClass}">${d.level}</span>
+                        <h3 class="font-bold text-xl text-slate-800">อันดับ ${idx + 1}</h3>
+                        <span class="text-xs px-2 py-0.5 rounded-full ${style.badge}">${d.level}</span>
                     </div>
                     <p class="text-lg font-bold text-slate-800">${d.label}</p>
                     <p class="text-3xl font-black text-slate-800">${d.score} <span class="text-base font-normal text-slate-400">/ ${d.max}</span></p>
                     <div class="w-full bg-slate-200 rounded-full h-2.5 mt-2">
-                        <div class="h-2.5 rounded-full" style="width:${(d.score/d.max)*100}%; background:${colors[idx]}"></div>
+                        <div class="h-2.5 rounded-full" style="width: ${(d.score / d.max) * 100}%; background: ${borderColors[idx]};"></div>
                     </div>
                 </div>
             `;
@@ -281,8 +320,8 @@ async function printResult() {
         const { data: assessment, error } = await db.from('mi_assessments')
             .select('*')
             .eq('student_id', currentStudent.id)
-            .eq('academic_year', schoolInfo.current_academic_year)
-            .eq('semester', schoolInfo.current_semester)
+            .eq('academic_year', String(schoolInfo.current_academic_year))
+            .eq('semester', String(schoolInfo.current_semester))
             .single();
         if (error || !assessment) throw new Error('ไม่พบข้อมูลการประเมิน');
 

@@ -78,6 +78,9 @@ const MI_QUESTIONS = [
 ];
 
 // เกณฑ์การแปลผล (คะแนนเต็มแต่ละด้าน 25, รวม 200)
+// ── เกณฑ์การแปลผล (ปรับให้เหมาะสมกับ MI) ────────────────
+// เปลี่ยนจาก "ต่ำกว่าเกณฑ์ / เกณฑ์ปกติ / สูงกว่าเกณฑ์"
+// เป็น "ควรพัฒนา / ปานกลาง / โดดเด่น" หรือ "ต่ำ / ปานกลาง / สูง"
 const MI_NORM = {
     linguistic: { min: 10, max: 18, totalMax: 25 },
     logical_mathematical: { min: 10, max: 18, totalMax: 25 },
@@ -92,10 +95,10 @@ const MI_NORM = {
 
 function interpretScore(score, dimKey) {
     const norm = MI_NORM[dimKey];
-    if (!norm) return 'เกณฑ์ปกติ';
-    if (score < norm.min) return 'ต่ำกว่าเกณฑ์';
-    if (score <= norm.max) return 'เกณฑ์ปกติ';
-    return 'สูงกว่าเกณฑ์';
+    if (!norm) return 'ปานกลาง';
+    if (score < norm.min) return 'ควรพัฒนา';
+    if (score <= norm.max) return 'ปานกลาง';
+    return 'โดดเด่น';
 }
 
 function calcScoreMI(answers) {

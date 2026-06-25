@@ -14,15 +14,15 @@ let adviserMap = {};
 
 if (typeof MI_NORM === 'undefined') {
     window.MI_NORM = {
-        linguistic: { min:10, max:18 },
-        logical_mathematical: { min:10, max:18 },
-        visual_spatial: { min:10, max:18 },
-        bodily_kinesthetic: { min:10, max:18 },
-        musical: { min:10, max:18 },
-        interpersonal: { min:10, max:18 },
-        intrapersonal: { min:10, max:18 },
-        naturalist: { min:10, max:18 },
-        total: { min:80, max:144 }
+        linguistic: { min: 10, max: 18 },
+        logical_mathematical: { min: 10, max: 18 },
+        visual_spatial: { min: 10, max: 18 },
+        bodily_kinesthetic: { min: 10, max: 18 },
+        musical: { min: 10, max: 18 },
+        interpersonal: { min: 10, max: 18 },
+        intrapersonal: { min: 10, max: 18 },
+        naturalist: { min: 10, max: 18 },
+        total: { min: 80, max: 144 }
     };
 }
 
@@ -41,20 +41,25 @@ window.addEventListener('load', async () => {
     document.getElementById('user-display').textContent = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
 
     if (p.role === 'super_admin') document.getElementById('btn-settings').classList.remove('hidden');
-    if (['admin', 'super_admin'].includes(p.role)) document.getElementById('btnToggleMode').classList.remove('hidden');
+    // if (['admin', 'super_admin'].includes(p.role)) document.getElementById('btnToggleMode').classList.remove('hidden');
+    if (p.role === 'admin' || p.role === 'super_admin') {
+        document.getElementById('btnToggleMode').classList.remove('hidden');
+    }
 
     const { data: si } = await db.from('core_school_info').select('*').single();
     schoolInfo = si;
 
     if (si) {
         const { data: s } = await db.from('mi_settings')
-            .select('*').eq('academic_year', si.current_academic_year).eq('semester', si.current_semester).maybeSingle();
+            .select('*').eq('academic_year', String(si.current_academic_year)).eq('semester', String(si.current_semester)).maybeSingle();
         if (s) {
             document.getElementById('set-delay').value = s.delay_seconds;
             document.getElementById('set-active').checked = s.is_active;
         }
     }
 
+    // แทนที่บรรทัด isAdminMode = false; ด้วย:
+    // isAdminMode = (p.role === 'admin' || p.role === 'super_admin');
     isAdminMode = false;
     updateToggleModeUI();
     await loadClassrooms();
@@ -64,10 +69,11 @@ window.addEventListener('load', async () => {
 async function loadClassrooms() {
     let q = db.from('core_classrooms')
         .select('id, grade_level, room_number, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
-        .eq('academic_year', schoolInfo?.current_academic_year)
-        .eq('semester', schoolInfo?.current_semester)
+        .eq('academic_year', String(schoolInfo?.current_academic_year))
+        .eq('semester', String(schoolInfo?.current_semester))
         .order('grade_level').order('room_number');
 
+    // ถ้าเป็นโหมดครูให้กรองเฉพาะห้องที่ปรึกษา
     if (!isAdminMode) {
         q = q.or(`adviser_id_1.eq.${currentUserId},adviser_id_2.eq.${currentUserId}`);
     }
@@ -83,6 +89,7 @@ async function loadClassrooms() {
     });
 
     if (isAdminMode) {
+        // ---- โหมดผู้ดูแลระบบ ----
         const sel = document.getElementById('sel-classroom');
         if (sel.tomselect) sel.tomselect.destroy();
         sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>' +
@@ -105,44 +112,182 @@ async function loadClassrooms() {
         });
         document.getElementById('adminFilterSection').classList.remove('hidden');
         document.getElementById('teacherActionBar').classList.add('hidden');
+
+        // ✅ โหลดข้อมูลและสถิติทันที (ไม่ต้องรอเลือกห้อง)
+        await loadResults();
+
     } else {
+        // ---- โหมดครูที่ปรึกษา ----
         document.getElementById('adminFilterSection').classList.add('hidden');
         document.getElementById('teacherActionBar').classList.remove('hidden');
-        if (allClassrooms.length > 0) await loadResults(allClassrooms[0].id);
-        else Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
+
+        if (allClassrooms.length > 0) {
+            // ✅ ถ้ามีห้องที่ปรึกษา ให้โหลดห้องแรก และอัปเดตสถิติ
+            await loadResults(allClassrooms[0].id);
+        } else {
+            // ✅ ถ้าไม่มีห้องที่ปรึกษา ให้แจ้งเตือน และรีเซ็ตสถิติเป็น 0
+            Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
+
+        }
     }
 }
 
 async function loadStats() {
-    const { data: mis } = await db.from('mi_assessments')
-        .select('level_total')
-        .eq('academic_year', schoolInfo?.current_academic_year)
-        .eq('semester', schoolInfo?.current_semester);
+    const academicYear = String(schoolInfo?.current_academic_year);
+    const semester = String(schoolInfo?.current_semester);
 
-    const total = mis?.length || 0;
-    const high = mis?.filter(e => e.level_total === 'สูงกว่าเกณฑ์').length || 0;
-    const mid = mis?.filter(e => e.level_total === 'เกณฑ์ปกติ').length || 0;
-    const low = mis?.filter(e => e.level_total === 'ต่ำกว่าเกณฑ์').length || 0;
+    console.log('🔍 loadStats called | isAdminMode:', isAdminMode);
+    console.log('🔍 allClassrooms:', allClassrooms);
 
-    const { data: allStd } = await db.from('core_students').select('id');
-    const stdTotal = allStd?.length || 0;
-    const pct = stdTotal > 0 ? Math.round(total / stdTotal * 100) : 0;
+    // 1. ดึงข้อมูล assessment ทั้งหมด
+    const { data: mis, error: misErr } = await db.from('mi_assessments')
+        .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
+        .eq('academic_year', academicYear)
+        .eq('semester', semester);
 
-    document.getElementById('stat-cards').innerHTML = [
-        { icon: 'fa-users', label: 'นักเรียนทั้งหมด', val: stdTotal, color: 'slate' },
-        { icon: 'fa-check-circle', label: 'ประเมินแล้ว', val: `${total} (${pct}%)`, color: 'indigo' },
-        { icon: 'fa-arrow-up', label: 'สูงกว่าเกณฑ์', val: high, color: 'green' },
-        { icon: 'fa-equals', label: 'เกณฑ์ปกติ', val: mid, color: 'blue' },
-        { icon: 'fa-arrow-down', label: 'ต่ำกว่าเกณฑ์', val: low, color: 'rose' },
-        { icon: 'fa-clock', label: 'ยังไม่ประเมิน', val: stdTotal - total, color: 'amber' },
-    ].map(s => `
-        <div class="glass rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-            <div class="h-11 w-11 bg-${s.color}-100 text-${s.color}-600 rounded-xl flex items-center justify-center">
-                <i class="fas ${s.icon}"></i>
+    if (misErr) console.error('loadStats error:', misErr);
+    console.log('📊 mis count (all):', mis?.length);
+    console.log('📊 mis sample (first 3):', mis?.slice(0,3));
+
+    // 2. หารายชื่อนักเรียนที่อยู่ในห้องที่ครูเห็น
+    let visibleStudentIds = [];
+    if (!isAdminMode) {
+        const roomIds = allClassrooms.map(r => r.id);
+        console.log('🏫 Teacher mode | roomIds:', roomIds);
+
+        if (roomIds.length === 0) {
+            console.warn('⚠️ No classrooms found for teacher');
+            const emptyDimStats = MI_DIMENSIONS.map(d => ({
+                key: d.key,
+                label: d.label,
+                count: 0,
+                icon: getDimIcon(d.key)
+            }));
+            renderStatsCards(0, 0, 0, emptyDimStats);
+            return;
+        }
+
+        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id')
+            .in('classroom_id', roomIds);
+        if (enrollErr) console.error('enrollErr:', enrollErr);
+        visibleStudentIds = (enrolls || []).map(e => e.student_id);
+        console.log('👨‍🎓 visibleStudentIds from enrolls:', visibleStudentIds);
+        console.log('👨‍🎓 visibleStudentIds count:', visibleStudentIds.length);
+    } else {
+        const { data: allStd } = await db.from('core_students').select('id');
+        visibleStudentIds = (allStd || []).map(s => s.id);
+        console.log('👨‍🎓 Admin mode | total students:', visibleStudentIds.length);
+    }
+
+    const totalStudents = visibleStudentIds.length;
+
+    // 3. กรองเฉพาะ assessment ที่อยู่ในกลุ่มที่เห็น
+    const filteredAssessments = (mis || []).filter(m => visibleStudentIds.includes(m.student_id));
+    console.log('✅ filteredAssessments count:', filteredAssessments.length);
+    console.log('✅ filteredAssessments sample:', filteredAssessments.slice(0,3));
+
+    const assessedCount = filteredAssessments.length;
+    const notAssessedCount = totalStudents - assessedCount;
+    console.log(`📊 assessedCount: ${assessedCount}, notAssessedCount: ${notAssessedCount}`);
+
+    // 4. นับ topCount
+    const dimKeys = MI_DIMENSIONS.map(d => d.key);
+    const topCount = {};
+    dimKeys.forEach(key => { topCount[key] = 0; });
+
+    filteredAssessments.forEach(m => {
+        let maxScore = -1;
+        let topKey = null;
+        dimKeys.forEach(key => {
+            const s = m[`score_${key}`] || 0;
+            if (s > maxScore) { maxScore = s; topKey = key; }
+        });
+        if (topKey) {
+            topCount[topKey]++;
+            console.log(`   🔝 student ${m.student_id} topKey: ${topKey} (${maxScore})`);
+        } else {
+            console.warn(`   ⚠️ student ${m.student_id} has no score > 0?`, m);
+        }
+    });
+
+    console.log('🏆 topCount:', topCount);
+
+    const dimStats = MI_DIMENSIONS.map(d => ({
+        key: d.key,
+        label: d.label,
+        count: topCount[d.key] || 0,
+        icon: getDimIcon(d.key)
+    }));
+
+    console.log('📦 dimStats:', dimStats);
+
+    renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
+    console.log('✅ renderStatsCards called');
+}
+
+function getDimIcon(key) {
+    const map = {
+        linguistic: 'fa-language',
+        logical_mathematical: 'fa-calculator',
+        visual_spatial: 'fa-cubes',
+        bodily_kinesthetic: 'fa-running',
+        musical: 'fa-music',
+        interpersonal: 'fa-users',
+        intrapersonal: 'fa-user-astronaut',
+        naturalist: 'fa-leaf'
+    };
+    return map[key] || 'fa-brain';
+}
+
+// ฟังก์ชัน render การ์ด
+function renderStatsCards(total, assessed, notAssessed, dimStats) {
+    const container = document.getElementById('stat-cards');
+    if (!container) return;
+
+    // ---- แถวที่ 1: การ์ดหลัก 3 ใบ (นักเรียนทั้งหมด, สำรวจแล้ว, ยังไม่สำรวจ) ----
+    const mainCards = [
+        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue' },
+        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green' },
+        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber' }
+    ];
+
+    let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
+    mainCards.forEach(card => {
+        html += `
+            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
+                    <i class="fas ${card.icon}"></i>
+                </div>
+                <div class="relative z-10">
+                    <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
+                    <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
+                </div>
             </div>
-            <div><p class="text-slate-400 text-[10px] font-bold uppercase">${s.label}</p><h3 class="text-2xl font-bold text-slate-800">${s.val}</h3></div>
-        </div>
-    `).join('');
+        `;
+    });
+    html += `</div>`;
+
+    // ---- แถวที่ 2: การ์ด 8 ด้าน (responsive: 2 คอลัมน์มือถือ, 4 คอลัมน์เดสก์ท็อป) ----
+    html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">`;
+    const colors = ['blue', 'indigo', 'purple', 'pink', 'red', 'orange', 'amber', 'emerald'];
+    dimStats.forEach((d, idx) => {
+        const color = colors[idx % colors.length];
+        html += `
+            <div class="glass rounded-2xl p-4 shadow-sm flex items-center gap-3">
+                <div class="h-10 w-10 bg-${color}-100 text-${color}-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas ${d.icon} text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 font-bold uppercase leading-tight">${d.label}</p>
+                    <p class="text-xl font-bold text-slate-800">${d.count}</p>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    container.innerHTML = html;
 }
 
 /**
@@ -160,11 +305,12 @@ async function loadResults(forceClassroomId = null) {
 
     let miMap = {};
     if (roomIds.length > 0) {
-        const { data: mis } = await db.from('mi_assessments')
+        const { data: mis, error: misErr } = await db.from('mi_assessments')
             .select('*')
-            .eq('academic_year', schoolInfo?.current_academic_year)
-            .eq('semester', schoolInfo?.current_semester)
+            .eq('academic_year', String(schoolInfo?.current_academic_year))
+            .eq('semester', String(schoolInfo?.current_semester))
             .in('classroom_id', roomIds);
+        if (misErr) console.error('loadResults error:', misErr);
         (mis || []).forEach(e => { miMap[e.student_id] = e; });
     }
 
@@ -179,17 +325,42 @@ async function loadResults(forceClassroomId = null) {
 }
 
 function renderTable(rows) {
+    console.log('🔍 renderTable called with rows:', rows);
+    console.log('🔍 rows length:', rows.length);
+
     if (miTable) { miTable.destroy(); miTable = null; }
     const tbody = document.getElementById('mi-tbody');
-    if (!tbody) return;
-    
+    if (!tbody) {
+        console.error('❌ tbody not found');
+        return;
+    }
+
+    // Helper กำหนดสไตล์ badge ตามระดับ
+    const getLevelBadge = (level) => {
+        if (!level) return '<span class="text-slate-300">-</span>';
+        let cls = '';
+        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) {
+            cls = 'bg-green-100 text-green-700';
+        } else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) {
+            cls = 'bg-blue-100 text-blue-700';
+        } else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) {
+            cls = 'bg-amber-100 text-amber-700';
+        } else {
+            cls = 'bg-slate-100 text-slate-600';
+        }
+        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
+    };
+
     let html = '';
     for (const r of rows) {
         const cls = r.core_classrooms;
         const std = r.core_students;
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
         const mi = r.mi;
-        
+
+        console.log(`👤 ${fullName} | mi:`, mi); // ดูว่ามี assessment หรือไม่
+
+        // กรณีไม่มีข้อมูลการประเมิน
         if (!mi) {
             html += `<tr>
                 <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
@@ -202,43 +373,52 @@ function renderTable(rows) {
             </tr>`;
             continue;
         }
-        
+
+        // มีข้อมูลการประเมิน
         const dimKeys = MI_DIMENSIONS.map(d => d.key);
-        let dimScores = dimKeys.map(key => mi[`score_${key}`] || 0);
-        const totalScore = dimScores.reduce((a,b) => a+b, 0);
-        
-        const levelBadge = (level) => {
-            if (!level) return '<span class="text-slate-300">-</span>';
-            const cls = level === 'สูงกว่าเกณฑ์' ? 'bg-green-100 text-green-700' : level === 'เกณฑ์ปกติ' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700';
-            return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
-        };
-        
+        const dimScores = dimKeys.map(key => mi[`score_${key}`] || 0);
+        const totalScore = dimScores.reduce((a, b) => a + b, 0);
+
+        console.log(`✅ ${fullName} มี assessment, totalScore = ${totalScore}`);
+
+        // ปุ่มจัดการ
         const actions = `<div class="flex gap-1 justify-center">
             <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-xs"></i></button>
             <button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
             <button onclick='printStudentPdf("${r.student_id}")' class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="PDF"><i class="fas fa-print text-xs"></i></button>
             <button onclick='deleteResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="ลบ"><i class="fas fa-trash text-xs"></i></button>
         </div>`;
-        
+
         html += `<tr>
             <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
             <td class="text-center font-bold text-slate-400">${r.student_number}</td>
             <td class="font-semibold text-slate-700">${fullName}</td>
             ${dimScores.map(s => `<td class="text-center">${s}/25</td>`).join('')}
             <td class="text-center font-bold">${totalScore} / 200</td>
-            <td class="text-center">${levelBadge(mi.level_total)}</td>
+            <td class="text-center">${getLevelBadge(mi.level_total)}</td>
             <td class="text-center">${actions}</td>
         </tr>`;
     }
-    
+
+    console.log('📄 HTML generated, length:', html.length);
     tbody.innerHTML = html;
-    miTable = new DataTable('#mi-table', {
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        responsive: true,
-        scrollX: true,
-        pageLength: 50,
-        columnDefs: [{ orderable: false, targets: [12] }]
-    });
+
+    // รีสร้าง DataTable
+    try {
+        miTable = new DataTable('#mi-table', {
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            responsive: true,
+            scrollX: true,
+            pageLength: 50,
+            columnDefs: [
+                { responsivePriority: 1, targets: -1 },
+                { orderable: false, targets: [12] }
+            ]
+        });
+        console.log('✅ DataTable initialized successfully');
+    } catch (err) {
+        console.error('❌ DataTable initialization error:', err);
+    }
 }
 
 function closeViewModal() {
@@ -275,18 +455,31 @@ async function openViewResult(studentId) {
 
     const totalScore = mi.score_total || 0;
     const totalLvl = mi.level_total || '';
-    const totalColor = totalLvl === 'สูงกว่าเกณฑ์' ? 'bg-green-500 text-white' :
-        totalLvl === 'เกณฑ์ปกติ' ? 'bg-blue-500 text-white' : 'bg-red-500 text-white';
+
+    // Helper กำหนดสไตล์ตามระดับ (ใช้ฟังก์ชันเดียวกันกับ renderTable)
+    const getLevelStyle = (level) => {
+        if (!level) return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
+        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) {
+            return { badge: 'bg-green-100 text-green-700', bar: '#10b981', bg: 'bg-green-500' };
+        } else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) {
+            return { badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6', bg: 'bg-blue-500' };
+        } else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) {
+            return { badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b', bg: 'bg-amber-500' };
+        } else {
+            return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
+        }
+    };
+
+    const totalStyle = getLevelStyle(totalLvl);
 
     const badge = (level) => {
-        const cls = level === 'สูงกว่าเกณฑ์' ? 'bg-green-100 text-green-700' :
-            level === 'เกณฑ์ปกติ' ? 'bg-blue-100 text-blue-700' : 'bg-red-100 text-red-700';
-        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
+        const style = getLevelStyle(level);
+        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${style.badge}">${level}</span>`;
     };
     const bar = (score, max, level) => {
-        const pct = Math.round((score/max)*100);
-        const color = level === 'สูงกว่าเกณฑ์' ? 'bg-green-400' : level === 'เกณฑ์ปกติ' ? 'bg-blue-400' : 'bg-red-400';
-        return `<div class="w-full bg-slate-100 rounded-full h-2 mt-1"><div class="${color} h-2 rounded-full" style="width:${pct}%"></div></div>`;
+        const pct = Math.round((score / max) * 100);
+        const style = getLevelStyle(level);
+        return `<div class="w-full bg-slate-100 rounded-full h-2 mt-1"><div class="h-2 rounded-full" style="width:${pct}%; background:${style.bar};"></div></div>`;
     };
 
     const dimsHtml = dims.map(d => `
@@ -302,7 +495,7 @@ async function openViewResult(studentId) {
 
     document.getElementById('vr-body').innerHTML = `
         <div class="flex justify-center mb-5">
-            <div class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl ${totalColor}">
+            <div class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl ${totalStyle.bg} text-white">
                 <i class="fas fa-star"></i>
                 <span class="font-black text-2xl">${totalScore}</span>
                 <span class="text-sm opacity-80">/ 200 คะแนน</span>
@@ -374,12 +567,12 @@ async function saveEdit() {
         naturalist: parseInt(document.getElementById('edit-naturalist').value) || 0
     };
     const note = document.getElementById('edit-note').value;
-    const total = Object.values(scores).reduce((a,b) => a+b, 0);
+    const total = Object.values(scores).reduce((a, b) => a + b, 0);
 
     const getLevel = (score, norm) => {
-        if (score < norm.min) return 'ต่ำกว่าเกณฑ์';
-        if (score <= norm.max) return 'เกณฑ์ปกติ';
-        return 'สูงกว่าเกณฑ์';
+        if (score < norm.min) return 'ควรพัฒนา';   // หรือ 'ต่ำ'
+        if (score <= norm.max) return 'ปานกลาง';
+        return 'โดดเด่น';                           // หรือ 'สูง'
     };
 
     const payload = {
@@ -388,7 +581,17 @@ async function saveEdit() {
         academic_year: schoolInfo.current_academic_year,
         semester: schoolInfo.current_semester,
         answers: {},
-        ...scores,
+        // BUG FIX #3+4: ต้องใส่ prefix score_ ให้ตรงกับ column ใน DB
+        // ห้ามใช้ ...scores โดยตรง เพราะ key จะเป็น linguistic, logical_mathematical ฯลฯ
+        // แต่ column DB ชื่อ score_linguistic, score_logical_mathematical ฯลฯ
+        score_linguistic: scores.linguistic,
+        score_logical_mathematical: scores.logical_mathematical,
+        score_visual_spatial: scores.visual_spatial,
+        score_bodily_kinesthetic: scores.bodily_kinesthetic,
+        score_musical: scores.musical,
+        score_interpersonal: scores.interpersonal,
+        score_intrapersonal: scores.intrapersonal,
+        score_naturalist: scores.naturalist,
         score_total: total,
         level_linguistic: getLevel(scores.linguistic, MI_NORM.linguistic),
         level_logical_mathematical: getLevel(scores.logical_mathematical, MI_NORM.logical_mathematical),
@@ -420,8 +623,8 @@ async function deleteResult(studentId) {
     if (!r.isConfirmed) return;
     await db.from('mi_assessments').delete()
         .eq('student_id', studentId)
-        .eq('academic_year', schoolInfo.current_academic_year)
-        .eq('semester', schoolInfo.current_semester);
+        .eq('academic_year', String(schoolInfo.current_academic_year))
+        .eq('semester', String(schoolInfo.current_semester));
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
     loadResults(); loadStats();
 }
@@ -448,58 +651,125 @@ function exportExcel() {
         return row;
     }).filter(r => r);
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{wch:12},{wch:8},{wch:25}, ...MI_DIMENSIONS.map(() => ({wch:12})), {wch:12},{wch:12}];
+    ws['!cols'] = [{ wch: 12 }, { wch: 8 }, { wch: 25 }, ...MI_DIMENSIONS.map(() => ({ wch: 12 })), { wch: 12 }, { wch: 12 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'MI_8dim');
-    XLSX.writeFile(wb, `MI_Admin_${new Date().toLocaleDateString('th-TH').replace(/\//g,'-')}.xlsx`);
+    XLSX.writeFile(wb, `MI_Admin_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
 
 /**
  * mit_teacher.js — ส่วนที่ 3 (PDF, import, toggle, settings, logout)
  */
-
 async function printStudentPdf(studentId) {
     Swal.fire({ title: 'กำลังเตรียมเอกสาร PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const { data: assessment, error } = await db.from('mi_assessments')
-            .select('*, core_students!student_id(prefix, first_name, last_name, avatar_students_url), core_classrooms!classroom_id(grade_level, room_number)')
-            .eq('student_id', studentId)
-            .eq('academic_year', schoolInfo.current_academic_year)
-            .eq('semester', schoolInfo.current_semester)
-            .single();
-        if (error || !assessment) throw new Error('ไม่พบข้อมูลการประเมิน');
+        if (!studentId) throw new Error('ไม่พบรหัสนักเรียน');
 
-        let adviser1 = '-', adviser2 = '-';
+        // 1. ดึงข้อมูลการประเมิน
+        const { data: assessment, error: assessErr } = await db.from('mi_assessments')
+            .select('*')
+            .eq('student_id', studentId)
+            .eq('academic_year', String(schoolInfo.current_academic_year))
+            .eq('semester', String(schoolInfo.current_semester))
+            .single();
+
+        if (assessErr || !assessment) {
+            console.error('❌ Assessment not found:', assessErr);
+            throw new Error('ไม่พบข้อมูลการประเมิน');
+        }
+
+        // 2. ดึงข้อมูลนักเรียนแยก
+        const { data: student, error: stdErr } = await db.from('core_students')
+            .select('prefix, first_name, last_name, avatar_students_url')
+            .eq('id', studentId)
+            .single();
+
+        if (stdErr) {
+            console.warn('⚠️ Student data not found:', stdErr);
+            // ใช้ค่า default ถ้าไม่มีข้อมูล
+            assessment.core_students = {
+                prefix: '',
+                first_name: 'ไม่พบชื่อ',
+                last_name: '',
+                avatar_students_url: null
+            };
+        } else {
+            assessment.core_students = student;
+        }
+
+        // 3. ดึงข้อมูลห้องเรียน (ถ้ามี)
         if (assessment.classroom_id) {
-            const { data: cls } = await db.from('core_classrooms')
-                .select(`
-                    adviser1:core_personnel!adviser_id_1(prefix, first_name, last_name),
-                    adviser2:core_personnel!adviser_id_2(prefix, first_name, last_name)
-                `)
+            const { data: cls, error: clsErr } = await db.from('core_classrooms')
+                .select('grade_level, room_number')
                 .eq('id', assessment.classroom_id)
                 .single();
-            if (cls) {
-                if (cls.adviser1) adviser1 = `${cls.adviser1.prefix || ''}${cls.adviser1.first_name} ${cls.adviser1.last_name}`;
-                if (cls.adviser2) adviser2 = `${cls.adviser2.prefix || ''}${cls.adviser2.first_name} ${cls.adviser2.last_name}`;
+
+            if (!clsErr && cls) {
+                assessment.core_classrooms = cls;
+            } else {
+                assessment.core_classrooms = null;
+            }
+        } else {
+            assessment.core_classrooms = null;
+        }
+
+        // 4. ดึงข้อมูลครูที่ปรึกษา (ใช้ syntax แบบเดิม หรือแยก query ก็ได้)
+        let adviser1 = '-', adviser2 = '-';
+        if (assessment.classroom_id) {
+            // ลองใช้แบบ embed ถ้าไม่ได้ให้แยก query
+            try {
+                const { data: cls, error: clsErr } = await db.from('core_classrooms')
+                    .select(`
+                        adviser1:core_personnel!adviser_id_1(prefix, first_name, last_name),
+                        adviser2:core_personnel!adviser_id_2(prefix, first_name, last_name)
+                    `)
+                    .eq('id', assessment.classroom_id)
+                    .single();
+
+                if (!clsErr && cls) {
+                    if (cls.adviser1) adviser1 = `${cls.adviser1.prefix || ''}${cls.adviser1.first_name} ${cls.adviser1.last_name}`;
+                    if (cls.adviser2) adviser2 = `${cls.adviser2.prefix || ''}${cls.adviser2.first_name} ${cls.adviser2.last_name}`;
+                }
+            } catch (err) {
+                console.warn('⚠️ Adviser data not found:', err);
+                // ถ้า embed ไม่ได้ ให้ลองแยก query ดึง personnel
+                // ... (optional)
             }
         }
 
         const schoolLogo = schoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
-        const schoolName = schoolInfo?.school_name || 'โรงเรียนเทพศาลาประชาสรรค์';
+        const schoolName = schoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
         const academicYear = assessment.academic_year;
         const semester = assessment.semester;
-        const fullName = `${assessment.core_students.prefix || ''}${assessment.core_students.first_name} ${assessment.core_students.last_name}`;
-        const avatarUrl = assessment.core_students.avatar_students_url || null;
+
+        const std = assessment.core_students;
+        const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+        const avatarUrl = std?.avatar_students_url || null;
 
         Swal.close();
         generateStudentPDFMI(assessment, schoolName, academicYear, semester, adviser1, adviser2, schoolLogo, fullName, avatarUrl);
     } catch (err) {
         Swal.close();
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        console.error('❌ printStudentPdf catch:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่พบข้อมูลการประเมิน', 'error');
     }
 }
 
 function generateStudentPDFMI(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
+    // Helper กำหนดสไตล์ตามระดับ (เหมือนที่ใช้ใน renderTable)
+    const getLevelStyle = (level) => {
+        if (!level) return { badge: 'bg-slate-100 text-slate-700', bg: '#94a3b8', color: '#94a3b8' };
+        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) {
+            return { badge: 'bg-green-100 text-green-700', bg: '#10b981', color: '#15803d' };
+        } else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) {
+            return { badge: 'bg-blue-100 text-blue-700', bg: '#3b82f6', color: '#1d4ed8' };
+        } else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) {
+            return { badge: 'bg-amber-100 text-amber-700', bg: '#f59e0b', color: '#b45309' };
+        } else {
+            return { badge: 'bg-slate-100 text-slate-700', bg: '#94a3b8', color: '#475569' };
+        }
+    };
+
     const dims = MI_DIMENSIONS.map(d => ({
         key: d.key,
         label: d.label,
@@ -508,9 +778,12 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
         level: assessment[`level_${d.key}`] || ''
     }));
 
-    const avatarHtml = avatarUrl 
+    const avatarHtml = avatarUrl
         ? `<img src="${avatarUrl}" style="width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid #cbd5e1;" crossorigin="anonymous">`
         : `<div style="width:60px; height:60px; border-radius:50%; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:24px; color:#94a3b8;"><i class="fas fa-user"></i></div>`;
+
+    // ใช้ getLevelStyle สำหรับระดับรวม
+    const totalStyle = getLevelStyle(assessment.level_total);
 
     const html = `<!DOCTYPE html>
     <html>
@@ -546,19 +819,22 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
     </head>
     <body>
     <div class="header">
-        <div class="logo-area"><img class="logo" src="${logoUrl}" crossorigin="anonymous"><div><div class="school-title">${schoolName}</div><div class="school-sub">รายงานผลการประเมินพหุปัญญา (MI)</div></div></div>
+        <div class="logo-area"><img class="logo" src="${logoUrl}" crossorigin="anonymous"><div><div class="school-title">${schoolName}</div><div class="school-sub">รายงานผลการประเมินพหุปัญญา (MIT)</div></div></div>
         <div class="info-area"><div><b>ภาคเรียนที่ ${semester}</b> ปีการศึกษา ${academicYear}</div><div>ครูที่ปรึกษา: ${adviser1} ${adviser2 !== '-' ? ' / ' + adviser2 : ''}</div></div>
     </div>
     <div class="student-card">
         <div class="student-avatar">${avatarHtml}</div>
         <div class="student-details"><b>ชื่อ-สกุล:</b> ${fullName}<br><span style="font-size:12px;color:#64748b">วันที่ประเมิน: ${new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH')}</span></div>
     </div>
-    <div class="total-card"><div class="total-score" style="color:${assessment.level_total === 'สูงกว่าเกณฑ์' ? '#15803d' : (assessment.level_total === 'เกณฑ์ปกติ' ? '#1d4ed8' : '#b91c1c')}">${assessment.score_total} <span style="font-size:14px;font-weight:normal;">/ 200 คะแนน</span></div><div class="total-level">ระดับรวม: ${assessment.level_total}</div></div>
+    <div class="total-card">
+        <div class="total-score" style="color:${totalStyle.color}">${assessment.score_total} <span style="font-size:14px;font-weight:normal;">/ 200 คะแนน</span></div>
+        <div class="total-level">ระดับรวม: ${assessment.level_total}</div>
+    </div>
     <div class="chart-title">📊 กราฟแสดงคะแนนรายด้าน (8 ด้าน)</div>
     ${dims.map(d => {
         const percent = (d.score / d.max) * 100;
-        const barColor = d.level === 'สูงกว่าเกณฑ์' ? '#10b981' : (d.level === 'เกณฑ์ปกติ' ? '#3b82f6' : '#ef4444');
-        return `<div class="bar-item"><div class="bar-label"><span><b>${d.label}</b> (${d.score}/${d.max})</span><span>${Math.round(percent)}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${percent}%; background:${barColor};"></div></div></div>`;
+        const style = getLevelStyle(d.level);
+        return `<div class="bar-item"><div class="bar-label"><span><b>${d.label}</b> (${d.score}/${d.max})</span><span>${Math.round(percent)}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${percent}%; background:${style.bg};"></div></div></div>`;
     }).join('')}
     
     <table>
@@ -612,8 +888,8 @@ function setImportMode(mode) {
     importMode = mode;
     document.getElementById('import-excel-section').classList.toggle('hidden', mode !== 'excel');
     document.getElementById('import-sheets-section').classList.toggle('hidden', mode !== 'sheets');
-    document.getElementById('tab-excel').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode==='excel'?'bg-amber-500 text-white':'bg-slate-100'}`;
-    document.getElementById('tab-sheets').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode==='sheets'?'bg-amber-500 text-white':'bg-slate-100'}`;
+    document.getElementById('tab-excel').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'excel' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
+    document.getElementById('tab-sheets').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'sheets' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
 }
 async function handleFileImport(input) {
     const file = input.files[0]; if (!file) return;
@@ -676,12 +952,20 @@ async function processImportRows(rows) {
         for (const [thai, key] of Object.entries(dimMap)) {
             scores[key] = parseInt(row[thai]) || 0;
         }
-        const total = Object.values(scores).reduce((a,b) => a+b, 0);
+        const total = Object.values(scores).reduce((a, b) => a + b, 0);
         const payload = {
             student_id: std.id, classroom_id: std.classroom_id,
             academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester,
             answers: {}, recorder_id: currentUser.id,
-            ...scores,
+            // BUG FIX #3: ต้องระบุ score_ prefix ให้ครบ ห้าม spread ...scores โดยตรง
+            score_linguistic: scores.linguistic,
+            score_logical_mathematical: scores.logical_mathematical,
+            score_visual_spatial: scores.visual_spatial,
+            score_bodily_kinesthetic: scores.bodily_kinesthetic,
+            score_musical: scores.musical,
+            score_interpersonal: scores.interpersonal,
+            score_intrapersonal: scores.intrapersonal,
+            score_naturalist: scores.naturalist,
             score_total: total,
             level_linguistic: getLevel(scores.linguistic, MI_NORM.linguistic),
             level_logical_mathematical: getLevel(scores.logical_mathematical, MI_NORM.logical_mathematical),
@@ -697,7 +981,7 @@ async function processImportRows(rows) {
         if (error) fail++; else success++;
     }
     Swal.close(); closeImportModal();
-    Swal.fire({ icon: success>0?'success':'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
+    Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
     loadResults(); loadStats();
 }
 
@@ -705,13 +989,14 @@ function updateToggleModeUI() {
     const btn = document.getElementById('btnToggleMode');
     if (btn) btn.innerHTML = isAdminMode ? '<i class="fa-solid fa-toggle-on text-emerald-500"></i> โหมด: ผู้ดูแลระบบ' : '<i class="fa-solid fa-toggle-off"></i> โหมด: ครูที่ปรึกษา';
 }
+
 async function toggleMode() {
     isAdminMode = !isAdminMode;
     updateToggleModeUI();
     if (miTable) { miTable.destroy(); miTable = null; }
     document.getElementById('mi-tbody').innerHTML = '';
     await loadClassrooms();
-    await loadStats();
+    await loadStats(); // ✅ เพิ่มบรรทัดนี้
 }
 
 function openSettings() {
@@ -761,7 +1046,7 @@ async function loadPersonnelForSettings() {
 }
 function filterUsersForSettings() {
     const searchTerm = document.getElementById('user-search-settings')?.value.toLowerCase() || '';
-    const filtered = allPersonnel.filter(u => 
+    const filtered = allPersonnel.filter(u =>
         `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm) ||
         (u.email || '').toLowerCase().includes(searchTerm)
     );
@@ -773,8 +1058,8 @@ function renderUserTableForSettings(users) {
     tbody.innerHTML = users.map(user => {
         const canEdit = currentUserRole === 'super_admin' && user.role !== 'super_admin';
         const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
-        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' : 
-                          (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
+        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
+            (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
         return `<tr>
             <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
             <td class="px-2 py-1">${user.email || '-'}</td>
