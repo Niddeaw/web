@@ -511,6 +511,88 @@ window.submitHomeVisit = async function () {
 };
 
 // ==========================================
+// ฟังก์ชัน Auto Save
+// ==========================================
+let isAutoSaving = false;
+
+async function autoSaveStep() {
+    // ถ้าไม่มีข้อมูลเปลี่ยนแปลง หรือไม่มี student/classroom หรือถูก lock
+    if (!formIsDirty || !currentStudentId || !currentClassroomId || isVerified) {
+        return true;
+    }
+
+    if (isAutoSaving) return true;
+
+    isAutoSaving = true;
+    try {
+        const formData = buildFormData(currentStudentId, currentClassroomId);
+
+        const { data: existingRecords, error: selectError } = await db
+            .from('module_home_visits')
+            .select('id')
+            .eq('student_id', currentStudentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .limit(1);
+
+        if (selectError) throw selectError;
+
+        const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
+        let savedData, saveError;
+
+        if (existingRow) {
+            const { data, error } = await db
+                .from('module_home_visits')
+                .update(formData)
+                .eq('id', existingRow.id)
+                .select('id');
+            savedData = data;
+            saveError = error;
+        } else {
+            const { data, error } = await db
+                .from('module_home_visits')
+                .insert([formData])
+                .select('id');
+            savedData = data;
+            saveError = error;
+        }
+
+        if (saveError) throw saveError;
+        if (!savedData || savedData.length === 0) {
+            throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
+        }
+
+        formIsDirty = false;
+        updateStatusBadge('completed');
+
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'success',
+            title: 'บันทึกอัตโนมัติสำเร็จ',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+        });
+        return true;
+    } catch (err) {
+        console.error('Auto-save step error:', err);
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'warning',
+            title: 'บันทึกอัตโนมัติล้มเหลว',
+            text: err.message || 'กรุณาบันทึกด้วยตนเอง',
+            showConfirmButton: false,
+            timer: 3000,
+        });
+        return false;
+    } finally {
+        isAutoSaving = false;
+    }
+}
+
+// ==========================================
 // ฟังก์ชันเสริม (คัดลอกมาจาก homevisit.js ครู)
 // ==========================================
 
@@ -569,7 +651,13 @@ window.goToStep = function (step) {
     }
     if (step === 2) setTimeout(initMap, 200);
 };
-window.nextStep = function (step) { goToStep(step); };
+window.nextStep = async function (step) {
+    // ตรวจสอบเงื่อนไขเฉพาะ (ถ้ามี)
+    // สำหรับนักเรียนไม่มี step 2 เช็ค student เพราะเลือกแล้ว
+    // บันทึกอัตโนมัติก่อนเปลี่ยน step
+    await autoSaveStep();
+    goToStep(step);
+};
 window.prevStep = function (step) { goToStep(step); };
 
 // ---------- Plugins ----------

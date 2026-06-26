@@ -1418,6 +1418,89 @@ window.submitHomeVisit = async function (isAutoSave = false) {
     }
 };
 
+// ==========================================
+// ฟังก์ชัน Auto Save
+// ==========================================
+let isAutoSaving = false;
+
+async function autoSaveStep() {
+    // ถ้าไม่มีข้อมูลเปลี่ยนแปลง หรือไม่มี student/classroom หรือเป็นโหมดอ่านอย่างเดียว
+    if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) {
+        return true;
+    }
+
+    if (isAutoSaving) return true; // ป้องกันการเรียกซ้ำ
+
+    isAutoSaving = true;
+    try {
+        const formData = buildFormData(currentStudentId, window.currentClassroomId);
+
+        // ตรวจสอบ record เดิม
+        const { data: existingRecords, error: selectError } = await db
+            .from('module_home_visits')
+            .select('id')
+            .eq('student_id', currentStudentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .limit(1);
+
+        if (selectError) throw selectError;
+
+        const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
+        let savedData, saveError;
+
+        if (existingRow) {
+            const { data, error } = await db
+                .from('module_home_visits')
+                .update(formData)
+                .eq('id', existingRow.id)
+                .select('id');
+            savedData = data;
+            saveError = error;
+        } else {
+            const { data, error } = await db
+                .from('module_home_visits')
+                .insert([formData])
+                .select('id');
+            savedData = data;
+            saveError = error;
+        }
+
+        if (saveError) throw saveError;
+        if (!savedData || savedData.length === 0) {
+            throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
+        }
+
+        // บันทึกสำเร็จ
+        formIsDirty = false;
+        updateStatusBadge('completed');
+
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'success',
+            title: 'บันทึกอัตโนมัติสำเร็จ',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+        });
+        return true;
+    } catch (err) {
+        console.error('Auto-save step error:', err);
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'warning',
+            title: 'บันทึกอัตโนมัติล้มเหลว',
+            text: err.message || 'กรุณาบันทึกด้วยตนเอง',
+            showConfirmButton: false,
+            timer: 3000,
+        });
+        return false;
+    } finally {
+        isAutoSaving = false;
+    }
+}
 
 // ==========================================
 // ฟังก์ชันบีบอัดรูปภาพให้ไม่เกินขนาดที่กำหนด (หน่วยเป็น MB)
@@ -1576,10 +1659,12 @@ window.goToStep = function (step) {
     if (step === 2) setTimeout(initMap, 200);
 };
 
-window.nextStep = function (step) {
+window.nextStep = async function (step) {
     if (step === 2 && !document.getElementById('hv_student')?.value) {
         return Swal.fire('ผิดพลาด', 'กรุณาเลือกนักเรียนก่อนครับ', 'warning');
     }
+    // บันทึกอัตโนมัติก่อนเปลี่ยน step
+    await autoSaveStep();
     goToStep(step);
 };
 window.prevStep = function (step) { goToStep(step); };
