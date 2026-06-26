@@ -1,5 +1,6 @@
 // ==========================================
-// homevisit.js (ฉบับแก้ไข) 3/6/2026
+// homevisit.js (ฉบับแก้ไข) 11/6/2026
+// เพิ่มระบบ Lock ข้อมูล (is_verified)
 // ==========================================
 
 let currentUser = null;
@@ -2064,6 +2065,38 @@ async function getPersonnelMap() {
     return personnelCache;
 }
 
+// ==========================================
+// ⭐ ฟังก์ชันล็อกข้อมูล (เพิ่มใหม่)
+// ==========================================
+window.verifyVisit = async function (visitId) {
+    if (!visitId) return;
+    const result = await Swal.fire({
+        title: 'ยืนยันการล็อกข้อมูล?',
+        text: 'เมื่อล็อกแล้ว นักเรียนจะไม่สามารถแก้ไขข้อมูลนี้ได้อีก แต่คุณยังสามารถแก้ไขได้',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#0d9488',
+        confirmButtonText: 'ยืนยันล็อก',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังล็อกข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    const { error } = await db.from('module_home_visits')
+        .update({ 
+            is_verified: true, 
+            verified_by: currentUser.id, 
+            verified_at: new Date().toISOString() 
+        })
+        .eq('id', visitId);
+    if (error) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถล็อกข้อมูลได้: ' + error.message, 'error');
+        return;
+    }
+    Swal.fire({ icon: 'success', title: 'ล็อกข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false });
+    loadDataTable(); // รีเฟรชตาราง
+};
+
 window.loadDataTable = async function () {
     const isTeacher = (currentViewRole === 'teacher');
     const classSummaryTable = document.getElementById('class-table-container');
@@ -2157,7 +2190,6 @@ window.loadDataTable = async function () {
     const classroomId = window.currentClassroomId;
     const tbody = document.getElementById('tb-teacher-students');
     if (!tbody) return;
-    // เปลี่ยน colspan เป็น 8 เพราะเพิ่มคอลัมน์ "ความสมบูรณ์ของข้อมูล"
     tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</td></tr>';
 
     try {
@@ -2199,7 +2231,7 @@ window.loadDataTable = async function () {
                 ? '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>'
                 : '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>';
 
-            // ปุ่ม "รายการที่ขาด" สำหรับผู้ที่เยี่ยมแล้วแต่ข้อมูลไม่ครบ
+            // ปุ่ม "รายการที่ขาด"
             const checkButton = (!completeness.complete && isVisited)
                 ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>`
                 : (isVisited ? '<span class="text-slate-400 text-xs px-2">-</span>' : '');
@@ -2208,12 +2240,25 @@ window.loadDataTable = async function () {
                 ? '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>'
                 : '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
+            // --- 🔒 เพิ่มปุ่มล็อก + สถานะล็อกใน Actions ---
+            let lockHtml = '';
+            if (isVisited) {
+                if (visit.is_verified) {
+                    lockHtml = `<span class="text-emerald-600 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200"><i class="fas fa-lock"></i> ล็อกแล้ว</span>`;
+                } else {
+                    lockHtml = `<button onclick="verifyVisit('${visit.id}')" class="text-amber-600 hover:bg-amber-50 px-2 py-1 rounded border border-amber-200 transition text-xs font-bold" title="ล็อกข้อมูล (นักเรียนจะแก้ไขไม่ได้)"><i class="fas fa-lock"></i> ล็อก</button>`;
+                }
+            } else {
+                lockHtml = `<span class="text-slate-400 text-xs">-</span>`;
+            }
+
             let actions = '';
             if (isVisited) {
-                actions = `<div class="flex justify-center gap-2 flex-wrap">
+                actions = `<div class="flex justify-center gap-2 flex-wrap items-center">
                     <button onclick="editStudentVisit('${visit.id}')" class="text-sky-600 hover:bg-sky-50 px-2 py-1 rounded border border-sky-200 transition" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>
                     <button onclick="printPDF('${visit.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
                     ${visit.pdf_url ? `<button onclick="viewExistingPDF('${visit.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>` : ''}
+                    ${lockHtml}
                     ${checkButton}
                 </div>`;
             } else {
@@ -4253,3 +4298,4 @@ async function logout() {
     const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });
     if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'index.html'; }
 }
+

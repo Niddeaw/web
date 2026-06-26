@@ -1,7 +1,7 @@
 // ==========================================
 // homevisit_student.js
 // สำหรับนักเรียนกรอกข้อมูลเยี่ยมบ้านของตนเอง
-// (ไม่ต้องมีหน้าล็อกอิน ใช้ Session จากระบบหลัก)
+// (มีระบบ Lock เมื่อครูกดยืนยัน)
 // ==========================================
 
 let currentUser = null;
@@ -10,47 +10,32 @@ let currentClassroomId = null;
 let currentYear = '';
 let currentTerm = '';
 let isReadOnly = false;
+let isVerified = false; // สถานะล็อก
 
-// ตัวแปรที่ใช้ร่วมกับ homevisit.js
 let map, marker, routeLayer = null;
-let studentTomSelect = null;
-let tsClassroom = null;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_url: "", gd_pdf_folder_id: "", report_template_id: "" };
 
 let formIsDirty = false;
 let suppressDirty = false;
 
-// ค่าคงที่พิกัดโรงเรียน
 const SCHOOL_LAT = 13.740269204697068;
 const SCHOOL_LNG = 100.25988109513965;
 const SCHOOL_NAME = 'โรงเรียนวัดไร่ขิงวิทยา';
 
 // ==========================================
-// 1. ตรวจสอบ Session และโหลดข้อมูลนักเรียน
+// 1. ตรวจสอบ Session และโหลดข้อมูล
 // ==========================================
 $(document).ready(async function () {
     const { data: { session } } = await db.auth.getSession();
-
     if (!session) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'กรุณาเข้าสู่ระบบ',
-            text: 'คุณยังไม่ได้เข้าสู่ระบบ กรุณา Login ก่อนใช้งาน',
-            confirmButtonColor: '#3b82f6'
-        }).then(() => {
-            window.location.href = 'login.html';
-        });
+        Swal.fire({ icon: 'warning', title: 'กรุณาเข้าสู่ระบบ', text: 'คุณยังไม่ได้เข้าสู่ระบบ กรุณา Login ก่อนใช้งาน', confirmButtonColor: '#3b82f6' })
+            .then(() => { window.location.href = 'login.html'; });
         return;
     }
-
     currentUser = session.user;
-
     try {
-        // สมมติ email = {student_id_card}@wrk.ac.th หรือ @school.local
         const email = session.user.email;
         const studentIdCard = email.split('@')[0];
-
-        // ดึงข้อมูลนักเรียน พร้อมห้องเรียน
         const { data: student, error } = await db
             .from('core_students')
             .select(`
@@ -58,66 +43,51 @@ $(document).ready(async function () {
                 student_enrollments (
                     academic_year,
                     classroom_id,
-                    core_classrooms (
-                        grade_level,
-                        room_number
-                    )
+                    core_classrooms ( grade_level, room_number )
                 )
             `)
             .eq('student_id_card', studentIdCard)
             .single();
 
-        if (error || !student) {
-            throw new Error('ไม่พบข้อมูลนักเรียนในระบบ');
-        }
+        if (error || !student) throw new Error('ไม่พบข้อมูลนักเรียนในระบบ');
 
-        // เก็บข้อมูลหลัก
         currentStudentId = student.id;
         currentClassroomId = student.classroom_id;
 
-        // แสดงข้อมูลในส่วนหัว
         const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
         document.getElementById('userNameDisplay').textContent = fullName;
         document.getElementById('student-fullname-display').textContent = fullName;
         document.getElementById('student-id-display').textContent = student.student_id_card;
 
-        // หา enrollment ปัจจุบัน
         let currentEnrollment = null;
-        if (student.student_enrollments && student.student_enrollments.length > 0) {
-            // ดึงปี/เทอมปัจจุบัน
-            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
-            if (sInfo) {
-                currentYear = sInfo.current_academic_year;
-                currentTerm = sInfo.current_semester;
+        const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        if (sInfo) {
+            currentYear = sInfo.current_academic_year;
+            currentTerm = sInfo.current_semester;
+            if (student.student_enrollments) {
                 currentEnrollment = student.student_enrollments.find(e => e.academic_year == currentYear);
             }
-            if (!currentEnrollment) {
-                currentEnrollment = student.student_enrollments[0];
-                // ถ้าไม่มีปี/เทอมจาก school_info ให้ใช้ข้อมูลจาก enrollment แรก
-                if (!currentYear || !currentTerm) {
-                    currentYear = currentEnrollment.academic_year;
-                    currentTerm = '1'; // หรือดึงจาก semester ถ้ามี
-                }
+        }
+        if (!currentEnrollment && student.student_enrollments && student.student_enrollments.length > 0) {
+            currentEnrollment = student.student_enrollments[0];
+            if (!currentYear || !currentTerm) {
+                currentYear = currentEnrollment.academic_year;
+                currentTerm = '1';
             }
         }
 
         if (currentEnrollment) {
             const cls = currentEnrollment.core_classrooms;
-            const classText = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
-            document.getElementById('student-class-display').textContent = classText;
-            // เก็บ classroom_id สำหรับบันทึก
+            document.getElementById('student-class-display').textContent = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
             currentClassroomId = currentEnrollment.classroom_id;
         } else {
             document.getElementById('student-class-display').textContent = '-';
         }
 
-        // เติมข้อมูลในฟอร์ม (read-only)
         document.getElementById('student_code').value = student.student_id_card || '';
         document.getElementById('student_fullname').value = fullName;
-        const grade = currentEnrollment?.core_classrooms?.grade_level || '';
-        document.getElementById('student_grade').value = grade;
+        document.getElementById('student_grade').value = currentEnrollment?.core_classrooms?.grade_level || '';
 
-        // ดึงเลขที่จาก enrollment
         if (currentEnrollment && currentEnrollment.classroom_id) {
             const { data: enrollDetail } = await db
                 .from('student_enrollments')
@@ -128,29 +98,18 @@ $(document).ready(async function () {
             document.getElementById('student_number').value = enrollDetail?.student_number || '';
         }
 
-        // เก็บข้อมูลนักเรียนไว้ใช้ในฟังก์ชันอื่น
         window._student = student;
 
-        // โหลดข้อมูลเยี่ยมบ้านที่มีอยู่
+        // โหลดข้อมูลเยี่ยมบ้าน
         await loadExistingHomeVisit(currentStudentId);
-
-        // เริ่มต้นฟอร์ม
         initForm();
-
-        // แสดงฟอร์ม
         document.getElementById('form-section').classList.remove('hidden');
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 
     } catch (err) {
         console.error('Load student error:', err);
-        Swal.fire({
-            icon: 'error',
-            title: 'ไม่สามารถโหลดข้อมูล',
-            text: err.message || 'กรุณาติดต่อครูผู้ดูแลระบบ',
-            confirmButtonColor: '#3b82f6'
-        }).then(() => {
-            window.location.href = 'login.html';
-        });
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถโหลดข้อมูล', text: err.message || 'กรุณาติดต่อครูผู้ดูแลระบบ', confirmButtonColor: '#3b82f6' })
+            .then(() => { window.location.href = 'login.html'; });
     }
 });
 
@@ -162,13 +121,11 @@ function initForm() {
     initAllTomSelects();
     initDirtyTracking();
     goToStep(1);
-    setTimeout(() => {
-        if (document.getElementById('map')) initMap();
-    }, 500);
+    setTimeout(() => { if (document.getElementById('map')) initMap(); }, 500);
 }
 
 // ==========================================
-// 3. โหลดข้อมูลเยี่ยมบ้านเดิม
+// 3. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
 // ==========================================
 async function loadExistingHomeVisit(studentId) {
     try {
@@ -182,10 +139,14 @@ async function loadExistingHomeVisit(studentId) {
         if (error) throw error;
         const data = records && records.length > 0 ? records[0] : null;
         if (data) {
+            isVerified = data.is_verified || false;
             populateFormWithData(data);
             updateStatusBadge('completed');
+            applyStudentLockState();
         } else {
+            isVerified = false;
             updateStatusBadge('empty');
+            applyStudentLockState();
         }
     } catch (err) {
         console.error('loadExistingHomeVisit error:', err);
@@ -193,7 +154,46 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// 4. populateFormWithData (คัดลอกมาจาก homevisit.js)
+// 4. ล็อกฟอร์ม (สำหรับนักเรียน)
+// ==========================================
+function applyStudentLockState() {
+    const form = document.getElementById('homeVisitForm');
+    const banner = document.getElementById('lock-banner');
+    const submitBtn = document.getElementById('btn-student-submit');
+
+    if (isVerified) {
+        banner.classList.remove('hidden');
+        // disable input ทั้งหมด (ยกเว้น readonly fields ที่จำเป็น?)
+        form.querySelectorAll('input, textarea, select, button').forEach(el => {
+            if (el.type !== 'file') {
+                el.disabled = true;
+                el.classList.add('opacity-60', 'cursor-not-allowed');
+            }
+        });
+        // เปิดปุ่มย้อนกลับ/next ให้คลิกดูได้ (แต่ไม่ควรบันทึก)
+        // ระบบจะเช็คใน submitHomeVisit อีกที
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-40', 'cursor-not-allowed');
+        }
+    } else {
+        banner.classList.add('hidden');
+        form.querySelectorAll('input, textarea, select, button').forEach(el => {
+            if (el.type !== 'file') {
+                el.disabled = false;
+                el.classList.remove('opacity-60', 'cursor-not-allowed');
+            }
+        });
+        if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
+        }
+        // ต้องเปิด file input ด้วย? แต่ file input ถูกจัดการโดย label
+    }
+}
+
+// ==========================================
+// 5. populateFormWithData (เหมือนครู)
 // ==========================================
 function populateFormWithData(data) {
     suppressDirty = true;
@@ -204,7 +204,6 @@ function populateFormWithData(data) {
         if (el) el.checked = true;
     };
 
-    // ข้อมูลพื้นฐาน
     setVal('hv_date', data.visit_date ? data.visit_date.split('T')[0] : '');
     setRadio('visit_status', data.visit_status);
     setVal('visit_times', data.visit_times);
@@ -248,15 +247,9 @@ function populateFormWithData(data) {
     setRadio('utility_toilet', data.utility_toilet);
 
     const fm = data.family_members || {};
-    setVal('member_total', fm.total);
-    setVal('member_male', fm.male);
-    setVal('member_female', fm.female);
-    setVal('sib_same_total', fm.sib_same_total);
-    setVal('sib_same_male', fm.sib_same_male);
-    setVal('sib_same_female', fm.sib_same_female);
-    setVal('sib_diff_total', fm.sib_diff_total);
-    setVal('sib_diff_male', fm.sib_diff_male);
-    setVal('sib_diff_female', fm.sib_diff_female);
+    setVal('member_total', fm.total); setVal('member_male', fm.male); setVal('member_female', fm.female);
+    setVal('sib_same_total', fm.sib_same_total); setVal('sib_same_male', fm.sib_same_male); setVal('sib_same_female', fm.sib_same_female);
+    setVal('sib_diff_total', fm.sib_diff_total); setVal('sib_diff_male', fm.sib_diff_male); setVal('sib_diff_female', fm.sib_diff_female);
 
     const eco = data.economic_data || {};
     setVal('family_income_monthly', eco.income);
@@ -269,37 +262,22 @@ function populateFormWithData(data) {
     if (fRel.status) window.tomFamilyRelationStatus?.setValue(fRel.status, true);
     setVal('time_together_hours', fRel.time_together);
 
-    // ความสัมพันธ์ (relations)
     const relations = data.relations_data || data.relatives_data || [];
     relations.forEach((item, i) => {
         const el = document.querySelector(`input[name="rel_radio_${i}"][value="${item.relation}"]`);
         if (el) el.checked = true;
     });
 
-    // ความเสี่ยง
     const risk = data.risk_data || data.risk_factors || {};
     const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
     riskGroups.forEach(group => {
         const values = risk[group] || [];
         values.forEach(val => {
-            // รองรับ "อื่นๆ:" และ checkbox ที่มีค่า "อื่นๆ ระบุ..."
             let pureVal = val;
             let otherText = '';
-            if (val.startsWith('อื่นๆ:')) {
-                pureVal = 'อื่นๆ ระบุ...';
-                otherText = val.replace('อื่นๆ:', '').trim();
-            }
+            if (val.startsWith('อื่นๆ:')) { pureVal = 'อื่นๆ ระบุ...'; otherText = val.replace('อื่นๆ:', '').trim(); }
             const el = document.querySelector(`input[name="risk_${group}"][value="${pureVal}"]`);
-            if (el) {
-                el.checked = true;
-                if (pureVal === 'อื่นๆ ระบุ...') {
-                    const otherInput = document.getElementById(`risk_${group}_other_txt`);
-                    if (otherInput) {
-                        otherInput.value = otherText;
-                        otherInput.classList.remove('hidden');
-                    }
-                }
-            }
+            if (el) { el.checked = true; if (pureVal === 'อื่นๆ ระบุ...') { const oi = document.getElementById(`risk_${group}_other_txt`); if (oi) { oi.value = otherText; oi.classList.remove('hidden'); } } }
         });
     });
     setRadio('internet_access', risk.internet_access);
@@ -313,7 +291,6 @@ function populateFormWithData(data) {
     setVal('past_welfare_details', data.past_welfare);
     if (data.informant_type) window.tomInformantType?.setValue(data.informant_type, true);
 
-    // รูปภาพ
     const loadPic = (id, previewId, btnId, delId, url) => {
         const input = document.getElementById(id);
         if (!input) return;
@@ -336,19 +313,17 @@ function populateFormWithData(data) {
     loadPic('pic_inside', 'preview3', 'cloud_btn3', 'del_btn3', data.photo_inside);
     loadPic('pic_teacher', 'preview4', 'cloud_btn4', 'del_btn4', data.photo_teacher);
 
-    // ซิงค์รูปโปรไฟล์ใน step 1
-    const s1Img = document.getElementById('student-avatar-img');
-    const s1Placeholder = document.getElementById('student-avatar-placeholder');
-    const s1Badge = document.getElementById('student-avatar-badge');
-    const s1Status = document.getElementById('student-avatar-status');
     if (data.photo_student) {
+        const s1Img = document.getElementById('student-avatar-img');
+        const s1Placeholder = document.getElementById('student-avatar-placeholder');
+        const s1Badge = document.getElementById('student-avatar-badge');
+        const s1Status = document.getElementById('student-avatar-status');
         if (s1Img) { s1Img.src = data.photo_student; s1Img.classList.remove('hidden'); }
         if (s1Placeholder) s1Placeholder.classList.add('hidden');
         if (s1Badge) s1Badge.classList.remove('hidden');
         if (s1Status) s1Status.textContent = 'มีรูปโปรไฟล์แล้ว ✓';
     }
 
-    // พิกัด
     if (data.latitude && data.longitude && map) {
         const lat = parseFloat(data.latitude);
         const lng = parseFloat(data.longitude);
@@ -358,13 +333,12 @@ function populateFormWithData(data) {
             calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
         }
     }
-
     suppressDirty = false;
     formIsDirty = false;
 }
 
 // ==========================================
-// 5. buildFormData (คัดลอกมาจาก homevisit.js)
+// 6. buildFormData (เหมือนครู)
 // ==========================================
 function buildFormData(studentId, classroomId) {
     const getVal = (id) => document.getElementById(id)?.value || '';
@@ -464,7 +438,7 @@ function buildFormData(studentId, classroomId) {
 }
 
 // ==========================================
-// 6. submitHomeVisit
+// 7. submitHomeVisit (พร้อมเช็ค Lock)
 // ==========================================
 let isSubmitting = false;
 
@@ -472,6 +446,12 @@ window.submitHomeVisit = async function () {
     if (isSubmitting) return;
     if (!currentStudentId || !currentClassroomId) {
         Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลนักเรียนหรือห้องเรียน', 'warning');
+        return;
+    }
+
+    // ⛔ เช็คสถานะล็อกก่อนบันทึก
+    if (isVerified) {
+        Swal.fire('ไม่สามารถแก้ไขได้', 'ข้อมูลนี้ถูกล็อกโดยครูแล้ว กรุณาติดต่อครูหากต้องการเปลี่ยนแปลง', 'warning');
         return;
     }
 
@@ -517,7 +497,7 @@ window.submitHomeVisit = async function () {
         }
 
         formIsDirty = false;
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'ข้อมูลการเยี่ยมบ้านของท่านถูกบันทึกแล้ว', confirmButtonText: 'ตกลง' });
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'ข้อมูลการเยี่ยมบ้านของนักเรียนถูกบันทึกแล้ว', confirmButtonText: 'ตกลง' });
         goToStep(1);
         updateStatusBadge('completed');
         await loadExistingHomeVisit(currentStudentId);
@@ -531,7 +511,7 @@ window.submitHomeVisit = async function () {
 };
 
 // ==========================================
-// 7. ฟังก์ชันเสริม (คัดลอกจาก homevisit.js)
+// ฟังก์ชันเสริม (คัดลอกมาจาก homevisit.js ครู)
 // ==========================================
 
 // ---------- Dirty Tracking ----------
@@ -589,7 +569,6 @@ window.goToStep = function (step) {
     }
     if (step === 2) setTimeout(initMap, 200);
 };
-
 window.nextStep = function (step) { goToStep(step); };
 window.prevStep = function (step) { goToStep(step); };
 
@@ -666,7 +645,7 @@ function initMap() {
     }
 }
 
-// ---------- Route Calculation ----------
+// ---------- Route ----------
 async function calculateRoute(fromLat, fromLng, toLat, toLng) {
     const panel = document.getElementById('route-info-panel');
     if (panel) {
@@ -832,6 +811,7 @@ async function compressImage(file, maxSizeMB = 2) {
 
 window.triggerSingleUpload = async function (event, inputId, type) {
     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
+    if (isVerified) return Swal.fire('ไม่สามารถอัปโหลดได้', 'ข้อมูลถูกล็อกโดยครูแล้ว', 'warning');
 
     const fileInput = document.getElementById(inputId);
     const file = fileInput?.files[0];
@@ -847,7 +827,6 @@ window.triggerSingleUpload = async function (event, inputId, type) {
     btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังอัพโหลด...`;
     btn.disabled = true;
 
-    // โหลด Module Settings
     try {
         const { data: moduleData } = await db.from('core_system_modules').select('settings').eq('module_id', 'homevisit').single();
         const settings = moduleData?.settings || {};
@@ -878,7 +857,6 @@ window.triggerSingleUpload = async function (event, inputId, type) {
             fileInput.dataset.uploadedUrl = res.url;
             if (type === 'student_pic') {
                 await db.from('core_students').update({ avatar_students_url: res.url }).eq('student_id_card', studentCode);
-                // อัปเดตรูปในส่วนหัวด้วย
                 const avatarImg = document.getElementById('student-avatar-img');
                 if (avatarImg) {
                     avatarImg.src = res.url;
@@ -937,8 +915,7 @@ window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
 function syncCamToMain(camInput, mainId, previewId, cloudBtnId, delBtnId) {
     if (!camInput.files || !camInput.files[0]) return;
     const file = camInput.files[0];
-    const dt = new DataTransfer();
-    dt.items.add(file);
+    const dt = new DataTransfer(); dt.items.add(file);
     const mainInput = document.getElementById(mainId);
     mainInput.files = dt.files;
     previewSelectedImage(mainInput, previewId, cloudBtnId, delBtnId);
