@@ -326,19 +326,28 @@ async function printResult() {
         if (error || !assessment) throw new Error('ไม่พบข้อมูลการประเมิน');
 
         let adviser1 = '-', adviser2 = '-';
+        let gradeLevel = '', roomNumber = '', studentNumber = '';
         if (assessment.classroom_id) {
             const { data: cls } = await db.from('core_classrooms')
-                .select(`
-                    adviser1:core_personnel!adviser_id_1(prefix, first_name, last_name),
-                    adviser2:core_personnel!adviser_id_2(prefix, first_name, last_name)
-                `)
+                .select('grade_level, room_number, adviser1:core_personnel!adviser_id_1(prefix, first_name, last_name), adviser2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
                 .eq('id', assessment.classroom_id)
                 .single();
             if (cls) {
+                gradeLevel = cls.grade_level || '';
+                roomNumber = cls.room_number || '';
                 if (cls.adviser1) adviser1 = `${cls.adviser1.prefix || ''}${cls.adviser1.first_name} ${cls.adviser1.last_name}`;
                 if (cls.adviser2) adviser2 = `${cls.adviser2.prefix || ''}${cls.adviser2.first_name} ${cls.adviser2.last_name}`;
             }
+            const { data: enroll } = await db.from('student_enrollments')
+                .select('student_number')
+                .eq('student_id', currentStudent.id)
+                .eq('classroom_id', assessment.classroom_id)
+                .maybeSingle();
+            if (enroll) studentNumber = enroll.student_number || '';
         }
+        assessment._gradeLevel = gradeLevel;
+        assessment._roomNumber = roomNumber;
+        assessment._studentNumber = studentNumber;
 
         const schoolLogo = schoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
         const schoolName = schoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
@@ -355,312 +364,315 @@ async function printResult() {
     }
 }
 
-// ฟังก์ชัน buildMIPdfHtml แบบ string concatenation ปลอดภัย 100%
 function buildMIPdfHtml(opts) {
-    var assessment = opts.assessment;
-    var schoolName = opts.schoolName;
-    var academicYear = opts.academicYear;
-    var semester = opts.semester;
-    var adviser1 = opts.adviser1;
-    var adviser2 = opts.adviser2;
-    var logoUrl = opts.logoUrl;
-    var fullName = opts.fullName;
-    var avatarUrl = opts.avatarUrl;
-    var dims = opts.dims;
-    var studentIdCard = opts.studentIdCard || '-';
+    var assessment   = opts.assessment || {};
+    var schoolName   = opts.schoolName || '';
+    var academicYear = opts.academicYear || '';
+    var semester     = opts.semester || '';
+    var adviser1     = opts.adviser1 || '';
+    var adviser2     = opts.adviser2 || '';
+    var logoUrl      = opts.logoUrl || '';
+    var fullName     = opts.fullName || '';
+    var avatarUrl    = opts.avatarUrl || '';
+    var dims         = opts.dims || [];
+    var studentIdCard = opts.studentIdCard || opts.studentCode || opts.student_id || '-';
     var studentNumber = opts.studentNumber || '-';
-    var gradeLevel = opts.gradeLevel || '-';
-    var roomNumber = opts.roomNumber || '-';
-    var docTitle = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MI)';
+    var gradeLevel    = opts.gradeLevel || '-';
+    var roomNumber    = opts.roomNumber || '-';
+    var docTitle      = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MIT)';
 
-    // สีตามระดับรวม
-    var totalLevel = assessment.level_total || '';
+    var scoreTotal = (assessment.score_total !== undefined && assessment.score_total !== null) ? assessment.score_total : '-';
+    var totalLevel = assessment.level_total || '-';
+
     var isHigh = ['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(totalLevel) >= 0;
     var isMid  = ['เกณฑ์ปกติ','ปานกลาง'].indexOf(totalLevel) >= 0;
     var totalColor  = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
-    var totalBg     = isHigh ? '#dcfce7' : (isMid ? '#dbeafe' : '#fee2e2');
-    var totalBorder = isHigh ? '#16a34a' : (isMid ? '#2563eb' : '#dc2626');
+    var totalBg     = isHigh ? '#dcfce7'  : (isMid ? '#dbeafe'  : '#fee2e2');
+    var totalBorder = isHigh ? '#16a34a'  : (isMid ? '#2563eb'  : '#dc2626');
 
-    function getLevelColor(level) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(level) >= 0) return '#10b981';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(level) >= 0) return '#3b82f6';
+    function getLvlColor(lv) {
+        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return '#10b981';
+        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return '#3b82f6';
         return '#ef4444';
     }
-    function getLevelClass(level) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(level) >= 0) return 'level-high';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(level) >= 0) return 'level-mid';
-        return 'level-low';
+    function getLvlClass(lv) {
+        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return 'lh';
+        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return 'lm';
+        return 'll';
     }
 
     var avatarHtml = avatarUrl
-        ? '<img src="' + avatarUrl + '" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous">'
-        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:#94a3b8;">&#128100;</div>';
+        ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;display:block;" crossorigin="anonymous">'
+        : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;">&#128100;</div>';
 
-    var dimColors = ['#6366f1','#0ea5e9','#8b5cf6','#ec4899','#f59e0b','#10b981','#14b8a6','#f97316'];
+    var DC = ['#6366f1','#0ea5e9','#8b5cf6','#ec4899','#f59e0b','#10b981','#14b8a6','#f97316'];
 
-    // --- PIE CHART (SVG) ---
-    var totalScore = 0;
-    for (var i = 0; i < dims.length; i++) totalScore += dims[i].score;
-    if (totalScore === 0) totalScore = 1;
-    var cx = 95, cy = 95, r = 80;
-    var slices = '';
-    var startAngle = -Math.PI / 2;
+    // ---- PIE SVG ----
+    var pieTot = 0;
+    for (var i = 0; i < dims.length; i++) pieTot += dims[i].score;
+    if (pieTot === 0) pieTot = 1;
+    var slices = '', sa = -Math.PI / 2;
+    var pcx = 60, pcy = 60, pr = 48;
     for (var i = 0; i < dims.length; i++) {
-        var angle = (dims[i].score / totalScore) * 2 * Math.PI;
-        if (angle < 0.001) { startAngle += angle; continue; }
-        var endAngle = startAngle + angle;
-        var x1 = cx + r * Math.cos(startAngle);
-        var y1 = cy + r * Math.sin(startAngle);
-        var x2 = cx + r * Math.cos(endAngle);
-        var y2 = cy + r * Math.sin(endAngle);
-        var largeArc = angle > Math.PI ? 1 : 0;
-        slices += '<path d="M' + cx + ',' + cy + ' L' + x1.toFixed(1) + ',' + y1.toFixed(1) +
-            ' A' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
-            ' Z" fill="' + dimColors[i] + '" stroke="white" stroke-width="1.5"/>';
-        startAngle = endAngle;
+        var ang = (dims[i].score / pieTot) * 2 * Math.PI;
+        if (ang < 0.001) { sa += ang; continue; }
+        var ea = sa + ang;
+        var x1 = pcx + pr * Math.cos(sa), y1 = pcy + pr * Math.sin(sa);
+        var x2 = pcx + pr * Math.cos(ea), y2 = pcy + pr * Math.sin(ea);
+        var la = ang > Math.PI ? 1 : 0;
+        slices += '<path d="M' + pcx + ',' + pcy + ' L' + x1.toFixed(1) + ',' + y1.toFixed(1) +
+            ' A' + pr + ',' + pr + ' 0 ' + la + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+            ' Z" fill="' + DC[i] + '" stroke="white" stroke-width="1.5"/>';
+        sa = ea;
     }
-    var pieChart = '<svg width="190" height="190" viewBox="0 0 190 190" xmlns="http://www.w3.org/2000/svg">' + slices + '</svg>';
+    var piesvg = '<svg width="110" height="110" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="white"/>' + slices + '</svg>';
 
-    // --- RADAR CHART (SVG) ---
-    var rcx = 115, rcy = 115, rr = 88;
-    var n = dims.length;
-    var gridLines = '', axisLines = '', labels = '', dots = '';
-    var radarPoints = [];
+    // ---- LEGEND ----
+    var legend = '';
+    for (var i = 0; i < dims.length; i++) {
+        legend += '<div style="margin-bottom:3px;font-size:11px;color:#374151;">' +
+            '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + DC[i] + ';margin-right:5px;vertical-align:middle;"></span>' +
+            '<span style="vertical-align:middle;">' + dims[i].label + ' (' + dims[i].score + '/' + dims[i].max + ')</span></div>';
+    }
+
+    // ---- RADAR SVG ----
+    var rcx = 90, rcy = 90, rr = 55, n = dims.length;
+    var grid = '', axes = '', lbs = '', dts = '', rpts = [];
     for (var i = 0; i < n; i++) {
-        var angle = (2 * Math.PI * i / n) - Math.PI / 2;
+        var ang = (2 * Math.PI * i / n) - Math.PI / 2;
         var pct = dims[i].max > 0 ? dims[i].score / dims[i].max : 0;
-        var px = rcx + rr * pct * Math.cos(angle);
-        var py = rcy + rr * pct * Math.sin(angle);
-        radarPoints.push(px.toFixed(1) + ',' + py.toFixed(1));
-        // axis
-        var ex = rcx + rr * Math.cos(angle);
-        var ey = rcy + rr * Math.sin(angle);
-        axisLines += '<line x1="' + rcx + '" y1="' + rcy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="#cbd5e1" stroke-width="1"/>';
-        // label
-        var lx = rcx + (rr + 16) * Math.cos(angle);
-        var ly = rcy + (rr + 16) * Math.sin(angle);
-        var shortLbl = dims[i].label.length > 4 ? dims[i].label.substring(0,4) : dims[i].label;
-        labels += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8.5" fill="#475569" font-family="Sarabun,sans-serif">' + shortLbl + '</text>';
-        // dot
-        dots += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="3" fill="' + dimColors[i] + '" stroke="white" stroke-width="1"/>';
+        rpts.push((rcx + rr * pct * Math.cos(ang)).toFixed(1) + ',' + (rcy + rr * pct * Math.sin(ang)).toFixed(1));
+        var ex = rcx + rr * Math.cos(ang), ey = rcy + rr * Math.sin(ang);
+        axes += '<line x1="' + rcx + '" y1="' + rcy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="#d1d5db" stroke-width="1"/>';
+        var lx = rcx + (rr + 20) * Math.cos(ang), ly = rcy + (rr + 20) * Math.sin(ang);
+        lbs += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="7.5" fill="#374151" font-family="Sarabun,sans-serif">' + dims[i].label + '</text>';
+        var dx = rcx + rr * pct * Math.cos(ang), dy = rcy + rr * pct * Math.sin(ang);
+        dts += '<circle cx="' + dx.toFixed(1) + '" cy="' + dy.toFixed(1) + '" r="2.5" fill="' + DC[i] + '" stroke="white" stroke-width="1"/>';
     }
-    // grid rings
     var fracs = [0.25, 0.5, 0.75, 1];
-    for (var f = 0; f < fracs.length; f++) {
-        var gpts = [];
+    for (var f = 0; f < 4; f++) {
+        var gp = [];
         for (var i = 0; i < n; i++) {
-            var angle = (2 * Math.PI * i / n) - Math.PI / 2;
-            gpts.push((rcx + rr * fracs[f] * Math.cos(angle)).toFixed(1) + ',' + (rcy + rr * fracs[f] * Math.sin(angle)).toFixed(1));
+            var ang = (2 * Math.PI * i / n) - Math.PI / 2;
+            gp.push((rcx + rr * fracs[f] * Math.cos(ang)).toFixed(1) + ',' + (rcy + rr * fracs[f] * Math.sin(ang)).toFixed(1));
         }
-        gridLines += '<polygon points="' + gpts.join(' ') + '" fill="none" stroke="#e2e8f0" stroke-width="1"/>';
+        grid += '<polygon points="' + gp.join(' ') + '" fill="none" stroke="#e5e7eb" stroke-width="1"/>';
     }
-    var radarChart = '<svg width="230" height="230" viewBox="0 0 230 230" xmlns="http://www.w3.org/2000/svg">' +
-        gridLines + axisLines +
-        '<polygon points="' + radarPoints.join(' ') + '" fill="#6366f118" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>' +
-        dots + labels + '</svg>';
+    var radarsvg = '<svg width="170" height="170" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="180" fill="white"/>' +
+        grid + axes +
+        '<polygon points="' + rpts.join(' ') + '" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5" stroke-linejoin="round"/>' +
+        dts + lbs + '</svg>';
 
-    // --- LEGEND ---
-    var legendHtml = '';
-    for (var i = 0; i < dims.length; i++) {
-        legendHtml += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">' +
-            '<div style="width:9px;height:9px;border-radius:2px;background:' + dimColors[i] + ';flex-shrink:0;"></div>' +
-            '<span style="font-size:8.5px;color:#475569;">' + dims[i].label + ' (' + dims[i].score + '/' + dims[i].max + ')</span>' +
-            '</div>';
-    }
-
-    // --- BAR CHART rows ---
-    var barRows = '';
+    // ---- BAR CHART ----
+    var bars = '';
     for (var i = 0; i < dims.length; i++) {
         var pct = dims[i].max > 0 ? (dims[i].score / dims[i].max * 100) : 0;
-        var col = getLevelColor(dims[i].level);
-        barRows += '<div style="margin-bottom:4px;">' +
-            '<div style="display:flex;justify-content:space-between;font-size:8.5px;margin-bottom:1px;">' +
-            '<span><b>' + dims[i].label + '</b></span>' +
-            '<span>' + dims[i].score + '/' + dims[i].max + ' (' + Math.round(pct) + '%)</span>' +
-            '</div>' +
-            '<div style="background:#e2e8f0;border-radius:8px;height:6px;">' +
-            '<div style="width:' + pct.toFixed(1) + '%;background:' + col + ';height:6px;border-radius:8px;"></div>' +
+        bars += '<div style="margin-bottom:3px;">' +
+            '<div style="font-size:10px;margin-bottom:1px;">' +
+            '<span style="font-weight:600;float:left;">' + dims[i].label + '</span>' +
+            '<span style="float:right;">' + dims[i].score + '/' + dims[i].max + ' (' + Math.round(pct) + '%)</span>' +
+            '<div style="clear:both;"></div></div>' +
+            '<div style="background:#e5e7eb;border-radius:4px;height:6px;width:100%;">' +
+            '<div style="width:' + pct.toFixed(1) + '%;background:' + getLvlColor(dims[i].level) + ';height:6px;border-radius:4px;"></div>' +
             '</div></div>';
     }
 
-    // --- TABLE rows ---
-    var tableRows = '';
+    // ---- TABLE ROWS ----
+    var trows = '';
     for (var i = 0; i < dims.length; i++) {
         var pct = dims[i].max > 0 ? Math.round(dims[i].score / dims[i].max * 100) : 0;
-        var cls = getLevelClass(dims[i].level);
-        tableRows += '<tr><td>' + dims[i].label + '</td><td>' + dims[i].score + '</td><td>' + dims[i].max + '</td><td>' + pct + '%</td><td class="' + cls + '">' + dims[i].level + '</td></tr>';
+        trows += '<tr>' +
+            '<td style="text-align:left;font-size:11px;">' + dims[i].label + '</td>' +
+            '<td style="font-size:11px;">' + dims[i].score + '</td>' +
+            '<td style="font-size:11px;">' + dims[i].max + '</td>' +
+            '<td style="font-size:11px;">' + pct + '%</td>' +
+            '<td class="' + getLvlClass(dims[i].level) + '" style="font-size:13px;">' + dims[i].level + '</td>' +
+            '</tr>';
     }
-    var totalPct = Math.round((assessment.score_total / 200) * 100);
-    tableRows += '<tr style="background:#f1f5f9;font-weight:800;"><td><b>รวม</b></td><td><b>' + assessment.score_total + '</b></td><td><b>200</b></td><td><b>' + totalPct + '%</b></td><td class="' + getLevelClass(totalLevel) + '"><b>' + totalLevel + '</b></td></tr>';
+    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / 200 * 100) : '-';
+    trows += '<tr style="background:#f1f5f9;font-weight:700;">' +
+        '<td style="text-align:left;font-size:13px;"><b>รวม</b></td>' +
+        '<td style="font-size:11px;"><b>' + scoreTotal + '</b></td>' +
+        '<td style="font-size:13px;"><b>200</b></td>' +
+        '<td style="font-size:11px;"><b>' + totPct + '%</b></td>' +
+        '<td class="' + getLvlClass(totalLevel) + '" style="font-size:13px;"><b>' + totalLevel + '</b></td>' +
+        '</tr>';
 
-    var dateStr = new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
+    var dateStr = new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
     var printDate = new Date().toLocaleDateString('th-TH');
-    var adviserLine = adviser1 + (adviser2 && adviser2 !== '-' ? ' / ' + adviser2 : '');
-    var gradeDisplay = gradeLevel && gradeLevel !== '-' ? 'ม.' + gradeLevel : '-';
+    var advLine = adviser1 + (adviser2 && adviser2 !== '-' ? ' / ' + adviser2 : '');
+    var gradeDisp = (gradeLevel && gradeLevel !== '-') ? 'ม.' + gradeLevel : '-';
 
-    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MI Report</title><style>' +
-        '* { box-sizing:border-box; margin:0; padding:0; }' +
-        '@page { size:A4 portrait; margin:0.45cm; }' +
-        'body { font-family:Sarabun,Anuphan,sans-serif; font-size:11px; color:#1e293b; background:white; }' +
-        '.hdr { display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #312e81; padding-bottom:5px; margin-bottom:7px; }' +
-        '.logo { height:42px; width:auto; }' +
-        '.school-title { color:#312e81; font-size:14px; font-weight:900; }' +
-        '.school-sub { font-size:9.5px; color:#475569; margin-top:1px; }' +
-        '.info-area { text-align:right; font-size:9.5px; line-height:1.7; }' +
-        '.row { display:flex; gap:7px; margin-bottom:6px; }' +
-        '.box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:7px; }' +
-        '.sec-title { font-size:10px; font-weight:800; color:#312e81; border-bottom:1.5px solid #e2e8f0; padding-bottom:2px; margin-bottom:5px; }' +
-        '.info-lbl { font-size:9px; color:#64748b; white-space:nowrap; }' +
-        '.info-val { font-size:9.5px; font-weight:700; color:#312e81; }' +
-        'table { width:100%; border-collapse:collapse; font-size:9px; }' +
-        'th,td { border:1px solid #cbd5e1; padding:3.5px 5px; text-align:center; }' +
-        'th { background:#312e81; color:white; }' +
-        'td:first-child { text-align:left; }' +
-        '.level-high { color:#15803d; font-weight:700; }' +
-        '.level-mid { color:#1d4ed8; font-weight:700; }' +
-        '.level-low { color:#b91c1c; font-weight:700; }' +
-        '.footer { font-size:7.5px; text-align:center; color:#94a3b8; margin-top:4px; border-top:1px solid #e2e8f0; padding-top:3px; }' +
-        '</style></head><body>' +
+    var css =
+        '* {box-sizing:border-box;margin:0;padding:0;}' +
+        'html,body {width:210mm;background:white;}' +
+        'body {font-family:Sarabun,Anuphan,sans-serif;font-size:11px;color:#1e293b;padding:5mm 7mm;}' +
+        '.box {background:#ffffff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;}' +
+        '.stitle2 {font-size:11px;font-weight:700;color:#312e81;border-bottom:1px solid #e2e8f0;padding-bottom:2px;margin-bottom:4px;}' +
+        'table.dt {width:100%;border-collapse:collapse;}' +
+        'table.dt th,table.dt td {border:1px solid #cbd5e1;padding:3px 5px;text-align:center;vertical-align:middle;font-size:11px;}' +
+        'table.dt th {background:#312e81;color:white;font-size:10px;}' +
+        '.lh {color:#15803d;font-weight:700;}' +
+        '.lm {color:#1d4ed8;font-weight:700;}' +
+        '.ll {color:#b91c1c;font-weight:700;}' +
+        '.footer {font-size:9px;text-align:center;color:#94a3b8;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:4px;}';
+
+    var html =
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + css + '</style></head><body>' +
 
         // HEADER
-        '<div class="hdr">' +
-            '<div style="display:flex;align-items:center;gap:10px;">' +
-                '<img class="logo" src="' + logoUrl + '" crossorigin="anonymous">' +
-                '<div><div class="school-title">' + schoolName + '</div><div class="school-sub">' + docTitle + '</div></div>' +
-            '</div>' +
-            '<div class="info-area">' +
-                '<div><b>ภาคเรียนที่ ' + semester + '</b> ปีการศึกษา ' + academicYear + '</div>' +
-                '<div>ครูที่ปรึกษา: ' + adviserLine + '</div>' +
-                '<div>วันที่ประเมิน: ' + dateStr + '</div>' +
-            '</div>' +
-        '</div>' +
+        '<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #312e81;margin-bottom:5px;padding-bottom:4px;">' +
+        '<tr>' +
+        '<td width="60%" valign="middle">' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td width="50" valign="middle"><img src="' + logoUrl + '" width="40" height="40" crossorigin="anonymous"></td>' +
+        '<td valign="middle" style="padding-left:8px;">' +
+        '<div style="color:#312e81;font-size:14px;font-weight:900;line-height:1.2;">' + schoolName + '</div>' +
+        '<div style="font-size:10px;color:#475569;">' + docTitle + '</div>' +
+        '</td></tr></table>' +
+        '</td>' +
+        '<td width="40%" align="right" valign="bottom" style="font-size:10px;line-height:1.5;">' +
+        '<div><b>ภาคเรียนที่ ' + semester + '</b> ปีการศึกษา ' + academicYear + '</div>' +
+        '<div>ครูที่ปรึกษา: ' + advLine + '</div>' +
+        '<div>วันที่ประเมิน: ' + dateStr + '</div>' +
+        '</td>' +
+        '</tr></table>' +
 
-        // ROW 1: Student info + Assessment
-        '<div class="row">' +
-            // กล่องซ้าย: รูป + ข้อมูล
-            '<div class="box" style="flex:0 0 40%;display:flex;gap:9px;align-items:flex-start;">' +
-                '<div style="flex-shrink:0;width:80px;height:98px;border-radius:7px;overflow:hidden;border:2px solid #cbd5e1;background:#e2e8f0;">' + avatarHtml + '</div>' +
-                '<div style="flex:1;">' +
-                    '<div style="font-size:12px;font-weight:800;color:#1e293b;line-height:1.4;margin-bottom:6px;">' + fullName + '</div>' +
-                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
-                        '<span class="info-lbl">เลขประจำตัว:</span>' +
-                        '<span class="info-val">' + studentIdCard + '</span>' +
-                    '</div>' +
-                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
-                        '<span class="info-lbl">ชั้น:</span><span class="info-val">' + gradeDisplay + '</span>' +
-                        '<span class="info-lbl" style="margin-left:5px;">ห้อง:</span><span class="info-val">' + roomNumber + '</span>' +
-                    '</div>' +
-                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
-                        '<span class="info-lbl">เลขที่:</span><span class="info-val">' + studentNumber + '</span>' +
-                    '</div>' +
-                '</div>' +
-            '</div>' +
-            // กล่องขวา: ผลประเมิน
-            '<div class="box" style="flex:1;">' +
-                '<div class="sec-title">🏆 ผลการประเมินรวม</div>' +
-                '<div style="text-align:center;padding:5px;background:' + totalBg + ';border:1.5px solid ' + totalBorder + ';border-radius:7px;margin-bottom:5px;">' +
-                    '<div style="font-size:24px;font-weight:900;color:' + totalColor + ';line-height:1;">' + assessment.score_total + ' <span style="font-size:12px;font-weight:500;">/ 200</span></div>' +
-                    '<div style="font-size:10.5px;font-weight:700;color:' + totalColor + ';margin-top:2px;">ระดับรวม: ' + totalLevel + '</div>' +
-                '</div>' +
-                '<div class="sec-title">📊 คะแนนรายด้าน</div>' +
-                barRows +
-            '</div>' +
+        // ROW 1: นักเรียน (ซ้าย) + ผลรวม (ขวา)
+        '<table width="100%" cellpadding="0" cellspacing="4" style="margin-bottom:5px;">' +
+        '<tr>' +
+        // กล่องซ้าย: รูป + ข้อมูล
+        '<td width="50%" valign="top">' +
+        '<div class="box">' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td valign="top" style="padding-right:8px;">' +
+        '<div style="width:72px;height:90px;border-radius:5px;overflow:hidden;border:1.5px solid #cbd5e1;background:#f8fafc;">' + avatarHtml + '</div>' +
+        '</td>' +
+        '<td valign="top" style="line-height:1.6;">' +
+        '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:3px;">' + fullName + '</div>' +
+        '<div><span style="color:#64748b;font-size:11px;">เลขประจำตัว: </span><b style="color:#312e81;font-size:13px;">' + studentIdCard + '</b></div>' +
+        '<div>' +
+        '<span style="color:#64748b;font-size:11px;">ชั้น: </span><b style="color:#312e81;font-size:12px;">' + gradeDisp + '</b>&nbsp;&nbsp;' +
+        '<span style="color:#64748b;font-size:11px;">ห้อง: </span><b style="color:#312e81;font-size:12px;">' + roomNumber + '</b>' +
         '</div>' +
-
-        // ROW 2: Pie + Radar
-        '<div class="row">' +
-            '<div class="box" style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
-                '<div class="sec-title" style="width:100%;text-align:center;">🥧 สัดส่วนคะแนนรายด้าน</div>' +
-                '<div style="display:flex;gap:6px;align-items:center;justify-content:center;">' +
-                    pieChart +
-                    '<div style="min-width:100px;">' + legendHtml + '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div class="box" style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
-                '<div class="sec-title" style="width:100%;text-align:center;">🕸️ กราฟเรดาร์พหุปัญญา</div>' +
-                radarChart +
-            '</div>' +
+        '<div><span style="color:#64748b;font-size:11px;">เลขที่: </span><b style="color:#312e81;font-size:12px;">' + studentNumber + '</b></div>' +
+        '</td>' +
+        '</tr></table>' +
         '</div>' +
+        '</td>' +
+        // กล่องขวา: คะแนนรวม
+        '<td width="50%" valign="top">' +
+        '<div class="box" style="text-align:center;">' +
+        '<div class="stitle2">🏆 ผลการประเมินรวม</div>' +
+        '<div style="background:' + totalBg + ';border:2px solid ' + totalBorder + ';border-radius:8px;padding:12px 8px;margin-top:4px;">' +
+        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / 200</span></div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + totalColor + ';margin-top:6px;">ระดับ: ' + totalLevel + '</div>' +
+        '</div>' +
+        '</div>' +
+        '</td>' +
+        '</tr></table>' +
 
-        // ROW 3: Table
+        // ROW 2: pie (ซ้าย) + radar (ขวา)
+        '<table width="100%" cellpadding="0" cellspacing="4" style="margin-bottom:5px;">' +
+        '<tr>' +
+        '<td width="50%" valign="top">' +
+        '<div class="box">' +
+        '<div class="stitle2">🥧 สัดส่วนคะแนนรายด้าน</div>' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td width="120" valign="middle" style="padding-right:4px;">' + piesvg + '</td>' +
+        '<td valign="middle">' + legend + '</td>' +
+        '</tr></table>' +
+        '</div>' +
+        '</td>' +
+        '<td width="50%" valign="top">' +
+        '<div class="box" style="text-align:center;">' +
+        '<div class="stitle2">🕸️ กราฟเรดาร์พหุปัญญา</div>' +
+        radarsvg +
+        '</div>' +
+        '</td>' +
+        '</tr></table>' +
+
+        // ROW 3: กราฟแท่ง
         '<div class="box" style="margin-bottom:4px;">' +
-            '<div class="sec-title">📋 ตารางสรุปผลการประเมิน 8 ด้าน</div>' +
-            '<table><thead><tr><th style="text-align:left;width:27%;">ด้าน</th><th>คะแนน</th><th>เต็ม</th><th>ร้อยละ</th><th>ระดับ</th></tr></thead>' +
-            '<tbody>' + tableRows + '</tbody></table>' +
+        '<div class="stitle2">📊 กราฟแสดงคะแนนรายด้าน 8 ด้าน</div>' +
+        bars +
         '</div>' +
 
-        '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา (Multiple Intelligences) 8 ด้าน | พิมพ์วันที่ ' + printDate + '</div>' +
+        // ROW 4: ตารางสรุป
+        '<div class="box">' +
+        '<div class="stitle2">📋 ตารางสรุปผลการประเมิน 8 ด้าน</div>' +
+        '<table class="dt">' +
+        '<thead><tr>' +
+        '<th style="text-align:left;width:30%;">ด้าน</th>' +
+        '<th>คะแนน</th><th>เต็ม</th><th>ร้อยละ</th><th>ระดับ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + trows + '</tbody>' +
+        '</table>' +
+        '</div>' +
+
+        '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา 8 ด้าน | พิมพ์วันที่ ' + printDate + '</div>' +
         '</body></html>';
 
+    console.log('HTML snippet:', html.substring(html.indexOf('ผลการประเมินรวม')-10, html.indexOf('ผลการประเมินรวม')+300));
     return html;
 }
 
 function generateFullPDFMI(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
-    const dims = MI_DIMENSIONS.map(d => ({
-        key: d.key,
-        label: d.label,
-        score: assessment[`score_${d.key}`] || 0,
-        max: d.maxScore,
-        level: assessment[`level_${d.key}`] || ''
-    }));
+    // คำนวณ level ของแต่ละด้านและรวม เผื่อ DB ไม่มีเก็บ
+    const _getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
 
-    // ข้อมูลนักเรียนเพิ่มเติม
-    const studentIdCard = currentStudent?.student_id_card || '';
-    const studentNumber = currentStudent?.student_enrollments?.[0]?.student_number || '';
-    const gradeLevel = currentStudent?.student_enrollments?.[0]?.grade_level || '';
-    const roomNumber = currentStudent?.student_enrollments?.[0]?.room_number || '';
+    const dims = MI_DIMENSIONS.map(d => {
+        const score = assessment['score_' + d.key] || 0;
+        const levelFromDb = assessment['level_' + d.key];
+        const norm = MI_NORM[d.key] || { min: 10, max: 18 };
+        const level = levelFromDb || _getLevel(score, norm);
+        return { key: d.key, label: d.label, score: score, max: d.maxScore, level: level };
+    });
+
+    // คำนวณคะแนนรวมและระดับถ้า DB ไม่มีเก็บ
+    if (assessment.score_total === undefined || assessment.score_total === null) {
+        assessment.score_total = dims.reduce(function(s, d) { return s + d.score; }, 0);
+    }
+    if (!assessment.level_total) {
+        const normTotal = (MI_NORM && MI_NORM.total) ? MI_NORM.total : { min: 80, max: 144 };
+        assessment.level_total = _getLevel(assessment.score_total, normTotal);
+    }
+
+    // ดึงข้อมูลนักเรียนจาก currentStudent + assessment._xxx ที่เตรียมไว้
+    const studentIdCard = currentStudent ? (currentStudent.student_id_card || '') : '';
+    const gradeLevel = assessment._gradeLevel || '';
+    const roomNumber = assessment._roomNumber || '';
+    const studentNumber = assessment._studentNumber || '';
 
     const html = buildMIPdfHtml({
-        assessment, schoolName, academicYear, semester,
-        adviser1, adviser2, logoUrl, fullName, avatarUrl,
-        dims,
-        studentIdCard, studentNumber, gradeLevel, roomNumber,
-        docTitle: 'รายงานผลการประเมินพหุปัญญา (MI)'
+        assessment: assessment, schoolName: schoolName, academicYear: academicYear, semester: semester,
+        adviser1: adviser1, adviser2: adviser2, logoUrl: logoUrl, fullName: fullName, avatarUrl: avatarUrl,
+        dims: dims,
+        studentIdCard: studentIdCard, studentNumber: studentNumber, gradeLevel: gradeLevel, roomNumber: roomNumber,
+        docTitle: 'รายงานผลการประเมินพหุปัญญา (MIT)'
     });
 
-    const element = document.createElement('div');
-    element.innerHTML = html;
-    element.style.position = 'fixed';
-    element.style.left = '-9999px';
-    document.body.appendChild(element);
-
-    // รอให้ Chart.js render เสร็จก่อน generate PDF
-    setTimeout(() => {
-        const images = element.querySelectorAll('img');
-        if (images.length === 0) {
-            generateStudentPdfNow(element, fullName);
-        } else {
-            let loaded = 0;
-            images.forEach(img => {
-                if (img.complete) {
-                    loaded++;
-                    if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                } else {
-                    img.addEventListener('load', () => {
-                        loaded++;
-                        if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                    });
-                    img.addEventListener('error', () => {
-                        loaded++;
-                        if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                    });
-                }
-            });
-        }
-    }, 800);
+    generateStudentPdfFromHtml(html, fullName);
 }
 
-function generateStudentPdfNow(element, fullName) {
-    html2pdf().set({
-        margin: [0.4, 0.4, 0.8, 0.4],
-        filename: `MI_${fullName}.pdf`,
+function generateStudentPdfFromHtml(html, fullName) {
+    // ใช้ html2pdf from string โดยตรง - แก้ปัญหา iframe cross-frame capture
+    var opt = {
+        margin: [0.45, 0.45, 0.7, 0.45],
+        filename: 'MI_' + fullName + '.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            letterRendering: true,
+            windowWidth: 794,
+            logging: false
+        },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
-    }).from(element).save().then(() => {
-        document.body.removeChild(element);
-    });
+    };
+    html2pdf().set(opt).from(html, 'string').save();
 }
+
 
 async function logout() {
     const result = await Swal.fire({

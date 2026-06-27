@@ -680,7 +680,7 @@ async function printStudentPdf(studentId) {
 
         // 2. ดึงข้อมูลนักเรียนแยก
         const { data: student, error: stdErr } = await db.from('core_students')
-            .select('prefix, first_name, last_name, avatar_students_url')
+            .select('prefix, first_name, last_name, avatar_students_url, student_id_card')
             .eq('id', studentId)
             .single();
 
@@ -755,10 +755,8 @@ async function printStudentPdf(studentId) {
     }
 }
 
-// ฟังก์ชัน buildMIPdfHtml - Layout ตามที่กำหนด
+// ฟังก์ชัน buildMIPdfHtml แบบ string concatenation ปลอดภัย 100%
 function buildMIPdfHtml(opts) {
-    console.log('✅ buildMIPdfHtml - แก้ไขกราฟเรดาร์หาย + ปรับช่องว่างตารางไม่ให้ทับกัน');
-
     var assessment   = opts.assessment || {};
     var schoolName   = opts.schoolName || '';
     var academicYear = opts.academicYear || '';
@@ -769,17 +767,15 @@ function buildMIPdfHtml(opts) {
     var fullName     = opts.fullName || '';
     var avatarUrl    = opts.avatarUrl || '';
     var dims         = opts.dims || [];
-    
-    // ดักจับ Key
     var studentIdCard = opts.studentIdCard || opts.studentCode || opts.student_id || '-';
     var studentNumber = opts.studentNumber || '-';
     var gradeLevel    = opts.gradeLevel || '-';
     var roomNumber    = opts.roomNumber || '-';
     var docTitle      = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MIT)';
 
-    var scoreTotal = assessment.score_total !== undefined ? assessment.score_total : (assessment.total_score || '-');
+    var scoreTotal = (assessment.score_total !== undefined && assessment.score_total !== null) ? assessment.score_total : '-';
     var totalLevel = assessment.level_total || '-';
-    
+
     var isHigh = ['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(totalLevel) >= 0;
     var isMid  = ['เกณฑ์ปกติ','ปานกลาง'].indexOf(totalLevel) >= 0;
     var totalColor  = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
@@ -798,243 +794,258 @@ function buildMIPdfHtml(opts) {
     }
 
     var avatarHtml = avatarUrl
-        ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;" crossorigin="anonymous">'
-        : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;background:#e2e8f0;">&#128100;</div>';
+        ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;display:block;" crossorigin="anonymous">'
+        : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;">&#128100;</div>';
 
     var DC = ['#6366f1','#0ea5e9','#8b5cf6','#ec4899','#f59e0b','#10b981','#14b8a6','#f97316'];
 
     // ---- PIE SVG ----
     var pieTot = 0;
-    for (var i=0;i<dims.length;i++) pieTot += dims[i].score;
-    if (pieTot===0) pieTot=1;
-    var slices='', sa=-Math.PI/2;
-    var pcx=60,pcy=60,pr=48;
-    for (var i=0;i<dims.length;i++){
-        var ang=(dims[i].score/pieTot)*2*Math.PI;
-        if(ang<0.001){sa+=ang;continue;}
-        var ea=sa+ang;
-        var x1=pcx+pr*Math.cos(sa), y1=pcy+pr*Math.sin(sa);
-        var x2=pcx+pr*Math.cos(ea), y2=pcy+pr*Math.sin(ea);
-        var la=ang>Math.PI?1:0;
-        slices+='<path d="M'+pcx+','+pcy+' L'+x1.toFixed(1)+','+y1.toFixed(1)+
-            ' A'+pr+','+pr+' 0 '+la+',1 '+x2.toFixed(1)+','+y2.toFixed(1)+
-            ' Z" fill="'+DC[i]+'" stroke="white" stroke-width="1.5"/>';
-        sa=ea;
+    for (var i = 0; i < dims.length; i++) pieTot += dims[i].score;
+    if (pieTot === 0) pieTot = 1;
+    var slices = '', sa = -Math.PI / 2;
+    var pcx = 60, pcy = 60, pr = 48;
+    for (var i = 0; i < dims.length; i++) {
+        var ang = (dims[i].score / pieTot) * 2 * Math.PI;
+        if (ang < 0.001) { sa += ang; continue; }
+        var ea = sa + ang;
+        var x1 = pcx + pr * Math.cos(sa), y1 = pcy + pr * Math.sin(sa);
+        var x2 = pcx + pr * Math.cos(ea), y2 = pcy + pr * Math.sin(ea);
+        var la = ang > Math.PI ? 1 : 0;
+        slices += '<path d="M' + pcx + ',' + pcy + ' L' + x1.toFixed(1) + ',' + y1.toFixed(1) +
+            ' A' + pr + ',' + pr + ' 0 ' + la + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+            ' Z" fill="' + DC[i] + '" stroke="white" stroke-width="1.5"/>';
+        sa = ea;
     }
-    var piesvg='<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">'+slices+'</svg>';
+    var piesvg = '<svg width="110" height="110" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="white"/>' + slices + '</svg>';
 
     // ---- LEGEND ----
-    var legend='';
-    for(var i=0;i<dims.length;i++){
-        legend+='<div style="margin-bottom:3px;font-size:11px;color:#374151;">' +
-            '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+DC[i]+';margin-right:5px;vertical-align:middle;"></span>' +
-            '<span style="vertical-align:middle;">'+dims[i].label+' ('+dims[i].score+'/'+dims[i].max+')</span></div>';
+    var legend = '';
+    for (var i = 0; i < dims.length; i++) {
+        legend += '<div style="margin-bottom:3px;font-size:11px;color:#374151;">' +
+            '<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + DC[i] + ';margin-right:5px;vertical-align:middle;"></span>' +
+            '<span style="vertical-align:middle;">' + dims[i].label + ' (' + dims[i].score + '/' + dims[i].max + ')</span></div>';
     }
 
-    // ---- RADAR SVG (แก้พื้นที่ viewBox และสีเพื่อให้แสดงผลได้ใน PDF ทุกตัว) ----
-    var rcx=80,rcy=80,rr=50,n=dims.length;
-    var grid='',axes='',lbs='',dts='',rpts=[];
-    for(var i=0;i<n;i++){
-        var ang=(2*Math.PI*i/n)-Math.PI/2;
-        var pct=dims[i].max>0?dims[i].score/dims[i].max:0;
-        rpts.push((rcx+rr*pct*Math.cos(ang)).toFixed(1)+','+(rcy+rr*pct*Math.sin(ang)).toFixed(1));
-        var ex=rcx+rr*Math.cos(ang), ey=rcy+rr*Math.sin(ang);
-        axes+='<line x1="'+rcx+'" y1="'+rcy+'" x2="'+ex.toFixed(1)+'" y2="'+ey.toFixed(1)+'" stroke="#d1d5db" stroke-width="1"/>';
-        var lx=rcx+(rr+15)*Math.cos(ang), ly=rcy+(rr+15)*Math.sin(ang);
-        var sl=dims[i].label.length>3?dims[i].label.substring(0,3):dims[i].label;
-        lbs+='<text x="'+lx.toFixed(1)+'" y="'+ly.toFixed(1)+'" text-anchor="middle" dominant-baseline="middle" font-size="8.5" fill="#374151" font-family="Sarabun,sans-serif">'+sl+'</text>';
-        var dx=rcx+rr*pct*Math.cos(ang), dy=rcy+rr*pct*Math.sin(ang);
-        dts+='<circle cx="'+dx.toFixed(1)+'" cy="'+dy.toFixed(1)+'" r="2.5" fill="'+DC[i]+'" stroke="white" stroke-width="1"/>';
+    // ---- RADAR SVG ----
+    var rcx = 90, rcy = 90, rr = 55, n = dims.length;
+    var grid = '', axes = '', lbs = '', dts = '', rpts = [];
+    for (var i = 0; i < n; i++) {
+        var ang = (2 * Math.PI * i / n) - Math.PI / 2;
+        var pct = dims[i].max > 0 ? dims[i].score / dims[i].max : 0;
+        rpts.push((rcx + rr * pct * Math.cos(ang)).toFixed(1) + ',' + (rcy + rr * pct * Math.sin(ang)).toFixed(1));
+        var ex = rcx + rr * Math.cos(ang), ey = rcy + rr * Math.sin(ang);
+        axes += '<line x1="' + rcx + '" y1="' + rcy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="#d1d5db" stroke-width="1"/>';
+        var lx = rcx + (rr + 20) * Math.cos(ang), ly = rcy + (rr + 20) * Math.sin(ang);
+        lbs += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="7.5" fill="#374151" font-family="Sarabun,sans-serif">' + dims[i].label + '</text>';
+        var dx = rcx + rr * pct * Math.cos(ang), dy = rcy + rr * pct * Math.sin(ang);
+        dts += '<circle cx="' + dx.toFixed(1) + '" cy="' + dy.toFixed(1) + '" r="2.5" fill="' + DC[i] + '" stroke="white" stroke-width="1"/>';
     }
-    var fracs=[0.25,0.5,0.75,1];
-    for(var f=0;f<4;f++){
-        var gp=[];
-        for(var i=0;i<n;i++){
-            var ang=(2*Math.PI*i/n)-Math.PI/2;
-            gp.push((rcx+rr*fracs[f]*Math.cos(ang)).toFixed(1)+','+(rcy+rr*fracs[f]*Math.sin(ang)).toFixed(1));
+    var fracs = [0.25, 0.5, 0.75, 1];
+    for (var f = 0; f < 4; f++) {
+        var gp = [];
+        for (var i = 0; i < n; i++) {
+            var ang = (2 * Math.PI * i / n) - Math.PI / 2;
+            gp.push((rcx + rr * fracs[f] * Math.cos(ang)).toFixed(1) + ',' + (rcy + rr * fracs[f] * Math.sin(ang)).toFixed(1));
         }
-        grid+='<polygon points="'+gp.join(' ')+'" fill="none" stroke="#e5e7eb" stroke-width="1"/>';
+        grid += '<polygon points="' + gp.join(' ') + '" fill="none" stroke="#e5e7eb" stroke-width="1"/>';
     }
-    // เปลี่ยนจากโค้ดสี #6366f115 เป็นสีทึบ #e0e7ff เพื่อไม่ให้กราฟหาย
-    var radarsvg='<svg width="160" height="160" viewBox="0 0 160 160" xmlns="http://www.w3.org/2000/svg">'+
-        grid+axes+
-        '<polygon points="'+rpts.join(' ')+'" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5" stroke-linejoin="round"/>'+
-        dts+lbs+'</svg>';
+    var radarsvg = '<svg width="170" height="170" viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg"><rect width="180" height="180" fill="white"/>' +
+        grid + axes +
+        '<polygon points="' + rpts.join(' ') + '" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5" stroke-linejoin="round"/>' +
+        dts + lbs + '</svg>';
 
     // ---- BAR CHART ----
-    var bars='';
-    for(var i=0;i<dims.length;i++){
-        var pct=dims[i].max>0?(dims[i].score/dims[i].max*100):0;
-        var barColor = getLvlColor(dims[i].level);
-        bars+='<div style="margin-bottom:5px;">' +
-            '<div style="font-size:11px;margin-bottom:2px;">' +
-            '<span style="font-weight:600;float:left;">'+dims[i].label+'</span>' +
-            '<span style="float:right;">'+dims[i].score+'/'+dims[i].max+' ('+Math.round(pct)+'%)</span>' +
-            '<div style="clear:both;"></div>' +
-            '</div>' +
-            '<div style="background:#e5e7eb;border-radius:4px;height:8px;width:100%;">' +
-            '<div style="width:'+pct.toFixed(1)+'%;background:'+barColor+';height:8px;border-radius:4px;"></div>' +
+    var bars = '';
+    for (var i = 0; i < dims.length; i++) {
+        var pct = dims[i].max > 0 ? (dims[i].score / dims[i].max * 100) : 0;
+        bars += '<div style="margin-bottom:3px;">' +
+            '<div style="font-size:10px;margin-bottom:1px;">' +
+            '<span style="font-weight:600;float:left;">' + dims[i].label + '</span>' +
+            '<span style="float:right;">' + dims[i].score + '/' + dims[i].max + ' (' + Math.round(pct) + '%)</span>' +
+            '<div style="clear:both;"></div></div>' +
+            '<div style="background:#e5e7eb;border-radius:4px;height:6px;width:100%;">' +
+            '<div style="width:' + pct.toFixed(1) + '%;background:' + getLvlColor(dims[i].level) + ';height:6px;border-radius:4px;"></div>' +
             '</div></div>';
     }
 
     // ---- TABLE ROWS ----
-    var trows='';
-    for(var i=0;i<dims.length;i++){
-        var pct=dims[i].max>0?Math.round(dims[i].score/dims[i].max*100):0;
-        trows+='<tr><td style="text-align:left;">'+dims[i].label+'</td><td>'+dims[i].score+'</td><td>'+dims[i].max+'</td><td>'+pct+'%</td><td class="'+getLvlClass(dims[i].level)+'">'+dims[i].level+'</td></tr>';
+    var trows = '';
+    for (var i = 0; i < dims.length; i++) {
+        var pct = dims[i].max > 0 ? Math.round(dims[i].score / dims[i].max * 100) : 0;
+        trows += '<tr>' +
+            '<td style="text-align:left;font-size:11px;">' + dims[i].label + '</td>' +
+            '<td style="font-size:11px;">' + dims[i].score + '</td>' +
+            '<td style="font-size:11px;">' + dims[i].max + '</td>' +
+            '<td style="font-size:11px;">' + pct + '%</td>' +
+            '<td class="' + getLvlClass(dims[i].level) + '" style="font-size:13px;">' + dims[i].level + '</td>' +
+            '</tr>';
     }
-    var totPct=Math.round((assessment.score_total||0)/200*100);
-    trows+='<tr style="background:#f1f5f9;font-weight:700;"><td style="text-align:left; padding: 6px;"><b>รวม</b></td><td><b>'+scoreTotal+'</b></td><td><b>200</b></td><td><b>'+totPct+'%</b></td><td class="'+getLvlClass(totalLevel)+'"><b>'+totalLevel+'</b></td></tr>';
+    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / 200 * 100) : '-';
+    trows += '<tr style="background:#f1f5f9;font-weight:700;">' +
+        '<td style="text-align:left;font-size:13px;"><b>รวม</b></td>' +
+        '<td style="font-size:11px;"><b>' + scoreTotal + '</b></td>' +
+        '<td style="font-size:13px;"><b>200</b></td>' +
+        '<td style="font-size:11px;"><b>' + totPct + '%</b></td>' +
+        '<td class="' + getLvlClass(totalLevel) + '" style="font-size:13px;"><b>' + totalLevel + '</b></td>' +
+        '</tr>';
 
-    var dateStr=new Date(assessment.completed_at||new Date()).toLocaleDateString('th-TH',{year:'numeric',month:'long',day:'numeric'});
-    var printDate=new Date().toLocaleDateString('th-TH');
-    var advLine=adviser1+(adviser2&&adviser2!=='-'?' / '+adviser2:'');
-    var gradeDisp=gradeLevel&&gradeLevel!=='-'?'ม.'+gradeLevel:'';
+    var dateStr = new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric' });
+    var printDate = new Date().toLocaleDateString('th-TH');
+    var advLine = adviser1 + (adviser2 && adviser2 !== '-' ? ' / ' + adviser2 : '');
+    var gradeDisp = (gradeLevel && gradeLevel !== '-') ? 'ม.' + gradeLevel : '-';
 
-    // ---- CSS สำหรับ A4 1 หน้า (เพิ่ม line-height กันบรรทัดทับกัน) ----
-    var css=
+    var css =
         '* {box-sizing:border-box;margin:0;padding:0;}' +
-        'html,body {width:210mm;height:297mm;background:white;}' +
-        'body {font-family:Sarabun,Anuphan,sans-serif;font-size:12px;color:#1e293b;padding:8mm 12mm;}' +
-        '.box {background:#ffffff;border:1px solid #e2e8f0;border-radius:6px;padding:10px;}' + 
-        '.stitle2 {font-size:14px;font-weight:700;color:#312e81;border-bottom:1px solid #e2e8f0;padding-bottom:4px;margin-bottom:8px;}' +
-        'table.data-table {width:100%;border-collapse:collapse;font-size:12px;}' +
-        'table.data-table th, table.data-table td {border:1px solid #cbd5e1;padding:5px;text-align:center;line-height:1.4;vertical-align:middle;}' +
-        'table.data-table th {background:#312e81;color:white;font-weight:600;}' +
+        'html,body {width:210mm;background:white;}' +
+        'body {font-family:Sarabun,Anuphan,sans-serif;font-size:11px;color:#1e293b;padding:5mm 7mm;}' +
+        '.box {background:#ffffff;border:1px solid #e2e8f0;border-radius:5px;padding:6px;}' +
+        '.stitle2 {font-size:11px;font-weight:700;color:#312e81;border-bottom:1px solid #e2e8f0;padding-bottom:2px;margin-bottom:4px;}' +
+        'table.dt {width:100%;border-collapse:collapse;}' +
+        'table.dt th,table.dt td {border:1px solid #cbd5e1;padding:3px 5px;text-align:center;vertical-align:middle;font-size:11px;}' +
+        'table.dt th {background:#312e81;color:white;font-size:10px;}' +
         '.lh {color:#15803d;font-weight:700;}' +
         '.lm {color:#1d4ed8;font-weight:700;}' +
         '.ll {color:#b91c1c;font-weight:700;}' +
-        '.footer {font-size:10px;text-align:center;color:#94a3b8;margin-top:10px;border-top:1px solid #e2e8f0;padding-top:8px;}';
+        '.footer {font-size:9px;text-align:center;color:#94a3b8;margin-top:4px;border-top:1px solid #e2e8f0;padding-top:4px;}';
 
-    // ---- HTML ----
-    var html=
-        '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>'+css+'</style></head><body>' +
+    var html =
+        '<!DOCTYPE html><html><head><meta charset="UTF-8"><style>' + css + '</style></head><body>' +
 
-        // ===== HEADER =====
-        '<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:3px solid #312e81; margin-bottom:10px; padding-bottom:8px;">' +
-            '<tr>' +
-                '<td width="60%" valign="middle">' +
-                    '<table cellpadding="0" cellspacing="0">' +
-                        '<tr>' +
-                            '<td width="70" valign="middle"><img src="'+logoUrl+'" width="60" crossorigin="anonymous"></td>' +
-                            '<td valign="middle">' +
-                                '<div style="color:#312e81;font-size:20px;font-weight:900;line-height:1.2;">'+schoolName+'</div>' +
-                                '<div style="font-size:14px;color:#475569;">'+docTitle+'</div>' +
-                            '</td>' +
-                        '</tr>' +
-                    '</table>' +
-                '</td>' +
-                '<td width="40%" align="right" valign="bottom" style="font-size:14px;line-height:1.6;">' +
-                    '<div><b>ภาคเรียนที่ '+semester+'</b> ปีการศึกษา '+academicYear+'</div>' +
-                    '<div>ครูที่ปรึกษา: '+advLine+'</div>' +
-                    '<div>วันที่ประเมิน: '+dateStr+'</div>' +
-                '</td>' +
-            '</tr>' +
-        '</table>' +
+        // HEADER
+        '<table width="100%" cellpadding="0" cellspacing="0" style="border-bottom:2px solid #312e81;margin-bottom:5px;padding-bottom:4px;">' +
+        '<tr>' +
+        '<td width="60%" valign="middle">' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td width="50" valign="middle"><img src="' + logoUrl + '" width="40" height="40" crossorigin="anonymous"></td>' +
+        '<td valign="middle" style="padding-left:8px;">' +
+        '<div style="color:#312e81;font-size:14px;font-weight:900;line-height:1.2;">' + schoolName + '</div>' +
+        '<div style="font-size:10px;color:#475569;">' + docTitle + '</div>' +
+        '</td></tr></table>' +
+        '</td>' +
+        '<td width="40%" align="right" valign="bottom" style="font-size:10px;line-height:1.5;">' +
+        '<div><b>ภาคเรียนที่ ' + semester + '</b> ปีการศึกษา ' + academicYear + '</div>' +
+        '<div>ครูที่ปรึกษา: ' + advLine + '</div>' +
+        '<div>วันที่ประเมิน: ' + dateStr + '</div>' +
+        '</td>' +
+        '</tr></table>' +
 
-        // ===== ROW 1: ข้อมูลนักเรียน (ซ้าย) + ผลการประเมินรวม (ขวา) (ลดความสูงกล่องเพื่อให้หน้ากระดาษพอ) =====
-        '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">' +
-            '<tr>' +
-                '<td width="50%" valign="top" style="padding-right:5px;">' +
-                    '<div class="box" style="height:110px;">' +
-                        '<table width="100%" cellpadding="0" cellspacing="0">' +
-                            '<tr>' +
-                                '<td width="80" valign="top">' +
-                                    '<div style="width:70px;height:90px;border-radius:4px;overflow:hidden;border:1px solid #cbd5e1;background:#f8fafc;text-align:center;">'+avatarHtml+'</div>' +
-                                '</td>' +
-                                '<td valign="top" style="line-height:1.5; padding-left:5px;">' +
-                                    '<div style="font-size:16px;font-weight:800;color:#1e293b;margin-bottom:5px;">'+fullName+'</div>' +
-                                    '<div><span style="font-size:12px;color:#64748b;">เลขประจำตัว: </span><span style="font-size:14px;font-weight:700;color:#312e81;">'+studentIdCard+'</span></div>' +
-                                    '<div><span style="font-size:12px;color:#64748b;">ชั้น: </span><span style="font-size:13px;font-weight:700;color:#312e81;">'+gradeDisp+'</span> &nbsp;&nbsp; <span style="font-size:12px;color:#64748b;">ห้อง: </span><span style="font-size:13px;font-weight:700;color:#312e81;">'+roomNumber+'</span></div>' +
-                                    '<div><span style="font-size:12px;color:#64748b;">เลขที่: </span><span style="font-size:13px;font-weight:700;color:#312e81;">'+studentNumber+'</span></div>' +
-                                '</td>' +
-                            '</tr>' +
-                        '</table>' +
-                    '</div>' +
-                '</td>' +
-                '<td width="50%" valign="top" style="padding-left:5px;">' +
-                    '<div class="box" style="text-align:center; height:110px;">' +
-                        '<div style="font-size:14px;font-weight:700;color:#312e81;margin-bottom:8px;">🏆 ผลการประเมินรวม</div>' +
-                        '<div style="background:'+totalBg+';border:2px solid '+totalBorder+';border-radius:6px;padding:10px 25px;display:inline-block;">' +
-                            '<div style="font-size:32px;font-weight:900;color:'+totalColor+';line-height:1;">'+scoreTotal+' <span style="font-size:14px;font-weight:500;color:'+totalColor+';">/ 200</span></div>' +
-                            '<div style="font-size:14px;font-weight:700;color:'+totalColor+';margin-top:5px;">ระดับ: '+totalLevel+'</div>' +
-                        '</div>' +
-                    '</div>' +
-                '</td>' +
-            '</tr>' +
-        '</table>' +
-
-        // ===== ROW 2: กราฟวงกลม (ซ้าย) + กราฟเรดาร์ (ขวา) =====
-        '<table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:10px;">' +
-            '<tr>' +
-                '<td width="50%" valign="top" style="padding-right:5px;">' +
-                    '<div class="box" style="text-align:center; height:170px;">' +
-                        '<div class="stitle2">🥧 สัดส่วนคะแนนรายด้าน</div>' +
-                        '<table width="100%" cellpadding="0" cellspacing="0">' +
-                            '<tr>' +
-                                '<td width="50%" align="right" valign="middle" style="padding-right:10px;">'+piesvg+'</td>' +
-                                '<td width="50%" align="left" valign="middle">'+legend+'</td>' +
-                            '</tr>' +
-                        '</table>' +
-                    '</div>' +
-                '</td>' +
-                '<td width="50%" valign="top" style="padding-left:5px;">' +
-                    '<div class="box" style="text-align:center; height:170px;">' +
-                        '<div class="stitle2">🕸️ กราฟเรดาร์พหุปัญญา</div>' +
-                        '<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" valign="middle">'+radarsvg+'</td></tr></table>' +
-                    '</div>' +
-                '</td>' +
-            '</tr>' +
-        '</table>' +
-
-        // ===== ROW 3: กราฟแท่ง (เต็มความกว้าง) =====
-        '<div class="box" style="margin-bottom:10px;">' +
-            '<div class="stitle2">📊 กราฟแสดงคะแนนรายด้าน 8 ด้าน</div>' +
-            bars +
-        '</div>' +
-
-        // ===== ROW 4: ตารางสรุปผล =====
+        // ROW 1: นักเรียน (ซ้าย) + ผลรวม (ขวา)
+        '<table width="100%" cellpadding="0" cellspacing="4" style="margin-bottom:5px;">' +
+        '<tr>' +
+        // กล่องซ้าย: รูป + ข้อมูล
+        '<td width="50%" valign="top">' +
         '<div class="box">' +
-            '<div class="stitle2">📋 ตารางสรุปผลการประเมิน 8 ด้าน</div>' +
-            '<table class="data-table">' +
-                '<thead><tr><th style="width:30%;text-align:left;">ด้าน</th><th>คะแนน</th><th>เต็ม</th><th>%</th><th>ระดับ</th></tr></thead>' +
-                '<tbody>'+trows+'</tbody>' +
-            '</table>' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td valign="top" style="padding-right:8px;">' +
+        '<div style="width:72px;height:90px;border-radius:5px;overflow:hidden;border:1.5px solid #cbd5e1;background:#f8fafc;">' + avatarHtml + '</div>' +
+        '</td>' +
+        '<td valign="top" style="line-height:1.6;">' +
+        '<div style="font-size:13px;font-weight:800;color:#1e293b;margin-bottom:3px;">' + fullName + '</div>' +
+        '<div><span style="color:#64748b;font-size:11px;">เลขประจำตัว: </span><b style="color:#312e81;font-size:13px;">' + studentIdCard + '</b></div>' +
+        '<div>' +
+        '<span style="color:#64748b;font-size:11px;">ชั้น: </span><b style="color:#312e81;font-size:12px;">' + gradeDisp + '</b>&nbsp;&nbsp;' +
+        '<span style="color:#64748b;font-size:11px;">ห้อง: </span><b style="color:#312e81;font-size:12px;">' + roomNumber + '</b>' +
+        '</div>' +
+        '<div><span style="color:#64748b;font-size:11px;">เลขที่: </span><b style="color:#312e81;font-size:12px;">' + studentNumber + '</b></div>' +
+        '</td>' +
+        '</tr></table>' +
+        '</div>' +
+        '</td>' +
+        // กล่องขวา: คะแนนรวม
+        '<td width="50%" valign="top">' +
+        '<div class="box" style="text-align:center;">' +
+        '<div class="stitle2">🏆 ผลการประเมินรวม</div>' +
+        '<div style="background:' + totalBg + ';border:2px solid ' + totalBorder + ';border-radius:8px;padding:12px 8px;margin-top:4px;">' +
+        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / 200</span></div>' +
+        '<div style="font-size:13px;font-weight:700;color:' + totalColor + ';margin-top:6px;">ระดับ: ' + totalLevel + '</div>' +
+        '</div>' +
+        '</div>' +
+        '</td>' +
+        '</tr></table>' +
+
+        // ROW 2: pie (ซ้าย) + radar (ขวา)
+        '<table width="100%" cellpadding="0" cellspacing="4" style="margin-bottom:5px;">' +
+        '<tr>' +
+        '<td width="50%" valign="top">' +
+        '<div class="box">' +
+        '<div class="stitle2">🥧 สัดส่วนคะแนนรายด้าน</div>' +
+        '<table cellpadding="0" cellspacing="0"><tr>' +
+        '<td width="120" valign="middle" style="padding-right:4px;">' + piesvg + '</td>' +
+        '<td valign="middle">' + legend + '</td>' +
+        '</tr></table>' +
+        '</div>' +
+        '</td>' +
+        '<td width="50%" valign="top">' +
+        '<div class="box" style="text-align:center;">' +
+        '<div class="stitle2">🕸️ กราฟเรดาร์พหุปัญญา</div>' +
+        radarsvg +
+        '</div>' +
+        '</td>' +
+        '</tr></table>' +
+
+        // ROW 3: กราฟแท่ง
+        '<div class="box" style="margin-bottom:4px;">' +
+        '<div class="stitle2">📊 กราฟแสดงคะแนนรายด้าน 8 ด้าน</div>' +
+        bars +
         '</div>' +
 
-        // ===== FOOTER =====
-        '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา 8 ด้าน | พิมพ์วันที่ '+printDate+'</div>' +
+        // ROW 4: ตารางสรุป
+        '<div class="box">' +
+        '<div class="stitle2">📋 ตารางสรุปผลการประเมิน 8 ด้าน</div>' +
+        '<table class="dt">' +
+        '<thead><tr>' +
+        '<th style="text-align:left;width:30%;">ด้าน</th>' +
+        '<th>คะแนน</th><th>เต็ม</th><th>ร้อยละ</th><th>ระดับ</th>' +
+        '</tr></thead>' +
+        '<tbody>' + trows + '</tbody>' +
+        '</table>' +
+        '</div>' +
 
+        '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา 8 ด้าน | พิมพ์วันที่ ' + printDate + '</div>' +
         '</body></html>';
 
+    console.log('HTML snippet:', html.substring(html.indexOf('ผลการประเมินรวม')-10, html.indexOf('ผลการประเมินรวม')+300));
     return html;
 }
 
 function generateStudentPDFMI(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
-    const dims = MI_DIMENSIONS.map(d => ({
-        key: d.key,
-        label: d.label,
-        score: assessment[`score_${d.key}`] || 0,
-        max: d.maxScore,
-        level: assessment[`level_${d.key}`] || ''
-    }));
+    // คำนวณ level ของแต่ละด้านและรวม เผื่อ DB ไม่มีเก็บ
+    const _getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
 
-    // ดึงข้อมูล classroom จาก assessment
+    const dims = MI_DIMENSIONS.map(d => {
+        const score = assessment['score_' + d.key] || 0;
+        const levelFromDb = assessment['level_' + d.key];
+        const norm = MI_NORM[d.key] || { min: 10, max: 18 };
+        const level = levelFromDb || _getLevel(score, norm);
+        return { key: d.key, label: d.label, score: score, max: d.maxScore, level: level };
+    });
+
+    // คำนวณคะแนนรวมและระดับถ้า DB ไม่มีเก็บ
+    if (assessment.score_total === undefined || assessment.score_total === null) {
+        assessment.score_total = dims.reduce(function(s, d) { return s + d.score; }, 0);
+    }
+    if (!assessment.level_total) {
+        const normTotal = (MI_NORM && MI_NORM.total) ? MI_NORM.total : { min: 80, max: 144 };
+        assessment.level_total = _getLevel(assessment.score_total, normTotal);
+    }
+
+    // ดึงข้อมูลนักเรียนและห้องเรียน
     const cls = assessment.core_classrooms;
     const std = assessment.core_students;
-    const studentIdCard = std?.student_id_card || '';
-    const gradeLevel = cls?.grade_level || '';
-    const roomNumber = cls?.room_number || '';
+    const studentIdCard = (std && std.student_id_card) ? std.student_id_card : '';
+    const gradeLevel = (cls && cls.grade_level) ? cls.grade_level : '';
+    const roomNumber = (cls && cls.room_number) ? cls.room_number : '';
 
-    // ดึง student_number จาก allResults ถ้ามี
-    const resultRow = allResults.find(r => r.student_id === assessment.student_id);
-    const studentNumber = resultRow?.student_number || '';
+    // ดึง student_number จาก allResults
+    const resultRow = allResults.find(function(r) { return r.student_id === assessment.student_id; });
+    const studentNumber = (resultRow && resultRow.student_number) ? resultRow.student_number : '';
 
     const html = buildMIPdfHtml({
-        assessment, schoolName, academicYear, semester,
-        adviser1, adviser2, logoUrl, fullName, avatarUrl,
-        dims,
-        studentIdCard, studentNumber, gradeLevel, roomNumber,
+        assessment: assessment, schoolName: schoolName, academicYear: academicYear, semester: semester,
+        adviser1: adviser1, adviser2: adviser2, logoUrl: logoUrl, fullName: fullName, avatarUrl: avatarUrl,
+        dims: dims,
+        studentIdCard: studentIdCard, studentNumber: studentNumber, gradeLevel: gradeLevel, roomNumber: roomNumber,
         docTitle: 'รายงานผลการประเมินพหุปัญญา (MIT)'
     });
 
@@ -1042,55 +1053,21 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
 }
 
 function generateStudentPdfFromHtml(html, fullName) {
-    // สร้าง iframe ซ่อนไว้ เพื่อให้ browser render HTML เต็มรูปแบบรวมถึง <style>
-    var iframe = document.createElement('iframe');
-    iframe.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:none;visibility:hidden;';
-    document.body.appendChild(iframe);
-
-    var iDoc = iframe.contentDocument || iframe.contentWindow.document;
-    iDoc.open();
-    iDoc.write(html);
-    iDoc.close();
-
-    // รอให้รูปภาพโหลดครบก่อน
-    var iWin = iframe.contentWindow;
-    var imgs = iDoc.querySelectorAll('img');
-    var total = imgs.length;
-
-    function runPdf() {
-        var bodyEl = iDoc.body;
-        html2pdf().set({
-            margin: [0.45, 0.45, 0.7, 0.45],
-            filename: 'MI_' + fullName + '.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: {
-                scale: 2,
-                useCORS: true,
-                letterRendering: true,
-                windowWidth: 794,
-                scrollX: 0,
-                scrollY: 0
-            },
-            jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
-        }).from(bodyEl).save().then(function() {
-            document.body.removeChild(iframe);
-        });
-    }
-
-    if (total === 0) {
-        setTimeout(runPdf, 300);
-    } else {
-        var loaded = 0;
-        imgs.forEach(function(img) {
-            if (img.complete) {
-                loaded++;
-                if (loaded === total) setTimeout(runPdf, 300);
-            } else {
-                img.addEventListener('load', function() { loaded++; if (loaded === total) setTimeout(runPdf, 300); });
-                img.addEventListener('error', function() { loaded++; if (loaded === total) setTimeout(runPdf, 300); });
-            }
-        });
-    }
+    // ใช้ html2pdf from string โดยตรง - แก้ปัญหา iframe cross-frame capture
+    var opt = {
+        margin: [0.45, 0.45, 0.7, 0.45],
+        filename: 'MI_' + fullName + '.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: {
+            scale: 2,
+            useCORS: true,
+            letterRendering: true,
+            windowWidth: 794,
+            logging: false
+        },
+        jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
+    };
+    html2pdf().set(opt).from(html, 'string').save();
 }
 
 function openImportModal() { document.getElementById('import-modal').classList.remove('hidden'); }
