@@ -355,6 +355,246 @@ async function printResult() {
     }
 }
 
+// ฟังก์ชัน buildMIPdfHtml แบบ string concatenation ปลอดภัย 100%
+function buildMIPdfHtml(opts) {
+    var assessment = opts.assessment;
+    var schoolName = opts.schoolName;
+    var academicYear = opts.academicYear;
+    var semester = opts.semester;
+    var adviser1 = opts.adviser1;
+    var adviser2 = opts.adviser2;
+    var logoUrl = opts.logoUrl;
+    var fullName = opts.fullName;
+    var avatarUrl = opts.avatarUrl;
+    var dims = opts.dims;
+    var studentIdCard = opts.studentIdCard || '-';
+    var studentNumber = opts.studentNumber || '-';
+    var gradeLevel = opts.gradeLevel || '-';
+    var roomNumber = opts.roomNumber || '-';
+    var docTitle = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MI)';
+
+    // สีตามระดับรวม
+    var totalLevel = assessment.level_total || '';
+    var isHigh = ['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(totalLevel) >= 0;
+    var isMid  = ['เกณฑ์ปกติ','ปานกลาง'].indexOf(totalLevel) >= 0;
+    var totalColor  = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
+    var totalBg     = isHigh ? '#dcfce7' : (isMid ? '#dbeafe' : '#fee2e2');
+    var totalBorder = isHigh ? '#16a34a' : (isMid ? '#2563eb' : '#dc2626');
+
+    function getLevelColor(level) {
+        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(level) >= 0) return '#10b981';
+        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(level) >= 0) return '#3b82f6';
+        return '#ef4444';
+    }
+    function getLevelClass(level) {
+        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(level) >= 0) return 'level-high';
+        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(level) >= 0) return 'level-mid';
+        return 'level-low';
+    }
+
+    var avatarHtml = avatarUrl
+        ? '<img src="' + avatarUrl + '" style="width:100%;height:100%;object-fit:cover;" crossorigin="anonymous">'
+        : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:40px;color:#94a3b8;">&#128100;</div>';
+
+    var dimColors = ['#6366f1','#0ea5e9','#8b5cf6','#ec4899','#f59e0b','#10b981','#14b8a6','#f97316'];
+
+    // --- PIE CHART (SVG) ---
+    var totalScore = 0;
+    for (var i = 0; i < dims.length; i++) totalScore += dims[i].score;
+    if (totalScore === 0) totalScore = 1;
+    var cx = 95, cy = 95, r = 80;
+    var slices = '';
+    var startAngle = -Math.PI / 2;
+    for (var i = 0; i < dims.length; i++) {
+        var angle = (dims[i].score / totalScore) * 2 * Math.PI;
+        if (angle < 0.001) { startAngle += angle; continue; }
+        var endAngle = startAngle + angle;
+        var x1 = cx + r * Math.cos(startAngle);
+        var y1 = cy + r * Math.sin(startAngle);
+        var x2 = cx + r * Math.cos(endAngle);
+        var y2 = cy + r * Math.sin(endAngle);
+        var largeArc = angle > Math.PI ? 1 : 0;
+        slices += '<path d="M' + cx + ',' + cy + ' L' + x1.toFixed(1) + ',' + y1.toFixed(1) +
+            ' A' + r + ',' + r + ' 0 ' + largeArc + ',1 ' + x2.toFixed(1) + ',' + y2.toFixed(1) +
+            ' Z" fill="' + dimColors[i] + '" stroke="white" stroke-width="1.5"/>';
+        startAngle = endAngle;
+    }
+    var pieChart = '<svg width="190" height="190" viewBox="0 0 190 190" xmlns="http://www.w3.org/2000/svg">' + slices + '</svg>';
+
+    // --- RADAR CHART (SVG) ---
+    var rcx = 115, rcy = 115, rr = 88;
+    var n = dims.length;
+    var gridLines = '', axisLines = '', labels = '', dots = '';
+    var radarPoints = [];
+    for (var i = 0; i < n; i++) {
+        var angle = (2 * Math.PI * i / n) - Math.PI / 2;
+        var pct = dims[i].max > 0 ? dims[i].score / dims[i].max : 0;
+        var px = rcx + rr * pct * Math.cos(angle);
+        var py = rcy + rr * pct * Math.sin(angle);
+        radarPoints.push(px.toFixed(1) + ',' + py.toFixed(1));
+        // axis
+        var ex = rcx + rr * Math.cos(angle);
+        var ey = rcy + rr * Math.sin(angle);
+        axisLines += '<line x1="' + rcx + '" y1="' + rcy + '" x2="' + ex.toFixed(1) + '" y2="' + ey.toFixed(1) + '" stroke="#cbd5e1" stroke-width="1"/>';
+        // label
+        var lx = rcx + (rr + 16) * Math.cos(angle);
+        var ly = rcy + (rr + 16) * Math.sin(angle);
+        var shortLbl = dims[i].label.length > 4 ? dims[i].label.substring(0,4) : dims[i].label;
+        labels += '<text x="' + lx.toFixed(1) + '" y="' + ly.toFixed(1) + '" text-anchor="middle" dominant-baseline="middle" font-size="8.5" fill="#475569" font-family="Sarabun,sans-serif">' + shortLbl + '</text>';
+        // dot
+        dots += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="3" fill="' + dimColors[i] + '" stroke="white" stroke-width="1"/>';
+    }
+    // grid rings
+    var fracs = [0.25, 0.5, 0.75, 1];
+    for (var f = 0; f < fracs.length; f++) {
+        var gpts = [];
+        for (var i = 0; i < n; i++) {
+            var angle = (2 * Math.PI * i / n) - Math.PI / 2;
+            gpts.push((rcx + rr * fracs[f] * Math.cos(angle)).toFixed(1) + ',' + (rcy + rr * fracs[f] * Math.sin(angle)).toFixed(1));
+        }
+        gridLines += '<polygon points="' + gpts.join(' ') + '" fill="none" stroke="#e2e8f0" stroke-width="1"/>';
+    }
+    var radarChart = '<svg width="230" height="230" viewBox="0 0 230 230" xmlns="http://www.w3.org/2000/svg">' +
+        gridLines + axisLines +
+        '<polygon points="' + radarPoints.join(' ') + '" fill="#6366f118" stroke="#6366f1" stroke-width="2" stroke-linejoin="round"/>' +
+        dots + labels + '</svg>';
+
+    // --- LEGEND ---
+    var legendHtml = '';
+    for (var i = 0; i < dims.length; i++) {
+        legendHtml += '<div style="display:flex;align-items:center;gap:4px;margin-bottom:3px;">' +
+            '<div style="width:9px;height:9px;border-radius:2px;background:' + dimColors[i] + ';flex-shrink:0;"></div>' +
+            '<span style="font-size:8.5px;color:#475569;">' + dims[i].label + ' (' + dims[i].score + '/' + dims[i].max + ')</span>' +
+            '</div>';
+    }
+
+    // --- BAR CHART rows ---
+    var barRows = '';
+    for (var i = 0; i < dims.length; i++) {
+        var pct = dims[i].max > 0 ? (dims[i].score / dims[i].max * 100) : 0;
+        var col = getLevelColor(dims[i].level);
+        barRows += '<div style="margin-bottom:4px;">' +
+            '<div style="display:flex;justify-content:space-between;font-size:8.5px;margin-bottom:1px;">' +
+            '<span><b>' + dims[i].label + '</b></span>' +
+            '<span>' + dims[i].score + '/' + dims[i].max + ' (' + Math.round(pct) + '%)</span>' +
+            '</div>' +
+            '<div style="background:#e2e8f0;border-radius:8px;height:6px;">' +
+            '<div style="width:' + pct.toFixed(1) + '%;background:' + col + ';height:6px;border-radius:8px;"></div>' +
+            '</div></div>';
+    }
+
+    // --- TABLE rows ---
+    var tableRows = '';
+    for (var i = 0; i < dims.length; i++) {
+        var pct = dims[i].max > 0 ? Math.round(dims[i].score / dims[i].max * 100) : 0;
+        var cls = getLevelClass(dims[i].level);
+        tableRows += '<tr><td>' + dims[i].label + '</td><td>' + dims[i].score + '</td><td>' + dims[i].max + '</td><td>' + pct + '%</td><td class="' + cls + '">' + dims[i].level + '</td></tr>';
+    }
+    var totalPct = Math.round((assessment.score_total / 200) * 100);
+    tableRows += '<tr style="background:#f1f5f9;font-weight:800;"><td><b>รวม</b></td><td><b>' + assessment.score_total + '</b></td><td><b>200</b></td><td><b>' + totalPct + '%</b></td><td class="' + getLevelClass(totalLevel) + '"><b>' + totalLevel + '</b></td></tr>';
+
+    var dateStr = new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric'});
+    var printDate = new Date().toLocaleDateString('th-TH');
+    var adviserLine = adviser1 + (adviser2 && adviser2 !== '-' ? ' / ' + adviser2 : '');
+    var gradeDisplay = gradeLevel && gradeLevel !== '-' ? 'ม.' + gradeLevel : '-';
+
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>MI Report</title><style>' +
+        '* { box-sizing:border-box; margin:0; padding:0; }' +
+        '@page { size:A4 portrait; margin:0.45cm; }' +
+        'body { font-family:Sarabun,Anuphan,sans-serif; font-size:11px; color:#1e293b; background:white; }' +
+        '.hdr { display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid #312e81; padding-bottom:5px; margin-bottom:7px; }' +
+        '.logo { height:42px; width:auto; }' +
+        '.school-title { color:#312e81; font-size:14px; font-weight:900; }' +
+        '.school-sub { font-size:9.5px; color:#475569; margin-top:1px; }' +
+        '.info-area { text-align:right; font-size:9.5px; line-height:1.7; }' +
+        '.row { display:flex; gap:7px; margin-bottom:6px; }' +
+        '.box { background:#f8fafc; border:1px solid #e2e8f0; border-radius:7px; padding:7px; }' +
+        '.sec-title { font-size:10px; font-weight:800; color:#312e81; border-bottom:1.5px solid #e2e8f0; padding-bottom:2px; margin-bottom:5px; }' +
+        '.info-lbl { font-size:9px; color:#64748b; white-space:nowrap; }' +
+        '.info-val { font-size:9.5px; font-weight:700; color:#312e81; }' +
+        'table { width:100%; border-collapse:collapse; font-size:9px; }' +
+        'th,td { border:1px solid #cbd5e1; padding:3.5px 5px; text-align:center; }' +
+        'th { background:#312e81; color:white; }' +
+        'td:first-child { text-align:left; }' +
+        '.level-high { color:#15803d; font-weight:700; }' +
+        '.level-mid { color:#1d4ed8; font-weight:700; }' +
+        '.level-low { color:#b91c1c; font-weight:700; }' +
+        '.footer { font-size:7.5px; text-align:center; color:#94a3b8; margin-top:4px; border-top:1px solid #e2e8f0; padding-top:3px; }' +
+        '</style></head><body>' +
+
+        // HEADER
+        '<div class="hdr">' +
+            '<div style="display:flex;align-items:center;gap:10px;">' +
+                '<img class="logo" src="' + logoUrl + '" crossorigin="anonymous">' +
+                '<div><div class="school-title">' + schoolName + '</div><div class="school-sub">' + docTitle + '</div></div>' +
+            '</div>' +
+            '<div class="info-area">' +
+                '<div><b>ภาคเรียนที่ ' + semester + '</b> ปีการศึกษา ' + academicYear + '</div>' +
+                '<div>ครูที่ปรึกษา: ' + adviserLine + '</div>' +
+                '<div>วันที่ประเมิน: ' + dateStr + '</div>' +
+            '</div>' +
+        '</div>' +
+
+        // ROW 1: Student info + Assessment
+        '<div class="row">' +
+            // กล่องซ้าย: รูป + ข้อมูล
+            '<div class="box" style="flex:0 0 40%;display:flex;gap:9px;align-items:flex-start;">' +
+                '<div style="flex-shrink:0;width:80px;height:98px;border-radius:7px;overflow:hidden;border:2px solid #cbd5e1;background:#e2e8f0;">' + avatarHtml + '</div>' +
+                '<div style="flex:1;">' +
+                    '<div style="font-size:12px;font-weight:800;color:#1e293b;line-height:1.4;margin-bottom:6px;">' + fullName + '</div>' +
+                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
+                        '<span class="info-lbl">เลขประจำตัว:</span>' +
+                        '<span class="info-val">' + studentIdCard + '</span>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
+                        '<span class="info-lbl">ชั้น:</span><span class="info-val">' + gradeDisplay + '</span>' +
+                        '<span class="info-lbl" style="margin-left:5px;">ห้อง:</span><span class="info-val">' + roomNumber + '</span>' +
+                    '</div>' +
+                    '<div style="display:flex;gap:4px;margin-bottom:4px;align-items:center;">' +
+                        '<span class="info-lbl">เลขที่:</span><span class="info-val">' + studentNumber + '</span>' +
+                    '</div>' +
+                '</div>' +
+            '</div>' +
+            // กล่องขวา: ผลประเมิน
+            '<div class="box" style="flex:1;">' +
+                '<div class="sec-title">🏆 ผลการประเมินรวม</div>' +
+                '<div style="text-align:center;padding:5px;background:' + totalBg + ';border:1.5px solid ' + totalBorder + ';border-radius:7px;margin-bottom:5px;">' +
+                    '<div style="font-size:24px;font-weight:900;color:' + totalColor + ';line-height:1;">' + assessment.score_total + ' <span style="font-size:12px;font-weight:500;">/ 200</span></div>' +
+                    '<div style="font-size:10.5px;font-weight:700;color:' + totalColor + ';margin-top:2px;">ระดับรวม: ' + totalLevel + '</div>' +
+                '</div>' +
+                '<div class="sec-title">📊 คะแนนรายด้าน</div>' +
+                barRows +
+            '</div>' +
+        '</div>' +
+
+        // ROW 2: Pie + Radar
+        '<div class="row">' +
+            '<div class="box" style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
+                '<div class="sec-title" style="width:100%;text-align:center;">🥧 สัดส่วนคะแนนรายด้าน</div>' +
+                '<div style="display:flex;gap:6px;align-items:center;justify-content:center;">' +
+                    pieChart +
+                    '<div style="min-width:100px;">' + legendHtml + '</div>' +
+                '</div>' +
+            '</div>' +
+            '<div class="box" style="flex:1;display:flex;flex-direction:column;align-items:center;">' +
+                '<div class="sec-title" style="width:100%;text-align:center;">🕸️ กราฟเรดาร์พหุปัญญา</div>' +
+                radarChart +
+            '</div>' +
+        '</div>' +
+
+        // ROW 3: Table
+        '<div class="box" style="margin-bottom:4px;">' +
+            '<div class="sec-title">📋 ตารางสรุปผลการประเมิน 8 ด้าน</div>' +
+            '<table><thead><tr><th style="text-align:left;width:27%;">ด้าน</th><th>คะแนน</th><th>เต็ม</th><th>ร้อยละ</th><th>ระดับ</th></tr></thead>' +
+            '<tbody>' + tableRows + '</tbody></table>' +
+        '</div>' +
+
+        '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา (Multiple Intelligences) 8 ด้าน | พิมพ์วันที่ ' + printDate + '</div>' +
+        '</body></html>';
+
+    return html;
+}
+
 function generateFullPDFMI(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
     const dims = MI_DIMENSIONS.map(d => ({
         key: d.key,
@@ -364,102 +604,62 @@ function generateFullPDFMI(assessment, schoolName, academicYear, semester, advis
         level: assessment[`level_${d.key}`] || ''
     }));
 
-    const avatarHtml = avatarUrl 
-        ? `<img src="${avatarUrl}" style="width:60px; height:60px; border-radius:50%; object-fit:cover; border:1px solid #cbd5e1;" crossorigin="anonymous">`
-        : `<div style="width:60px; height:60px; border-radius:50%; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:24px; color:#94a3b8;"><i class="fas fa-user"></i></div>`;
+    // ข้อมูลนักเรียนเพิ่มเติม
+    const studentIdCard = currentStudent?.student_id_card || '';
+    const studentNumber = currentStudent?.student_enrollments?.[0]?.student_number || '';
+    const gradeLevel = currentStudent?.student_enrollments?.[0]?.grade_level || '';
+    const roomNumber = currentStudent?.student_enrollments?.[0]?.room_number || '';
 
-    const html = `<!DOCTYPE html>
-    <html>
-    <head><meta charset="UTF-8"><title>MI Report</title>
-    <style>
-        @page { margin: 0.5cm 0.5cm 1.2cm 0.5cm; }
-        body { font-family: 'Sarabun', 'Anuphan', sans-serif; font-size: 13px; color: #1e293b; background: white; margin: 0; padding: 0; }
-        .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #312e81; padding-bottom: 8px; margin-bottom: 15px; }
-        .logo-area { display: flex; align-items: center; gap: 12px; }
-        .logo { height: 50px; width: auto; }
-        .school-title { margin: 0; color: #312e81; font-size: 18px; font-weight: bold; }
-        .school-sub { margin: 2px 0 0; font-size: 11px; color: #475569; }
-        .info-area { text-align: right; font-size: 12px; }
-        .student-card { background: #f8fafc; border-radius: 8px; padding: 10px; margin-bottom: 15px; display: flex; align-items: center; gap: 15px; }
-        .student-details { flex: 1; }
-        .student-avatar { flex-shrink: 0; }
-        .total-card { text-align: center; background: #fef9e3; border-radius: 12px; padding: 12px; margin-bottom: 20px; }
-        .total-score { font-size: 28px; font-weight: 900; margin: 0; }
-        .total-level { font-size: 14px; font-weight: bold; margin-top: 5px; }
-        .chart-title { font-size: 16px; font-weight: bold; margin: 15px 0 10px; }
-        .bar-item { margin-bottom: 10px; }
-        .bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
-        .bar-bg { background: #e2e8f0; border-radius: 20px; height: 10px; width: 100%; }
-        .bar-fill { height: 10px; border-radius: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
-        th { background: #312e81; color: white; }
-        .footer { font-size: 9px; text-align: center; color: #94a3b8; margin-top: 20px; border-top: 1px solid #e2e8f0; padding-top: 8px; }
-        body { margin: 0; padding: 0; }
-        .footer { margin-top: 15px; padding-top: 6px; font-size: 8px; page-break-inside: avoid; }
-        table { page-break-inside: avoid; }
-    </style>
-    </head>
-    <body>
-    <div class="header">
-        <div class="logo-area"><img class="logo" src="${logoUrl}" crossorigin="anonymous"><div><div class="school-title">${schoolName}</div><div class="school-sub">รายงานผลการประเมินพหุปัญญา (MI)</div></div></div>
-        <div class="info-area"><div><b>ภาคเรียนที่ ${semester}</b> ปีการศึกษา ${academicYear}</div><div>ครูที่ปรึกษา: ${adviser1} ${adviser2 !== '-' ? ' / ' + adviser2 : ''}</div></div>
-    </div>
-    <div class="student-card">
-        <div class="student-avatar">${avatarHtml}</div>
-        <div class="student-details"><b>ชื่อ-สกุล:</b> ${fullName}<br><span style="font-size:12px;color:#64748b">วันที่ประเมิน: ${new Date(assessment.completed_at || new Date()).toLocaleDateString('th-TH')}</span></div>
-    </div>
-    <div class="total-card"><div class="total-score" style="color:${assessment.level_total === 'สูงกว่าเกณฑ์' ? '#15803d' : (assessment.level_total === 'เกณฑ์ปกติ' ? '#1d4ed8' : '#b91c1c')}">${assessment.score_total} <span style="font-size:14px;font-weight:normal;">/ 200 คะแนน</span></div><div class="total-level">ระดับรวม: ${assessment.level_total}</div></div>
-    <div class="chart-title">📊 กราฟแสดงคะแนนรายด้าน (8 ด้าน)</div>
-    ${dims.map(d => {
-        const percent = (d.score / d.max) * 100;
-        const barColor = d.level === 'สูงกว่าเกณฑ์' ? '#10b981' : (d.level === 'เกณฑ์ปกติ' ? '#3b82f6' : '#ef4444');
-        return `<div class="bar-item"><div class="bar-label"><span><b>${d.label}</b> (${d.score}/${d.max})</span><span>${Math.round(percent)}%</span></div><div class="bar-bg"><div class="bar-fill" style="width:${percent}%; background:${barColor};"></div></div></div>`;
-    }).join('')}
-    
-    <table>
-        <thead><tr><th>ด้าน</th><th>คะแนน</th><th>ระดับ</th></tr></thead>
-        <tbody>
-            ${dims.map(d => `<tr><td>${d.label}</td><td style="text-align:center">${d.score}/${d.max}</td><td style="text-align:center">${d.level}</td></tr>`).join('')}
-        </tbody>
-    </table>
-    <div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา 8 ด้าน</div>
-    </body></html>`;
+    const html = buildMIPdfHtml({
+        assessment, schoolName, academicYear, semester,
+        adviser1, adviser2, logoUrl, fullName, avatarUrl,
+        dims,
+        studentIdCard, studentNumber, gradeLevel, roomNumber,
+        docTitle: 'รายงานผลการประเมินพหุปัญญา (MI)'
+    });
 
     const element = document.createElement('div');
     element.innerHTML = html;
+    element.style.position = 'fixed';
+    element.style.left = '-9999px';
+    document.body.appendChild(element);
 
-    const images = element.querySelectorAll('img');
-    if (images.length === 0) {
-        generateStudentPdfNow(element, fullName);
-    } else {
-        let loaded = 0;
-        images.forEach(img => {
-            if (img.complete) {
-                loaded++;
-                if (loaded === images.length) generateStudentPdfNow(element, fullName);
-            } else {
-                img.addEventListener('load', () => {
+    // รอให้ Chart.js render เสร็จก่อน generate PDF
+    setTimeout(() => {
+        const images = element.querySelectorAll('img');
+        if (images.length === 0) {
+            generateStudentPdfNow(element, fullName);
+        } else {
+            let loaded = 0;
+            images.forEach(img => {
+                if (img.complete) {
                     loaded++;
                     if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                });
-                img.addEventListener('error', () => {
-                    loaded++;
-                    if (loaded === images.length) generateStudentPdfNow(element, fullName);
-                });
-            }
-        });
-    }
+                } else {
+                    img.addEventListener('load', () => {
+                        loaded++;
+                        if (loaded === images.length) generateStudentPdfNow(element, fullName);
+                    });
+                    img.addEventListener('error', () => {
+                        loaded++;
+                        if (loaded === images.length) generateStudentPdfNow(element, fullName);
+                    });
+                }
+            });
+        }
+    }, 800);
 }
 
 function generateStudentPdfNow(element, fullName) {
     html2pdf().set({
-        margin: [0.5, 0.5, 1.2, 0.5],
+        margin: [0.4, 0.4, 0.8, 0.4],
         filename: `MI_${fullName}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, letterRendering: true },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
-    }).from(element).save();
+    }).from(element).save().then(() => {
+        document.body.removeChild(element);
+    });
 }
 
 async function logout() {
