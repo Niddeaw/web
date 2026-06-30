@@ -2111,58 +2111,157 @@ async function saveAdminSettings() {
 }
 
 async function loadTeachersForAppoint() {
-    const { data } = await db.from('core_personnel').select('id, first_name, last_name').order('first_name');
     const select = document.getElementById('select-teacher-appoint');
     select.innerHTML = '<option value="">-- ค้นหาชื่อครู --</option>';
-    if (data) data.forEach(t => select.innerHTML += `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`);
-    if (window.tsTeacherAppoint) window.tsTeacherAppoint.destroy();
-    window.tsTeacherAppoint = new TomSelect("#select-teacher-appoint", { create: false, placeholder: "ค้นหาชื่อครู..." });
+
+    try {
+        const { data, error } = await db.from('core_personnel')
+            .select('id, first_name, last_name')
+            .order('first_name');
+
+        if (error) throw error;
+        
+        if (data && data.length > 0) {
+            data.forEach(t => {
+                select.innerHTML += `<option value="${t.id}">${t.first_name} ${t.last_name}</option>`;
+            });
+        }
+
+        // รีเฟรช TomSelect
+        if (window.tsTeacherAppoint) {
+            window.tsTeacherAppoint.destroy();
+        }
+        window.tsTeacherAppoint = new TomSelect("#select-teacher-appoint", {
+            create: false,
+            placeholder: "ค้นหาชื่อครู..."
+        });
+    } catch (err) {
+        console.error('loadTeachersForAppoint error:', err);
+        select.innerHTML = '<option value="">ไม่สามารถโหลดรายชื่อครู</option>';
+    }
 }
 
 async function loadModuleAdminsList() {
     const tbody = document.getElementById('module-admin-list');
     tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400">กำลังโหลด...</td></tr>';
-    const { data } = await db.from('core_module_admins')
-        .select('id, core_personnel (id, first_name, last_name)')
-        .eq('module_id', 'homevisit');
-    if (!data || data.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ยังไม่มีการแต่งตั้งผู้ดูแลระบบ</td></tr>';
-        return;
+    
+    try {
+        // ดึงเฉพาะ user_id และ id จาก core_module_admins
+        const { data, error } = await db.from('core_module_admins')
+            .select('id, user_id')
+            .eq('module_id', 'homevisit');
+
+        if (error) {
+            console.error('Error loading module admins:', error);
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-red-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ยังไม่มีการแต่งตั้งผู้ดูแลระบบ</td></tr>';
+            return;
+        }
+
+        // ✅ ใช้ getPersonnelMap() ที่มีอยู่แล้ว
+        const personnelMap = await getPersonnelMap();
+
+        // กรองเฉพาะรายการที่มีชื่อบุคลากร
+        const rows = data
+            .filter(admin => personnelMap[admin.user_id])
+            .map(admin => {
+                const name = personnelMap[admin.user_id];
+                return `
+                    <tr class="hover:bg-slate-50">
+                        <td class="py-3 px-4 font-bold text-slate-700 flex items-center gap-2">
+                            <div class="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px]">
+                                <i class="fas fa-user-shield"></i>
+                            </div>
+                            ${name}
+                        </td>
+                        <td class="py-3 px-4 text-center">
+                            <button onclick="removeModuleAdmin('${admin.id}')" 
+                                    class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+        if (rows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ไม่พบข้อมูลผู้ใช้ที่ถูกต้อง</td></tr>';
+        } else {
+            tbody.innerHTML = rows.join('');
+        }
+    } catch (err) {
+        console.error('loadModuleAdminsList error:', err);
+        tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-red-400">เกิดข้อผิดพลาด</td></tr>';
     }
-    tbody.innerHTML = data.map(admin => `
-        <tr class="hover:bg-slate-50">
-            <td class="py-3 px-4 font-bold text-slate-700 flex items-center gap-2">
-                <div class="w-6 h-6 bg-purple-100 text-purple-600 rounded-full flex items-center justify-center text-[10px]"><i class="fas fa-user-shield"></i></div>
-                ${admin.core_personnel.first_name} ${admin.core_personnel.last_name}
-             </td>
-            <td class="py-3 px-4 text-center">
-                <button onclick="removeModuleAdmin('${admin.id}')" class="text-rose-500 hover:bg-rose-50 p-1.5 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
-             </td>
-        </tr>`).join('');
 }
 
 window.appointModuleAdmin = async function () {
     const teacherId = document.getElementById('select-teacher-appoint').value;
-    if (!teacherId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
-    const { error } = await db.from('core_module_admins').insert({ user_id: teacherId, module_id: 'homevisit' });
+    if (!teacherId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
+    }
+    
+    // ตรวจสอบว่าครูนี้เป็นแอดมินอยู่แล้วหรือไม่
+    const { data: existing } = await db.from('core_module_admins')
+        .select('id')
+        .eq('user_id', teacherId)
+        .eq('module_id', 'homevisit')
+        .maybeSingle();
+    
+    if (existing) {
+        return Swal.fire('แจ้งเตือน', 'ครูท่านนี้เป็นแอดมินโมดูลอยู่แล้ว', 'info');
+    }
+
+    const { error } = await db.from('core_module_admins')
+        .insert({ user_id: teacherId, module_id: 'homevisit' });
+    
     if (error) {
-        if (error.code === '23505') return Swal.fire('แจ้งเตือน', 'ครูท่านนี้เป็นแอดมินโมดูลอยู่แล้ว', 'info');
+        if (error.code === '23505') {
+            return Swal.fire('แจ้งเตือน', 'ครูท่านนี้เป็นแอดมินโมดูลอยู่แล้ว', 'info');
+        }
         return Swal.fire('ผิดพลาด', error.message, 'error');
     }
-    Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แต่งตั้งแอดมินโมดูลเรียบร้อย', timer: 1500, showConfirmButton: false });
+    
+    Swal.fire({ 
+        icon: 'success', 
+        title: 'สำเร็จ', 
+        text: 'แต่งตั้งแอดมินโมดูลเรียบร้อย', 
+        timer: 1500, 
+        showConfirmButton: false 
+    });
+    
     window.tsTeacherAppoint?.clear();
-    loadModuleAdminsList();
+    await loadModuleAdminsList(); // โหลดรายการใหม่
 };
 
 window.removeModuleAdmin = async function (recordId) {
     const result = await Swal.fire({
-        title: 'ยืนยันการปลดสิทธิ์?', text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",
-        icon: 'warning', showCancelButton: true, confirmButtonColor: '#EF4444', confirmButtonText: 'ปลดสิทธิ์'
+        title: 'ยืนยันการปลดสิทธิ์?', 
+        text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",
+        icon: 'warning', 
+        showCancelButton: true, 
+        confirmButtonColor: '#EF4444', 
+        confirmButtonText: 'ปลดสิทธิ์',
+        cancelButtonText: 'ยกเลิก'
     });
+    
     if (result.isConfirmed) {
-        await db.from('core_module_admins').delete().eq('id', recordId);
-        Swal.fire({ icon: 'success', title: 'ปลดสิทธิ์เรียบร้อย', timer: 1500, showConfirmButton: false });
-        loadModuleAdminsList();
+        const { error } = await db.from('core_module_admins').delete().eq('id', recordId);
+        if (error) {
+            Swal.fire('ผิดพลาด', 'ไม่สามารถปลดสิทธิ์ได้: ' + error.message, 'error');
+            return;
+        }
+        Swal.fire({ 
+            icon: 'success', 
+            title: 'ปลดสิทธิ์เรียบร้อย', 
+            timer: 1500, 
+            showConfirmButton: false 
+        });
+        await loadModuleAdminsList(); // โหลดรายการใหม่
     }
 };
 
@@ -2175,7 +2274,11 @@ async function getPersonnelMap() {
     if (personnelCache) return personnelCache;
     const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name');
     personnelCache = {};
-    (data || []).forEach(p => { if (p?.id) personnelCache[p.id] = `${p.prefix || ''}${p.first_name} ${p.last_name}`; });
+    (data || []).forEach(p => { 
+        if (p?.id) {
+            personnelCache[p.id] = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+        }
+    });
     return personnelCache;
 }
 
