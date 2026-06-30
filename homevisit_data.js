@@ -1347,7 +1347,9 @@ window.removeModuleAdmin = async function (recordId) {
 // ==========================================
 // 5. REPORT
 // ==========================================
-
+// ==========================================
+// loadReport() - ฉบับสมบูรณ์
+// ==========================================
 async function loadReport() {
     const scope = document.getElementById('report-scope').value;
     const grade = document.getElementById('report-grade')?.value;
@@ -1425,34 +1427,57 @@ async function loadReport() {
 
         const totalStudents = uniqueStudents.length;
 
-        const { data: visits } = await db.rpc('get_visits_by_classrooms', {
-            p_classroom_ids: classIds,
-            p_year: currentYear,
-            p_semester: currentTerm
-        });
+        const { data: visits } = await db.from('module_home_visits')
+            .select('*')
+            .in('classroom_id', classIds)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm);
 
         const visitedMap = {};
         (visits || []).forEach(v => { visitedMap[v.student_id] = v; });
 
-        window.reportVisitedList = [];
+        // ประกาศตัวแปรเก็บรายชื่อแยก
+        window.reportCompleteList = [];
+        window.reportIncompleteList = [];
         window.reportNotVisitedList = [];
 
-        let visitedCount = 0;
+        let visitedCompleteCount = 0;
+        let visitedIncompleteCount = 0;
+
+        // ตัวแปรเก็บความเสี่ยง (เก็บเป็น object พร้อม UUID)
+        const riskStudents = { 
+            learning: [], health: [], drugs: [], violence: [], 
+            sex: [], gaming: [], economy: [] 
+        };
+        const problemStudents = { 
+            learning: [], health: [], drugs: [], violence: [], 
+            sex: [], gaming: [], economy: [] 
+        };
+
         const riskCounts = { learning: 0, health: 0, drugs: 0, violence: 0, sex: 0, gaming: 0, economy: 0 };
         const problemCounts = { ...riskCounts };
-        const riskStudents = { learning: [], health: [], drugs: [], violence: [], sex: [], gaming: [], economy: [] };
-        const problemStudents = { ...riskStudents };
 
         uniqueStudents.forEach(s => {
             const visit = visitedMap[s.id];
-            const name = `${s.prefix || ''}${s.first_name} ${s.last_name} (${s.student_id_card})`;
-
-            const studentItem = { id: s.student_id_card || '-', name: `${s.prefix || ''}${s.first_name} ${s.last_name}`, room: s.room_label };
+            // ✅ เพิ่ม student_uuid เพื่อใช้ในการนำทาง
+            const studentItem = { 
+                id: s.student_id_card || '-', 
+                name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                room: s.room_label || '-',
+                student_uuid: s.id // 👈 ใช้สำหรับ editHomeVisit
+            };
 
             if (visit && visit.visit_status === 'เยี่ยมแล้ว') {
-                visitedCount++;
-                window.reportVisitedList.push(studentItem);
+                const completeness = getCompletenessStatus(visit);
+                if (completeness.complete) {
+                    visitedCompleteCount++;
+                    window.reportCompleteList.push(studentItem);
+                } else {
+                    visitedIncompleteCount++;
+                    window.reportIncompleteList.push(studentItem);
+                }
 
+                // วิเคราะห์ความเสี่ยง
                 const risk = visit.risk_factors || visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
@@ -1460,10 +1485,10 @@ async function loadReport() {
                 const evaluateRisk = (category, conditionRisk, conditionProblem) => {
                     if (conditionProblem) {
                         problemCounts[category]++;
-                        problemStudents[category].push(name);
+                        problemStudents[category].push(studentItem);
                     } else if (conditionRisk) {
                         riskCounts[category]++;
-                        riskStudents[category].push(name);
+                        riskStudents[category].push(studentItem);
                     }
                 };
 
@@ -1482,51 +1507,78 @@ async function loadReport() {
             }
         });
 
-        const notVisited = totalStudents - visitedCount;
-        const catNames = { learning: 'การเรียน', health: 'สุขภาพ', drugs: 'สารเสพติด', violence: 'ความรุนแรง', sex: 'เรื่องเพศ', gaming: 'ติดเกม', economy: 'เศรษฐกิจ' };
+        const notVisitedCount = totalStudents - visitedCompleteCount - visitedIncompleteCount;
+        const catNames = { 
+            learning: 'การเรียน', health: 'สุขภาพ', drugs: 'สารเสพติด', 
+            violence: 'ความรุนแรง', sex: 'เรื่องเพศ', gaming: 'ติดเกม', 
+            economy: 'เศรษฐกิจ' 
+        };
 
+        // --- การ์ดหลัก 4 ใบ ---
         let html = `
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div onclick="showReportStudentList('visited')" class="bg-blue-50 p-4 rounded-2xl cursor-pointer hover:bg-blue-100 transition border border-blue-100 shadow-sm relative group">
-                <h4 class="font-black text-blue-800">เยี่ยมบ้านแล้ว</h4>
-                <p class="text-3xl font-black">${visitedCount} <span class="text-sm text-blue-600 font-normal">คน (${totalStudents > 0 ? ((visitedCount / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
-                <div class="absolute top-4 right-4 text-blue-400 group-hover:text-blue-600 transition"><i class="fas fa-search-plus"></i></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 shadow-sm">
+                <h4 class="font-black text-blue-800">นักเรียนทั้งหมด</h4>
+                <p class="text-3xl font-black text-blue-700">${totalStudents} <span class="text-sm font-normal text-blue-500">คน</span></p>
+            </div>
+            <div onclick="showReportStudentList('complete')" class="bg-green-50 p-4 rounded-2xl cursor-pointer hover:bg-green-100 transition border border-green-100 shadow-sm relative group">
+                <h4 class="font-black text-green-800">เยี่ยมบ้านแล้ว (ครบ)</h4>
+                <p class="text-3xl font-black text-green-700">${visitedCompleteCount} <span class="text-sm font-normal text-green-500">คน</span></p>
+                <div class="absolute top-4 right-4 text-green-400 group-hover:text-green-600 transition"><i class="fas fa-search-plus"></i></div>
+            </div>
+            <div onclick="showReportStudentList('incomplete')" class="bg-amber-50 p-4 rounded-2xl cursor-pointer hover:bg-amber-100 transition border border-amber-100 shadow-sm relative group">
+                <h4 class="font-black text-amber-800">เยี่ยมบ้านแล้ว (ไม่ครบ)</h4>
+                <p class="text-3xl font-black text-amber-700">${visitedIncompleteCount} <span class="text-sm font-normal text-amber-500">คน</span></p>
+                <div class="absolute top-4 right-4 text-amber-400 group-hover:text-amber-600 transition"><i class="fas fa-search-plus"></i></div>
             </div>
             <div onclick="showReportStudentList('not_visited')" class="bg-slate-100 p-4 rounded-2xl cursor-pointer hover:bg-slate-200 transition border border-slate-200 shadow-sm relative group">
                 <h4 class="font-black text-slate-600">ยังไม่ได้เยี่ยม</h4>
-                <p class="text-3xl font-black">${notVisited} <span class="text-sm text-slate-500 font-normal">คน (${totalStudents > 0 ? ((notVisited / totalStudents) * 100).toFixed(1) : 0}%)</span></p>
+                <p class="text-3xl font-black text-slate-600">${notVisitedCount} <span class="text-sm font-normal text-slate-500">คน</span></p>
                 <div class="absolute top-4 right-4 text-slate-400 group-hover:text-slate-600 transition"><i class="fas fa-search-plus"></i></div>
             </div>
         </div>`;
 
-        const renderCategoryBox = (cat, counts, studentsList, bgClass, textClass) => {
-            let listHtml = '<p class="text-xs text-slate-400 mt-1">-</p>';
-            if (studentsList[cat].length > 0) {
-                const uniqueNames = [...new Set(studentsList[cat])];
-                listHtml = '<ul class="text-xs mt-2 list-disc pl-4 text-slate-600 space-y-1">';
-                listHtml += uniqueNames.slice(0, 5).map(n => `<li>${n}</li>`).join('');
-                if (uniqueNames.length > 5) listHtml += `<li class="text-slate-400 italic">...และอีก ${uniqueNames.length - 5} คน</li>`;
-                listHtml += '</ul>';
-            }
+        // --- ฟังก์ชันช่วย render การ์ดความเสี่ยง (แบบไม่มีรายชื่อ) ---
+        const renderCategoryBox = (cat, counts, type) => {
+            const catName = catNames[cat];
+            const bgClass = type === 'risk' ? 'bg-amber-50' : 'bg-rose-50';
+            const borderClass = type === 'risk' ? 'border-amber-100' : 'border-rose-100';
+            const hoverClass = type === 'risk' ? 'hover:bg-amber-100' : 'hover:bg-rose-100';
+            const iconColor = type === 'risk' ? 'text-amber-400' : 'text-rose-400';
+            const iconHover = type === 'risk' ? 'group-hover:text-amber-600' : 'group-hover:text-rose-600';
+
             return `
-            <div class="${bgClass} p-3 rounded-xl border border-white/50 shadow-sm">
+            <div onclick="showRiskStudentList('${cat}', '${type}')" 
+                 class="${bgClass} p-3 rounded-xl border ${borderClass} shadow-sm cursor-pointer hover:${hoverClass} transition relative group">
                 <div class="flex justify-between items-center font-bold text-sm">
-                    <span class="text-slate-700">${catNames[cat]}</span>
-                    <span class="${textClass} bg-white px-2 py-0.5 rounded-full shadow-sm">${counts[cat]} คน</span>
+                    <span class="text-slate-700">${catName}</span>
+                    <span class="${type === 'risk' ? 'text-amber-600' : 'text-rose-600'} bg-white px-2 py-0.5 rounded-full shadow-sm">${counts[cat] || 0} คน</span>
                 </div>
-                ${listHtml}
+                <div class="absolute top-2 right-2 ${iconColor} group-hover:${iconHover} transition">
+                    <i class="fas fa-search-plus text-xs"></i>
+                </div>
             </div>`;
         };
 
+        // --- กลุ่มเสี่ยง ---
         html += `<h4 class="font-black text-amber-600 mb-3 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>กลุ่มเสี่ยง (เริ่มมีแนวโน้ม)</h4>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">`;
-        for (let cat of Object.keys(catNames)) { html += renderCategoryBox(cat, riskCounts, riskStudents, 'bg-amber-50', 'text-amber-600'); }
+        for (let cat of Object.keys(catNames)) {
+            html += renderCategoryBox(cat, riskCounts, 'risk');
+        }
         html += `</div>`;
 
+        // --- กลุ่มมีปัญหา ---
         html += `<h4 class="font-black text-rose-600 mb-3 flex items-center"><i class="fas fa-biohazard mr-2"></i>กลุ่มมีปัญหา (ต้องช่วยเหลือเร่งด่วน)</h4>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
-        for (let cat of Object.keys(catNames)) { html += renderCategoryBox(cat, problemCounts, problemStudents, 'bg-rose-50', 'text-rose-600'); }
+        for (let cat of Object.keys(catNames)) {
+            html += renderCategoryBox(cat, problemCounts, 'problem');
+        }
         html += `</div>`;
+
+        // เก็บข้อมูลไว้ใช้ใน showRiskStudentList
+        window._riskData = { risk: riskStudents, problem: problemStudents };
+        window._catNames = catNames;
 
         document.getElementById('report-content').innerHTML = html;
         Swal.close();
@@ -1538,11 +1590,106 @@ async function loadReport() {
     }
 }
 
+// ==========================================
+// showRiskStudentList() - ฉบับสมบูรณ์
+// ==========================================
+window.showRiskStudentList = function (category, type) {
+    const dataMap = window._riskData || {};
+    const list = dataMap[type]?.[category] || [];
+    const catName = window._catNames?.[category] || category;
+
+    if (!list || list.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', `ไม่มีนักเรียนในกลุ่ม ${catName}`, 'info');
+        return;
+    }
+
+    // เรียงตาม ห้อง → รหัส
+    list.sort((a, b) => {
+        if (a.room !== b.room) return a.room.localeCompare(b.room);
+        return a.id.localeCompare(b.id);
+    });
+
+    const titleText = type === 'risk' 
+        ? `⚠️ กลุ่มเสี่ยง (${catName})` 
+        : `🔴 กลุ่มมีปัญหา (${catName})`;
+
+    const themeColor = type === 'risk' 
+        ? 'text-amber-700 bg-amber-50 border-amber-200' 
+        : 'text-rose-700 bg-rose-50 border-rose-200';
+
+    const tableHtml = `
+        <div class="max-h-[60vh] overflow-y-auto mt-2 rounded-xl border border-slate-200">
+            <table class="w-full text-sm text-left border-collapse">
+                <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
+                    <tr>
+                        <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
+                        <th class="p-3 w-28 text-center font-bold">ชั้น</th>
+                        <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
+                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
+                        <th class="p-3 w-32 text-center font-bold">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 bg-white">
+                    ${list.map((s, idx) => `
+                        <tr class="hover:bg-slate-50 transition">
+                            <td class="p-3 text-center text-slate-500">${idx + 1}</td>
+                            <td class="p-3 text-center font-bold text-slate-600">${s.room}</td>
+                            <td class="p-3 font-mono text-slate-500">${s.id}</td>
+                            <td class="p-3 font-bold text-slate-700">${s.name}</td>
+                            <td class="p-3 text-center">
+                                <button onclick="editHomeVisit('${s.student_uuid}')" 
+                                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
+                                    <i class="fas fa-eye"></i> ดูข้อมูล
+                                </button>
+                            </td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+        <div class="text-xs text-slate-400 mt-3 text-center">💡 คลิกปุ่ม "ดูข้อมูล" เพื่อไปที่หน้ากรอกฟอร์มและตรวจสอบรายละเอียดความเสี่ยง</div>
+    `;
+
+    Swal.fire({
+        title: `<div class="text-xl font-black ${type === 'risk' ? 'text-amber-700' : 'text-rose-700'}">${titleText}</div>
+                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
+        html: tableHtml,
+        width: '950px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'rounded-2xl shadow-2xl',
+            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
+        }
+    });
+};
+
 window.showReportStudentList = function (type) {
-    const isVisited = type === 'visited';
-    const list = isVisited ? window.reportVisitedList : window.reportNotVisitedList;
-    const titleText = isVisited ? 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว' : 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
-    const themeColor = isVisited ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-slate-700 bg-slate-100 border-slate-200';
+    let list, titleText, themeColor;
+
+    switch(type) {
+        case 'complete':
+            list = window.reportCompleteList || [];
+            titleText = 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว (ข้อมูลครบสมบูรณ์)';
+            themeColor = 'text-green-700 bg-green-50 border-green-200';
+            break;
+        case 'incomplete':
+            list = window.reportIncompleteList || [];
+            titleText = 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว (ข้อมูลยังไม่ครบ)';
+            themeColor = 'text-amber-700 bg-amber-50 border-amber-200';
+            break;
+        case 'not_visited':
+            list = window.reportNotVisitedList || [];
+            titleText = 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
+            themeColor = 'text-slate-700 bg-slate-100 border-slate-200';
+            break;
+        default:
+            // fallback
+            const isVisited = type === 'visited';
+            list = isVisited ? window.reportVisitedList : window.reportNotVisitedList;
+            titleText = isVisited ? 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว' : 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
+            themeColor = isVisited ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-slate-700 bg-slate-100 border-slate-200';
+    }
 
     if (!list || list.length === 0) {
         Swal.fire('ไม่มีข้อมูล', `ไม่มีรายชื่อนักเรียนในหมวดหมู่นี้`, 'info');
@@ -1580,10 +1727,10 @@ window.showReportStudentList = function (type) {
     `;
 
     Swal.fire({
-        title: `<div class="text-xl font-black ${isVisited ? 'text-blue-700' : 'text-slate-700'}">${titleText}</div>
+        title: `<div class="text-xl font-black text-slate-800">${titleText}</div>
                 <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
         html: tableHtml,
-        width: '800px',
+        width: '900px',
         showCloseButton: true,
         showConfirmButton: false,
         customClass: {
@@ -2021,11 +2168,27 @@ async function loadAdminOverview() {
 }
 
 window.editHomeVisit = function (studentId) {
+    // ปิด modal overview
     const modal = document.getElementById('overview-modal');
     if (modal) { modal.classList.remove('flex'); modal.classList.add('hidden'); }
+    
+    // สลับไปที่แท็บฟอร์ม (โดยการคลิกปุ่ม)
+    const formBtn = document.getElementById('tab-form-btn');
+    if (formBtn) {
+        formBtn.click();  // เรียก switchTab('form') ผ่าน onclick
+    } else {
+        // fallback
+        if (typeof switchTab === 'function') switchTab('form');
+    }
+    
+    // ตั้งค่า TomSelect ให้เลือกนักเรียนคนนั้น
     if (studentTomSelect) {
         studentTomSelect.setValue(studentId);
+    } else {
+        // ถ้า TomSelect ยังไม่ถูกสร้าง อาจจะต้องโหลดใหม่ หรือเรียก loadStudentInfo โดยตรง
+        console.warn('studentTomSelect not ready');
     }
+    
     goToStep(1);
     window.scrollTo({ top: 0, behavior: 'smooth' });
 };
