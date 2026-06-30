@@ -459,12 +459,18 @@ async function checkAuth() {
             db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).maybeSingle()
         ]);
 
+        // ✅ เก็บสถานะ module admin
+        isModuleAdmin = !!modAdmin;
+
+        // กำหนดบทบาทหลัก
         if (actualRole === 'super_admin') {
             currentViewRole = 'super_admin';
+            // แสดงปุ่มตั้งค่าระบบเฉพาะ Super Admin
             document.getElementById('admin-settings-btn')?.classList.remove('hidden');
-            document.getElementById('btn-import-excel')?.classList.remove('hidden'); // <--- เพิ่มบรรทัดนี้
+            document.getElementById('btn-import-excel')?.classList.remove('hidden');
         } else if (modAdmin) {
             currentViewRole = 'module_admin';
+            // แอดมินโมดูลไม่มีปุ่มตั้งค่าระบบ
         } else if (discHeadData) {
             currentViewRole = 'head_discipline';
             isReadOnly = true;
@@ -475,10 +481,14 @@ async function checkAuth() {
             currentViewRole = 'teacher';
         }
 
-        if (actualRole !== 'teacher') document.getElementById('btnAdminMode')?.classList.remove('hidden');
+        // ✅ แสดงปุ่มสลับโหมดสำหรับ Super Admin และ Module Admin
+        if (actualRole === 'super_admin' || modAdmin) {
+            document.getElementById('btnAdminMode')?.classList.remove('hidden');
+        }
+
         updateUIByRole();
         await loadClassrooms();
-        applyReportVisibility(); // เพิ่มบรรทัดนี้ลงไปหลังจากโหลดค่าต่างๆ เสร็จ
+        applyReportVisibility();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
     } catch (error) {
@@ -511,16 +521,35 @@ function updateUIByRole() {
 }
 
 window.toggleRoleView = function () {
-    if (actualRole === 'teacher') return;
-    currentViewRole = (currentViewRole === 'teacher') ? actualRole : 'teacher';
+    // ถ้าไม่ใช่ super_admin และไม่ใช่ module admin -> ไม่มีสิทธิ์สลับ
+    if (actualRole !== 'super_admin' && !isModuleAdmin) return;
+
+    // กำหนดบทบาท admin ที่แท้จริง
+    const adminRole = actualRole === 'super_admin' ? 'super_admin' : (isModuleAdmin ? 'module_admin' : null);
+    if (!adminRole) return;
+
+    // สลับระหว่าง teacher กับ adminRole
+    const newRole = (currentViewRole === 'teacher') ? adminRole : 'teacher';
+    currentViewRole = newRole;
     isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
+
+    // เปลี่ยนข้อความปุ่ม
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
-        btn.innerHTML = currentViewRole === 'teacher' ? '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>' : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+        btn.innerHTML = currentViewRole === 'teacher' 
+            ? '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>' 
+            : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
     }
     updateUIByRole();
     loadClassrooms();
-    Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแล'}`, showConfirmButton: false, timer: 2000 });
+    Swal.fire({ 
+        toast: true, 
+        position: 'top-end', 
+        icon: 'info', 
+        title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแล'}`, 
+        showConfirmButton: false, 
+        timer: 2000 
+    });
 };
 
 // ==========================================
@@ -3831,41 +3860,51 @@ window.loadOverviewByClassroom = async function () {
     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-500"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลดข้อมูล...</td></tr>';
 
     try {
-        const { data: enrolls } = await db.from('student_enrollments')
+        // ดึงรายชื่อนักเรียนในห้อง พร้อมเลขที่และข้อมูลส่วนตัว
+        const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
             .select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
             .eq('classroom_id', classroomId)
             .order('student_number');
 
+        if (enrollError) throw enrollError;
         if (!enrolls || enrolls.length === 0) {
             tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-slate-400">ไม่มีนักเรียนในห้องนี้</td></tr>';
             return;
         }
 
         const studentIds = enrolls.map(e => e.student_id);
-        const { data: visits } = await db.from('module_home_visits')
+        // ดึงข้อมูลการเยี่ยมบ้านของนักเรียนในห้องนี้
+        const { data: visits, error: visitError } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
             .eq('academic_year', currentYear)
             .eq('semester', currentTerm);
 
+        if (visitError) throw visitError;
+
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
 
-        tbody.innerHTML = enrolls.map(e => {
-            const s = e.core_students;
+        // สร้างแถวตาราง
+        tbody.innerHTML = enrolls.map(enroll => {
+            const s = enroll.core_students;
             const visit = visitMap[s.id] || null;
             const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
 
+            // ความสมบูรณ์ของข้อมูล
             const completeness = getCompletenessStatus(visit);
-            const completeBadge = !isVisited ?
-                '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>' :
-                (completeness.complete ?
-                    '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>' :
-                    '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>');
+            let completeBadge = '';
+            if (!isVisited) {
+                completeBadge = '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>';
+            } else if (completeness.complete) {
+                completeBadge = '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>';
+            } else {
+                completeBadge = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>';
+            }
 
-            const statusHtml = isVisited ?
-                '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>' :
-                '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
+            const statusHtml = isVisited
+                ? '<span class="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-xl text-[10px] font-black uppercase">เยี่ยมแล้ว</span>'
+                : '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
             let actionHtml = '';
             if (isVisited) {
@@ -3875,13 +3914,14 @@ window.loadOverviewByClassroom = async function () {
                         <button onclick="printPDF('${visit.id}')" class="text-indigo-600 hover:bg-indigo-50 px-2 py-1 rounded border border-indigo-200 transition" title="พิมพ์ PDF"><i class="fas fa-print"></i></button>
                         ${visit.pdf_url ? `<button onclick="viewExistingPDF('${visit.pdf_url}')" class="text-emerald-600 hover:bg-emerald-50 px-2 py-1 rounded border border-emerald-200 transition" title="ดู PDF"><i class="fas fa-file-pdf"></i></button>` : ''}
                         ${!completeness.complete ? `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>` : ''}
-                    </div>`;
+                    </div>
+                `;
             } else {
                 actionHtml = `<button onclick="editHomeVisit('${s.id}')" class="text-rose-600 hover:bg-rose-50 px-3 py-1 rounded border border-rose-200 text-xs font-bold transition"><i class="fas fa-plus mr-1"></i> บันทึกข้อมูล</button>`;
             }
 
             return `<tr class="hover:bg-slate-50">
-                <td class="p-3 text-center font-bold">${e.student_number || '-'}</td>
+                <td class="p-3 text-center font-bold">${enroll.student_number || '-'}</td>
                 <td class="p-3 font-mono text-slate-500">${s.student_id_card || '-'}</td>
                 <td class="p-3 font-bold text-slate-700">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
                 <td class="p-3 text-center">${statusHtml}</td>
@@ -3889,9 +3929,10 @@ window.loadOverviewByClassroom = async function () {
                 <td class="p-3 text-center">${actionHtml}</td>
             </tr>`;
         }).join('');
+
     } catch (err) {
-        console.error(err);
-        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลด数据</td></tr>';
+        console.error('loadOverviewByClassroom error:', err);
+        tbody.innerHTML = '<tr><td colspan="6" class="text-center py-6 text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล</td></tr>';
     }
 };
 
