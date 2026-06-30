@@ -578,14 +578,28 @@ async function loadClassrooms() {
     (classrooms || []).forEach(c => {
         select.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
     });
+
     tsClassroom = new TomSelect("#select-classroom", {
         create: false,
         placeholder: "-- ค้นหาและเลือกห้องเรียน --",
+        maxHeight: '500px',              // ✅ แสดงได้มากพอ
+        maxOptions: 1000,                // ✅ แสดงได้ทุกห้อง
+        dropdownParent: 'body',          // ✅ แก้ไข dropdown ถูกตัด
+        searchField: ['text'],           // ✅ ค้นหาจากข้อความ
+        score: function(search) {
+            return function(item) {
+                if (item.text.toLowerCase().includes(search.toLowerCase())) {
+                    return 1;
+                }
+                return 0;
+            };
+        },
         onChange: (val) => {
             if (val) onClassroomSelected(val);
             else clearClassroomSelection();
         }
     });
+
     if (currentViewRole === 'teacher' && classrooms && classrooms.length === 1) {
         tsClassroom.setValue(classrooms[0].id);
     }
@@ -3005,18 +3019,43 @@ async function loadReport() {
 
     try {
         let classIds = [];
-        if (scope === 'myclass' && currentViewRole === 'teacher') {
+
+        // ✅ กรณี "เฉพาะห้องที่ปรึกษา" — ไม่ต้องเช็ค currentViewRole
+        if (scope === 'myclass') {
             const { data } = await db.from('core_classrooms')
-                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm)
+                .select('id')
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm)
                 .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
             classIds = (data || []).map(c => c.id);
-        } else if (scope === 'grade') {
+
+            if (classIds.length === 0) {
+                Swal.close();
+                document.getElementById('report-content').innerHTML = `
+                    <div class="text-center py-10 text-amber-600">
+                        <i class="fas fa-exclamation-triangle text-3xl mb-3 block"></i>
+                        <p class="font-bold">ไม่พบห้องเรียนที่คุณเป็นครูที่ปรึกษา</p>
+                        <p class="text-sm text-slate-400 mt-1">กรุณาเลือก "แยกตามระดับชั้น" หรือ "ทั้งโรงเรียน" แทน</p>
+                    </div>
+                `;
+                return;
+            }
+        }
+        // กรณี "แยกตามระดับชั้น"
+        else if (scope === 'grade') {
             const { data } = await db.from('core_classrooms')
-                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm).eq('grade_level', grade);
+                .select('id')
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm)
+                .eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
-        } else {
+        }
+        // กรณี "ทั้งโรงเรียน"
+        else {
             const { data } = await db.from('core_classrooms')
-                .select('id').eq('academic_year', currentYear).eq('semester', currentTerm);
+                .select('id')
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm);
             classIds = (data || []).map(c => c.id);
         }
 
@@ -3026,6 +3065,7 @@ async function loadReport() {
             return;
         }
 
+        // --- ส่วนที่เหลือเหมือนเดิม (ดึงข้อมูลนักเรียนและประมวลผล) ---
         const [{ data: enrolls }, { data: classrooms }] = await Promise.all([
             db.from('student_enrollments')
                 .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name), classroom_id')
@@ -3080,12 +3120,10 @@ async function loadReport() {
 
             const studentItem = { id: s.student_id_card || '-', name: `${s.prefix || ''}${s.first_name} ${s.last_name}`, room: s.room_label };
 
-            // ✅ เปลี่ยนแปลงสำคัญ: ตรวจสอบสถานะว่าต้องเป็น 'เยี่ยมแล้ว' เท่านั้น
             if (visit && visit.visit_status === 'เยี่ยมแล้ว') {
                 visitedCount++;
                 window.reportVisitedList.push(studentItem);
 
-                // ✅ ดักจับ Error กรณีชื่อฟิลด์ JSON ของความเสี่ยงไม่ตรงกัน
                 const risk = visit.risk_factors || visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
@@ -3947,7 +3985,20 @@ async function loadClassroomsForOverview() {
     overviewClassroomTom = new TomSelect('#overview-classroom-select', {
         create: false,
         placeholder: 'พิมพ์ค้นหาห้องเรียน...',
-        options: options
+        options: options,
+        maxItems: 1,
+        maxHeight: '500px',
+        maxOptions: 1000,
+        dropdownParent: 'body',      // ✅ แก้ไข dropdown ถูกตัดใน modal
+        searchField: ['text'],
+        score: function(search) {
+            return function(item) {
+                if (item.text.toLowerCase().includes(search.toLowerCase())) {
+                    return 1;
+                }
+                return 0;
+            };
+        }
     });
 }
 
