@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ขอรับทุนการศึกษา | นักเรียน</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-slate-50 pb-16">
+<nav class="bg-white shadow-sm p-4 flex justify-between items-center"><div><i class="fas fa-graduation-cap text-amber-600 text-2xl"></i><span class="font-bold ml-2">ระบบทุนการศึกษา</span></div><button onclick="logout()" class="bg-rose-100 px-4 py-2 rounded-xl">ออกจากระบบ</button></nav>
+<main class="container mx-auto px-4 mt-6">
+    <div class="glass-card p-6 rounded-2xl mb-6"><h2 class="text-xl font-bold">สวัสดี, <span id="studentName"></span></h2><p id="studentIdCard"></p></div>
+    <div class="flex gap-4 mb-6"><button onclick="showTab('apply')" id="applyTab" class="flex-1 bg-amber-600 text-white py-2 rounded-xl">ขอรับทุน</button><button onclick="showTab('history')" id="historyTab" class="flex-1 bg-white border py-2 rounded-xl">ประวัติการขอทุน</button><button onclick="showTab('received')" id="receivedTab" class="flex-1 bg-white border py-2 rounded-xl">ทุนที่ได้รับ</button></div>
+    <div id="applyPanel" class="space-y-4"><!-- ฟอร์มขอทุน (ย่อมาจาก teacher form แต่ไม่ต้องมีเลือกห้อง) --><p class="text-slate-500">ระบบกำลังโหลดข้อมูลนักเรียน...</p></div>
+    <div id="historyPanel" class="hidden"><div id="historyList" class="space-y-3"></div></div>
+    <div id="receivedPanel" class="hidden"><div id="receivedList" class="space-y-3"></div></div>
+</main>
+<script src="scholarship_student.js"></script>
+</body>
+</html>
