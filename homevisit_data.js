@@ -959,10 +959,23 @@ window.loadDataTable = async function () {
             return;
         }
 
-        const { data: enrolls } = await db.from('student_enrollments')
+        // ✅ เพิ่มการดึงข้อมูลห้องเรียน
+        const { data: classroom, error: classError } = await db.from('core_classrooms')
+            .select('grade_level, room_number')
+            .eq('id', classroomId)
+            .single();
+
+        if (classError) {
+            console.warn('ไม่พบข้อมูลห้องเรียน', classError);
+        }
+        const roomLabel = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+
+        const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
             .select('student_id, student_number, core_students(id, student_id_card, prefix, first_name, last_name)')
             .eq('classroom_id', classroomId)
             .order('student_number');
+
+        if (enrollError) throw enrollError;
 
         if (!enrolls || enrolls.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center py-10 text-slate-400">ไม่มีนักเรียนในห้องนี้</td></tr>';
@@ -972,11 +985,13 @@ window.loadDataTable = async function () {
         }
 
         const studentIds = enrolls.map(e => e.student_id);
-        const { data: visits } = await db.from('module_home_visits')
+        const { data: visits, error: visitError } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
             .eq('academic_year', currentYear)
             .eq('semester', currentTerm);
+
+        if (visitError) throw visitError;
 
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
@@ -995,11 +1010,12 @@ window.loadDataTable = async function () {
             const visit = visitMap[s.id] || null;
             const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
 
+            // ✅ ใช้ roomLabel ที่ดึงมา
             const studentItem = {
                 id: s.student_id_card || '-',
                 name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
                 student_uuid: s.id,
-                room: `ม.${window.currentGradeLevel || ''}/${window.currentRoomNumber || ''}` || '-'
+                room: roomLabel  // <--- ตรงนี้สำคัญ
             };
 
             if (isVisited) {
