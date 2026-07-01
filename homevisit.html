@@ -1273,7 +1273,7 @@
             </div>
         </div>
 
-        <!-- Tab Report (新增) -->
+        <!-- Tab Report -->
         <div id="tab-report" class="hidden animate-fade-in space-y-6">
             <!-- ตัวกรอง -->
             <div class="flex flex-wrap items-center gap-4 mb-6 bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
@@ -1283,6 +1283,7 @@
                         <option value="myclass">เฉพาะห้องที่ปรึกษา</option>
                         <option value="grade">แยกตามระดับชั้น</option>
                         <option value="all">ทั้งโรงเรียน</option>
+                        <option value="classroom">ระบุห้องเรียน</option>
                     </select>
                 </div>
                 <div id="grade-select-container" class="hidden">
@@ -1295,6 +1296,10 @@
                         <option value="5">ม.5</option>
                         <option value="6">ม.6</option>
                     </select>
+                </div>
+                <div id="classroom-select-container" class="hidden">
+                    <label class="block text-xs font-bold text-slate-600 mb-1">เลือกห้องเรียน</label>
+                    <select id="report-classroom" class="border rounded-xl px-3 py-2 text-sm"></select>
                 </div>
                 <button onclick="loadReport()"
                     class="px-4 py-2 bg-amber-600 text-white rounded-xl text-sm font-bold hover:bg-amber-700">

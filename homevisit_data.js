@@ -1224,44 +1224,78 @@ window.showOverviewStudentList = function (type) {
     });
 };
 
+// ==========================================
+// ฟังก์ชันส่งออก Excel (สำหรับหน้าแอดมินเท่านั้น)
+// ==========================================
 window.exportToExcel = async function () {
-    Swal.fire({ title: 'กำลังส่งออก...', didOpen: () => Swal.showLoading() });
-    const { data } = await db.from('module_home_visits')
-        .select('*, student_enrollments( student_number, core_students(student_id_card, first_name, last_name), core_classrooms(grade_level, room_number) )')
-        .eq('academic_year', currentYear)
-        .eq('semester', currentTerm);
-    if (!data?.length) return Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีบันทึกการเยี่ยมบ้าน', 'info');
-    const rows = [['รหัส', 'ชื่อนักเรียน', 'ชั้น', 'วันที่เยี่ยม', 'ครั้งที่', 'ผู้ปกครอง', 'ผู้บันทึก']];
-    data.forEach(v => {
-        const st = v.student_enrollments?.core_students;
-        const cls = v.student_enrollments?.core_classrooms;
-        rows.push([
-            st?.student_id_card || '-',
-            `${st?.first_name || ''} ${st?.last_name || ''}`.trim(),
-            cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-',
-            v.visit_date || '-',
-            v.visit_times || 1,
-            v.guardian_name || '-',
-            v.teacher_id || '-'
+    Swal.fire({ title: 'กำลังเตรียมข้อมูลส่งออก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        let classQuery = db.from('core_classrooms')
+            .select('*')
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .order('grade_level').order('room_number');
+
+        if (currentViewRole === 'head_grade') {
+            const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
+            if (gh) classQuery = classQuery.eq('grade_level', gh.grade_level);
+            else classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000');
+        }
+
+        const [{ data: classrooms }, { data: visits }, staffMap] = await Promise.all([
+            classQuery,
+            db.from('module_home_visits')
+                .select('classroom_id, student_id, visit_status')
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm),
+            getPersonnelMap()
         ]);
-    });
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'HomeVisit');
-    let fileName = `เยี่ยมบ้านนักเรียน-รวมทุกห้อง_เทอม${currentTerm}_${currentYear}`;
-    if (currentViewRole === 'teacher' && window.currentClassroomId) {
-        try {
-            const { data: clsData } = await db.from('core_classrooms')
-                .select('grade_level, room_number')
-                .eq('id', window.currentClassroomId)
-                .single();
-            if (clsData) {
-                fileName = `เยี่ยมบ้านนักเรียน-ชั้นม.${clsData.grade_level}-ห้อง${clsData.room_number}_เทอม${currentTerm}_${currentYear}`;
+
+        if (!classrooms || classrooms.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลห้องเรียนในขอบเขตนี้', 'info');
+        }
+
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('classroom_id, student_id')
+            .in('classroom_id', classrooms.map(c => c.id));
+
+        const totalMap = {}, visitedMap = {};
+        (enrolls || []).forEach(e => { totalMap[e.classroom_id] = (totalMap[e.classroom_id] || 0) + 1; });
+        (visits || []).forEach(v => {
+            if (v.visit_status === 'เยี่ยมแล้ว') {
+                visitedMap[v.classroom_id] = (visitedMap[v.classroom_id] || 0) + 1;
             }
-        } catch (e) { /* fallback */ }
+        });
+
+        const rows = [['ห้องเรียน', 'ครูที่ปรึกษาคนที่ 1', 'ครูที่ปรึกษาคนที่ 2', 'จำนวนนักเรียนทั้งหมด', 'เยี่ยมแล้ว', 'สถานะ']];
+
+        classrooms.forEach(c => {
+            const room = `ม.${c.grade_level}/${c.room_number}`;
+            const adv1 = staffMap[c.adviser_id_1] || '-';
+            const adv2 = staffMap[c.adviser_id_2] || '-';
+            const total = totalMap[c.id] || 0;
+            const visited = visitedMap[c.id] || 0;
+            const status = total === 0 ? 'ไม่มีนักเรียน' : (visited >= total ? 'ครบถ้วน' : 'ยังไม่ครบ');
+
+            rows.push([room, adv1, adv2, total, visited, status]);
+        });
+
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Overview_Admin');
+
+        const fileName = `สรุปภาพรวมเยี่ยมบ้าน_เทอม${currentTerm}_${currentYear}`;
+        XLSX.writeFile(wb, `${fileName}.xlsx`);
+        Swal.close();
+        Swal.fire('สำเร็จ', 'ส่งออกข้อมูลภาพรวมเรียบร้อย', 'success');
+
+    } catch (err) {
+        console.error('exportToExcel error:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', 'ไม่สามารถส่งออกข้อมูลได้: ' + err.message, 'error');
     }
-    XLSX.writeFile(wb, `${fileName}.xlsx`);
-    Swal.close();
 };
 
 window.printPDF = async function (visitId) {
@@ -1669,6 +1703,13 @@ window.removeModuleAdmin = async function (recordId) {
 async function loadReport() {
     const scope = document.getElementById('report-scope').value;
     const grade = document.getElementById('report-grade')?.value;
+    const classroomId = document.getElementById('report-classroom')?.value;
+
+    // ถ้าเลือก "ระบุห้องเรียน" แต่ยังไม่ได้เลือกห้อง
+    if (scope === 'classroom' && !classroomId) {
+        Swal.fire('กรุณาเลือกห้องเรียน', 'เลือกห้องเรียนที่ต้องการดูรายงาน', 'warning');
+        return;
+    }
 
     Swal.fire({ title: 'กำลังประมวลผลรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -1699,7 +1740,11 @@ async function loadReport() {
                 .eq('semester', currentTerm)
                 .eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
+        } else if (scope === 'classroom') {
+            // ใช้ห้องที่เลือก
+            classIds = [classroomId];
         } else {
+            // all
             const { data } = await db.from('core_classrooms')
                 .select('id')
                 .eq('academic_year', currentYear)
@@ -1760,7 +1805,7 @@ async function loadReport() {
         let visitedCompleteCount = 0;
         let visitedIncompleteCount = 0;
 
-        // ตัวแปรเก็บความเสี่ยง (เก็บเป็น object พร้อม UUID)
+        // ตัวแปรเก็บความเสี่ยง (ไม่ต้องแก้)
         const riskStudents = {
             learning: [], health: [], drugs: [], violence: [],
             sex: [], gaming: [], economy: []
@@ -1775,12 +1820,11 @@ async function loadReport() {
 
         uniqueStudents.forEach(s => {
             const visit = visitedMap[s.id];
-            // ✅ เพิ่ม student_uuid เพื่อใช้ในการนำทาง
             const studentItem = {
                 id: s.student_id_card || '-',
                 name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
                 room: s.room_label || '-',
-                student_uuid: s.id // 👈 ใช้สำหรับ editHomeVisit
+                student_uuid: s.id
             };
 
             if (visit && visit.visit_status === 'เยี่ยมแล้ว') {
@@ -1793,7 +1837,7 @@ async function loadReport() {
                     window.reportIncompleteList.push(studentItem);
                 }
 
-                // วิเคราะห์ความเสี่ยง
+                // วิเคราะห์ความเสี่ยง (ไม่ต้องแก้)
                 const risk = visit.risk_factors || visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
@@ -1814,7 +1858,6 @@ async function loadReport() {
                 evaluateRisk('sex', risk.sex?.length > 0, risk.sex?.length > 1);
                 evaluateRisk('gaming', risk.gaming?.length > 0, risk.gaming?.length > 1);
                 evaluateRisk('learning', (risk.responsibilities?.length > 0 || special.length > 5), (risk.responsibilities?.length > 1 || special.length > 10));
-
                 const income = parseInt(eco.income) || 0;
                 const hasNoAllowance = (eco.allowance_source || '').includes('ไม่มี');
                 evaluateRisk('economy', (income > 0 && income < 3000) || hasNoAllowance, income > 0 && income < 1500);
@@ -1830,7 +1873,7 @@ async function loadReport() {
             economy: 'เศรษฐกิจ'
         };
 
-        // --- การ์ดหลัก 4 ใบ ---
+        // --- การ์ดหลัก 4 ใบ (เพิ่ม onclick) ---
         let html = `
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 shadow-sm">
@@ -1854,7 +1897,7 @@ async function loadReport() {
             </div>
         </div>`;
 
-        // --- ฟังก์ชันช่วย render การ์ดความเสี่ยง (แบบไม่มีรายชื่อ) ---
+        // --- กลุ่มเสี่ยง (ไม่ต้องแก้) ---
         const renderCategoryBox = (cat, counts, type) => {
             const catName = catNames[cat];
             const bgClass = type === 'risk' ? 'bg-amber-50' : 'bg-rose-50';
@@ -1876,7 +1919,6 @@ async function loadReport() {
             </div>`;
         };
 
-        // --- กลุ่มเสี่ยง ---
         html += `<h4 class="font-black text-amber-600 mb-3 flex items-center"><i class="fas fa-exclamation-triangle mr-2"></i>กลุ่มเสี่ยง (เริ่มมีแนวโน้ม)</h4>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">`;
         for (let cat of Object.keys(catNames)) {
@@ -1884,7 +1926,6 @@ async function loadReport() {
         }
         html += `</div>`;
 
-        // --- กลุ่มมีปัญหา ---
         html += `<h4 class="font-black text-rose-600 mb-3 flex items-center"><i class="fas fa-biohazard mr-2"></i>กลุ่มมีปัญหา (ต้องช่วยเหลือเร่งด่วน)</h4>
                  <div class="grid grid-cols-1 md:grid-cols-3 gap-4">`;
         for (let cat of Object.keys(catNames)) {
@@ -2000,11 +2041,8 @@ window.showReportStudentList = function (type) {
             themeColor = 'text-slate-700 bg-slate-100 border-slate-200';
             break;
         default:
-            // fallback
-            const isVisited = type === 'visited';
-            list = isVisited ? window.reportVisitedList : window.reportNotVisitedList;
-            titleText = isVisited ? 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว' : 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
-            themeColor = isVisited ? 'text-blue-700 bg-blue-50 border-blue-200' : 'text-slate-700 bg-slate-100 border-slate-200';
+            Swal.fire('ข้อผิดพลาด', 'ประเภทข้อมูลไม่ถูกต้อง', 'error');
+            return;
     }
 
     if (!list || list.length === 0) {
@@ -2023,18 +2061,25 @@ window.showReportStudentList = function (type) {
                 <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
                     <tr>
                         <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
+                        <th class="p-3 w-28 text-center font-bold">ชั้น</th>
                         <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
                         <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
-                        <th class="p-3 w-28 text-center font-bold">ชั้นเรียน</th>
+                        <th class="p-3 w-32 text-center font-bold">จัดการ</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 bg-white">
                     ${list.map((s, idx) => `
                         <tr class="hover:bg-slate-50 transition">
                             <td class="p-3 text-center text-slate-500">${idx + 1}</td>
+                            <td class="p-3 text-center font-bold text-slate-600">${s.room || '-'}</td>
                             <td class="p-3 font-mono text-slate-500">${s.id}</td>
                             <td class="p-3 font-bold text-slate-700">${s.name}</td>
-                            <td class="p-3 text-center"><span class="bg-slate-100 px-2 py-1 rounded text-xs text-slate-600">${s.room}</span></td>
+                            <td class="p-3 text-center">
+                                <button onclick="editHomeVisit('${s.student_uuid}')" 
+                                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
+                                    <i class="fas fa-eye"></i> ดูข้อมูล
+                                </button>
+                            </td>
                         </tr>
                     `).join('')}
                 </tbody>
@@ -2046,7 +2091,7 @@ window.showReportStudentList = function (type) {
         title: `<div class="text-xl font-black text-slate-800">${titleText}</div>
                 <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
         html: tableHtml,
-        width: '900px',
+        width: '950px',
         showCloseButton: true,
         showConfirmButton: false,
         customClass: {
@@ -2129,6 +2174,34 @@ async function loadClassroomsForOverview() {
                 return 0;
             };
         }
+    });
+}
+
+async function loadReportClassrooms() {
+    const select = document.getElementById('report-classroom');
+    if (!select) return;
+    // ถ้าเป็นครูที่ปรึกษาไม่ต้องโหลด
+    if (currentViewRole === 'teacher') {
+        select.innerHTML = '<option value="">-- ไม่มีให้เลือก --</option>';
+        return;
+    }
+    let query = db.from('core_classrooms')
+        .select('id, grade_level, room_number')
+        .eq('academic_year', currentYear)
+        .eq('semester', currentTerm)
+        .order('grade_level').order('room_number');
+
+    if (currentViewRole === 'head_grade') {
+        const { data: gh } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', currentUser.id)
+            .single();
+        if (gh) query = query.eq('grade_level', gh.grade_level);
+    }
+    const { data: classrooms } = await query;
+    select.innerHTML = '<option value="">-- เลือกห้อง --</option>';
+    (classrooms || []).forEach(c => {
+        select.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
     });
 }
 
@@ -2834,7 +2907,6 @@ function initAllTomSelects() {
 // ==========================================
 // 9. SWITCH TAB
 // ==========================================
-
 function switchTab(tabId) {
     document.getElementById('tab-form').classList.toggle('hidden', tabId !== 'form');
     document.getElementById('tab-data').classList.toggle('hidden', tabId !== 'data');
@@ -2860,6 +2932,46 @@ function switchTab(tabId) {
         reportBtn.className = activeClass;
         formBtn.className = inactiveClass;
         dataBtn.className = inactiveClass;
+
+        // ✅ จัดการตัวเลือกใน Report
+        const scopeSelect = document.getElementById('report-scope');
+        const gradeContainer = document.getElementById('grade-select-container');
+        const classroomContainer = document.getElementById('classroom-select-container');
+
+        if (currentViewRole === 'teacher') {
+            // ซ่อน classroom container
+            classroomContainer.classList.add('hidden');
+            // ลบ option 'classroom' ถ้ามี
+            for (let i = 0; i < scopeSelect.options.length; i++) {
+                if (scopeSelect.options[i].value === 'classroom') {
+                    scopeSelect.remove(i);
+                    break;
+                }
+            }
+            // ถ้าเลือก classroom อยู่ให้เปลี่ยนเป็น myclass
+            if (scopeSelect.value === 'classroom') scopeSelect.value = 'myclass';
+        } else {
+            // Admin: แสดง classroom container และโหลดห้อง
+            classroomContainer.classList.remove('hidden');
+            // ตรวจสอบและเพิ่ม option 'classroom' ถ้ายังไม่มี
+            let hasClassroom = false;
+            for (let i = 0; i < scopeSelect.options.length; i++) {
+                if (scopeSelect.options[i].value === 'classroom') {
+                    hasClassroom = true;
+                    break;
+                }
+            }
+            if (!hasClassroom) {
+                const opt = document.createElement('option');
+                opt.value = 'classroom';
+                opt.textContent = 'ระบุห้องเรียน';
+                scopeSelect.appendChild(opt);
+            }
+            // โหลดรายการห้องเรียน
+            loadReportClassrooms();
+        }
+
+        // เรียก loadReport
         loadReport();
     }
 }
