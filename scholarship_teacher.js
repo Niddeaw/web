@@ -1,5 +1,11 @@
 // ==========================================
-// scholarship_teacher.js
+// scholarship_teacher.js (ฉบับสมบูรณ์)
+// - ย้ายปุ่มบันทึกทุนขึ้น Nav Bar
+// - เพิ่มปุ่มแสดงผู้รับทุน (Modal ใหญ่)
+// - เพิ่มปุ่มแสดงผู้ขอทุน (Modal ใหญ่)
+// - ปุ่มโหมดตัวหนาตลอด
+// - ครูที่ปรึกษามีคำนำหน้า "ครู"
+// - รองรับกรณีไม่มีคอลัมน์ note
 // ==========================================
 let currentUser = null;
 let currentViewRole = 'teacher';
@@ -10,8 +16,10 @@ let currentTerm = '';
 let currentClassroomId = null;
 let studentTomSelect = null;
 let tsClassroom = null;
+let recordStudentTomSelect = null;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_id: "" };
-let currentStudentForForm = null; // student id ที่กำลังกรอกฟอร์มขอทุน
+let currentStudentForForm = null;
+let _scholarshipTableWarningShown = false;
 
 // ========== Auth & Init ==========
 $(document).ready(async () => {
@@ -21,7 +29,7 @@ $(document).ready(async () => {
         initTomSelects();
         await loadClassrooms();
         applyAdminVisibility();
-        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+        document.getElementById('mainBody').classList.add('loaded');
     } catch (err) { console.error(err); }
 });
 
@@ -36,18 +44,26 @@ async function checkAuth() {
     if (!profile) return window.location.replace('login.html');
     currentUser = profile;
     actualRole = profile.role;
-    if (sInfo) { currentYear = sInfo.current_academic_year; currentTerm = sInfo.current_semester; document.getElementById('term-display').innerText = `${currentTerm}/${currentYear}`; }
-    const { data: modAdmin } = await db.from('core_scholarship_admins').select('id').eq('user_id', currentUser.id).maybeSingle();
-    const { data: discHead } = await db.from('core_discipline_heads').select('id').eq('personnel_id', currentUser.id).eq('academic_year', currentYear).maybeSingle();
-    const { data: gradeHead } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).maybeSingle();
+    if (sInfo) { currentYear = sInfo.current_academic_year;
+        currentTerm = sInfo.current_semester;
+        document.getElementById('term-display').innerText = `${currentTerm}/${currentYear}`; }
+    const { data: modAdmin } = await db.from('core_scholarship_admins').select('id').eq('user_id', currentUser.id)
+        .maybeSingle();
+    const { data: discHead } = await db.from('core_discipline_heads').select('id').eq('personnel_id', currentUser.id)
+        .eq('academic_year', currentYear).maybeSingle();
+    const { data: gradeHead } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser
+        .id).maybeSingle();
     if (actualRole === 'super_admin') currentViewRole = 'super_admin';
     else if (modAdmin) currentViewRole = 'module_admin';
     else if (discHead) currentViewRole = 'head_discipline';
     else if (gradeHead) currentViewRole = 'head_grade';
     else currentViewRole = 'teacher';
-    isReadOnly = ['head_grade','head_discipline'].includes(currentViewRole);
+    isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
     updateUIByRole();
-    if (actualRole !== 'teacher') document.getElementById('btnAdminMode')?.classList.remove('hidden');
+    if (actualRole !== 'teacher') {
+        document.getElementById('btnAdminMode')?.classList.remove('hidden');
+    }
+    updateAdminModeButton();
     Swal.close();
 }
 
@@ -59,29 +75,76 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_discipline') roleText = 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
     document.getElementById('userRoleDisplay').innerText = roleText;
+    applyAdminVisibility();
+}
+
+function updateAdminModeButton() {
+    const btn = document.getElementById('btnAdminMode');
+    if (!btn) return;
+    if (currentViewRole === 'teacher') {
+        btn.innerHTML =
+            '<i class="fa-solid fa-user-shield sm:mr-1"></i><span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
+        btn.className =
+            'flex h-8 md:h-10 px-2 md:px-3 items-center justify-center rounded-2xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm text-xs md:text-sm font-bold whitespace-nowrap';
+    } else {
+        btn.innerHTML =
+            '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i><span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+        btn.className =
+            'flex h-8 md:h-10 px-2 md:px-3 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm text-xs md:text-sm font-bold whitespace-nowrap';
+    }
 }
 
 window.toggleRoleView = function() {
     if (actualRole === 'teacher') return;
     currentViewRole = (currentViewRole === 'teacher') ? actualRole : 'teacher';
-    isReadOnly = ['head_grade','head_discipline'].includes(currentViewRole);
-    const btn = document.getElementById('btnAdminMode');
-    btn.innerHTML = currentViewRole === 'teacher' ? '<i class="fa-solid fa-user-shield"></i><span> โหมดแอดมิน</span>' : '<i class="fa-solid fa-chalkboard-user"></i><span> โหมดครู</span>';
+    isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
+    updateAdminModeButton();
     updateUIByRole();
     loadClassrooms();
-    Swal.fire({ toast: true, icon: 'info', title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครู' : 'โหมดผู้ดูแล'}`, timer: 1500 });
+    Swal.fire({
+        toast: true,
+        icon: 'info',
+        title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครู' : 'โหมดผู้ดูแล'}`,
+        timer: 1500
+    });
 };
 
+function applyAdminVisibility() {
+    const isAdmin = ['super_admin', 'module_admin'].includes(currentViewRole);
+    document.getElementById('admin-settings-btn')?.classList.toggle('hidden', !isAdmin);
+    const recordBtnNav = document.getElementById('btnRecordScholarshipNav');
+    if (recordBtnNav) {
+        if (isAdmin) {
+            recordBtnNav.classList.add('visible');
+            recordBtnNav.classList.remove('admin-only');
+        } else {
+            recordBtnNav.classList.remove('visible');
+            recordBtnNav.classList.add('admin-only');
+        }
+    }
+    const recordBtn = document.getElementById('btnRecordScholarship');
+    if (recordBtn) {
+        recordBtn.style.display = 'none !important';
+    }
+}
+
 async function loadModuleSettings() {
-    const { data } = await db.from('core_scholarship_settings').select('settings').single();
-    if (data?.settings) moduleSettings = data.settings;
+    try {
+        const { data } = await db.from('core_scholarship_settings').select('settings').single();
+        if (data?.settings) moduleSettings = data.settings;
+    } catch (e) {
+        console.warn('Settings table not ready yet:', e.message);
+        moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_id: "" };
+    }
 }
 
 async function loadClassrooms() {
-    let query = db.from('core_classrooms').select('*').eq('academic_year', currentYear).eq('semester', currentTerm).order('grade_level').order('room_number');
-    const isHighLevel = ['super_admin','module_admin','head_discipline'].includes(currentViewRole);
+    let query = db.from('core_classrooms').select('*').eq('academic_year', currentYear).eq('semester', currentTerm)
+        .order('grade_level').order('room_number');
+    const isHighLevel = ['super_admin', 'module_admin', 'head_discipline'].includes(currentViewRole);
     if (currentViewRole === 'head_grade') {
-        const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
+        const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser
+            .id).single();
         if (gh) query = query.eq('grade_level', gh.grade_level);
         else query = query.eq('id', '00000000-0000-0000-0000-000000000000');
     } else if (!isHighLevel) {
@@ -91,64 +154,134 @@ async function loadClassrooms() {
     const select = document.getElementById('select-classroom');
     if (tsClassroom) tsClassroom.destroy();
     select.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
-    (classrooms || []).forEach(c => { select.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`; });
-    tsClassroom = new TomSelect("#select-classroom", { create: false, placeholder: "ค้นหาห้องเรียน", onChange: (val) => { if (val) onClassroomSelected(val); else clearClassroomSelection(); } });
-    if (currentViewRole === 'teacher' && classrooms && classrooms.length === 1) tsClassroom.setValue(classrooms[0].id);
+    (classrooms || []).forEach(c => { select.innerHTML +=
+            `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`; });
+    tsClassroom = new TomSelect("#select-classroom", {
+        create: false,
+        placeholder: "ค้นหาห้องเรียน",
+        onChange: (val) => { if (val) onClassroomSelected(val);
+            else clearClassroomSelection(); }
+    });
+    if (currentViewRole === 'teacher' && classrooms && classrooms.length === 1) tsClassroom.setValue(classrooms[0]
+    .id);
 }
 
 async function onClassroomSelected(classroomId) {
     currentClassroomId = classroomId;
     await loadStudentsForTable(classroomId);
     await loadStudentSelectForForm(classroomId);
-    document.getElementById('status-badge').innerHTML = `<i class="fas fa-check-circle text-emerald-500"></i> ห้องเรียนถูกเลือกแล้ว`;
+    document.getElementById('status-badge').innerHTML =
+        `<i class="fas fa-check-circle text-emerald-500"></i> ห้องเรียนถูกเลือกแล้ว`;
+}
+
+function clearClassroomSelection() {
+    currentClassroomId = null;
+    document.getElementById('status-badge').innerHTML =
+        '<i class="fas fa-circle text-slate-300 text-[8px]"></i> ยังไม่เลือกห้องเรียน';
+    document.getElementById('tb-students').innerHTML =
+        '<tr><td colspan="6" class="text-center py-10 text-slate-400">กรุณาเลือกห้องเรียน</td></tr>';
 }
 
 async function loadStudentsForTable(classroomId) {
-    const { data: enrolls } = await db.from('student_enrollments').select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name, avatar_students_url)').eq('classroom_id', classroomId).order('student_number');
-    if (!enrolls?.length) { document.getElementById('tb-students').innerHTML = '<tr><td colspan="6" class="text-center py-10">ไม่มีนักเรียน</td></tr>'; return; }
+    const { data: enrolls } = await db.from('student_enrollments').select(
+            'student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name, avatar_students_url)'
+            ).eq('classroom_id', classroomId).order('student_number');
+    if (!enrolls?.length) { document.getElementById('tb-students').innerHTML =
+            '<tr><td colspan="6" class="text-center py-10 text-slate-400">ไม่มีนักเรียน</td></tr>'; return; }
     const studentIds = enrolls.map(e => e.student_id);
-    const { data: scholarships } = await db.from('core_scholarships').select('student_id, amount').in('student_id', studentIds).eq('academic_year', currentYear);
-    const schMap = {};
-    (scholarships || []).forEach(s => { schMap[s.student_id] = true; });
+    let schMap = {};
+    try {
+        const { data: scholarships, error } = await db.from('core_scholarships').select('student_id, amount')
+            .in('student_id', studentIds).eq('academic_year', currentYear);
+        if (error) throw error;
+        (scholarships || []).forEach(s => { schMap[s.student_id] = true; });
+    } catch (err) {
+        console.warn('core_scholarships table missing or error:', err);
+        if (!_scholarshipTableWarningShown) {
+            _scholarshipTableWarningShown = true;
+            Swal.fire({
+                icon: 'warning',
+                title: 'ยังไม่พบตาราง core_scholarships',
+                html: `<p>กรุณาสร้างตารางใน Supabase SQL Editor ด้วยคำสั่ง:</p>
+                       <pre style="text-align:left;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:12px;font-size:12px;overflow-x:auto;">
+CREATE TABLE IF NOT EXISTS public.core_scholarships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.core_students(id) ON DELETE CASCADE,
+    scholarship_name TEXT NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    academic_year TEXT NOT NULL,
+    semester TEXT NOT NULL,
+    scholarship_type TEXT DEFAULT 'ทุนทั่วไป',
+    created_by UUID REFERENCES public.core_personnel(id),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    note TEXT
+);
+ALTER TABLE public.core_scholarships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all authenticated users" ON public.core_scholarships;
+CREATE POLICY "Allow all authenticated users" ON public.core_scholarships
+    FOR ALL USING (auth.role() = 'authenticated');</pre>`,
+                confirmButtonText: 'เข้าใจแล้ว',
+                width: 700
+            });
+        }
+    }
     let html = '';
     for (let e of enrolls) {
         const s = e.core_students;
         const hasSch = schMap[s.id] ? 'เคยได้รับทุน' : 'ไม่เคยได้รับทุน';
-        const avatar = s.avatar_students_url ? `<img src="${s.avatar_students_url}" class="w-10 h-10 rounded-full object-cover">` : '<div class="w-10 h-10 bg-slate-200 rounded-full flex items-center justify-center"><i class="fas fa-user"></i></div>';
-        html += `<tr class="hover:bg-slate-50">
+        const avatar = s.avatar_students_url ?
+            `<img src="${s.avatar_students_url}" class="w-10 h-10 rounded-full object-cover border-2 border-slate-200">` :
+            '<div class="w-10 h-10 bg-gradient-to-br from-slate-200 to-slate-300 rounded-full flex items-center justify-center text-slate-500"><i class="fas fa-user"></i></div>';
+        html += `<tr class="hover:bg-slate-50/60 transition">
             <td class="p-3">${avatar}</td>
-            <td class="p-3">${e.student_number}</td>
+            <td class="p-3 font-medium">${e.student_number}</td>
             <td class="p-3">${s.student_id_card}</td>
-            <td class="p-3 font-bold">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
-            <td class="p-3"><span class="px-3 py-1 rounded-full text-xs ${hasSch==='เคยได้รับทุน'?'bg-emerald-100 text-emerald-700':'bg-slate-100'}">${hasSch}</span></td>
-            <td class="p-3"><button onclick="viewStudentDetail('${s.id}')" class="text-blue-600 mr-2"><i class="fas fa-eye"></i></button><button onclick="editScholarship('${s.id}')" class="text-amber-600 mr-2"><i class="fas fa-edit"></i></button><button onclick="requestScholarship('${s.id}')" class="text-green-600"><i class="fas fa-hand-holding-heart"></i> ขอทุน</button></td>
+            <td class="p-3 font-bold text-slate-800">${s.prefix || ''}${s.first_name} ${s.last_name}</td>
+            <td class="p-3"><span class="px-3 py-1 rounded-full text-xs font-bold ${hasSch==='เคยได้รับทุน'?'bg-emerald-100 text-emerald-700':'bg-slate-100'}">${hasSch}</span></td>
+            <td class="p-3 text-center">
+                <button onclick="viewStudentDetail('${s.id}')" class="action-btn view-btn" title="ดูประวัติ"><i class="fas fa-eye"></i></button>
+                <button onclick="requestScholarship('${s.id}')" class="action-btn request-btn" title="ขอทุน"><i class="fas fa-hand-holding-heart"></i><span>ขอทุน</span></button>
+            </td>
         </tr>`;
     }
     document.getElementById('tb-students').innerHTML = html;
 }
 
 async function loadStudentSelectForForm(classroomId) {
-    const { data: enrolls } = await db.from('student_enrollments').select('student_id, core_students(id, student_id_card, prefix, first_name, last_name)').eq('classroom_id', classroomId).order('student_number');
-    const options = (enrolls || []).map(e => ({ value: e.core_students.id, text: `${e.core_students.student_id_card} - ${e.core_students.prefix || ''}${e.core_students.first_name} ${e.core_students.last_name}` }));
+    const { data: enrolls } = await db.from('student_enrollments').select(
+            'student_id, core_students(id, student_id_card, prefix, first_name, last_name)').eq('classroom_id',
+            classroomId).order('student_number');
+    const options = (enrolls || []).map(e => ({ value: e.core_students.id,
+        text: `${e.core_students.student_id_card} - ${e.core_students.prefix || ''}${e.core_students.first_name} ${e.core_students.last_name}` }));
     if (studentTomSelect) studentTomSelect.destroy();
-    studentTomSelect = new TomSelect('#student_select', { create: false, placeholder: 'เลือกนักเรียน', options, onChange: (val) => { if (val) loadStudentDataForForm(val); } });
+    studentTomSelect = new TomSelect('#student_select', {
+        create: false,
+        placeholder: 'เลือกนักเรียน',
+        options,
+        onChange: (val) => { if (val) loadStudentDataForForm(val); }
+    });
 }
 
 async function loadStudentDataForForm(studentId) {
     currentStudentForForm = studentId;
-    const { data: enroll } = await db.from('student_enrollments').select('student_number, classroom_id, core_students(*), core_classrooms(grade_level, room_number)').eq('student_id', studentId).eq('classroom_id', currentClassroomId).single();
+    const { data: enroll } = await db.from('student_enrollments').select(
+            'student_number, classroom_id, core_students(*), core_classrooms(grade_level, room_number)').eq(
+            'student_id', studentId).eq('classroom_id', currentClassroomId).single();
     if (!enroll) return;
     const s = enroll.core_students;
     document.getElementById('student_id_card').value = s.student_id_card;
     document.getElementById('student_fullname').value = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
     document.getElementById('student_grade').value = `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}`;
-    // ครูที่ปรึกษา
-    const { data: classroom } = await db.from('core_classrooms').select('adviser_id_1, adviser_id_2').eq('id', currentClassroomId).single();
+    const { data: classroom } = await db.from('core_classrooms').select('adviser_id_1, adviser_id_2').eq('id',
+        currentClassroomId).single();
     let teacherName = '';
-    if (classroom?.adviser_id_1) { const { data: t } = await db.from('core_personnel').select('first_name, last_name').eq('id', classroom.adviser_id_1).single(); if(t) teacherName = `${t.first_name} ${t.last_name}`; }
+    if (classroom?.adviser_id_1) { const { data: t } = await db.from('core_personnel').select(
+            'first_name, last_name').eq('id', classroom.adviser_id_1).single(); if (t) teacherName =
+            `${t.first_name} ${t.last_name}`; }
     document.getElementById('teacher_name').value = teacherName;
-    // ดึงข้อมูลเยี่ยมบ้านมาเติม
-    const { data: homevisit } = await db.from('module_home_visits').select('*').eq('student_id', studentId).eq('academic_year', currentYear).eq('semester', currentTerm).single();
+    const { data: homevisit } = await db.from('module_home_visits').select('*').eq('student_id', studentId).eq(
+        'academic_year', currentYear).eq('semester', currentTerm).single();
     if (homevisit) {
         document.getElementById('father_name').value = homevisit.father_name || '';
         document.getElementById('father_job').value = homevisit.father_job || '';
@@ -167,7 +300,8 @@ async function loadStudentDataForForm(studentId) {
         document.getElementById('addr_province').value = homevisit.province || '';
         document.getElementById('addr_zipcode').value = homevisit.zipcode || '';
         if (homevisit.latitude && homevisit.longitude) {
-            document.getElementById('map_link').value = `https://www.google.com/maps?q=${homevisit.latitude},${homevisit.longitude}`;
+            document.getElementById('map_link').value =
+                `https://www.google.com/maps?q=${homevisit.latitude},${homevisit.longitude}`;
         }
         document.getElementById('preview_outside').src = homevisit.photo_outside || '';
         document.getElementById('preview_inside').src = homevisit.photo_inside || '';
@@ -188,107 +322,763 @@ function copyParentData(type) {
     }
 }
 
-function openMapFromLink() { const link = document.getElementById('map_link').value; if(link) window.open(link, '_blank'); else Swal.fire('ไม่มีพิกัด','กรุณาเลือกนักเรียนที่มีข้อมูลพิกัดจากระบบเยี่ยมบ้าน','info'); }
+function openMapFromLink() { const link = document.getElementById('map_link').value; if (link) window.open(link,
+        '_blank');
+    else Swal.fire('ไม่มีพิกัด', 'กรุณาเลือกนักเรียนที่มีข้อมูลพิกัดจากระบบเยี่ยมบ้าน', 'info'); }
 
 async function submitApplication() {
     if (!currentStudentForForm) return Swal.fire('ผิดพลาด', 'กรุณาเลือกนักเรียน', 'error');
     const formData = {
         student_id: currentStudentForForm,
         teacher_id: currentUser.id,
-        father: { name: $('#father_name').val(), job: $('#father_job').val(), income: $('#father_income').val(), phone: $('#father_phone').val() },
-        mother: { name: $('#mother_name').val(), job: $('#mother_job').val(), income: $('#mother_income').val(), phone: $('#mother_phone').val() },
-        guardian: { name: $('#guardian_name').val(), job: $('#guardian_job').val(), income: $('#guardian_income').val(), phone: $('#guardian_phone').val(), workplace: $('#guardian_workplace').val() },
+        father: { name: $('#father_name').val(), job: $('#father_job').val(), income: $('#father_income').val(),
+            phone: $('#father_phone').val() },
+        mother: { name: $('#mother_name').val(), job: $('#mother_job').val(), income: $('#mother_income').val(),
+            phone: $('#mother_phone').val() },
+        guardian: { name: $('#guardian_name').val(), job: $('#guardian_job').val(), income: $('#guardian_income')
+                .val(), phone: $('#guardian_phone').val(), workplace: $('#guardian_workplace').val() },
         parents_status: $('#parents_status').val(),
-        siblings: { total: $('#siblings_total').val(), study: $('#siblings_study').val(), work: $('#siblings_work').val(), notwork: $('#siblings_notwork').val() },
+        siblings: { total: $('#siblings_total').val(), study: $('#siblings_study').val(), work: $('#siblings_work')
+                .val(), notwork: $('#siblings_notwork').val() },
         dependents: Array.from(document.querySelectorAll('input[name="dependents"]:checked')).map(cb => cb.value),
-        address: { house: $('#addr_house').val(), moo: $('#addr_moo').val(), subdistrict: $('#addr_subdistrict').val(), district: $('#addr_district').val(), province: $('#addr_province').val(), zipcode: $('#addr_zipcode').val() },
+        address: { house: $('#addr_house').val(), moo: $('#addr_moo').val(), subdistrict: $('#addr_subdistrict')
+                .val(), district: $('#addr_district').val(), province: $('#addr_province').val(),
+            zipcode: $('#addr_zipcode').val() },
         map_link: $('#map_link').val(),
-        economy: { family_income: $('#family_income').val(), travel_expense: $('#travel_expense').val(), food_expense: $('#food_expense').val(), other_expense: $('#other_expense').val() },
-        disease: { has: $('input[name="has_disease"]:checked').val(), name: $('#disease_name').val(), medicine: $('#disease_medicine').val(), hospital: $('#disease_hospital').val() },
+        economy: { family_income: $('#family_income').val(), travel_expense: $('#travel_expense').val(),
+            food_expense: $('#food_expense').val(), other_expense: $('#other_expense').val() },
+        disease: { has: $('input[name="has_disease"]:checked').val(), name: $('#disease_name').val(),
+            medicine: $('#disease_medicine').val(), hospital: $('#disease_hospital').val() },
         reason: $('#reason').val(),
         usage_plan: $('#usage_plan').val()
     };
-    const { error } = await db.from('core_scholarship_applications').insert([{ student_id: currentStudentForForm, teacher_id: currentUser.id, form_data: formData, status: 'pending', reason: formData.reason, usage_plan: formData.usage_plan }]);
+    const { error } = await db.from('core_scholarship_applications').insert([{
+        student_id: currentStudentForForm,
+        teacher_id: currentUser.id,
+        form_data: formData,
+        status: 'pending',
+        reason: formData.reason,
+        usage_plan: formData.usage_plan
+    }]);
     if (error) Swal.fire('ผิดพลาด', error.message, 'error');
     else Swal.fire('สำเร็จ', 'ส่งคำขอรับทุนเรียบร้อย', 'success').then(() => switchTab('list'));
 }
 
+// ===== ดูประวัติ (รองรับกรณีไม่มี note) =====
+// ===== ดูประวัติ (รองรับกรณีไม่มี note + แสดงรวมยอดเงิน) =====
 window.viewStudentDetail = async function(studentId) {
-    const { data: scholarships } = await db.from('core_scholarships').select('*').eq('student_id', studentId).order('academic_year', { ascending: false });
-    const { data: applications } = await db.from('core_scholarship_applications').select('*').eq('student_id', studentId).order('created_at', { ascending: false });
-    let html = `<div class="space-y-4"><h4>ประวัติทุนที่ได้รับ</h4><table class="w-full text-sm border"><thead><tr><th>ปี</th><th>ประเภททุน</th><th>ชื่อทุน</th><th>จำนวนเงิน</th></tr></thead><tbody>`;
-    (scholarships || []).forEach(s => { html += `<tr><td>${s.academic_year}</td><td>${s.scholarship_type}</td><td>${s.scholarship_name}</td><td>${s.amount}</td></tr>`; });
-    html += `</tbody></table><h4 class="mt-4">คำขอทุนล่าสุด</h4><div class="border rounded-xl p-3">${applications?.[0]?.reason || 'ไม่มี'}</div></div>`;
+    let scholarships = [];
+    let hasNote = true;
+    try {
+        const { data, error } = await db.from('core_scholarships')
+            .select('*')
+            .eq('student_id', studentId)
+            .order('academic_year', { ascending: false });
+        if (error) throw error;
+        scholarships = data || [];
+    } catch (e) {
+        if (e.message?.includes('column "note" does not exist')) {
+            hasNote = false;
+            const { data, error } = await db.from('core_scholarships')
+                .select(
+                    'id, student_id, scholarship_name, amount, academic_year, semester, scholarship_type, created_by, created_at, updated_at'
+                    )
+                .eq('student_id', studentId)
+                .order('academic_year', { ascending: false });
+            if (error) throw error;
+            scholarships = data || [];
+        } else {
+            throw e;
+        }
+    }
+
+    const { data: applications } = await db.from('core_scholarship_applications')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
+
+    // คำนวณยอดรวมทั้งหมด
+    const totalAmount = scholarships.reduce((sum, s) => sum + (s.amount || 0), 0);
+
+    let html = `<div class="space-y-4">
+
+        <!-- บัตรสรุป -->
+        <div class="bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 rounded-2xl p-4 flex flex-wrap items-center justify-between">
+            <div>
+                <span class="text-sm font-bold text-indigo-700"><i class="fas fa-coins mr-1"></i> รวมทุนทั้งหมด</span>
+                <p class="text-2xl font-extrabold text-indigo-800">${totalAmount.toLocaleString()} บาท</p>
+            </div>
+            <div class="text-sm text-indigo-600 bg-white/60 px-4 py-2 rounded-xl shadow-sm">
+                <i class="fas fa-trophy mr-1"></i> จำนวนครั้งที่ได้รับทุน: ${scholarships.length}
+            </div>
+        </div>
+
+        <h4 class="font-bold text-indigo-700"><i class="fas fa-trophy mr-2"></i>ประวัติทุนที่ได้รับ</h4>`;
+
+    if (scholarships.length === 0) {
+        html += `<p class="text-slate-400 text-sm">ยังไม่มีประวัติทุน</p>`;
+    } else {
+        html += `<div class="overflow-x-auto"><table class="w-full text-sm border rounded-xl">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="p-2 text-left">ปี</th>
+                    <th class="p-2 text-left">ชื่อทุน</th>
+                    <th class="p-2 text-left">จำนวนเงิน</th>
+                    <th class="p-2 text-left">ภาคเรียน</th>
+                    ${hasNote ? '<th class="p-2 text-left">หมายเหตุ</th>' : ''}
+                </tr>
+            </thead>
+            <tbody>`;
+        scholarships.forEach(s => {
+            html += `<tr class="border-t">
+                <td class="p-2">${s.academic_year}</td>
+                <td class="p-2 font-medium">${s.scholarship_name}</td>
+                <td class="p-2">${s.amount.toLocaleString()} บาท</td>
+                <td class="p-2">${s.semester}</td>
+                ${hasNote ? `<td class="p-2 text-sm text-slate-500">${s.note || '-'}</td>` : ''}
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+
+    html += `<h4 class="mt-4 font-bold text-indigo-700"><i class="fas fa-file-alt mr-2"></i>คำขอทุนล่าสุด</h4>
+        <div class="border rounded-xl p-4 bg-slate-50">${applications?.[0]?.reason || 'ไม่มีคำขอทุน'}</div></div>`;
+
     document.getElementById('modalContent').innerHTML = html;
     document.getElementById('detailModal').classList.remove('hidden');
     document.getElementById('detailModal').classList.add('flex');
 };
-window.closeDetailModal = () => { document.getElementById('detailModal').classList.add('hidden'); document.getElementById('detailModal').classList.remove('flex'); };
-window.editScholarship = async function(studentId) { /* สำหรับ admin สามารถเพิ่มทุนให้ student */ Swal.fire('ฟังก์ชันแก้ไขทุน','สามารถบันทึกประวัติทุนได้','info'); };
-window.requestScholarship = function(studentId) { if(studentTomSelect) studentTomSelect.setValue(studentId); switchTab('form'); goToStep(1); };
+
+window.closeDetailModal = () => { document.getElementById('detailModal').classList.add('hidden');
+    document.getElementById('detailModal').classList.remove('flex'); };
+window.requestScholarship = function(studentId) { if (studentTomSelect) studentTomSelect.setValue(studentId);
+    switchTab('form');
+    goToStep(1); };
 
 // Navigation steps
 let currentStep = 1;
-function goToStep(step) { currentStep = step; $('.step-content').removeClass('active'); $(`#step-${step}`).addClass('active'); const progress = (step-1)*33.33; $('#progressBar').css('width',`${progress}%`); for(let i=1;i<=4;i++){ if(i<=step){ $(`#circle-${i}`).removeClass('bg-slate-100 text-slate-400').addClass('bg-amber-600 text-white'); $(`#text-step-${i}`).removeClass('text-slate-400').addClass('text-amber-700'); }else{ $(`#circle-${i}`).removeClass('bg-amber-600 text-white').addClass('bg-slate-100 text-slate-400'); $(`#text-step-${i}`).removeClass('text-amber-700').addClass('text-slate-400'); } } }
+
+function goToStep(step) {
+    currentStep = step;
+    $('.step-content').removeClass('active');
+    $(`#step-${step}`).addClass('active');
+    const progress = (step - 1) * 33.33;
+    $('#progressBar').css('width', `${progress}%`);
+    for (let i = 1; i <= 4; i++) {
+        if (i <= step) {
+            $(`#circle-${i}`).removeClass('bg-slate-100 text-slate-400').addClass('bg-amber-600 text-white');
+            $(`#text-step-${i}`).removeClass('text-slate-400').addClass('text-amber-700');
+        } else {
+            $(`#circle-${i}`).removeClass('bg-amber-600 text-white').addClass('bg-slate-100 text-slate-400');
+            $(`#text-step-${i}`).removeClass('text-amber-700').addClass('text-slate-400');
+        }
+    }
+}
+
 function nextStep(step) { goToStep(step); }
+
 function prevStep(step) { goToStep(step); }
 
 function switchTab(tabId) {
     $('#tab-list, #tab-form').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
-    const activeClass = 'bg-amber-600 text-white', inactiveClass = 'bg-white text-slate-600 border';
-    if(tabId === 'list') { $('#tab-list-btn').removeClass(inactiveClass).addClass(activeClass); $('#tab-form-btn').removeClass(activeClass).addClass(inactiveClass); }
-    else { $('#tab-form-btn').removeClass(inactiveClass).addClass(activeClass); $('#tab-list-btn').removeClass(activeClass).addClass(inactiveClass); }
-    if(tabId === 'list') loadDataTable();
+    if (tabId === 'list') {
+        $('#tab-list-btn').removeClass('inactive-list').addClass('active-list');
+        $('#tab-form-btn').removeClass('active-form').addClass('inactive-form');
+    } else {
+        $('#tab-form-btn').removeClass('inactive-form').addClass('active-form');
+        $('#tab-list-btn').removeClass('active-list').addClass('inactive-list');
+    }
+    if (tabId === 'list') loadDataTable();
 }
-function loadDataTable() { if(currentClassroomId) loadStudentsForTable(currentClassroomId); }
+
+function loadDataTable() { if (currentClassroomId) loadStudentsForTable(currentClassroomId); }
 
 function exportToExcel() { Swal.fire('ส่งออก Excel', 'กำลังพัฒนาฟังก์ชันส่งออก', 'info'); }
 
-// Admin functions
+// ===== Admin Settings =====
 window.openAdminModal = async function() {
     await loadModuleSettings();
-    $('#set-gas-url').val(moduleSettings.gas_url);
-    $('#set-drive-folder-id').val(moduleSettings.drive_folder_id);
-    $('#set-pdf-api-url').val(moduleSettings.pdf_api_url);
-    $('#set-slide-id').val(moduleSettings.slide_template_id);
+    $('#set-gas-url').val(moduleSettings.gas_url || '');
+    $('#set-drive-folder-id').val(moduleSettings.drive_folder_id || '');
+    $('#set-pdf-api-url').val(moduleSettings.pdf_api_url || '');
+    $('#set-slide-id').val(moduleSettings.slide_template_id || '');
     await loadTeachersForAppoint();
     await loadModuleAdminsList();
     $('#admin-modal').removeClass('hidden').addClass('flex');
 };
+
 function closeAdminModal() { $('#admin-modal').addClass('hidden').removeClass('flex'); }
+
 async function saveAdminSettings() {
-    const settings = { gas_url: $('#set-gas-url').val(), drive_folder_id: $('#set-drive-folder-id').val(), pdf_api_url: $('#set-pdf-api-url').val(), slide_template_id: $('#set-slide-id').val() };
-    const { error } = await db.from('core_scholarship_settings').update({ settings }).eq('id', (await db.from('core_scholarship_settings').select('id').single()).data.id);
-    if(error) Swal.fire('ผิดพลาด',error.message,'error'); else { moduleSettings=settings; Swal.fire('สำเร็จ','บันทึกเรียบร้อย','success'); closeAdminModal(); }
+    const settings = { gas_url: $('#set-gas-url').val(), drive_folder_id: $('#set-drive-folder-id').val(),
+        pdf_api_url: $('#set-pdf-api-url').val(), slide_template_id: $('#set-slide-id').val() };
+    try {
+        const { error } = await db.from('core_scholarship_settings').update({ settings }).eq('id', (await db.from(
+            'core_scholarship_settings').select('id').single()).data.id);
+        if (error) throw error;
+        moduleSettings = settings;
+        Swal.fire('สำเร็จ', 'บันทึกเรียบร้อย', 'success');
+        closeAdminModal();
+    } catch (e) {
+        Swal.fire('ผิดพลาด', e.message || 'ไม่สามารถบันทึกได้', 'error');
+    }
 }
+
 async function loadTeachersForAppoint() {
     const { data } = await db.from('core_personnel').select('id, first_name, last_name');
     const select = $('#select-teacher-appoint');
     select.html('<option value="">-- เลือกครู --</option>');
     data?.forEach(t => select.append(`<option value="${t.id}">${t.first_name} ${t.last_name}</option>`));
-    new TomSelect("#select-teacher-appoint", { create: false });
+    if (typeof TomSelect !== 'undefined') { new TomSelect("#select-teacher-appoint", { create: false }); }
 }
+
 async function loadModuleAdminsList() {
-    const { data } = await db.from('core_scholarship_admins').select('id, core_personnel(first_name, last_name)').eq('module_id','scholarship');
-    const container = $('#module-admin-list');
-    if(!data?.length) { container.html('<p class="text-slate-400">ไม่มีผู้ดูแลระบบ</p>'); return; }
-    let html = '<table class="w-full text-sm"><thead><tr><th>ชื่อ</th><th></th></tr></thead><tbody>';
-    data.forEach(a => { html += `<tr><td>${a.core_personnel.first_name} ${a.core_personnel.last_name}</td><td><button onclick="removeModuleAdmin('${a.id}')" class="text-rose-500"><i class="fas fa-trash"></i></button></td></tr>`; });
-    html += '</tbody></table>';
-    container.html(html);
+    try {
+        const { data } = await db.from('core_scholarship_admins').select('id, core_personnel(first_name, last_name)')
+            .eq('module_id', 'scholarship');
+        const container = $('#module-admin-list');
+        if (!data?.length) { container.html('<p class="text-slate-400">ไม่มีผู้ดูแลระบบ</p>'); return; }
+        let html =
+            '<table class="w-full text-sm"><thead class="bg-slate-50"><tr><th class="p-2 text-left">ชื่อ</th><th class="p-2 text-right"></th></tr></thead><tbody>';
+        data.forEach(a => { html +=
+                `<tr class="border-t"><td class="p-2">${a.core_personnel.first_name} ${a.core_personnel.last_name}</td><td class="p-2 text-right"><button onclick="removeModuleAdmin('${a.id}')" class="text-rose-500 hover:text-rose-700 transition"><i class="fas fa-trash"></i></button></td></tr>`; });
+        html += '</tbody></table>';
+        container.html(html);
+    } catch (e) { $('#module-admin-list').html('<p class="text-slate-400">ไม่สามารถโหลดรายการได้</p>'); }
 }
+
 window.appointModuleAdmin = async function() {
     const teacherId = $('#select-teacher-appoint').val();
-    if(!teacherId) return Swal.fire('กรุณาเลือกครู');
-    const { error } = await db.from('core_scholarship_admins').insert({ user_id: teacherId, module_id: 'scholarship' });
-    if(error) Swal.fire('ผิดพลาด',error.message,'error');
-    else { Swal.fire('สำเร็จ','แต่งตั้งเรียบร้อย','success'); loadModuleAdminsList(); }
+    if (!teacherId) return Swal.fire('กรุณาเลือกครู');
+    try {
+        const { error } = await db.from('core_scholarship_admins').insert({ user_id: teacherId,
+            module_id: 'scholarship' });
+        if (error) throw error;
+        Swal.fire('สำเร็จ', 'แต่งตั้งเรียบร้อย', 'success');
+        loadModuleAdminsList();
+    } catch (e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
 };
+
 window.removeModuleAdmin = async function(id) {
-    await db.from('core_scholarship_admins').delete().eq('id', id);
-    loadModuleAdminsList();
+    try { await db.from('core_scholarship_admins').delete().eq('id', id);
+        loadModuleAdminsList(); } catch (e) { Swal.fire('ผิดพลาด', e.message, 'error'); }
 };
-function applyAdminVisibility() { if(['super_admin','module_admin'].includes(currentViewRole)) document.getElementById('admin-settings-btn')?.classList.remove('hidden'); }
+
 function initTomSelects() { /* สำหรับ select ที่ใช้ tom-select */ }
-async function logout() { await db.auth.signOut(); window.location.href='index.html'; }
+async function logout() { await db.auth.signOut();
+    window.location.href = 'index.html'; }
+
+// ===== Admin Record Scholarship =====
+// แคชข้อมูลนักเรียน/ห้องเรียนที่ได้จากผลค้นหาล่าสุด (ใช้เติมฟอร์มทันทีโดยไม่ต้อง query ซ้ำ)
+let recordSearchCache = {};
+
+// ค้นหานักเรียนแบบพิมพ์แล้วค้น (ไม่โหลดรายชื่อนักเรียนทั้งหมดล่วงหน้า)
+// - ค้นเฉพาะนักเรียนที่ลงทะเบียนอยู่ในปีการศึกษา/ภาคเรียนปัจจุบันเท่านั้น
+// - จำกัดผลลัพธ์ไม่เกิน 20 รายการต่อการค้นหา เพื่อความเร็ว
+async function searchStudentsForRecord(query) {
+    if (!query || query.trim().length < 2) return [];
+    const like = `%${query.trim()}%`;
+    try {
+        const { data, error } = await db.from('student_enrollments')
+            .select(`
+                student_id,
+                classroom_id,
+                core_students!inner (id, student_id_card, prefix, first_name, last_name),
+                core_classrooms!inner (grade_level, room_number, academic_year, semester, adviser_id_1, adviser_id_2)
+            `)
+            .eq('core_classrooms.academic_year', currentYear)
+            .eq('core_classrooms.semester', currentTerm)
+            .or(`first_name.ilike.${like},last_name.ilike.${like},student_id_card.ilike.${like}`, { foreignTable: 'core_students' })
+            .limit(20);
+        if (error) throw error;
+
+        recordSearchCache = {};
+        return (data || []).map(e => {
+            const s = e.core_students;
+            const c = e.core_classrooms;
+            recordSearchCache[s.id] = { student: s, classroom: c, classroomId: e.classroom_id };
+            return {
+                id: s.id,
+                label: `${s.student_id_card} - ${s.prefix || ''}${s.first_name} ${s.last_name} (ม.${c.grade_level}/${c.room_number})`
+            };
+        });
+    } catch (err) {
+        console.error('Error searching students for record:', err);
+        return [];
+    }
+}
+
+// สร้าง TomSelect แบบค้นหาระยะไกล (remote search) แทนการโหลดรายชื่อทั้งหมดมาไว้ล่วงหน้า
+function initRecordStudentSearch() {
+    const el = document.getElementById('record_student_select');
+    if (recordStudentTomSelect) { recordStudentTomSelect.destroy(); }
+    el.innerHTML = '';
+    recordStudentTomSelect = new TomSelect("#record_student_select", {
+        valueField: 'id',
+        labelField: 'label',
+        searchField: ['label'],
+        create: false,
+        placeholder: 'พิมพ์ชื่อ นามสกุล หรือรหัสนักเรียน (อย่างน้อย 2 ตัวอักษร)',
+        maxOptions: 20,
+        shouldLoad: (query) => query.trim().length >= 2,
+        load: function(query, callback) {
+            searchStudentsForRecord(query)
+                .then(results => callback(results))
+                .catch(() => callback());
+        },
+        onChange: async (val) => { if (val) await fillRecordStudentData(val);
+            else clearRecordFields(); }
+    });
+}
+
+// เติมข้อมูลฟอร์มจากแคชผลค้นหาทันที (ไม่ query ซ้ำ) แล้วค่อยดึงชื่อครูที่ปรึกษา
+async function fillRecordStudentData(studentId) {
+    const cached = recordSearchCache[studentId];
+    if (!cached) return;
+    const { student: s, classroom: c } = cached;
+    document.getElementById('record_student_id').value = s.student_id_card;
+    document.getElementById('record_student_name').value = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+    document.getElementById('record_student_grade').value = `ม.${c.grade_level}/${c.room_number}`;
+    document.getElementById('record_academic_year').value = currentYear || '';
+    document.getElementById('record_semester').value = currentTerm || '';
+
+    let adv1 = '',
+        adv2 = '';
+    if (c.adviser_id_1) {
+        const { data: t } = await db.from('core_personnel').select('first_name, last_name').eq('id', c
+            .adviser_id_1).single();
+        if (t) adv1 = `ครู${t.first_name} ${t.last_name}`;
+    }
+    if (c.adviser_id_2) {
+        const { data: t } = await db.from('core_personnel').select('first_name, last_name').eq('id', c
+            .adviser_id_2).single();
+        if (t) adv2 = `ครู${t.first_name} ${t.last_name}`;
+    }
+    document.getElementById('record_advisor_1').value = adv1;
+    document.getElementById('record_advisor_2').value = adv2;
+}
+
+function clearRecordFields() {
+    ['record_student_id', 'record_student_name', 'record_student_grade', 'record_advisor_1', 'record_advisor_2',
+        'record_scholarship_name', 'record_amount', 'record_academic_year', 'record_note'
+    ].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+    });
+    const sem = document.getElementById('record_semester');
+    if (sem) sem.value = '';
+}
+
+window.openRecordScholarshipModal = async function() {
+    clearRecordFields();
+    document.getElementById('record_scholarship_name').value = '';
+    document.getElementById('record_amount').value = '';
+    document.getElementById('record_academic_year').value = currentYear || '';
+    document.getElementById('record_semester').value = currentTerm || '';
+    document.getElementById('record_note').value = '';
+    initRecordStudentSearch();
+    $('#recordScholarshipModal').removeClass('hidden').addClass('flex');
+};
+
+window.closeRecordScholarshipModal = function() {
+    $('#recordScholarshipModal').addClass('hidden').removeClass('flex');
+};
+
+window.saveScholarshipRecord = async function() {
+    const studentId = document.getElementById('record_student_select').value;
+    if (!studentId) return Swal.fire('กรุณาเลือกนักเรียน', '', 'error');
+    const scholarshipName = document.getElementById('record_scholarship_name').value.trim();
+    const amount = parseFloat(document.getElementById('record_amount').value);
+    const academicYear = document.getElementById('record_academic_year').value.trim();
+    const semester = document.getElementById('record_semester').value;
+    const note = document.getElementById('record_note').value.trim();
+    if (!scholarshipName || !amount || !academicYear || !semester) {
+        return Swal.fire('กรุณากรอกข้อมูลให้ครบถ้วน', '', 'error');
+    }
+    try {
+        const insertData = {
+            student_id: studentId,
+            scholarship_name: scholarshipName,
+            amount: amount,
+            academic_year: academicYear,
+            semester: semester,
+            scholarship_type: 'ทุนทั่วไป',
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        };
+        if (note) insertData.note = note;
+        const { error } = await db.from('core_scholarships').insert([insertData]);
+        if (error) throw error;
+        Swal.fire('บันทึกสำเร็จ', 'เพิ่มประวัติทุนเรียบร้อย', 'success');
+        closeRecordScholarshipModal();
+        if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+    } catch (err) {
+        console.error(err);
+        if (err.code === '42703' || err.message?.includes('column "note" does not exist')) {
+            // ลองใหม่โดยไม่ใช้ note
+            try {
+                const insertData = {
+                    student_id: studentId,
+                    scholarship_name: scholarshipName,
+                    amount: amount,
+                    academic_year: academicYear,
+                    semester: semester,
+                    scholarship_type: 'ทุนทั่วไป',
+                    created_by: currentUser.id,
+                    created_at: new Date().toISOString()
+                };
+                const { error } = await db.from('core_scholarships').insert([insertData]);
+                if (error) throw error;
+                Swal.fire('บันทึกสำเร็จ',
+                    'เพิ่มประวัติทุนเรียบร้อย (ไม่บันทึกหมายเหตุเนื่องจากยังไม่มีฟิลด์)',
+                    'success');
+                closeRecordScholarshipModal();
+                if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+            } catch (e2) {
+                Swal.fire('ผิดพลาด', e2.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+            }
+        } else if (err.code === '42P01' || err.message?.includes('relation') || err.code === '404') {
+            Swal.fire({
+                icon: 'error',
+                title: 'ไม่พบตาราง core_scholarships',
+                html: `<p>กรุณาสร้างตารางใน Supabase SQL Editor ด้วยคำสั่ง:</p>
+                       <pre style="text-align:left;background:#1e293b;color:#e2e8f0;padding:12px;border-radius:12px;font-size:12px;overflow-x:auto;">
+CREATE TABLE IF NOT EXISTS public.core_scholarships (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id UUID NOT NULL REFERENCES public.core_students(id) ON DELETE CASCADE,
+    scholarship_name TEXT NOT NULL,
+    amount NUMERIC(10,2) NOT NULL,
+    academic_year TEXT NOT NULL,
+    semester TEXT NOT NULL,
+    scholarship_type TEXT DEFAULT 'ทุนทั่วไป',
+    created_by UUID REFERENCES public.core_personnel(id),
+    created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    note TEXT
+);
+ALTER TABLE public.core_scholarships ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all authenticated users" ON public.core_scholarships;
+CREATE POLICY "Allow all authenticated users" ON public.core_scholarships
+    FOR ALL USING (auth.role() = 'authenticated');</pre>`,
+                confirmButtonText: 'เข้าใจแล้ว',
+                width: 700
+            });
+        } else {
+            Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
+        }
+    }
+};
+
+// ===== Recipient List Modal (ผู้รับทุน) =====
+window.openRecipientListModal = async function() {
+    const modal = document.getElementById('recipientListModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('recipientListContent').innerHTML =
+        '<div class="text-center py-10 text-slate-400"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>กำลังโหลดข้อมูล...</p></div>';
+
+    try {
+        let scholarships = [];
+        let hasNote = true;
+        try {
+            const { data, error } = await db.from('core_scholarships')
+                .select(`
+                    id,
+                    student_id,
+                    scholarship_name,
+                    amount,
+                    academic_year,
+                    semester,
+                    note,
+                    created_at,
+                    core_students!inner (
+                        id,
+                        student_id_card,
+                        prefix,
+                        first_name,
+                        last_name
+                    )
+                `)
+                .order('created_at', { ascending: false });
+            if (error) throw error;
+            scholarships = data || [];
+        } catch (e) {
+            if (e.message?.includes('column "note" does not exist')) {
+                hasNote = false;
+                const { data, error } = await db.from('core_scholarships')
+                    .select(`
+                        id,
+                        student_id,
+                        scholarship_name,
+                        amount,
+                        academic_year,
+                        semester,
+                        created_at,
+                        core_students!inner (
+                            id,
+                            student_id_card,
+                            prefix,
+                            first_name,
+                            last_name
+                        )
+                    `)
+                    .order('created_at', { ascending: false });
+                if (error) throw error;
+                scholarships = data || [];
+            } else {
+                throw e;
+            }
+        }
+
+        if (!scholarships || scholarships.length === 0) {
+            document.getElementById('recipientListContent').innerHTML = `
+                <div class="text-center py-16 text-slate-400">
+                    <i class="fas fa-inbox text-5xl mb-4 text-slate-300"></i>
+                    <p class="text-lg font-medium">ยังไม่มีรายการนักเรียนที่ได้รับทุน</p>
+                    <p class="text-sm">ยังไม่มีการบันทึกประวัติทุนในระบบ</p>
+                </div>
+            `;
+            return;
+        }
+
+        // ดึงข้อมูลชั้นเรียนปัจจุบันของนักเรียนแต่ละคน
+        let classroomMap = {};
+        try {
+            const studentIds = [...new Set(scholarships.map(s => s.student_id))];
+            const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+                .select('student_id, core_classrooms!inner(grade_level, room_number, academic_year, semester)')
+                .in('student_id', studentIds)
+                .eq('core_classrooms.academic_year', currentYear)
+                .eq('core_classrooms.semester', currentTerm);
+            if (enrollErr) throw enrollErr;
+            (enrolls || []).forEach(e => {
+                const c = e.core_classrooms;
+                if (c) classroomMap[e.student_id] = `ม.${c.grade_level}/${c.room_number}`;
+            });
+        } catch (e) {
+            console.warn('Error loading classroom info for recipients:', e.message);
+        }
+
+        let html = `
+            <div class="table-scroll">
+                <table class="w-full text-sm border-collapse">
+                    <thead class="bg-slate-50 border-b-2 border-slate-200">
+                        <tr>
+                            <th class="p-3 text-center font-bold text-slate-600">ชั้น</th>
+                            <th class="p-3 text-left font-bold text-slate-600">รหัสประจำตัว</th>
+                            <th class="p-3 text-left font-bold text-slate-600">ชื่อ-สกุล</th>
+                            <th class="p-3 text-left font-bold text-slate-600">ชื่อทุน</th>
+                            <th class="p-3 text-center font-bold text-slate-600">จำนวนเงิน</th>
+                            <th class="p-3 text-center font-bold text-slate-600">ปีการศึกษา</th>
+                            <th class="p-3 text-center font-bold text-slate-600">ภาคเรียน</th>
+                            ${hasNote ? '<th class="p-3 text-left font-bold text-slate-600">หมายเหตุ</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+        `;
+
+        scholarships.forEach(s => {
+            const student = s.core_students;
+            const name = student ? `${student.prefix || ''}${student.first_name} ${student.last_name}` :
+                'ไม่พบข้อมูล';
+            const code = student ? student.student_id_card : '-';
+            const grade = classroomMap[s.student_id] || '-';
+            html += `
+                <tr class="hover:bg-slate-50/60 transition">
+                    <td class="p-3 text-center font-semibold text-slate-600">${grade}</td>
+                    <td class="p-3 font-mono text-slate-600">${code}</td>
+                    <td class="p-3 font-medium text-slate-800">${name}</td>
+                    <td class="p-3 font-medium text-emerald-700">${s.scholarship_name}</td>
+                    <td class="p-3 text-center font-bold text-slate-700">${s.amount ? s.amount.toLocaleString() : 0}</td>
+                    <td class="p-3 text-center">${s.academic_year || '-'}</td>
+                    <td class="p-3 text-center">${s.semester ? 'เทอม ' + s.semester : '-'}</td>
+                    ${hasNote ? `<td class="p-3 text-sm text-slate-500">${s.note || '-'}</td>` : ''}
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3 text-sm text-slate-500 bg-slate-50 p-2 rounded-xl text-center">
+                <i class="fas fa-database mr-1"></i> พบข้อมูลทั้งหมด ${scholarships.length} รายการ
+                ${!hasNote ? '<br><span class="text-amber-600"><i class="fas fa-info-circle"></i> ยังไม่มีฟิลด์หมายเหตุ กรุณาเพิ่มคอลัมน์ note ในตาราง core_scholarships</span>' : ''}
+            </div>
+        `;
+
+        document.getElementById('recipientListContent').innerHTML = html;
+    } catch (err) {
+        console.error('Error loading recipient list:', err);
+        document.getElementById('recipientListContent').innerHTML = `
+            <div class="text-center py-10 text-rose-500">
+                <i class="fas fa-exclamation-circle text-3xl mb-3"></i>
+                <p>เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</p>
+            </div>
+        `;
+    }
+};
+
+window.closeRecipientListModal = function() {
+    document.getElementById('recipientListModal').classList.add('hidden');
+    document.getElementById('recipientListModal').classList.remove('flex');
+};
+
+window.exportRecipientListExcel = function() {
+    Swal.fire('ส่งออก Excel', 'กำลังพัฒนาฟังก์ชันส่งออกผู้รับทุน', 'info');
+};
+
+// ===== Applicant List Modal (ผู้ขอทุน) =====
+window.openApplicantListModal = async function() {
+    const modal = document.getElementById('applicantListModal');
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    document.getElementById('applicantListContent').innerHTML =
+        '<div class="text-center py-10 text-slate-400"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>กำลังโหลดข้อมูล...</p></div>';
+
+    try {
+        const { data: applications, error } = await db.from('core_scholarship_applications')
+            .select(`
+                id,
+                student_id,
+                reason,
+                usage_plan,
+                status,
+                created_at,
+                core_students!inner (
+                    id,
+                    student_id_card,
+                    prefix,
+                    first_name,
+                    last_name
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (!applications || applications.length === 0) {
+            document.getElementById('applicantListContent').innerHTML = `
+                <div class="text-center py-16 text-slate-400">
+                    <i class="fas fa-inbox text-5xl mb-4 text-slate-300"></i>
+                    <p class="text-lg font-medium">ยังไม่มีรายการคำขอทุน</p>
+                    <p class="text-sm">ยังไม่มีนักเรียนทำการขอทุนในระบบ</p>
+                </div>
+            `;
+            return;
+        }
+
+        let html = `
+            <div class="table-scroll">
+                <table class="w-full text-sm border-collapse">
+                    <thead class="bg-slate-50 border-b-2 border-slate-200">
+                        <tr>
+                            <th class="p-3 text-left font-bold text-slate-600">รหัสประจำตัว</th>
+                            <th class="p-3 text-left font-bold text-slate-600">ชื่อ-สกุล</th>
+                            <th class="p-3 text-left font-bold text-slate-600">เหตุผลขอทุน</th>
+                            <th class="p-3 text-left font-bold text-slate-600">แผนการใช้เงิน</th>
+                            <th class="p-3 text-center font-bold text-slate-600">สถานะ</th>
+                            <th class="p-3 text-center font-bold text-slate-600">วันที่ขอ</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+        `;
+
+        const statusMap = {
+            'pending': { label: 'รอดำเนินการ', cls: 'badge-pending' },
+            'approved': { label: 'อนุมัติ', cls: 'badge-approved' },
+            'rejected': { label: 'ไม่อนุมัติ', cls: 'badge-rejected' }
+        };
+
+        applications.forEach(a => {
+            const student = a.core_students;
+            const name = student ? `${student.prefix || ''}${student.first_name} ${student.last_name}` :
+                'ไม่พบข้อมูล';
+            const code = student ? student.student_id_card : '-';
+            const statusInfo = statusMap[a.status] || { label: a.status || 'รอดำเนินการ',
+                cls: 'badge-pending' };
+            const date = a.created_at ? new Date(a.created_at).toLocaleDateString('th-TH', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            }) : '-';
+
+            const reasonShort = a.reason ? (a.reason.length > 60 ? a.reason.substring(0, 60) + '...' : a
+                .reason) : '-';
+            const usageShort = a.usage_plan ? (a.usage_plan.length > 60 ? a.usage_plan.substring(0, 60) +
+                '...' : a.usage_plan) : '-';
+
+            html += `
+                <tr class="hover:bg-slate-50/60 transition">
+                    <td class="p-3 font-mono text-slate-600">${code}</td>
+                    <td class="p-3 font-medium text-slate-800">${name}</td>
+                    <td class="p-3 text-sm text-slate-600" title="${a.reason || ''}">${reasonShort}</td>
+                    <td class="p-3 text-sm text-slate-600" title="${a.usage_plan || ''}">${usageShort}</td>
+                    <td class="p-3 text-center"><span class="badge-status ${statusInfo.cls}">${statusInfo.label}</span></td>
+                    <td class="p-3 text-center text-sm text-slate-500">${date}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+            </div>
+            <div class="mt-3 text-sm text-slate-500 bg-slate-50 p-2 rounded-xl text-center">
+                <i class="fas fa-database mr-1"></i> พบข้อมูลทั้งหมด ${applications.length} รายการ
+            </div>
+        `;
+
+        document.getElementById('applicantListContent').innerHTML = html;
+    } catch (err) {
+        console.error('Error loading applicant list:', err);
+        document.getElementById('applicantListContent').innerHTML = `
+            <div class="text-center py-10 text-rose-500">
+                <i class="fas fa-exclamation-circle text-3xl mb-3"></i>
+                <p>เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</p>
+            </div>
+        `;
+    }
+};
+
+window.closeApplicantListModal = function() {
+    document.getElementById('applicantListModal').classList.add('hidden');
+    document.getElementById('applicantListModal').classList.remove('flex');
+};
+
+window.exportApplicantListExcel = function() {
+    Swal.fire('ส่งออก Excel', 'กำลังพัฒนาฟังก์ชันส่งออกผู้ขอทุน', 'info');
+};
+
+// ===== DOM ready =====
+document.addEventListener('DOMContentLoaded', function() {
+    const dependentsItems = ['ผู้สูงอายุ', 'ผู้ป่วยติดเตียง', 'ผู้พิการ', 'ผู้ที่ไม่สามารถช่วยเหลือตนเองได้',
+        'ผู้ที่ต้องบำบัด', 'เด็กทารก 0-3 ปี', 'คนว่างงานอายุ 15-65 ปี', 'เป็นพ่อหรือแม่เลี้ยงเดี่ยว'
+    ];
+    const container = document.getElementById('dependents_checklist');
+    if (container) {
+        dependentsItems.forEach(item => {
+            const label = document.createElement('label');
+            label.className =
+                "flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 hover:border-amber-300 transition cursor-pointer";
+            label.innerHTML =
+                `<input type="checkbox" name="dependents" value="${item}" class="accent-amber-600"> <span class="text-sm">${item}</span>`;
+            container.appendChild(label);
+        });
+    }
+    document.querySelectorAll('input[name="has_disease"]').forEach(radio => radio.addEventListener('change',
+        function() {
+            document.getElementById('disease_fields').classList.toggle('hidden', this.value === 'no');
+        }));
+    const reasonTextarea = document.getElementById('reason');
+    const usageTextarea = document.getElementById('usage_plan');
+    if (reasonTextarea) {
+        reasonTextarea.addEventListener('input', () => document.getElementById('reason_counter').innerText =
+            reasonTextarea.value.length);
+    }
+    if (usageTextarea) {
+        usageTextarea.addEventListener('input', () => document.getElementById('usage_counter').innerText =
+            usageTextarea.value.length);
+    }
+});
