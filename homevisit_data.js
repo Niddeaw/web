@@ -1144,6 +1144,78 @@ window.renderDashboard = function (total, completed, incomplete, notVisited) {
 };
 
 // ==========================================
+// ฟังก์ชันกลางสำหรับแสดงรายชื่อนักเรียนในรูปแบบ DataTable
+// ==========================================
+window.showStudentListModal = function (list, titleText, themeColor, extraFooterHtml = '') {
+    if (!list || list.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่มีรายชื่อนักเรียนในหมวดหมู่นี้', 'info');
+        return;
+    }
+
+    const tableId = 'student-list-table-' + Date.now();
+
+    const rowsHtml = list.map((s, idx) => `
+        <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td class="text-center font-bold">${s.room || '-'}</td>
+            <td class="font-mono">${s.id}</td>
+            <td class="font-bold">${s.name}</td>
+            <td class="text-center">
+                <button onclick="editHomeVisit('${s.student_uuid}')" 
+                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
+                    <i class="fas fa-eye"></i> ดูข้อมูล
+                </button>
+            </td>
+        </tr>
+    `).join('');
+
+    const html = `
+        <div class="max-h-[70vh] overflow-y-auto">
+            <table id="${tableId}" class="display nowrap" style="width:100%">
+                <thead class="${themeColor}">
+                    <tr>
+                        <th class="text-center">ลำดับ</th>
+                        <th class="text-center">ชั้น</th>
+                        <th>รหัสประจำตัว</th>
+                        <th>ชื่อ - นามสกุล</th>
+                        <th class="text-center">จัดการ</th>
+                    </tr>
+                </thead>
+                <tbody>${rowsHtml}</tbody>
+            </table>
+        </div>
+        ${extraFooterHtml ? `<div class="text-xs text-slate-400 mt-3 text-center">${extraFooterHtml}</div>` : ''}
+    `;
+
+    Swal.fire({
+        title: `<div class="text-xl font-black text-slate-800">${titleText}</div>
+                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
+        html: html,
+        width: '95%',
+        maxWidth: '1200px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'rounded-2xl shadow-2xl',
+            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
+        },
+        didOpen: () => {
+            new DataTable('#' + tableId, {
+                responsive: true,
+                pageLength: 10,
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
+                },
+                columnDefs: [
+                    { orderable: false, targets: [0, 4] } // ปิดการเรียงลำดับในคอลัมน์ ลำดับ และ จัดการ
+                ],
+                order: [[1, 'asc']] // เรียงตามชั้น (คอลัมน์ที่ 1)
+            });
+        }
+    });
+};
+
+// ==========================================
 // แสดงรายชื่อนักเรียนจาก Overview (4 การ์ด)
 // ==========================================
 window.showOverviewStudentList = function (type) {
@@ -1170,58 +1242,10 @@ window.showOverviewStudentList = function (type) {
             return;
     }
 
-    if (!list || list.length === 0) {
-        Swal.fire('ไม่มีข้อมูล', `ไม่มีรายชื่อนักเรียนในหมวดหมู่นี้`, 'info');
-        return;
-    }
-
-    // เรียงตามรหัส
+    // เรียงลำดับตามรหัส
     list.sort((a, b) => a.id.localeCompare(b.id));
 
-    const tableHtml = `
-        <div class="max-h-[60vh] overflow-y-auto mt-2 rounded-xl border border-slate-200">
-            <table class="w-full text-sm text-left border-collapse">
-                <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
-                    <tr>
-                        <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
-                        <th class="p-3 w-28 text-center font-bold">ชั้น</th>
-                        <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
-                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
-                        <th class="p-3 w-32 text-center font-bold">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    ${list.map((s, idx) => `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="p-3 text-center text-slate-500">${idx + 1}</td>
-                            <td class="p-3 text-center font-bold text-slate-600">${s.room || '-'}</td>
-                            <td class="p-3 font-mono text-slate-500">${s.id}</td>
-                            <td class="p-3 font-bold text-slate-700">${s.name}</td>
-                            <td class="p-3 text-center">
-                                <button onclick="editHomeVisit('${s.student_uuid}')" 
-                                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
-                                    <i class="fas fa-eye"></i> ดูข้อมูล
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-
-    Swal.fire({
-        title: `<div class="text-xl font-black text-slate-800">${titleText}</div>
-                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
-        html: tableHtml,
-        width: '950px',
-        showCloseButton: true,
-        showConfirmButton: false,
-        customClass: {
-            popup: 'rounded-2xl shadow-2xl',
-            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
-        }
-    });
+    showStudentListModal(list, titleText, themeColor);
 };
 
 // ==========================================
@@ -1960,7 +1984,7 @@ window.showRiskStudentList = function (category, type) {
         return;
     }
 
-    // เรียงตาม ห้อง → รหัส
+    // เรียงลำดับตามห้องแล้วตามรหัส
     list.sort((a, b) => {
         if (a.room !== b.room) return a.room.localeCompare(b.room);
         return a.id.localeCompare(b.id);
@@ -1974,51 +1998,9 @@ window.showRiskStudentList = function (category, type) {
         ? 'text-amber-700 bg-amber-50 border-amber-200'
         : 'text-rose-700 bg-rose-50 border-rose-200';
 
-    const tableHtml = `
-        <div class="max-h-[60vh] overflow-y-auto mt-2 rounded-xl border border-slate-200">
-            <table class="w-full text-sm text-left border-collapse">
-                <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
-                    <tr>
-                        <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
-                        <th class="p-3 w-28 text-center font-bold">ชั้น</th>
-                        <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
-                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
-                        <th class="p-3 w-32 text-center font-bold">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    ${list.map((s, idx) => `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="p-3 text-center text-slate-500">${idx + 1}</td>
-                            <td class="p-3 text-center font-bold text-slate-600">${s.room}</td>
-                            <td class="p-3 font-mono text-slate-500">${s.id}</td>
-                            <td class="p-3 font-bold text-slate-700">${s.name}</td>
-                            <td class="p-3 text-center">
-                                <button onclick="editHomeVisit('${s.student_uuid}')" 
-                                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
-                                    <i class="fas fa-eye"></i> ดูข้อมูล
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-        <div class="text-xs text-slate-400 mt-3 text-center">💡 คลิกปุ่ม "ดูข้อมูล" เพื่อไปที่หน้ากรอกฟอร์มและตรวจสอบรายละเอียดความเสี่ยง</div>
-    `;
+    const extraFooterHtml = '💡 คลิกปุ่ม "ดูข้อมูล" เพื่อไปที่หน้ากรอกฟอร์มและตรวจสอบรายละเอียดความเสี่ยง';
 
-    Swal.fire({
-        title: `<div class="text-xl font-black ${type === 'risk' ? 'text-amber-700' : 'text-rose-700'}">${titleText}</div>
-                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
-        html: tableHtml,
-        width: '950px',
-        showCloseButton: true,
-        showConfirmButton: false,
-        customClass: {
-            popup: 'rounded-2xl shadow-2xl',
-            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
-        }
-    });
+    showStudentListModal(list, titleText, themeColor, extraFooterHtml);
 };
 
 window.showReportStudentList = function (type) {
@@ -2045,60 +2027,13 @@ window.showReportStudentList = function (type) {
             return;
     }
 
-    if (!list || list.length === 0) {
-        Swal.fire('ไม่มีข้อมูล', `ไม่มีรายชื่อนักเรียนในหมวดหมู่นี้`, 'info');
-        return;
-    }
-
+    // เรียงลำดับตามห้องแล้วตามรหัส
     list.sort((a, b) => {
         if (a.room !== b.room) return a.room.localeCompare(b.room);
         return a.id.localeCompare(b.id);
     });
 
-    const tableHtml = `
-        <div class="max-h-[60vh] overflow-y-auto mt-2 rounded-xl border border-slate-200">
-            <table class="w-full text-sm text-left border-collapse">
-                <thead class="sticky top-0 ${themeColor} shadow-sm z-10">
-                    <tr>
-                        <th class="p-3 w-16 text-center font-bold">ลำดับ</th>
-                        <th class="p-3 w-28 text-center font-bold">ชั้น</th>
-                        <th class="p-3 w-32 font-bold">รหัสประจำตัว</th>
-                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
-                        <th class="p-3 w-32 text-center font-bold">จัดการ</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 bg-white">
-                    ${list.map((s, idx) => `
-                        <tr class="hover:bg-slate-50 transition">
-                            <td class="p-3 text-center text-slate-500">${idx + 1}</td>
-                            <td class="p-3 text-center font-bold text-slate-600">${s.room || '-'}</td>
-                            <td class="p-3 font-mono text-slate-500">${s.id}</td>
-                            <td class="p-3 font-bold text-slate-700">${s.name}</td>
-                            <td class="p-3 text-center">
-                                <button onclick="editHomeVisit('${s.student_uuid}')" 
-                                        class="text-sky-600 hover:bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-200 transition text-xs font-bold flex items-center justify-center gap-1 mx-auto">
-                                    <i class="fas fa-eye"></i> ดูข้อมูล
-                                </button>
-                            </td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-        </div>
-    `;
-
-    Swal.fire({
-        title: `<div class="text-xl font-black text-slate-800">${titleText}</div>
-                <div class="text-sm font-normal text-slate-500 mt-1">จำนวน ${list.length} คน</div>`,
-        html: tableHtml,
-        width: '950px',
-        showCloseButton: true,
-        showConfirmButton: false,
-        customClass: {
-            popup: 'rounded-2xl shadow-2xl',
-            closeButton: 'bg-slate-100 hover:bg-rose-100 hover:text-rose-600 text-slate-400 rounded-lg transition mt-2 mr-2'
-        }
-    });
+    showStudentListModal(list, titleText, themeColor);
 };
 
 async function printReportPDF() {
