@@ -72,19 +72,21 @@
 
     <main class="container mx-auto p-4 lg:p-6 space-y-6">
         <!-- เลือกการเช็คชื่อสำหรับห้องเรียนและวันที่ต้องการ จากนั้นตรวจสอบข้อมูลและกดปุ่ม "บันทึกมาครบทุกคน" หรือเลือกสถานะอื่นๆ เป็นรายคนเพื่อบันทึกข้อมูลการเช็คชื่อในแต่ละวันอย่างถูกต้อง -->
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-[99]">
             <div class="lg:col-span-2 glass-panel p-6 shadow-xl space-y-4 rounded-2xl">
                 <div class="flex items-center gap-2 mb-2">
                     <i class="fas fa-search text-blue-600"></i>
                     <h2 class="font-bold text-slate-700">เลือกข้อมูลการเช็คชื่อ</h2>
                 </div>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div class="space-y-1">
+
+                    <div class="space-y-1 relative z-50">
                         <label
                             class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชั้นเรียน</label>
                         <select id="classroom-select"
                             class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm"></select>
                     </div>
+
                     <div class="space-y-1">
                         <label
                             class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">วันที่</label>

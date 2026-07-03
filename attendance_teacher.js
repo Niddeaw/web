@@ -263,6 +263,7 @@ async function populateClassroomSelect(userId, isDisciplineHead = false) {
     window.classroomTomSelect = new TomSelect(selectEl, {
         placeholder: '-- เลือกห้องเรียน --',
         searchField: ['text'],
+        maxOptions: null,  // 🟢 เพิ่มบรรทัดนี้เข้าไป เพื่อปลดล็อกลิมิต 50 รายการ
     });
 
     window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });

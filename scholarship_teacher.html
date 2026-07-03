@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -33,6 +34,8 @@
             border: 1px solid rgba(255, 255, 255, 0.5);
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.06), 0 2px 8px rgba(0, 0, 0, 0.02);
             transition: box-shadow 0.25s ease;
+            overflow: visible !important;
+            /* ✅ เพื่อไม่ให้ตัด dropdown */
         }
 
         .glass-card:hover {
@@ -455,68 +458,6 @@
             }
         }
 
-        .ts-wrapper .ts-dropdown {
-            z-index: 9999 !important;
-            position: absolute !important;
-            background: #ffffff !important;
-            border-radius: 14px !important;
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15) !important;
-            border: 1px solid #e2e8f0 !important;
-            max-height: 260px !important;
-            overflow-y: auto !important;
-        }
-
-        .ts-dropdown .option {
-            padding: 10px 16px !important;
-            font-weight: 500 !important;
-            font-size: 0.95rem !important;
-            border-bottom: 1px solid #f1f5f9 !important;
-        }
-
-        .ts-dropdown .option.active {
-            background: #eef2ff !important;
-            color: #4F46E5 !important;
-        }
-
-        .ts-dropdown .option:hover {
-            background: #f8fafc !important;
-        }
-
-        .ts-wrapper {
-            position: relative !important;
-            z-index: 50 !important;
-        }
-
-        .ts-wrapper .ts-control {
-            z-index: 51 !important;
-            position: relative !important;
-        }
-
-        .ts-wrapper.single .ts-control {
-            border-radius: 14px !important;
-            border: 1px solid #e2e8f0 !important;
-            padding: 0.65rem 1rem !important;
-            font-size: 0.95rem !important;
-            background: #ffffff !important;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04) !important;
-            transition: border 0.2s, box-shadow 0.2s !important;
-        }
-
-        .ts-wrapper.single .ts-control:focus {
-            border-color: #4F46E5 !important;
-            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.1) !important;
-        }
-
-        .ts-wrapper .ts-control .ts-arrow {
-            border-color: #94a3b8 transparent transparent transparent !important;
-            border-width: 6px 5px 0 5px !important;
-        }
-
-        #recordScholarshipModal,
-        #applicantListModal {
-            z-index: 9998 !important;
-        }
-
         #recordScholarshipModal .ts-wrapper .ts-dropdown,
         #applicantListModal .ts-wrapper .ts-dropdown {
             z-index: 99999 !important;
@@ -735,25 +676,50 @@
             background: #cbd5e1;
             transform: translateY(-1px);
         }
+
+        /* ✅ เพิ่ม CSS เพื่อแก้ปัญหา TomSelect dropdown บังเนื้อหา */
+        /* ปรับ z-index ให้ต่ำลง */
+        .ts-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+        }
+
+        .ts-wrapper .ts-control {
+            z-index: 2 !important;
+            position: relative !important;
+        }
+
+        .ts-dropdown {
+            z-index: 3 !important;
+        }
+
+        /* ตรวจสอบให้แน่ใจว่า dropdown ไม่ถูกตัด */
+        .glass-card {
+            overflow: visible !important;
+        }
     </style>
 </head>
+
 <body id="mainBody">
 
     <!-- ===== NAV ===== -->
     <nav class="nav-modern mx-4 mt-4 sticky top-4 z-40 flex flex-wrap items-center justify-between gap-2">
         <div class="flex items-center gap-2 md:gap-3">
-            <div class="bg-gradient-to-br from-amber-600 to-amber-500 p-2 rounded-2xl text-white shadow-lg shadow-amber-200/50 flex-shrink-0">
+            <div
+                class="bg-gradient-to-br from-amber-600 to-amber-500 p-2 rounded-2xl text-white shadow-lg shadow-amber-200/50 flex-shrink-0">
                 <i class="fas fa-graduation-cap text-lg md:text-xl"></i>
             </div>
             <div class="hidden sm:block">
-                <h1 class="font-extrabold text-lg md:text-xl text-amber-950 tracking-tight leading-tight">ระบบบริหารทุน</h1>
+                <h1 class="font-extrabold text-lg md:text-xl text-amber-950 tracking-tight leading-tight">ระบบบริหารทุน
+                </h1>
                 <p id="schoolTermDisplay" class="text-[10px] text-slate-500 font-semibold">Centralized School System</p>
             </div>
         </div>
 
         <div class="flex items-center gap-1 md:gap-2 flex-wrap flex-1 justify-center md:justify-end">
             <!-- ปุ่มบันทึกทุน (Admin-only) -->
-            <button id="btnRecordScholarshipNav" onclick="openRecordScholarshipModal()" class="nav-btn nav-btn-purple admin-only">
+            <button id="btnRecordScholarshipNav" onclick="openRecordScholarshipModal()"
+                class="nav-btn nav-btn-purple admin-only">
                 <i class="fas fa-save"></i> <span>บันทึกทุน</span>
             </button>
             <!-- ปุ่มผู้ขอทุน (Modal) -->
@@ -770,12 +736,20 @@
                 <p class="text-xs font-bold text-slate-800" id="userNameDisplay">Loading...</p>
                 <p class="text-[10px] text-slate-400 font-medium" id="userRoleDisplay">Teacher</p>
             </div>
-            <div class="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-inner flex-shrink-0">
+            <div
+                class="w-8 h-8 md:w-10 md:h-10 bg-gradient-to-br from-slate-100 to-slate-200 rounded-2xl flex items-center justify-center text-slate-600 shadow-inner flex-shrink-0">
                 <i class="fas fa-user text-sm md:text-base"></i>
             </div>
-            <button id="btnAdminMode" onclick="toggleRoleView()" class="hidden h-8 md:h-10 px-2 md:px-3 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition text-xs md:text-sm font-bold whitespace-nowrap"><i class="fa-solid fa-chalkboard-user md:mr-1"></i><span class="hidden sm:inline">โหมดครู</span></button>
-            <button onclick="window.location.href='index.html'" class="h-8 w-8 md:h-10 md:w-10 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-house text-sm md:text-base"></i></button>
-            <button onclick="logout()" class="bg-rose-50 text-rose-600 h-8 w-8 md:h-10 md:w-10 rounded-2xl hover:bg-rose-100 transition flex items-center justify-center flex-shrink-0"><i class="fas fa-sign-out-alt text-sm md:text-base"></i></button>
+            <button id="btnAdminMode" onclick="toggleRoleView()"
+                class="hidden h-8 md:h-10 px-2 md:px-3 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 hover:bg-purple-100 transition text-xs md:text-sm font-bold whitespace-nowrap"><i
+                    class="fa-solid fa-chalkboard-user md:mr-1"></i><span
+                    class="hidden sm:inline">โหมดครู</span></button>
+            <button onclick="window.location.href='index.html'"
+                class="h-8 w-8 md:h-10 md:w-10 rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center flex-shrink-0"><i
+                    class="fas fa-house text-sm md:text-base"></i></button>
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-8 w-8 md:h-10 md:w-10 rounded-2xl hover:bg-rose-100 transition flex items-center justify-center flex-shrink-0"><i
+                    class="fas fa-sign-out-alt text-sm md:text-base"></i></button>
         </div>
     </nav>
 
@@ -784,29 +758,37 @@
 
         <!-- ห้องเรียน + tabs -->
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-            <div class="lg:col-span-3 glass-card rounded-2xl p-5 md:p-6">
+            <div class="lg:col-span-3 glass-card rounded-2xl p-5 md:p-6 relative z-50">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                    <div>
+                    <div class="relative z-50">
                         <label class="field-label">เลือกห้องเรียน</label>
-                        <select id="select-classroom" class="w-full border border-slate-200 rounded-2xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></select>
+                        <select id="select-classroom"
+                            class="w-full border border-slate-200 rounded-2xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></select>
                     </div>
                     <div>
                         <label class="field-label">ปีการศึกษา / เทอม</label>
-                        <div id="term-display" class="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-600 text-sm font-medium">กำลังโหลด...</div>
+                        <div id="term-display"
+                            class="px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-slate-600 text-sm font-medium">
+                            กำลังโหลด...</div>
                     </div>
                     <div class="flex gap-2">
-                        <button onclick="switchTab('recipients')" id="tab-recipients-btn" class="tab-btn active-recipients"><i class="fas fa-award"></i> ผู้รับทุน</button>
-                        <button onclick="switchTab('list')" id="tab-list-btn" class="tab-btn inactive-list"><i class="fas fa-table"></i> รายการทุน</button>
-                        <button onclick="switchTab('form')" id="tab-form-btn" class="tab-btn inactive-form"><i class="fas fa-pen"></i> ขอรับทุน</button>
+                        <button onclick="switchTab('recipients')" id="tab-recipients-btn"
+                            class="tab-btn active-recipients"><i class="fas fa-award"></i> ผู้รับทุน</button>
+                        <button onclick="switchTab('list')" id="tab-list-btn" class="tab-btn inactive-list"><i
+                                class="fas fa-table"></i> รายการทุน</button>
+                        <button onclick="switchTab('form')" id="tab-form-btn" class="tab-btn inactive-form"><i
+                                class="fas fa-pen"></i> ขอรับทุน</button>
                     </div>
                 </div>
             </div>
             <div class="glass-card rounded-2xl p-5 flex items-center justify-between flex-wrap gap-3">
                 <div>
                     <h2 class="text-[10px] font-black text-slate-400 uppercase tracking-wider">สถานะ</h2>
-                    <div id="status-badge" class="status-pill"><i class="fas fa-circle text-slate-300 text-[8px]"></i> ยังไม่เลือกห้องเรียน</div>
+                    <div id="status-badge" class="status-pill"><i class="fas fa-circle text-slate-300 text-[8px]"></i>
+                        ยังไม่เลือกห้องเรียน</div>
                 </div>
-                <button id="btnRecordScholarship" onclick="openRecordScholarshipModal()" class="btn-record admin-only" style="display:none !important;">
+                <button id="btnRecordScholarship" onclick="openRecordScholarshipModal()" class="btn-record admin-only"
+                    style="display:none !important;">
                     <i class="fas fa-save"></i> บันทึกทุน
                 </button>
             </div>
@@ -816,17 +798,20 @@
         <div id="tab-recipients" class="tab-content active">
             <div class="glass-card rounded-2xl p-6">
                 <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
-                    <h3 class="font-extrabold text-emerald-800 text-lg"><i class="fas fa-award mr-2 text-emerald-500"></i>รายชื่อนักเรียนที่เคยได้รับทุน</h3>
+                    <h3 class="font-extrabold text-emerald-800 text-lg"><i
+                            class="fas fa-award mr-2 text-emerald-500"></i>รายชื่อนักเรียนที่เคยได้รับทุน</h3>
                     <p class="text-sm text-slate-500">แสดงประวัติทุนทั้งหมดที่เคยบันทึกในระบบ</p>
                 </div>
 
                 <!-- Filter bar -->
                 <div class="filter-bar" id="recipients-filter-bar">
                     <span class="filter-label"><i class="fas fa-filter text-indigo-500"></i> ตัวกรอง:</span>
-                    <select id="filter-academic-year" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
+                    <select id="filter-academic-year"
+                        class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
                         <option value="">ปีการศึกษา (ทั้งหมด)</option>
                     </select>
-                    <select id="filter-semester" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
+                    <select id="filter-semester"
+                        class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 bg-white">
                         <option value="">ภาคเรียน (ทั้งหมด)</option>
                     </select>
                     <button onclick="applyRecipientFilters()" class="filter-btn filter-btn-primary">
@@ -872,8 +857,11 @@
         <div id="tab-list" class="tab-content">
             <div class="glass-card rounded-2xl p-6">
                 <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
-                    <h3 class="font-extrabold text-amber-800 text-lg"><i class="fas fa-database mr-2 text-amber-600"></i>รายการนักเรียน</h3>
-                    <button onclick="exportToExcel()" class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-sm font-bold border border-emerald-200 hover:bg-emerald-100 transition flex items-center gap-2"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                    <h3 class="font-extrabold text-amber-800 text-lg"><i
+                            class="fas fa-database mr-2 text-amber-600"></i>รายการนักเรียน</h3>
+                    <button onclick="exportToExcel()"
+                        class="bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-sm font-bold border border-emerald-200 hover:bg-emerald-100 transition flex items-center gap-2"><i
+                            class="fas fa-file-excel"></i> ส่งออก Excel</button>
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full text-sm">
@@ -895,10 +883,15 @@
 
         <!-- ===== TAB 3: ฟอร์มขอรับทุน ===== -->
         <div id="tab-form" class="tab-content">
-            <form id="scholarshipForm" onsubmit="event.preventDefault();" class="border-0 rounded-3xl shadow-xl overflow-hidden bg-white">
-                <div class="bg-gradient-to-r from-amber-50 to-white border-b border-amber-100 p-5 flex justify-between relative">
-                    <div class="absolute top-1/2 left-0 w-full h-1.5 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
-                    <div id="progressBar" class="absolute top-1/2 left-0 h-1.5 bg-gradient-to-r from-amber-500 to-amber-400 -z-10 -translate-y-1/2 rounded-full transition-all duration-500" style="width:0%"></div>
+            <form id="scholarshipForm" onsubmit="event.preventDefault();"
+                class="border-0 rounded-3xl shadow-xl overflow-hidden bg-white">
+                <div
+                    class="bg-gradient-to-r from-amber-50 to-white border-b border-amber-100 p-5 flex justify-between relative">
+                    <div class="absolute top-1/2 left-0 w-full h-1.5 bg-slate-100 -z-10 -translate-y-1/2 rounded-full">
+                    </div>
+                    <div id="progressBar"
+                        class="absolute top-1/2 left-0 h-1.5 bg-gradient-to-r from-amber-500 to-amber-400 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
+                        style="width:0%"></div>
                     <div class="flex flex-col items-center cursor-pointer z-10" onclick="goToStep(1)">
                         <div id="circle-1" class="step-circle active">1</div>
                         <span id="text-step-1" class="step-label active">ข้อมูลนักเรียน/ครอบครัว</span>
@@ -919,106 +912,203 @@
 
                 <!-- STEP 1 -->
                 <div class="step-content active p-6 md:p-10" id="step-1">
-                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i class="fas fa-user-graduate text-amber-600 text-2xl"></i>
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i
+                            class="fas fa-user-graduate text-amber-600 text-2xl"></i>
                         <h3 class="text-xl font-extrabold text-amber-950">ข้อมูลนักเรียนและครอบครัว</h3>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-                        <div><label class="field-label">เลือกนักเรียน</label><select id="student_select" required class="w-full border border-slate-200 rounded-2xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></select></div>
-                        <div><label class="field-label">ครูที่ปรึกษา</label><input type="text" id="teacher_name" readonly class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-600"></div>
-                        <div><label class="field-label">เลขประจำตัว</label><input type="text" id="student_id_card" readonly class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5"></div>
-                        <div><label class="field-label">ชื่อ-สกุล</label><input type="text" id="student_fullname" readonly class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 font-semibold"></div>
-                        <div><label class="field-label">ชั้น</label><input type="text" id="student_grade" readonly class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5"></div>
+                        <div><label class="field-label">เลือกนักเรียน</label><select id="student_select" required
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2.5 bg-white focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></select>
+                        </div>
+                        <div><label class="field-label">ครูที่ปรึกษา</label><input type="text" id="teacher_name"
+                                readonly
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 text-slate-600">
+                        </div>
+                        <div><label class="field-label">เลขประจำตัว</label><input type="text" id="student_id_card"
+                                readonly class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5">
+                        </div>
+                        <div><label class="field-label">ชื่อ-สกุล</label><input type="text" id="student_fullname"
+                                readonly
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 font-semibold">
+                        </div>
+                        <div><label class="field-label">ชั้น</label><input type="text" id="student_grade" readonly
+                                class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5"></div>
                     </div>
                     <div class="border-2 border-amber-100/60 rounded-2xl p-5 mb-6 bg-amber-50/30">
-                        <div class="flex justify-end mb-3 gap-2 flex-wrap"><button type="button" onclick="copyParentData('father')" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-xl transition">📋 คัดลอกจากบิดาเป็นผู้ปกครอง</button><button type="button" onclick="copyParentData('mother')" class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-xl transition">📋 คัดลอกจากมารดาเป็นผู้ปกครอง</button></div>
+                        <div class="flex justify-end mb-3 gap-2 flex-wrap"><button type="button"
+                                onclick="copyParentData('father')"
+                                class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-xl transition">📋
+                                คัดลอกจากบิดาเป็นผู้ปกครอง</button><button type="button"
+                                onclick="copyParentData('mother')"
+                                class="text-xs bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-1.5 rounded-xl transition">📋
+                                คัดลอกจากมารดาเป็นผู้ปกครอง</button></div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div><label class="field-label">ชื่อ-สกุลบิดา</label><input type="text" id="father_name" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">อาชีพบิดา</label><input type="text" id="father_job" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">รายได้บิดา (บาท/เดือน)</label><input type="number" id="father_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">เบอร์โทรบิดา</label><input type="text" id="father_phone" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">ชื่อ-สกุลมารดา</label><input type="text" id="mother_name" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">อาชีพมารดา</label><input type="text" id="mother_job" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">รายได้มารดา (บาท/เดือน)</label><input type="number" id="mother_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">เบอร์โทรมารดา</label><input type="text" id="mother_phone" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">ชื่อ-สกุลผู้ปกครอง</label><input type="text" id="guardian_name" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">อาชีพผู้ปกครอง</label><input type="text" id="guardian_job" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">รายได้ผู้ปกครอง</label><input type="number" id="guardian_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                            <div><label class="field-label">เบอร์โทรผู้ปกครอง</label><input type="text" id="guardian_phone" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">ชื่อ-สกุลบิดา</label><input type="text" id="father_name"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">อาชีพบิดา</label><input type="text" id="father_job"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">รายได้บิดา (บาท/เดือน)</label><input type="number"
+                                    id="father_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                            </div>
+                            <div><label class="field-label">เบอร์โทรบิดา</label><input type="text" id="father_phone"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">ชื่อ-สกุลมารดา</label><input type="text" id="mother_name"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">อาชีพมารดา</label><input type="text" id="mother_job"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">รายได้มารดา (บาท/เดือน)</label><input type="number"
+                                    id="mother_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                            </div>
+                            <div><label class="field-label">เบอร์โทรมารดา</label><input type="text" id="mother_phone"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">ชื่อ-สกุลผู้ปกครอง</label><input type="text"
+                                    id="guardian_name" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                            </div>
+                            <div><label class="field-label">อาชีพผู้ปกครอง</label><input type="text" id="guardian_job"
+                                    class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">รายได้ผู้ปกครอง</label><input type="number"
+                                    id="guardian_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                            </div>
+                            <div><label class="field-label">เบอร์โทรผู้ปกครอง</label><input type="text"
+                                    id="guardian_phone" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                            </div>
                         </div>
-                        <div class="mt-4"><label class="field-label">สถานที่ทำงานของผู้ปกครอง</label><input type="text" id="guardian_workplace" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div class="mt-4"><label class="field-label">สถานภาพบิดามารดา</label><select id="parents_status" class="w-full border border-slate-200 rounded-2xl px-4 py-2 bg-white"><option>อยู่ด้วยกัน</option><option>หย่าร้าง</option><option>แยกกันอยู่</option><option>บิดาถึงแก่กรรม</option><option>มารดาถึงแก่กรรม</option><option>บิดาและมารดาถึงแก่กรรม</option></select></div>
+                        <div class="mt-4"><label class="field-label">สถานที่ทำงานของผู้ปกครอง</label><input type="text"
+                                id="guardian_workplace" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                        </div>
+                        <div class="mt-4"><label class="field-label">สถานภาพบิดามารดา</label><select id="parents_status"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2 bg-white">
+                                <option>อยู่ด้วยกัน</option>
+                                <option>หย่าร้าง</option>
+                                <option>แยกกันอยู่</option>
+                                <option>บิดาถึงแก่กรรม</option>
+                                <option>มารดาถึงแก่กรรม</option>
+                                <option>บิดาและมารดาถึงแก่กรรม</option>
+                            </select></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                        <div><label class="field-label">จำนวนพี่น้องทั้งหมด</label><input type="number" id="siblings_total" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">กำลังศึกษากี่คน</label><input type="number" id="siblings_study" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ทำงานแล้วกี่คน</label><input type="number" id="siblings_work" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ยังไม่ทำงานกี่คน</label><input type="number" id="siblings_notwork" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">จำนวนพี่น้องทั้งหมด</label><input type="number"
+                                id="siblings_total" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">กำลังศึกษากี่คน</label><input type="number" id="siblings_study"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ทำงานแล้วกี่คน</label><input type="number" id="siblings_work"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ยังไม่ทำงานกี่คน</label><input type="number"
+                                id="siblings_notwork" class="w-full border border-slate-200 rounded-2xl px-4 py-2">
+                        </div>
                     </div>
                     <div><label class="field-label mb-2">ภาระพึ่งพิงในครอบครัว</label>
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="dependents_checklist"></div>
                     </div>
-                    <div class="flex justify-end mt-8"><button type="button" onclick="nextStep(2)" class="btn-primary-gradient">ขั้นตอนถัดไป <i class="fas fa-arrow-right"></i></button></div>
+                    <div class="flex justify-end mt-8"><button type="button" onclick="nextStep(2)"
+                            class="btn-primary-gradient">ขั้นตอนถัดไป <i class="fas fa-arrow-right"></i></button></div>
                 </div>
 
                 <!-- STEP 2 -->
                 <div class="step-content p-6 md:p-10" id="step-2">
-                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i class="fas fa-map-marker-alt text-amber-600 text-2xl"></i>
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i
+                            class="fas fa-map-marker-alt text-amber-600 text-2xl"></i>
                         <h3 class="text-xl font-extrabold text-amber-950">ที่อยู่อาศัยและภาพประกอบ</h3>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div><label class="field-label">บ้านเลขที่</label><input type="text" id="addr_house" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">หมู่ที่</label><input type="text" id="addr_moo" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ตำบล</label><input type="text" id="addr_subdistrict" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">อำเภอ</label><input type="text" id="addr_district" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">จังหวัด</label><input type="text" id="addr_province" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">รหัสไปรษณีย์</label><input type="text" id="addr_zipcode" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">บ้านเลขที่</label><input type="text" id="addr_house"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">หมู่ที่</label><input type="text" id="addr_moo"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ตำบล</label><input type="text" id="addr_subdistrict"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">อำเภอ</label><input type="text" id="addr_district"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">จังหวัด</label><input type="text" id="addr_province"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">รหัสไปรษณีย์</label><input type="text" id="addr_zipcode"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
                     </div>
                     <div class="mb-6"><label class="field-label">พิกัด (ลิงก์ Google Maps)</label>
-                        <div class="flex gap-2"><input type="text" id="map_link" readonly placeholder="ดึงข้อมูลจากระบบเยี่ยมบ้าน" class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"><button type="button" onclick="openMapFromLink()" class="bg-blue-500 hover:bg-blue-600 text-white px-4 rounded-2xl transition"><i class="fas fa-external-link-alt"></i> เปิดแผนที่</button></div>
+                        <div class="flex gap-2"><input type="text" id="map_link" readonly
+                                placeholder="ดึงข้อมูลจากระบบเยี่ยมบ้าน"
+                                class="flex-1 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"><button
+                                type="button" onclick="openMapFromLink()"
+                                class="bg-blue-500 hover:bg-blue-600 text-white px-4 rounded-2xl transition"><i
+                                    class="fas fa-external-link-alt"></i> เปิดแผนที่</button></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                        <div><img id="preview_outside" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200"><p class="text-xs text-center mt-1 text-slate-500">ภาพภายนอกบ้าน</p></div>
-                        <div><img id="preview_inside" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200"><p class="text-xs text-center mt-1 text-slate-500">ภาพภายในบ้าน</p></div>
-                        <div><img id="preview_teacher" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200"><p class="text-xs text-center mt-1 text-slate-500">ภาพครูเยี่ยมบ้าน</p></div>
+                        <div><img id="preview_outside"
+                                class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพภายนอกบ้าน</p>
+                        </div>
+                        <div><img id="preview_inside"
+                                class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพภายในบ้าน</p>
+                        </div>
+                        <div><img id="preview_teacher"
+                                class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพครูเยี่ยมบ้าน</p>
+                        </div>
                     </div>
-                    <div class="flex justify-between"><button type="button" onclick="prevStep(1)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button type="button" onclick="nextStep(3)" class="btn-primary-gradient">ขั้นตอนถัดไป</button></div>
+                    <div class="flex justify-between"><button type="button" onclick="prevStep(1)"
+                            class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button
+                            type="button" onclick="nextStep(3)" class="btn-primary-gradient">ขั้นตอนถัดไป</button></div>
                 </div>
 
                 <!-- STEP 3 -->
                 <div class="step-content p-6 md:p-10" id="step-3">
-                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i class="fas fa-coins text-amber-600 text-2xl"></i>
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i
+                            class="fas fa-coins text-amber-600 text-2xl"></i>
                         <h3 class="text-xl font-extrabold text-amber-950">ข้อมูลเศรษฐกิจและสุขภาพ</h3>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-                        <div><label class="field-label">รายได้ครอบครัวต่อเดือน (บาท)</label><input type="number" id="family_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ค่าเดินทางของนักเรียน (บาท/วัน)</label><input type="number" id="travel_expense" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ค่าอาหาร (บาท/วัน)</label><input type="number" id="food_expense" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
-                        <div><label class="field-label">ค่าใช้จ่ายอื่น (บาท/วัน)</label><input type="number" id="other_expense" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">รายได้ครอบครัวต่อเดือน (บาท)</label><input type="number"
+                                id="family_income" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าเดินทางของนักเรียน (บาท/วัน)</label><input type="number"
+                                id="travel_expense" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าอาหาร (บาท/วัน)</label><input type="number" id="food_expense"
+                                class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าใช้จ่ายอื่น (บาท/วัน)</label><input type="number"
+                                id="other_expense" class="w-full border border-slate-200 rounded-2xl px-4 py-2"></div>
                     </div>
                     <div class="mb-6 border-2 border-slate-200/60 p-5 rounded-2xl bg-slate-50/30">
                         <label class="field-label mb-3">โรคประจำตัว</label>
-                        <div class="flex gap-6"><label class="flex items-center gap-2"><input type="radio" name="has_disease" value="no" checked> ไม่มี</label><label class="flex items-center gap-2"><input type="radio" name="has_disease" value="yes"> มี</label></div>
+                        <div class="flex gap-6"><label class="flex items-center gap-2"><input type="radio"
+                                    name="has_disease" value="no" checked> ไม่มี</label><label
+                                class="flex items-center gap-2"><input type="radio" name="has_disease" value="yes">
+                                มี</label></div>
                         <div id="disease_fields" class="hidden mt-4 grid grid-cols-1 gap-3">
-                            <input type="text" placeholder="ชื่อโรคประจำตัว" id="disease_name" class="border border-slate-200 rounded-2xl px-4 py-2">
-                            <input type="text" placeholder="ยาประจำตัว" id="disease_medicine" class="border border-slate-200 rounded-2xl px-4 py-2">
-                            <input type="text" placeholder="โรงพยาบาลที่รักษา" id="disease_hospital" class="border border-slate-200 rounded-2xl px-4 py-2">
+                            <input type="text" placeholder="ชื่อโรคประจำตัว" id="disease_name"
+                                class="border border-slate-200 rounded-2xl px-4 py-2">
+                            <input type="text" placeholder="ยาประจำตัว" id="disease_medicine"
+                                class="border border-slate-200 rounded-2xl px-4 py-2">
+                            <input type="text" placeholder="โรงพยาบาลที่รักษา" id="disease_hospital"
+                                class="border border-slate-200 rounded-2xl px-4 py-2">
                         </div>
                     </div>
-                    <div class="flex justify-between"><button type="button" onclick="prevStep(2)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button type="button" onclick="nextStep(4)" class="btn-primary-gradient">ขั้นตอนถัดไป</button></div>
+                    <div class="flex justify-between"><button type="button" onclick="prevStep(2)"
+                            class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button
+                            type="button" onclick="nextStep(4)" class="btn-primary-gradient">ขั้นตอนถัดไป</button></div>
                 </div>
 
                 <!-- STEP 4 -->
                 <div class="step-content p-6 md:p-10" id="step-4">
-                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i class="fas fa-file-alt text-amber-600 text-2xl"></i>
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4"><i
+                            class="fas fa-file-alt text-amber-600 text-2xl"></i>
                         <h3 class="text-xl font-extrabold text-amber-950">เหตุผลขอรับทุน</h3>
                     </div>
-                    <div class="mb-6"><label class="field-label">เหตุผลในการขอรับทุนในครั้งนี้</label><textarea id="reason" rows="5" maxlength="1000" class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
-                        <div class="text-right text-xs text-slate-400 mt-1"><span id="reason_counter">0</span>/1000</div>
+                    <div class="mb-6"><label class="field-label">เหตุผลในการขอรับทุนในครั้งนี้</label><textarea
+                            id="reason" rows="5" maxlength="1000"
+                            class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
+                        <div class="text-right text-xs text-slate-400 mt-1"><span id="reason_counter">0</span>/1000
+                        </div>
                     </div>
-                    <div class="mb-6"><label class="field-label">เมื่อได้รับทุนจะนำเงินไปใช้ประโยชน์อย่างไร</label><textarea id="usage_plan" rows="4" maxlength="500" class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
+                    <div class="mb-6"><label
+                            class="field-label">เมื่อได้รับทุนจะนำเงินไปใช้ประโยชน์อย่างไร</label><textarea
+                            id="usage_plan" rows="4" maxlength="500"
+                            class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
                         <div class="text-right text-xs text-slate-400 mt-1"><span id="usage_counter">0</span>/500</div>
                     </div>
-                    <div class="flex justify-between"><button type="button" onclick="prevStep(3)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button type="button" onclick="submitApplication()" class="btn-success-gradient"><i class="fas fa-paper-plane mr-2"></i>ส่งคำขอรับทุน</button></div>
+                    <div class="flex justify-between"><button type="button" onclick="prevStep(3)"
+                            class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button><button
+                            type="button" onclick="submitApplication()" class="btn-success-gradient"><i
+                                class="fas fa-paper-plane mr-2"></i>ส่งคำขอรับทุน</button></div>
                 </div>
             </form>
         </div>
@@ -1027,41 +1117,67 @@
     <!-- ===== MODALS ===== -->
 
     <!-- Detail Modal -->
-    <div id="detailModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div id="detailModal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto shadow-2xl">
             <div class="flex justify-between border-b pb-3">
-                <h3 class="font-extrabold text-xl text-indigo-800"><i class="fas fa-eye mr-2"></i>รายละเอียดทุนการศึกษา</h3><button onclick="closeDetailModal()" class="text-3xl text-slate-400 hover:text-slate-600 transition">&times;</button>
+                <h3 class="font-extrabold text-xl text-indigo-800"><i class="fas fa-eye mr-2"></i>รายละเอียดทุนการศึกษา
+                </h3><button onclick="closeDetailModal()"
+                    class="text-3xl text-slate-400 hover:text-slate-600 transition">&times;</button>
             </div>
             <div id="modalContent" class="mt-4"></div>
-            <div class="flex justify-end gap-2 mt-4"><button onclick="closeDetailModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ปิด</button></div>
+            <div class="flex justify-end gap-2 mt-4"><button onclick="closeDetailModal()"
+                    class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ปิด</button>
+            </div>
         </div>
     </div>
 
     <!-- Admin Settings Modal -->
-    <div id="admin-modal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div id="admin-modal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
         <div class="bg-white rounded-3xl p-8 w-full max-w-4xl max-h-[90vh] overflow-auto shadow-2xl">
-            <h2 class="font-extrabold text-2xl mb-4 text-slate-800"><i class="fas fa-cog mr-2 text-indigo-600"></i>ตั้งค่าระบบทุน</h2>
+            <h2 class="font-extrabold text-2xl mb-4 text-slate-800"><i
+                    class="fas fa-cog mr-2 text-indigo-600"></i>ตั้งค่าระบบทุน</h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div><label class="field-label">GAS API URL</label><input type="url" id="set-gas-url" class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></div>
-                <div><label class="field-label">Drive Folder ID (PDF)</label><input type="text" id="set-drive-folder-id" class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></div>
-                <div><label class="field-label">PDF API URL</label><input type="url" id="set-pdf-api-url" class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></div>
-                <div><label class="field-label">Slide Template ID</label><input type="text" id="set-slide-id" class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></div>
+                <div><label class="field-label">GAS API URL</label><input type="url" id="set-gas-url"
+                        class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition">
+                </div>
+                <div><label class="field-label">Drive Folder ID (PDF)</label><input type="text" id="set-drive-folder-id"
+                        class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition">
+                </div>
+                <div><label class="field-label">PDF API URL</label><input type="url" id="set-pdf-api-url"
+                        class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition">
+                </div>
+                <div><label class="field-label">Slide Template ID</label><input type="text" id="set-slide-id"
+                        class="w-full border border-slate-200 rounded-2xl p-3 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition">
+                </div>
             </div>
             <div class="mt-6">
                 <h3 class="font-bold text-lg text-slate-700">แต่งตั้งผู้ดูแลระบบทุน</h3>
-                <div class="flex gap-2 mt-2 flex-wrap"><select id="select-teacher-appoint" class="flex-1 border border-slate-200 rounded-2xl p-3 min-w-[200px] focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></select><button onclick="appointModuleAdmin()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-2xl font-bold transition shadow-md shadow-purple-200">แต่งตั้ง</button></div>
+                <div class="flex gap-2 mt-2 flex-wrap"><select id="select-teacher-appoint"
+                        class="flex-1 border border-slate-200 rounded-2xl p-3 min-w-[200px] focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"></select><button
+                        onclick="appointModuleAdmin()"
+                        class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-2xl font-bold transition shadow-md shadow-purple-200">แต่งตั้ง</button>
+                </div>
                 <div id="module-admin-list" class="mt-4 max-h-40 overflow-auto"></div>
             </div>
-            <div class="flex justify-end gap-3 mt-6 pt-4 border-t"><button onclick="closeAdminModal()" class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ยกเลิก</button><button onclick="saveAdminSettings()" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition shadow-md shadow-indigo-200">บันทึก</button></div>
+            <div class="flex justify-end gap-3 mt-6 pt-4 border-t"><button onclick="closeAdminModal()"
+                    class="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ยกเลิก</button><button
+                    onclick="saveAdminSettings()"
+                    class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold transition shadow-md shadow-indigo-200">บันทึก</button>
+            </div>
         </div>
     </div>
 
     <!-- Record Scholarship Modal -->
-    <div id="recordScholarshipModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 admin-scholar-modal">
+    <div id="recordScholarshipModal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 admin-scholar-modal">
         <div class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-5xl max-h-[95vh] overflow-auto shadow-2xl">
             <div class="flex justify-between items-center border-b pb-4 mb-6">
-                <h3 class="font-extrabold text-2xl text-indigo-800"><i class="fas fa-save mr-3"></i>บันทึกประวัติทุน</h3>
-                <button onclick="closeRecordScholarshipModal()" class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
+                <h3 class="font-extrabold text-2xl text-indigo-800"><i class="fas fa-save mr-3"></i>บันทึกประวัติทุน
+                </h3>
+                <button onclick="closeRecordScholarshipModal()"
+                    class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="recordScholarshipForm" onsubmit="event.preventDefault(); saveScholarshipRecord();">
@@ -1071,24 +1187,35 @@
                     </div>
 
                     <div class="form-row-3">
-                        <div class="form-group"><label>เลขประจำตัว</label><input type="text" id="record_student_id" readonly></div>
-                        <div class="form-group"><label>ชื่อ-สกุล</label><input type="text" id="record_student_name" readonly></div>
-                        <div class="form-group"><label>ชั้น</label><input type="text" id="record_student_grade" readonly></div>
+                        <div class="form-group"><label>เลขประจำตัว</label><input type="text" id="record_student_id"
+                                readonly></div>
+                        <div class="form-group"><label>ชื่อ-สกุล</label><input type="text" id="record_student_name"
+                                readonly></div>
+                        <div class="form-group"><label>ชั้น</label><input type="text" id="record_student_grade"
+                                readonly></div>
                     </div>
 
                     <div class="form-row">
-                        <div class="form-group"><label>ครูที่ปรึกษาคนที่ 1</label><input type="text" id="record_advisor_1" readonly placeholder="ครู..."></div>
-                        <div class="form-group"><label>ครูที่ปรึกษาคนที่ 2</label><input type="text" id="record_advisor_2" readonly placeholder="ครู..."></div>
+                        <div class="form-group"><label>ครูที่ปรึกษาคนที่ 1</label><input type="text"
+                                id="record_advisor_1" readonly placeholder="ครู..."></div>
+                        <div class="form-group"><label>ครูที่ปรึกษาคนที่ 2</label><input type="text"
+                                id="record_advisor_2" readonly placeholder="ครู..."></div>
                     </div>
 
                     <hr class="my-5 border-slate-200">
 
                     <div class="form-row">
-                        <div class="form-group"><label>ชื่อทุน <span class="text-rose-500">*</span></label><input type="text" id="record_scholarship_name" required placeholder="เช่น ทุนการศึกษาดีเด่น"></div>
-                        <div class="form-group"><label>จำนวนเงิน (บาท) <span class="text-rose-500">*</span></label><input type="number" id="record_amount" required placeholder="0"></div>
+                        <div class="form-group"><label>ชื่อทุน <span class="text-rose-500">*</span></label><input
+                                type="text" id="record_scholarship_name" required placeholder="เช่น ทุนการศึกษาดีเด่น">
+                        </div>
+                        <div class="form-group"><label>จำนวนเงิน (บาท) <span
+                                    class="text-rose-500">*</span></label><input type="number" id="record_amount"
+                                required placeholder="0"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>ปีการศึกษาที่ได้รับทุน <span class="text-rose-500">*</span></label><input type="text" id="record_academic_year" required placeholder="เช่น 2566"></div>
+                        <div class="form-group"><label>ปีการศึกษาที่ได้รับทุน <span
+                                    class="text-rose-500">*</span></label><input type="text" id="record_academic_year"
+                                required placeholder="เช่น 2566"></div>
                         <div class="form-group"><label>ภาคเรียนที่ <span class="text-rose-500">*</span></label>
                             <select id="record_semester" required>
                                 <option value="">-- เลือก --</option>
@@ -1099,11 +1226,16 @@
                     </div>
                     <div class="form-group mt-4">
                         <label>หมายเหตุ</label>
-                        <textarea id="record_note" rows="3" class="w-full border border-slate-200 rounded-2xl px-4 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition" placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
+                        <textarea id="record_note" rows="3"
+                            class="w-full border border-slate-200 rounded-2xl px-4 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"
+                            placeholder="หมายเหตุเพิ่มเติม (ถ้ามี)"></textarea>
                     </div>
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
-                        <button type="button" onclick="closeRecordScholarshipModal()" class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ยกเลิก</button>
-                        <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-md shadow-indigo-200 transition flex items-center gap-2"><i class="fas fa-check"></i> บันทึกทุน</button>
+                        <button type="button" onclick="closeRecordScholarshipModal()"
+                            class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-md shadow-indigo-200 transition flex items-center gap-2"><i
+                                class="fas fa-check"></i> บันทึกทุน</button>
                     </div>
                 </form>
             </div>
@@ -1111,21 +1243,28 @@
     </div>
 
     <!-- ===== EDIT SCHOLARSHIP MODAL ===== -->
-    <div id="editScholarshipModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 admin-scholar-modal">
+    <div id="editScholarshipModal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 admin-scholar-modal">
         <div class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-5xl max-h-[95vh] overflow-auto shadow-2xl">
             <div class="flex justify-between items-center border-b pb-4 mb-6">
                 <h3 class="font-extrabold text-2xl text-indigo-800"><i class="fas fa-edit mr-3"></i>แก้ไขประวัติทุน</h3>
-                <button onclick="closeEditScholarshipModal()" class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
+                <button onclick="closeEditScholarshipModal()"
+                    class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="editScholarshipForm" onsubmit="event.preventDefault(); updateScholarshipRecord();">
                     <input type="hidden" id="edit_record_id">
                     <div class="form-row">
-                        <div class="form-group"><label>ชื่อทุน <span class="text-rose-500">*</span></label><input type="text" id="edit_scholarship_name" required placeholder="เช่น ทุนการศึกษาดีเด่น"></div>
-                        <div class="form-group"><label>จำนวนเงิน (บาท) <span class="text-rose-500">*</span></label><input type="number" id="edit_amount" required placeholder="0"></div>
+                        <div class="form-group"><label>ชื่อทุน <span class="text-rose-500">*</span></label><input
+                                type="text" id="edit_scholarship_name" required placeholder="เช่น ทุนการศึกษาดีเด่น">
+                        </div>
+                        <div class="form-group"><label>จำนวนเงิน (บาท) <span
+                                    class="text-rose-500">*</span></label><input type="number" id="edit_amount" required
+                                placeholder="0"></div>
                     </div>
                     <div class="form-row">
-                        <div class="form-group"><label>ปีการศึกษา <span class="text-rose-500">*</span></label><input type="text" id="edit_academic_year" required placeholder="เช่น 2566"></div>
+                        <div class="form-group"><label>ปีการศึกษา <span class="text-rose-500">*</span></label><input
+                                type="text" id="edit_academic_year" required placeholder="เช่น 2566"></div>
                         <div class="form-group"><label>ภาคเรียน <span class="text-rose-500">*</span></label>
                             <select id="edit_semester" required>
                                 <option value="">-- เลือก --</option>
@@ -1136,11 +1275,16 @@
                     </div>
                     <div class="form-group mt-4">
                         <label>หมายเหตุ</label>
-                        <textarea id="edit_note" rows="3" class="w-full border border-slate-200 rounded-2xl px-4 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition" placeholder="หมายเหตุเพิ่มเติม"></textarea>
+                        <textarea id="edit_note" rows="3"
+                            class="w-full border border-slate-200 rounded-2xl px-4 py-2 focus:ring-2 focus:ring-indigo-200 focus:border-indigo-400 transition"
+                            placeholder="หมายเหตุเพิ่มเติม"></textarea>
                     </div>
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t">
-                        <button type="button" onclick="closeEditScholarshipModal()" class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ยกเลิก</button>
-                        <button type="submit" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-md shadow-indigo-200 transition flex items-center gap-2"><i class="fas fa-save"></i> อัปเดต</button>
+                        <button type="button" onclick="closeEditScholarshipModal()"
+                            class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-bold shadow-md shadow-indigo-200 transition flex items-center gap-2"><i
+                                class="fas fa-save"></i> อัปเดต</button>
                     </div>
                 </form>
             </div>
@@ -1148,14 +1292,18 @@
     </div>
 
     <!-- Applicant List Modal -->
-    <div id="applicantListModal" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 list-modal">
-        <div class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col">
+    <div id="applicantListModal"
+        class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] hidden items-center justify-center p-4 list-modal">
+        <div
+            class="bg-white rounded-3xl p-6 md:p-8 w-full max-w-6xl max-h-[95vh] overflow-hidden shadow-2xl flex flex-col">
             <div class="flex justify-between items-center border-b pb-4 mb-4 flex-shrink-0">
                 <div>
-                    <h3 class="font-extrabold text-2xl text-blue-800"><i class="fas fa-file-signature mr-3 text-blue-500"></i>รายชื่อนักเรียนที่ขอรับทุน</h3>
+                    <h3 class="font-extrabold text-2xl text-blue-800"><i
+                            class="fas fa-file-signature mr-3 text-blue-500"></i>รายชื่อนักเรียนที่ขอรับทุน</h3>
                     <p class="text-sm text-slate-500 mt-1">แสดงคำขอทุนทั้งหมดที่นักเรียนได้กรอกในระบบ</p>
                 </div>
-                <button onclick="closeApplicantListModal()" class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
+                <button onclick="closeApplicantListModal()"
+                    class="text-3xl text-slate-400 hover:text-slate-600 transition w-10 h-10 flex items-center justify-center rounded-xl hover:bg-slate-100">&times;</button>
             </div>
             <div class="flex-1 overflow-auto modal-body">
                 <div id="applicantListContent" class="text-center py-10 text-slate-400">
@@ -1164,8 +1312,11 @@
                 </div>
             </div>
             <div class="flex justify-end gap-3 mt-4 pt-4 border-t flex-shrink-0">
-                <button onclick="closeApplicantListModal()" class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ปิด</button>
-                <button onclick="exportApplicantListExcel()" class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-md shadow-blue-200 transition flex items-center gap-2"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                <button onclick="closeApplicantListModal()"
+                    class="px-6 py-2.5 bg-slate-200 hover:bg-slate-300 rounded-2xl font-bold transition">ปิด</button>
+                <button onclick="exportApplicantListExcel()"
+                    class="px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-md shadow-blue-200 transition flex items-center gap-2"><i
+                        class="fas fa-file-excel"></i> ส่งออก Excel</button>
             </div>
         </div>
     </div>
@@ -1174,4 +1325,5 @@
     <script src="scholarship_teacher.js"></script>
 
 </body>
+
 </html>

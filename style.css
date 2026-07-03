@@ -373,7 +373,22 @@ select.field-input {
     margin-top: 0.25rem;
     box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
     color: var(--color-text-main);
-    z-index: 99999 !important;
+    /* ✅ แก้ไข: ลด z-index ไม่ให้บังเนื้อหา */
+    z-index: 100 !important;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+/* ✅ เพิ่ม: ควบคุม z-index ของ wrapper */
+.ts-wrapper {
+    position: relative !important;
+    z-index: 10 !important;
+}
+
+/* ✅ เพิ่ม: ควบคุม control */
+.ts-wrapper .ts-control {
+    z-index: 11 !important;
+    position: relative !important;
 }
 
 /* แต่ละตัวเลือก */
@@ -415,6 +430,33 @@ select.field-input {
 
 .ts-wrapper .ts-control .clear-button:hover {
     color: #ef4444;
+}
+
+/* ✅ เพิ่ม: กรณี TomSelect อยู่ใน Modal ให้ z-index สูงกว่า Modal */
+#recordScholarshipModal .ts-wrapper .ts-dropdown,
+#applicantListModal .ts-wrapper .ts-dropdown,
+#recipientListModal .ts-wrapper .ts-dropdown,
+#admin-modal .ts-wrapper .ts-dropdown {
+    z-index: 99999 !important;
+}
+
+/* ✅ เพิ่ม: กรณี Modal ใช้ TomSelect ให้ wrapper อยู่ในระดับที่เหมาะสม */
+#recordScholarshipModal .ts-wrapper,
+#applicantListModal .ts-wrapper,
+#recipientListModal .ts-wrapper,
+#admin-modal .ts-wrapper {
+    z-index: 50 !important;
+}
+
+/* แก้ปัญหา Dropdown ของ Tom Select โดนการ์ดหรือส่วนประกอบอื่นบังบนหน้าหลัก */
+.ts-wrapper .ts-dropdown {
+    z-index: 9999 !important;
+}
+
+/* หากตัว Wrapper ของ Tom Select ถูกบีบจากคอนเทนเนอร์ ให้ยกตัวมันขึ้นมาด้วย */
+.ts-wrapper {
+    position: relative;
+    z-index: 50;
 }
 
 canvas {

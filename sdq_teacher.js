@@ -1061,24 +1061,33 @@ async function loadPersonnelOptions() {
 
 async function loadCurrentAdmins() {
     try {
-        const { data: moduleAdmins, error: adminError } = await db
+        // ✅ FIX: แยก query เพราะ Supabase หา FK ไม่ได้เมื่อมีหลาย relationship
+        //    ดึง module_admins ก่อน แล้ว join personnel ใน JS เอง
+        const { data: moduleAdminsRaw, error: adminError } = await db
             .from('core_module_admins')
-            .select(`
-                id,
-                user_id,
-                created_at,
-                core_personnel!inner (
-                    id,
-                    prefix,
-                    first_name,
-                    last_name,
-                    position,
-                    department
-                )
-            `)
+            .select('id, user_id, created_at')
             .eq('module_id', 'sdq');
 
         if (adminError) throw adminError;
+
+        // ดึงข้อมูล personnel สำหรับแต่ละ user_id
+        let moduleAdmins = [];
+        if (moduleAdminsRaw && moduleAdminsRaw.length > 0) {
+            const userIds = moduleAdminsRaw.map(a => a.user_id);
+            const { data: personnelList, error: pErr } = await db
+                .from('core_personnel')
+                .select('id, prefix, first_name, last_name, position, department')
+                .in('id', userIds);
+            if (pErr) throw pErr;
+
+            // merge ใน JS
+            const personnelMap = {};
+            (personnelList || []).forEach(p => { personnelMap[p.id] = p; });
+            moduleAdmins = moduleAdminsRaw.map(a => ({
+                ...a,
+                core_personnel: personnelMap[a.user_id] || null
+            })).filter(a => a.core_personnel); // กรองรายการที่ไม่มีข้อมูลออก
+        }
 
         const { data: superAdmins, error: superError } = await db
             .from('core_personnel')
