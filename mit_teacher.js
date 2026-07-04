@@ -31,10 +31,12 @@ window.addEventListener('load', async () => {
     if (!user) { window.location.href = 'index.html'; return; }
 
     const { data: p } = await db.from('core_personnel').select('*').eq('id', user.id).single();
-    if (!p || (p.role !== 'admin' && p.role !== 'super_admin')) {
+    // ✅ แก้: เพิ่ม teacher
+    if (!p || !['admin', 'super_admin', 'teacher'].includes(p.role)) {
         Swal.fire('ไม่มีสิทธิ์', '', 'warning').then(() => window.location.href = 'index.html');
         return;
     }
+
     currentUser = p;
     currentUserId = p.id;
     currentUserRole = p.role;
@@ -61,7 +63,7 @@ window.addEventListener('load', async () => {
     isAdminMode = (p.role === 'admin' || p.role === 'super_admin');
     updateToggleModeUI();
     await loadClassrooms();
-    await loadStats();
+    // await loadStats();
 });
 
 async function loadClassrooms() {
@@ -105,13 +107,20 @@ async function loadClassrooms() {
                 } else {
                     div.classList.add('hidden');
                 }
-                if (value) loadResults();
+                // ✅ โหลดข้อมูลตามห้องที่เลือก หรือทั้งหมดถ้าไม่เลือก
+                if (value) {
+                    loadResults(value);
+                    loadStats(value);
+                } else {
+                    loadResults();
+                    loadStats();
+                }
             }
         });
         document.getElementById('adminFilterSection').classList.remove('hidden');
         document.getElementById('teacherActionBar').classList.add('hidden');
-        // Admin mode: รอให้ user เลือกห้องจาก dropdown ก่อน (ไม่โหลดอัตโนมัติ)
-
+        // ✅ ไม่โหลดอัตโนมัติ รอให้ผู้ใช้เลือกห้อง
+        await loadStats();
     } else {
         // ---- โหมดครูที่ปรึกษา ----
         document.getElementById('adminFilterSection').classList.add('hidden');
@@ -120,78 +129,140 @@ async function loadClassrooms() {
         if (allClassrooms.length > 0) {
             // ✅ ถ้ามีห้องที่ปรึกษา ให้โหลดห้องแรก และอัปเดตสถิติ
             await loadResults(allClassrooms[0].id);
+            await loadStats(allClassrooms[0].id);
         } else {
             // ✅ ถ้าไม่มีห้องที่ปรึกษา ให้แจ้งเตือน และรีเซ็ตสถิติเป็น 0
             Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
-
+            await loadStats();
         }
     }
 }
 
-async function loadStats() {
+// async function loadStats(forceClassroomId = null) {
+//     const academicYear = String(schoolInfo?.current_academic_year);
+//     const semester = String(schoolInfo?.current_semester);
+
+//     // 1. ดึงข้อมูล assessment (กรองตามห้องถ้ามี)
+//     let query = db.from('mi_assessments')
+//         .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
+//         .eq('academic_year', academicYear)
+//         .eq('semester', semester);
+
+//     if (forceClassroomId) {
+//         query = query.eq('classroom_id', forceClassroomId);
+//     }
+
+//     const { data: mis, error: misErr } = await query;
+//     if (misErr) console.error('loadStats error:', misErr);
+
+//     // 2. หานักเรียนที่อยู่ในขอบเขตที่เห็น (ตามโหมด)
+//     let visibleStudentIds = [];
+//     if (!isAdminMode) {
+//         const roomIds = allClassrooms.map(r => r.id);
+//         if (roomIds.length === 0) {
+//             const emptyDimStats = MI_DIMENSIONS.map(d => ({ key: d.key, label: d.label, count: 0, icon: getDimIcon(d.key) }));
+//             renderStatsCards(0, 0, 0, emptyDimStats);
+//             return;
+//         }
+//         const { data: enrolls } = await db.from('student_enrollments')
+//             .select('student_id')
+//             .eq('academic_year', academicYear)
+//             .eq('semester', semester)
+//             .in('classroom_id', roomIds);
+//         visibleStudentIds = (enrolls || []).map(e => e.student_id);
+//     } else {
+//         if (forceClassroomId) {
+//             const { data: enrolls } = await db.from('student_enrollments')
+//                 .select('student_id')
+//                 .eq('academic_year', academicYear)
+//                 .eq('semester', semester)
+//                 .eq('classroom_id', forceClassroomId);
+//             visibleStudentIds = (enrolls || []).map(e => e.student_id);
+//         } else {
+//             const { data: allStd } = await db.from('core_students').select('id');
+//             visibleStudentIds = (allStd || []).map(s => s.id);
+//         }
+//     }
+
+//     const totalStudents = visibleStudentIds.length;
+//     const filteredAssessments = (mis || []).filter(m => visibleStudentIds.includes(m.student_id));
+//     const assessedCount = filteredAssessments.length;
+//     const notAssessedCount = totalStudents - assessedCount;
+
+//     const dimKeys = MI_DIMENSIONS.map(d => d.key);
+//     const topCount = {};
+//     dimKeys.forEach(key => { topCount[key] = 0; });
+//     filteredAssessments.forEach(m => {
+//         let maxScore = -1;
+//         let topKey = null;
+//         dimKeys.forEach(key => {
+//             const s = m[`score_${key}`] || 0;
+//             if (s > maxScore) { maxScore = s; topKey = key; }
+//         });
+//         if (topKey) topCount[topKey]++;
+//     });
+
+//     const dimStats = MI_DIMENSIONS.map(d => ({
+//         key: d.key,
+//         label: d.label,
+//         count: topCount[d.key] || 0,
+//         icon: getDimIcon(d.key)
+//     }));
+
+//     renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
+// }
+async function loadStats(forceClassroomId = null) {
     const academicYear = String(schoolInfo?.current_academic_year);
     const semester = String(schoolInfo?.current_semester);
 
-    console.log('🔍 loadStats called | isAdminMode:', isAdminMode);
-    console.log('🔍 allClassrooms:', allClassrooms);
-
-    // 1. ดึงข้อมูล assessment ทั้งหมด
-    const { data: mis, error: misErr } = await db.from('mi_assessments')
+    // 1. ดึงข้อมูล assessment (กรองตามห้องถ้ามี)
+    let query = db.from('mi_assessments')
         .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
         .eq('academic_year', academicYear)
         .eq('semester', semester);
 
-    if (misErr) console.error('loadStats error:', misErr);
-    console.log('📊 mis count (all):', mis?.length);
-    console.log('📊 mis sample (first 3):', mis?.slice(0,3));
+    if (forceClassroomId) {
+        query = query.eq('classroom_id', forceClassroomId);
+    }
 
-    // 2. หารายชื่อนักเรียนที่อยู่ในห้องที่ครูเห็น
+    const { data: mis, error: misErr } = await query;
+    if (misErr) console.error('loadStats error:', misErr);
+
+    // 2. หานักเรียนที่อยู่ในขอบเขตที่เห็น (ตามโหมด)
     let visibleStudentIds = [];
     if (!isAdminMode) {
         const roomIds = allClassrooms.map(r => r.id);
-        console.log('🏫 Teacher mode | roomIds:', roomIds);
-
         if (roomIds.length === 0) {
-            console.warn('⚠️ No classrooms found for teacher');
-            const emptyDimStats = MI_DIMENSIONS.map(d => ({
-                key: d.key,
-                label: d.label,
-                count: 0,
-                icon: getDimIcon(d.key)
-            }));
+            const emptyDimStats = MI_DIMENSIONS.map(d => ({ key: d.key, label: d.label, count: 0, icon: getDimIcon(d.key) }));
             renderStatsCards(0, 0, 0, emptyDimStats);
             return;
         }
-
-        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+        // ✅ แก้ไข: ไม่กรอง academic_year และ semester ใน student_enrollments (เหมือน loadResults)
+        const { data: enrolls } = await db.from('student_enrollments')
             .select('student_id')
             .in('classroom_id', roomIds);
-        if (enrollErr) console.error('enrollErr:', enrollErr);
         visibleStudentIds = (enrolls || []).map(e => e.student_id);
-        console.log('👨‍🎓 visibleStudentIds from enrolls:', visibleStudentIds);
-        console.log('👨‍🎓 visibleStudentIds count:', visibleStudentIds.length);
     } else {
-        const { data: allStd } = await db.from('core_students').select('id');
-        visibleStudentIds = (allStd || []).map(s => s.id);
-        console.log('👨‍🎓 Admin mode | total students:', visibleStudentIds.length);
+        if (forceClassroomId) {
+            // ✅ แก้ไข: ไม่กรอง academic_year และ semester ใน student_enrollments
+            const { data: enrolls } = await db.from('student_enrollments')
+                .select('student_id')
+                .eq('classroom_id', forceClassroomId);
+            visibleStudentIds = (enrolls || []).map(e => e.student_id);
+        } else {
+            const { data: allStd } = await db.from('core_students').select('id');
+            visibleStudentIds = (allStd || []).map(s => s.id);
+        }
     }
 
     const totalStudents = visibleStudentIds.length;
-
-    // 3. กรองเฉพาะ assessment ที่อยู่ในกลุ่มที่เห็น
     const filteredAssessments = (mis || []).filter(m => visibleStudentIds.includes(m.student_id));
-    console.log('✅ filteredAssessments count:', filteredAssessments.length);
-    console.log('✅ filteredAssessments sample:', filteredAssessments.slice(0,3));
-
     const assessedCount = filteredAssessments.length;
     const notAssessedCount = totalStudents - assessedCount;
-    console.log(`📊 assessedCount: ${assessedCount}, notAssessedCount: ${notAssessedCount}`);
 
-    // 4. นับ topCount
     const dimKeys = MI_DIMENSIONS.map(d => d.key);
     const topCount = {};
     dimKeys.forEach(key => { topCount[key] = 0; });
-
     filteredAssessments.forEach(m => {
         let maxScore = -1;
         let topKey = null;
@@ -199,15 +270,8 @@ async function loadStats() {
             const s = m[`score_${key}`] || 0;
             if (s > maxScore) { maxScore = s; topKey = key; }
         });
-        if (topKey) {
-            topCount[topKey]++;
-            console.log(`   🔝 student ${m.student_id} topKey: ${topKey} (${maxScore})`);
-        } else {
-            console.warn(`   ⚠️ student ${m.student_id} has no score > 0?`, m);
-        }
+        if (topKey) topCount[topKey]++;
     });
-
-    console.log('🏆 topCount:', topCount);
 
     const dimStats = MI_DIMENSIONS.map(d => ({
         key: d.key,
@@ -216,10 +280,7 @@ async function loadStats() {
         icon: getDimIcon(d.key)
     }));
 
-    console.log('📦 dimStats:', dimStats);
-
     renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
-    console.log('✅ renderStatsCards called');
 }
 
 function getDimIcon(key) {
@@ -234,6 +295,154 @@ function getDimIcon(key) {
         naturalist: 'fa-leaf'
     };
     return map[key] || 'fa-brain';
+}
+
+// Chart instances (destroy ก่อน re-render เสมอ)
+let miBarChartInstance = null;
+let miDoughnutChartInstance = null;
+
+function renderMICharts(dimStats) {
+    const DIM_COLORS = [
+        '#6366f1', // linguistic    - indigo
+        '#0ea5e9', // logical       - sky
+        '#8b5cf6', // visual        - violet
+        '#10b981', // bodily        - emerald
+        '#ec4899', // musical       - pink
+        '#f97316', // interpersonal - orange
+        '#14b8a6', // intrapersonal - teal
+        '#22c55e'  // naturalist    - green
+    ];
+
+    const labels = dimStats.map(d => d.label);
+    const counts = dimStats.map(d => d.count);
+    const total = counts.reduce((a, b) => a + b, 0);
+
+    // ─── BAR CHART ───────────────────────────────────────────────
+    const barCanvas = document.getElementById('mi-bar-chart');
+    if (barCanvas) {
+        if (miBarChartInstance) { miBarChartInstance.destroy(); miBarChartInstance = null; }
+        const sortedIdx = [...counts.keys()].sort((a, b) => counts[b] - counts[a]);
+        miBarChartInstance = new Chart(barCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: sortedIdx.map(i => labels[i]),
+                datasets: [{
+                    label: 'จำนวนนักเรียน (คน)',
+                    data: sortedIdx.map(i => counts[i]),
+                    backgroundColor: sortedIdx.map(i => DIM_COLORS[i] + 'CC'),
+                    borderColor: sortedIdx.map(i => DIM_COLORS[i]),
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => ` ${ctx.parsed.y} คน`
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 10, family: 'Sarabun, sans-serif' },
+                            maxRotation: 30,
+                            callback: function (val) {
+                                // ตัดชื่อยาว
+                                const s = this.getLabelForValue(val);
+                                return s.length > 8 ? s.slice(0, 8) + '…' : s;
+                            }
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1,
+                            precision: 0,
+                            font: { size: 10 }
+                        },
+                        grid: { color: '#f1f5f9' }
+                    }
+                }
+            }
+        });
+    }
+
+    // ─── DOUGHNUT CHART ──────────────────────────────────────────
+    const doughnutCanvas = document.getElementById('mi-doughnut-chart');
+    const legendEl = document.getElementById('mi-doughnut-legend');
+    const totalEl = document.getElementById('mi-doughnut-total');
+
+    if (doughnutCanvas) {
+        if (miDoughnutChartInstance) { miDoughnutChartInstance.destroy(); miDoughnutChartInstance = null; }
+
+        // กรองด้านที่มีข้อมูล (count > 0) เพื่อให้กราฟไม่เต็มสี
+        const hasCounts = counts.some(c => c > 0);
+        const chartLabels = hasCounts ? labels : ['ยังไม่มีข้อมูล'];
+        const chartData = hasCounts ? counts : [1];
+        const chartColors = hasCounts ? DIM_COLORS : ['#e2e8f0'];
+
+        if (totalEl) totalEl.textContent = total;
+
+        miDoughnutChartInstance = new Chart(doughnutCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: chartLabels,
+                datasets: [{
+                    data: chartData,
+                    backgroundColor: chartColors.map(c => c + 'DD'),
+                    borderColor: chartColors,
+                    borderWidth: 2,
+                    hoverOffset: 8
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                cutout: '62%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: ctx => {
+                                if (!hasCounts) return ' ยังไม่มีข้อมูล';
+                                const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
+                                return ` ${ctx.parsed} คน (${pct}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Custom legend
+        if (legendEl) {
+            if (!hasCounts) {
+                legendEl.innerHTML = '<p class="text-slate-400 text-xs">ยังไม่มีข้อมูลสำรวจ</p>';
+            } else {
+                legendEl.innerHTML = dimStats.map((d, i) => {
+                    const pct = total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0';
+                    const bar = total > 0 ? Math.round((d.count / total) * 100) : 0;
+                    return `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${DIM_COLORS[i]}"></span>
+                        <span class="text-slate-600 truncate flex-1" title="${d.label}">${d.label}</span>
+                        <span class="font-bold text-slate-700 flex-shrink-0">${d.count}</span>
+                        <span class="text-slate-400 flex-shrink-0 w-10 text-right">${pct}%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1 mb-1">
+                        <div class="h-1 rounded-full" style="width:${bar}%;background:${DIM_COLORS[i]}"></div>
+                    </div>`;
+                }).join('');
+            }
+        }
+    }
 }
 
 // ฟังก์ชัน render การ์ด (ปรับให้คลิกได้)
@@ -284,7 +493,41 @@ function renderStatsCards(total, assessed, notAssessed, dimStats) {
     });
     html += `</div>`;
 
+    // ---- แถวที่ 3: กราฟ Bar + Doughnut (Chart.js) ----
+    html += `
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+    <!-- Bar Chart -->
+    <div class="glass rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-bar text-indigo-500"></i> จำนวนนักเรียนที่โดดเด่นรายด้าน
+        </h3>
+        <div class="relative" style="height:240px;">
+            <canvas id="mi-bar-chart"></canvas>
+        </div>
+    </div>
+    <!-- Doughnut Chart -->
+    <div class="glass rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-pie text-purple-500"></i> สัดส่วนปัญญาที่โดดเด่น (%)
+        </h3>
+        <div class="flex items-center gap-4">
+            <div class="relative flex-shrink-0" style="width:150px;height:150px;">
+                <canvas id="mi-doughnut-chart"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p class="text-xs text-slate-400 font-bold">รวม</p>
+                    <p class="text-xl font-black text-slate-700" id="mi-doughnut-total">0</p>
+                    <p class="text-xs text-slate-400">คน</p>
+                </div>
+            </div>
+            <div class="flex-1 space-y-1 text-xs" style="max-height:220px; overflow-y:auto;" id="mi-doughnut-legend"></div>
+        </div>
+    </div>
+</div>`;
+
     container.innerHTML = html;
+
+    // render charts หลัง DOM พร้อม
+    requestAnimationFrame(() => renderMICharts(dimStats));
 }
 
 /**
@@ -297,7 +540,7 @@ async function loadResults(forceClassroomId = null) {
         // 1. กำหนด roomIds สำหรับกรองนักเรียน
         const sel = document.getElementById('sel-classroom');
         const classroomId = forceClassroomId || (isAdminMode && sel ? (sel.tomselect ? sel.tomselect.getValue() : sel.value) : null);
-        
+
         let roomIds = [];
         if (classroomId) {
             roomIds = [classroomId];
@@ -324,9 +567,9 @@ async function loadResults(forceClassroomId = null) {
             .eq('academic_year', String(schoolInfo?.current_academic_year))
             .eq('semester', String(schoolInfo?.current_semester))
             .in('classroom_id', roomIds);
-            
+
         if (misErr) console.error('loadResults mis error:', misErr);
-        
+
         (mis || []).forEach(e => {
             miMap[e.student_id] = e;
         });
@@ -344,7 +587,7 @@ async function loadResults(forceClassroomId = null) {
             const fallback = await db.from('student_enrollments')
                 .select('student_id, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
                 .in('classroom_id', roomIds);
-                
+
             enrolls = fallback.data;
             if (fallback.error) {
                 console.error('❌ Fallback query also failed:', fallback.error);
@@ -354,7 +597,7 @@ async function loadResults(forceClassroomId = null) {
 
         Swal.close();
         allResults = (enrolls || []).map(e => ({ ...e, mi: miMap[e.student_id] || null }));
-        
+
         // หากค้นหาแล้วไม่พบเด็กในห้องนั้นเลย แจ้งเตือนเพื่อให้ครูทราบ
         if (allResults.length === 0) {
             console.warn('⚠️ No students found for roomIds:', roomIds);
@@ -366,7 +609,7 @@ async function loadResults(forceClassroomId = null) {
                 showConfirmButton: false
             });
         }
-        
+
         renderTable(allResults);
 
     } catch (error) {
@@ -482,7 +725,7 @@ function closeViewModal() {
 
 async function openViewResult(studentId) {
     let row = allResults.find(r => r.student_id === studentId);
-    
+
     // หากกด "ดูผล" จากตาราง Modal ข้อมูลเด็กอาจไม่ได้อยู่ใน allResults ให้ดึงใหม่
     if (!row) {
         Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -581,7 +824,7 @@ async function openViewResult(studentId) {
         <div class="space-y-1">${dimsHtml}</div>
         ${mi.note ? `<div class="mt-4 bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800"><i class="fas fa-note-sticky mr-1"></i><strong>หมายเหตุ:</strong> ${mi.note}</div>` : ''}
     `;
-    
+
     document.getElementById('view-result-modal').classList.remove('hidden');
     document.getElementById('view-result-modal').classList.add('flex');
 }
@@ -834,39 +1077,39 @@ async function printStudentPdf(studentId) {
 
 // ฟังก์ชัน buildMIPdfHtml แบบ string concatenation ปลอดภัย 100%
 function buildMIPdfHtml(opts) {
-    var assessment   = opts.assessment || {};
-    var schoolName   = opts.schoolName || '';
+    var assessment = opts.assessment || {};
+    var schoolName = opts.schoolName || '';
     var academicYear = opts.academicYear || '';
-    var semester     = opts.semester || '';
-    var adviser1     = opts.adviser1 || '';
-    var adviser2     = opts.adviser2 || '';
-    var logoUrl      = opts.logoUrl || '';
-    var fullName     = opts.fullName || '';
-    var avatarUrl    = opts.avatarUrl || '';
-    var dims         = opts.dims || [];
+    var semester = opts.semester || '';
+    var adviser1 = opts.adviser1 || '';
+    var adviser2 = opts.adviser2 || '';
+    var logoUrl = opts.logoUrl || '';
+    var fullName = opts.fullName || '';
+    var avatarUrl = opts.avatarUrl || '';
+    var dims = opts.dims || [];
     var studentIdCard = opts.studentIdCard || opts.studentCode || opts.student_id || '-';
     var studentNumber = opts.studentNumber || '-';
-    var gradeLevel    = opts.gradeLevel || '-';
-    var roomNumber    = opts.roomNumber || '-';
-    var docTitle      = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MIT)';
+    var gradeLevel = opts.gradeLevel || '-';
+    var roomNumber = opts.roomNumber || '-';
+    var docTitle = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MIT)';
 
     var scoreTotal = (assessment.score_total !== undefined && assessment.score_total !== null) ? assessment.score_total : '-';
     var totalLevel = assessment.level_total || '-';
 
-    var isHigh = ['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(totalLevel) >= 0;
-    var isMid  = ['เกณฑ์ปกติ','ปานกลาง'].indexOf(totalLevel) >= 0;
-    var totalColor  = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
-    var totalBg     = isHigh ? '#dcfce7'  : (isMid ? '#dbeafe'  : '#fee2e2');
-    var totalBorder = isHigh ? '#16a34a'  : (isMid ? '#2563eb'  : '#dc2626');
+    var isHigh = ['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(totalLevel) >= 0;
+    var isMid = ['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(totalLevel) >= 0;
+    var totalColor = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
+    var totalBg = isHigh ? '#dcfce7' : (isMid ? '#dbeafe' : '#fee2e2');
+    var totalBorder = isHigh ? '#16a34a' : (isMid ? '#2563eb' : '#dc2626');
 
     function getLvlColor(lv) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return '#10b981';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return '#3b82f6';
+        if (['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(lv) >= 0) return '#10b981';
+        if (['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(lv) >= 0) return '#3b82f6';
         return '#ef4444';
     }
     function getLvlClass(lv) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return 'lh';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return 'lm';
+        if (['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(lv) >= 0) return 'lh';
+        if (['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(lv) >= 0) return 'lm';
         return 'll';
     }
 
@@ -874,7 +1117,7 @@ function buildMIPdfHtml(opts) {
         ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;display:block;" crossorigin="anonymous">'
         : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;">&#128100;</div>';
 
-    var DC = ['#6366f1','#0ea5e9','#8b5cf6','#ec4899','#f59e0b','#10b981','#14b8a6','#f97316'];
+    var DC = ['#6366f1', '#0ea5e9', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#14b8a6', '#f97316'];
 
     // ---- PIE SVG ----
     var pieTot = 0;
@@ -1082,7 +1325,7 @@ function buildMIPdfHtml(opts) {
         '<div class="footer">ระบบ WRK School Management System | แบบประเมินพหุปัญญา 8 ด้าน | พิมพ์วันที่ ' + printDate + '</div>' +
         '</body></html>';
 
-    console.log('HTML snippet:', html.substring(html.indexOf('ผลการประเมินรวม')-10, html.indexOf('ผลการประเมินรวม')+300));
+    console.log('HTML snippet:', html.substring(html.indexOf('ผลการประเมินรวม') - 10, html.indexOf('ผลการประเมินรวม') + 300));
     return html;
 }
 
@@ -1100,7 +1343,7 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
 
     // คำนวณคะแนนรวมและระดับถ้า DB ไม่มีเก็บ
     if (assessment.score_total === undefined || assessment.score_total === null) {
-        assessment.score_total = dims.reduce(function(s, d) { return s + d.score; }, 0);
+        assessment.score_total = dims.reduce(function (s, d) { return s + d.score; }, 0);
     }
     if (!assessment.level_total) {
         const normTotal = (MI_NORM && MI_NORM.total) ? MI_NORM.total : { min: 80, max: 144 };
@@ -1115,7 +1358,7 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
     const roomNumber = (cls && cls.room_number) ? cls.room_number : '';
 
     // ดึง student_number จาก allResults
-    const resultRow = allResults.find(function(r) { return r.student_id === assessment.student_id; });
+    const resultRow = allResults.find(function (r) { return r.student_id === assessment.student_id; });
     const studentNumber = (resultRow && resultRow.student_number) ? resultRow.student_number : '';
 
     const html = buildMIPdfHtml({
@@ -1277,12 +1520,12 @@ async function openDimStudentList(dimKey) {
             .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
             .eq('academic_year', String(schoolInfo?.current_academic_year))
             .eq('semester', String(schoolInfo?.current_semester));
-        
+
         if (misErr) throw misErr;
 
         // 2. ขอบเขตห้องเรียนที่ผู้ใช้มองเห็น
         const visibleRoomIds = allClassrooms.map(r => r.id);
-        
+
         if (visibleRoomIds.length === 0) {
             Swal.close();
             Swal.fire('ไม่มีข้อมูล', 'ไม่พบห้องเรียนในระบบ', 'info');
@@ -1303,7 +1546,7 @@ async function openDimStudentList(dimKey) {
                 const s = m[`score_${key}`] || 0;
                 if (s > maxScore) { maxScore = s; topKey = key; }
             });
-            
+
             if (topKey === dimKey) {
                 targetStudentIds.push(m.student_id);
                 topScoreMap[m.student_id] = maxScore;
@@ -1315,7 +1558,7 @@ async function openDimStudentList(dimKey) {
             Swal.close();
             const tbody = document.getElementById('dim-student-tbody');
             if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500 font-medium">ยังไม่มีนักเรียนที่ถนัดด้านนี้เป็นอันดับ 1</td></tr>`;
-            
+
             const modal = document.getElementById('dim-student-modal');
             if (modal) {
                 modal.classList.remove('hidden');
@@ -1355,7 +1598,7 @@ async function openDimStudentList(dimKey) {
             const gradeLevel = cls?.grade_level || '-';
             const roomNumber = cls?.room_number || '-';
             const score = topScoreMap[r.student_id] || 0;
-            
+
             html += `<tr>
                 <td class="text-center">${gradeLevel !== '-' ? 'ม.' + gradeLevel + '/' + roomNumber : '-'}</td>
                 <td class="text-center">${studentIdCard}</td>
@@ -1384,14 +1627,14 @@ async function openDimStudentList(dimKey) {
             window.dimStudentTable.destroy();
             window.dimStudentTable = null;
         }
-        
+
         setTimeout(() => {
             window.dimStudentTable = new DataTable('#dim-student-table', {
                 language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
                 responsive: true,
                 scrollX: true,
                 pageLength: 50,
-                columnDefs: [ { orderable: false, targets: [4] } ]
+                columnDefs: [{ orderable: false, targets: [4] }]
             });
         }, 150);
 
