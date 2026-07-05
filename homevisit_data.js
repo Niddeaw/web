@@ -21,6 +21,9 @@ const stepColorConfigs = {
 // ==========================================
 let isReportLoading = false;
 let currentTab = 'form';
+let isRenderingCharts = false;
+let renderTimeout = null;
+let chartRenderCount = 0;  // เพิ่มไว้ดีบัก (ไม่จำเป็น)
 
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
