@@ -11,6 +11,7 @@ let currentUserRole = 'admin';
 let isAdminMode = true;
 let currentUserId = null;
 let adviserMap = {};
+let currentSelectedClassroomId = null;
 
 if (typeof MI_NORM === 'undefined') {
     window.MI_NORM = {
@@ -107,7 +108,8 @@ async function loadClassrooms() {
                 } else {
                     div.classList.add('hidden');
                 }
-                // ✅ โหลดข้อมูลตามห้องที่เลือก หรือทั้งหมดถ้าไม่เลือก
+                // ✅ เก็บห้องที่เลือก
+                currentSelectedClassroomId = value || null;
                 if (value) {
                     loadResults(value);
                     loadStats(value);
@@ -127,11 +129,11 @@ async function loadClassrooms() {
         document.getElementById('teacherActionBar').classList.remove('hidden');
 
         if (allClassrooms.length > 0) {
-            // ✅ ถ้ามีห้องที่ปรึกษา ให้โหลดห้องแรก และอัปเดตสถิติ
             await loadResults(allClassrooms[0].id);
+            currentSelectedClassroomId = allClassrooms[0].id;   // ✅ เก็บห้องแรก
             await loadStats(allClassrooms[0].id);
         } else {
-            // ✅ ถ้าไม่มีห้องที่ปรึกษา ให้แจ้งเตือน และรีเซ็ตสถิติเป็น 0
+            currentSelectedClassroomId = null;
             Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
             await loadStats();
         }
@@ -1515,30 +1517,40 @@ async function openDimStudentList(dimKey) {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        // 1. ดึง assessment ทั้งหมดของเทอมนี้ (ตารางนี้ใช้กรองเทอมได้ปกติ)
-        const { data: mis, error: misErr } = await db.from('mi_assessments')
+        // 1. ดึง assessment ทั้งหมดของเทอมนี้ (กรองตามห้องถ้ามี)
+        let query = db.from('mi_assessments')
             .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
             .eq('academic_year', String(schoolInfo?.current_academic_year))
             .eq('semester', String(schoolInfo?.current_semester));
 
+        if (currentSelectedClassroomId) {
+            query = query.eq('classroom_id', currentSelectedClassroomId);
+        }
+
+        const { data: mis, error: misErr } = await query;
         if (misErr) throw misErr;
 
-        // 2. ขอบเขตห้องเรียนที่ผู้ใช้มองเห็น
-        const visibleRoomIds = allClassrooms.map(r => r.id);
+        // 2. กำหนดขอบเขตห้องที่ใช้ในการกรอง
+        let filterRoomIds = [];
+        if (currentSelectedClassroomId) {
+            filterRoomIds = [currentSelectedClassroomId];
+        } else {
+            filterRoomIds = allClassrooms.map(r => r.id);
+        }
 
-        if (visibleRoomIds.length === 0) {
+        if (filterRoomIds.length === 0) {
             Swal.close();
             Swal.fire('ไม่มีข้อมูล', 'ไม่พบห้องเรียนในระบบ', 'info');
             return;
         }
 
-        // 3. หานักเรียนที่ได้คะแนน "ด้านนี้" เป็นอันดับ 1
+        // 3. หานักเรียนที่ได้คะแนน "ด้านนี้" เป็นอันดับ 1 และอยู่ในขอบเขต
         const targetStudentIds = [];
         const topScoreMap = {};
         const dimKeys = MI_DIMENSIONS.map(d => d.key);
 
         (mis || []).forEach(m => {
-            if (!visibleRoomIds.includes(m.classroom_id)) return;
+            if (!filterRoomIds.includes(m.classroom_id)) return;
 
             let maxScore = -1;
             let topKey = null;
@@ -1553,12 +1565,11 @@ async function openDimStudentList(dimKey) {
             }
         });
 
-        // หากไม่มีนักเรียนที่โดดเด่นด้านนี้เลย ให้เปิด Modal พร้อมตารางแจ้งเตือน
+        // หากไม่มีนักเรียน
         if (targetStudentIds.length === 0) {
             Swal.close();
             const tbody = document.getElementById('dim-student-tbody');
             if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500 font-medium">ยังไม่มีนักเรียนที่ถนัดด้านนี้เป็นอันดับ 1</td></tr>`;
-
             const modal = document.getElementById('dim-student-modal');
             if (modal) {
                 modal.classList.remove('hidden');
@@ -1567,16 +1578,25 @@ async function openDimStudentList(dimKey) {
             return;
         }
 
-        // 4. ดึงรายชื่อนักเรียนที่มี ID ตรงกับเป้าหมาย 
-        // ⚠️ ลบ .eq('academic_year') และ semester ออกแล้ว เพื่อแก้บั๊กคิวรีพัง
-        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+        // 4. ดึงรายชื่อนักเรียน
+        let enrollQuery = db.from('student_enrollments')
             .select('student_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
             .in('student_id', targetStudentIds);
 
+        if (currentSelectedClassroomId) {
+            enrollQuery = enrollQuery.eq('classroom_id', currentSelectedClassroomId);
+        } else {
+            const roomIds = allClassrooms.map(r => r.id);
+            if (roomIds.length > 0) {
+                enrollQuery = enrollQuery.in('classroom_id', roomIds);
+            }
+        }
+
+        const { data: enrolls, error: enrollErr } = await enrollQuery;
         if (enrollErr) throw enrollErr;
         const validEnrolls = enrolls || [];
 
-        // 5. เรียงลำดับ (คะแนนมากไปน้อย -> เรียงตามชื่อ)
+        // 5. เรียงลำดับ
         validEnrolls.sort((a, b) => {
             const scoreA = topScoreMap[a.student_id] || 0;
             const scoreB = topScoreMap[b.student_id] || 0;
@@ -1586,7 +1606,7 @@ async function openDimStudentList(dimKey) {
             return nameA.localeCompare(nameB);
         });
 
-        // 6. สร้าง HTML ตาราง
+        // 6. สร้าง HTML
         const tbody = document.getElementById('dim-student-tbody');
         if (!tbody) return;
         let html = '';
@@ -1615,14 +1635,13 @@ async function openDimStudentList(dimKey) {
 
         Swal.close();
 
-        // 7. แสดง Modal 
+        // 7. แสดง Modal
         const modal = document.getElementById('dim-student-modal');
         if (modal) {
             modal.classList.remove('hidden');
             modal.classList.add('flex');
         }
 
-        // รีเซ็ตและสร้าง DataTable (หน่วงเวลาเล็กน้อยให้หน้าต่างเด้งเสร็จก่อน เพื่อป้องกันปัญหาตารางบีบเบี้ยว)
         if (window.dimStudentTable) {
             window.dimStudentTable.destroy();
             window.dimStudentTable = null;
