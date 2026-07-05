@@ -790,170 +790,112 @@ window.loadDataTable = async function () {
 
     Swal.fire({ title: 'กำลังโหลดข้อมูลภาพรวม...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
+    // ========== ส่วนของผู้ดูแลระบบ (Server‑Side DataTable) ==========
     if (!isTeacher) {
-        const tbody = document.getElementById('tb-class-summary');
-        if (!tbody) return;
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด......</td></tr>';
+        const tableId = '#class-summary-table';
 
-        try {
-            let classQuery = db.from('core_classrooms')
-                .select('*')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
-                .order('grade_level').order('room_number');
-
-            if (currentViewRole === 'head_grade') {
-                const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
-                if (gh) classQuery = classQuery.eq('grade_level', gh.grade_level);
-                else classQuery = classQuery.eq('id', '00000000-0000-0000-0000-000000000000');
-            }
-
-            const [{ data: classrooms }, { data: visits }, staffMap] = await Promise.all([
-                classQuery,
-                db.from('module_home_visits')
-                    .select('*')
-                    .eq('academic_year', currentYear)
-                    .eq('semester', currentTerm),
-                getPersonnelMap()
-            ]);
-
-            if (!classrooms || classrooms.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="7" class="text-center py-10 text-slate-400">ไม่พบห้องเรียน</td></tr>';
-                renderDashboard(0, 0, 0, 0);
-                Swal.close();
-                return;
-            }
-
-            const { data: enrolls } = await db.from('student_enrollments')
-                .select('classroom_id, student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
-                .in('classroom_id', classrooms.map(c => c.id));
-
-            // สร้าง roomMap สำหรับ lookup
-            const roomMap = {};
-            classrooms.forEach(c => { roomMap[c.id] = `ม.${c.grade_level}/${c.room_number}`; });
-
-            // ===== สร้างลิสต์นักเรียนสำหรับ Overview =====
-            window.overviewCompleteList = [];
-            window.overviewIncompleteList = [];
-            window.overviewNotVisitedList = [];
-
-            let totalStudents = 0;
-            let completeStudents = 0;
-            let incompleteStudents = 0;
-            let notVisitedStudents = 0;
-
-            const studentVisitsMap = {};
-            (visits || []).forEach(v => { studentVisitsMap[v.student_id] = v; });
-
-            enrolls.forEach(enroll => {
-                const s = enroll.core_students;
-                if (!s) return;
-                const v = studentVisitsMap[s.id];
-                const studentItem = {
-                    id: s.student_id_card || '-',
-                    name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
-                    student_uuid: s.id,
-                    room: roomMap[enroll.classroom_id] || '-'
-                };
-                totalStudents++;
-                if (v && v.visit_status === 'เยี่ยมแล้ว') {
-                    const comp = getCompletenessStatus(v);
-                    if (comp.complete) {
-                        completeStudents++;
-                        window.overviewCompleteList.push(studentItem);
-                    } else {
-                        incompleteStudents++;
-                        window.overviewIncompleteList.push(studentItem);
-                    }
-                } else {
-                    notVisitedStudents++;
-                    window.overviewNotVisitedList.push(studentItem);
-                }
-            });
-            // ========================================================
-
-            // สร้างตาราง summary ของห้อง
-            let rowsHtml = '';
-            for (const c of classrooms) {
-                const room = `ม.${c.grade_level}/${c.room_number}`;
-                const adv1 = staffMap[c.adviser_id_1] || '-';
-                const adv2 = staffMap[c.adviser_id_2] || '-';
-
-                const students = (enrolls || []).filter(e => e.classroom_id === c.id);
-                const total = students.length;
-
-                const roomVisits = (visits || []).filter(v => v.classroom_id === c.id);
-                const visitedStudents = roomVisits.filter(v => v.visit_status === 'เยี่ยมแล้ว');
-
-                if (total === 0) {
-                    rowsHtml += `<tr>
-                    <td class="py-3 px-4 font-black">${room}</td>
-                    <td class="py-3 px-4">${adv1}</td>
-                    <td class="py-3 px-4">${adv2}</td>
-                    <td class="py-3 px-4 text-center">0</td>
-                    <td class="py-3 px-4 text-center">0</td>
-                    <td class="py-3 px-4 text-center"><span class="px-3 py-1 rounded-xl text-[10px] font-black uppercase bg-slate-100 text-slate-400">ไม่มีนักเรียน</span></td>
-                    <td class="py-3 px-4 text-right"><button onclick="editFromTable('${c.id}')" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button></td>
-                </tr>`;
-                    continue;
-                }
-
-                const visitedCount = visitedStudents.length;
-                const allVisited = visitedCount === total;
-
-                let allComplete = false;
-                if (allVisited && total > 0) {
-                    const { data: fullVisits } = await db.from('module_home_visits')
-                        .select('*')
-                        .in('student_id', students.map(s => s.student_id))
-                        .eq('academic_year', currentYear)
-                        .eq('semester', currentTerm);
-
-                    const completeCount = (fullVisits || []).filter(v => getCompletenessStatus(v).complete).length;
-                    allComplete = completeCount === total;
-                }
-
-                let statusText = '';
-                let statusColor = '';
-                if (allVisited && allComplete) {
-                    statusText = 'ครบถ้วน';
-                    statusColor = 'bg-emerald-100 text-emerald-700';
-                } else if (allVisited && !allComplete) {
-                    statusText = 'เยี่ยมครบแต่ข้อมูลไม่ครบ';
-                    statusColor = 'bg-amber-100 text-amber-700';
-                } else if (visitedCount > 0 && !allVisited) {
-                    statusText = 'เยี่ยมบางส่วน';
-                    statusColor = 'bg-amber-100 text-amber-700';
-                } else {
-                    statusText = 'ยังไม่เยี่ยม';
-                    statusColor = 'bg-slate-100 text-slate-400';
-                }
-
-                rowsHtml += `<tr>
-                <td class="py-3 px-4 font-black">${room}</td>
-                <td class="py-3 px-4">${adv1}</td>
-                <td class="py-3 px-4">${adv2}</td>
-                <td class="py-3 px-4 text-center">${total}</td>
-                <td class="py-3 px-4 text-center">${visitedCount}</td>
-                <td class="py-3 px-4 text-center"><span class="px-3 py-1 rounded-xl text-[10px] font-black uppercase ${statusColor}">${statusText}</span></td>
-                <td class="py-3 px-4 text-right"><button onclick="editFromTable('${c.id}')" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button></td>
-            </tr>`;
-            }
-
-            tbody.innerHTML = rowsHtml;
-            renderDashboard(totalStudents, completeStudents, incompleteStudents, notVisitedStudents);
-            Swal.close();
-
-        } catch (err) {
-            console.error(err);
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-red-500">เกิดข้อผิดพลาด</td></tr>';
-            renderDashboard(0, 0, 0, 0);
-            Swal.close();
+        // ทำลาย DataTable เก่าถ้ามี
+        if ($.fn.DataTable.isDataTable(tableId)) {
+            $(tableId).DataTable().clear().destroy();
         }
-        return;
+
+        $(tableId).DataTable({
+            processing: true,
+            serverSide: true,
+            ajax: async function (data, callback) {
+                const orderColIndex = data.order[0]?.column ?? 0;
+                const orderCol = data.columns[orderColIndex]?.data || 'room';
+                const orderDir = data.order[0]?.dir || 'asc';
+                const searchValue = data.search?.value || '';
+
+                let gradeLevel = null;
+                if (currentViewRole === 'head_grade') {
+                    const { data: gh } = await db.from('behavior_grade_heads')
+                        .select('grade_level').eq('teacher_id', currentUser.id).single();
+                    if (gh) gradeLevel = gh.grade_level;
+                }
+
+                const { data: result, error } = await db.rpc('get_classroom_summary_datatable', {
+                    p_year: currentYear,
+                    p_term: currentTerm,
+                    p_search: searchValue,
+                    p_order_column: orderCol,
+                    p_order_dir: orderDir,
+                    p_start: data.start,
+                    p_length: data.length,
+                    p_grade_level: gradeLevel
+                });
+
+                if (error) {
+                    console.error('RPC Error:', error);
+                    callback({ draw: data.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
+                    Swal.close();
+                    return;
+                }
+
+                const res = result;
+                const rows = (res.data || []).map(row => ({
+                    ...row,
+                    action: `<button onclick="editFromTable('${row.classroom_id}')" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button>`
+                }));
+
+                // อัปเดตการ์ด Dashboard
+                if (res.summary) {
+                    renderDashboard(
+                        res.summary.totalStudents,
+                        res.summary.completeStudents,
+                        res.summary.incompleteStudents,
+                        res.summary.notVisitedStudents
+                    );
+                }
+
+                Swal.close();
+
+                callback({
+                    draw: data.draw,
+                    recordsTotal: res.recordsTotal,
+                    recordsFiltered: res.recordsFiltered,
+                    data: rows
+                });
+            },
+            columns: [
+                { data: 'room', title: 'ห้องเรียน', orderable: true },
+                { data: 'adviser1', title: 'ครูที่ปรึกษาคนที่ 1', orderable: false },
+                { data: 'adviser2', title: 'ครูที่ปรึกษาคนที่ 2', orderable: false },
+                { data: 'total_students', title: 'นร.ทั้งหมด', orderable: true, className: 'text-center' },
+                { data: 'visited_count', title: 'เยี่ยมแล้ว', orderable: true, className: 'text-center' },
+                {
+                    data: 'status',
+                    title: 'สถานะ',
+                    orderable: false,
+                    render: function (data, type) {
+                        if (type === 'display') {
+                            return `<span class="px-3 py-1 rounded-xl text-[10px] font-black uppercase ${data.color}">${data.text}</span>`;
+                        }
+                        return data.text;
+                    }
+                },
+                {
+                    data: 'action',
+                    title: 'จัดการ',
+                    orderable: false,
+                    className: 'text-right'
+                }
+            ],
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
+            },
+            pageLength: 25,
+            order: [[0, 'asc']],
+            drawCallback: function () {
+                // ผูก event หรือทำความสะอาดเพิ่มเติมได้ที่นี่
+            }
+        });
+
+        return; // จบส่วน admin
     }
 
-    // ==================== ส่วนสำหรับครูที่ปรึกษา ====================
+    // ========== ส่วนของครูที่ปรึกษา (คงเดิม) ==========
     const classroomId = window.currentClassroomId;
     const tbody = document.getElementById('tb-teacher-students');
     if (!tbody) return;
@@ -967,15 +909,12 @@ window.loadDataTable = async function () {
             return;
         }
 
-        // ✅ เพิ่มการดึงข้อมูลห้องเรียน
         const { data: classroom, error: classError } = await db.from('core_classrooms')
             .select('grade_level, room_number')
             .eq('id', classroomId)
             .single();
 
-        if (classError) {
-            console.warn('ไม่พบข้อมูลห้องเรียน', classError);
-        }
+        if (classError) console.warn('ไม่พบข้อมูลห้องเรียน', classError);
         const roomLabel = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
 
         const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
@@ -1004,26 +943,21 @@ window.loadDataTable = async function () {
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
 
-        // ✅ ตัวแปรสำหรับการ์ด 4 ใบ และลิสต์นักเรียน
         window.overviewCompleteList = [];
         window.overviewIncompleteList = [];
         window.overviewNotVisitedList = [];
-        let completeCount = 0;
-        let incompleteCount = 0;
-        let notVisitedCount = 0;
+        let completeCount = 0, incompleteCount = 0, notVisitedCount = 0;
 
-        // ✅ สร้างแถวตารางและนับพร้อมกัน
         const rowsHtml = enrolls.map(e => {
             const s = e.core_students;
             const visit = visitMap[s.id] || null;
             const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
 
-            // ✅ ใช้ roomLabel ที่ดึงมา
             const studentItem = {
                 id: s.student_id_card || '-',
                 name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
                 student_uuid: s.id,
-                room: roomLabel  // <--- ตรงนี้สำคัญ
+                room: roomLabel
             };
 
             if (isVisited) {
@@ -1040,7 +974,6 @@ window.loadDataTable = async function () {
                 window.overviewNotVisitedList.push(studentItem);
             }
 
-            // --- สร้างแถวตาราง ---
             const completeBadge = isVisited ?
                 (getCompletenessStatus(visit).complete ?
                     '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>' :
@@ -1059,11 +992,9 @@ window.loadDataTable = async function () {
 
             let lockHtml = '';
             if (isVisited) {
-                if (visit.is_verified) {
-                    lockHtml = `<span class="text-emerald-600 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200"><i class="fas fa-lock"></i> ล็อกแล้ว</span>`;
-                } else {
-                    lockHtml = `<button onclick="verifyVisit('${visit.id}')" class="text-amber-600 hover:bg-amber-50 px-2 py-1 rounded border border-amber-200 transition text-xs font-bold" title="ล็อกข้อมูล"><i class="fas fa-lock"></i> ล็อก</button>`;
-                }
+                lockHtml = visit.is_verified ?
+                    `<span class="text-emerald-600 text-[10px] font-bold bg-emerald-50 px-2 py-1 rounded-full border border-emerald-200"><i class="fas fa-lock"></i> ล็อกแล้ว</span>` :
+                    `<button onclick="verifyVisit('${visit.id}')" class="text-amber-600 hover:bg-amber-50 px-2 py-1 rounded border border-amber-200 transition text-xs font-bold" title="ล็อกข้อมูล"><i class="fas fa-lock"></i> ล็อก</button>`;
             } else {
                 lockHtml = `<span class="text-slate-400 text-xs">-</span>`;
             }
@@ -1094,9 +1025,7 @@ window.loadDataTable = async function () {
         }).join('');
 
         tbody.innerHTML = rowsHtml;
-
-        const totalStudents = enrolls.length;
-        renderDashboard(totalStudents, completeCount, incompleteCount, notVisitedCount);
+        renderDashboard(enrolls.length, completeCount, incompleteCount, notVisitedCount);
         Swal.close();
 
     } catch (err) {
@@ -1126,21 +1055,21 @@ window.renderDashboard = function (total, completed, incomplete, notVisited) {
                 <p class="text-xs text-indigo-400 mt-1">100%</p>
                 <i class="fas fa-users absolute -bottom-4 -right-4 text-6xl text-indigo-200 opacity-40"></i>
             </div>
-            <div onclick="showOverviewStudentList('complete')" class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-emerald-100 transition group">
+            <div onclick="fetchOverviewStudentList('complete')" class="bg-emerald-50 border border-emerald-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-emerald-100 transition group">
                 <h4 class="font-bold text-emerald-800 text-sm">เยี่ยมบ้านครบถ้วน</h4>
                 <p class="text-3xl font-black text-emerald-600 mt-1">${completed} <span class="text-sm font-normal text-emerald-500">คน</span></p>
                 <p class="text-xs text-emerald-400 mt-1">${pctCompleted}%</p>
                 <i class="fas fa-check-circle absolute -bottom-4 -right-4 text-6xl text-emerald-200 opacity-40"></i>
                 <div class="absolute top-3 right-3 text-emerald-400 opacity-60 group-hover:opacity-100 transition"><i class="fas fa-search-plus text-sm"></i></div>
             </div>
-            <div onclick="showOverviewStudentList('incomplete')" class="bg-amber-50 border border-amber-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-amber-100 transition group">
+            <div onclick="fetchOverviewStudentList('incomplete')" class="bg-amber-50 border border-amber-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-amber-100 transition group">
                 <h4 class="font-bold text-amber-800 text-sm">เยี่ยมบ้านยังไม่ครบถ้วน</h4>
                 <p class="text-3xl font-black text-amber-600 mt-1">${incomplete} <span class="text-sm font-normal text-amber-500">คน</span></p>
                 <p class="text-xs text-amber-400 mt-1">${pctIncomplete}%</p>
                 <i class="fas fa-exclamation-triangle absolute -bottom-4 -right-4 text-6xl text-amber-200 opacity-40"></i>
                 <div class="absolute top-3 right-3 text-amber-400 opacity-60 group-hover:opacity-100 transition"><i class="fas fa-search-plus text-sm"></i></div>
             </div>
-            <div onclick="showOverviewStudentList('not_visited')" class="bg-rose-50 border border-rose-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-rose-100 transition group">
+            <div onclick="fetchOverviewStudentList('not_visited')" class="bg-rose-50 border border-rose-100 p-5 rounded-2xl shadow-sm relative overflow-hidden cursor-pointer hover:bg-rose-100 transition group">
                 <h4 class="font-bold text-rose-800 text-sm">ยังไม่เยี่ยม</h4>
                 <p class="text-3xl font-black text-rose-600 mt-1">${notVisited} <span class="text-sm font-normal text-rose-500">คน</span></p>
                 <p class="text-xs text-rose-400 mt-1">${pctNotVisited}%</p>
@@ -1149,6 +1078,53 @@ window.renderDashboard = function (total, completed, incomplete, notVisited) {
             </div>
         </div>
     `;
+};
+
+window.fetchOverviewStudentList = async function (type) {
+    let statusParam, titleText, themeColor;
+    if (type === 'complete') {
+        statusParam = 'complete';
+        titleText = 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว (ข้อมูลครบสมบูรณ์)';
+        themeColor = 'text-green-700 bg-green-50 border-green-200';
+    } else if (type === 'incomplete') {
+        statusParam = 'incomplete';
+        titleText = 'รายชื่อนักเรียนที่ เยี่ยมบ้านแล้ว (ข้อมูลยังไม่ครบ)';
+        themeColor = 'text-amber-700 bg-amber-50 border-amber-200';
+    } else if (type === 'not_visited') {
+        statusParam = 'not_visited';
+        titleText = 'รายชื่อนักเรียนที่ ยังไม่ได้เยี่ยมบ้าน';
+        themeColor = 'text-slate-700 bg-slate-100 border-slate-200';
+    } else return;
+
+    Swal.fire({ title: 'กำลังโหลดรายชื่อ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    let gradeLevel = null;
+    if (currentViewRole === 'head_grade') {
+        const { data: gh } = await db.from('behavior_grade_heads')
+            .select('grade_level').eq('teacher_id', currentUser.id).single();
+        if (gh) gradeLevel = gh.grade_level;
+    }
+
+    const { data, error } = await db.rpc('get_students_by_status', {
+        p_year: currentYear,
+        p_term: currentTerm,
+        p_status: statusParam,
+        p_grade_level: gradeLevel
+    });
+
+    Swal.close();
+    if (error) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถดึงข้อมูลได้', 'error');
+        return;
+    }
+
+    // data เป็น array ของ { id, name, student_uuid, room }
+    if (!data || data.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในหมวดนี้', 'info');
+        return;
+    }
+
+    showStudentListModal(data, titleText, themeColor);
 };
 
 // ==========================================
