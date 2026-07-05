@@ -16,6 +16,11 @@ const stepColorConfigs = {
     4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
     5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
 };
+// ==========================================
+// ตัวแปรป้องกันการเรียกซ้ำและสถานะแท็บ
+// ==========================================
+let isReportLoading = false;
+let currentTab = 'form';
 
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
@@ -1144,6 +1149,41 @@ window.renderDashboard = function (total, completed, incomplete, notVisited) {
 };
 
 // ==========================================
+// ตัวแปรและฟังก์ชันสำหรับจัดการกราฟ (Chart.js)
+// ==========================================
+let barChartInstance = null;
+let doughnutChartInstance = null;
+
+function destroyCharts() {
+    if (renderTimeout) {
+        clearTimeout(renderTimeout);
+        renderTimeout = null;
+    }
+    if (barChartInstance) {
+        barChartInstance.destroy();
+        barChartInstance = null;
+    }
+    if (doughnutChartInstance) {
+        doughnutChartInstance.destroy();
+        doughnutChartInstance = null;
+    }
+    isRenderingCharts = false;
+    // ✅ ลบ container ทิ้งเพื่อไม่ให้มีของค้าง
+    const container = document.getElementById('grade-charts-container');
+    if (container) container.remove();
+}
+
+function toggleClassroomSelect(scope) {
+    const container = document.getElementById('classroom-select-container');
+    if (!container) return;
+    if (scope === 'classroom') {
+        container.classList.remove('hidden');
+    } else {
+        container.classList.add('hidden');
+    }
+}
+
+// ==========================================
 // ฟังก์ชันกลางสำหรับแสดงรายชื่อนักเรียนในรูปแบบ DataTable
 // ==========================================
 window.showStudentListModal = function (list, titleText, themeColor, extraFooterHtml = '') {
@@ -1721,17 +1761,40 @@ window.removeModuleAdmin = async function (recordId) {
 // ==========================================
 // 5. REPORT
 // ==========================================
-// ==========================================
-// loadReport() - ฉบับสมบูรณ์
-// ==========================================
-async function loadReport() {
+window.loadReport = async function () {
+    // ป้องกันการเรียกซ้ำ
+    if (isReportLoading) {
+        console.warn('loadReport กำลังทำงานอยู่');
+        return;
+    }
+    isReportLoading = true;
+
+    // ลบกราฟเก่า
+    destroyCharts();
+    // รีเซ็ต flag การเรนเดอร์กราฟ
+    isRenderingCharts = false;
+
     const scope = document.getElementById('report-scope').value;
     const grade = document.getElementById('report-grade')?.value;
     const classroomId = document.getElementById('report-classroom')?.value;
 
+    // ถ้าเลือก "แยกตามระดับชั้น" แต่ยังไม่ได้เลือกระดับชั้น
+    if (scope === 'grade' && !grade) {
+        document.getElementById('report-content').innerHTML = `
+            <div class="text-center py-10 text-blue-500">
+                <i class="fas fa-layer-group text-3xl mb-3 block"></i>
+                <p class="font-bold">กรุณาเลือกระดับชั้น</p>
+                <p class="text-sm text-slate-400 mt-1">เลือกระดับชั้นที่ต้องการดูรายงานจาก dropdown ด้านบน</p>
+            </div>
+        `;
+        isReportLoading = false;
+        return;
+    }
+
     // ถ้าเลือก "ระบุห้องเรียน" แต่ยังไม่ได้เลือกห้อง
     if (scope === 'classroom' && !classroomId) {
         Swal.fire('กรุณาเลือกห้องเรียน', 'เลือกห้องเรียนที่ต้องการดูรายงาน', 'warning');
+        isReportLoading = false;
         return;
     }
 
@@ -1765,7 +1828,6 @@ async function loadReport() {
                 .eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
         } else if (scope === 'classroom') {
-            // ใช้ห้องที่เลือก
             classIds = [classroomId];
         } else {
             // all
@@ -1829,7 +1891,6 @@ async function loadReport() {
         let visitedCompleteCount = 0;
         let visitedIncompleteCount = 0;
 
-        // ตัวแปรเก็บความเสี่ยง (ไม่ต้องแก้)
         const riskStudents = {
             learning: [], health: [], drugs: [], violence: [],
             sex: [], gaming: [], economy: []
@@ -1861,7 +1922,6 @@ async function loadReport() {
                     window.reportIncompleteList.push(studentItem);
                 }
 
-                // วิเคราะห์ความเสี่ยง (ไม่ต้องแก้)
                 const risk = visit.risk_factors || visit.risk_data || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
@@ -1897,7 +1957,7 @@ async function loadReport() {
             economy: 'เศรษฐกิจ'
         };
 
-        // --- การ์ดหลัก 4 ใบ (เพิ่ม onclick) ---
+        // --- การ์ดหลัก 4 ใบ ---
         let html = `
         <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
             <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 shadow-sm">
@@ -1921,7 +1981,29 @@ async function loadReport() {
             </div>
         </div>`;
 
-        // --- กลุ่มเสี่ยง (ไม่ต้องแก้) ---
+        // --- เพิ่มกราฟถ้าเลือก "แยกตามระดับชั้น" ---
+        let chartsHtml = '';
+        if (scope === 'grade' && grade) {
+            // ใน loadReport() ส่วนสร้าง chartsHtml
+            chartsHtml = `
+                <div id="grade-charts-container" class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200" style="height: 320px;">
+                        <h5 class="font-bold text-slate-700 mb-2">จำนวนนักเรียนที่เยี่ยมบ้านครบ/ไม่ครบ แยกรายห้อง</h5>
+                        <div style="height: 250px;"> <!-- wrapper มี height ชัดเจน -->
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-4 rounded-2xl shadow-sm border border-slate-200" style="height: 320px;">
+                        <h5 class="font-bold text-slate-700 mb-2">สรุปรวมภาพรวม</h5>
+                        <div style="height: 250px;">
+                            <canvas id="doughnutChart"></canvas>
+                        </div>
+                    </div>
+                </div>`;
+        }
+        html += chartsHtml;
+
+        // --- กลุ่มเสี่ยง ---
         const renderCategoryBox = (cat, counts, type) => {
             const catName = catNames[cat];
             const bgClass = type === 'risk' ? 'bg-amber-50' : 'bg-rose-50';
@@ -1957,17 +2039,185 @@ async function loadReport() {
         }
         html += `</div>`;
 
-        // เก็บข้อมูลไว้ใช้ใน showRiskStudentList
         window._riskData = { risk: riskStudents, problem: problemStudents };
         window._catNames = catNames;
 
         document.getElementById('report-content').innerHTML = html;
         Swal.close();
 
+        // หลังจากแสดง HTML แล้ว ถ้าเป็น 'grade' ให้สร้างกราฟทันที (ไม่ใช้ setTimeout)
+        if (scope === 'grade' && grade) {
+            isRenderingCharts = false;
+            renderGradeCharts(classrooms, visits, enrolls, grade);
+        }
     } catch (err) {
         Swal.close();
         console.error(err);
         document.getElementById('report-content').innerHTML = `<div class="text-center py-10 text-red-500">เกิดข้อผิดพลาดในการดึงข้อมูลรายงาน</div>`;
+    } finally {
+        isReportLoading = false;
+    }
+};
+
+// ==========================================
+// ฟังก์ชันสร้างกราฟสำหรับระดับชั้น
+// ==========================================
+function renderGradeCharts(classrooms, visits, enrolls, gradeLevel) {
+    // ตรวจสอบ canvas elements
+    const barCanvas = document.getElementById('barChart');
+    const doughnutCanvas = document.getElementById('doughnutChart');
+    if (!barCanvas || !doughnutCanvas) {
+        console.warn('Canvas not found, aborting chart render');
+        isRenderingCharts = false;
+        return;
+    }
+
+    // ถ้ามี instance ค้างอยู่ ให้ทำลายเฉพาะ instance โดยไม่ลบ container
+    if (barChartInstance) {
+        barChartInstance.destroy();
+        barChartInstance = null;
+    }
+    if (doughnutChartInstance) {
+        doughnutChartInstance.destroy();
+        doughnutChartInstance = null;
+    }
+
+    isRenderingCharts = true;
+
+    try {
+        // สร้าง lookup สำหรับ visits ต่อ student
+        const visitMap = {};
+        (visits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        // สร้าง lookup สำหรับ enrolls ต่อ classroom
+        const enrollMap = {};
+        (enrolls || []).forEach(e => {
+            if (!enrollMap[e.classroom_id]) enrollMap[e.classroom_id] = [];
+            enrollMap[e.classroom_id].push(e);
+        });
+
+        // เตรียมข้อมูลสำหรับ Bar chart
+        const roomLabels = [];
+        const completeData = [];
+        const incompleteData = [];
+        let totalComplete = 0;
+        let totalIncomplete = 0;
+        let totalNotVisited = 0;
+
+        classrooms.forEach(c => {
+            const roomLabel = `ม.${c.grade_level}/${c.room_number}`;
+            roomLabels.push(roomLabel);
+            const students = enrollMap[c.id] || [];
+            let complete = 0;
+            let incomplete = 0;
+            students.forEach(e => {
+                const v = visitMap[e.student_id];
+                if (v && v.visit_status === 'เยี่ยมแล้ว') {
+                    const comp = getCompletenessStatus(v);
+                    if (comp.complete) {
+                        complete++;
+                        totalComplete++;
+                    } else {
+                        incomplete++;
+                        totalIncomplete++;
+                    }
+                } else {
+                    totalNotVisited++;
+                }
+            });
+            completeData.push(complete);
+            incompleteData.push(incomplete);
+        });
+
+        // ถ้าไม่มีห้อง ให้ออก
+        if (roomLabels.length === 0) {
+            return;
+        }
+
+        // สร้าง Bar Chart
+        const barCtx = barCanvas.getContext('2d');
+        if (barCtx) {
+            barChartInstance = new Chart(barCtx, {
+                type: 'bar',
+                data: {
+                    labels: roomLabels,
+                    datasets: [
+                        {
+                            label: 'เยี่ยมครบ',
+                            data: completeData,
+                            backgroundColor: 'rgba(16, 185, 129, 0.7)',
+                            borderColor: 'rgb(16, 185, 129)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'เยี่ยมแล้วไม่ครบ',
+                            data: incompleteData,
+                            backgroundColor: 'rgba(245, 158, 11, 0.7)',
+                            borderColor: 'rgb(245, 158, 11)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            stacked: false
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                        }
+                    }
+                }
+            });
+        }
+
+        // สร้าง Doughnut Chart
+        const totalStudents = totalComplete + totalIncomplete + totalNotVisited;
+        if (totalStudents === 0) {
+            const doughnutCtx = doughnutCanvas.getContext('2d');
+            if (doughnutCtx) {
+                doughnutCtx.clearRect(0, 0, 400, 400);
+                doughnutCtx.font = '16px Anuphan';
+                doughnutCtx.fillStyle = '#94a3b8';
+                doughnutCtx.textAlign = 'center';
+                doughnutCtx.fillText('ไม่มีข้อมูลนักเรียน', 200, 120);
+            }
+            return; // isRenderingCharts จะถูก reset ใน finally block
+        }
+
+        const doughnutCtx = doughnutCanvas.getContext('2d');
+        if (doughnutCtx) {
+            doughnutChartInstance = new Chart(doughnutCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['เยี่ยมครบ', 'เยี่ยมแล้วไม่ครบ', 'ยังไม่เยี่ยม'],
+                    datasets: [{
+                        data: [totalComplete, totalIncomplete, totalNotVisited],
+                        backgroundColor: ['#10b981', '#f59e0b', '#94a3b8'],
+                        borderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                        }
+                    }
+                }
+            });
+        }
+    } catch (err) {
+        console.error('Error rendering charts:', err);
+    } finally {
+        isRenderingCharts = false;
     }
 }
 
@@ -2356,7 +2606,8 @@ window.switchOverviewTab = async function (tab) {
             scopeSelect.value = currentViewRole === 'teacher' ? 'myclass' : 'all';
             if (gradeContainer) gradeContainer.classList.add('hidden');
         }
-        await loadReport();
+        // await loadReport();
+        await window.loadReport();
     }
 };
 
@@ -2843,6 +3094,12 @@ function initAllTomSelects() {
 // 9. SWITCH TAB
 // ==========================================
 function switchTab(tabId) {
+    // ถ้าอยู่ที่ report และกด report ซ้ำ ไม่ต้องโหลดใหม่
+    if (tabId === 'report' && currentTab === 'report') {
+        return;
+    }
+    currentTab = tabId;
+
     document.getElementById('tab-form').classList.toggle('hidden', tabId !== 'form');
     document.getElementById('tab-data').classList.toggle('hidden', tabId !== 'data');
     document.getElementById('tab-report').classList.toggle('hidden', tabId !== 'report');
@@ -2868,26 +3125,26 @@ function switchTab(tabId) {
         formBtn.className = inactiveClass;
         dataBtn.className = inactiveClass;
 
-        // ✅ จัดการตัวเลือกใน Report
         const scopeSelect = document.getElementById('report-scope');
         const gradeContainer = document.getElementById('grade-select-container');
         const classroomContainer = document.getElementById('classroom-select-container');
 
+        // ลบกราฟเก่าเมื่อเปลี่ยนแท็บ
+        destroyCharts();
+
         if (currentViewRole === 'teacher') {
-            // ซ่อน classroom container
-            classroomContainer.classList.add('hidden');
-            // ลบ option 'classroom' ถ้ามี
+            // ซ่อน classroom container และลบ option 'classroom'
+            if (classroomContainer) classroomContainer.classList.add('hidden');
             for (let i = 0; i < scopeSelect.options.length; i++) {
                 if (scopeSelect.options[i].value === 'classroom') {
                     scopeSelect.remove(i);
                     break;
                 }
             }
-            // ถ้าเลือก classroom อยู่ให้เปลี่ยนเป็น myclass
             if (scopeSelect.value === 'classroom') scopeSelect.value = 'myclass';
         } else {
-            // Admin: แสดง classroom container และโหลดห้อง
-            classroomContainer.classList.remove('hidden');
+            // Admin: แสดง classroom container เฉพาะเมื่อเลือก 'classroom'
+            toggleClassroomSelect(scopeSelect.value);
             // ตรวจสอบและเพิ่ม option 'classroom' ถ้ายังไม่มี
             let hasClassroom = false;
             for (let i = 0; i < scopeSelect.options.length; i++) {
@@ -2907,7 +3164,8 @@ function switchTab(tabId) {
         }
 
         // เรียก loadReport
-        loadReport();
+        // loadReport();
+        window.loadReport();
     }
 }
 
@@ -2935,7 +3193,16 @@ $(document).ready(async () => {
                 const gradeSel = document.getElementById('grade-select-container');
                 if (this.value === 'grade') gradeSel.classList.remove('hidden');
                 else gradeSel.classList.add('hidden');
-                loadReport();
+                toggleClassroomSelect(this.value);
+                window.loadReport(); // loadReport() จะ destroyCharts() เองในบรรทัดแรก
+            });
+        }
+
+        // event listener สำหรับการเปลี่ยนระดับชั้น
+        const reportGrade = document.getElementById('report-grade');
+        if (reportGrade) {
+            reportGrade.addEventListener('change', function () {
+                window.loadReport(); // loadReport() จะ destroyCharts() เองในบรรทัดแรก
             });
         }
 
@@ -3006,3 +3273,11 @@ $(document).ready(async () => {
         console.error('Initialization error:', err);
     }
 });
+
+// Fallback ในกรณี window.loadReport หาย
+if (typeof window.loadReport !== 'function') {
+    console.warn('window.loadReport not defined, creating fallback');
+    window.loadReport = async function () {
+        Swal.fire('ข้อผิดพลาด', 'ฟังก์ชันรายงานไม่พร้อมใช้งาน กรุณารีเฟรชหน้า', 'error');
+    };
+}
