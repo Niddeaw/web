@@ -183,51 +183,35 @@ async function loadMonitoringData() {
     // 3. ดึง mapping ห้อง-ครู
     const { data: mappedClasses } = await db.from('guidance_classes').select('*');
 
-    // 4. ดึง enrollment ของทุกห้องในครั้งเดียว (เพื่อเอา student_id ไปใช้กับ attributes)
+    // 4. ใช้ RPC เพื่อดึงสถิติ attendance และ attributes
     const classroomIds = allSystemClasses.map(c => c.id);
-    let enrollmentsMap = {}; // classroom_id -> [student_id, ...]
+    let attStats = {}, attrStats = {};
 
     if (classroomIds.length > 0) {
-        const { data: enrolls } = await db.from('student_enrollments')
-            .select('student_id, classroom_id')
-            .in('classroom_id', classroomIds);
-        
-        enrolls?.forEach(e => {
-            if (!enrollmentsMap[e.classroom_id]) enrollmentsMap[e.classroom_id] = [];
-            enrollmentsMap[e.classroom_id].push(e.student_id);
+        // เรียก RPC ฟังก์ชัน get_attendance_counts
+        const { data: attCounts, error: attError } = await db.rpc('get_attendance_counts', {
+            classroom_ids: classroomIds
         });
-    }
-
-    // 5. ดึงสถิติ attendance แบบ grouped (มี classroom_id อยู่แล้ว)
-    let attStats = {};
-    if (classroomIds.length > 0) {
-        const { data: attCounts, error: attError } = await db.from('guidance_attendance')
-            .select('classroom_id, count()')
-            .in('classroom_id', classroomIds);
         
         if (!attError && attCounts) {
             attCounts.forEach(row => {
                 attStats[row.classroom_id] = row.count;
             });
         }
-    }
 
-    // 6. ดึงสถิติ attributes แบบแยกห้อง (โดยใช้ student_ids จาก enrollmentsMap)
-    let attrStats = {};
-    // วนลูปห้องที่มีนักเรียน
-    for (const [classroomId, studentIds] of Object.entries(enrollmentsMap)) {
-        if (studentIds.length === 0) continue;
-        // นับจำนวน record attributes ของนักเรียนในห้องนี้
-        const { data: attrCounts, error: attrError } = await db.from('guidance_attributes')
-            .select('student_id', { count: 'exact', head: true })
-            .in('student_id', studentIds);
+        // เรียก RPC ฟังก์ชัน get_attribute_counts_by_classroom
+        const { data: attrCounts, error: attrError } = await db.rpc('get_attribute_counts_by_classroom', {
+            classroom_ids: classroomIds
+        });
         
-        if (!attrError) {
-            attrStats[classroomId] = attrCounts; // attrCounts คือจำนวน record ทั้งหมด (count)
+        if (!attrError && attrCounts) {
+            attrCounts.forEach(row => {
+                attrStats[row.classroom_id] = row.count;
+            });
         }
     }
 
-    // 7. สร้างข้อมูล monitoring
+    // 5. สร้างข้อมูล monitoring
     const monitorPromises = allSystemClasses.map(async (cls) => {
         const mapping = mappedClasses.find(m => m.classroom_id === cls.id);
         let teacherName = 'ไม่ระบุครู';
@@ -242,7 +226,6 @@ async function loadMonitoringData() {
         if (n_std > 0) {
             const attCount = attStats[cls.id] || 0;
             const attrCount = attrStats[cls.id] || 0;
-            // เงื่อนไข:  attendance ครบ 20 ครั้ง และ attributes ครบ 12 ด้านต่อคน
             if (attCount >= n_std * 20 && attrCount >= n_std * 12) isComplete = true;
         }
 
@@ -262,7 +245,6 @@ async function loadMonitoringData() {
     renderTeacherManageTable(mappedClasses);
     Swal.close();
 }
-
 function renderMonitoringTable(dataArray) {
     if ($.fn.DataTable.isDataTable('#monitoringTable')) $('#monitoringTable').DataTable().destroy();
     const tbody = document.getElementById('tb-monitoring');
