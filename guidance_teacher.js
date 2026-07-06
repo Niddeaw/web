@@ -18,6 +18,16 @@ let globalIsSystemOpen = true;
 
 let classTomSelect = null;
 
+// ✅ ระบบ Cache
+let dataCache = {
+    students: {},
+    attendance: {},
+    scores: {},
+    attributes: {}
+};
+let cacheTimestamp = {};
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
+
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
@@ -131,7 +141,16 @@ async function initDashboard(userId, profile) {
         sortField: { field: 'text', direction: 'asc' },
         placeholder: '-- กรุณาเลือกห้อง --',
         onChange: function (value) {
-            if (value) loadAllData(value);
+            if (value) {
+                // ✅ เคลียร์ Cache เมื่อเปลี่ยนห้อง
+                const cacheKey = value;
+                delete dataCache.students[cacheKey];
+                delete dataCache.attendance[cacheKey];
+                delete dataCache.scores[cacheKey];
+                delete dataCache.attributes[cacheKey];
+                delete cacheTimestamp[cacheKey];
+                loadAllData(value);
+            }
         },
         render: {
             option: function (data, escape) {
@@ -147,17 +166,15 @@ async function initDashboard(userId, profile) {
     await updateClassStatusBadges();
 }
 
-// ========== แก้ไข switchTab ให้จัดการ hidden ถูกต้อง ==========
+// ========== switchTab (แก้ไขให้ใช้ CSS class ควบคุม) ==========
 function switchTab(tabId, btnElement) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     btnElement.classList.add('active');
     document.querySelectorAll('.tab-content').forEach(content => {
-        content.classList.remove('active', 'flex');
-        content.classList.add('hidden');
+        content.classList.remove('active');
     });
     const target = document.getElementById(tabId);
-    target.classList.remove('hidden');
-    target.classList.add('active', 'flex');
+    target.classList.add('active');
 }
 
 async function updateClassStatusBadges() {
@@ -191,9 +208,26 @@ async function updateClassStatusBadges() {
     }).join('');
 }
 
+// ========== loadAllData พร้อมระบบ Cache ==========
 async function loadAllData(classId = null) {
     if (!classId) classId = classTomSelect.getValue();
     if (!classId) return;
+
+    const now = Date.now();
+    const cacheKey = classId;
+
+    // ✅ ใช้ Cache ถ้ายังไม่หมดอายุ
+    if (dataCache.students[cacheKey] && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey] < CACHE_EXPIRY)) {
+        console.log('📦 ใช้ข้อมูลจาก Cache (', Math.round((now - cacheTimestamp[cacheKey]) / 1000), 'วินาทีที่แล้ว)');
+        globalStudents = dataCache.students[cacheKey];
+        globalAttendance = dataCache.attendance[cacheKey] || [];
+        globalScores = dataCache.scores[cacheKey] || [];
+        globalAttributes = dataCache.attributes[cacheKey] || [];
+        renderAttendanceTab();
+        renderScoresTab();
+        renderAttributesTab();
+        return;
+    }
 
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -245,6 +279,13 @@ async function loadAllData(classId = null) {
             globalAttributes = [];
         }
 
+        // ✅ เก็บ Cache
+        dataCache.students[cacheKey] = globalStudents;
+        dataCache.attendance[cacheKey] = globalAttendance;
+        dataCache.scores[cacheKey] = globalScores;
+        dataCache.attributes[cacheKey] = globalAttributes;
+        cacheTimestamp[cacheKey] = now;
+
         renderAttendanceTab();
         renderScoresTab();
         renderAttributesTab();
@@ -266,17 +307,24 @@ function calcAttTotal(stdId) {
     calcAttr(stdId, total);
 }
 
-// แก้ไข calcScoreTotal ให้รองรับค่าว่าง
+// ========== calcScoreTotal (รองรับค่าว่าง) ==========
 function calcScoreTotal(stdId) {
     let total = 0;
+    let hasValue = false;
     for (let i = 1; i <= 5; i++) {
         const el = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`);
-        if (el && el.value.trim() !== '') {
-            const num = parseFloat(el.value);
-            if (!isNaN(num)) total += num;
+        if (el) {
+            const val = el.value.trim();
+            if (val !== '') {
+                const num = parseFloat(val);
+                if (!isNaN(num)) {
+                    total += num;
+                    hasValue = true;
+                }
+            }
         }
     }
-    document.getElementById(`sc_total_${stdId}`).innerText = total.toFixed(2);
+    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? total.toFixed(2) : '';
 }
 
 function calcAttr(stdId, attTotal) {
@@ -351,6 +399,7 @@ function renderAttributesTab() {
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
 
+// ========== saveAllData (พร้อมเคลียร์ Cache) ==========
 async function saveAllData() {
     if (!globalIsSystemOpen) return Swal.fire('ผิดพลาด', 'ระบบถูกปิดการบันทึกแล้ว', 'error');
     if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียน', 'warning');
@@ -366,9 +415,19 @@ async function saveAllData() {
             SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if (v && v.trim() !== '') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
+
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id, week_number' });
         if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id, column_name' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id, attribute_name' });
+
+        // ✅ เคลียร์ Cache หลังบันทึก
+        const cacheKey = classId;
+        delete dataCache.students[cacheKey];
+        delete dataCache.attendance[cacheKey];
+        delete dataCache.scores[cacheKey];
+        delete dataCache.attributes[cacheKey];
+        delete cacheTimestamp[cacheKey];
+
         await updateClassStatusBadges();
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }

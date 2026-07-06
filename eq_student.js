@@ -525,12 +525,25 @@ ${subDims.map(d => {
     if (imgUrls.length === 0) {
         generateStudentPdfNow(html, fullName);
     } else {
+        // ✅ เพิ่ม timeout 10 วินาที ป้องกันการค้าง
         let loaded = 0;
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            if (loaded < imgUrls.length) {
+                console.warn('⏱️ โหลดรูปภาพบางส่วนไม่สำเร็จ พิมพ์ PDF ต่อไป');
+                generateStudentPdfNow(html, fullName);
+            }
+        }, 10000);
+
         imgUrls.forEach(url => {
             const img = new Image();
             img.onload = img.onerror = () => {
                 loaded++;
-                if (loaded === imgUrls.length) generateStudentPdfNow(html, fullName);
+                if (loaded === imgUrls.length && !timedOut) {
+                    clearTimeout(timer);
+                    generateStudentPdfNow(html, fullName);
+                }
             };
             img.src = url;
         });

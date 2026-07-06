@@ -7,6 +7,8 @@
 // - รองรับกรณีไม่มีคอลัมน์ note
 // - แก้ไข switchTab ใช้ active class
 // - ลบฟังก์ชันซ้ำซ้อน
+// - เพิ่มตรวจสอบสิทธิ์การเข้าถึง
+// - เพิ่มฟังก์ชัน isAdminUser() และ requireAdmin()
 // ==========================================
 
 // ===== STATE VARIABLES =====
@@ -35,40 +37,94 @@ $(document).ready(async () => {
         applyAdminVisibility();
         document.getElementById('mainBody').classList.add('loaded');
 
-        // ✅ ตั้งค่าแท็บเริ่มต้น (ผู้รับทุน)
+        // ตั้งค่าแท็บเริ่มต้น (ผู้รับทุน)
         switchTab('recipients');
     } catch (err) { console.error(err); }
 });
 
+// ==========================================
+// checkAuth (ปรับปรุงสิทธิ์การเข้าถึง)
+// ==========================================
 async function checkAuth() {
-    Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    Swal.fire({
+        title: 'กำลังตรวจสอบ...',
+        didOpen: () => Swal.showLoading(),
+        allowOutsideClick: false
+    });
+
     const { data: { session } } = await db.auth.getSession();
-    if (!session) return window.location.replace('login.html');
-    const [{ data: profile }, { data: sInfo }] = await Promise.all([
-        db.from('core_personnel').select('*').eq('id', session.user.id).single(),
-        db.from('core_school_info').select('current_academic_year, current_semester').single()
-    ]);
-    if (!profile) return window.location.replace('login.html');
+    if (!session) {
+        Swal.close();
+        window.location.replace('login.html');
+        return;
+    }
+
+    const { data: profile, error: profileErr } = await db.from('core_personnel')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+    if (profileErr || !profile) {
+        Swal.close();
+        await Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error');
+        window.location.replace('index.html');
+        return;
+    }
+
+    // ตรวจสอบ role ที่อนุญาต
+    const allowedRoles = ['super_admin', 'admin', 'teacher'];
+    if (!allowedRoles.includes(profile.role)) {
+        Swal.close();
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่มีสิทธิ์เข้าถึง',
+            text: `บทบาท "${profile.role}" ไม่มีสิทธิ์ใช้งานระบบบริหารทุน`,
+            confirmButtonText: 'กลับหน้าหลัก'
+        });
+        window.location.replace('index.html');
+        return;
+    }
+
     currentUser = profile;
     actualRole = profile.role;
+
+    const { data: sInfo } = await db.from('core_school_info')
+        .select('current_academic_year, current_semester')
+        .single();
+
     if (sInfo) {
         currentYear = sInfo.current_academic_year;
         currentTerm = sInfo.current_semester;
         document.getElementById('term-display').innerText = `${currentTerm}/${currentYear}`;
     }
-    const { data: modAdmin } = await db.from('core_scholarship_admins').select('id').eq('user_id', currentUser.id).maybeSingle();
-    const { data: discHead } = await db.from('core_discipline_heads').select('id').eq('personnel_id', currentUser.id).eq('academic_year', currentYear).maybeSingle();
-    const { data: gradeHead } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).maybeSingle();
-    if (actualRole === 'super_admin') currentViewRole = 'super_admin';
-    else if (modAdmin) currentViewRole = 'module_admin';
-    else if (discHead) currentViewRole = 'head_discipline';
-    else if (gradeHead) currentViewRole = 'head_grade';
-    else currentViewRole = 'teacher';
+
+    const [modAdmin, discHead, gradeHead] = await Promise.all([
+        db.from('core_scholarship_admins').select('id').eq('user_id', currentUser.id).maybeSingle(),
+        db.from('core_discipline_heads').select('id').eq('personnel_id', currentUser.id).eq('academic_year', currentYear).maybeSingle(),
+        db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).maybeSingle()
+    ]);
+
+    if (actualRole === 'super_admin') {
+        currentViewRole = 'super_admin';
+    } else if (modAdmin?.data) {
+        currentViewRole = 'module_admin';
+    } else if (discHead?.data) {
+        currentViewRole = 'head_discipline';
+    } else if (gradeHead?.data) {
+        currentViewRole = 'head_grade';
+    } else {
+        currentViewRole = 'teacher';
+    }
+
     isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
     updateUIByRole();
-    if (actualRole !== 'teacher') {
+
+    const hasAdminRights = ['super_admin', 'admin', 'module_admin'].includes(currentViewRole) ||
+        actualRole === 'admin' || actualRole === 'super_admin';
+    if (hasAdminRights) {
         document.getElementById('btnAdminMode')?.classList.remove('hidden');
     }
+
     updateAdminModeButton();
     Swal.close();
 }
@@ -111,8 +167,29 @@ window.toggleRoleView = function() {
     });
 };
 
+// ==========================================
+// ฟังก์ชันตรวจสอบสิทธิ์ Admin
+// ==========================================
+function isAdminUser() {
+    return ['super_admin', 'module_admin', 'admin'].includes(currentViewRole) ||
+        ['super_admin', 'admin'].includes(actualRole);
+}
+
+function requireAdmin() {
+    if (!isAdminUser()) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์',
+            text: 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดำเนินการนี้ได้',
+            confirmButtonText: 'ตกลง'
+        });
+        return false;
+    }
+    return true;
+}
+
 function applyAdminVisibility() {
-    const isAdmin = ['super_admin', 'module_admin'].includes(currentViewRole);
+    const isAdmin = isAdminUser();
     document.getElementById('admin-settings-btn')?.classList.toggle('hidden', !isAdmin);
     const recordBtnNav = document.getElementById('btnRecordScholarshipNav');
     if (recordBtnNav) {
@@ -474,7 +551,7 @@ function goToStep(step) {
 function nextStep(step) { goToStep(step); }
 function prevStep(step) { goToStep(step); }
 
-// ===== SWITCH TAB (แก้ไขแล้ว ใช้ active class) =====
+// ===== SWITCH TAB (ใช้ active class) =====
 function switchTab(tabId) {
     // 1. ลบ active class ออกจากทุกแท็บ
     $('#tab-recipients, #tab-list, #tab-form').removeClass('active');
@@ -779,6 +856,7 @@ window.viewScholarshipDetail = async function(scholarshipId) {
 };
 
 window.openEditScholarshipModal = async function(scholarshipId) {
+    if (!requireAdmin()) return;
     try {
         const { data, error } = await db.from('core_scholarships')
             .select('*')
@@ -810,6 +888,7 @@ window.closeEditScholarshipModal = function() {
 };
 
 window.updateScholarshipRecord = async function() {
+    if (!requireAdmin()) return;
     const id = document.getElementById('edit_record_id').value;
     const scholarshipName = document.getElementById('edit_scholarship_name').value.trim();
     const amount = parseFloat(document.getElementById('edit_amount').value);
@@ -876,11 +955,7 @@ window.updateScholarshipRecord = async function() {
 };
 
 window.deleteScholarshipRecord = async function(scholarshipId) {
-    const isAdmin = ['super_admin', 'module_admin'].includes(currentViewRole);
-    if (!isAdmin) {
-        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบข้อมูลได้', 'error');
-    }
-
+    if (!requireAdmin()) return;
     try {
         const { data, error } = await db.from('core_scholarships')
             .select(`
@@ -1128,6 +1203,7 @@ function clearRecordFields() {
 }
 
 window.openRecordScholarshipModal = async function() {
+    if (!requireAdmin()) return;
     clearRecordFields();
     document.getElementById('record_scholarship_name').value = '';
     document.getElementById('record_amount').value = '';
@@ -1143,6 +1219,7 @@ window.closeRecordScholarshipModal = function() {
 };
 
 window.saveScholarshipRecord = async function() {
+    if (!requireAdmin()) return;
     const studentId = document.getElementById('record_student_select').value;
     if (!studentId) {
         closeRecordScholarshipModal();

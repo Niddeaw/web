@@ -13,7 +13,17 @@
     <style>
         .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
         .stat-card:hover { transform: translateY(-2px); }
-        /* ไม่ต้องมี CSS สำหรับ modal เพราะ JS จะจัดการ style โดยตรง */
+        /* Modal ใช้ class hidden/flex จัดการ */
+        #eventModal {
+            display: none; /* default hidden */
+        }
+        #eventModal.flex {
+            display: flex;
+        }
+        #eventModal .modal-content {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
@@ -88,8 +98,8 @@
         </div>
     </main>
 
-    <!-- Modal: ไม่ใช้ class .hidden แต่ใช้ style.display โดย JS -->
-    <div id="eventModal">
+    <!-- Modal: ใช้ class hidden/flex -->
+    <div id="eventModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm items-center justify-center z-50 p-4">
         <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4 modal-content">
             <button id="closeModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
             <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม</h3>
@@ -127,20 +137,15 @@
         let currentYear = new Date().getFullYear() + 543;
         let currentMonth = new Date().getMonth();
 
-        // ----- จัดการ Modal โดย JS ตรง (ไม่พึ่ง CSS class) -----
+        // ----- จัดการ Modal โดยใช้ class -----
         const modal = document.getElementById('eventModal');
         function showModal() {
-            modal.style.display = 'flex';
-            modal.style.position = 'fixed';
-            modal.style.inset = '0';
-            modal.style.backgroundColor = 'rgba(0, 0, 0, 0.6)';
-            modal.style.backdropFilter = 'blur(4px)';
-            modal.style.zIndex = '9999';
-            modal.style.alignItems = 'center';
-            modal.style.justifyContent = 'center';
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
         }
         function hideModal() {
-            modal.style.display = 'none';
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
         }
 
         // ปุ่มเปิดปิด modal
@@ -163,6 +168,7 @@
             }
         }
 
+        // ฟังก์ชันโหลดข้อมูล (เรียกใช้จาก calendar_manager.js)
         async function loadEvents() {
             const year = parseInt(document.getElementById('yearSelect').value);
             const month = parseInt(document.getElementById('monthSelect').value);
@@ -171,73 +177,13 @@
             if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
             try {
-                const events = await getEventsByMonthYearForAdmin(year, month, deptFilter);
+                // เรียกใช้ฟังก์ชันจาก calendar_manager.js
+                const events = await window.getEventsByMonthYearForAdmin(year, month, deptFilter);
                 renderTable(events);
                 document.getElementById('monthCount').innerText = events.length;
             } catch (err) {
                 console.error(err);
                 tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
-            }
-        }
-
-        async function getEventsByMonthYearForAdmin(yearBE, monthIndex, deptFilter) {
-            const yearCE = yearBE - 543;
-            const startOfMonth = new Date(yearCE, monthIndex, 1);
-            const endOfMonth = new Date(yearCE, monthIndex + 1, 0);
-            let allEvents = [];
-            if (deptFilter === 'academic' || deptFilter === '') {
-                const googleEvents = await fetchGoogleEventsForDept('academic', startOfMonth, endOfMonth);
-                allEvents.push(...googleEvents);
-            }
-            let internalDepts = [];
-            if (deptFilter === '') internalDepts = managedDepts.filter(d => d !== 'academic');
-            else if (deptFilter !== 'academic') internalDepts = [deptFilter];
-            for (const dept of internalDepts) {
-                const internalEvents = await getEventsByDept(dept, startOfMonth.toISOString().split('T')[0], endOfMonth.toISOString().split('T')[0]);
-                allEvents.push(...internalEvents);
-            }
-            const uniqueMap = new Map();
-            allEvents.forEach(ev => uniqueMap.set(ev.id, ev));
-            const uniqueEvents = Array.from(uniqueMap.values());
-            uniqueEvents.sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
-            return uniqueEvents;
-        }
-
-        async function fetchGoogleEventsForDept(deptKey, startDate, endDate) {
-            if (deptKey !== 'academic') return [];
-            const { data: configs, error } = await db.from('calendar_config')
-                .select('google_calendar_id, google_api_key')
-                .eq('dept_key', 'academic')
-                .single();
-            if (error || !configs?.google_calendar_id || !configs?.google_api_key) return [];
-            const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(configs.google_calendar_id)}/events?key=${configs.google_api_key}&timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&singleEvents=true&orderBy=startTime`;
-            try {
-                const resp = await fetch(url);
-                const data = await resp.json();
-                if (!resp.ok || !data.items) return [];
-                return data.items.map(item => {
-                    let start_date = null, end_date = null, isAllDay = false;
-                    if (item.start?.date) { start_date = item.start.date; isAllDay = true; }
-                    else if (item.start?.dateTime) start_date = item.start.dateTime.split('T')[0];
-                    if (item.end?.date) { end_date = item.end.date; isAllDay = true; }
-                    else if (item.end?.dateTime) end_date = item.end.dateTime.split('T')[0];
-                    if (isAllDay && start_date && end_date) {
-                        const diffDays = (new Date(end_date) - new Date(start_date)) / (1000*60*60*24);
-                        if (diffDays === 1) end_date = null;
-                    }
-                    return {
-                        id: `google_${item.id}`,
-                        dept_key: 'academic',
-                        title: item.summary || 'ไม่มีชื่อกิจกรรม',
-                        description: item.description || '',
-                        start_date: start_date,
-                        end_date: end_date,
-                        source: 'google'
-                    };
-                });
-            } catch (err) {
-                console.error("Google Calendar fetch error:", err);
-                return [];
             }
         }
 
@@ -282,7 +228,7 @@
         async function checkAuthAndLoad() {
             const { data: { session } } = await db.auth.getSession();
             if (!session) { window.location.replace('login.html'); return; }
-            const allManaged = await getUserManagedDepts(session.user.id);
+            const allManaged = await window.getUserManagedDepts(session.user.id);
             managedDepts = allManaged.filter(d => d !== 'academic');
             const deptNames = { academic: 'บริหารวิชาการ', budget: 'บริหารงบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
             const displayDepts = managedDepts.map(d => deptNames[d] || d);
@@ -299,7 +245,6 @@
             for (const dept of managedDepts) selectOptions += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
             deptSelect.innerHTML = selectOptions;
 
-            document.body.classList.replace('opacity-0', 'opacity-100');
             populateYearSelect();
             document.getElementById('btnLoadCalendar').addEventListener('click', loadEvents);
             document.getElementById('deptFilter').addEventListener('change', loadEvents);
@@ -348,13 +293,15 @@
             const { data: { session } } = await db.auth.getSession();
             try {
                 if (eventId) {
-                    await updateInternalEvent(eventId, data);
+                    await window.updateInternalEvent(eventId, data);
                     Swal.fire({ toast: true, icon: 'success', title: 'อัปเดตกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
                 } else {
-                    await createInternalEvent(data, session.user.id);
+                    await window.createInternalEvent(data, session.user.id);
                     Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
                 }
                 hideModal();
+                // ล้าง cache Google (ถ้ามี)
+                if (window.clearGoogleCache) window.clearGoogleCache();
                 await loadEvents();
             } catch (err) {
                 Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -364,7 +311,8 @@
         window.deleteEvent = async function(eventId) {
             const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบกิจกรรมนี้ใช่หรือไม่', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบเลย' });
             if (isConfirmed) {
-                await deleteInternalEvent(eventId);
+                await window.deleteInternalEvent(eventId);
+                if (window.clearGoogleCache) window.clearGoogleCache();
                 await loadEvents();
                 Swal.fire({ toast: true, icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
             }

@@ -27,7 +27,8 @@ async function checkAuth() {
             currentSchoolInfo = schoolInfo;
         }
         
-        $('#term-info').html(`<i class="fa-solid fa-graduation-cap mr-1"></i> ปีการศึกษา ${currentSchoolInfo.current_academic_year} / เทอม ${currentSchoolInfo.current_semester}`);
+        // ✅ แสดงปีการศึกษา (ไม่เน้นเทอม)
+        $('#term-info').html(`<i class="fa-solid fa-graduation-cap mr-1"></i> ปีการศึกษา ${currentSchoolInfo.current_academic_year}`);
 
         const studentSid = session.user.email.split('@')[0];
         const { data: student, error: studentError } = await db.from('core_students')
@@ -83,12 +84,13 @@ async function checkAuth() {
     }
 }
 
+// ✅ ตรวจสอบการสมัครด้วย academic_year เท่านั้น (ไม่ใช้ semester)
 async function checkCurrentEnrollment() {
     const { data, error } = await db.from('club_registrations')
         .select('*, club_lists(*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name))')
         .eq('student_id', currentStudent.id)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester)
+        // ❌ ไม่มี .eq('semester', ...)
         .maybeSingle();
 
     if (data) {
@@ -108,12 +110,13 @@ async function loadCategories() {
     $('#category-filter').off('change').on('change', loadClubs);
 }
 
+// ✅ (ตัวเลือก) loadClubs แบบไม่กรอง semester (แสดงทุกชุมนุมของปี)
 async function loadClubs() {
     const filterId = $('#category-filter').val();
     let query = db.from('club_lists')
         .select('*, core_personnel(id, prefix, first_name, last_name, avatar_url), club_categories(name)')
         .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester)
+        // ❌ ลบ .eq('semester', ...) ออก เพื่อแสดงทุกชุมนุมของปี
         .eq('is_locked', false);
 
     if (filterId !== 'all') query = query.eq('category_id', filterId);
@@ -122,10 +125,10 @@ async function loadClubs() {
     if (error) return console.error(error);
     allClubsData = clubs || [];
 
+    // ✅ นับจำนวนผู้สมัคร (ไม่กรอง semester)
     const { data: memberships } = await db.from('club_registrations')
         .select('club_id')
         .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester)
         .neq('status', 'rejected');
 
     clubMemberCounts = {};
@@ -161,10 +164,10 @@ function isGradeAccepted(studentGrade, targetGrades) {
     return false;
 }
 
-// 🌟 1. ฟังก์ชันการกดปุ่มสมัครชุมนุม (เพิ่มกล่องฝากข้อความ)
 window.enrollClub = async (clubId, isFull) => {
     if (currentMembership) {
-        return Swal.fire('ไม่สามารถสมัครได้', 'คุณมีชุมนุมที่เลือกไว้แล้ว 1 รายการ', 'warning');
+        // ✅ ปรับข้อความให้ชัดเจนว่าเลือกได้ 1 ครั้งต่อปี
+        return Swal.fire('ไม่สามารถสมัครได้', 'คุณเลือกชุมนุมไว้แล้วในปีการศึกษานี้ (เลือกได้เพียง 1 ครั้งต่อปี)', 'warning');
     }
 
     let alertOptions = {
@@ -212,7 +215,7 @@ window.enrollClub = async (clubId, isFull) => {
     const result = await Swal.fire(alertOptions);
 
     if (result.isConfirmed) {
-        const studentMessage = result.value ? result.value.trim() : null; // ดึงข้อความที่นักเรียนพิมพ์
+        const studentMessage = result.value ? result.value.trim() : null;
         Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
         
         const { error } = await db.from('club_registrations').insert([{
@@ -222,7 +225,7 @@ window.enrollClub = async (clubId, isFull) => {
             semester: currentSchoolInfo.current_semester,
             status: 'pending',
             is_confirmed: false,
-            student_message: studentMessage // 🌟 บันทึกข้อความลง DB
+            student_message: studentMessage
         }]);
 
         if (error) {
@@ -237,7 +240,6 @@ window.enrollClub = async (clubId, isFull) => {
 $('#btn-cancel-enroll').click(async () => {
     if (!currentMembership) return;
     
-    // 🌟 แปลงเป็นพิมพ์เล็กเหมือนกัน เพื่อให้กดเช็คได้แม่นยำ
     const currentStatus = (currentMembership.status || '').toLowerCase().trim();
 
     if (currentStatus === 'rejected') {
@@ -298,7 +300,6 @@ $('#btn-final-confirm').click(async () => {
     }
 });
 
-// 🌟 1. ฟังก์ชันตัวช่วยแปลงลิงก์ Google Drive เป็นลิงก์ตรง (วางไว้บนสุด หรือก่อน renderClubs)
 function getDirectImageUrl(url) {
     if (!url) return null;
     if (url.includes('drive.google.com')) {
@@ -310,12 +311,10 @@ function getDirectImageUrl(url) {
     return url;
 }
 
-// 🌟 2. ฟังก์ชันเรนเดอร์การ์ดชุมนุม
-// ✅ renderClubs: early return ถ้าสมัครแล้ว + ใช้ jQuery bind แทน onclick inline
 function renderClubs() {
     const container = $('#clubs-container').empty();
 
-    if (currentMembership) return; // ไม่ต้อง render ถ้าสมัครแล้ว
+    if (currentMembership) return;
 
     if (!studentGradeLevel) {
         container.html('<p class="text-gray-500 col-span-full text-center py-8">ไม่พบระดับชั้นของนักเรียน กรุณาติดต่อครูที่ปรึกษา</p>');
@@ -372,7 +371,6 @@ function renderClubs() {
             </div>
         `);
 
-        // ✅ bind event ด้วย jQuery แทน inline
         if (avatarUrl) {
             card.find(`[data-club-avatar="${club.id}"]`).on('click', () => viewTeacherImage(avatarUrl, teacherName));
         }
@@ -384,7 +382,6 @@ function renderClubs() {
     });
 }
 
-// 🌟 3. ฟังก์ชันหน้าสรุปผล
 function renderSummary() {
     $('#club-selection-area').addClass('hidden');
     $('#summary-section').removeClass('hidden');
@@ -406,7 +403,6 @@ function renderSummary() {
     const category = club.club_categories?.name || '-';
     const avatarUrl = getDirectImageUrl(teacher?.avatar_url);
 
-    // ✅ Escape ข้อความนักเรียนก่อน render
     const safeMessage = currentMembership.student_message
         ? $('<div>').text(currentMembership.student_message).html()
         : null;
@@ -418,7 +414,6 @@ function renderSummary() {
            </div>`
         : '';
 
-    // ✅ สร้าง avatarHtml แยกออกมา แล้ว bind event ด้วย jQuery แทน onclick inline
     const avatarHtml = avatarUrl
         ? `<img id="teacher-avatar-img" src="${avatarUrl}"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(teacherName)}&background=random';"
@@ -449,7 +444,6 @@ function renderSummary() {
         </div>
     `);
 
-    // ✅ bind click ด้วย jQuery แทน onclick inline (ปลอดภัยกว่า)
     if (avatarUrl) {
         $('#teacher-avatar-img').on('click', () => viewTeacherImage(avatarUrl, teacherName));
     }

@@ -151,6 +151,11 @@
             try {
                 const sidFromEmail = session.user.email.split('@')[0];
 
+                // รับปีการศึกษาและเทอมปัจจุบัน
+                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+                const academicYear = sInfo?.current_academic_year || null;
+                const semester = sInfo?.current_semester || null;
+
                 const { data: student, error: dbError } = await db.from('core_students')
                     .select(`
                         *,
@@ -170,6 +175,13 @@
                     Swal.fire('ไม่พบข้อมูล', 'ไม่สามารถดึงข้อมูลโปรไฟล์ของคุณได้', 'error')
                         .then(() => logout());
                     return;
+                }
+
+                // กรอง logs เฉพาะปี/เทอมปัจจุบัน (ถ้ามีข้อมูล)
+                if (academicYear && semester) {
+                    student.behavior_logs = student.behavior_logs?.filter(log => 
+                        log.academic_year === academicYear && log.semester === semester
+                    ) || [];
                 }
 
                 studentProfile = student;

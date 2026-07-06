@@ -1,15 +1,54 @@
 // ==========================================
-// calendar_manager.js
-// จัดการปฏิทินกิจกรรม (Google Calendar + Internal Events)
+// calendar_manager.js (ฉบับสมบูรณ์ พร้อมฟังก์ชัน getEventsByMonthYear)
 // ==========================================
 
 // ----------------------------------------------
-// ฟังก์ชันดึงกิจกรรมจาก Google Calendar
+// ระบบ Cache สำหรับ Google Calendar
+// ----------------------------------------------
+const googleCache = {
+    data: null,
+    timestamp: null,
+    expiry: 5 * 60 * 1000, // 5 นาที
+
+    set(data) {
+        this.data = data;
+        this.timestamp = Date.now();
+    },
+
+    get() {
+        if (!this.data || !this.timestamp) return null;
+        if (Date.now() - this.timestamp > this.expiry) {
+            this.clear();
+            return null;
+        }
+        return this.data;
+    },
+
+    clear() {
+        this.data = null;
+        this.timestamp = null;
+    }
+};
+
+// ----------------------------------------------
+// ฟังก์ชันดึงกิจกรรมจาก Google Calendar (พร้อม Cache)
 // ----------------------------------------------
 async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate) {
-    if (!calendarId || !apiKey) return [];
+    if (!calendarId || !apiKey) {
+        console.warn("⚠️ ขาด Calendar ID หรือ API Key");
+        return [];
+    }
+
+    const cacheKey = `${calendarId}_${startDate.toISOString()}_${endDate.toISOString()}`;
+    const cached = googleCache.get();
+    if (cached && cached.key === cacheKey) {
+        console.log("📦 ใช้ข้อมูล Google Calendar จาก Cache");
+        return cached.events;
+    }
+
     const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events?key=${apiKey}&timeMin=${startDate.toISOString()}&timeMax=${endDate.toISOString()}&singleEvents=true&orderBy=startTime`;
     console.log("🌐 Fetching Google Calendar:", url);
+
     try {
         const response = await fetch(url);
         const data = await response.json();
@@ -18,37 +57,35 @@ async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate)
             return [];
         }
         if (!data.items) return [];
-        return data.items.map(item => {
+
+        const events = data.items.map(item => {
             let start_date = null;
             let end_date = null;
             let isAllDay = false;
-            
-            // ดึงวันที่เริ่มต้น
+
             if (item.start?.date) {
                 start_date = item.start.date;
                 isAllDay = true;
             } else if (item.start?.dateTime) {
                 start_date = item.start.dateTime.split('T')[0];
             }
-            
-            // ดึงวันที่สิ้นสุด
+
             if (item.end?.date) {
                 end_date = item.end.date;
                 isAllDay = true;
             } else if (item.end?.dateTime) {
                 end_date = item.end.dateTime.split('T')[0];
             }
-            
-            // ✅ แก้ไข: ถ้าเป็นกิจกรรมทั้งวัน (all-day) และ end_date มากกว่า start_date 1 วัน → ให้ถือว่าเป็นวันเดียว
+
             if (isAllDay && start_date && end_date) {
                 const start = new Date(start_date);
                 const end = new Date(end_date);
                 const diffDays = (end - start) / (1000 * 60 * 60 * 24);
                 if (diffDays === 1) {
-                    end_date = null; // แสดงแค่วันเดียว
+                    end_date = null;
                 }
             }
-            
+
             return {
                 id: `google_${item.id}`,
                 dept_key: 'academic',
@@ -59,6 +96,9 @@ async function fetchGoogleCalendarEvents(calendarId, apiKey, startDate, endDate)
                 source: 'google'
             };
         });
+
+        googleCache.set({ key: cacheKey, events });
+        return events;
     } catch (err) {
         console.error("❌ Google Calendar fetch error:", err);
         return [];
@@ -74,7 +114,7 @@ async function fetchInternalEvents(deptKeys, startDate, endDate) {
         .eq('is_active', true)
         .gte('start_date', startDate.toISOString().split('T')[0])
         .lte('start_date', endDate.toISOString().split('T')[0]);
-    
+
     if (deptKeys && deptKeys.length) {
         query = query.in('dept_key', deptKeys);
     }
@@ -87,32 +127,65 @@ async function fetchInternalEvents(deptKeys, startDate, endDate) {
 }
 
 // ----------------------------------------------
-// รวมกิจกรรมทั้งหมดของเดือนปัจจุบัน (แสดงทุกกลุ่มที่เปิด)
+// ดึงกิจกรรมตามเดือน/ปี สำหรับ Admin (สามารถกรองกลุ่มได้)
 // ----------------------------------------------
-async function getCurrentMonthEvents() {
-    console.log("🔍 getCurrentMonthEvents เริ่มทำงาน");
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-    
-    console.log("📅 ช่วงเวลา:", startOfMonth.toISOString(), "ถึง", endOfMonth.toISOString());
-    
-    // ดึงการตั้งค่าปฏิทินจาก Supabase
+async function getEventsByMonthYearForAdmin(yearBE, monthIndex, deptFilter = '') {
+    const yearCE = yearBE - 543;
+    const startOfMonth = new Date(yearCE, monthIndex, 1);
+    const endOfMonth = new Date(yearCE, monthIndex + 1, 0);
+
     const { data: configs, error: cfgErr } = await db.from('calendar_config').select('*');
-    if (cfgErr) {
-        console.error("❌ Error fetching calendar_config:", cfgErr);
-        throw cfgErr;
-    }
-    console.log("📋 calendar_config:", configs);
-    
+    if (cfgErr) throw cfgErr;
+
     let allEvents = [];
-    const activeDepts = configs.filter(c => c.is_active).map(c => c.dept_key);
-    console.log("✅ Active depts:", activeDepts);
-    
-    // ดึงจาก Google Calendar (เฉพาะกลุ่ม academic)
+
+    // 1. Google Calendar (academic)
+    if (deptFilter === 'academic' || deptFilter === '') {
+        const academicCfg = configs.find(c => c.dept_key === 'academic');
+        if (academicCfg?.is_active && academicCfg.source_type === 'google' && academicCfg.google_calendar_id && academicCfg.google_api_key) {
+            const googleEvents = await fetchGoogleCalendarEvents(
+                academicCfg.google_calendar_id,
+                academicCfg.google_api_key,
+                startOfMonth,
+                endOfMonth
+            );
+            allEvents.push(...googleEvents);
+        }
+    }
+
+    // 2. Internal events
+    let internalDepts = [];
+    if (deptFilter === '') {
+        internalDepts = configs.filter(c => c.is_active && c.dept_key !== 'academic').map(c => c.dept_key);
+    } else if (deptFilter !== 'academic') {
+        internalDepts = [deptFilter];
+    }
+
+    if (internalDepts.length) {
+        const internalEvents = await fetchInternalEvents(internalDepts, startOfMonth, endOfMonth);
+        allEvents.push(...internalEvents);
+    }
+
+    allEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
+    return allEvents;
+}
+
+// ----------------------------------------------
+// ฟังก์ชันสำหรับผู้ใช้ทั่วไป (ดึงทุกกลุ่มที่เปิดใช้งาน)
+// ----------------------------------------------
+async function getEventsByMonthYear(yearBE, monthIndex) {
+    const yearCE = yearBE - 543;
+    const startOfMonth = new Date(yearCE, monthIndex, 1);
+    const endOfMonth = new Date(yearCE, monthIndex + 1, 0);
+
+    const { data: configs, error: cfgErr } = await db.from('calendar_config').select('*');
+    if (cfgErr) throw cfgErr;
+
+    let allEvents = [];
+
+    // 1. Google Calendar (academic)
     const academicCfg = configs.find(c => c.dept_key === 'academic');
-    if (academicCfg && academicCfg.is_active && academicCfg.source_type === 'google' && academicCfg.google_calendar_id && academicCfg.google_api_key) {
-        console.log("🌐 กำลังดึง Google Calendar...");
+    if (academicCfg?.is_active && academicCfg.source_type === 'google' && academicCfg.google_calendar_id && academicCfg.google_api_key) {
         const googleEvents = await fetchGoogleCalendarEvents(
             academicCfg.google_calendar_id,
             academicCfg.google_api_key,
@@ -120,23 +193,16 @@ async function getCurrentMonthEvents() {
             endOfMonth
         );
         allEvents.push(...googleEvents);
-        console.log(`📅 ได้ ${googleEvents.length} รายการจาก Google Calendar`);
-    } else {
-        console.warn("⚠️ Google Calendar ยังไม่ได้ตั้งค่าหรือปิดใช้งาน");
     }
-    
-    // ดึงจาก internal events (ทุกกลุ่มยกเว้น academic)
-    const internalDepts = activeDepts.filter(d => d !== 'academic');
+
+    // 2. Internal events (ทุกกลุ่มที่เปิดใช้งาน)
+    const internalDepts = configs.filter(c => c.is_active && c.dept_key !== 'academic').map(c => c.dept_key);
     if (internalDepts.length) {
-        console.log("📦 กำลังดึง Internal events สำหรับกลุ่ม:", internalDepts);
         const internalEvents = await fetchInternalEvents(internalDepts, startOfMonth, endOfMonth);
         allEvents.push(...internalEvents);
-        console.log(`📅 ได้ ${internalEvents.length} รายการจาก Internal`);
     }
-    
-    // เรียงตามวันที่เริ่ม
-    allEvents.sort((a,b) => new Date(a.start_date) - new Date(b.start_date));
-    console.log(`✅ รวมกิจกรรมทั้งหมด ${allEvents.length} รายการ`);
+
+    allEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
     return allEvents;
 }
 
@@ -178,7 +244,6 @@ async function deleteInternalEvent(eventId) {
     return true;
 }
 
-// ดึงรายการกิจกรรมของกลุ่มใดกลุ่มหนึ่ง (สำหรับ admin) - ไม่จำกัดเดือน
 async function getEventsByDept(deptKey, startDate = null, endDate = null) {
     let query = db.from('calendar_events')
         .select('*')
@@ -213,7 +278,6 @@ async function getDeptAdmins(deptKey) {
     return data;
 }
 
-// ตรวจสอบว่าผู้ใช้มีสิทธิ์จัดการกลุ่มใดบ้าง (super_admin ได้ทุกกลุ่ม)
 async function getUserManagedDepts(userId) {
     const { data: profile } = await db.from('core_personnel').select('role').eq('id', userId).single();
     if (profile?.role === 'super_admin') {
@@ -238,49 +302,23 @@ async function getCalendarConfig() {
     return data;
 }
 
-// เพิ่มใน calendar_manager.js (ต่อท้ายไฟล์)
-async function getEventsByMonthYear(yearBE, monthIndex) {
-    // แปลงปี พ.ศ. เป็น ค.ศ.
-    const yearCE = yearBE - 543;
-    const startOfMonth = new Date(yearCE, monthIndex, 1);
-    const endOfMonth = new Date(yearCE, monthIndex + 1, 0);
-    
-    console.log(`📅 ดึงกิจกรรมสำหรับ ${startOfMonth.toLocaleDateString('th-TH')} - ${endOfMonth.toLocaleDateString('th-TH')}`);
-    
-    const { data: configs, error: cfgErr } = await db.from('calendar_config').select('*');
-    if (cfgErr) throw cfgErr;
-    
-    let allEvents = [];
-    const activeDepts = configs.filter(c => c.is_active).map(c => c.dept_key);
-    
-    // Google Calendar (academic)
-    const academicCfg = configs.find(c => c.dept_key === 'academic');
-    if (academicCfg && academicCfg.is_active && academicCfg.source_type === 'google' && academicCfg.google_calendar_id && academicCfg.google_api_key) {
-        const googleEvents = await fetchGoogleCalendarEvents(
-            academicCfg.google_calendar_id,
-            academicCfg.google_api_key,
-            startOfMonth,
-            endOfMonth
-        );
-        allEvents.push(...googleEvents);
-    }
-    
-    // Internal events
-    const internalDepts = activeDepts.filter(d => d !== 'academic');
-    if (internalDepts.length) {
-        // ใช้ fetchInternalEvents เดิม แต่ปรับช่วงวันที่
-        let query = db.from('calendar_events')
-            .select('*')
-            .eq('is_active', true)
-            .gte('start_date', startOfMonth.toISOString().split('T')[0])
-            .lte('start_date', endOfMonth.toISOString().split('T')[0]);
-        if (internalDepts.length) query = query.in('dept_key', internalDepts);
-        const { data, error } = await query;
-        if (!error && data) {
-            allEvents.push(...data.map(ev => ({ ...ev, source: 'internal' })));
-        }
-    }
-    
-    allEvents.sort((a, b) => new Date(a.start_date) - new Date(b.start_date));
-    return allEvents;
+// ----------------------------------------------
+// ฟังก์ชันช่วย: ล้างแคช Google
+// ----------------------------------------------
+function clearGoogleCache() {
+    googleCache.clear();
+    console.log("🗑️ Google Calendar Cache cleared");
 }
+
+// ----------------------------------------------
+// ประกาศฟังก์ชันให้เป็น Global (สำหรับเรียกจาก HTML)
+// ----------------------------------------------
+window.getEventsByMonthYearForAdmin = getEventsByMonthYearForAdmin;
+window.getEventsByMonthYear = getEventsByMonthYear;
+window.createInternalEvent = createInternalEvent;
+window.updateInternalEvent = updateInternalEvent;
+window.deleteInternalEvent = deleteInternalEvent;
+window.getUserManagedDepts = getUserManagedDepts;
+window.clearGoogleCache = clearGoogleCache;
+window.getEventsByDept = getEventsByDept;
+window.fetchGoogleCalendarEvents = fetchGoogleCalendarEvents; // เผื่อไว้

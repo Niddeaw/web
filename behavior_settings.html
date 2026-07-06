@@ -236,28 +236,6 @@
             loadCriteria();
         });
 
-        // 1. ตรวจสอบสิทธิ์ 
-        // async function checkAuth() {
-        //     const { data: { session } } = await db.auth.getSession();
-        //     if (!session) { window.location.replace('index.html'); return; }
-
-        //     const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
-        //     const { data: moduleAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'behavior').maybeSingle();
-
-        //     if (profile.role !== 'super_admin' && !moduleAdmin) {
-        //         await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
-        //         history.back(); return;
-        //     }
-
-        //     // 🌟 ซ่อน/แสดงส่วนของ Super Admin
-        //     if (profile.role === 'super_admin') {
-        //         $('#api_config_section').removeClass('hidden');
-        //         $('#grade_head_section').removeClass('hidden');
-        //         $('#discipline_head_section').removeClass('hidden');
-        //         loadTeachersForSelect();
-        //         loadGradeHeads();
-        //     }
-        // }
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) { window.location.replace('index.html'); return; }

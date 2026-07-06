@@ -1,6 +1,7 @@
 /**
  * eq_teacher.js — Admin/Teacher Dashboard สำหรับ EQ 9 ด้าน (ดี/เก่ง/สุข)
  * รองรับ: กรองห้อง, สถิติ, แก้ไข, ลบ, ส่งออก Excel, นำเข้า, พิมพ์ PDF, จัดการผู้ใช้
+ * ปรับปรุงการตรวจสอบสิทธิ์ให้เป็นมาตรฐานเดียวกับระบบทุน
  */
 
 let currentUser = null;
@@ -33,24 +34,80 @@ if (typeof EQ_NORM === 'undefined') {
     };
 }
 
+/* ──────────────────────────────────────────────────────
+   ฟังก์ชันตรวจสอบสิทธิ์ (มาตรฐานเดียวกับระบบทุน)
+   ────────────────────────────────────────────────────── */
+
+function isAdminUser() {
+    return ['super_admin', 'admin'].includes(currentUserRole) || isAdminMode === true;
+}
+
+function requireAdmin() {
+    if (!isAdminUser()) {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์',
+            text: 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถดำเนินการนี้ได้',
+            confirmButtonText: 'ตกลง'
+        });
+        return false;
+    }
+    return true;
+}
+
+function applyAdminVisibility() {
+    const isAdmin = isAdminUser();
+    
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) btnSettings.classList.toggle('hidden', !isAdmin);
+    
+    const btnToggle = document.getElementById('btnToggleMode');
+    if (btnToggle) {
+        if (isAdmin) {
+            btnToggle.classList.remove('hidden');
+            btnToggle.classList.add('flex');
+        } else {
+            btnToggle.classList.add('hidden');
+            btnToggle.classList.remove('flex');
+        }
+    }
+    
+    // ✅ ปุ่มนำเข้า - ให้ครูใช้งานได้ (ไม่ซ่อน)
+    const importBtn = document.getElementById('btn-import');
+    if (importBtn) importBtn.classList.remove('hidden');
+    
+    // ✅ ปุ่มส่งออก Excel - ให้ครูใช้งานได้ (ไม่ซ่อน)
+    const exportBtn = document.getElementById('btn-export-excel');
+    if (exportBtn) exportBtn.classList.remove('hidden');
+    
+    updateToggleModeUI();
+}
+
 /* ── INIT ─────────────────────────────────────────── */
 window.addEventListener('load', async () => {
     const { data: { user } } = await db.auth.getUser();
     if (!user) { window.location.href = 'index.html'; return; }
 
     const { data: p } = await db.from('core_personnel').select('*').eq('id', user.id).single();
-    // อนุญาตให้ 'teacher', 'admin', และ 'super_admin' เข้าใช้งานได้
-    if (!p || !['admin', 'super_admin', 'teacher'].includes(p.role)) {
-        Swal.fire('ไม่มีสิทธิ์', '', 'warning').then(() => window.location.href = 'index.html');
+
+    const allowedRoles = ['super_admin', 'admin', 'teacher'];
+    if (!p || !allowedRoles.includes(p.role)) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่มีสิทธิ์เข้าถึง',
+            text: `บทบาท "${p?.role || 'unknown'}" ไม่มีสิทธิ์ใช้งานระบบ EQ`,
+            confirmButtonText: 'กลับหน้าหลัก'
+        });
+        window.location.href = 'index.html';
         return;
     }
+
     currentUser = p;
     currentUserId = p.id;
     currentUserRole = p.role;
+    isAdminMode = ['super_admin', 'admin'].includes(p.role);
     document.getElementById('user-display').textContent = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-
-    if (p.role === 'super_admin') document.getElementById('btn-settings').classList.remove('hidden');
-    if (['admin', 'super_admin'].includes(p.role)) document.getElementById('btnToggleMode').classList.remove('hidden');
+    applyAdminVisibility();
 
     const { data: si } = await db.from('core_school_info').select('*').single();
     schoolInfo = si;
@@ -64,8 +121,6 @@ window.addEventListener('load', async () => {
         }
     }
 
-    isAdminMode = false;
-    updateToggleModeUI();
     await loadClassrooms();
     await loadStats();
 });
@@ -123,19 +178,16 @@ async function loadClassrooms() {
     }
 }
 
-/* ── STATS (ใช้เกณฑ์ใหม่) ───────────────────────────── */
 /* ── STATS ───────────────────────────────────────────── */
 async function loadStats() {
     const academicYear = String(schoolInfo?.current_academic_year);
     const semester = String(schoolInfo?.current_semester);
 
-    // 1. ดึง assessment ตามปีการศึกษา
     let eqQuery = db.from('eq_assessments')
         .select('student_id, classroom_id, level_total')
         .eq('academic_year', academicYear)
         .eq('semester', semester);
 
-    // โหมดครู: กรอง classroom_id ตั้งแต่ query แรก
     if (!isAdminMode) {
         const roomIds = allClassrooms.map(r => r.id);
         if (roomIds.length === 0) {
@@ -147,13 +199,12 @@ async function loadStats() {
 
     const { data: eqs } = await eqQuery;
 
-    // 2. ดึงจำนวนนักเรียนที่ visible
     let totalStudents = 0;
     if (!isAdminMode) {
         const roomIds = allClassrooms.map(r => r.id);
         const { data: enrolls } = await db.from('student_enrollments')
             .select('student_id')
-            .in('classroom_id', roomIds);   // ไม่กรอง academic_year (ไม่มี column นี้)
+            .in('classroom_id', roomIds);
         totalStudents = (enrolls || []).length;
     } else {
         const { data: enrolls } = await db.from('student_enrollments')
@@ -161,7 +212,6 @@ async function loadStats() {
         totalStudents = (enrolls || []).length;
     }
 
-    // 3. คำนวณสถิติ
     const assessed = eqs?.length || 0;
     const high = eqs?.filter(e => e.level_total === 'สูงกว่าเกณฑ์').length || 0;
     const mid = eqs?.filter(e => e.level_total === 'เกณฑ์ปกติ').length || 0;
@@ -194,7 +244,7 @@ function renderStatsCards(totalStudents, assessed, high, mid, low) {
     `).join('');
 }
 
-/* ── LOAD RESULTS (ดึงข้อมูล 9 ด้าน) ─────────────────── */
+/* ── LOAD RESULTS ─────────────────────────────────── */
 async function loadResults(forceClassroomId = null) {
     Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -224,7 +274,7 @@ async function loadResults(forceClassroomId = null) {
     renderTable(allResults);
 }
 
-/* ── RENDER TABLE (แสดง ดี/เก่ง/สุข) ─────────────────── */
+/* ── RENDER TABLE ─────────────────────────────────── */
 function renderTable(rows) {
     if (eqTable) { eqTable.destroy(); eqTable = null; }
     const tbody = document.getElementById('eq-tbody');
@@ -238,7 +288,6 @@ function renderTable(rows) {
         const eq = r.eq;
 
         if (!eq) {
-            // กรณีไม่เคยประเมิน
             html += `<tr>
                 <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
                 <td class="text-center">${r.student_number}</td>
@@ -250,7 +299,6 @@ function renderTable(rows) {
             continue;
         }
 
-        // มีข้อมูลแล้ว
         const goodScore = (eq.score_self_control || 0) + (eq.score_empathy || 0) + (eq.score_responsibility || 0);
         const skillScore = (eq.score_motivation || 0) + (eq.score_problem_solving || 0) + (eq.score_relationship || 0);
         const happyScore = (eq.score_self_esteem || 0) + (eq.score_life_satisfaction || 0) + (eq.score_peace_of_mind || 0);
@@ -396,8 +444,9 @@ async function openViewResult(studentId) {
     document.getElementById('view-result-modal').classList.add('flex');
 }
 
-/* ── EDIT (CRUD 9 ด้าน) ────────────────────────────── */
+/* ── EDIT ────────────────────────────────────────────── */
 async function openEditForStudent(studentId) {
+    if (!requireAdmin()) return;
     let row = allResults.find(r => r.student_id === studentId);
     if (!row) {
         const { data: enroll } = await db.from('student_enrollments')
@@ -434,6 +483,7 @@ function closeEditModal() {
 }
 
 async function saveEdit() {
+    if (!requireAdmin()) return;
     const studentId = document.getElementById('edit-student-id').value;
 
     const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
@@ -510,6 +560,7 @@ async function saveEdit() {
 }
 
 async function deleteResult(studentId) {
+    if (!requireAdmin()) return;
     const r = await Swal.fire({ title: 'ลบผลการประเมิน?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบ' });
     if (!r.isConfirmed) return;
     await db.from('eq_assessments').delete()
@@ -517,11 +568,13 @@ async function deleteResult(studentId) {
         .eq('academic_year', schoolInfo.current_academic_year)
         .eq('semester', schoolInfo.current_semester);
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
-    loadResults(); loadStats();
+    loadResults();
+    loadStats();
 }
 
-/* ── EXPORT EXCEL (9 ด้าน) ─────────────────────────── */
+/* ── EXPORT EXCEL (ครูใช้ได้) ─────────────────────────── */
 function exportExcel() {
+    // ✅ ไม่ต้อง requireAdmin() ครูใช้ได้
     if (!allResults.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
     const rows = allResults.map(r => {
         const std = r.core_students;
@@ -552,11 +605,10 @@ function exportExcel() {
     XLSX.writeFile(wb, `EQ_Admin_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
 
-/* ── PRINT PDF (รายบุคคล พร้อมกราฟ, รายละเอียดครบ, และรูปนักเรียน) ────────── */
+/* ── PRINT PDF ────────────────────────────────────────── */
 async function printStudentPdf(studentId) {
     Swal.fire({ title: 'กำลังเตรียมเอกสาร PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        // ดึงข้อมูลการประเมิน พร้อมรูปนักเรียนและข้อมูลห้อง
         const { data: assessment, error } = await db.from('eq_assessments')
             .select('*, core_students!student_id(prefix, first_name, last_name, avatar_students_url, student_id_card), core_classrooms!classroom_id(grade_level, room_number)')
             .eq('student_id', studentId)
@@ -565,7 +617,6 @@ async function printStudentPdf(studentId) {
             .single();
         if (error || !assessment) throw new Error('ไม่พบข้อมูลการประเมิน');
 
-        // ดึงข้อมูลครูที่ปรึกษา
         let adviser1 = '-', adviser2 = '-';
         if (assessment.classroom_id) {
             const { data: cls } = await db.from('core_classrooms')
@@ -581,7 +632,6 @@ async function printStudentPdf(studentId) {
             }
         }
 
-        // ดึงรหัสประจำตัวนักเรียนจาก core_students (join มาแล้วใน query แรก)
         const studentIdCard = assessment.core_students.student_id_card || '-';
 
         const schoolLogo = schoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
@@ -604,23 +654,21 @@ async function printStudentPdf(studentId) {
 
 function generateStudentPDF(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl, room, studentNumber) {
     const subDims = [
-        { label: '1.1 ควบคุมตนเอง',       score: assessment.score_self_control,    max: 24, level: assessment.level_self_control,    group: 'ดี'   },
-        { label: '1.2 เห็นใจผู้อื่น',       score: assessment.score_empathy,         max: 24, level: assessment.level_empathy,         group: 'ดี'   },
-        { label: '1.3 รับผิดชอบ',           score: assessment.score_responsibility,  max: 24, level: assessment.level_responsibility,  group: 'ดี'   },
-        { label: '2.1 มีแรงจูงใจ',          score: assessment.score_motivation,      max: 24, level: assessment.level_motivation,      group: 'เก่ง' },
+        { label: '1.1 ควบคุมตนเอง', score: assessment.score_self_control, max: 24, level: assessment.level_self_control, group: 'ดี' },
+        { label: '1.2 เห็นใจผู้อื่น', score: assessment.score_empathy, max: 24, level: assessment.level_empathy, group: 'ดี' },
+        { label: '1.3 รับผิดชอบ', score: assessment.score_responsibility, max: 24, level: assessment.level_responsibility, group: 'ดี' },
+        { label: '2.1 มีแรงจูงใจ', score: assessment.score_motivation, max: 24, level: assessment.level_motivation, group: 'เก่ง' },
         { label: '2.2 ตัดสินใจและแก้ปัญหา', score: assessment.score_problem_solving, max: 24, level: assessment.level_problem_solving, group: 'เก่ง' },
-        { label: '2.3 สัมพันธภาพ',          score: assessment.score_relationship,    max: 24, level: assessment.level_relationship,    group: 'เก่ง' },
-        { label: '3.1 ภูมิใจตนเอง',         score: assessment.score_self_esteem,     max: 16, level: assessment.level_self_esteem,     group: 'สุข'  },
-        { label: '3.2 พอใจชีวิต',           score: assessment.score_life_satisfaction, max: 24, level: assessment.level_life_satisfaction, group: 'สุข' },
-        { label: '3.3 สุขสงบทางใจ',         score: assessment.score_peace_of_mind,   max: 24, level: assessment.level_peace_of_mind,   group: 'สุข'  }
+        { label: '2.3 สัมพันธภาพ', score: assessment.score_relationship, max: 24, level: assessment.level_relationship, group: 'เก่ง' },
+        { label: '3.1 ภูมิใจตนเอง', score: assessment.score_self_esteem, max: 16, level: assessment.level_self_esteem, group: 'สุข' },
+        { label: '3.2 พอใจชีวิต', score: assessment.score_life_satisfaction, max: 24, level: assessment.level_life_satisfaction, group: 'สุข' },
+        { label: '3.3 สุขสงบทางใจ', score: assessment.score_peace_of_mind, max: 24, level: assessment.level_peace_of_mind, group: 'สุข' }
     ];
 
-    // รูปนักเรียน — ขนาดใหญ่ขึ้น มุมมน
     const avatarHtml = avatarUrl
         ? `<img src="${avatarUrl}" style="width:90px; height:90px; border-radius:10px; object-fit:cover; border:2px solid #cbd5e1;" crossorigin="anonymous">`
         : `<div style="width:90px; height:90px; border-radius:10px; background:#e2e8f0; display:flex; align-items:center; justify-content:center; font-size:36px; color:#94a3b8;">👤</div>`;
 
-    // สีตามระดับรวม
     const totalColor = assessment.level_total === 'สูงกว่าเกณฑ์' ? '#15803d'
         : (assessment.level_total === 'เกณฑ์ปกติ' ? '#1d4ed8' : '#b91c1c');
     const totalBg = assessment.level_total === 'สูงกว่าเกณฑ์' ? '#dcfce7'
@@ -637,7 +685,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     @page { margin: 0.5cm 0.5cm 1.2cm 0.5cm; }
     body { font-family: 'Sarabun', 'Anuphan', sans-serif; font-size: 13px; color: #1e293b; background: white; margin: 0; padding: 0; }
 
-    /* Header */
     .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #312e81; padding-bottom: 8px; margin-bottom: 15px; }
     .logo-area { display: flex; align-items: center; gap: 12px; }
     .logo { height: 50px; width: auto; }
@@ -645,7 +692,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     .school-sub { margin: 2px 0 0; font-size: 11px; color: #475569; }
     .info-area { text-align: right; font-size: 12px; }
 
-    /* 2 คอลัมน์หลัก */
     .two-col { display: flex; gap: 12px; margin-bottom: 15px; }
     .col-left { flex: 1.1; background: #f8fafc; border-radius: 10px; padding: 14px; display: flex; align-items: flex-start; gap: 14px; }
     .col-right { flex: 0.9; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
@@ -657,27 +703,23 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     .total-label { font-size: 15px; font-weight: bold; margin-top: 8px; }
     .group-summary { margin-top: 10px; font-size: 11px; color: #475569; }
 
-    /* กราฟ */
     .chart-title { font-size: 16px; font-weight: bold; margin: 10px 0 8px; }
     .bar-item { margin-bottom: 10px; }
     .bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
     .bar-bg { background: #e2e8f0; border-radius: 20px; height: 10px; width: 100%; }
     .bar-fill { height: 10px; border-radius: 20px; }
 
-    /* ตาราง */
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
     th { background: #312e81; color: white; }
     .sub-item { margin-bottom: 5px; }
 
-    /* Footer */
     .footer { font-size: 8px; text-align: center; color: #94a3b8; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 6px; page-break-inside: avoid; }
     table { page-break-inside: avoid; }
 </style>
 </head>
 <body>
 
-<!-- Header โรงเรียน -->
 <div class="header">
     <div class="logo-area">
         <img class="logo" src="${logoUrl}" crossorigin="anonymous">
@@ -692,10 +734,7 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     </div>
 </div>
 
-<!-- 2 คอลัมน์: ข้อมูลนักเรียน (ซ้าย) + ผลรวม (ขวา) -->
 <div class="two-col">
-
-    <!-- คอลัมน์ซ้าย: รูป + ข้อมูลนักเรียน -->
     <div class="col-left">
         <div style="flex-shrink:0;">${avatarHtml}</div>
         <div class="student-info">
@@ -706,7 +745,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
         </div>
     </div>
 
-    <!-- คอลัมน์ขวา: คะแนนรวม + ระดับ -->
     <div class="col-right" style="background:${totalBg};">
         <div class="label" style="font-size:12px; margin-bottom:4px;">คะแนนรวม EQ</div>
         <div class="total-score" style="color:${totalColor};">${assessment.score_total}</div>
@@ -720,7 +758,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     </div>
 </div>
 
-<!-- กราฟแท่งรายด้านย่อย -->
 <div class="chart-title">📊 กราฟแสดงคะแนนรายด้านย่อย</div>
 ${subDims.map(d => {
     const percent = (d.score / d.max) * 100;
@@ -734,7 +771,6 @@ ${subDims.map(d => {
 </div>`;
 }).join('')}
 
-<!-- ตารางสรุปรายกลุ่ม -->
 <table>
     <thead>
         <tr><th>ด้าน</th><th>คะแนนรวม</th><th>ระดับ</th><th>รายละเอียดด้านย่อย (คะแนน)</th></tr>
@@ -762,7 +798,6 @@ ${subDims.map(d => {
 <div class="footer">ระบบ WRK School Management System | EQ แบบประเมินกรมสุขภาพจิต (อายุ 12–17 ปี)</div>
 </body></html>`;
 
-    // preload รูปก่อนแล้วค่อย generate — ส่ง html string โดยตรง
     const imgUrls = [logoUrl, avatarUrl].filter(Boolean);
     if (imgUrls.length === 0) {
         generateStudentPdfNow(html, fullName);
@@ -789,9 +824,15 @@ function generateStudentPdfNow(html, fullName) {
     }).from(html, 'string').save();
 }
 
-/* ── IMPORT (9 ด้าน) ───────────────────────────────── */
-function openImportModal() { document.getElementById('import-modal').classList.remove('hidden'); }
-function closeImportModal() { document.getElementById('import-modal').classList.add('hidden'); }
+/* ── IMPORT ────────────────────────────────────────────── */
+function openImportModal() {
+    // ✅ ไม่ requireAdmin() ครูใช้ได้
+    document.getElementById('import-modal').classList.remove('hidden');
+}
+function closeImportModal() {
+    document.getElementById('import-modal').classList.add('hidden');
+}
+
 function setImportMode(mode) {
     importMode = mode;
     document.getElementById('import-excel-section').classList.toggle('hidden', mode !== 'excel');
@@ -799,8 +840,11 @@ function setImportMode(mode) {
     document.getElementById('tab-excel').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'excel' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
     document.getElementById('tab-sheets').className = `flex-1 py-2 rounded-xl font-bold text-sm ${mode === 'sheets' ? 'bg-amber-500 text-white' : 'bg-slate-100'}`;
 }
+
 async function handleFileImport(input) {
-    const file = input.files[0]; if (!file) return;
+    if (!requireAdmin()) return;
+    const file = input.files[0];
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = async e => {
         const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
@@ -810,7 +854,9 @@ async function handleFileImport(input) {
     };
     reader.readAsArrayBuffer(file);
 }
+
 async function handleSheetsImport() {
+    if (!requireAdmin()) return;
     const url = document.getElementById('sheets-url').value.trim();
     const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (!m) return Swal.fire('URL ไม่ถูกต้อง', '', 'error');
@@ -823,15 +869,25 @@ async function handleSheetsImport() {
             const cols = line.split(',').map(c => c.replace(/^"|"$/g, ''));
             return {
                 'รหัสนักเรียน': cols[0],
-                'ควบคุมตนเอง': parseInt(cols[1]), 'เห็นใจผู้อื่น': parseInt(cols[2]), 'รับผิดชอบ': parseInt(cols[3]),
-                'มีแรงจูงใจ': parseInt(cols[4]), 'ตัดสินใจแก้ปัญหา': parseInt(cols[5]), 'สัมพันธภาพ': parseInt(cols[6]),
-                'ภูมิใจตนเอง': parseInt(cols[7]), 'พอใจชีวิต': parseInt(cols[8]), 'สุขสงบทางใจ': parseInt(cols[9])
+                'ควบคุมตนเอง': parseInt(cols[1]),
+                'เห็นใจผู้อื่น': parseInt(cols[2]),
+                'รับผิดชอบ': parseInt(cols[3]),
+                'มีแรงจูงใจ': parseInt(cols[4]),
+                'ตัดสินใจแก้ปัญหา': parseInt(cols[5]),
+                'สัมพันธภาพ': parseInt(cols[6]),
+                'ภูมิใจตนเอง': parseInt(cols[7]),
+                'พอใจชีวิต': parseInt(cols[8]),
+                'สุขสงบทางใจ': parseInt(cols[9])
             };
         });
         Swal.close();
         await processImportRows(rows);
-    } catch (err) { Swal.close(); Swal.fire('ผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 }
+
 async function processImportRows(rows) {
     const dataRows = rows.filter(r => r['รหัสนักเรียน']);
     if (!dataRows.length) return Swal.fire('ไม่พบข้อมูล', '', 'warning');
@@ -839,27 +895,56 @@ async function processImportRows(rows) {
     const { data: stds } = await db.from('core_students').select('id, student_id_card, classroom_id');
     const stdMap = Object.fromEntries((stds || []).map(s => [String(s.student_id_card).trim(), s]));
 
+    let allowedClassroomIds = null;
+    const selectedId = document.getElementById('sel-classroom')?.value;
+    if (selectedId) {
+        allowedClassroomIds = [selectedId];
+    } else if (!isAdminMode) {
+        allowedClassroomIds = allClassrooms.map(c => c.id);
+    }
+
     const getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
     let success = 0, fail = 0;
     for (const row of dataRows) {
         const std = stdMap[String(row['รหัสนักเรียน']).trim()];
         if (!std) { fail++; continue; }
+        
+        if (allowedClassroomIds && !allowedClassroomIds.includes(std.classroom_id)) {
+            fail++;
+            continue;
+        }
+        
         const scores = {
-            self_control: row['ควบคุมตนเอง'] || 0, empathy: row['เห็นใจผู้อื่น'] || 0, responsibility: row['รับผิดชอบ'] || 0,
-            motivation: row['มีแรงจูงใจ'] || 0, problem_solving: row['ตัดสินใจแก้ปัญหา'] || 0, relationship: row['สัมพันธภาพ'] || 0,
-            self_esteem: row['ภูมิใจตนเอง'] || 0, life_satisfaction: row['พอใจชีวิต'] || 0, peace_of_mind: row['สุขสงบทางใจ'] || 0
+            self_control: row['ควบคุมตนเอง'] || 0,
+            empathy: row['เห็นใจผู้อื่น'] || 0,
+            responsibility: row['รับผิดชอบ'] || 0,
+            motivation: row['มีแรงจูงใจ'] || 0,
+            problem_solving: row['ตัดสินใจแก้ปัญหา'] || 0,
+            relationship: row['สัมพันธภาพ'] || 0,
+            self_esteem: row['ภูมิใจตนเอง'] || 0,
+            life_satisfaction: row['พอใจชีวิต'] || 0,
+            peace_of_mind: row['สุขสงบทางใจ'] || 0
         };
         const goodScore = scores.self_control + scores.empathy + scores.responsibility;
         const skillScore = scores.motivation + scores.problem_solving + scores.relationship;
         const happyScore = scores.self_esteem + scores.life_satisfaction + scores.peace_of_mind;
         const total = goodScore + skillScore + happyScore;
         const payload = {
-            student_id: std.id, classroom_id: std.classroom_id,
-            academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester,
-            answers: {}, recorder_id: currentUser.id,
-            ...scores, score_good: goodScore, score_skill: skillScore, score_happy: happyScore, score_total: total,
-            level_good: getLevel(goodScore, EQ_NORM.good), level_skill: getLevel(skillScore, EQ_NORM.skill),
-            level_happy: getLevel(happyScore, EQ_NORM.happy), level_total: getLevel(total, EQ_NORM.total),
+            student_id: std.id,
+            classroom_id: std.classroom_id,
+            academic_year: schoolInfo.current_academic_year,
+            semester: schoolInfo.current_semester,
+            answers: {},
+            recorder_id: currentUser.id,
+            ...scores,
+            score_good: goodScore,
+            score_skill: skillScore,
+            score_happy: happyScore,
+            score_total: total,
+            level_good: getLevel(goodScore, EQ_NORM.good),
+            level_skill: getLevel(skillScore, EQ_NORM.skill),
+            level_happy: getLevel(happyScore, EQ_NORM.happy),
+            level_total: getLevel(total, EQ_NORM.total),
             level_self_control: getLevel(scores.self_control, EQ_NORM.self_control),
             level_empathy: getLevel(scores.empathy, EQ_NORM.empathy),
             level_responsibility: getLevel(scores.responsibility, EQ_NORM.responsibility),
@@ -871,31 +956,46 @@ async function processImportRows(rows) {
             level_peace_of_mind: getLevel(scores.peace_of_mind, EQ_NORM.peace_of_mind)
         };
         const { error } = await db.from('eq_assessments').upsert(payload, { onConflict: 'student_id,academic_year,semester' });
-        if (error) fail++; else success++;
+        if (error) fail++;
+        else success++;
     }
-    Swal.close(); closeImportModal();
+    Swal.close();
+    closeImportModal();
     Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
-    loadResults(); loadStats();
+    loadResults();
+    loadStats();
 }
 
 /* ── TOGGLE MODE ───────────────────────────────────── */
 function updateToggleModeUI() {
     const btn = document.getElementById('btnToggleMode');
-    if (btn) btn.innerHTML = isAdminMode ? '<i class="fa-solid fa-toggle-on text-emerald-500"></i> โหมด: ผู้ดูแลระบบ' : '<i class="fa-solid fa-toggle-off"></i> โหมด: ครูที่ปรึกษา';
+    if (!btn) return;
+    if (btn.classList.contains('hidden')) return;
+    
+    if (isAdminMode) {
+        btn.innerHTML = '<i class="fa-solid fa-chalkboard-user mr-1"></i> โหมดครู';
+        btn.className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 text-sm font-bold';
+    } else {
+        btn.innerHTML = '<i class="fa-solid fa-user-shield mr-1"></i> โหมดแอดมิน';
+        btn.className = 'flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 text-sm font-bold';
+    }
 }
+
 async function toggleMode() {
+    if (!['super_admin', 'admin'].includes(currentUserRole)) return;
     isAdminMode = !isAdminMode;
-    updateToggleModeUI();
+    applyAdminVisibility();
     if (eqTable) { eqTable.destroy(); eqTable = null; }
     document.getElementById('eq-tbody').innerHTML = '';
     await loadClassrooms();
     await loadStats();
 }
 
-/* ── SETTINGS & USER MGMT ─────────────────────────── */
+/* ── SETTINGS ─────────────────────────────────────────── */
 let allPersonnel = [];
 
 function openSettings() {
+    if (!requireAdmin()) return;
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -915,6 +1015,7 @@ function closeSettings() {
 }
 
 async function saveSettings() {
+    if (!requireAdmin()) return;
     const delay = parseInt(document.getElementById('set-delay').value) || 0;
     const active = document.getElementById('set-active').checked;
     const { error } = await db.from('eq_settings').upsert({
@@ -961,7 +1062,7 @@ function renderUserTableForSettings(users) {
         const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
         const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
             (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
-        return `<td>
+        return `<tr>
             <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
             <td class="px-2 py-1">${user.email || '-'}</td>
             <td class="px-2 py-1"><span class="px-2 py-0.5 rounded-full text-xs ${roleClass}">${roleDisplay}</span></td>
@@ -985,6 +1086,7 @@ function renderUserTableForSettings(users) {
 }
 
 async function updateUserRoleFromSettings(userId) {
+    if (!requireAdmin()) return;
     const select = document.getElementById(`role-select-${userId}`);
     if (!select) return;
     const newRole = select.value;
@@ -1005,5 +1107,8 @@ async function refreshUserList() {
 /* ── LOGOUT ───────────────────────────────────────── */
 async function handleLogout() {
     const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก' });
-    if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'index.html'; }
+    if (r.isConfirmed) {
+        await db.auth.signOut();
+        window.location.href = 'index.html';
+    }
 }

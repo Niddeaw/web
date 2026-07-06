@@ -154,7 +154,7 @@ async function toggleSystemStatus(el) {
 }
 
 // -----------------------------------
-// 2. Monitoring & Teacher Mngt
+// 2. Monitoring & Teacher Mngt (ปรับปรุงให้เร็วขึ้น)
 // -----------------------------------
 async function loadMonitoringData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -162,35 +162,99 @@ async function loadMonitoringData() {
     const currentSemester = globalSystemSettings.current_semester;
     const currentYear = globalSystemSettings.current_academic_year;
 
-    const { data: classes } = await db.from('core_classrooms').select('*').eq('semester', currentSemester).eq('academic_year', currentYear);
+    // 1. ดึงข้อมูลห้องเรียนทั้งหมดพร้อมจำนวนนักเรียน
+    const { data: classes } = await db.from('core_classrooms')
+        .select(`
+            id, grade_level, room_number,
+            student_enrollments(count)
+        `)
+        .eq('semester', currentSemester)
+        .eq('academic_year', currentYear)
+        .order('grade_level').order('room_number');
+    
     allSystemClasses = classes || [];
     allSystemClasses.sort((a, b) => a.grade_level - b.grade_level || a.room_number - b.room_number);
 
-    const { data: guiTeachers } = await db.from('guidance_teachers').select('teacher_id, core_personnel(id, first_name, last_name, email)');
+    // 2. ดึงข้อมูลครูแนะแนว
+    const { data: guiTeachers } = await db.from('guidance_teachers')
+        .select('teacher_id, core_personnel(id, first_name, last_name, email)');
     guidanceTeachersList = guiTeachers ? guiTeachers.map(gt => gt.core_personnel) : [];
 
+    // 3. ดึง mapping ห้อง-ครู
     const { data: mappedClasses } = await db.from('guidance_classes').select('*');
 
+    // 4. ดึง enrollment ของทุกห้องในครั้งเดียว (เพื่อเอา student_id ไปใช้กับ attributes)
+    const classroomIds = allSystemClasses.map(c => c.id);
+    let enrollmentsMap = {}; // classroom_id -> [student_id, ...]
+
+    if (classroomIds.length > 0) {
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id, classroom_id')
+            .in('classroom_id', classroomIds);
+        
+        enrolls?.forEach(e => {
+            if (!enrollmentsMap[e.classroom_id]) enrollmentsMap[e.classroom_id] = [];
+            enrollmentsMap[e.classroom_id].push(e.student_id);
+        });
+    }
+
+    // 5. ดึงสถิติ attendance แบบ grouped (มี classroom_id อยู่แล้ว)
+    let attStats = {};
+    if (classroomIds.length > 0) {
+        const { data: attCounts, error: attError } = await db.from('guidance_attendance')
+            .select('classroom_id, count()')
+            .in('classroom_id', classroomIds);
+        
+        if (!attError && attCounts) {
+            attCounts.forEach(row => {
+                attStats[row.classroom_id] = row.count;
+            });
+        }
+    }
+
+    // 6. ดึงสถิติ attributes แบบแยกห้อง (โดยใช้ student_ids จาก enrollmentsMap)
+    let attrStats = {};
+    // วนลูปห้องที่มีนักเรียน
+    for (const [classroomId, studentIds] of Object.entries(enrollmentsMap)) {
+        if (studentIds.length === 0) continue;
+        // นับจำนวน record attributes ของนักเรียนในห้องนี้
+        const { data: attrCounts, error: attrError } = await db.from('guidance_attributes')
+            .select('student_id', { count: 'exact', head: true })
+            .in('student_id', studentIds);
+        
+        if (!attrError) {
+            attrStats[classroomId] = attrCounts; // attrCounts คือจำนวน record ทั้งหมด (count)
+        }
+    }
+
+    // 7. สร้างข้อมูล monitoring
     const monitorPromises = allSystemClasses.map(async (cls) => {
         const mapping = mappedClasses.find(m => m.classroom_id === cls.id);
         let teacherName = 'ไม่ระบุครู';
         if (mapping) {
             const t = guidanceTeachersList.find(gt => gt.id === mapping.teacher_id);
-            if(t) teacherName = `${t.first_name} ${t.last_name}`;
+            if (t) teacherName = `${t.first_name} ${t.last_name}`;
         }
 
-        const { data: enrolls, count: n_std } = await db.from('student_enrollments').select('student_id', { count: 'exact' }).eq('classroom_id', cls.id);
+        const n_std = cls.student_enrollments?.[0]?.count || 0;
         let isComplete = false;
 
         if (n_std > 0) {
-            const stdIds = enrolls.map(e => e.student_id);
-            const [attRes, attrRes] = await Promise.all([
-                db.from('guidance_attendance').select('*', { count: 'exact', head: true }).eq('classroom_id', cls.id),
-                db.from('guidance_attributes').select('*', { count: 'exact', head: true }).in('student_id', stdIds)
-            ]);
-            if ((attRes.count || 0) >= n_std * 20 && (attrRes.count || 0) >= n_std * 12) isComplete = true;
+            const attCount = attStats[cls.id] || 0;
+            const attrCount = attrStats[cls.id] || 0;
+            // เงื่อนไข:  attendance ครบ 20 ครั้ง และ attributes ครบ 12 ด้านต่อคน
+            if (attCount >= n_std * 20 && attrCount >= n_std * 12) isComplete = true;
         }
-        return { id: cls.id, grade: cls.grade_level, room: cls.room_number, name: `ม.${cls.grade_level}/${cls.room_number}`, teacherName, studentCount: n_std || 0, isComplete };
+
+        return {
+            id: cls.id,
+            grade: cls.grade_level,
+            room: cls.room_number,
+            name: `ม.${cls.grade_level}/${cls.room_number}`,
+            teacherName,
+            studentCount: n_std,
+            isComplete
+        };
     });
 
     monitorData = await Promise.all(monitorPromises);
@@ -428,18 +492,31 @@ function closeTeacherModal() {
 async function saveTeacherClasses() {
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
+        // ✅ ลบข้อมูลเก่าก่อน
         await db.from('guidance_classes').delete().eq('teacher_id', currentTeacherId);
+        
         const toInsert = [];
         teacherModalData.forEach(row => {
-            row.classes.forEach(clsId => { toInsert.push({ classroom_id: clsId, teacher_id: currentTeacherId, start_date: row.date || null }); });
+            row.classes.forEach(clsId => {
+                toInsert.push({ 
+                    classroom_id: clsId, 
+                    teacher_id: currentTeacherId, 
+                    start_date: row.date || null 
+                });
+            });
         });
+        
         if (toInsert.length > 0) {
             const { error } = await db.from('guidance_classes').insert(toInsert);
-            if(error) throw error;
+            if (error) throw error;
         }
-        Swal.fire({icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false});
-        closeTeacherModal(); await loadMonitoringData(); 
-    } catch (error) { Swal.fire('เกิดข้อผิดพลาด', error.message, 'error'); }
+        
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+        closeTeacherModal();
+        await loadMonitoringData();
+    } catch (error) {
+        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+    }
 }
 
 // -----------------------------------
@@ -506,11 +583,18 @@ function calcAttTotal(stdId) {
 }
 function calcScoreTotal(stdId) { 
     let t = 0; 
+    let hasValue = false;
     for(let i=1;i<=5;i++){ 
         const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value; 
-        if(v && !isNaN(parseFloat(v))) t += parseFloat(v); 
+        if(v && v.trim() !== '') {
+            const num = parseFloat(v);
+            if(!isNaN(num)) {
+                t += num;
+                hasValue = true;
+            }
+        }
     } 
-    document.getElementById(`sc_total_${stdId}`).innerText = t.toFixed(2); 
+    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
 function calcAttr(stdId, attTotal) {
     let pass = true; 

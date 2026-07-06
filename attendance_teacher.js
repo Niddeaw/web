@@ -2,6 +2,7 @@
  * WRK System - Morning Attendance (ปรับปรุงแก้ไข)
  * 1. เพิ่มการบันทึก "มา" อัตโนมัติย้อนหลัง เมื่อเลือกวันที่ผ่านมาแล้ว และยังมีนักเรียนที่ไม่ได้บันทึก
  * 2. เพิ่มตัวกรองระดับชั้นและช่องค้นหาห้องเรียนใน Grade Overview
+ * 3. ปรับปรุงการตรวจสอบสิทธิ์ให้ใช้ฟังก์ชันกลางจาก config.js
  */
 let currentUser = null;
 let currentSchoolInfo = null;
@@ -76,6 +77,22 @@ async function checkAuth() {
         currentUser = personnel;
         actualUserRole = personnel.role;
 
+        // ✅ ใช้ฟังก์ชันกลางตรวจสอบ role
+        if (!window.isAllowedRole || !window.isAllowedRole(actualUserRole)) {
+            // ถ้า config.js ยังไม่โหลด ให้ใช้ fallback
+            const allowedRoles = ['super_admin', 'admin', 'teacher'];
+            if (!allowedRoles.includes(actualUserRole)) {
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'ไม่มีสิทธิ์เข้าถึง',
+                    text: `บทบาท "${actualUserRole}" ไม่มีสิทธิ์ใช้งานระบบเช็คชื่อ`,
+                    confirmButtonText: 'กลับหน้าหลัก'
+                });
+                window.location.href = 'index.html';
+                return;
+            }
+        }
+
         let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${personnel.first_name} ${personnel.last_name}`;
 
         const { data: schoolInfo } = await queryTimeout(
@@ -117,7 +134,10 @@ async function checkAuth() {
         let managedGrades = [];
         let isDisciplineHead = false;
 
-        if (actualUserRole !== 'super_admin' && actualUserRole !== 'admin') {
+        // ตรวจสอบว่าเป็น Admin หรือไม่ (ใช้ฟังก์ชันกลาง)
+        const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, false) : ['super_admin', 'admin'].includes(actualUserRole);
+
+        if (!isAdmin) {
             const { data: gradeHeads } = await queryTimeout(
                 db.from('core_grade_heads')
                     .select('grade_level')
@@ -140,7 +160,7 @@ async function checkAuth() {
             isDisciplineHead = !!discHead;
         }
 
-        if (actualUserRole === 'super_admin' || actualUserRole === 'admin' || isDisciplineHead) {
+        if (isAdmin || isDisciplineHead) {
             currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
         } else if (managedGrades.length > 0) {
             currentManagedGrades = managedGrades;
@@ -161,7 +181,7 @@ async function checkAuth() {
         const toggleBtn = document.getElementById('btnAdminMode');
         // admin/super_admin เริ่มต้นในโหมดครูก่อนเสมอ
         currentViewRole = 'teacher';
-        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+        if (isAdmin) {
             $('#admin-settings-btn').addClass('hidden').removeClass('flex');
             if (actualUserRole === 'super_admin') {
                 $('#super-admin-section').removeClass('hidden');
@@ -195,7 +215,7 @@ async function checkAuth() {
 
         const isAdviser = window.adviserClassrooms.length > 0;
         const btnStatsReport = document.getElementById('btn-stats-report');
-        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && actualUserRole !== 'admin' && actualUserRole !== 'super_admin');
+        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && !isAdmin);
 
         // โหมดครู: แสดงเฉพาะห้องที่เป็นครูที่ปรึกษา (ทุก role รวม admin)
         await populateClassroomSelect(user.id, isDisciplineHead);
@@ -228,7 +248,8 @@ async function populateClassroomSelect(userId, isDisciplineHead = false) {
         classrooms = adviserClassrooms;
     } else {
         // โหมดแอดมิน: แสดงทุกห้อง (ยกเว้น isDisciplineHead ไม่ได้เป็นครูที่ปรึกษาด้วย)
-        if (actualUserRole === 'admin' || actualUserRole === 'super_admin') {
+        const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['admin', 'super_admin'].includes(actualUserRole);
+        if (isAdmin) {
             classrooms = allClassrooms;
         } else if (isDisciplineHead) {
             classrooms = [];
@@ -263,7 +284,7 @@ async function populateClassroomSelect(userId, isDisciplineHead = false) {
     window.classroomTomSelect = new TomSelect(selectEl, {
         placeholder: '-- เลือกห้องเรียน --',
         searchField: ['text'],
-        maxOptions: null,  // 🟢 เพิ่มบรรทัดนี้เข้าไป เพื่อปลดล็อกลิมิต 50 รายการ
+        maxOptions: null,
     });
 
     window.classroomTomSelect.on('change', val => { if (val) loadStudentList(val); });
@@ -371,12 +392,10 @@ async function loadHomeroomAdvisors(classroomId) {
 
     if (!container || !nameElement) return;
 
-    // แสดง UI โหลดข้อมูล
     container.classList.remove('hidden');
     nameElement.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-blue-400 mr-2"></i> กำลังโหลดข้อมูล...';
 
     try {
-        // 1. ดึงข้อมูลห้องเรียนจาก Array ที่โหลดไว้แล้วใน checkAuth()
         const classroom = window.globalClassroomsList.find(cls => cls.id === classroomId);
 
         if (!classroom) {
@@ -384,7 +403,6 @@ async function loadHomeroomAdvisors(classroomId) {
             return;
         }
 
-        // 2. รวบรวม ID ของครูที่ปรึกษาที่มี
         const adviserIds = [];
         if (classroom.adviser_id_1) adviserIds.push(classroom.adviser_id_1);
         if (classroom.adviser_id_2) adviserIds.push(classroom.adviser_id_2);
@@ -394,7 +412,6 @@ async function loadHomeroomAdvisors(classroomId) {
             return;
         }
 
-        // 3. Query หาชื่อ-สกุล จากตาราง core_personnel
         const { data: personnel, error } = await db
             .from('core_personnel')
             .select('first_name, last_name')
@@ -402,7 +419,6 @@ async function loadHomeroomAdvisors(classroomId) {
 
         if (error) throw error;
 
-        // 4. นำชื่อมาเรียงต่อกันและแสดงผล
         if (personnel && personnel.length > 0) {
             const advisorNames = personnel.map(p => `ครู${p.first_name} ${p.last_name}`).join(' และ ');
             nameElement.innerHTML = advisorNames;
@@ -420,7 +436,6 @@ let promptedFillMap = {};
 
 async function loadStudentList(classroomId) {
     if (!classroomId) return;
-    // 🟢 แทรกโค้ดตรงนี้: ให้โหลดชื่อครูที่ปรึกษาทุกครั้งที่เปลี่ยนห้องเรียน
     loadHomeroomAdvisors(classroomId);
 
     promptedFillMap = {};
@@ -456,7 +471,6 @@ async function loadStudentList(classroomId) {
 
         try {
             const { data: enrollments, error: enrollErr } = await db.from('student_enrollments')
-                // 🟢 เพิ่ม avatar_students_url ใน Query ฝั่งวันหยุด
                 .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card, avatar_students_url)`)
                 .eq('classroom_id', classroomId)
                 .order('student_number', { ascending: true });
@@ -502,7 +516,6 @@ async function loadStudentList(classroomId) {
 
     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin text-3xl text-blue-200 mb-3"></i> กำลังดึงข้อมูล...</td></tr>');
 
-    // 🟢 เพิ่ม avatar_students_url ใน Query ฝั่งวันปกติ
     const [{ data: enrollments }, { data: attendance }] = await Promise.all([
         db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card, avatar_students_url)`).eq('classroom_id', classroomId).order('student_number', { ascending: true }),
         db.from('homeroom_attendance').select('student_id, status').eq('classroom_id', classroomId).eq('check_date', checkDate)
@@ -588,7 +601,6 @@ async function fillRemainingAsPresent(classroomId, checkDate, silent = false) {
     }
 }
 
-// ✅ ส่วนที่เพิ่มเติม: loadClassroomOverview (จำเป็น)
 async function loadClassroomOverview(classroomId) {
     if (!termStartDate) return;
     const { data: checked } = await db.from('homeroom_attendance').select('check_date').eq('classroom_id', classroomId);
@@ -682,18 +694,15 @@ function renderTable(enrollments) {
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
         const current = attendanceData[item.student_id] || '';
 
-        // 🟢 1. กำหนดรูปโปรไฟล์ (ถ้าไม่มีรูป ให้สร้างรูปตัวอักษรสีพาสเทลอัตโนมัติ)
         const avatarUrl = std?.avatar_students_url
             ? std.avatar_students_url
             : `https://ui-avatars.com/api/?name=${encodeURIComponent(std?.first_name || 'U')}&background=ebd9fc&color=7c3aed&font-size=0.4&bold=true`;
 
-        // 2. สร้างปุ่มสถานะ (อ้างอิง Logic เดิม)
         const btns = ['มา', 'ขาด', 'สาย', 'ลา', 'ป่วย'].map(s => {
             const cls = current === s ? statusStyles[s].active : statusStyles[s].inactive;
             return `<button onclick="updateAttendance('${item.student_id}','${s}')" class="status-btn px-3 py-2 rounded-xl border text-[11px] font-black transition-all ${cls}">${s}</button>`;
         }).join('');
 
-        // 🟢 3. อัปเดต HTML ของแถวตาราง
         tbody.append(`<tr data-student-id="${item.student_id}" data-student-code="${std?.student_id_card || '-'}" class="hover:bg-blue-50/50 transition-colors border-b border-slate-50">
             <td class="px-6 py-4 font-bold text-slate-400 text-center align-middle">${item.student_number}</td>
             
@@ -719,25 +728,20 @@ function renderTable(enrollments) {
     });
 }
 
-/**
- * ฟังก์ชันแสดงรูปโปรไฟล์ขนาดใหญ่ด้วย SweetAlert2
- * @param {string} imageUrl - ลิงก์รูปภาพ
- * @param {string} studentName - ชื่อ-นามสกุลนักเรียน
- */
 function showFullImage(imageUrl, studentName) {
     Swal.fire({
         title: studentName,
         imageUrl: imageUrl,
         imageAlt: `รูปโปรไฟล์ของ ${studentName}`,
         showCloseButton: true,
-        showConfirmButton: false, // ซ่อนปุ่ม "ตกลง" ให้เหลือแค่รูปกับปุ่มกากบาทปิด
+        showConfirmButton: false,
         padding: '1.5em',
         customClass: {
             title: 'text-xl font-bold text-blue-900 font-sans',
-            image: 'rounded-2xl shadow-lg border border-slate-200 max-h-[60vh] object-contain', // ใส่ขอบโค้งมนและปรับขนาดรูปไม่ให้ล้นจอ
-            popup: 'rounded-3xl border border-blue-50 bg-white/95 backdrop-blur-sm' // สไตล์ Glassmorphism
+            image: 'rounded-2xl shadow-lg border border-slate-200 max-h-[60vh] object-contain',
+            popup: 'rounded-3xl border border-blue-50 bg-white/95 backdrop-blur-sm'
         },
-        backdrop: 'rgba(15, 23, 42, 0.8)' // พื้นหลังสีเทาเข้มแบบโปร่งแสง
+        backdrop: 'rgba(15, 23, 42, 0.8)'
     });
 }
 
@@ -777,7 +781,8 @@ async function clearDailyData() {
 }
 
 async function clearAttendanceData() {
-    const isAdmin = actualUserRole === 'super_admin' || actualUserRole === 'admin';
+    // ✅ ใช้ฟังก์ชันกลางตรวจสอบ Admin
+    const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['super_admin', 'admin'].includes(actualUserRole);
     let classroomOptions = [];
     if (isAdmin) {
         Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -1078,7 +1083,6 @@ async function exportToExcel() {
     Swal.close();
 }
 
-// 辅助函数：安全转义 HTML（支持任意类型输入）
 function escapeHtml(str) {
     if (str === undefined || str === null) return '';
     const s = String(str);
@@ -1111,7 +1115,6 @@ async function generatePDFReport() {
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDateStr);
 
-    // สร้าง studentsList พร้อมแปลงค่า undefined/null ให้เป็น string ที่ปลอดภัย
     const studentsList = currentDashboardStudents.map(enroll => {
         const std = enroll.core_students || {};
         const studentId = enroll.student_id;
@@ -1130,7 +1133,6 @@ async function generatePDFReport() {
         return noA - noB;
     });
 
-    // คำนวณสถิติ
     let cPresent = 0, cAbsent = 0, cLate = 0, cLeave = 0, cSick = 0;
     studentsList.forEach(s => {
         if (s.status === 'มา') cPresent++;
@@ -1140,24 +1142,14 @@ async function generatePDFReport() {
         else if (s.status === 'ป่วย') cSick++;
     });
 
-    // A4 usable height @10mm margins = 277mm
-    // header ~52mm, row ~8mm, summary+sign ~30mm
-    // page 1..n-1: floor((277-52)/8) = 28 → safe 20 rows
-    // last page: needs to fit summary(~14mm) + sign(~22mm) = 36mm extra → floor((277-52-36)/8) = 23 → safe 17 rows
     const ROWS_NORMAL = 20;
     const ROWS_LAST = 17;
 
-    // Pre-calculate pages with correct sizes
     const pages = [];
     let remaining = [...studentsList];
     while (remaining.length > 0) {
-        // Peek: if this is the last chunk, use ROWS_LAST limit
-        // We don't know yet if it's last, so build greedily:
-        // If remaining fits in one ROWS_LAST page → it IS the last page
-        // Otherwise take ROWS_NORMAL
         const isOnlyRemaining = remaining.length <= ROWS_NORMAL;
         const limit = isOnlyRemaining ? ROWS_LAST : ROWS_NORMAL;
-        // If remaining.length <= ROWS_LAST → last page
         if (remaining.length <= ROWS_LAST) {
             pages.push(remaining.splice(0, remaining.length));
         } else {
@@ -1173,7 +1165,6 @@ async function generatePDFReport() {
 
     const totalPages = pages.length;
 
-    // Build header HTML (reused on every page)
     const headerHtml = (pageNum) => `
         <div style="text-align:center; margin-bottom:12px;">
             <img src="${logoUrl}" crossorigin="anonymous" alt="logo"
@@ -1186,7 +1177,6 @@ async function generatePDFReport() {
             <div style="font-size:11px; color:#666;">หน้าที่ ${pageNum} / ${totalPages}</div>
         </div>`;
 
-    // Build rows HTML
     const rowHtml = (std) => {
         const colorMap = { 'มา': '#2e7d32', 'ขาด': '#c62828', 'สาย': '#ef6c00', 'ลา': '#b26a00', 'ป่วย': '#1565c0' };
         const color = colorMap[std.status] || '#333';
@@ -1198,13 +1188,9 @@ async function generatePDFReport() {
         </tr>`;
     };
 
-    // Build each page as a separate complete HTML document rendered via iframe trick
-    // Strategy: render all pages in one document, separate with page-break-after on a wrapper div.
-    // Each wrapper contains ONLY the header + table for that page (no nested page structure).
     let bodyHtml = '';
     pages.forEach((pageStudents, idx) => {
         const isLast = idx === totalPages - 1;
-        // page-break-after: always on every page except last
         const breakStyle = isLast ? '' : 'page-break-after: always;';
 
         const summaryAndSign = isLast ? `
@@ -1329,6 +1315,12 @@ async function openHistoryModal() {
 
 // ==================== ADMIN MODAL ====================
 function openAdminModal() {
+    // ✅ ใช้ฟังก์ชันกลางตรวจสอบ Admin
+    const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['super_admin', 'admin'].includes(actualUserRole);
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+        return;
+    }
     $('#setting-weekdays').prop('checked', moduleSettings.check_only_weekdays);
     $('#setting-lock-future').prop('checked', moduleSettings.lock_future_dates);
     $('#setting-enforce-term-start').prop('checked', moduleSettings.enforce_term_start);
@@ -1344,6 +1336,12 @@ function openAdminModal() {
 function closeAdminModal() { $('#admin-modal').addClass('hidden'); }
 
 async function saveAdminSettings() {
+    // ✅ ใช้ฟังก์ชันกลางตรวจสอบ Admin
+    const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['super_admin', 'admin'].includes(actualUserRole);
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+        return;
+    }
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const newSettings = {
         academic_year: currentSchoolInfo.current_academic_year,
@@ -1365,11 +1363,16 @@ async function saveAdminSettings() {
     }
 }
 async function toggleRoleView() {
+    // ✅ ใช้ฟังก์ชันกลางตรวจสอบ Admin
+    const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['super_admin', 'admin'].includes(actualUserRole);
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
+        return;
+    }
     currentViewRole = currentViewRole === 'admin' ? 'teacher' : 'admin';
     updateToggleButtonUI();
     $('#admin-settings-btn').toggleClass('hidden', currentViewRole === 'teacher');
 
-    // Refresh dropdown ห้องเรียนตาม role ใหม่
     await populateClassroomSelect(currentUser ? currentUser.id : null);
 
     Swal.fire({
@@ -1382,7 +1385,9 @@ async function toggleRoleView() {
 }
 
 async function adminMarkAllPresentBatch() {
-    if (actualUserRole !== 'admin' && actualUserRole !== 'super_admin') {
+    // ✅ ใช้ฟังก์ชันกลางตรวจสอบ Admin
+    const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, currentViewRole === 'admin') : ['super_admin', 'admin'].includes(actualUserRole);
+    if (!isAdmin) {
         return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
     }
     const batchDate = $('#admin-batch-date').val();
@@ -1624,7 +1629,6 @@ function exportGradeOverviewPDF() {
     const thaiDateText = formatThaiDateFull(checkDate);
     const gradeTitle = `ม.${currentManagedGrades.join(', ม.')}`;
 
-    // รวบรวมข้อมูลจากตารางที่แสดงอยู่
     const tableRows = [];
     rows.each(function () {
         const tds = $(this).find('td');
@@ -1719,7 +1723,6 @@ function exportGradeOverviewPDF() {
     });
 }
 
-// ✅ ส่วนที่เพิ่มเติม: closeGradeOverview (จำเป็น)
 function closeGradeOverview() {
     $('#grade-overview-modal').addClass('hidden');
 }
