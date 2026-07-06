@@ -39,7 +39,8 @@ window.addEventListener('load', async () => {
     if (!user) { window.location.href = 'index.html'; return; }
 
     const { data: p } = await db.from('core_personnel').select('*').eq('id', user.id).single();
-    if (!p || (p.role !== 'admin' && p.role !== 'super_admin')) {
+    // อนุญาตให้ 'teacher', 'admin', และ 'super_admin' เข้าใช้งานได้
+    if (!p || !['admin', 'super_admin', 'teacher'].includes(p.role)) {
         Swal.fire('ไม่มีสิทธิ์', '', 'warning').then(() => window.location.href = 'index.html');
         return;
     }
