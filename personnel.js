@@ -5,19 +5,26 @@ let personnelTable = null;
 let allPersonnelData = [];
 let personnelMap = new Map();
 let currentUser = null;
+let currentProfile = null;
 let forceTeacherMode = false;
 let actualIsAdmin = false;
+let moduleAdminChecked = false;
+let isModuleAdmin = false;
 
-/* ── Role Helpers ───────────── */
-const isSuperAdmin = () => !forceTeacherMode && currentUser?.role === 'super_admin';
+/* ── Role Helpers (ใช้ config.js) ───────────── */
+const isSuperAdmin = () => !forceTeacherMode && currentProfile?.role === 'super_admin';
 const isAdmin = () => {
     if (forceTeacherMode) return false;
-    if (currentUser?.role === 'admin' || currentUser?.role === 'super_admin') return true;
+    // 1. ตรวจสอบ Global Admin (จาก config.js)
+    if (isAdminUser(currentProfile?.role, false)) return true;
+    // 2. ตรวจสอบ Module Admin (จาก core_module_admins)
+    if (moduleAdminChecked && isModuleAdmin) return true;
+    // 3. ตรวจสอบ Local Admin (จาก settings)
     const localAdmins = window._personnelSettings?.local_admins || [];
-    return localAdmins.includes(currentUser?.id);
+    return localAdmins.includes(currentProfile?.id);
 };
 const isTeacher = () => !isAdmin();
-const canEditRecord = (id) => isAdmin() || currentUser?.id === id;
+const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
 const canDelete = () => isSuperAdmin();
 
 /* ── Position Logic ─────────── */
@@ -62,22 +69,25 @@ function switchTab(id, btn) {
 window.onload = async () => {
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     try {
-        const { data: { session } } = await db.auth.getSession();
-        if (!session) {
-            Swal.fire({ icon: 'warning', title: 'กรุณาเข้าสู่ระบบ', confirmButtonText: 'ไปหน้าล็อกอิน' })
-                .then(() => window.location.replace('index.html')); return;
-        }
-        const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-        currentUser = profile || { id: session.user.id, first_name: session.user.email, last_name: '', prefix: '' };
+        // ✅ ใช้ checkSessionAndRole จาก config.js
+        const result = await checkSessionAndRole('personnel', WRK_ROLES.ALLOWED);
+        if (!result) return; // redirect ไป login.html แล้ว
+
+        currentUser = result.user;
+        currentProfile = result.personnel;
 
         document.getElementById('display-name').textContent =
-            profile ? `${profile.prefix || ''}${profile.first_name} ${profile.last_name}` : session.user.email;
+            `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+
+        // ✅ ตรวจสอบ Module Admin
+        moduleAdminChecked = true;
+        isModuleAdmin = await hasModuleAccess(currentProfile.role, 'personnel', currentUser.id);
 
         await loadCoreUsers();
         await loadSettings();
 
         const localAdmins = window._personnelSettings?.local_admins || [];
-        actualIsAdmin = (currentUser.role === 'admin' || currentUser.role === 'super_admin' || localAdmins.includes(currentUser.id));
+        actualIsAdmin = isAdminUser(currentProfile.role, false) || localAdmins.includes(currentProfile.id) || isModuleAdmin;
 
         if (actualIsAdmin) {
             const btnAdmin = document.getElementById('btnAdminMode');
@@ -94,7 +104,9 @@ window.onload = async () => {
         renderPAInputs();
         initFlatpickr();
         updatePositionLogic();
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 };
 
 /* ── Apply Role UI & Toggle ──────────── */
@@ -122,7 +134,7 @@ function applyRoleUI() {
 
     let roleLabel = '🟢 ครูผู้สอน';
     if (isSuperAdmin()) roleLabel = '🔴 Super Admin';
-    else if (currentUser?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
+    else if (currentProfile?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
     else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
 
     if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
@@ -130,15 +142,14 @@ function applyRoleUI() {
     const badge = document.getElementById('role-badge');
     if (badge) badge.textContent = roleLabel;
 
-    // 🔥 เปลี่ยนจาก jQuery เป็น TomSelect API
     const sel = document.getElementById('inp-personnel-id');
     if (sel) {
         if (isTeacher()) {
             if (sel.tomselect) {
-                sel.tomselect.setValue(currentUser.id);
+                sel.tomselect.setValue(currentProfile.id);
                 sel.tomselect.disable();
             } else {
-                sel.value = currentUser.id;
+                sel.value = currentProfile.id;
                 sel.disabled = true;
             }
         } else {
@@ -153,6 +164,11 @@ function applyRoleUI() {
 }
 
 function toggleRoleView() {
+    // ใช้ isAdminUser จาก config.js
+    if (!isAdminUser(currentProfile?.role, false) && !isModuleAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
+        return;
+    }
     forceTeacherMode = !forceTeacherMode;
     const toggleBtn = document.getElementById('btnAdminMode');
     if (forceTeacherMode) {
@@ -211,16 +227,17 @@ async function saveSetting(key, value) {
 }
 
 function openSettings() {
+    if (!requireAdmin(currentProfile?.role, isAdmin(), 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบบุคลากรได้')) {
+        return;
+    }
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
     loadSettings().then(() => renderLocalAdmins());
 }
 
-/* ── Settings (Admin/SuperAdmin) ── */
 function closeSettings() {
     const sel = document.getElementById('sel-add-local-admin');
-    // ทำลาย Tom Select เพื่อล้างค่าเวลาเปิด Modal ใหม่
     if (sel && sel.tomselect) {
         sel.tomselect.destroy();
     }
@@ -236,7 +253,6 @@ function renderLocalAdmins() {
 
     const sel = document.getElementById('sel-add-local-admin');
 
-    // คัดลอกข้อมูลและติดตั้ง Tom Select 
     if (sel && sel.options.length <= 1 && document.getElementById('inp-personnel-id').options.length > 1) {
         if (sel.tomselect) sel.tomselect.destroy();
         sel.innerHTML = document.getElementById('inp-personnel-id').innerHTML;
@@ -247,7 +263,7 @@ function renderLocalAdmins() {
         new TomSelect(sel, {
             create: false,
             placeholder: '-- เลือกครู / บุคลากร --',
-            dropdownParent: 'body' // ทะลุ Z-index ของ Modal ได้อย่างสมบูรณ์
+            dropdownParent: 'body'
         });
     }
 
@@ -280,8 +296,6 @@ async function addLocalAdmin() {
     admins.push(uid);
     await saveSetting('local_admins', admins);
     renderLocalAdmins();
-
-    // ล้างค่า Tom Select หลังจากเพิ่มสำเร็จ
     if (sel.tomselect) {
         sel.tomselect.clear();
     } else {
@@ -296,26 +310,29 @@ async function removeLocalAdmin(uid) {
     renderLocalAdmins();
 }
 
+/* ── Logout (ไป login.html ตามมาตรฐาน) ── */
 async function handleLogout() {
     const r = await Swal.fire({
-        title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true,
-        confirmButtonColor: '#dc2626', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก'
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
     });
-    if (r.isConfirmed) { await db.auth.signOut(); window.location.replace('index.html'); }
+    if (r.isConfirmed) {
+        await db.auth.signOut();
+        window.location.href = 'login.html';
+    }
 }
 
 /* ── Load Users Dropdown ───── */
 async function loadCoreUsers() {
     const { data } = await db.from('core_personnel').select('id,first_name,last_name,prefix').order('first_name');
     const sel = document.getElementById('inp-personnel-id');
-
-    // ทำลายของเก่าทิ้งถ้ามีการโหลดซ้ำ
     if (sel.tomselect) sel.tomselect.destroy();
-
     sel.innerHTML = '<option value="">-- กรุณาเลือก --</option>';
     (data || []).forEach(u => sel.appendChild(new Option(`${u.prefix || ''}${u.first_name} ${u.last_name}`, u.id)));
-
-    // ติดตั้ง Tom Select แทนที่ Select2
     new TomSelect('#inp-personnel-id', {
         create: false,
         placeholder: '-- กรุณาเลือก --',
@@ -513,12 +530,12 @@ function parseDriveUrl(url) {
     if (!url || !url.trim()) return null;
     url = url.trim();
     let m = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`; // 👈 เปลี่ยน
+    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`;
     m = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`; // 👈 เปลี่ยน
+    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`;
     m = url.match(/\/uc\?.*id=([a-zA-Z0-9_-]+)/);
-    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`; // 👈 เปลี่ยน
-    if (url.startsWith('http')) return url; // อันนี้ปล่อยผ่านไป (เป็น URL ตรงอยู่แล้ว)
+    if (m) return `https://lh5.googleusercontent.com/d/${m[1]}`;
+    if (url.startsWith('http')) return url;
     return null;
 }
 
@@ -566,15 +583,11 @@ function previewAvatar(input) {
 
 /* ── Immediate Upload Button ── */
 async function uploadAvatarNow() {
-    // 1. ตรวจสอบว่ามีไฟล์รออยู่หรือไม่
     if (!_pendingAvatarFile) {
         return Swal.fire('ไม่มีไฟล์', 'ยังไม่ได้เลือกไฟล์รูป', 'info');
     }
-
-    // 2. สำหรับการอัปโหลดต้องรู้ว่าเป็นบุคลากรคนไหน (ใช้ edit-id)
     const editId = document.getElementById('edit-id').value;
     if (!editId) {
-        // ถ้าเป็น modal เพิ่มข้อมูลใหม่ ยังไม่มีรหัสบุคลากร
         Swal.fire({
             icon: 'info',
             title: 'ยังอัปโหลดไม่ได้',
@@ -583,25 +596,15 @@ async function uploadAvatarNow() {
         });
         return;
     }
-
-    // 3. เรียกใช้ฟังก์ชันอัปโหลดที่มีอยู่แล้ว
     const driveUrl = await uploadFileToDrive(_pendingAvatarFile, editId);
-
     if (driveUrl) {
-        // 4. อัปเดต UI และข้อมูลในฟอร์ม
         document.getElementById('inp-avatar-data').value = driveUrl;
         document.getElementById('inp-avatar-url').value = driveUrl;
-
-        // แสดงรูปตัวอย่างที่โหลดจาก Drive
         setAvatar('avatar-display', '', driveUrl);
         setAvatar('modal-avatar-display', '', driveUrl);
-
-        // เคลียร์ตัวแปรไฟล์ชั่วคราว และซ่อนป้าย "รอ Upload"
         _pendingAvatarFile = null;
         const badge = document.getElementById('avatar-upload-badge');
         if (badge) badge.classList.add('hidden');
-
-        // แจ้งเตือนเล็กน้อย
         Swal.fire({
             toast: true,
             position: 'bottom-end',
@@ -611,7 +614,6 @@ async function uploadAvatarNow() {
             timer: 2000
         });
     }
-    // หากล้มเหลว ฟังก์ชัน uploadFileToDrive จะแสดงข้อความแจ้งอยู่แล้ว
 }
 
 function clearAvatar() {
@@ -688,11 +690,10 @@ async function uploadFileToDrive(file, personId) {
         const timestamp = Date.now();
         const fileName = `avatar_${namePart}_${timestamp}.jpg`;
 
-        // 🔥 แก้ไขที่สำคัญ: เพิ่ม action: 'upload'
         const response = await fetch(gasUrl, {
             method: "POST",
             body: JSON.stringify({
-                action: 'upload',          // ✅ เพิ่มบรรทัดนี้
+                action: 'upload',
                 base64: base64Data,
                 fileName: fileName,
                 folderId: folderId
@@ -737,18 +738,14 @@ function resetHiddens() {
         .forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
 }
 
-/* ── Modal ──────────────────── */
 function openModal(mode, data = null) {
     document.getElementById('main-form').reset();
-
-    // เคลียร์ค่า Tom Select
     const sel = document.getElementById('inp-personnel-id');
     if (sel && sel.tomselect) {
-        sel.tomselect.clear(true); // ใส่ true เพื่อป้องกันไม่ให้มันทริกเกอร์ onchange โดยไม่จำเป็น
+        sel.tomselect.clear(true);
     } else if (sel) {
         sel.value = '';
     }
-
     resetHiddens();
     setAvatar('avatar-display', '?', null);
     setAvatar('modal-avatar-display', '?', null);
@@ -786,7 +783,6 @@ function populateForm(p) {
     document.getElementById('modal-subtitle').textContent = fullName;
     document.getElementById('edit-id').value = p.id || '';
 
-    // สั่งให้ Tom Select เลือกค่า
     const sel = document.getElementById('inp-personnel-id');
     if (sel && sel.tomselect) {
         sel.tomselect.setValue(p.id || '');
@@ -900,7 +896,9 @@ async function savePersonnel(e) {
 
 /* ── DELETE ─────────────────── */
 async function deletePersonnel(id, name) {
-    if (!canDelete()) return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถลบข้อมูลได้', 'warning');
+    if (!canDelete()) {
+        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถลบข้อมูลได้', 'warning');
+    }
     const r = await Swal.fire({
         title: `ลบข้อมูล "${name}"?`,
         html: '<span class="text-sm text-red-500">ข้อมูลบุคลากรจะถูกล้าง (บัญชีผู้ใช้ยังคงอยู่)</span>',
@@ -932,7 +930,7 @@ async function loadPersonnelList() {
     tbody.innerHTML = '';
     const today = dayjs(), cyBE = today.year() + 543;
 
-    const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
+    const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
 
     tableData.forEach(p => {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
@@ -1009,7 +1007,7 @@ async function loadPersonnelList() {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         responsive: true, scrollX: true, pageLength: 25,
         columnDefs: [{ orderable: false, targets: [0, 7] }],
-        order: [[2, 'asc']], // เรียงตามคอลัมน์ จากน้อยไปมาก
+        order: [[2, 'asc']],
         layout: { topStart: 'pageLength', topEnd: 'search', bottomStart: 'info', bottomEnd: 'paging' }
     });
     updateDashboard(allPersonnelData);
@@ -1162,7 +1160,7 @@ function renderInfoBlocks(data) {
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel() {
-    const exportData = isTeacher() ? allPersonnelData.filter(p => p.id === currentUser?.id) : allPersonnelData;
+    const exportData = isTeacher() ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
 
     if (!exportData.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
     const be = iso => isoToBE(iso) || '-';

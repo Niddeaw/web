@@ -11,7 +11,7 @@ let allAttendanceData = [];
 $(document).ready(async function () {
     Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const auth = await checkAdminAuth();
-    if (!auth.isAdmin) {
+    if (!auth) {
         await Swal.fire('ปฏิเสธการเข้าถึง', 'หน้านี้จำกัดเฉพาะผู้ดูแลระบบฝ่ายบุคลากรเท่านั้น', 'error');
         window.location.replace('leave_teacher.html');
         return;
@@ -25,37 +25,27 @@ $(document).ready(async function () {
     await loadAttendanceTable();
     initAttendanceFlatpickr();
     initEditFlatpickr();
-    initAdminFlatpickr(); // สำหรับ modal เขียนใบลาแทน
+    initAdminFlatpickr();
     Swal.close();
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 });
 
-// ==========================================
-// Authentication
-// ==========================================
 async function checkAdminAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) return { isAdmin: false };
-    const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-    if (!profile) return { isAdmin: false };
-    if (profile.role === 'super_admin' || profile.role === 'admin') {
-        return { isAdmin: true, user: session.user, profile: profile };
-    }
-    const { data: modAdmin } = await db.from('core_module_admins').select('*').eq('user_id', session.user.id).eq('module_id', 'leave').maybeSingle();
-    if (modAdmin) return { isAdmin: true, user: session.user, profile: profile };
-    return { isAdmin: false };
+    const result = await checkSessionAndRole('leave', WRK_ROLES.ALLOWED);
+    if (!result) return null;
+    const user = result.user;
+    const profile = result.personnel;
+    const isAdmin = isAdminUser(profile.role, false);
+    if (isAdmin) return { user, profile };
+    const { data: modAdmin } = await db.from('core_module_admins').select('id').eq('user_id', user.id).eq('module_id', 'leave').maybeSingle();
+    if (modAdmin) return { user, profile };
+    return null;
 }
 
 function updateUI() {
-    // อัปเดตชื่อผู้ใช้ใน Navbar
     $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
-    
-    // กำหนดสิทธิ์ Super Admin
     isSuperAdmin = (currentProfile.role === 'super_admin');
-
-    // ✅ เพิ่มบรรทัดนี้
     if (typeof toggleSettingsTab !== 'undefined') toggleSettingsTab(isSuperAdmin);
-    
     if (currentProfile.role === 'super_admin') {
         $('#btn-import-excel').removeClass('hidden').addClass('flex');
     } else {
@@ -75,9 +65,6 @@ function switchTab(tabId) {
     if (tabId === 'attendance' && attendanceDataTable) attendanceDataTable.columns.adjust().draw();
 }
 
-// ==========================================
-// ตั้งค่าระบบ
-// ==========================================
 async function loadSystemSettings() {
     const { data: leaveData } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').maybeSingle();
     systemSettings = leaveData?.settings || {
@@ -129,13 +116,10 @@ async function saveSystemSettings(e) {
     }
 }
 
-// ==========================================
-// จัดการแอดมินและเลือกบุคลากร
-// ==========================================
 async function loadPersonnelSearch() {
     const { data } = await db.from('core_personnel')
         .select('id, prefix, first_name, last_name, department, position, academic_standing')
-    .order('first_name');
+        .order('first_name');
     allPersonnelData = data || [];
     if (data) {
         let htmlSearch = '<option value="">-- พิมพ์เพื่อค้นหา --</option>';
@@ -201,9 +185,6 @@ async function removeModuleAdmin(id) {
     } else Swal.fire('ผิดพลาด', error.message, 'error');
 }
 
-// ==========================================
-// แดชบอร์ด
-// ==========================================
 async function loadDashboardStats() {
     const { data: leaves, error } = await db.from('leave_requests')
         .select('*, core_personnel(prefix, first_name, last_name)')
@@ -221,7 +202,7 @@ async function loadDashboardStats() {
     $('#total-pending').html(`${pendingCount} <span class="text-sm font-medium text-slate-500">รายการ</span>`);
     $('#total-people').html(`${uniquePeople} <span class="text-sm font-medium text-slate-500">คน</span>`);
     checkLeaveLimits(validLeaves);
-    await loadPromotionWarnings();   // <-- เพิ่มบรรทัดนี้
+    await loadPromotionWarnings();
     renderTable();
 }
 
@@ -247,7 +228,6 @@ function checkLeaveLimits(validLeaves) {
 
     Object.values(personnelStats).forEach(p => {
         const warnings = [];
-
         if (p.sick >= 25) {
             warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
         }
@@ -265,7 +245,6 @@ function checkLeaveLimits(validLeaves) {
             }
             warnings.push(msg);
         }
-
         if (warnings.length > 0) {
             hasAlert = true;
             alertZone.append(`
@@ -288,7 +267,6 @@ function checkLeaveLimits(validLeaves) {
 
 async function loadPromotionWarnings() {
     try {
-        // 1. ดึงข้อมูลการลาทั้งหมดของปีงบประมาณ/รอบประเมินปัจจุบัน (ไม่รวม "ไม่อนุมัติ")
         const { data: leaves, error: leavesErr } = await db.from('leave_requests')
             .select('personnel_id, type, total_days, status')
             .eq('fiscal_year', systemSettings.fiscal_year)
@@ -296,51 +274,36 @@ async function loadPromotionWarnings() {
             .neq('status', 'ไม่อนุมัติ');
         if (leavesErr) throw leavesErr;
 
-        // 2. ดึงข้อมูลการขาด/มาสายทั้งหมดในรอบประเมินปัจจุบัน
         const { data: attendances, error: attErr } = await db.from('personnel_attendance')
             .select('personnel_id, record_type')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round);
         if (attErr) throw attErr;
 
-        // สร้างแผนที่เก็บสถิติบุคลากร
-        const statsMap = new Map(); // key = personnel_id
-
-        // รวมข้อมูลการลา
+        const statsMap = new Map();
         for (const l of leaves) {
             if (!statsMap.has(l.personnel_id)) {
-                statsMap.set(l.personnel_id, {
-                    sickDays: 0,
-                    personalDays: 0,
-                    totalLeaveCount: 0,
-                    lateCount: 0
-                });
+                statsMap.set(l.personnel_id, { sickDays: 0, personalDays: 0, totalLeaveCount: 0, lateCount: 0 });
             }
             const stat = statsMap.get(l.personnel_id);
             if (l.type === 'ลาป่วย') stat.sickDays += l.total_days;
             else if (l.type === 'ลากิจส่วนตัว') stat.personalDays += l.total_days;
-            stat.totalLeaveCount++; // นับทุกชนิด (รวมคลอดด้วย)
+            stat.totalLeaveCount++;
         }
-
-        // รวมข้อมูลมาสาย
         for (const a of attendances) {
             if (a.record_type === 'มาสาย') {
                 if (!statsMap.has(a.personnel_id)) {
-                    statsMap.set(a.personnel_id, {
-                        sickDays: 0, personalDays: 0, totalLeaveCount: 0, lateCount: 0
-                    });
+                    statsMap.set(a.personnel_id, { sickDays: 0, personalDays: 0, totalLeaveCount: 0, lateCount: 0 });
                 }
                 statsMap.get(a.personnel_id).lateCount++;
             }
         }
 
-        // สร้างอาร์เรย์ผลการประเมิน
         const evaluation = [];
         for (const [personnelId, stat] of statsMap.entries()) {
             const totalSickPersonal = stat.sickDays + stat.personalDays;
             let isEligible = true;
             const reasons = [];
-
             if (totalSickPersonal > 23) {
                 isEligible = false;
                 reasons.push(`ลาป่วย+ลากิจรวม ${totalSickPersonal} วัน (เกิน 23 วัน)`);
@@ -348,13 +311,11 @@ async function loadPromotionWarnings() {
             if (stat.totalLeaveCount > 6) {
                 isEligible = false;
                 reasons.push(`ลาทั้งหมด ${stat.totalLeaveCount} ครั้ง (เกิน 6 ครั้ง)`);
-                // หมายเหตุ: กรณีมีผลงานดีเด่นและวันลาไม่เกิน 15 วันอาจยังพิจารณาได้ – ยังไม่ได้ implement
             }
             if (stat.lateCount > 23) {
                 isEligible = false;
                 reasons.push(`มาสาย ${stat.lateCount} ครั้ง (เกิน 23 ครั้ง)`);
             }
-
             if (!isEligible) {
                 const personnel = allPersonnelData.find(p => p.id === personnelId);
                 const name = personnel ? `${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}` : 'ไม่พบชื่อ';
@@ -362,13 +323,11 @@ async function loadPromotionWarnings() {
             }
         }
 
-        // แสดงผล
         const alertZone = $('#promotion-alert-zone');
         if (evaluation.length === 0) {
             alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนผ่านเกณฑ์การเลื่อนเงินเดือน</div>');
             return;
         }
-
         let html = '';
         for (const p of evaluation) {
             html += `
@@ -391,9 +350,6 @@ async function loadPromotionWarnings() {
     }
 }
 
-// ==========================================
-// จัดการรายการลา (ตาราง)
-// ==========================================
 function filterTableByPerson() {
     const personId = $('#filter-personnel').val();
     if (personId) {
@@ -456,9 +412,6 @@ function renderTable() {
     });
 }
 
-// ==========================================
-// แก้ไขใบลา (Admin)
-// ==========================================
 function initEditFlatpickr() {
     flatpickr(".edit-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y", onChange: function () { calculateEditDays(); } });
 }
@@ -509,9 +462,6 @@ $('#editLeaveForm').on('submit', async function(e) {
 });
 function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLeaveForm')[0].reset(); }
 
-// ==========================================
-// Attendance functions
-// ==========================================
 function initAttendanceFlatpickr() {
     flatpickr(".att-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y" });
 }
@@ -580,7 +530,6 @@ function openAttendanceModal(mode, id = null) {
     });
     attEl.tomselect.clear(true);
 
-    // ✅ ป้องกัน flatpickr undefined
     const recordDateInput = document.querySelector("#att_record_date");
     if (!recordDateInput._flatpickr) {
         flatpickr("#att_record_date", {
@@ -613,7 +562,6 @@ function openAttendanceModal(mode, id = null) {
             $('#att_reason').val(record.reason);
         }
     }
-
     $('#attendanceModal').removeClass('hidden');
 }
 
@@ -653,16 +601,10 @@ async function deleteAttendance(id) {
     }
 }
 
-// ==========================================
-// พิมพ์ PDF (call core)
-// ==========================================
 async function printLeavePDF(id) {
-    await generateLeavePDF(id, systemSettings, db, Swal, window);
+    await generateLeavePDF(id, systemSettings);
 }
 
-// ==========================================
-// อัปเดตสถานะ, ไม่อนุมัติ, ลบ
-// ==========================================
 async function updateStatus(id, newStatus) {
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update({ status: newStatus, reject_comment: null, updated_at: new Date().toISOString() }).eq('id', id);
@@ -727,17 +669,14 @@ async function exportLeaveSummaryReport() {
     try {
         Swal.fire({ title: 'กำลังสร้างรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-        // 1. กรองบุคลากร (ไม่เอาผู้อำนวยการ (ไม่รวมรอง), พนักงานราชการ, ครูอัตราจ้าง)
         let personnel = allPersonnelData.filter(p => {
             const pos = p.position || '';
-            // ตรวจสอบว่าไม่ใช่ "ผู้อำนวยการ" (เฉพาะคำเดียว ไม่รวม "รอง")
             if (pos === 'ผู้อำนวยการสถานศึกษา') return false;
             if (pos.includes('พนักงานราชการ')) return false;
             if (pos.includes('ครูอัตราจ้าง')) return false;
             return true;
         });
 
-        // 2. ดึงข้อมูลการลา
         const { data: leaves, error: leavesErr } = await db.from('leave_requests')
             .select('personnel_id, type, total_days')
             .eq('fiscal_year', systemSettings.fiscal_year)
@@ -745,14 +684,12 @@ async function exportLeaveSummaryReport() {
             .neq('status', 'ไม่อนุมัติ');
         if (leavesErr) throw leavesErr;
 
-        // 3. ดึงข้อมูลการมาสาย
         const { data: attendances, error: attErr } = await db.from('personnel_attendance')
             .select('personnel_id, record_type')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round);
         if (attErr) throw attErr;
 
-        // 4. สร้าง Map เก็บสถิติ
         const stats = new Map();
         personnel.forEach(p => {
             stats.set(p.id, {
@@ -781,7 +718,6 @@ async function exportLeaveSummaryReport() {
             }
         }
 
-        // 5. เตรียมข้อมูลรายงาน
         const reportData = [];
         for (const p of personnel) {
             const s = stats.get(p.id) || { lateCount:0, personalCount:0, personalDays:0, sickCount:0, sickDays:0 };
@@ -798,7 +734,6 @@ async function exportLeaveSummaryReport() {
             });
         }
 
-        // 6. กำหนดลำดับกลุ่มสาระฯ (เหมือนเดิม)
         const departmentOrder = [
             'ภาษาไทย', 'คณิตศาสตร์',
             'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
@@ -812,7 +747,6 @@ async function exportLeaveSummaryReport() {
             return idx === -1 ? 999 : idx;
         }
 
-        // 7. เรียงลำดับ: รองฯ → กลุ่มสาระฯ → ชื่อ
         reportData.sort((a, b) => {
             const aIsVice = a.position.includes('รองผู้อำนวยการ');
             const bIsVice = b.position.includes('รองผู้อำนวยการ');
@@ -825,7 +759,6 @@ async function exportLeaveSummaryReport() {
             return a.fullName.localeCompare(b.fullName, 'th');
         });
 
-        // 8. สร้าง Excel
         const excelRows = reportData.map((item, index) => ({
             'ลำดับที่': index + 1,
             'ชื่อ - สกุล': item.fullName,
@@ -894,14 +827,12 @@ async function importLeaveExcel(event) {
 
 async function exportAttendanceReport() {
     try {
-        // ดึงข้อมูลสถิติจาก personnel_attendance ตามปีงบประมาณและรอบประเมินปัจจุบัน
         const { data: attendanceStats, error } = await db.from('personnel_attendance')
             .select('personnel_id, record_type')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round);
         if (error) throw error;
 
-        // นับจำนวนครั้งของแต่ละบุคลากร แยกประเภท
         const counts = {};
         attendanceStats.forEach(att => {
             if (!counts[att.personnel_id]) {
@@ -914,9 +845,7 @@ async function exportAttendanceReport() {
             }
         });
 
-        // ดึงรายชื่อบุคลากรทั้งหมด (จาก allPersonnelData ที่โหลดไว้แล้ว)
         const personnelList = allPersonnelData;
-        // สร้างข้อมูลสำหรับ Excel เฉพาะผู้ที่มีสถิติอย่างน้อย 1 ครั้ง (ตามที่ต้องการ)
         const exportData = personnelList
             .map(p => {
                 const c = counts[p.id] || { late: 0, absent: 0 };
@@ -927,20 +856,19 @@ async function exportAttendanceReport() {
                     'รวม': c.late + c.absent
                 };
             })
-            .filter(item => item['รวม'] > 0);  // แสดงเฉพาะผู้ที่มีสถิติ (ถ้าต้องการแสดงทั้งหมดให้ลบ filter ออก)
+            .filter(item => item['รวม'] > 0);
 
         if (exportData.length === 0) {
             Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลการขาด/มาสายในช่วงนี้', 'info');
             return;
         }
 
-        // สร้าง Excel
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [
-            { wch: 30 },   // ชื่อ-สกุล
-            { wch: 15 },   // มาสาย
-            { wch: 15 },   // ขาดราชการ
-            { wch: 10 }    // รวม
+            { wch: 30 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 10 }
         ];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'สรุปการขาด-มาสาย');
@@ -957,9 +885,6 @@ function showRejectComment(comment) {
     Swal.fire({ icon: 'info', title: 'เหตุผลที่ไม่อนุมัติ', html: `<div class="text-left bg-rose-50 p-4 rounded-xl border border-rose-100 text-rose-800 mt-2 font-medium">${comment}</div>`, confirmButtonColor: '#4f46e5', confirmButtonText: 'ปิดหน้าต่าง' });
 }
 
-// ==========================================
-// Admin เขียนใบลาแทนบุคลากร
-// ==========================================
 function initAdminFlatpickr() {
     const config = {
         locale: 'th', dateFormat: 'd/m/Y',

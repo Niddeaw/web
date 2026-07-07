@@ -3,252 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบลาบุคลากร | WRK System</title>
-    <link rel="icon" type="image/png" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@100..700&display=swap" rel="stylesheet">
-
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/jquery.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/searchbuilder/1.5.0/css/searchBuilder.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/2.4.2/css/buttons.dataTables.min.css">
-    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
-    
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
+    <title>ระบบการลา | WRK</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
     <style>
-        body { 
-            font-family: 'Anuphan', sans-serif; 
-            background: #f0f4f8;
-            color: #1e293b;
-        }
-        .glass-nav {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        .dataTables_wrapper .dataTables_filter input {
-            border-radius: 8px;
-            padding: 4px 12px;
-            border: 1px solid #cbd5e1;
-        }
-        .dt-button {
-            background: #3b82f6 !important;
-            color: white !important;
-            border: none !important;
-            border-radius: 6px !important;
-            font-size: 0.8rem !important;
-        }
+        body { font-family: 'Anuphan', sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .loader { border: 6px solid #f3f3f3; border-top: 6px solid #2563eb; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="min-h-screen">
-
-    <nav class="glass-nav sticky top-0 z-50 px-6 py-3 shadow-sm flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="h-10 w-10 object-contain">
-            <div>
-                <h1 class="text-lg font-bold text-blue-900 leading-tight">WRK System</h1>
-                <p class="text-xs text-blue-600 font-medium uppercase tracking-wider">Leave Management</p>
-            </div>
-        </div>
-        <div id="userInfo" class="flex items-center gap-4 text-sm font-medium">
-            </div>
-    </nav>
-
-    <main class="max-w-7xl mx-auto p-4 md:p-8">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                <div class="flex justify-between items-start">
-                    <div>
-                        <p class="text-slate-500 text-sm mb-1">สิทธิลาพักผ่อนคงเหลือ</p>
-                        <h3 id="vacation-quota" class="text-3xl font-bold text-slate-800">0.0</h3>
-                    </div>
-                    <div class="p-3 bg-blue-50 text-blue-600 rounded-xl"><i class="fas fa-umbrella-beach"></i></div>
-                </div>
-            </div>
-            </div>
-
-        <div class="bg-white rounded-2xl shadow-md border border-slate-200 overflow-hidden">
-            <div class="p-6 border-b border-slate-100 flex flex-col md:flex-row justify-between items-center gap-4">
-                <h2 class="text-xl font-bold flex items-center gap-2">
-                    <i class="fas fa-list text-blue-500"></i> ประวัติการลาทั้งหมด
-                </h2>
-                <button onclick="openLeaveForm()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl transition-all shadow-lg flex items-center gap-2">
-                    <i class="fas fa-plus-circle"></i> เขียนใบลาใหม่
-                </button>
-            </div>
-            
-            <div class="p-6">
-                <table id="leaveTable" class="display responsive nowrap w-full text-sm">
-                    <thead>
-                        <tr class="text-slate-500 uppercase">
-                            <th>ID</th>
-                            <th>ประเภทการลา</th>
-                            <th>เริ่มวันที่</th>
-                            <th>ถึงวันที่</th>
-                            <th>จำนวนวัน</th>
-                            <th>สถานะ</th>
-                            <th>จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
-
-    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/searchbuilder/1.5.0/js/dataTables.searchBuilder.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/dataTables.buttons.min.js"></script>
-    <script src="https://cdn.datatables.net/buttons/2.4.2/js/buttons.html5.min.js"></script>
-    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
-    
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+<body>
+    <div class="text-center">
+        <div class="loader mx-auto mb-4"></div>
+        <p class="text-slate-600 font-medium">กำลังโหลดระบบการลา...</p>
+    </div>
     <script>
-        // Supabase Init (Replace with your actual keys)
-        const supabaseUrl = 'YOUR_SUPABASE_URL';
-        const supabaseKey = 'YOUR_SUPABASE_ANON_KEY';
-        const _client = supabase.createClient(supabaseUrl, supabaseKey);
-
-        let schoolInfo = {};
-
-        $(document).ready(async function() {
-            await checkAuth();
-            await fetchCoreInfo();
-            initDataTable();
-        });
-
-        async function fetchCoreInfo() {
-            const { data } = await _client.from('core_school_info').select('*').single();
-            schoolInfo = data;
-            // ตัวอย่างการแสดงปีการศึกษา
-            console.log("Current Year:", schoolInfo.current_academic_year);
-        }
-
-        function initDataTable() {
-            $('#leaveTable').DataTable({
-                dom: 'QBfrtip', // Q = SearchBuilder, B = Buttons
-                buttons: [
-                    { extend: 'excel', text: '<i class="fas fa-file-excel mr-1"></i> Export Excel', className: 'btn-export' },
-                    { extend: 'pdf', text: '<i class="fas fa-file-pdf mr-1"></i> Export PDF' }
-                ],
-                responsive: true,
-                language: {
-                    url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/th.json',
-                    searchBuilder: {
-                        title: 'กรองข้อมูลขั้นสูง',
-                        add: 'เพิ่มเงื่อนไข',
-                        condition: 'เงื่อนไข'
-                    }
-                },
-                ajax: async (data, callback) => {
-                    // Logic ดึงข้อมูลจาก Supabase leave_teacher_records
-                    const { data: records } = await _client.from('leave_teacher_records').select('*');
-                    callback({ data: records || [] });
-                },
-                columns: [
-                    { data: 'id', visible: false },
-                    { data: 'leave_type' },
-                    { data: 'start_date' },
-                    { data: 'end_date' },
-                    { data: 'total_days' },
-                    { 
-                        data: 'status',
-                        render: (data) => {
-                            let color = data === 'approved' ? 'green' : 'amber';
-                            return `<span class="bg-${color}-100 text-${color}-700 px-3 py-1 rounded-full text-xs font-semibold">${data}</span>`;
-                        }
-                    },
-                    { 
-                        data: null, 
-                        render: () => `<button class="text-blue-500 hover:scale-110 transition"><i class="fas fa-eye"></i></button>` 
-                    }
-                ]
-            });
-        }
-
-        async function openLeaveForm() {
-            const { value: formValues } = await Swal.fire({
-                title: 'เขียนใบลาใหม่',
-                html: `
-                    <div class="text-left space-y-4">
-                        <label class="block text-sm font-bold">ประเภทการลา</label>
-                        <select id="leave_type" class="swal2-select w-full m-0">
-                            <option value="sick">ลาป่วย</option>
-                            <option value="personal">ลากิจส่วนตัว</option>
-                            <option value="vacation">ลาพักผ่อน</option>
-                        </select>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold">เริ่มวันที่</label>
-                                <input id="start_date" class="swal2-input w-full m-0 text-sm">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold">ถึงวันที่</label>
-                                <input id="end_date" class="swal2-input w-full m-0 text-sm">
-                            </div>
-                        </div>
-                        <label class="block text-sm font-bold">เหตุผลการลา</label>
-                        <textarea id="reason" class="swal2-textarea w-full m-0 h-24"></textarea>
-                    </div>
-                `,
-                didOpen: () => {
-                    // Flatpickr with Thai Year Logic
-                    const fpConfig = {
-                        locale: "th",
-                        dateFormat: "d/m/Y",
-                        onReady: function(selectedDates, dateStr, instance) {
-                            // Logic เปลี่ยนปีใน UI เป็น พ.ศ.
-                            const yearSelect = instance.currentYear;
-                            // ซ่อนการคำนวณซับซ้อนในขั้นตอนนี้
-                        }
-                    };
-                    flatpickr("#start_date", fpConfig);
-                    flatpickr("#end_date", fpConfig);
-                },
-                focusConfirm: false,
-                confirmButtonText: 'ส่งใบลา',
-                confirmButtonColor: '#2563eb',
-                showCancelButton: true,
-                cancelButtonText: 'ยกเลิก',
-                preConfirm: () => {
-                    return {
-                        leave_type: document.getElementById('leave_type').value,
-                        start_date: document.getElementById('start_date').value,
-                        end_date: document.getElementById('end_date').value,
-                        reason: document.getElementById('reason').value
-                    }
-                }
-            });
-
-            if (formValues) {
-                // Insert to Supabase และแจ้งเตือนด้วย Swal
-                Swal.fire('สำเร็จ!', 'ใบลาของคุณถูกส่งเรียบร้อยแล้ว', 'success');
+        (async function() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) { window.location.href = 'login.html'; return; }
+            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+            if (!profile) { await db.auth.signOut(); window.location.href = 'login.html'; return; }
+            const isAdmin = (profile.role === 'super_admin' || profile.role === 'admin');
+            let isModuleAdmin = false;
+            if (!isAdmin) {
+                const { data: mod } = await db.from('core_module_admins').select('id').eq('user_id', session.user.id).eq('module_id', 'leave').maybeSingle();
+                isModuleAdmin = !!mod;
             }
-        }
-
-        async function checkAuth() {
-            // ดึง Profile จาก core_personnel ตามกฎเหล็ก
-            const { data: { user } } = await _client.auth.getUser();
-            if(user) {
-                const { data: profile } = await _client.from('core_personnel').select('*').eq('id', user.id).single();
-                $('#userInfo').html(`
-                    <span class="text-slate-600">${profile.first_name} ${profile.last_name}</span>
-                    <div class="h-8 w-8 bg-blue-600 text-white rounded-full flex items-center justify-center">
-                        ${profile.first_name.charAt(0)}
-                    </div>
-                `);
+            if (isAdmin || isModuleAdmin) {
+                window.location.href = 'leave_admin.html';
+            } else {
+                window.location.href = 'leave_teacher.html';
             }
-        }
+        })();
     </script>
 </body>
 </html>

@@ -190,14 +190,14 @@ function updateToggleModeUI(role, isAdminMode, btnId = 'btnToggleMode') {
 async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const { data: { user } } = await db.auth.getUser();
     if (!user) {
-        window.location.href = 'index.html';
+        window.location.href = 'login.html';
         return null;
     }
 
     const { data: personnel } = await db.from('core_personnel').select('*').eq('id', user.id).single();
     if (!personnel) {
         Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error').then(() => {
-            window.location.href = 'index.html';
+            window.location.href = 'login.html';
         });
         return null;
     }
@@ -212,7 +212,7 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
             text: `บทบาท "${role}" ไม่มีสิทธิ์ใช้งานระบบ ${moduleName}`,
             confirmButtonText: 'กลับหน้าหลัก'
         });
-        window.location.href = 'index.html';
+        window.location.href = 'login.html';
         return null;
     }
 

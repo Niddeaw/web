@@ -1,7 +1,7 @@
 // ==========================================
 // ไฟล์ guidance_teacher.js (ระบบครูผู้สอนแนะแนว)
-// ปรับปรุง: ใช้ Tom Select, แก้ calcScoreTotal, ปรับ switchTab ให้ถูกต้อง,
-//           เพิ่ม UI สวยงาม, คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม
+// ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
+//          คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม (ไม่มีการเปลี่ยนแปลง)
 // ==========================================
 
 let currentUserProfile = null;
@@ -28,52 +28,54 @@ let dataCache = {
 let cacheTimestamp = {};
 const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
 
+let currentUserRole = 'teacher';
+let isAdminMode = false;
+let currentUserId = null;
+
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
-window.onload = async () => { await checkAuth(); };
+// ==========================================
+// INIT (ปรับปรุงสิทธิ์)
+// ==========================================
+window.onload = async () => {
+    const result = await window.checkSessionAndRole('guidance_teacher');
+    if (!result) return;
 
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-        const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-        const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', session.user.id).single();
-        const isTeacherMode = localStorage.getItem('activeMode') === 'teacher';
+    const { user, personnel, role, isAdmin, isTeacher } = result;
+    currentUserProfile = personnel;
+    currentUserId = user.id;
+    currentUserRole = role;
+    isAdminMode = isAdmin;
 
-        let isGuidanceAdmin = false;
-        if (profile && profile.role === 'super_admin') isGuidanceAdmin = true;
-        if (profile && profile.role === 'admin') {
-            const { data: modAdmin } = await db.from('core_module_admins')
-                .select('module_id')
-                .eq('user_id', session.user.id)
-                .eq('module_id', 'guidance')
-                .single();
-            if (modAdmin) isGuidanceAdmin = true;
-        }
-
-        if (isGuidanceAdmin && !isTeacherMode) {
-            window.location.replace('guidance_admin.html'); return;
-        }
-
-        if (!isGui) {
-            await Swal.fire('ปฏิเสธการเข้าถึง', 'คุณยังไม่ได้รับสิทธิ์เป็นครูแนะแนว', 'error');
-            window.location.replace('index.html'); return;
-        }
-
-        document.getElementById('dashboardView').classList.remove('hidden');
-        document.getElementById('dashboardMain').classList.remove('hidden');
-        document.getElementById('dashboardMain').classList.add('flex');
-
-        await initDashboard(session.user.id, profile);
-
-        if (isGuidanceAdmin) {
-            const btnAdmin = document.getElementById('btnAdminMode');
-            if (btnAdmin) btnAdmin.classList.remove('hidden');
-        }
-    } else {
+    const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).single();
+    if (!isGui) {
+        await Swal.fire('ปฏิเสธการเข้าถึง', 'คุณยังไม่ได้รับสิทธิ์เป็นครูแนะแนว', 'error');
         window.location.replace('index.html');
+        return;
     }
-}
+
+    const isTeacherMode = localStorage.getItem('activeMode') === 'teacher';
+    if (window.isAdminUser(role, isAdminMode) && !isTeacherMode) {
+        const hasModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
+        if (hasModuleAdmin) {
+            window.location.replace('guidance_admin.html');
+            return;
+        }
+    }
+
+    document.getElementById('dashboardView').classList.remove('hidden');
+    document.getElementById('dashboardMain').classList.remove('hidden');
+    document.getElementById('dashboardMain').classList.add('flex');
+
+    if (window.isAdminUser(role, isAdminMode)) {
+        const btnAdmin = document.getElementById('btnAdminMode');
+        if (btnAdmin) btnAdmin.classList.remove('hidden');
+        window.updateToggleModeUI(role, isAdminMode, 'btnAdminMode');
+    }
+
+    await initDashboard(user.id, personnel);
+};
 
 function handleLogout() {
     Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
@@ -142,7 +144,6 @@ async function initDashboard(userId, profile) {
         placeholder: '-- กรุณาเลือกห้อง --',
         onChange: function (value) {
             if (value) {
-                // ✅ เคลียร์ Cache เมื่อเปลี่ยนห้อง
                 const cacheKey = value;
                 delete dataCache.students[cacheKey];
                 delete dataCache.attendance[cacheKey];
@@ -166,7 +167,7 @@ async function initDashboard(userId, profile) {
     await updateClassStatusBadges();
 }
 
-// ========== switchTab (แก้ไขให้ใช้ CSS class ควบคุม) ==========
+// ========== switchTab ==========
 function switchTab(tabId, btnElement) {
     document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
     btnElement.classList.add('active');
@@ -208,7 +209,7 @@ async function updateClassStatusBadges() {
     }).join('');
 }
 
-// ========== loadAllData พร้อมระบบ Cache ==========
+// ========== loadAllData พร้อม Cache ==========
 async function loadAllData(classId = null) {
     if (!classId) classId = classTomSelect.getValue();
     if (!classId) return;
@@ -216,7 +217,6 @@ async function loadAllData(classId = null) {
     const now = Date.now();
     const cacheKey = classId;
 
-    // ✅ ใช้ Cache ถ้ายังไม่หมดอายุ
     if (dataCache.students[cacheKey] && cacheTimestamp[cacheKey] && (now - cacheTimestamp[cacheKey] < CACHE_EXPIRY)) {
         console.log('📦 ใช้ข้อมูลจาก Cache (', Math.round((now - cacheTimestamp[cacheKey]) / 1000), 'วินาทีที่แล้ว)');
         globalStudents = dataCache.students[cacheKey];
@@ -279,7 +279,6 @@ async function loadAllData(classId = null) {
             globalAttributes = [];
         }
 
-        // ✅ เก็บ Cache
         dataCache.students[cacheKey] = globalStudents;
         dataCache.attendance[cacheKey] = globalAttendance;
         dataCache.scores[cacheKey] = globalScores;
@@ -295,6 +294,7 @@ async function loadAllData(classId = null) {
     }
 }
 
+// ========== ฟังก์ชันจัดการ UI ==========
 function selectColor(el) { if (el) el.setAttribute('data-val', el.value); }
 
 function calcAttTotal(stdId) {
@@ -307,7 +307,6 @@ function calcAttTotal(stdId) {
     calcAttr(stdId, total);
 }
 
-// ========== calcScoreTotal (รองรับค่าว่าง) ==========
 function calcScoreTotal(stdId) {
     let total = 0;
     let hasValue = false;
@@ -420,7 +419,6 @@ async function saveAllData() {
         if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id, column_name' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id, attribute_name' });
 
-        // ✅ เคลียร์ Cache หลังบันทึก
         const cacheKey = classId;
         delete dataCache.students[cacheKey];
         delete dataCache.attendance[cacheKey];
@@ -433,7 +431,7 @@ async function saveAllData() {
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
-// ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF ==========
+// ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF (เหมือนเดิม ไม่มีการเปลี่ยนแปลง) ==========
 function formatThaiDateShort(dateInput) {
     if (!dateInput) return '-';
     const d = new Date(dateInput);
@@ -749,6 +747,9 @@ async function printPDF_v7() {
     });
 }
 
+// ==========================================
+// ฟังก์ชันนำเข้า-ส่งออก Excel (ใช้งานได้ทุกสิทธิ์)
+// ==========================================
 function exportExcelAll() {
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
@@ -779,4 +780,18 @@ async function importExcelAll(event) {
         event.target.value = '';
     };
     reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// TOGGLE MODE - ใช้ isAdminUser
+// ==========================================
+async function toggleRoleView() {
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    isAdminMode = !isAdminMode;
+    window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnAdminMode');
+    if (isAdminMode) {
+        window.location.href = 'guidance_admin.html';
+    } else {
+        window.location.reload();
+    }
 }

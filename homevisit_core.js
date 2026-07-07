@@ -1,5 +1,5 @@
 // ==========================================
-// homevisit_core.js
+// homevisit_core.js (ปรับปรุงสิทธิ์)
 // ตัวแปร Global, Auth, Role, Classroom, Student, Form, Auto-Save, Submit
 // ==========================================
 
@@ -7,6 +7,9 @@
 // 1. GLOBAL VARIABLES & CONSTANTS
 // ==========================================
 let currentUser = null;
+let currentUserId = null;  // ✅ เพิ่มบรรทัดนี้
+let currentUserRole = 'teacher';
+let isAdminMode = false;
 let currentViewRole = 'teacher';
 let actualRole = '';
 let isReadOnly = false;
@@ -165,45 +168,73 @@ const fieldKeyMap = {
 };
 
 // ==========================================
-// 2. AUTHENTICATION & ROLE MANAGEMENT
+// 2. ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js มาตรฐานกลาง)
 // ==========================================
+function applyAdminVisibility() {
+    // ✅ ใช้ฟังก์ชันกลาง applyVisibilityByRole เพื่อจัดการปุ่มพื้นฐาน
+    window.applyVisibilityByRole(currentUserRole, isAdminMode, {
+        settingsBtn: 'admin-settings-btn',
+        toggleBtn: 'btnAdminMode',
+        adminManagerBtn: 'adminManagerBtn'  // ถ้ามีปุ่มนี้ใน HTML
+    });
 
+    // ✅ จัดการปุ่มนำเข้าและส่งออก (ให้แสดงทุกสิทธิ์)
+    // ใช้ selector ที่ตรงกับปุ่มใน HTML (ปรับตามจริง)
+    document.querySelectorAll('#btn-import-excel, .btn-import, .btn-export').forEach(btn => {
+        if (btn) {
+            btn.classList.remove('hidden');
+            btn.classList.add('flex');
+        }
+    });
+
+    // ✅ อัปเดตข้อความปุ่มสลับโหมด (ใช้ฟังก์ชันกลาง)
+    window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnAdminMode');
+}
+
+// ==========================================
+// 3. AUTHENTICATION & ROLE MANAGEMENT (ใช้ config.js)
+// ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     try {
-        const { data: { session } } = await db.auth.getSession();
-        if (!session) return window.location.replace('login.html');
+        // ✅ ใช้ checkSessionAndRole จาก config.js
+        const result = await window.checkSessionAndRole('homevisit');
+        if (!result) return;
 
-        const [{ data: profile }, { data: sInfo }] = await Promise.all([
-            db.from('core_personnel').select('*').eq('id', session.user.id).single(),
-            db.from('core_school_info').select('current_academic_year, current_semester').single()
-        ]);
-        if (!profile) return window.location.replace('login.html');
-        currentUser = profile;
-        actualRole = profile.role;
+        const { user, personnel, role, isAdmin, isTeacher } = result;
+        currentUser = personnel;
+        currentUserId = user.id;
+        currentUserRole = role;
+        isAdminMode = isAdmin;
 
-        if (sInfo) {
-            currentYear = sInfo.current_academic_year;
-            currentTerm = sInfo.current_semester;
-            const termDisplay = document.getElementById('term-display');
-            if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
-        }
+        // ✅ ตรวจสอบ Module Admin
+        isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
 
-        const [{ data: modAdmin }, { data: discHeadData }, { data: gradeHead }] = await Promise.all([
-            db.from('core_module_admins').select('id').eq('user_id', currentUser.id).eq('module_id', 'homevisit').maybeSingle(),
-            currentYear ? db.from('core_discipline_heads').select('id').eq('personnel_id', currentUser.id).eq('academic_year', currentYear).maybeSingle() : Promise.resolve({ data: null }),
-            db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).maybeSingle()
-        ]);
+        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ (สำหรับสิทธิ์อ่านอย่างเดียว)
+        const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        currentYear = sInfo?.current_academic_year;
+        currentTerm = sInfo?.current_semester;
 
-        isModuleAdmin = !!modAdmin;
+        const { data: discHead } = await db.from('core_discipline_heads')
+            .select('id')
+            .eq('personnel_id', user.id)
+            .eq('academic_year', currentYear)
+            .maybeSingle();
 
-        if (actualRole === 'super_admin') {
+        const { data: gradeHead } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', user.id)
+            .maybeSingle();
+
+        // กำหนดบทบาทการแสดงผล (view role) และสถานะอ่านอย่างเดียว
+        if (role === 'super_admin') {
             currentViewRole = 'super_admin';
-            document.getElementById('admin-settings-btn')?.classList.remove('hidden');
-            document.getElementById('btn-import-excel')?.classList.remove('hidden');
-        } else if (modAdmin) {
+            isReadOnly = false;
+        } else if (isModuleAdmin) {
             currentViewRole = 'module_admin';
-        } else if (discHeadData) {
+            isReadOnly = false;
+        } else if (discHead) {
             currentViewRole = 'head_discipline';
             isReadOnly = true;
         } else if (gradeHead) {
@@ -211,15 +242,26 @@ async function checkAuth() {
             isReadOnly = true;
         } else {
             currentViewRole = 'teacher';
+            isReadOnly = false;
         }
 
-        if (actualRole === 'super_admin' || modAdmin) {
+        // ✅ ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์
+        applyAdminVisibility();
+
+        // แสดงปุ่มโหมดแอดมินเฉพาะผู้มีสิทธิ์
+        if (role === 'super_admin' || isModuleAdmin) {
             document.getElementById('btnAdminMode')?.classList.remove('hidden');
         }
 
+        // ตั้งค่า term display
+        const termDisplay = document.getElementById('term-display');
+        if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
+
+        // อัปเดต UI ตามบทบาท
         updateUIByRole();
         await loadClassrooms();
         applyReportVisibility();
+
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
     } catch (error) {
@@ -231,6 +273,7 @@ async function checkAuth() {
 function updateUIByRole() {
     if (!currentUser) return;
     document.getElementById('userNameDisplay').innerText = `ครู${currentUser.first_name} ${currentUser.last_name}`;
+
     let roleText = 'ครูที่ปรึกษา';
     if (currentViewRole === 'super_admin') roleText = 'ผู้ดูแลระบบสูงสุด';
     else if (currentViewRole === 'module_admin') roleText = 'แอดมินโมดูลเยี่ยมบ้าน';
@@ -238,48 +281,81 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
     document.getElementById('userRoleDisplay').innerText = roleText;
 
+    // ปิดการแก้ไขถ้าเป็น read-only
     const submitBtn = document.getElementById('btn-submit-homevisit');
     if (submitBtn) {
         submitBtn.disabled = isReadOnly;
         submitBtn.classList.toggle('opacity-50', isReadOnly);
-        submitBtn.classList.toggle('cursor-not-allowed', isReadOnly);
     }
-    const uploadBtns = document.querySelectorAll('.upload-btn');
-    uploadBtns.forEach(btn => {
-        btn.disabled = isReadOnly;
-        btn.classList.toggle('opacity-50', isReadOnly);
+
+    // disable input fields ตาม isReadOnly
+    document.querySelectorAll('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').forEach(el => {
+        if (el.type !== 'file') {
+            el.disabled = isReadOnly;
+            el.classList.toggle('opacity-60', isReadOnly);
+        }
     });
 }
 
 window.toggleRoleView = function () {
-    if (actualRole !== 'super_admin' && !isModuleAdmin) return;
-    const adminRole = actualRole === 'super_admin' ? 'super_admin' : (isModuleAdmin ? 'module_admin' : null);
-    if (!adminRole) return;
-    const newRole = (currentViewRole === 'teacher') ? adminRole : 'teacher';
-    currentViewRole = newRole;
-    isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
+    // ✅ ใช้ isAdminUser จาก config.js
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+
+    const newRole = (currentViewRole === 'teacher') ? (isModuleAdmin ? 'module_admin' : 'teacher') : 'teacher';
+    const isAdmin = newRole !== 'teacher';
+
+    if (isAdmin) {
+        currentViewRole = isModuleAdmin ? 'module_admin' : 'super_admin';
+        isReadOnly = false;
+    } else {
+        currentViewRole = 'teacher';
+        isReadOnly = false;
+    }
+
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
         btn.innerHTML = currentViewRole === 'teacher'
             ? '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>'
             : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
     }
+
+    // ✅ ใช้ applyAdminVisibility อัปเดต UI
+    applyAdminVisibility();
     updateUIByRole();
     loadClassrooms();
-    Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแล'}`, showConfirmButton: false, timer: 2000 });
+
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'info',
+        title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแล'}`,
+        showConfirmButton: false,
+        timer: 2000
+    });
 };
 
 async function logout() {
-    const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });
-    if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'index.html'; }
+    const r = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ออก',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (r.isConfirmed) {
+        await db.auth.signOut();
+        window.location.href = 'index.html';
+    }
 }
 
 function applyReportVisibility() {
     const isReportEnabled = moduleSettings.show_report === 'true';
-    const isSuperAdmin = (actualRole === 'super_admin' || currentViewRole === 'super_admin');
+    const isSuperAdmin = (currentUserRole === 'super_admin' || currentViewRole === 'super_admin');
     const navBtn = document.getElementById('nav-btn-report');
     const tabBtnDesktop = document.getElementById('tab-report-btn');
     const tabBtnMobile = document.getElementById('tab-report-btn-mobile');
+
     if (isSuperAdmin) {
         if (navBtn) navBtn.classList.remove('hidden');
         if (tabBtnDesktop) tabBtnDesktop.classList.remove('hidden');
@@ -298,9 +374,8 @@ function applyReportVisibility() {
 }
 
 // ==========================================
-// 3. CLASSROOM & STUDENT MANAGEMENT
+// 4. CLASSROOM & STUDENT MANAGEMENT (คงเดิม)
 // ==========================================
-
 async function loadClassrooms() {
     let query = db.from('core_classrooms')
         .select('*')
@@ -425,6 +500,7 @@ async function loadStudentsForClassroom(classroomId) {
     }
 }
 
+// ... (ฟังก์ชัน loadStudentInfo, clearStudentInfo, loadExistingHomeVisit คงเดิม) ...
 async function loadStudentInfo(studentId) {
     suppressDirty = true;
     clearStudentInfo();
@@ -785,9 +861,8 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// 4. FORM HANDLING & AUTO-SAVE
+// 5. FORM HANDLING & AUTO-SAVE
 // ==========================================
-
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
     if (formIsDirty) return;
@@ -913,7 +988,6 @@ async function autoSaveIfDirty() {
         return true;
     } catch (err) {
         console.warn('Auto-save failed:', err);
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'warning', title: '<span class="text-sm">บันทึกอัตโนมัติไม่สำเร็จ กรุณาบันทึกด้วยตัวเอง</span>', showConfirmButton: false, timer: 3500 });
         return false;
     }
 }
@@ -945,11 +1019,9 @@ async function autoSaveStep() {
         if (!savedData || savedData.length === 0) throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
         formIsDirty = false;
         updateStatusBadge('completed');
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: 'บันทึกอัตโนมัติสำเร็จ', showConfirmButton: false, timer: 2000, timerProgressBar: true });
         return true;
     } catch (err) {
         console.error('Auto-save step error:', err);
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'warning', title: 'บันทึกอัตโนมัติล้มเหลว', text: err.message || 'กรุณาบันทึกด้วยตนเอง', showConfirmButton: false, timer: 3000 });
         return false;
     } finally {
         isAutoSaving = false;
@@ -970,7 +1042,6 @@ window.submitHomeVisit = async function (isAutoSave = false) {
     }
     isSubmitting = true;
     try {
-        console.log('[submitHomeVisit] studentId:', studentId, '| classroomId:', classroomId, '| year:', currentYear, '| term:', currentTerm, '| user:', currentUser?.id);
         if (!isAutoSave) {
             Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         }
@@ -993,12 +1064,9 @@ window.submitHomeVisit = async function (isAutoSave = false) {
             savedData = data; saveError = error;
         }
         if (saveError) throw saveError;
-        if (!savedData || savedData.length === 0) throw new Error('บันทึกไม่สำเร็จ — ระบบไม่ได้รับยืนยันการบันทึก กรุณาตรวจสอบสิทธิ์ (RLS Policy)');
-        console.log('✅ Saved successfully, row id:', savedData[0]?.id);
+        if (!savedData || savedData.length === 0) throw new Error('บันทึกไม่สำเร็จ — ระบบไม่ได้รับยืนยันการบันทึก กรุณาตรวจสอบสิทธิ์');
         formIsDirty = false;
-        if (isAutoSave) {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'บันทึกข้อมูลอัตโนมัติสำเร็จ', showConfirmButton: false, timer: 1500 });
-        } else {
+        if (!isAutoSave) {
             await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', text: 'บันทึกข้อมูลการเยี่ยมบ้านเรียบร้อย', confirmButtonText: 'ตกลง' });
             goToStep(1);
             updateStatusBadge('completed');
@@ -1011,9 +1079,6 @@ window.submitHomeVisit = async function (isAutoSave = false) {
         console.error('HomeVisit Save Error:', err);
         if (!isAutoSave) {
             Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถบันทึกข้อมูลได้', 'error');
-        } else {
-            Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'บันทึกอัตโนมัติล้มเหลว', showConfirmButton: false, timer: 2500 });
-            throw err;
         }
     } finally {
         isSubmitting = false;

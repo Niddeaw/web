@@ -3,7 +3,6 @@
 // ใช้ร่วมกันระหว่าง leave_teacher.js และ leave_admin.js
 // ==========================================
 
-// ฟังก์ชันตรวจสอบเพศจากคำนำหน้า
 function getGenderFromPrefix(prefix) {
     if (!prefix) return 'unknown';
     const malePrefixes = ['นาย', 'ว่าที่ ร.ต.', 'ร.ต.', 'ด.ต.', 'ว่าที่', 'สามเณร', 'พระ', 'หม่อมหลวง'];
@@ -13,7 +12,6 @@ function getGenderFromPrefix(prefix) {
     return 'unknown';
 }
 
-// จัดรูปแบบวันที่แบบไทย (เต็ม)
 function formatDateThai(isoString) {
     if (!isoString) return '-';
     const d = new Date(isoString);
@@ -22,12 +20,10 @@ function formatDateThai(isoString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-// คืนค่า array ชื่อเดือนภาษาไทย
 function getThaiMonths() {
     return ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 }
 
-// คำนวณจำนวนวันลา (startIso, endIso, type)
 function calculateDaysByType(startIso, endIso, type) {
     if (!startIso || !endIso || !type) return 0;
     const startDate = new Date(startIso);
@@ -47,8 +43,9 @@ function calculateDaysByType(startIso, endIso, type) {
     return count;
 }
 
-// ฟังก์ชันหลักสร้าง PDF และบันทึก URL (ใช้ร่วมกัน)
-async function generateLeavePDF(id, systemSettings, db, Swal, window) {
+async function generateLeavePDF(id, systemSettings) {
+    const db = window.db;
+    const Swal = window.Swal;
     if (!systemSettings.gas_url || !systemSettings.slide_template_id || !systemSettings.pdf_folder_id) {
         let missing = [];
         if (!systemSettings.gas_url) missing.push('GAS URL');
@@ -67,7 +64,6 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
     });
 
     try {
-        // ดึงข้อมูลใบลา + บุคลากร
         const { data: leave, error } = await db.from('leave_requests')
             .select('*, core_personnel(*)')
             .eq('id', id)
@@ -75,13 +71,11 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         if (error) throw error;
         const p = leave.core_personnel;
 
-        // ดึงข้อมูลโรงเรียน
         const { data: school } = await db.from('core_school_info').select('*').single();
         const directorName = school?.director_name || '...................................................';
         const schoolName = school?.school_name || '........................';
         const deputyAcademicName = school?.deputy_academic || '...................................................';
 
-        // หาผู้บังคับบัญชา
         let commanderName = '', commanderPosition = '';
         const isDeputyDirector = p.position?.startsWith('รองผู้อำนวยการ');
         if (isDeputyDirector) {
@@ -111,7 +105,6 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
             }
         }
 
-        // ดึงใบลาทั้งหมดสำหรับสถิติ
         const { data: allLeavesStats, error: statsError } = await db.from('leave_requests')
             .select('type, total_days, id, created_at, start_date, end_date')
             .eq('personnel_id', leave.personnel_id)
@@ -147,7 +140,6 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
             statsData[cat].total.days = statsData[cat].prior.days + statsData[cat].now.days;
         }
 
-        // จัดรูปแบบข้อมูลทั่วไป
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const position = p.position || 'ครู';
         const rank = p.rank || '';
@@ -165,7 +157,7 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         const isPersonal = leaveType === 'ลากิจส่วนตัว';
         const isMaternity = leaveType === 'ลาคลอดบุตร';
         const isOther = !isSick && !isPersonal && !isMaternity;
- 
+
         const checkSick = isSick ? '✓' : '';
         const checkPersonal = isPersonal ? '✓' : '';
         const checkMaternity = isMaternity ? '✓' : '';
@@ -178,7 +170,6 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
         const leaveTypeForTitle = leaveType;
         const leaveTypeForOther = isOther ? leaveType : '';
 
-        // การลาครั้งสุดท้าย
         const previousLeaves = allLeavesStats.filter(l => l.id !== leave.id);
         let lastLeave = null;
         if (previousLeaves.length > 0) {
@@ -335,7 +326,6 @@ async function generateLeavePDF(id, systemSettings, db, Swal, window) {
     }
 }
 
-// สลับโหมดจาก Admin ไป Teacher (ใช้ในหน้า leave_admin.html)
 function switchToTeacherMode() {
     Swal.fire({
         toast: true,
@@ -351,7 +341,6 @@ function switchToTeacherMode() {
     }, 500);
 }
 
-// สลับโหมดจาก Teacher ไป Admin (ใช้ในหน้า leave_teacher.html)
 function switchToAdminMode() {
     Swal.fire({
         toast: true,

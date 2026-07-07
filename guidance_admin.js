@@ -1,6 +1,6 @@
 // ==========================================
 // ไฟล์ guidance_admin.js (ระบบเครื่องมือผู้ดูแลระบบแนะแนว)
-// ปรับปรุง: เพิ่ม Tom Select ใน Modal, ปรับปรุง UI, แก้ไขบัคเล็กน้อย
+// ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
 // ==========================================
 
 let currentUserProfile = null;
@@ -22,54 +22,85 @@ let currentTeacherId = null;
 let teacherModalData = []; 
 let tomSelectInstances = []; // เก็บ TomSelect instances ใน modal
 
+let currentUserRole = 'admin';
+let isAdminMode = true;
+let currentUserId = null;
+
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
-window.onload = async () => { await checkAuth(); };
+// ==========================================
+// ฟังก์ชันอัปเดต UI ตามสิทธิ์
+// ==========================================
+function applyAdminVisibility() {
+    const isAdmin = window.isAdminUser(currentUserRole, isAdminMode);
 
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (session) {
-        const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-        if (!profile) { window.location.replace('index.html'); return; }
+    // ปุ่มตั้งค่าระบบ - เฉพาะ Admin
+    const btnSettings = document.getElementById('admin-settings-btn');
+    if (btnSettings) btnSettings.classList.toggle('hidden', !isAdmin);
 
-        localStorage.removeItem('activeMode');
-
-        let isAuthorized = false;
-
-        if (profile.role === 'super_admin') {
-            isAuthorized = true;
-        } else if (profile.role === 'admin') {
-            const { data: moduleAdmin } = await db.from('core_module_admins')
-                .select('module_id')
-                .eq('user_id', session.user.id)
-                .eq('module_id', 'guidance')
-                .single();
-            if (moduleAdmin) isAuthorized = true;
+    // ปุ่มสลับโหมด - เฉพาะ Admin
+    const btnToggle = document.getElementById('btnAdminMode');
+    if (btnToggle) {
+        if (isAdmin) {
+            btnToggle.classList.remove('hidden');
+            btnToggle.classList.add('flex');
+        } else {
+            btnToggle.classList.add('hidden');
+            btnToggle.classList.remove('flex');
         }
-
-        if (!isAuthorized) {
-            window.location.replace('guidance_teacher.html');
-            return;
-        }
-
-        currentUserProfile = profile;
-        document.getElementById('adminNameDisplay').innerText = `แอดมิน: ${profile.first_name} ${profile.last_name}`;
-
-        await loadSystemSettings();
-        await loadMonitoringData();
-
-        // ตรวจสอบสิทธิ์ว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด
-        const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', session.user.id).single();
-        if (isGui) {
-            const btnAdmin = document.getElementById('btnAdminMode');
-            if (btnAdmin) btnAdmin.classList.remove('hidden');
-        }
-
-    } else {
-        window.location.replace('index.html');
     }
+
+    // ✅ ปุ่มนำเข้าและส่งออก - แสดงทุกสิทธิ์ (ครูใช้ได้)
+    document.querySelectorAll('#btn-import, #btn-export-excel, .btn-import, .btn-export').forEach(btn => {
+        if (btn) {
+            btn.classList.remove('hidden');
+            btn.classList.add('flex');
+        }
+    });
+
+    window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnAdminMode');
 }
+
+// ==========================================
+// INIT
+// ==========================================
+window.onload = async () => {
+    // ✅ ใช้ checkSessionAndRole จาก config.js
+    const result = await window.checkSessionAndRole('guidance_admin');
+    if (!result) return;
+
+    const { user, personnel, role, isAdmin, isTeacher } = result;
+    currentUserProfile = personnel;
+    currentUserId = user.id;
+    currentUserRole = role;
+    isAdminMode = isAdmin;
+
+    // ✅ ตรวจสอบสิทธิ์เพิ่มเติม (Module Admin)
+    const hasModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
+    if (!isAdmin && !hasModuleAdmin) {
+        window.location.replace('guidance_teacher.html');
+        return;
+    }
+
+    // ✅ ถ้าเป็น Admin หรือ Module Admin ให้แสดงปุ่มโหมด
+    if (isAdmin || hasModuleAdmin) {
+        document.getElementById('btnAdminMode')?.classList.remove('hidden');
+    }
+
+    document.getElementById('adminNameDisplay').innerText = `แอดมิน: ${personnel.first_name} ${personnel.last_name}`;
+    applyAdminVisibility();
+
+    await loadSystemSettings();
+    await loadMonitoringData();
+
+    // ตรวจสอบว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด (ถ้ามี)
+    const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).single();
+    if (isGui) {
+        const btnAdmin = document.getElementById('btnAdminMode');
+        if (btnAdmin) btnAdmin.classList.remove('hidden');
+    }
+};
 
 function handleLogout() {
     Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
@@ -127,6 +158,8 @@ async function loadSystemSettings() {
 
 async function saveSystemSettings(e) {
     e.preventDefault();
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     Swal.fire({ title: 'กำลังบันทึกการตั้งค่า...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const updates = {
         subject_name: document.getElementById('set_subject')?.value,
@@ -154,7 +187,7 @@ async function toggleSystemStatus(el) {
 }
 
 // -----------------------------------
-// 2. Monitoring & Teacher Mngt (ปรับปรุงให้เร็วขึ้น)
+// 2. Monitoring & Teacher Management
 // -----------------------------------
 async function loadMonitoringData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -245,6 +278,7 @@ async function loadMonitoringData() {
     renderTeacherManageTable(mappedClasses);
     Swal.close();
 }
+
 function renderMonitoringTable(dataArray) {
     if ($.fn.DataTable.isDataTable('#monitoringTable')) $('#monitoringTable').DataTable().destroy();
     const tbody = document.getElementById('tb-monitoring');
@@ -267,7 +301,7 @@ function renderMonitoringTable(dataArray) {
 }
 
 // -----------------------------------
-// 3. ระบบจัดการครูแนะแนว (พร้อม Tom Select)
+// 3. ระบบจัดการครูแนะแนว (พร้อม Tom Select) - ใช้ requireAdmin
 // -----------------------------------
 function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
@@ -306,6 +340,8 @@ function renderTeacherManageTable(mappedClasses) {
 }
 
 async function openAddGuidanceTeacherModal() {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     Swal.fire({ title: 'กำลังดึงรายชื่อ...', didOpen: () => Swal.showLoading() });
     const { data: allPersonnel, error } = await db.from('core_personnel').select('id, first_name, last_name, email');
     
@@ -366,6 +402,8 @@ async function openAddGuidanceTeacherModal() {
 }
 
 async function removeGuidanceRole(teacherId, name) {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     const { isConfirmed } = await Swal.fire({ title: 'ถอดสิทธิ์ครูแนะแนว?', html: `ถอดสิทธิ์ <b>${name}</b> ใช่หรือไม่?<br><span class="text-red-500 text-sm">ห้องเรียนที่รับผิดชอบจะว่างลง</span>`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ยืนยัน' });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading() });
@@ -377,6 +415,8 @@ async function removeGuidanceRole(teacherId, name) {
 }
 
 async function openTeacherModal(teacherId, name) {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     currentTeacherId = teacherId;
     document.getElementById('modalTeacherName').innerText = name;
     
@@ -437,8 +477,7 @@ function renderModalRows() {
             </td>
         </tr>
     `).join('');
-    
-    // สร้าง Tom Select สำหรับทุก select ใหม่
+
     document.querySelectorAll('.tom-selector').forEach(select => {
         const idx = parseInt(select.getAttribute('data-idx'));
         const ts = new TomSelect(select, {
@@ -447,9 +486,9 @@ function renderModalRows() {
             onChange: function(value) {
                 if (value && !teacherModalData[idx].classes.includes(value)) {
                     teacherModalData[idx].classes.push(value);
-                    renderModalRows(); // รีเฟรชเพื่อแสดง badge และ select ใหม่
+                    renderModalRows();
                 }
-                this.clear(); // เคลียร์ค่า select หลังเลือก
+                this.clear();
             }
         });
         tomSelectInstances.push(ts);
@@ -464,7 +503,6 @@ function addModalRow() {
 
 function closeTeacherModal() { 
     document.getElementById('teacherModal').classList.add('hidden');
-    // ทำลาย TomSelect instances เพื่อป้องกันหน่วยความจำรั่ว
     if (tomSelectInstances.length) {
         tomSelectInstances.forEach(ts => ts.destroy());
         tomSelectInstances = [];
@@ -472,9 +510,10 @@ function closeTeacherModal() {
 }
 
 async function saveTeacherClasses() {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        // ✅ ลบข้อมูลเก่าก่อน
         await db.from('guidance_classes').delete().eq('teacher_id', currentTeacherId);
         
         const toInsert = [];
@@ -505,6 +544,11 @@ async function saveTeacherClasses() {
 // 4. โหมดสวมรอยกรอกข้อมูล (Admin Editor)
 // -----------------------------------
 async function openAdminEditor(classId, classNameStr) {
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
+    
     document.getElementById('mainAdminView').classList.add('hidden');
     document.getElementById('adminEditorView').classList.remove('hidden');
     document.getElementById('adminEditTitle').innerText = `ห้อง: ${classNameStr}`;
@@ -554,19 +598,21 @@ function switchAdminTab(tabId, btnElement) {
 }
 
 function selectColor(el) { if(el) el.setAttribute('data-val', el.value); }
+
 function calcAttTotal(stdId) { 
     let t = 0; 
-    for(let w=1;w<=20;w++){ 
+    for(let w=1; w<=20; w++){ 
         const s = document.getElementById(`att_${stdId}_w${w}`); 
         if(s && s.value==='มา') t++; 
     } 
     document.getElementById(`att_total_${stdId}`).innerText = t; 
     calcAttr(stdId, t); 
 }
+
 function calcScoreTotal(stdId) { 
     let t = 0; 
     let hasValue = false;
-    for(let i=1;i<=5;i++){ 
+    for(let i=1; i<=5; i++){ 
         const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value; 
         if(v && v.trim() !== '') {
             const num = parseFloat(v);
@@ -578,6 +624,7 @@ function calcScoreTotal(stdId) {
     } 
     document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
+
 function calcAttr(stdId, attTotal) {
     let pass = true; 
     ATTR_COLS.forEach(c => { 
@@ -605,7 +652,7 @@ function renderAttendanceTab() {
         const myAtt = globalAttendance.filter(a => a.student_id === std.id);
         const drops = Array.from({length:20}, (_,i) => {
             const w=i+1, v = myAtt.find(a=>a.week_number===w)?.status || 'มา';
-            return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v==='มา'?'selected':''}>มา</option><option value="ป่วย" ${v==='ป่วย'?'selected':''}>ป่วย</option><option value="ลา" ${v==='ลา'?'selected':''}>ลา</option><option value="ขาด" ${v==='ขาด'?'selected':''}>ขาด</option></select></td>`;
+            return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v==='มา'?'selected':''}>มา</option><option value="ป่วย" ${v==='ป่วย'?'selected':''}>ป่วย</option><option value="ลา" ${v==='ลา'?'selected':''}>ลา</option><option value="ขาด" ${v==='ขาด'?'selected':''}>ขาด</option></select></td>`; 
         }).join('');
         return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td><td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm">${std.student_status}</td></tr>`;
     }).join('');
@@ -640,6 +687,8 @@ function renderAttributesTab() {
 }
 
 async function adminSaveAllData() {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     const classId = globalSelectedClass.id;
     Swal.fire({ title: 'กำลังบังคับบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
@@ -662,9 +711,10 @@ async function adminSaveAllData() {
 }
 
 // ==========================================
-// 5. ระบบ นำเข้า/ส่งออก Excel (Offline) สำหรับ Admin
+// 5. ระบบ นำเข้า/ส่งออก Excel - ใช้งานได้ทุกสิทธิ์
 // ==========================================
 function exportExcelAll() {
+    // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
     if(!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
@@ -705,6 +755,7 @@ function exportExcelAll() {
 }
 
 async function importExcelAll(event) {
+    // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
     const file = event.target.files[0];
     if(!file) return;
     Swal.fire({ title: 'กำลังดึงข้อมูลจาก Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -764,4 +815,28 @@ async function importExcelAll(event) {
         event.target.value = '';
     };
     reader.readAsArrayBuffer(file);
+}
+
+// ==========================================
+// 6. TOGGLE MODE
+// ==========================================
+async function toggleRoleView() {
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    
+    isAdminMode = !isAdminMode;
+    applyAdminVisibility();
+    await loadMonitoringData();
+}
+
+// ==========================================
+// 7. SETTINGS
+// ==========================================
+function openSettings() {
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    // ... (เปิด modal ตั้งค่า)
+}
+
+function closeSettings() {
+    document.getElementById('settings-modal').classList.add('hidden');
+    document.getElementById('settings-modal').classList.remove('flex');
 }

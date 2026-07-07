@@ -1567,8 +1567,12 @@ async function loadModuleSettings() {
 }
 
 window.openAdminModal = async function () {
+    // ✅ ใช้ requireAdmin จาก config.js
+    if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) return;
+    
     document.getElementById('admin-modal').classList.remove('hidden');
     await loadAdminSettings();
+    
     const toggleContainer = document.getElementById('report-toggle-container');
     if (toggleContainer) {
         if (actualRole === 'super_admin') {
@@ -1582,6 +1586,9 @@ window.openAdminModal = async function () {
 function closeAdminModal() { document.getElementById('admin-modal').classList.add('hidden'); }
 
 async function loadAdminSettings() {
+    // ✅ ใช้ isAdminUser จาก config.js
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    
     await loadModuleSettings();
     document.getElementById('set-gas-url').value = moduleSettings.gas_url;
     document.getElementById('set-drive-folder-id').value = moduleSettings.drive_folder_id;
@@ -1598,6 +1605,9 @@ async function loadAdminSettings() {
 }
 
 async function saveAdminSettings() {
+    // ✅ ใช้ requireAdmin จาก config.js
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     const showReportCheckbox = document.getElementById('setting-show-report');
     const showReportValue = showReportCheckbox ? (showReportCheckbox.checked ? 'true' : 'false') : 'false';
     const payload = {
@@ -1642,6 +1652,9 @@ async function loadTeachersForAppoint() {
 }
 
 async function loadModuleAdminsList() {
+    // ✅ ใช้ isAdminUser จาก config.js
+    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    
     const tbody = document.getElementById('module-admin-list');
     tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400">กำลังโหลด...</td></tr>';
     try {
@@ -1679,11 +1692,7 @@ async function loadModuleAdminsList() {
                     </tr>
                 `;
             });
-        if (rows.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ไม่พบข้อมูลผู้ใช้ที่ถูกต้อง</td></tr>';
-        } else {
-            tbody.innerHTML = rows.join('');
-        }
+        tbody.innerHTML = rows.join('') || '<tr><td colspan="2" class="text-center py-4 text-slate-400 text-xs">ไม่พบข้อมูลผู้ใช้ที่ถูกต้อง</td></tr>';
     } catch (err) {
         console.error('loadModuleAdminsList error:', err);
         tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-red-400">เกิดข้อผิดพลาด</td></tr>';
@@ -1691,6 +1700,9 @@ async function loadModuleAdminsList() {
 }
 
 window.appointModuleAdmin = async function () {
+    // ✅ ใช้ requireAdmin จาก config.js
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     const teacherId = document.getElementById('select-teacher-appoint').value;
     if (!teacherId) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
@@ -1717,6 +1729,9 @@ window.appointModuleAdmin = async function () {
 };
 
 window.removeModuleAdmin = async function (recordId) {
+    // ✅ ใช้ requireAdmin จาก config.js
+    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    
     const result = await Swal.fire({
         title: 'ยืนยันการปลดสิทธิ์?',
         text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",

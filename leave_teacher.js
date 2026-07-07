@@ -15,19 +15,19 @@ $(document).ready(async function () {
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 });
 
-// ==========================================
-// 1. ตรวจสอบสิทธิ์
-// ==========================================
 async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) { window.location.replace('login.html'); return; }
-    const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-    if (!profile) { await db.auth.signOut(); window.location.replace('login.html'); return; }
-    currentUser = session.user;
-    currentProfile = profile;
-    $('#display-name').text(`${profile.prefix || ''}${profile.first_name} ${profile.last_name}`);
-    const { data: modAdmin } = await db.from('core_module_admins').select('*').eq('user_id', currentUser.id).eq('module_id', 'leave').maybeSingle();
-    if (profile.role === 'super_admin' || profile.role === 'admin' || modAdmin) {
+    const result = await checkSessionAndRole('leave', WRK_ROLES.ALLOWED);
+    if (!result) return;
+    currentUser = result.user;
+    currentProfile = result.personnel;
+    $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
+    const isAdmin = isAdminUser(currentProfile.role, false);
+    let isModuleAdmin = false;
+    if (!isAdmin) {
+        const { data: mod } = await db.from('core_module_admins').select('id').eq('user_id', currentUser.id).eq('module_id', 'leave').maybeSingle();
+        isModuleAdmin = !!mod;
+    }
+    if (isAdmin || isModuleAdmin) {
         $('#btnAdminMode').removeClass('hidden').addClass('flex');
     }
 }
@@ -37,9 +37,6 @@ async function handleLogout() {
     if (isConfirmed) { await db.auth.signOut(); window.location.replace('login.html'); }
 }
 
-// ==========================================
-// 2. ดึงการตั้งค่าระบบ
-// ==========================================
 async function loadSystemSettings() {
     const { data } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').single();
     systemSettings = data?.settings || {
@@ -50,9 +47,6 @@ async function loadSystemSettings() {
     $('#fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
 }
 
-// ==========================================
-// 3. ระบบปฏิทินและวันลา
-// ==========================================
 function initFlatpickr() {
     const config = {
         locale: 'th', dateFormat: 'd/m/Y',
@@ -119,9 +113,6 @@ function calculateDays() {
     $('#calc_days').text(days);
 }
 
-// ==========================================
-// 4. จัดการข้อมูล
-// ==========================================
 async function loadLeaveData() {
     const { data, error } = await db.from('leave_requests')
         .select('*')
@@ -129,19 +120,17 @@ async function loadLeaveData() {
         .order('created_at', { ascending: false });
     if (error) { console.error(error); return; }
     allMyLeaves = data || [];
-    
-    // กรองเฉพาะรายการที่อยู่ในปีงบประมาณและรอบประเมินปัจจุบัน และไม่ถูกไม่อนุมัติ
+
     const validLeaves = allMyLeaves.filter(l => 
         l.fiscal_year === systemSettings.fiscal_year && 
         l.eval_round === systemSettings.eval_round && 
         l.status !== 'ไม่อนุมัติ'
     );
-    
-    // ตัวแปรนับ
+
     let sickCount = 0, sickDays = 0;
     let personalCount = 0, personalDays = 0;
     let maternityCount = 0, maternityDays = 0;
-    
+
     validLeaves.forEach(l => {
         if (l.type === 'ลาป่วย') {
             sickCount++;
@@ -154,11 +143,10 @@ async function loadLeaveData() {
             maternityDays += l.total_days;
         }
     });
-    
+
     const totalCount = sickCount + personalCount + maternityCount;
     const totalDays = sickDays + personalDays + maternityDays;
-    
-    // อัปเดต DOM
+
     $('#stat-sick-count').text(sickCount);
     $('#stat-sick-days').text(sickDays);
     $('#stat-personal-count').text(personalCount);
@@ -167,7 +155,7 @@ async function loadLeaveData() {
     $('#stat-maternity-days').text(maternityDays);
     $('#stat-total-count').text(totalCount);
     $('#stat-total-days').text(totalDays);
-    
+
     renderTable();
 }
 
@@ -329,9 +317,8 @@ function exportExcel() {
     XLSX.writeFile(wb, `ประวัติการลา_${currentProfile.first_name}.xlsx`);
 }
 
-// ฟังก์ชันพิมพ์ PDF (เรียกใช้ core)
 async function printLeavePDF(id) {
-    await generateLeavePDF(id, systemSettings, db, Swal, window);
+    await generateLeavePDF(id, systemSettings);
 }
 
 function showRejectComment(comment) {
