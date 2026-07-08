@@ -228,7 +228,8 @@
                     </div>
                 </div>
                 <div style="height:220px;"><canvas id="severityChart"></canvas></div>
-                <p class="text-[10px] text-slate-400 mt-2 text-center">คลิกที่ระดับชั้นเพื่อกรองจำนวนนักเรียนตามกลุ่ม</p>
+                <p class="text-[10px] text-slate-400 mt-2 text-center">คลิกที่ระดับชั้นเพื่อกรองจำนวนนักเรียนตามกลุ่ม
+                </p>
             </div>
         </div>
 
@@ -323,7 +324,10 @@
                         <i class="fas fa-door-open text-blue-500"></i> ห้องเรียน
                     </div>
                     <div class="flex-1 min-w-[120px]">
-                        <select id="classroom_select" class="w-full"></select>
+                        <select id="classroom_select" class="w-full">
+                            <option value="">-- เลือกห้องเรียน --</option>
+                            <!-- options อื่นๆ จะถูกเพิ่มโดย JavaScript -->
+                        </select>
                     </div>
                 </div>
 

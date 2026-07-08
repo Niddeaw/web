@@ -50,7 +50,7 @@ async function loadClassrooms() {
                 </tr>`;
             }).join('');
         } else {
-            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลห้องเรียนในภาคเรียนปัจจุบัน</td></table>';
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center py-8 text-gray-400">ไม่พบข้อมูลห้องเรียนในภาคเรียนปัจจุบัน</td></tr>';
         }
 
         $('#classroomsTable').DataTable({
@@ -210,21 +210,18 @@ async function deleteClassroom(id, name) {
 // ==========================================
 // นักเรียน (Students)
 // ==========================================
-// ==========================================
-// แสดงรูปโปรไฟล์นักเรียน (fallback เป็นตัวอักษรย่อ)
-// ==========================================
 function getStudentAvatarHtml(avatarUrl, studentName) {
     if (!avatarUrl || avatarUrl.trim() === '') {
         const initial = studentName ? studentName.charAt(0).toUpperCase() : '?';
         return `<div class="w-9 h-9 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-sm shadow-sm">${initial}</div>`;
     }
-    
+
     let fullUrl = avatarUrl;
     if (!avatarUrl.startsWith('http') && !avatarUrl.startsWith('blob:')) {
         const { data: { publicUrl } } = db.storage.from('avatars').getPublicUrl(avatarUrl);
         fullUrl = publicUrl;
     }
-    
+
     return `<img src="${fullUrl}"
                 onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=random&rounded=true&size=36';"
                 onclick="viewStudentImage('${fullUrl}', '${studentName.replace(/'/g, "\\'")}')"
@@ -269,13 +266,13 @@ async function loadStudents() {
         if (data && data.length > 0) {
             tbody.innerHTML = data.map((enr) => {
                 let std = enr.core_students;
-                let stBadge = enr.status === 'เรียนปกติ' 
-                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>' 
+                let stBadge = enr.status === 'เรียนปกติ'
+                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>'
                     : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status}</span>`;
                 const safeFname = std.first_name ? std.first_name.replace(/'/g, "\\'") : '';
                 const safeLname = std.last_name ? std.last_name.replace(/'/g, "\\'") : '';
                 const fullName = `${std.prefix || ''}${std.first_name} ${std.last_name}`;
-                
+
                 const avatarHtml = getStudentAvatarHtml(std.avatar_students_url, fullName);
 
                 return `
@@ -297,8 +294,8 @@ async function loadStudents() {
                     </td>
                 </tr>`;
             }).join('');
-        } else { 
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">ไม่พบนักเรียนในห้องนี้</td></table>';
+        } else {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-8 text-gray-400">ไม่พบนักเรียนในห้องนี้</td></tr>';
         }
 
         $('#studentsTable').DataTable({
@@ -311,8 +308,8 @@ async function loadStudents() {
             destroy: true
         });
         Swal.close();
-    } catch (err) { 
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); 
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
 
@@ -323,7 +320,7 @@ function openAddStudentModal() {
 
     document.getElementById('studentDetailForm').reset();
     document.getElementById('s_id').value = '';
-    document.getElementById('s_core_id').value = '';   // ✅ เคลียร์
+    document.getElementById('s_core_id').value = '';
     document.getElementById('s_avatar_url').value = '';
     document.getElementById('modalStudentTitle').innerHTML = '<i class="fa-solid fa-user-plus text-green-600 mr-2"></i>เพิ่มนักเรียนใหม่';
     setStudentAvatar('student-avatar-preview', '', null);
@@ -337,7 +334,7 @@ function openAddStudentModal() {
 // แก้ไขนักเรียน (รับ avatarUrl)
 function editSingleStudent(enrollId, studentNumber, studentIdCard, nationalId, prefix, fname, lname, status, avatarUrl, coreStudentId) {
     document.getElementById('s_id').value = enrollId;
-    document.getElementById('s_core_id').value = coreStudentId;       // ✅ เพิ่มบรรทัดนี้
+    document.getElementById('s_core_id').value = coreStudentId;
     document.getElementById('s_number').value = studentNumber;
     document.getElementById('s_student_id').value = studentIdCard;
     document.getElementById('s_national_id').value = nationalId;
@@ -346,13 +343,13 @@ function editSingleStudent(enrollId, studentNumber, studentIdCard, nationalId, p
     document.getElementById('s_lname').value = lname;
     document.getElementById('s_status').value = status;
     document.getElementById('s_avatar_url').value = avatarUrl || '';
-    
+
     const fullName = `${prefix}${fname} ${lname}`;
     setStudentAvatar('student-avatar-preview', fullName, avatarUrl);
     _pendingStudentAvatarFile = null;
     const badge = document.getElementById('student-avatar-badge');
     if (badge) badge.classList.add('hidden');
-    
+
     document.getElementById('modalStudentTitle').innerHTML = '<i class="fa-solid fa-pen-to-square text-yellow-600 mr-2"></i>แก้ไขข้อมูลนักเรียน';
     document.getElementById('studentDetailModal').classList.remove('hidden');
     attachStudentFileInputEvent();
@@ -385,18 +382,18 @@ function attachStudentFileInputEvent() {
     fileInput.hasListener = true;
 }
 
-function closeStudentModal() { 
-    document.getElementById('studentDetailModal').classList.add('hidden'); 
+function closeStudentModal() {
+    document.getElementById('studentDetailModal').classList.add('hidden');
 }
 
 // บันทึกนักเรียน (รวม avatar_students_url)
 async function saveSingleStudent(e) {
     e.preventDefault();
     const classId = document.getElementById('filterStudentClass').value;
-    const enrollmentId = document.getElementById('s_id').value;           // enrollment id (ถ้ามี)
-    const coreStudentId = document.getElementById('s_core_id').value;    // core student id (ถ้ามี)
+    const enrollmentId = document.getElementById('s_id').value;
+    const coreStudentId = document.getElementById('s_core_id').value;
     const avatarUrl = document.getElementById('s_avatar_url').value.trim() || null;
-    
+
     const studentIdCard = document.getElementById('s_student_id').value.trim();
     const nationalId = document.getElementById('s_national_id').value.trim() || null;
     const prefix = document.getElementById('s_prefix').value;
@@ -436,7 +433,7 @@ async function saveSingleStudent(e) {
             if (error) throw error;
             studentUpsertResult = data ? data[0] : null;
             if (!studentUpsertResult) throw new Error('ไม่พบข้อมูลนักเรียนในระบบ');
-        } 
+        }
         // กรณีเพิ่มใหม่ → upsert โดยใช้ student_id_card เป็น key
         else {
             const { data, error } = await db.from('core_students')
@@ -483,7 +480,7 @@ async function saveSingleStudent(e) {
         }
 
         closeStudentModal();
-        await loadStudents();  // รีเฟรชตาราง
+        await loadStudents(); // รีเฟรชตาราง
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
     } catch (err) {
         console.error(err);
@@ -1018,7 +1015,7 @@ async function searchGlobalStudents(keyword) {
             .eq('academic_year', currentYear)
             .order('grade_level')
             .order('room_number');
-        
+
         const roomOptions = (classrooms || []).map(c => ({
             value: c.id,
             text: `ม.${c.grade_level}/${c.room_number} (เทอม ${c.semester}/${c.academic_year})`
@@ -1040,7 +1037,7 @@ async function searchGlobalStudents(keyword) {
             const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null;
             const currentRoomId = enroll?.classroom_id || '';
             const enrollId = enroll?.id || '';
-            
+
             let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
             if (enroll && enroll.core_classrooms) {
                 const cr = enroll.core_classrooms;
@@ -1458,35 +1455,32 @@ async function loadStudentGasSettings() {
 function setStudentAvatar(displayElementId, studentName, imageUrl) {
     const container = document.getElementById(displayElementId);
     if (!container) return;
-    
+
     if (!imageUrl || imageUrl === '') {
         const initial = studentName ? studentName.charAt(0).toUpperCase() : '?';
         container.innerHTML = `<div class="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-3xl shadow-sm">${initial}</div>`;
         return;
     }
-    
+
     let finalUrl = imageUrl;
-    
-    // ✅ ตรวจสอบ: ถ้าเป็น Data URL หรือ Blob URL ให้ใช้ทันที (ไม่ต้องแปลง)
+
     if (imageUrl.startsWith('data:') || imageUrl.startsWith('blob:')) {
         finalUrl = imageUrl;
     }
-    // ถ้าเป็น Google Drive ID (33+ อักขระ) ให้สร้าง URL thumbnail
     else if (!imageUrl.startsWith('http') && imageUrl.match(/^[a-zA-Z0-9_-]{33,}$/)) {
         finalUrl = `https://lh3.googleusercontent.com/d/${imageUrl}=s200?authuser=0`;
     }
-    // ถ้าเป็น path ใน Storage
     else if (!imageUrl.startsWith('http')) {
         try {
             const { data: { publicUrl } } = db.storage.from('avatars').getPublicUrl(imageUrl);
             finalUrl = publicUrl;
         } catch(e) { console.warn(e); }
     }
-    
-    container.innerHTML = `<img src="${finalUrl}" 
+
+    container.innerHTML = `<img src="${finalUrl}"
         onerror="this.onerror=null; this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=random&rounded=true&size=96';"
-        class="w-24 h-24 rounded-full object-cover border border-slate-200 shadow-sm cursor-pointer" 
-        onclick="viewStudentImage('${finalUrl}', '${studentName.replace(/'/g, "\\'")}')" 
+        class="w-24 h-24 rounded-full object-cover border border-slate-200 shadow-sm cursor-pointer"
+        onclick="viewStudentImage('${finalUrl}', '${studentName.replace(/'/g, "\\'")}')"
         title="คลิกดูรูปใหญ่">`;
 }
 
@@ -1537,8 +1531,7 @@ async function uploadStudentFileToDrive(file, studentCode, studentName) {
     try {
         const resizedBlob = await resizeImageBlob(file, 600);
         const base64Data = await blobToBase64(resizedBlob);
-        
-        // ✅ ใช้ student_id_card เป็นชื่อไฟล์ (ตรงกับไฟล์เก่าใน Drive)
+
         const fileName = `avatar_${studentCode}.jpg`;
 
         const response = await fetch(settings.apiUrl, {
@@ -1575,7 +1568,7 @@ async function uploadStudentAvatarNow() {
         return Swal.fire('ไม่มีไฟล์', 'ยังไม่ได้เลือกรูป', 'info');
     }
     const enrollId = document.getElementById('s_id').value;
-    const coreStudentId = document.getElementById('s_core_id').value;   // ✅ ใช้ core student id
+    const coreStudentId = document.getElementById('s_core_id').value;
     if (!coreStudentId) {
         Swal.fire({
             icon: 'info',
@@ -1586,7 +1579,6 @@ async function uploadStudentAvatarNow() {
         return;
     }
 
-    // ดึง student_id_card จาก core_students ด้วย coreStudentId
     const { data: student, error } = await db.from('core_students')
         .select('student_id_card')
         .eq('id', coreStudentId)
@@ -1601,7 +1593,7 @@ async function uploadStudentAvatarNow() {
     const studentCode = student.student_id_card;
     const fullName = `${document.getElementById('s_prefix').value}${document.getElementById('s_fname').value} ${document.getElementById('s_lname').value}`;
     const driveUrl = await uploadStudentFileToDrive(_pendingStudentAvatarFile, studentCode, fullName);
-    
+
     if (driveUrl) {
         document.getElementById('s_avatar_url').value = driveUrl;
         setStudentAvatar('student-avatar-preview', fullName, driveUrl);
@@ -1613,7 +1605,6 @@ async function uploadStudentAvatarNow() {
 }
 
 async function clearStudentAvatar() {
-    // ลบบรรทัดที่เรียก fetch ออก หรือ comment ทิ้ง
     document.getElementById('s_avatar_url').value = '';
     const fullName = `${document.getElementById('s_prefix').value}${document.getElementById('s_fname').value} ${document.getElementById('s_lname').value}`;
     setStudentAvatar('student-avatar-preview', fullName, null);

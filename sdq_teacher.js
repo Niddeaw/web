@@ -1,4 +1,4 @@
-// sdq_teacher.js — Unified Teacher + Admin (v6)
+// sdq_teacher.js — Unified Teacher + Admin (ปรับปรุงให้ใช้ config.js)
 // รองรับการประเมินแบบ step (ทีละข้อ) สำหรับครู พร้อมแสดงชื่อนักเรียน
 // ปรับปรุงการแสดงปุ่ม: ซ่อนปุ่มสลับโหมดเมื่อไม่ใช่ Admin, แสดงปุ่มนำเข้า/ส่งออกให้ครูใช้งานได้
 
@@ -9,6 +9,7 @@ let tableInstance = null;
 
 let isTeacher = false;
 let isAdmin = false;
+let isModuleAdmin = false;
 let isCurrentAdminMode = false; // false=teacher, true=admin
 let myClassIds = [];
 
@@ -56,29 +57,29 @@ async function fetchCoreInfo() {
 }
 
 // ==========================================
-// 2. ตรวจสอบสิทธิ์
+// 2. ตรวจสอบสิทธิ์ (ใช้ config.js)
 // ==========================================
 async function checkAuthAndRoles() {
-    const { data: { user }, error: authError } = await db.auth.getUser();
-    if (authError || !user) { window.location.href = 'login.html'; return false; }
+    // ✅ ใช้ checkSessionAndRole จาก config.js
+    const result = await checkSessionAndRole('sdq', WRK_ROLES.ALLOWED);
+    if (!result) return false; // redirect ไป login.html แล้ว
 
-    const { data: personnel } = await db.from('core_personnel').select('*').eq('id', user.id).single();
-    if (!personnel) { window.location.href = 'index.html'; return false; }
+    userInfo = result.personnel;
+    $('#user-display').text(`${userInfo.prefix || ''}${userInfo.first_name} ${userInfo.last_name}`);
 
-    userInfo = personnel;
-    $('#user-display').text(`${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`);
+    // ✅ ตรวจสอบ Module Admin (ใช้ hasModuleAccess)
+    isModuleAdmin = await hasModuleAccess(userInfo.role, 'sdq', userInfo.id);
 
-    if (['admin', 'super_admin'].includes(personnel.role)) isAdmin = true;
-    if (!isAdmin) {
-        const { data: modAdmin } = await db.from('core_module_admins').select('id').eq('user_id', user.id).eq('module_id', 'sdq').maybeSingle();
-        if (modAdmin) isAdmin = true;
-    }
+    // ✅ ตรวจสอบ Admin (ใช้ isAdminUser จาก config.js)
+    isAdmin = isAdminUser(userInfo.role, false) || isModuleAdmin;
 
+    // ตรวจสอบว่าครูมีห้องที่ปรึกษาหรือไม่
     const { data: classrooms } = await db.from('core_classrooms')
         .select('id, grade_level, room_number')
-        .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
+        .or(`adviser_id_1.eq.${userInfo.id},adviser_id_2.eq.${userInfo.id}`)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
         .eq('semester', currentSchoolInfo.current_semester);
+
     if (classrooms && classrooms.length > 0) {
         isTeacher = true;
         myClassIds = classrooms.map(c => c.id);
@@ -89,20 +90,22 @@ async function checkAuthAndRoles() {
         window.location.href = 'index.html';
         return false;
     }
-    isCurrentAdminMode = !isTeacher;
+
+    isCurrentAdminMode = isAdmin && !isTeacher ? true : false;
     return true;
 }
 
 function setupUI() {
-    // ✅ ปุ่มสลับโหมด: แสดงเฉพาะ Admin
+    // ✅ ปุ่มสลับโหมด: แสดงเฉพาะ Admin ที่เป็นครูด้วย
     if (isAdmin && isTeacher) {
         $('#roleSwitchContainer').html(`
             <button id="btnToggleMode" onclick="toggleTeacherAdminMode()"
                 class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all">
             </button>
         `);
+        // ✅ ใช้ฟังก์ชันจาก config.js เพื่ออัปเดตข้อความปุ่ม (ไม่ต้องประกาศฟังก์ชันเอง)
+        window.updateToggleModeUI(userInfo.role, isCurrentAdminMode, 'btnToggleMode');
     } else {
-        // ถ้าไม่ใช่ Admin ให้ซ่อน container และปุ่ม (ถ้ามี)
         $('#roleSwitchContainer').empty();
     }
 
@@ -114,44 +117,60 @@ function setupUI() {
     }
 
     // ✅ ปุ่มนำเข้า/ส่งออก: ให้แสดงเสมอ (ทั้งครูและ Admin)
-    // สมมติว่าใน HTML มีปุ่ม ID = 'btnExport' และ 'btnImport'
-    // หากถูกซ่อนไว้ ให้แสดง
     $('#btnExport, #btnImport').removeClass('hidden').show();
 
-    updateToggleModeUI();
+    // ✅ ใช้ applyVisibilityByRole จาก config.js
+    applyVisibilityByRole(userInfo.role, isAdmin, {
+        settingsBtn: 'adminManagerBtn'
+    });
+
+    // ✅ อัปเดต Badge และ Subtitle ด้วยตัวเอง (เพราะ config.js ไม่ได้จัดการส่วนนี้)
+    updateBadgeAndSubtitle();
 }
 
-// ========== Toggle Mode ==========
-function updateToggleModeUI() {
-    const btn = document.getElementById('btnToggleMode');
+// ========== อัปเดต Badge และ Subtitle (แยกจากปุ่ม) ==========
+function updateBadgeAndSubtitle() {
     const badge = document.getElementById('pageBadge');
+    const subtitle = document.getElementById('mode-subtitle');
+
     if (isCurrentAdminMode) {
-        if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i><span class="hidden sm:inline">โหมดแอดมิน</span>';
-            btn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border bg-rose-50 text-rose-600 border-rose-200 hover:bg-rose-100 transition-all';
-        }
         if (badge) badge.textContent = 'Admin View — เลือกดูทีละห้อง';
-    } else {
-        if (btn) {
-            btn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i><span class="hidden sm:inline">โหมดครู</span>';
-            btn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border bg-indigo-50 text-indigo-600 border-indigo-200 hover:bg-indigo-100 transition-all';
+        if (subtitle) {
+            subtitle.textContent = 'Admin Dashboard';
+            subtitle.className = 'text-[10px] text-rose-500 font-bold uppercase tracking-widest';
         }
+        $('#table-title').html('<i class="fa-solid fa-globe mr-2 text-indigo-500"></i> นักเรียนทั้งหมดทุกระดับชั้น');
+        $('#adminFilters').removeClass('hidden');
+    } else {
         if (badge) badge.textContent = 'Teacher View — เฉพาะห้องโฮมรูม';
+        if (subtitle) {
+            subtitle.textContent = 'Teacher Dashboard';
+            subtitle.className = 'text-[10px] text-slate-500 font-bold uppercase tracking-widest';
+        }
+        $('#table-title').html('<i class="fa-solid fa-users mr-2 text-indigo-500"></i> รายชื่อนักเรียนประจำชั้น');
+        $('#adminFilters').addClass('hidden');
     }
 }
 
+// ========== Toggle Mode ==========
 async function toggleTeacherAdminMode() {
-    // ตรวจสอบว่าเป็น Admin จริง ๆ
-    if (!isAdmin) {
+    // ตรวจสอบว่าเป็น Admin จริง ๆ (ใช้ isAdminUser จาก config.js)
+    if (!isAdminUser(userInfo.role, false) && !isModuleAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
         return;
     }
     isCurrentAdminMode = !isCurrentAdminMode;
-    updateToggleModeUI();
+
+    // ✅ ใช้ฟังก์ชันจาก config.js เพื่ออัปเดตข้อความปุ่ม
+    window.updateToggleModeUI(userInfo.role, isCurrentAdminMode, 'btnToggleMode');
+
+    // ✅ อัปเดต Badge และ Subtitle
+    updateBadgeAndSubtitle();
+
     if (!isCurrentAdminMode) {
-        $('#adminFilters').addClass('hidden');
         if (classroomTomSelect) classroomTomSelect.clear(true);
     }
+
     Swal.fire({
         toast: true, position: 'top-end', icon: 'info',
         title: isCurrentAdminMode
@@ -170,11 +189,9 @@ async function loadData() {
     systemDataList = [];
 
     if (!isCurrentAdminMode) {
-        $('#mode-subtitle').text('Teacher Dashboard').removeClass('text-rose-500').addClass('text-slate-500');
         $('#table-title').html('<i class="fa-solid fa-users mr-2 text-indigo-500"></i> รายชื่อนักเรียนประจำชั้น');
         $('#adminFilters').addClass('hidden');
     } else {
-        $('#mode-subtitle').text('Admin Dashboard').removeClass('text-slate-500').addClass('text-rose-500');
         $('#table-title').html('<i class="fa-solid fa-globe mr-2 text-indigo-500"></i> นักเรียนทั้งหมดทุกระดับชั้น');
         $('#adminFilters').removeClass('hidden');
     }
@@ -460,12 +477,11 @@ function viewSDQ(enrollmentId) {
 }
 
 // ==========================================
-// 8. ลบการประเมินทั้งหมด (admin)
+// 8. ลบการประเมินทั้งหมด (admin) - ใช้ requireAdmin
 // ==========================================
 async function deleteAllAssessments(enrollmentId) {
-    // อนุญาตเฉพาะ Admin
-    if (!isAdmin) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบได้', 'error');
+    // ✅ ใช้ requireAdmin จาก config.js
+    if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบได้')) {
         return;
     }
     const confirm = await Swal.fire({ title: 'ยืนยันลบทั้งหมด?', text: 'จะลบทุกผู้ประเมิน', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ลบ' });
@@ -990,25 +1006,38 @@ async function submitTeacherAssessment() {
 }
 
 // ==========================================
-// 13. Logout
+// 13. Logout (ไป login.html ตามมาตรฐาน)
 // ==========================================
 function logout() {
-    Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' })
-        .then(async r => { if (r.isConfirmed) { await db.auth.signOut(); window.location.href = 'login.html'; } });
+    Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    }).then(async r => {
+        if (r.isConfirmed) {
+            await db.auth.signOut();
+            window.location.href = 'login.html';
+        }
+    });
 }
 
 // ==========================================
-// 14. จัดการแอดมิน (Admin only)
+// 14. จัดการแอดมิน (Admin only) - ใช้ requireAdmin
 // ==========================================
 async function openAdminManager() {
-    if (!isAdmin) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+    if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้น')) {
         return;
     }
     document.getElementById('adminManagerModal').classList.remove('hidden');
     await Promise.all([loadPersonnelOptions(), loadCurrentAdmins()]);
 }
-function closeAdminManager() { document.getElementById('adminManagerModal').classList.add('hidden'); }
+
+function closeAdminManager() {
+    document.getElementById('adminManagerModal').classList.add('hidden');
+}
 
 async function loadPersonnelOptions() {
     try {
@@ -1101,6 +1130,7 @@ async function loadCurrentAdmins() {
             })).filter(a => a.core_personnel);
         }
 
+        // ✅ ดึง Super Admin (ถาวร)
         const { data: superAdmins, error: superError } = await db
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, position, department')
@@ -1113,6 +1143,7 @@ async function loadCurrentAdmins() {
         let html = '';
         let totalCount = 0;
 
+        // ✅ แสดง Super Admin (ถาวร)
         if (superAdmins && superAdmins.length > 0) {
             superAdmins.forEach(admin => {
                 const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
@@ -1140,6 +1171,7 @@ async function loadCurrentAdmins() {
             });
         }
 
+        // ✅ แสดง Module Admin
         if (moduleAdmins && moduleAdmins.length > 0) {
             moduleAdmins.forEach(admin => {
                 const p = admin.core_personnel;
@@ -1198,10 +1230,10 @@ async function loadCurrentAdmins() {
 }
 
 async function addSDQAdmin() {
-    if (!isAdmin) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+    if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้น')) {
         return;
     }
+
     const select = document.getElementById('personnelSelect');
     const personnelId = select.tomselect ? select.tomselect.getValue() : select.value;
 
@@ -1270,10 +1302,10 @@ async function addSDQAdmin() {
 }
 
 async function removeSDQAdmin(adminId, adminName) {
-    if (!isAdmin) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+    if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้น')) {
         return;
     }
+
     const result = await Swal.fire({
         title: 'ยืนยันการถอดถอน?',
         html: `คุณต้องการถอดถอน <strong>${adminName}</strong> จากการเป็นผู้ดูแลระบบ SDQ ใช่หรือไม่?`,
