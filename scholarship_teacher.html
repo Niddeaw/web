@@ -10,6 +10,7 @@
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -697,6 +698,14 @@
         .glass-card {
             overflow: visible !important;
         }
+
+        .admin-only {
+            display: none !important;
+        }
+
+        .admin-only.visible {
+            display: inline-flex !important;
+        }
     </style>
 </head>
 
@@ -800,7 +809,15 @@
                 <div class="flex flex-wrap justify-between items-center gap-3 mb-5">
                     <h3 class="font-extrabold text-emerald-800 text-lg"><i
                             class="fas fa-award mr-2 text-emerald-500"></i>รายชื่อนักเรียนที่เคยได้รับทุน</h3>
-                    <p class="text-sm text-slate-500">แสดงประวัติทุนทั้งหมดที่เคยบันทึกในระบบ</p>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-sm text-slate-500 mr-2">แสดงประวัติทุนทั้งหมดที่เคยบันทึกในระบบ</p>
+                        <button onclick="exportRecipientsToExcel()"
+                            class="admin-only bg-emerald-50 text-emerald-700 px-4 py-2 rounded-2xl text-sm font-bold border border-emerald-200 hover:bg-emerald-100 transition flex items-center gap-2"><i
+                                class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                        <button onclick="importRecipientsFromExcel()"
+                            class="admin-only bg-amber-50 text-amber-700 px-4 py-2 rounded-2xl text-sm font-bold border border-amber-200 hover:bg-amber-100 transition flex items-center gap-2"><i
+                                class="fas fa-upload"></i> นำเข้า Excel</button>
+                    </div>
                 </div>
 
                 <!-- Filter bar -->
