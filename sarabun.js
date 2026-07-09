@@ -1,4 +1,4 @@
-// sarabun.js - ฉบับปรับปรุงสมบูรณ์ (Server-side DataTables, Excel, RLS, วันที่ไทย)
+// sarabun.js - ฉบับปรับปรุงสมบูรณ์ (Server-side DataTables, Excel, RLS, วันที่ไทย, Responsive)
 let currentUser = null;
 let currentProfile = null;
 let userRole = null;
@@ -488,7 +488,7 @@ async function uploadToGAS(file) {
 }
 
 // ==========================================
-// 8. โหลดข้อมูล DataTables (Server-side)
+// 8. โหลดข้อมูล DataTables (Server-side) + Responsive
 // ==========================================
 function loadDocuments() {
     // --- Teacher Table ---
@@ -496,6 +496,7 @@ function loadDocuments() {
         $('#teacherDocsTable').DataTable().destroy();
     }
     teacherTable = $('#teacherDocsTable').DataTable({
+        responsive: true,  // ✅ เปิด responsive
         processing: true,
         serverSide: true,
         ajax: function(dtParams, callback, settings) {
@@ -519,15 +520,24 @@ function loadDocuments() {
         order: [[0, 'desc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        columnDefs: [  // ✅ กำหนด priority สำหรับ responsive
+            { responsivePriority: 1, targets: 3 }, // เรื่อง สำคัญ
+            { responsivePriority: 2, targets: 5 }, // ปุ่มจัดการ
+            { responsivePriority: 3, targets: 0 }, // วันที่
+            { responsivePriority: 4, targets: 1 }, // เลขรับ
+            { responsivePriority: 5, targets: 2 }, // ที่หนังสือ
+            { responsivePriority: 6, targets: 4 }  // ความเร็ว
+        ]
     });
 
-    // --- Admin Table (เฉพาะ Admin) ---
+    // --- Admin Table ---
     if (isAdminMode) {
         if ($.fn.DataTable.isDataTable('#adminDocsTable')) {
             $('#adminDocsTable').DataTable().destroy();
         }
         adminTable = $('#adminDocsTable').DataTable({
+            responsive: true,  // ✅ เปิด responsive
             processing: true,
             serverSide: true,
             ajax: function(dtParams, callback, settings) {
@@ -539,7 +549,7 @@ function loadDocuments() {
                 { data: 'doc_subject' },
                 { data: 'recorder_name', defaultContent: '-' },
                 { data: 'id', orderable: false, render: (id) => `
-                    <div class="flex gap-1 justify-center">
+                    <div class="flex gap-1 justify-center flex-wrap">
                         <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
                         <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
                         <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
@@ -549,7 +559,14 @@ function loadDocuments() {
             order: [[0, 'desc']],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            columnDefs: [
+                { responsivePriority: 1, targets: 2 }, // เรื่อง สำคัญ
+                { responsivePriority: 2, targets: 4 }, // ปุ่มจัดการ
+                { responsivePriority: 3, targets: 0 }, // วันที่
+                { responsivePriority: 4, targets: 1 }, // เลขรับ
+                { responsivePriority: 5, targets: 3 }  // ผู้บันทึก
+            ]
         });
     }
 }
@@ -671,6 +688,7 @@ async function viewDoc(id) {
                     ${relatedArray.map(r => `<span class="bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-lg text-xs font-bold">${escapeHtml(r)}</span>`).join('')}
                 </div>
             </div>
+            <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ผู้ลงรับ:</span> <strong class="text-slate-800">${escapeHtml(data.core_personnel ? `${data.core_personnel.first_name} ${data.core_personnel.last_name}` : '-')}</strong></div>
         </div>
     `;
     if (data.file_url) {
@@ -1121,7 +1139,7 @@ async function exportToExcel() {
             'ชั้นความเร็ว': d.speed_level,
             'ชั้นความลับ': d.secret_level,
             'การดำเนินการ': d.doc_action,
-            'ผู้บันทึก': `${d.core_personnel.first_name} ${d.core_personnel.last_name}`,
+            'ผู้ลงรับ': `${d.core_personnel.first_name} ${d.core_personnel.last_name}`,
             'กลุ่มที่เกี่ยวข้อง': d.related_depts ? JSON.parse(d.related_depts).join(', ') : '',
             'ไฟล์แนบ': d.file_url || ''
         }));
@@ -1147,7 +1165,7 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. นำเข้า Excel (Admin)
+// 17. นำเข้า Excel (Admin) — ปรับปรุง รองรับผู้ลงรับ
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
@@ -1190,19 +1208,39 @@ async function importFromExcel(event) {
                 return;
             }
 
+            // ✅ ดึงรายชื่อบุคลากรทั้งหมดเพื่อ map ผู้ลงรับ
+            const { data: personnelList, error: personnelErr } = await db.from('core_personnel')
+                .select('id, first_name, last_name, prefix')
+                .order('first_name', { ascending: true });
+            if (personnelErr) console.warn('ไม่สามารถโหลดรายชื่อบุคลากรเพื่อ map ผู้ลงรับ', personnelErr);
+
+            // สร้าง mapping ชื่อเต็ม -> id
+            const nameToId = {};
+            if (personnelList) {
+                personnelList.forEach(p => {
+                    const fullName = `${p.first_name} ${p.last_name}`.trim();
+                    const fullNameWithPrefix = `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim();
+                    nameToId[fullName] = p.id;
+                    nameToId[fullNameWithPrefix] = p.id;
+                });
+            }
+
             let success = 0, fail = 0, errors = [];
 
             for (const row of rows) {
                 try {
+                    // ข้อมูลจำเป็น
                     if (!row['เลขทะเบียนรับ'] || !row['ที่หนังสือ'] || !row['จาก'] || !row['เรื่อง']) {
                         fail++;
                         errors.push(`ขาดข้อมูล: ${row['เลขทะเบียนรับ'] || '(ไม่ระบุ)'}`);
                         continue;
                     }
 
+                    // วันที่
                     const receiveDate = parseThaiDate(row['วันที่ลงรับ']) || new Date().toISOString().slice(0, 10);
                     const docDate = parseThaiDate(row['ลงวันที่']) || new Date().toISOString().slice(0, 10);
 
+                    // กลุ่มที่เกี่ยวข้อง
                     let relatedDepts = [];
                     if (row['กลุ่มที่เกี่ยวข้อง']) {
                         if (typeof row['กลุ่มที่เกี่ยวข้อง'] === 'string') {
@@ -1210,6 +1248,42 @@ async function importFromExcel(event) {
                         } else {
                             relatedDepts = [String(row['กลุ่มที่เกี่ยวข้อง'])];
                         }
+                    }
+
+                    // 🔍 ค้นหาผู้ลงรับจากชื่อในไฟล์ (คอลัมน์: "ผู้ลงรับ", "ผู้บันทึก", "บันทึกโดย", "recorder")
+                    let recorderId = currentUser.id; // default
+                    let recorderName = row['ผู้ลงรับ'] || row['ผู้บันทึก'] || row['บันทึกโดย'] || row['recorder'] || '';
+                    let recorderFound = false;
+                    if (recorderName && typeof recorderName === 'string' && recorderName.trim() !== '') {
+                        const trimmedName = recorderName.trim();
+                        // พยายาม map จากชื่อเต็ม
+                        if (nameToId[trimmedName]) {
+                            recorderId = nameToId[trimmedName];
+                            recorderFound = true;
+                        } else {
+                            // ลองแยกชื่อ-นามสกุล (อาจมีคำนำหน้า)
+                            const parts = trimmedName.split(/\s+/);
+                            if (parts.length >= 2) {
+                                // ลองหาจากชื่อ+นามสกุล (ไม่รวมคำนำหน้า)
+                                const firstName = parts[0];
+                                const lastName = parts.slice(1).join(' ');
+                                const fullNameNoPrefix = `${firstName} ${lastName}`;
+                                if (nameToId[fullNameNoPrefix]) {
+                                    recorderId = nameToId[fullNameNoPrefix];
+                                    recorderFound = true;
+                                }
+                            }
+                            if (!recorderFound) {
+                                // หาจาก last_name เฉยๆ? อาจมีหลายคน งั้นข้าม
+                                console.warn(`ไม่พบผู้ลงรับ "${trimmedName}" ในระบบ จะใช้ผู้ใช้ปัจจุบันแทน`);
+                            }
+                        }
+                    }
+
+                    // ถ้าไม่พบ ให้ใช้ currentUser และบันทึกชื่อเดิมในหมายเหตุ
+                    let note = '';
+                    if (!recorderFound && recorderName) {
+                        note = `(นำเข้า: ผู้ลงรับเดิม "${recorderName}")`;
                     }
 
                     const docData = {
@@ -1225,8 +1299,13 @@ async function importFromExcel(event) {
                         doc_action: row['การดำเนินการ'] || 'มอบหมาย',
                         related_depts: JSON.stringify(relatedDepts),
                         file_url: row['ไฟล์แนบ'] || null,
-                        recorder_id: currentUser.id
+                        recorder_id: recorderId
                     };
+
+                    // ถ้ามี note ให้เพิ่ม description
+                    if (note) {
+                        docData.description = note;
+                    }
 
                     const { error } = await db.from('module_sarabun_docs').insert([docData]);
                     if (error) {
