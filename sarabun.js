@@ -28,7 +28,7 @@ function formatThaiDate(dateStr) {
     const d = new Date(dateStr);
     if (isNaN(d.getTime())) return '-';
     const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-                    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
     const day = d.getDate();
     const month = months[d.getMonth()];
     const year = d.getFullYear() + 543;
@@ -180,7 +180,7 @@ function initUIComponents() {
 function initCropperEvents() {
     const fileInput = document.getElementById('ocrImageInput');
     if (!fileInput) return;
-    fileInput.addEventListener('change', function(e) {
+    fileInput.addEventListener('change', function (e) {
         const file = e.target.files[0];
         if (!file) return;
         const img = document.getElementById('ocrPreviewImage');
@@ -239,7 +239,7 @@ async function cropAndOCR() {
         const result = await Tesseract.recognize(
             resizedBlob,
             'tha+eng',
-            { logger: m => console.log('[OCR]', m.status, m.progress ? Math.round(m.progress*100)+'%' : '') }
+            { logger: m => console.log('[OCR]', m.status, m.progress ? Math.round(m.progress * 100) + '%' : '') }
         );
         let rawText = result.data.text;
         console.log('OCR Result (cropped):', rawText);
@@ -332,7 +332,7 @@ function normalizeThaiText(text) {
 
 function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
+    return str.replace(/[&<>]/g, function (m) {
         if (m === '&') return '&amp;';
         if (m === '<') return '&lt;';
         if (m === '>') return '&gt;';
@@ -488,7 +488,7 @@ async function uploadToGAS(file) {
 }
 
 // ==========================================
-// 8. โหลดข้อมูล DataTables (Server-side) + Responsive
+// 8. โหลดข้อมูล DataTables (Server-side) + Responsive + ตัดคำ
 // ==========================================
 function loadDocuments() {
     // --- Teacher Table ---
@@ -496,38 +496,44 @@ function loadDocuments() {
         $('#teacherDocsTable').DataTable().destroy();
     }
     teacherTable = $('#teacherDocsTable').DataTable({
-        responsive: true,  // ✅ เปิด responsive
+        responsive: true,
         processing: true,
         serverSide: true,
         ajax: function(dtParams, callback, settings) {
             loadTableDataServerSide(dtParams, callback, 'teacher');
         },
         columns: [
-            { data: 'receive_date', render: (d) => formatThaiDate(d) },
-            { data: 'receive_number' },
-            { data: 'doc_number' },
-            { data: 'doc_subject' },
+            { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
+            { data: 'receive_number', className: 'whitespace-nowrap' },
+            { data: 'doc_number', className: 'whitespace-nowrap' },          // คอลัมน์ที่ 2
+            { data: 'doc_subject', render: (d) => {
+                if (!d) return '-';
+                return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
+            }, className: 'max-w-[200px] truncate' },
             { data: 'speed_level', render: (d) => {
                 const color = d && d.includes('ด่วน') ? 'red' : 'green';
-                return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200">${escapeHtml(d || 'ปกติ')}</span>`;
-            }},
+                return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+            }, className: 'whitespace-nowrap' },
             { data: 'id', orderable: false, render: (id) => 
-                `<button onclick="viewDoc('${id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm text-xs font-bold transition">
+                `<button onclick="viewDoc('${id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm text-xs font-bold transition whitespace-nowrap">
                     <i class="fa-solid fa-eye mr-1 text-slate-500"></i> ดู
-                </button>`
-            }
+                </button>`,
+                className: 'whitespace-nowrap' }
         ],
-        order: [[0, 'desc']],
+        order: [
+            [0, 'desc'],   // ✅ receive_date ล่าสุดก่อน
+            [2, 'desc']    // ✅ doc_number มากก่อน (ถ้าวันที่ซ้ำ)
+        ],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        columnDefs: [  // ✅ กำหนด priority สำหรับ responsive
-            { responsivePriority: 1, targets: 3 }, // เรื่อง สำคัญ
-            { responsivePriority: 2, targets: 5 }, // ปุ่มจัดการ
-            { responsivePriority: 3, targets: 0 }, // วันที่
-            { responsivePriority: 4, targets: 1 }, // เลขรับ
-            { responsivePriority: 5, targets: 2 }, // ที่หนังสือ
-            { responsivePriority: 6, targets: 4 }  // ความเร็ว
+        columnDefs: [
+            { responsivePriority: 1, targets: 3 },
+            { responsivePriority: 2, targets: 5 },
+            { responsivePriority: 3, targets: 0 },
+            { responsivePriority: 4, targets: 1 },
+            { responsivePriority: 5, targets: 2 },
+            { responsivePriority: 6, targets: 4 }
         ]
     });
 
@@ -537,35 +543,41 @@ function loadDocuments() {
             $('#adminDocsTable').DataTable().destroy();
         }
         adminTable = $('#adminDocsTable').DataTable({
-            responsive: true,  // ✅ เปิด responsive
+            responsive: true,
             processing: true,
             serverSide: true,
             ajax: function(dtParams, callback, settings) {
                 loadTableDataServerSide(dtParams, callback, 'admin');
             },
             columns: [
-                { data: 'receive_date', render: (d) => formatThaiDate(d) },
-                { data: 'receive_number' },
-                { data: 'doc_subject' },
-                { data: 'recorder_name', defaultContent: '-' },
+                { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
+                { data: 'receive_number', className: 'whitespace-nowrap' },
+                { data: 'doc_subject', render: (d) => {
+                    if (!d) return '-';
+                    return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
+                }, className: 'max-w-[200px] truncate' },
+                { data: 'recorder_name', defaultContent: '-', className: 'whitespace-nowrap' },
                 { data: 'id', orderable: false, render: (id) => `
                     <div class="flex gap-1 justify-center flex-wrap">
                         <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
                         <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
                         <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
                     </div>
-                `}
+                `, className: 'whitespace-nowrap' }
             ],
-            order: [[0, 'desc']],
+            order: [
+                [0, 'desc'],   // ✅ receive_date ล่าสุดก่อน
+                [1, 'desc']    // ✅ receive_number มากก่อน (ถ้าวันที่ซ้ำ)
+            ],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             columnDefs: [
-                { responsivePriority: 1, targets: 2 }, // เรื่อง สำคัญ
-                { responsivePriority: 2, targets: 4 }, // ปุ่มจัดการ
-                { responsivePriority: 3, targets: 0 }, // วันที่
-                { responsivePriority: 4, targets: 1 }, // เลขรับ
-                { responsivePriority: 5, targets: 3 }  // ผู้บันทึก
+                { responsivePriority: 1, targets: 2 },
+                { responsivePriority: 2, targets: 4 },
+                { responsivePriority: 3, targets: 0 },
+                { responsivePriority: 4, targets: 1 },
+                { responsivePriority: 5, targets: 3 }
             ]
         });
     }
@@ -583,7 +595,7 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
                 id, receive_number, receive_date, doc_number, doc_subject,
                 speed_level, secret_level, doc_from, doc_to, doc_action,
                 related_depts, file_url, recorder_id,
-                core_personnel ( first_name, last_name )
+                core_personnel ( prefix, first_name, last_name )
             `, { count: 'exact', head: false });
 
         // ค้นหา
@@ -597,19 +609,22 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
             );
         }
 
-        // เรียงลำดับ
+        // ✅ เรียงลำดับแบบหลายคอลัมน์
         if (order && order.length > 0) {
-            const colIndex = order[0].column;
-            let colName = 'receive_date';
-            if (tableType === 'teacher') {
-                const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level'];
-                colName = colMap[colIndex] || 'receive_date';
-            } else {
-                const colMap = ['receive_date', 'receive_number', 'doc_subject', 'recorder_name'];
-                colName = colMap[colIndex] || 'receive_date';
+            for (const ord of order) {
+                const colIndex = ord.column;
+                let colName = 'receive_date';
+                if (tableType === 'teacher') {
+                    const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level'];
+                    colName = colMap[colIndex] || 'receive_date';
+                } else {
+                    const colMap = ['receive_date', 'receive_number', 'doc_subject', 'recorder_name'];
+                    colName = colMap[colIndex] || 'receive_date';
+                }
+                query = query.order(colName, { ascending: ord.dir === 'asc' });
             }
-            query = query.order(colName, { ascending: order[0].dir === 'asc' });
         } else {
+            // ค่าเริ่มต้น: receive_date ล่าสุดก่อน
             query = query.order('receive_date', { ascending: false });
         }
 
@@ -621,7 +636,7 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
         // แปลงข้อมูล
         const formattedData = (data || []).map(row => {
             const recorderName = row.core_personnel
-                ? `${row.core_personnel.first_name} ${row.core_personnel.last_name}`
+                ? `${row.core_personnel.prefix || ''}${row.core_personnel.first_name} ${row.core_personnel.last_name}`
                 : '-';
             return {
                 id: row.id,
@@ -656,14 +671,16 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
         });
     }
 }
-
+// ==========================================
+// 10. View/Edit/Delete
+// ==========================================
 // ==========================================
 // 10. View/Edit/Delete
 // ==========================================
 async function viewDoc(id) {
-    // ใช้ query แยก เพื่อดึงข้อมูลแบบเต็ม (ไม่ใช้ DataTable)
+    // ✅ ดึงข้อมูลพร้อม prefix
     const { data } = await db.from('module_sarabun_docs')
-        .select('*, core_personnel(first_name, last_name)')
+        .select('*, core_personnel(prefix, first_name, last_name)')
         .eq('id', id)
         .single();
     if (!data) return;
@@ -675,6 +692,7 @@ async function viewDoc(id) {
         relatedArray = [data.related_depts];
     }
 
+    // ✅ แสดงผู้ลงรับพร้อม prefix
     let html = `
         <div class="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
             <div class="col-span-2 sm:col-span-1 bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-slate-500 block text-xs mb-1">เลขทะเบียนรับ</span> <strong class="text-blue-700 text-base">${escapeHtml(data.receive_number)}</strong></div>
@@ -688,7 +706,9 @@ async function viewDoc(id) {
                     ${relatedArray.map(r => `<span class="bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-lg text-xs font-bold">${escapeHtml(r)}</span>`).join('')}
                 </div>
             </div>
-            <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ผู้ลงรับ:</span> <strong class="text-slate-800">${escapeHtml(data.core_personnel ? `${data.core_personnel.first_name} ${data.core_personnel.last_name}` : '-')}</strong></div>
+            <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ผู้ลงรับ:</span> 
+                <strong class="text-slate-800">${escapeHtml(data.core_personnel ? `${data.core_personnel.prefix || ''}${data.core_personnel.first_name} ${data.core_personnel.last_name}` : '-')}</strong>
+            </div>
         </div>
     `;
     if (data.file_url) {
@@ -1108,6 +1128,9 @@ async function removeModuleAdmin(recordId) {
 // ==========================================
 // 16. ส่งออก Excel (Admin)
 // ==========================================
+// ==========================================
+// 16. ส่งออก Excel (Admin)
+// ==========================================
 async function exportToExcel() {
     if (!isAdminMode) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถส่งออกข้อมูลได้', 'warning');
@@ -1118,7 +1141,7 @@ async function exportToExcel() {
 
     try {
         const { data, error } = await db.from('module_sarabun_docs')
-            .select('*, core_personnel(first_name, last_name)')
+            .select('*, core_personnel(prefix, first_name, last_name)')
             .order('receive_date', { ascending: false });
 
         if (error) throw error;
@@ -1128,6 +1151,7 @@ async function exportToExcel() {
             return;
         }
 
+        // ✅ สร้าง rows โดยใช้ prefix
         const rows = data.map(d => ({
             'วันที่ลงรับ': formatThaiDate(d.receive_date),
             'เลขทะเบียนรับ': d.receive_number,
@@ -1139,7 +1163,7 @@ async function exportToExcel() {
             'ชั้นความเร็ว': d.speed_level,
             'ชั้นความลับ': d.secret_level,
             'การดำเนินการ': d.doc_action,
-            'ผู้ลงรับ': `${d.core_personnel.first_name} ${d.core_personnel.last_name}`,
+            'ผู้ลงรับ': `${d.core_personnel.prefix || ''}${d.core_personnel.first_name} ${d.core_personnel.last_name}`,
             'กลุ่มที่เกี่ยวข้อง': d.related_depts ? JSON.parse(d.related_depts).join(', ') : '',
             'ไฟล์แนบ': d.file_url || ''
         }));
@@ -1165,7 +1189,10 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. นำเข้า Excel (Admin) — ปรับปรุง รองรับผู้ลงรับ
+// 17. นำเข้า Excel (Admin) — แก้ไขแล้ว (ลบ description, ใช้วันที่จากไฟล์)
+// ==========================================
+// ==========================================
+// 17. นำเข้า Excel (Admin) — แก้ไขแล้ว
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
@@ -1210,11 +1237,11 @@ async function importFromExcel(event) {
 
             // ✅ ดึงรายชื่อบุคลากรทั้งหมดเพื่อ map ผู้ลงรับ
             const { data: personnelList, error: personnelErr } = await db.from('core_personnel')
-                .select('id, first_name, last_name, prefix')
+                .select('id, prefix, first_name, last_name')
                 .order('first_name', { ascending: true });
             if (personnelErr) console.warn('ไม่สามารถโหลดรายชื่อบุคลากรเพื่อ map ผู้ลงรับ', personnelErr);
 
-            // สร้าง mapping ชื่อเต็ม -> id
+            // ✅ สร้าง mapping ชื่อเต็ม -> id
             const nameToId = {};
             if (personnelList) {
                 personnelList.forEach(p => {
@@ -1236,7 +1263,7 @@ async function importFromExcel(event) {
                         continue;
                     }
 
-                    // วันที่
+                    // ✅ วันที่ — อ่านจากไฟล์ Excel
                     const receiveDate = parseThaiDate(row['วันที่ลงรับ']) || new Date().toISOString().slice(0, 10);
                     const docDate = parseThaiDate(row['ลงวันที่']) || new Date().toISOString().slice(0, 10);
 
@@ -1250,21 +1277,18 @@ async function importFromExcel(event) {
                         }
                     }
 
-                    // 🔍 ค้นหาผู้ลงรับจากชื่อในไฟล์ (คอลัมน์: "ผู้ลงรับ", "ผู้บันทึก", "บันทึกโดย", "recorder")
-                    let recorderId = currentUser.id; // default
+                    // 🔍 ค้นหาผู้ลงรับจากชื่อในไฟล์
+                    let recorderId = currentUser.id;
                     let recorderName = row['ผู้ลงรับ'] || row['ผู้บันทึก'] || row['บันทึกโดย'] || row['recorder'] || '';
                     let recorderFound = false;
                     if (recorderName && typeof recorderName === 'string' && recorderName.trim() !== '') {
                         const trimmedName = recorderName.trim();
-                        // พยายาม map จากชื่อเต็ม
                         if (nameToId[trimmedName]) {
                             recorderId = nameToId[trimmedName];
                             recorderFound = true;
                         } else {
-                            // ลองแยกชื่อ-นามสกุล (อาจมีคำนำหน้า)
                             const parts = trimmedName.split(/\s+/);
                             if (parts.length >= 2) {
-                                // ลองหาจากชื่อ+นามสกุล (ไม่รวมคำนำหน้า)
                                 const firstName = parts[0];
                                 const lastName = parts.slice(1).join(' ');
                                 const fullNameNoPrefix = `${firstName} ${lastName}`;
@@ -1274,18 +1298,12 @@ async function importFromExcel(event) {
                                 }
                             }
                             if (!recorderFound) {
-                                // หาจาก last_name เฉยๆ? อาจมีหลายคน งั้นข้าม
                                 console.warn(`ไม่พบผู้ลงรับ "${trimmedName}" ในระบบ จะใช้ผู้ใช้ปัจจุบันแทน`);
                             }
                         }
                     }
 
-                    // ถ้าไม่พบ ให้ใช้ currentUser และบันทึกชื่อเดิมในหมายเหตุ
-                    let note = '';
-                    if (!recorderFound && recorderName) {
-                        note = `(นำเข้า: ผู้ลงรับเดิม "${recorderName}")`;
-                    }
-
+                    // ✅ สร้าง docData (ไม่มี description)
                     const docData = {
                         receive_number: String(row['เลขทะเบียนรับ']).trim(),
                         receive_date: receiveDate,
@@ -1301,11 +1319,6 @@ async function importFromExcel(event) {
                         file_url: row['ไฟล์แนบ'] || null,
                         recorder_id: recorderId
                     };
-
-                    // ถ้ามี note ให้เพิ่ม description
-                    if (note) {
-                        docData.description = note;
-                    }
 
                     const { error } = await db.from('module_sarabun_docs').insert([docData]);
                     if (error) {
@@ -1360,7 +1373,7 @@ function parseThaiDate(thaiDateStr) {
     if (str === '') return null;
 
     const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-                    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
     let day, month, year;
 
@@ -1370,7 +1383,7 @@ function parseThaiDate(thaiDateStr) {
         month = months.indexOf(parts[1]);
         if (month === -1) {
             const shortMonths = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-                                 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+                'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
             month = shortMonths.indexOf(parts[1]);
         }
         year = parseInt(parts[2]);
@@ -1395,11 +1408,44 @@ function parseThaiDate(thaiDateStr) {
 // ==========================================
 // 19. Telegram
 // ==========================================
+// async function sendTelegram(docData) {
+//     if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) return;
+//     if (!systemSettings.gas_api_url) return;
+//     try {
+//         await fetch(systemSettings.gas_api_url, {
+//             method: 'POST',
+//             body: JSON.stringify({
+//                 action: 'notify_telegram',
+//                 token: systemSettings.telegram_token,
+//                 chatId: systemSettings.telegram_chat_id,
+//                 webUrl: window.location.href,
+//                 doc: docData
+//             })
+//         });
+//     } catch (err) { console.error('Telegram Error:', err); }
+// }
+
+// ==========================================
+// 19. Telegram
+// ==========================================
 async function sendTelegram(docData) {
-    if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) return;
-    if (!systemSettings.gas_api_url) return;
+    console.log('🔍 sendTelegram called');
+    console.log('🔍 systemSettings.telegram_token:', systemSettings.telegram_token ? '✅ มี' : '❌ ไม่มี');
+    console.log('🔍 systemSettings.telegram_chat_id:', systemSettings.telegram_chat_id ? '✅ มี' : '❌ ไม่มี');
+    console.log('🔍 systemSettings.gas_api_url:', systemSettings.gas_api_url ? '✅ มี' : '❌ ไม่มี');
+
+    if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) {
+        console.warn('⚠️ ไม่มี Telegram Token หรือ Chat ID');
+        return;
+    }
+    if (!systemSettings.gas_api_url) {
+        console.warn('⚠️ ไม่มี GAS API URL');
+        return;
+    }
+
+    console.log('✅ กำลังส่ง Telegram...', docData);
     try {
-        await fetch(systemSettings.gas_api_url, {
+        const response = await fetch(systemSettings.gas_api_url, {
             method: 'POST',
             body: JSON.stringify({
                 action: 'notify_telegram',
@@ -1409,5 +1455,20 @@ async function sendTelegram(docData) {
                 doc: docData
             })
         });
-    } catch (err) { console.error('Telegram Error:', err); }
+        const text = await response.text();
+        console.log('📨 Telegram response:', text);
+
+        try {
+            const result = JSON.parse(text);
+            if (result.status === 'success') {
+                console.log('✅ Telegram ส่งสำเร็จ');
+            } else {
+                console.error('❌ Telegram error:', result.message);
+            }
+        } catch (e) {
+            console.error('❌ GAS ตอบกลับไม่ใช่ JSON:', text);
+        }
+    } catch (err) {
+        console.error('❌ Fetch error:', err);
+    }
 }
