@@ -17,7 +17,6 @@ window.onload = async () => {
     initUIComponents();
     initCropperEvents();
     await loadSettings();
-    await loadDocuments();
 };
 
 // ==========================================
@@ -166,8 +165,26 @@ async function logout() {
 // 4. UI Components
 // ==========================================
 function initUIComponents() {
-    document.querySelectorAll('.tom-select-single').forEach(el => new TomSelect(el, { create: true }));
-    document.querySelectorAll('.tom-select-multi').forEach(el => new TomSelect(el, { plugins: ['remove_button'] }));
+    // ✅ TomSelect Single
+    document.querySelectorAll('.tom-select-single').forEach(el => {
+        // ทำลาย instance เก่า
+        if (el.tomselect) el.tomselect.destroy();
+        new TomSelect(el, {
+            create: true,
+            dropdownParent: 'body',   // ✅ สำคัญ! ให้ dropdown อยู่เหนือทุกอย่าง
+            plugins: ['clear_button']
+        });
+    });
+
+    // ✅ TomSelect Multi
+    document.querySelectorAll('.tom-select-multi').forEach(el => {
+        if (el.tomselect) el.tomselect.destroy();
+        new TomSelect(el, {
+            plugins: ['remove_button'],
+            dropdownParent: 'body',   // ✅ สำคัญ!
+            create: true
+        });
+    });
 
     flatpickr(".thai-datepicker", {
         locale: "th",
@@ -381,6 +398,11 @@ async function submitDocument(e) {
     const fileInput = document.getElementById('doc_file');
     let fileUrl = null;
 
+    // ✅ Log ค่าจากฟอร์ม
+    const speedLevel = document.getElementById('doc_speed').value;
+    const secretLevel = document.getElementById('doc_secret').value;
+    console.log('🔍 ฟอร์ม submit: speed_level =', speedLevel, 'secret_level =', secretLevel);
+
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
@@ -406,8 +428,8 @@ async function submitDocument(e) {
         const docData = {
             receive_number: document.getElementById('doc_receive_number').value,
             receive_date: document.getElementById('doc_receive_date').value,
-            speed_level: document.getElementById('doc_speed').value,
-            secret_level: document.getElementById('doc_secret').value,
+            speed_level: speedLevel,
+            secret_level: secretLevel,
             doc_number: document.getElementById('doc_number').value,
             doc_date: document.getElementById('doc_date').value,
             doc_from: document.getElementById('doc_from').value,
@@ -418,6 +440,8 @@ async function submitDocument(e) {
             file_url: fileUrl,
             recorder_id: currentUser.id
         };
+
+        console.log('📦 docData ที่จะบันทึก:', docData);
 
         const { error } = await db.from('module_sarabun_docs').insert([docData]);
         if (error) {
@@ -438,21 +462,29 @@ async function submitDocument(e) {
         }
 
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
-            await sendTelegram({
+            const telegramData = {
                 ...docData,
-                recorder_name: `${currentProfile.first_name} ${currentProfile.last_name}`
-            });
+                receive_date: formatThaiDate(docData.receive_date),   // แปลงวันที่เป็นไทย
+                recorder_name: `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`  // เพิ่มคำนำหน้า
+            };
+            await sendTelegram(telegramData);
         }
 
         Swal.fire('สำเร็จ', 'บันทึกหนังสือรับเข้าระบบเรียบร้อย', 'success').then(() => {
             document.getElementById('sarabunForm').reset();
             document.querySelectorAll('#sarabunForm .ts-wrapper').forEach(wrapper => {
-                const ts = wrapper.querySelector('select')?.tomselect;
-                if (ts) ts.clear();
+                const selectEl = wrapper.querySelector('select');
+                const ts = selectEl?.tomselect;
+                if (ts) {
+                    ts.clear();
+                    // ✅ ตั้งค่าเริ่มต้นให้กับ doc_speed และ doc_secret
+                    if (selectEl.id === 'doc_speed' || selectEl.id === 'doc_secret') {
+                        ts.setValue('ปกติ');
+                    }
+                }
             });
             nextStep(1);
             toggleAdminPanel('table');
-            // รีเฟรช DataTables
             if (teacherTable) teacherTable.ajax.reload(null, false);
             if (adminTable) adminTable.ajax.reload(null, false);
         });
@@ -499,41 +531,55 @@ function loadDocuments() {
         responsive: true,
         processing: true,
         serverSide: true,
-        ajax: function(dtParams, callback, settings) {
+        ajax: function (dtParams, callback, settings) {
             loadTableDataServerSide(dtParams, callback, 'teacher');
         },
         columns: [
             { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
             { data: 'receive_number', className: 'whitespace-nowrap' },
-            { data: 'doc_number', className: 'whitespace-nowrap' },          // คอลัมน์ที่ 2
-            { data: 'doc_subject', render: (d) => {
-                if (!d) return '-';
-                return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
-            }, className: 'max-w-[200px] truncate' },
-            { data: 'speed_level', render: (d) => {
-                const color = d && d.includes('ด่วน') ? 'red' : 'green';
-                return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
-            }, className: 'whitespace-nowrap' },
-            { data: 'id', orderable: false, render: (id) => 
-                `<button onclick="viewDoc('${id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm text-xs font-bold transition whitespace-nowrap">
+            { data: 'doc_number', className: 'whitespace-nowrap' },
+            {
+                data: 'doc_subject', render: (d) => {
+                    if (!d) return '-';
+                    return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
+                }, className: 'max-w-[200px] truncate'
+            },
+            {
+                data: 'speed_level', render: (d) => {
+                    const color = d && d.includes('ด่วน') ? 'red' : 'green';
+                    return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                }, className: 'whitespace-nowrap'
+            },
+            // ✅ เพิ่ม secret_level ในตาราง Teacher เพื่อให้เห็นความแตกต่าง
+            {
+                data: 'secret_level', render: (d) => {
+                    const color = d && (d === 'ลับ' || d === 'ลับมาก' || d === 'ลับที่สุด') ? 'purple' : 'gray';
+                    return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                }, className: 'whitespace-nowrap'
+            },
+            {
+                data: 'id', orderable: false, render: (id) =>
+                    `<button onclick="viewDoc('${id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm text-xs font-bold transition whitespace-nowrap">
                     <i class="fa-solid fa-eye mr-1 text-slate-500"></i> ดู
                 </button>`,
-                className: 'whitespace-nowrap' }
+                className: 'whitespace-nowrap'
+            }
         ],
         order: [
-            [0, 'desc'],   // ✅ receive_date ล่าสุดก่อน
-            [2, 'desc']    // ✅ doc_number มากก่อน (ถ้าวันที่ซ้ำ)
+            [0, 'desc'],
+            [2, 'desc']
         ],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         columnDefs: [
             { responsivePriority: 1, targets: 3 },
-            { responsivePriority: 2, targets: 5 },
+            { responsivePriority: 2, targets: 6 },
             { responsivePriority: 3, targets: 0 },
             { responsivePriority: 4, targets: 1 },
             { responsivePriority: 5, targets: 2 },
-            { responsivePriority: 6, targets: 4 }
+            { responsivePriority: 6, targets: 4 },
+            { responsivePriority: 7, targets: 5 }
         ]
     });
 
@@ -546,38 +592,79 @@ function loadDocuments() {
             responsive: true,
             processing: true,
             serverSide: true,
-            ajax: function(dtParams, callback, settings) {
+            ajax: function (dtParams, callback, settings) {
                 loadTableDataServerSide(dtParams, callback, 'admin');
             },
             columns: [
-                { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
-                { data: 'receive_number', className: 'whitespace-nowrap' },
-                { data: 'doc_subject', render: (d) => {
-                    if (!d) return '-';
-                    return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
-                }, className: 'max-w-[200px] truncate' },
-                { data: 'recorder_name', defaultContent: '-', className: 'whitespace-nowrap' },
-                { data: 'id', orderable: false, render: (id) => `
-                    <div class="flex gap-1 justify-center flex-wrap">
-                        <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
-                        <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
-                        <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
-                    </div>
-                `, className: 'whitespace-nowrap' }
+                {
+                    data: 'receive_date',
+                    render: (d) => formatThaiDate(d),
+                    className: 'whitespace-nowrap'
+                },
+                {
+                    data: 'receive_number',
+                    className: 'whitespace-nowrap'
+                },
+                {
+                    data: 'doc_subject',
+                    render: (d) => {
+                        if (!d) return '-';
+                        return d.length > 40
+                            ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>`
+                            : escapeHtml(d);
+                    },
+                    className: 'max-w-[200px] truncate'
+                },
+                {
+                    data: 'speed_level',
+                    render: (d) => {
+                        const color = d && d.includes('ด่วน') ? 'red' : 'green';
+                        return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                    },
+                    className: 'whitespace-nowrap'
+                },
+                {
+                    data: 'secret_level',
+                    render: (d) => {
+                        const color = d && (d === 'ลับ' || d === 'ลับมาก' || d === 'ลับที่สุด') ? 'purple' : 'gray';
+                        return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                    },
+                    className: 'whitespace-nowrap'
+                },
+                {
+                    data: 'recorder_name',
+                    defaultContent: '-',
+                    className: 'whitespace-nowrap',
+                    orderable: false   // ✅ ตั้งค่าไม่ให้เรียงลำดับ
+                },
+                {
+                    data: 'id',
+                    orderable: false,  // ✅ ตั้งค่าไม่ให้เรียงลำดับ
+                    render: (id) => `
+                <div class="flex gap-1 justify-center flex-wrap">
+                    <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
+                    <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
+                    <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            `,
+                    className: 'whitespace-nowrap'
+                }
             ],
             order: [
-                [0, 'desc'],   // ✅ receive_date ล่าสุดก่อน
-                [1, 'desc']    // ✅ receive_number มากก่อน (ถ้าวันที่ซ้ำ)
+                [0, 'desc'],  // เรียงตาม receive_date (คอลัมน์ index 0)
+                [1, 'desc']   // แล้วตาม receive_number (คอลัมน์ index 1)
             ],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             columnDefs: [
-                { responsivePriority: 1, targets: 2 },
-                { responsivePriority: 2, targets: 4 },
-                { responsivePriority: 3, targets: 0 },
-                { responsivePriority: 4, targets: 1 },
-                { responsivePriority: 5, targets: 3 }
+                { responsivePriority: 1, targets: 2 }, // เรื่อง
+                { responsivePriority: 2, targets: 6 }, // ปุ่มจัดการ
+                { responsivePriority: 3, targets: 0 }, // วันที่รับ
+                { responsivePriority: 4, targets: 1 }, // เลขรับ
+                { responsivePriority: 5, targets: 3 }, // ความเร็ว
+                { responsivePriority: 6, targets: 4 }, // ความลับ
+                { responsivePriority: 7, targets: 5 }  // ผู้บันทึก
             ]
         });
     }
@@ -615,23 +702,28 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
                 const colIndex = ord.column;
                 let colName = 'receive_date';
                 if (tableType === 'teacher') {
-                    const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level'];
+                    const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level', 'secret_level', null, null];
                     colName = colMap[colIndex] || 'receive_date';
                 } else {
-                    const colMap = ['receive_date', 'receive_number', 'doc_subject', 'recorder_name'];
+                    // ✅ เอา recorder_name ออก (ไม่สามารถเรียงโดยตรง)
+                    const colMap = ['receive_date', 'receive_number', 'doc_subject', 'speed_level', 'secret_level'];
                     colName = colMap[colIndex] || 'receive_date';
                 }
                 query = query.order(colName, { ascending: ord.dir === 'asc' });
             }
         } else {
-            // ค่าเริ่มต้น: receive_date ล่าสุดก่อน
             query = query.order('receive_date', { ascending: false });
         }
 
         // Pagination
         const { data, error, count } = await query.range(start, start + length - 1);
 
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Query error:', error);
+            throw error;
+        }
+
+        console.log('📊 ข้อมูลจาก DB ตัวอย่าง:', data?.slice(0, 2));
 
         // แปลงข้อมูล
         const formattedData = (data || []).map(row => {
@@ -644,7 +736,8 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
                 receive_number: row.receive_number,
                 doc_number: row.doc_number,
                 doc_subject: row.doc_subject,
-                speed_level: row.speed_level,
+                speed_level: row.speed_level || 'ปกติ',
+                secret_level: row.secret_level || 'ปกติ',
                 doc_from: row.doc_from,
                 doc_to: row.doc_to,
                 doc_action: row.doc_action,
@@ -671,9 +764,7 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
         });
     }
 }
-// ==========================================
-// 10. View/Edit/Delete
-// ==========================================
+
 // ==========================================
 // 10. View/Edit/Delete
 // ==========================================
@@ -709,6 +800,8 @@ async function viewDoc(id) {
             <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ผู้ลงรับ:</span> 
                 <strong class="text-slate-800">${escapeHtml(data.core_personnel ? `${data.core_personnel.prefix || ''}${data.core_personnel.first_name} ${data.core_personnel.last_name}` : '-')}</strong>
             </div>
+            <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ชั้นความเร็ว:</span> <strong class="text-slate-800">${escapeHtml(data.speed_level || 'ปกติ')}</strong></div>
+            <div class="col-span-2 pt-1"><span class="text-slate-500 block mb-2">ชั้นความลับ:</span> <strong class="text-slate-800">${escapeHtml(data.secret_level || 'ปกติ')}</strong></div>
         </div>
     `;
     if (data.file_url) {
@@ -733,7 +826,7 @@ function closeModal() {
 }
 
 // ==========================================
-// 11. แก้ไขหนังสือ (Admin)
+// 11. แก้ไขหนังสือ (Admin) — ฉบับแก้ไขพร้อม TomSelect
 // ==========================================
 function closeEditModal() {
     const modal = document.getElementById('editDocModal');
@@ -755,6 +848,7 @@ async function editDoc(id) {
         return;
     }
 
+    // ✅ เติมข้อมูลลงฟอร์ม
     document.getElementById('edit_doc_id').value = data.id;
     document.getElementById('edit_receive_number').value = data.receive_number || '';
     document.getElementById('edit_receive_date').value = data.receive_date || '';
@@ -763,21 +857,8 @@ async function editDoc(id) {
     document.getElementById('edit_doc_from').value = data.doc_from || '';
     document.getElementById('edit_doc_subject').value = data.doc_subject || '';
     document.getElementById('edit_doc_to').value = data.doc_to || 'ผู้อำนวยการโรงเรียน';
-    document.getElementById('edit_speed_level').value = data.speed_level || 'ปกติ';
-    document.getElementById('edit_secret_level').value = data.secret_level || 'ปกติ';
-    document.getElementById('edit_doc_action').value = data.doc_action || 'มอบหมาย';
 
-    let relatedDepts = [];
-    try {
-        relatedDepts = JSON.parse(data.related_depts || '[]');
-    } catch (e) {
-        relatedDepts = [data.related_depts];
-    }
-    const relatedSelect = document.getElementById('edit_related_depts');
-    if (relatedSelect && relatedSelect.tomselect) {
-        relatedSelect.tomselect.setValue(relatedDepts);
-    }
-
+    // ✅ เปิด Modal
     const modal = document.getElementById('editDocModal');
     const content = document.getElementById('editModalContent');
     modal.classList.remove('hidden');
@@ -786,11 +867,61 @@ async function editDoc(id) {
         content.classList.remove('scale-95');
     }, 10);
 
-    flatpickr(".thai-datepicker", {
-        locale: "th",
-        dateFormat: "Y-m-d",
-        altInput: true,
-        altFormat: "d F Y"
+    // ✅ รีเซ็ต TomSelect ให้ dropdown แสดงถูกต้อง (dropdownParent = body)
+    setTimeout(() => {
+        // Single selects
+        document.querySelectorAll('#editDocModal .tom-select-single').forEach(el => {
+            if (el.tomselect) {
+                el.tomselect.destroy();
+            }
+            new TomSelect(el, {
+                create: true,
+                dropdownParent: 'body',   // ✅ สำคัญ!
+                plugins: ['clear_button']
+            });
+            // ตั้งค่าให้ตรงกับข้อมูล
+            if (el.id === 'edit_speed_level') {
+                el.tomselect.setValue(data.speed_level || 'ปกติ');
+            } else if (el.id === 'edit_secret_level') {
+                el.tomselect.setValue(data.secret_level || 'ปกติ');
+            } else if (el.id === 'edit_doc_action') {
+                el.tomselect.setValue(data.doc_action || 'มอบหมาย');
+            }
+        });
+
+        // Multi selects
+        document.querySelectorAll('#editDocModal .tom-select-multi').forEach(el => {
+            if (el.tomselect) {
+                el.tomselect.destroy();
+            }
+            new TomSelect(el, {
+                plugins: ['remove_button'],
+                dropdownParent: 'body',   // ✅ สำคัญ!
+                create: true
+            });
+            if (el.id === 'edit_related_depts') {
+                let relatedDepts = [];
+                try {
+                    relatedDepts = JSON.parse(data.related_depts || '[]');
+                } catch (e) {
+                    relatedDepts = [data.related_depts];
+                }
+                el.tomselect.setValue(relatedDepts);
+            }
+        });
+    }, 100);
+
+    // ✅ เปิด Flatpickr สำหรับวันที่ (ถ้ายังไม่ถูกสร้าง)
+    const datepickers = document.querySelectorAll('#editDocModal .thai-datepicker');
+    datepickers.forEach(el => {
+        if (!el._flatpickr) {
+            flatpickr(el, {
+                locale: "th",
+                dateFormat: "Y-m-d",
+                altInput: true,
+                altFormat: "d F Y"
+            });
+        }
     });
 }
 
@@ -943,10 +1074,11 @@ function closeSettingsModal() {
 async function loadSettings(forceRefresh = false) {
     if (settingsCache && !forceRefresh) {
         systemSettings = settingsCache;
-        document.getElementById('set_gas_url').value = settingsCache.gas_api_url || '';
-        document.getElementById('set_folder_id').value = settingsCache.gas_folder_id || '';
-        document.getElementById('set_telegram_token').value = settingsCache.telegram_token || '';
-        document.getElementById('set_telegram_chat').value = settingsCache.telegram_chat_id || '';
+        // ✅ ใช้ Optional Chaining หรือตรวจสอบ null
+        document.getElementById('set_gas_url').value = settingsCache?.gas_api_url || '';
+        document.getElementById('set_folder_id').value = settingsCache?.gas_folder_id || '';
+        document.getElementById('set_telegram_token').value = settingsCache?.telegram_token || '';
+        document.getElementById('set_telegram_chat').value = settingsCache?.telegram_chat_id || '';
         return;
     }
     try {
@@ -954,7 +1086,13 @@ async function loadSettings(forceRefresh = false) {
             .select('*')
             .eq('id', 1)
             .maybeSingle();
-        if (error) { console.error("Error loading settings:", error); return; }
+        if (error) {
+            console.error("Error loading settings:", error);
+            // ✅ ตั้งค่า default
+            systemSettings = {};
+            settingsCache = {};
+            return;
+        }
         if (data) {
             systemSettings = data;
             settingsCache = data;
@@ -962,8 +1100,16 @@ async function loadSettings(forceRefresh = false) {
             document.getElementById('set_folder_id').value = data.gas_folder_id || '';
             document.getElementById('set_telegram_token').value = data.telegram_token || '';
             document.getElementById('set_telegram_chat').value = data.telegram_chat_id || '';
+        } else {
+            // ✅ ถ้าไม่มีข้อมูลในฐานข้อมูล ให้สร้าง object ว่าง
+            systemSettings = {};
+            settingsCache = {};
         }
-    } catch (e) { console.error("System Error:", e); }
+    } catch (e) {
+        console.error("System Error:", e);
+        systemSettings = {};
+        settingsCache = {};
+    }
 }
 
 async function saveSettings() {
@@ -1128,9 +1274,6 @@ async function removeModuleAdmin(recordId) {
 // ==========================================
 // 16. ส่งออก Excel (Admin)
 // ==========================================
-// ==========================================
-// 16. ส่งออก Excel (Admin)
-// ==========================================
 async function exportToExcel() {
     if (!isAdminMode) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถส่งออกข้อมูลได้', 'warning');
@@ -1151,7 +1294,6 @@ async function exportToExcel() {
             return;
         }
 
-        // ✅ สร้าง rows โดยใช้ prefix
         const rows = data.map(d => ({
             'วันที่ลงรับ': formatThaiDate(d.receive_date),
             'เลขทะเบียนรับ': d.receive_number,
@@ -1160,8 +1302,8 @@ async function exportToExcel() {
             'จาก': d.doc_from,
             'ถึง': d.doc_to,
             'เรื่อง': d.doc_subject,
-            'ชั้นความเร็ว': d.speed_level,
-            'ชั้นความลับ': d.secret_level,
+            'ชั้นความเร็ว': d.speed_level || 'ปกติ',
+            'ชั้นความลับ': d.secret_level || 'ปกติ',
             'การดำเนินการ': d.doc_action,
             'ผู้ลงรับ': `${d.core_personnel.prefix || ''}${d.core_personnel.first_name} ${d.core_personnel.last_name}`,
             'กลุ่มที่เกี่ยวข้อง': d.related_depts ? JSON.parse(d.related_depts).join(', ') : '',
@@ -1189,10 +1331,7 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. นำเข้า Excel (Admin) — แก้ไขแล้ว (ลบ description, ใช้วันที่จากไฟล์)
-// ==========================================
-// ==========================================
-// 17. นำเข้า Excel (Admin) — แก้ไขแล้ว
+// 17. นำเข้า Excel (Admin)
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
@@ -1235,13 +1374,13 @@ async function importFromExcel(event) {
                 return;
             }
 
-            // ✅ ดึงรายชื่อบุคลากรทั้งหมดเพื่อ map ผู้ลงรับ
+            // ดึงรายชื่อบุคลากรทั้งหมดเพื่อ map ผู้ลงรับ
             const { data: personnelList, error: personnelErr } = await db.from('core_personnel')
                 .select('id, prefix, first_name, last_name')
                 .order('first_name', { ascending: true });
             if (personnelErr) console.warn('ไม่สามารถโหลดรายชื่อบุคลากรเพื่อ map ผู้ลงรับ', personnelErr);
 
-            // ✅ สร้าง mapping ชื่อเต็ม -> id
+            // สร้าง mapping ชื่อเต็ม -> id
             const nameToId = {};
             if (personnelList) {
                 personnelList.forEach(p => {
@@ -1263,7 +1402,7 @@ async function importFromExcel(event) {
                         continue;
                     }
 
-                    // ✅ วันที่ — อ่านจากไฟล์ Excel
+                    // วันที่ — อ่านจากไฟล์ Excel
                     const receiveDate = parseThaiDate(row['วันที่ลงรับ']) || new Date().toISOString().slice(0, 10);
                     const docDate = parseThaiDate(row['ลงวันที่']) || new Date().toISOString().slice(0, 10);
 
@@ -1277,7 +1416,7 @@ async function importFromExcel(event) {
                         }
                     }
 
-                    // 🔍 ค้นหาผู้ลงรับจากชื่อในไฟล์
+                    // ค้นหาผู้ลงรับจากชื่อในไฟล์
                     let recorderId = currentUser.id;
                     let recorderName = row['ผู้ลงรับ'] || row['ผู้บันทึก'] || row['บันทึกโดย'] || row['recorder'] || '';
                     let recorderFound = false;
@@ -1303,7 +1442,6 @@ async function importFromExcel(event) {
                         }
                     }
 
-                    // ✅ สร้าง docData (ไม่มี description)
                     const docData = {
                         receive_number: String(row['เลขทะเบียนรับ']).trim(),
                         receive_date: receiveDate,
@@ -1404,26 +1542,6 @@ function parseThaiDate(thaiDateStr) {
 
     return null;
 }
-
-// ==========================================
-// 19. Telegram
-// ==========================================
-// async function sendTelegram(docData) {
-//     if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) return;
-//     if (!systemSettings.gas_api_url) return;
-//     try {
-//         await fetch(systemSettings.gas_api_url, {
-//             method: 'POST',
-//             body: JSON.stringify({
-//                 action: 'notify_telegram',
-//                 token: systemSettings.telegram_token,
-//                 chatId: systemSettings.telegram_chat_id,
-//                 webUrl: window.location.href,
-//                 doc: docData
-//             })
-//         });
-//     } catch (err) { console.error('Telegram Error:', err); }
-// }
 
 // ==========================================
 // 19. Telegram
