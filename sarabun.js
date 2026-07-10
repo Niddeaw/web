@@ -476,11 +476,19 @@ async function submitDocument(e) {
                 const selectEl = wrapper.querySelector('select');
                 const ts = selectEl?.tomselect;
                 if (ts) {
+                    // ✅ เคลียร์ค่าทั้งหมด
                     ts.clear();
-                    // ✅ ตั้งค่าเริ่มต้นให้กับ doc_speed และ doc_secret
+
+                    // ✅ ตั้งค่าเริ่มต้นให้ฟิลด์ Single Select
                     if (selectEl.id === 'doc_speed' || selectEl.id === 'doc_secret') {
                         ts.setValue('ปกติ');
                     }
+                    if (selectEl.id === 'doc_action') {
+                        ts.setValue('มอบหมาย');
+                    }
+
+                    // ✅ Multi Select (doc_related) ใช้แค่ clear() ก็พอ
+                    // เพราะไม่ต้องการค่าเริ่มต้น
                 }
             });
             nextStep(1);
