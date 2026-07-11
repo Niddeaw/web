@@ -18,6 +18,7 @@ window.onload = async () => {
     initUIComponents();
     initCropperEvents();
     await loadSettings();
+    await loadDashboardStats(); // ✅ เพิ่มบรรทัดนี้
 };
 
 // ==========================================
@@ -708,6 +709,33 @@ function loadDocuments() {
                 { responsivePriority: 7, targets: 5 }
             ]
         });
+    }
+}
+
+// ==========================================
+// Dashboard: โหลดสถิติจำนวนหนังสือ
+// ==========================================
+async function loadDashboardStats() {
+    try {
+        const [total, urgentMost, urgent, normal, spm] = await Promise.all([
+            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }),
+            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).eq('speed_level', 'ด่วนที่สุด'),
+            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).eq('speed_level', 'ด่วน'),
+            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).or('speed_level.is.null,speed_level.eq.ปกติ'),
+            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).ilike('doc_from', '%สพม.นครปฐม%')
+        ]);
+
+        const other = total.count - spm.count;
+
+        document.getElementById('stat-total').textContent = total.count;
+        document.getElementById('stat-urgent-most').textContent = urgentMost.count;
+        document.getElementById('stat-urgent').textContent = urgent.count;
+        document.getElementById('stat-normal').textContent = normal.count;
+        document.getElementById('stat-spm').textContent = spm.count;
+        document.getElementById('stat-other').textContent = other;
+
+    } catch (err) {
+        console.error('❌ Error loading dashboard stats:', err);
     }
 }
 
