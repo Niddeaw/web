@@ -1,4 +1,5 @@
 // sarabun.js - ฉบับปรับปรุงสมบูรณ์ (Server-side DataTables, Excel, RLS, วันที่ไทย, Responsive)
+// แก้ไข TomSelect Multi ให้สามารถพิมพ์เพิ่มได้ทั้งฟอร์มบันทึกและแก้ไข
 let currentUser = null;
 let currentProfile = null;
 let userRole = null;
@@ -32,6 +33,19 @@ function formatThaiDate(dateStr) {
     const month = months[d.getMonth()];
     const year = d.getFullYear() + 543;
     return `${day} ${month} ${year}`;
+}
+
+// ==========================================
+// ฟังก์ชันแปลงวันที่สำหรับ input (YYYY-MM-DD) ให้ใช้ local time
+// ==========================================
+function formatDateForInput(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 // ==========================================
@@ -165,25 +179,50 @@ async function logout() {
 // 4. UI Components
 // ==========================================
 function initUIComponents() {
-    // ✅ TomSelect Single
+    // ✅ TomSelect Single – เฉพาะฟิลด์ที่ต้องการ (ข้าม doc_speed, doc_secret, edit_speed_level, edit_secret_level)
     document.querySelectorAll('.tom-select-single').forEach(el => {
-        // ทำลาย instance เก่า
+        // ข้ามฟิลด์ที่เราใช้ select ธรรมดา
+        if (el.id === 'doc_speed' || el.id === 'doc_secret' ||
+            el.id === 'edit_speed_level' || el.id === 'edit_secret_level') {
+            return;
+        }
         if (el.tomselect) el.tomselect.destroy();
         new TomSelect(el, {
             create: true,
-            dropdownParent: 'body',   // ✅ สำคัญ! ให้ dropdown อยู่เหนือทุกอย่าง
+            dropdownParent: 'body',
             plugins: ['clear_button']
         });
     });
 
-    // ✅ TomSelect Multi
+    // ✅ TomSelect Multi – สำหรับผู้เกี่ยวข้อง (doc_related, edit_related_depts)
     document.querySelectorAll('.tom-select-multi').forEach(el => {
         if (el.tomselect) el.tomselect.destroy();
-        new TomSelect(el, {
+        console.log(`🔄 Creating TomSelect for ${el.id}`);
+        const config = {
             plugins: ['remove_button'],
-            dropdownParent: 'body',   // ✅ สำคัญ!
-            create: true
-        });
+            dropdownParent: 'body',
+            create: function(input, callback) {
+                console.log(`🔍 create called with input: "${input}"`);
+                if (input && input.trim().length > 0) {
+                    callback({
+                        value: input.trim(),
+                        text: input.trim()
+                    });
+                } else {
+                    callback(null);
+                }
+            },
+            createFilter: null,      // ไม่ต้องกรอง
+            persist: true,           // เก็บค่าที่สร้าง
+            delimiter: ',',
+            createOnBlur: true,
+            maxItems: null,
+            placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...',
+            onItemAdd: (value) => { console.log(`✅ Item added: ${value}`); },
+            onItemRemove: (value) => { console.log(`🗑️ Item removed: ${value}`); }
+        };
+        const ts = new TomSelect(el, config);
+        console.log(`✅ TomSelect created for ${el.id}`, ts);
     });
 
     flatpickr(".thai-datepicker", {
@@ -398,7 +437,6 @@ async function submitDocument(e) {
     const fileInput = document.getElementById('doc_file');
     let fileUrl = null;
 
-    // ✅ Log ค่าจากฟอร์ม
     const speedLevel = document.getElementById('doc_speed').value;
     const secretLevel = document.getElementById('doc_secret').value;
     console.log('🔍 ฟอร์ม submit: speed_level =', speedLevel, 'secret_level =', secretLevel);
@@ -418,7 +456,7 @@ async function submitDocument(e) {
         const relatedTomSelect = relatedSelectEl && relatedSelectEl.tomselect;
         const relatedDepts = relatedTomSelect
             ? relatedTomSelect.getValue()
-            : Array.from(relatedSelectEl.options).filter(opt => opt.selected).map(opt => opt.value);
+            : [];
 
         if (!currentUser || !currentUser.id) {
             Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบข้อมูลผู้ใช้ กรุณาล็อกอินใหม่', 'error');
@@ -464,33 +502,29 @@ async function submitDocument(e) {
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
             const telegramData = {
                 ...docData,
-                receive_date: formatThaiDate(docData.receive_date),   // แปลงวันที่เป็นไทย
-                recorder_name: `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`  // เพิ่มคำนำหน้า
+                receive_date: formatThaiDate(docData.receive_date),
+                recorder_name: `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`
             };
             await sendTelegram(telegramData);
         }
 
         Swal.fire('สำเร็จ', 'บันทึกหนังสือรับเข้าระบบเรียบร้อย', 'success').then(() => {
+            // ✅ รีเซ็ตฟอร์มทั่วไป
             document.getElementById('sarabunForm').reset();
-            document.querySelectorAll('#sarabunForm .ts-wrapper').forEach(wrapper => {
-                const selectEl = wrapper.querySelector('select');
-                const ts = selectEl?.tomselect;
-                if (ts) {
-                    // ✅ เคลียร์ค่าทั้งหมด
-                    ts.clear();
 
-                    // ✅ ตั้งค่าเริ่มต้นให้ฟิลด์ Single Select
-                    if (selectEl.id === 'doc_speed' || selectEl.id === 'doc_secret') {
-                        ts.setValue('ปกติ');
-                    }
-                    if (selectEl.id === 'doc_action') {
-                        ts.setValue('มอบหมาย');
-                    }
+            // ✅ ตั้งค่า select ธรรมดาให้เป็นค่าเริ่มต้น
+            document.getElementById('doc_speed').value = 'ปกติ';
+            document.getElementById('doc_secret').value = 'ปกติ';
+            document.getElementById('doc_action').value = 'มอบหมาย';
 
-                    // ✅ Multi Select (doc_related) ใช้แค่ clear() ก็พอ
-                    // เพราะไม่ต้องการค่าเริ่มต้น
-                }
-            });
+            // ✅ เคลียร์เฉพาะ TomSelect Multi (doc_related) และตั้งค่าเริ่มต้น
+            const relatedSelect = document.getElementById('doc_related');
+            if (relatedSelect && relatedSelect.tomselect) {
+                relatedSelect.tomselect.clear();
+                // หลังจากเคลียร์แล้วไม่ต้อง set value เพราะต้องการให้ว่าง
+            }
+
+            // ✅ กลับไป step 1 และเปลี่ยน panel
             nextStep(1);
             toggleAdminPanel('table');
             if (teacherTable) teacherTable.ajax.reload(null, false);
@@ -558,7 +592,6 @@ function loadDocuments() {
                     return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
                 }, className: 'whitespace-nowrap'
             },
-            // ✅ เพิ่ม secret_level ในตาราง Teacher เพื่อให้เห็นความแตกต่าง
             {
                 data: 'secret_level', render: (d) => {
                     const color = d && (d === 'ลับ' || d === 'ลับมาก' || d === 'ลับที่สุด') ? 'purple' : 'gray';
@@ -643,11 +676,11 @@ function loadDocuments() {
                     data: 'recorder_name',
                     defaultContent: '-',
                     className: 'whitespace-nowrap',
-                    orderable: false   // ✅ ตั้งค่าไม่ให้เรียงลำดับ
+                    orderable: false
                 },
                 {
                     data: 'id',
-                    orderable: false,  // ✅ ตั้งค่าไม่ให้เรียงลำดับ
+                    orderable: false,
                     render: (id) => `
                 <div class="flex gap-1 justify-center flex-wrap">
                     <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
@@ -659,20 +692,20 @@ function loadDocuments() {
                 }
             ],
             order: [
-                [0, 'desc'],  // เรียงตาม receive_date (คอลัมน์ index 0)
-                [1, 'desc']   // แล้วตาม receive_number (คอลัมน์ index 1)
+                [0, 'desc'],
+                [1, 'desc']
             ],
             pageLength: 25,
             lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
             language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
             columnDefs: [
-                { responsivePriority: 1, targets: 2 }, // เรื่อง
-                { responsivePriority: 2, targets: 6 }, // ปุ่มจัดการ
-                { responsivePriority: 3, targets: 0 }, // วันที่รับ
-                { responsivePriority: 4, targets: 1 }, // เลขรับ
-                { responsivePriority: 5, targets: 3 }, // ความเร็ว
-                { responsivePriority: 6, targets: 4 }, // ความลับ
-                { responsivePriority: 7, targets: 5 }  // ผู้บันทึก
+                { responsivePriority: 1, targets: 2 },
+                { responsivePriority: 2, targets: 6 },
+                { responsivePriority: 3, targets: 0 },
+                { responsivePriority: 4, targets: 1 },
+                { responsivePriority: 5, targets: 3 },
+                { responsivePriority: 6, targets: 4 },
+                { responsivePriority: 7, targets: 5 }
             ]
         });
     }
@@ -693,7 +726,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
                 core_personnel ( prefix, first_name, last_name )
             `, { count: 'exact', head: false });
 
-        // ค้นหา
         if (search.value) {
             const term = `%${search.value}%`;
             query = query.or(
@@ -704,7 +736,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
             );
         }
 
-        // ✅ เรียงลำดับแบบหลายคอลัมน์
         if (order && order.length > 0) {
             for (const ord of order) {
                 const colIndex = ord.column;
@@ -713,7 +744,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
                     const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level', 'secret_level', null, null];
                     colName = colMap[colIndex] || 'receive_date';
                 } else {
-                    // ✅ เอา recorder_name ออก (ไม่สามารถเรียงโดยตรง)
                     const colMap = ['receive_date', 'receive_number', 'doc_subject', 'speed_level', 'secret_level'];
                     colName = colMap[colIndex] || 'receive_date';
                 }
@@ -723,7 +753,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
             query = query.order('receive_date', { ascending: false });
         }
 
-        // Pagination
         const { data, error, count } = await query.range(start, start + length - 1);
 
         if (error) {
@@ -733,7 +762,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
 
         console.log('📊 ข้อมูลจาก DB ตัวอย่าง:', data?.slice(0, 2));
 
-        // แปลงข้อมูล
         const formattedData = (data || []).map(row => {
             const recorderName = row.core_personnel
                 ? `${row.core_personnel.prefix || ''}${row.core_personnel.first_name} ${row.core_personnel.last_name}`
@@ -777,7 +805,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
 // 10. View/Edit/Delete
 // ==========================================
 async function viewDoc(id) {
-    // ✅ ดึงข้อมูลพร้อม prefix
     const { data } = await db.from('module_sarabun_docs')
         .select('*, core_personnel(prefix, first_name, last_name)')
         .eq('id', id)
@@ -791,7 +818,6 @@ async function viewDoc(id) {
         relatedArray = [data.related_depts];
     }
 
-    // ✅ แสดงผู้ลงรับพร้อม prefix
     let html = `
         <div class="grid grid-cols-2 gap-y-4 gap-x-6 text-sm">
             <div class="col-span-2 sm:col-span-1 bg-slate-50 p-3 rounded-xl border border-slate-100"><span class="text-slate-500 block text-xs mb-1">เลขทะเบียนรับ</span> <strong class="text-blue-700 text-base">${escapeHtml(data.receive_number)}</strong></div>
@@ -834,7 +860,7 @@ function closeModal() {
 }
 
 // ==========================================
-// 11. แก้ไขหนังสือ (Admin) — ฉบับแก้ไขพร้อม TomSelect
+// 11. แก้ไขหนังสือ (Admin) — ฉบับแก้ไขพร้อม TomSelect เฉพาะ Multi
 // ==========================================
 function closeEditModal() {
     const modal = document.getElementById('editDocModal');
@@ -844,93 +870,231 @@ function closeEditModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
+// ==========================================
+// แก้ไขฟังก์ชัน editDoc (ฉบับสมบูรณ์) - ใช้ select ธรรมดาสำหรับ speed/secret
+// ==========================================
 async function editDoc(id) {
-    if (!isAdminMode) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขหนังสือได้', 'warning');
-        return;
-    }
+    try {
+        console.log('🚀 editDoc started for id:', id);
 
-    const { data, error } = await db.from('module_sarabun_docs').select('*').eq('id', id).single();
-    if (error || !data) {
-        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลหนังสือ', 'error');
-        return;
-    }
-
-    // ✅ เติมข้อมูลลงฟอร์ม
-    document.getElementById('edit_doc_id').value = data.id;
-    document.getElementById('edit_receive_number').value = data.receive_number || '';
-    document.getElementById('edit_receive_date').value = data.receive_date || '';
-    document.getElementById('edit_doc_number').value = data.doc_number || '';
-    document.getElementById('edit_doc_date').value = data.doc_date || '';
-    document.getElementById('edit_doc_from').value = data.doc_from || '';
-    document.getElementById('edit_doc_subject').value = data.doc_subject || '';
-    document.getElementById('edit_doc_to').value = data.doc_to || 'ผู้อำนวยการโรงเรียน';
-
-    // ✅ เปิด Modal
-    const modal = document.getElementById('editDocModal');
-    const content = document.getElementById('editModalContent');
-    modal.classList.remove('hidden');
-    setTimeout(() => {
-        modal.classList.remove('opacity-0');
-        content.classList.remove('scale-95');
-    }, 10);
-
-    // ✅ รีเซ็ต TomSelect ให้ dropdown แสดงถูกต้อง (dropdownParent = body)
-    setTimeout(() => {
-        // Single selects
-        document.querySelectorAll('#editDocModal .tom-select-single').forEach(el => {
-            if (el.tomselect) {
-                el.tomselect.destroy();
-            }
-            new TomSelect(el, {
-                create: true,
-                dropdownParent: 'body',   // ✅ สำคัญ!
-                plugins: ['clear_button']
-            });
-            // ตั้งค่าให้ตรงกับข้อมูล
-            if (el.id === 'edit_speed_level') {
-                el.tomselect.setValue(data.speed_level || 'ปกติ');
-            } else if (el.id === 'edit_secret_level') {
-                el.tomselect.setValue(data.secret_level || 'ปกติ');
-            } else if (el.id === 'edit_doc_action') {
-                el.tomselect.setValue(data.doc_action || 'มอบหมาย');
-            }
-        });
-
-        // Multi selects
-        document.querySelectorAll('#editDocModal .tom-select-multi').forEach(el => {
-            if (el.tomselect) {
-                el.tomselect.destroy();
-            }
-            new TomSelect(el, {
-                plugins: ['remove_button'],
-                dropdownParent: 'body',   // ✅ สำคัญ!
-                create: true
-            });
-            if (el.id === 'edit_related_depts') {
-                let relatedDepts = [];
-                try {
-                    relatedDepts = JSON.parse(data.related_depts || '[]');
-                } catch (e) {
-                    relatedDepts = [data.related_depts];
-                }
-                el.tomselect.setValue(relatedDepts);
-            }
-        });
-    }, 100);
-
-    // ✅ เปิด Flatpickr สำหรับวันที่ (ถ้ายังไม่ถูกสร้าง)
-    const datepickers = document.querySelectorAll('#editDocModal .thai-datepicker');
-    datepickers.forEach(el => {
-        if (!el._flatpickr) {
-            flatpickr(el, {
-                locale: "th",
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "d F Y"
-            });
+        if (!isAdminMode) {
+            Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขหนังสือได้', 'warning');
+            return;
         }
-    });
+
+        const { data, error } = await db.from('module_sarabun_docs').select('*').eq('id', id).single();
+        if (error || !data) {
+            Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลหนังสือ', 'error');
+            return;
+        }
+
+        console.log('🔍 Data for edit:', data);
+        console.log('📅 receive_date raw:', data.receive_date);
+        console.log('📅 doc_date raw:', data.doc_date);
+        console.log('📦 related_depts raw:', data.related_depts);
+
+        // ✅ เติมข้อมูลทั่วไป
+        document.getElementById('edit_doc_id').value = data.id || '';
+        document.getElementById('edit_receive_number').value = data.receive_number || '';
+        document.getElementById('edit_doc_number').value = data.doc_number || '';
+        document.getElementById('edit_doc_from').value = data.doc_from || '';
+        document.getElementById('edit_doc_subject').value = data.doc_subject || '';
+        document.getElementById('edit_doc_to').value = data.doc_to || 'ผู้อำนวยการโรงเรียน';
+
+        // ✅ ตั้งค่า select ธรรมดา (speed, secret) โดยตรง
+        document.getElementById('edit_speed_level').value = data.speed_level || 'ปกติ';
+        document.getElementById('edit_secret_level').value = data.secret_level || 'ปกติ';
+
+        // ✅ ตั้งค่าวันที่ใน input
+        const receiveDateFormatted = formatDateForInput(data.receive_date);
+        const docDateFormatted = formatDateForInput(data.doc_date);
+        document.getElementById('edit_receive_date').value = receiveDateFormatted;
+        document.getElementById('edit_doc_date').value = docDateFormatted;
+        console.log('📅 receiveDateFormatted:', receiveDateFormatted);
+        console.log('📅 docDateFormatted:', docDateFormatted);
+
+        // ✅ เปิด Modal
+        const modal = document.getElementById('editDocModal');
+        const content = document.getElementById('editModalContent');
+        modal.classList.remove('hidden');
+        setTimeout(() => {
+            modal.classList.remove('opacity-0');
+            content.classList.remove('scale-95');
+        }, 10);
+
+        // ✅ หลังจาก Modal แสดง
+        setTimeout(() => {
+            try {
+                console.log('⏰ Starting UI setup...');
+
+                // ---- 1. Flatpickr ----
+                const receiveInput = document.getElementById('edit_receive_date');
+                const docInput = document.getElementById('edit_doc_date');
+
+                if (receiveInput) {
+                    if (receiveInput._flatpickr) receiveInput._flatpickr.destroy();
+                    flatpickr(receiveInput, {
+                        locale: "th",
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d F Y",
+                        defaultDate: receiveDateFormatted || null
+                    });
+                    console.log('✅ Flatpickr receive date set');
+                }
+
+                if (docInput) {
+                    if (docInput._flatpickr) docInput._flatpickr.destroy();
+                    flatpickr(docInput, {
+                        locale: "th",
+                        dateFormat: "Y-m-d",
+                        altInput: true,
+                        altFormat: "d F Y",
+                        defaultDate: docDateFormatted || null
+                    });
+                    console.log('✅ Flatpickr doc date set');
+                }
+
+                // ---- 2. TomSelect Single (เฉพาะ doc_action) ----
+                const actionSelect = document.getElementById('edit_doc_action');
+                if (actionSelect) {
+                    if (actionSelect.tomselect) actionSelect.tomselect.destroy();
+                    const ts = new TomSelect(actionSelect, {
+                        create: true,
+                        dropdownParent: 'body',
+                        plugins: ['clear_button']
+                    });
+                    ts.setValue(data.doc_action || 'มอบหมาย');
+                    console.log('✅ Action set');
+                }
+
+                // ---- 3. TomSelect Multi (กลุ่มที่เกี่ยวข้อง) ----
+                const relatedSelect = document.getElementById('edit_related_depts');
+                console.log('🔍 relatedSelect element:', relatedSelect);
+
+                if (relatedSelect) {
+                    // ทำลาย instance เก่า
+                    if (relatedSelect.tomselect) {
+                        relatedSelect.tomselect.destroy();
+                        console.log('✅ Destroyed old tomselect');
+                    }
+
+                    // แปลง related_depts
+                    let relatedDepts = [];
+                    const raw = data.related_depts;
+                    console.log('📦 raw related_depts for parse:', raw);
+
+                    if (raw) {
+                        try {
+                            if (typeof raw === 'string') {
+                                const trimmed = raw.trim();
+                                if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+                                    const parsed = JSON.parse(trimmed);
+                                    if (Array.isArray(parsed)) relatedDepts = parsed;
+                                    else if (typeof parsed === 'object') relatedDepts = Object.values(parsed);
+                                } else {
+                                    relatedDepts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
+                                }
+                            } else if (Array.isArray(raw)) {
+                                relatedDepts = raw;
+                            } else if (typeof raw === 'object' && raw !== null) {
+                                relatedDepts = Object.values(raw);
+                            }
+                        } catch (e) {
+                            console.error('❌ Error parsing related_depts:', e);
+                            relatedDepts = [];
+                        }
+                    }
+                    if (!Array.isArray(relatedDepts)) relatedDepts = [];
+                    relatedDepts = relatedDepts.map(v => typeof v === 'string' ? v.trim() : String(v).trim()).filter(Boolean);
+
+                    console.log('✅ relatedDepts after parse:', relatedDepts);
+
+                    // ✅ กำหนด default options ที่มีอยู่ทั้งหมด (เพื่อให้มีรายการให้เลือก)
+                    const defaultOptions = [
+                        'เก็บเข้าแฟ้ม', 'ทุกกลุ่มสาระฯ', 'ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์',
+                        'เทคโนโลยี', 'สังคมศึกษาฯ', 'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
+                        'ภาษาอังกฤษ', 'ภาษาจีน', 'IS', 'กิจกรรมพัฒนาผู้เรียน',
+                        'งานทะเบียนนักเรียน', 'งานวัดผลและเทียบโอนความรู้', 'งานห้องสมุดและแหล่งเรียนรู้',
+                        'งานแนะแนว', 'งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา', 'งานจัดการเรียนรวม',
+                        'งานบริหารหลักสูตรสถานศึกษา', 'งานห้องเรียนพิเศษ', 'งานห้องเรียนวิทยาศาสตร์พลังสิบ',
+                        'งานสร้างเครือข่ายความร่วมมือทางวิชาการ', 'งานรับนักเรียน',
+                        'งานส่งเสริมและประสานความร่วมมือทางวิชาการ', 'งานนิเทศการศึกษา',
+                        'งานชมรม TO BE NUMBER ONE', 'งานธนาคารโรงเรียน',
+                        'งานติดตามและประเมินผลการจัดการศึกษา', 'งานบริการสำเนาเอกสาร',
+                        'สำนักงานกลุ่มบริหารวิชาการ'
+                    ];
+
+                    // ✅ รวม defaultOptions และ relatedDepts (ไม่ให้ซ้ำ)
+                    const allOptions = [...new Set([...defaultOptions, ...relatedDepts])];
+                    console.log('📋 all options count:', allOptions.length);
+
+                    // ล้าง options และสร้างใหม่ทั้งหมด
+                    relatedSelect.innerHTML = '';
+                    allOptions.forEach(val => {
+                        const opt = document.createElement('option');
+                        opt.value = val;
+                        opt.text = val;
+                        if (relatedDepts.includes(val)) {
+                            opt.selected = true;
+                        }
+                        relatedSelect.appendChild(opt);
+                    });
+
+                    console.log('📋 After rebuild, options count:', relatedSelect.options.length);
+
+                    // ✅ สร้าง TomSelect ใหม่ ด้วย config ที่รองรับการสร้าง
+                    const ts = new TomSelect(relatedSelect, {
+                        plugins: ['remove_button'],
+                        dropdownParent: 'body',
+                        create: function(input, callback) {
+                            console.log(`🔍 editDoc create called with: "${input}"`);
+                            if (input && input.trim().length > 0) {
+                                callback({
+                                    value: input.trim(),
+                                    text: input.trim()
+                                });
+                            } else {
+                                callback(null);
+                            }
+                        },
+                        createFilter: null,
+                        persist: true,
+                        delimiter: ',',
+                        createOnBlur: true,
+                        maxItems: null,
+                        placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...',
+                        onItemAdd: (value) => { console.log(`✅ editDoc Item added: ${value}`); },
+                        onItemRemove: (value) => { console.log(`🗑️ editDoc Item removed: ${value}`); }
+                    });
+
+                    if (relatedDepts.length > 0) {
+                        // เพิ่ม options ใน TomSelect (เผื่อยังไม่มี)
+                        relatedDepts.forEach(val => {
+                            if (!ts.options[val]) {
+                                ts.addOption({ value: val, text: val });
+                            }
+                        });
+                        ts.setValue(relatedDepts);
+                        ts.refreshItems();
+                        console.log('✅ setValue for relatedDepts:', ts.getValue());
+                        console.log('✅ TomSelect items:', ts.items);
+                    }
+                } else {
+                    console.error('❌ edit_related_depts not found!');
+                }
+
+                console.log('✅ All UI setup complete!');
+
+            } catch (err) {
+                console.error('❌ Error in UI setup:', err);
+            }
+        }, 300);
+
+    } catch (err) {
+        console.error('❌ Error in editDoc:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 }
 
 async function saveEditDoc(e) {
@@ -1046,7 +1210,6 @@ function switchTab(tabId) {
         activeBtn.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'border', 'border-slate-100');
     }
 
-    // รีเฟรช DataTable
     if (tabId === 'teacherView' && teacherTable) {
         teacherTable.ajax.reload(null, false);
     } else if (tabId === 'adminView' && adminTable) {
@@ -1082,7 +1245,6 @@ function closeSettingsModal() {
 async function loadSettings(forceRefresh = false) {
     if (settingsCache && !forceRefresh) {
         systemSettings = settingsCache;
-        // ✅ ใช้ Optional Chaining หรือตรวจสอบ null
         document.getElementById('set_gas_url').value = settingsCache?.gas_api_url || '';
         document.getElementById('set_folder_id').value = settingsCache?.gas_folder_id || '';
         document.getElementById('set_telegram_token').value = settingsCache?.telegram_token || '';
@@ -1096,7 +1258,6 @@ async function loadSettings(forceRefresh = false) {
             .maybeSingle();
         if (error) {
             console.error("Error loading settings:", error);
-            // ✅ ตั้งค่า default
             systemSettings = {};
             settingsCache = {};
             return;
@@ -1109,7 +1270,6 @@ async function loadSettings(forceRefresh = false) {
             document.getElementById('set_telegram_token').value = data.telegram_token || '';
             document.getElementById('set_telegram_chat').value = data.telegram_chat_id || '';
         } else {
-            // ✅ ถ้าไม่มีข้อมูลในฐานข้อมูล ให้สร้าง object ว่าง
             systemSettings = {};
             settingsCache = {};
         }
@@ -1382,13 +1542,11 @@ async function importFromExcel(event) {
                 return;
             }
 
-            // ดึงรายชื่อบุคลากรทั้งหมดเพื่อ map ผู้ลงรับ
             const { data: personnelList, error: personnelErr } = await db.from('core_personnel')
                 .select('id, prefix, first_name, last_name')
                 .order('first_name', { ascending: true });
             if (personnelErr) console.warn('ไม่สามารถโหลดรายชื่อบุคลากรเพื่อ map ผู้ลงรับ', personnelErr);
 
-            // สร้าง mapping ชื่อเต็ม -> id
             const nameToId = {};
             if (personnelList) {
                 personnelList.forEach(p => {
@@ -1403,18 +1561,15 @@ async function importFromExcel(event) {
 
             for (const row of rows) {
                 try {
-                    // ข้อมูลจำเป็น
                     if (!row['เลขทะเบียนรับ'] || !row['ที่หนังสือ'] || !row['จาก'] || !row['เรื่อง']) {
                         fail++;
                         errors.push(`ขาดข้อมูล: ${row['เลขทะเบียนรับ'] || '(ไม่ระบุ)'}`);
                         continue;
                     }
 
-                    // วันที่ — อ่านจากไฟล์ Excel
                     const receiveDate = parseThaiDate(row['วันที่ลงรับ']) || new Date().toISOString().slice(0, 10);
                     const docDate = parseThaiDate(row['ลงวันที่']) || new Date().toISOString().slice(0, 10);
 
-                    // กลุ่มที่เกี่ยวข้อง
                     let relatedDepts = [];
                     if (row['กลุ่มที่เกี่ยวข้อง']) {
                         if (typeof row['กลุ่มที่เกี่ยวข้อง'] === 'string') {
@@ -1424,7 +1579,6 @@ async function importFromExcel(event) {
                         }
                     }
 
-                    // ค้นหาผู้ลงรับจากชื่อในไฟล์
                     let recorderId = currentUser.id;
                     let recorderName = row['ผู้ลงรับ'] || row['ผู้บันทึก'] || row['บันทึกโดย'] || row['recorder'] || '';
                     let recorderFound = false;
@@ -1498,7 +1652,6 @@ async function importFromExcel(event) {
                 confirmButtonText: 'ตกลง'
             });
 
-            // รีเฟรช DataTables
             if (teacherTable) teacherTable.ajax.reload(null, false);
             if (adminTable) adminTable.ajax.reload(null, false);
 
