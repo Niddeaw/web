@@ -152,7 +152,8 @@ async function loadDashboard(academicYear, semester) {
                             'rgba(255, 159, 64, 1)',
                             'rgba(255, 99, 132, 1)'
                         ],
-                        borderWidth: 1
+                        borderWidth: 2,
+                        borderRadius: 8,
                     }]
                 },
                 options: {
