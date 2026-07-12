@@ -30,6 +30,7 @@ let selectedRecipientIds = new Set();   // เก็บ id ของทุนท
 // ==========================================
 // AUTH & INIT (ใช้ checkSessionAndRole)
 // ==========================================
+// ===== ใน $(document).ready =====
 $(document).ready(async () => {
     try {
         await checkAuth();
@@ -41,6 +42,9 @@ $(document).ready(async () => {
 
         // ตั้งค่าแท็บเริ่มต้น (ผู้รับทุน)
         switchTab('recipients');
+        
+        // ✅ โหลด Dashboard เมื่อทุกอย่างพร้อม (เรียกผ่าน refreshDashboard)
+        refreshDashboard();
     } catch (err) {
         console.error('Initialization error:', err);
     }
@@ -929,6 +933,7 @@ window.deleteSelectedScholarships = async function () {
         if (currentClassroomId) {
             await loadStudentsForTable(currentClassroomId);
         }
+        refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
     } catch (err) {
         console.error(err);
         Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถลบข้อมูลได้', 'error');
@@ -1000,6 +1005,7 @@ window.deleteAllScholarships = async function () {
         if (currentClassroomId) {
             await loadStudentsForTable(currentClassroomId);
         }
+        refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
     } catch (err) {
         console.error(err);
         Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถลบข้อมูลได้', 'error');
@@ -1012,25 +1018,27 @@ async function fetchRecipientsData() {
         let hasNote = true;
 
         try {
-            const { data, error } = await db.from('core_scholarships')
-                .select(`
-                    id,
-                    student_id,
-                    scholarship_name,
-                    amount,
-                    academic_year,
-                    semester,
-                    note,
-                    created_at,
-                    core_students!inner (
-                        id,
-                        student_id_card,
-                        prefix,
-                        first_name,
-                        last_name
-                    )
-                `)
-                .order('created_at', { ascending: false });
+const { data, error } = await db.from('core_scholarships')
+    .select(`
+        id,
+        student_id,
+        scholarship_name,
+        amount,
+        academic_year,
+        semester,
+        note,
+        created_at,
+        core_students (
+            id,
+            student_id_card,
+            prefix,
+            first_name,
+            last_name
+        )
+    `)
+    // .eq('academic_year', currentYear)   // ถ้าต้องการกรองเฉพาะปีนี้ ให้เพิ่ม
+    // .eq('semester', currentTerm)
+    .order('created_at', { ascending: false });
 
             if (error) throw error;
             scholarships = data || [];
@@ -1046,7 +1054,7 @@ async function fetchRecipientsData() {
                         academic_year,
                         semester,
                         created_at,
-                        core_students!inner (
+                        core_students (
                             id,
                             student_id_card,
                             prefix,
@@ -1501,10 +1509,10 @@ window.importStudentScholarships = function (studentId) {
             // รีเฟรชข้อมูล
             await showStudentScholarshipHistory(studentId);
             if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+            refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
             if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
                 $('#recipientTable').DataTable().ajax.reload(null, false);
             }
-
         } catch (err) {
             console.error(err);
             Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถนำเข้าข้อมูลได้', 'error');
@@ -1578,6 +1586,7 @@ window.updateScholarshipRecord = async function () {
         await Swal.fire('สำเร็จ', 'อัปเดตข้อมูลทุนเรียบร้อย', 'success');
 
         if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+        refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
         if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
             $('#recipientTable').DataTable().ajax.reload(null, false);
         }
@@ -1603,6 +1612,7 @@ window.updateScholarshipRecord = async function () {
                 window.closeEditScholarshipModal();
                 await Swal.fire('สำเร็จ', 'อัปเดตข้อมูลทุนเรียบร้อย', 'success');
                 if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+                refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
                 if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
                     $('#recipientTable').DataTable().ajax.reload(null, false);
                 }
@@ -1665,6 +1675,7 @@ window.deleteScholarshipRecord = async function (scholarshipId) {
 
             await Swal.fire('ลบสำเร็จ', 'ลบข้อมูลทุนเรียบร้อย', 'success');
             if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+            refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
             if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
                 $('#recipientTable').DataTable().ajax.reload(null, false);
             }
@@ -1993,6 +2004,7 @@ window.saveScholarshipRecord = async function () {
         await Swal.fire('บันทึกสำเร็จ', 'เพิ่มประวัติทุนเรียบร้อย', 'success');
 
         if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+        refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
         if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
             $('#recipientTable').DataTable().ajax.reload(null, false);
         }
@@ -2017,6 +2029,7 @@ window.saveScholarshipRecord = async function () {
 
                 await Swal.fire('บันทึกสำเร็จ', 'เพิ่มประวัติทุนเรียบร้อย (ไม่บันทึกหมายเหตุ)', 'success');
                 if (currentClassroomId) await loadStudentsForTable(currentClassroomId);
+                refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
                 if ($('#tab-recipients').hasClass('active') && $.fn.DataTable.isDataTable('#recipientTable')) {
                     $('#recipientTable').DataTable().ajax.reload(null, false);
                 }
@@ -2453,7 +2466,7 @@ window.importRecipientsFromExcel = function () {
             if (currentClassroomId) {
                 await loadStudentsForTable(currentClassroomId);
             }
-
+            refreshDashboard(); // ✅ เพิ่มบรรทัดนี้
         } catch (err) {
             console.error(err);
             Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถนำเข้าข้อมูลได้', 'error');
@@ -2491,6 +2504,14 @@ async function checkDuplicateScholarship(studentId, scholarshipName, amount, aca
     return !!data;
 }
 
+// ===== REFRESH DASHBOARD =====
+function refreshDashboard() {
+    if (typeof window.loadDashboard === 'function' && currentYear && currentTerm) {
+        window.loadDashboard(currentYear, currentTerm);
+    } else {
+        console.warn('⚠️ loadDashboard not ready or missing year/term');
+    }
+}
 // ==========================================
 // DOM READY (Event Listeners)
 // ==========================================
