@@ -24,6 +24,8 @@ let currentStudentForForm = null;
 let _scholarshipTableWarningShown = false;
 let recordSearchCache = {};
 let isModuleAdmin = false;
+// เพิ่มหลัง state variables
+let selectedRecipientIds = new Set();   // เก็บ id ของทุนที่เลือกในตาราง
 
 // ==========================================
 // AUTH & INIT (ใช้ checkSessionAndRole)
@@ -153,7 +155,7 @@ function updateAdminModeButton() {
 // ==========================================
 // toggleRoleView (ใช้ isAdminUser จาก config)
 // ==========================================
-window.toggleRoleView = function() {
+window.toggleRoleView = function () {
     const isAdmin = isAdminUser(actualRole, false) || isModuleAdmin;
     if (!isAdmin) return;
 
@@ -201,7 +203,7 @@ function applyAdminVisibility() {
         settingsBtn: 'admin-settings-btn'
     });
 
-    // ปุ่มบันทึกทุน (เฉพาะ Admin)
+    // จัดการปุ่มบันทึกทุน
     const recordBtnNav = document.getElementById('btnRecordScholarshipNav');
     if (recordBtnNav) {
         if (isAdmin) {
@@ -218,7 +220,7 @@ function applyAdminVisibility() {
         recordBtn.style.display = 'none !important';
     }
 
-    // จัดการปุ่ม admin-only ทั่วไป (รวมถึงปุ่มนำเข้า/ส่งออก)
+    // จัดการปุ่ม admin-only ทั่วไป (รวมปุ่มนำเข้า/ส่งออก และปุ่มลบ)
     document.querySelectorAll('.admin-only').forEach(el => {
         if (isAdmin) {
             el.classList.add('visible');
@@ -566,7 +568,7 @@ async function submitApplication() {
 }
 
 // ===== ดูประวัติรายบุคคล =====
-window.viewStudentDetail = async function(studentId) {
+window.viewStudentDetail = async function (studentId) {
     let scholarships = [];
     let hasNote = true;
 
@@ -649,7 +651,7 @@ window.closeDetailModal = () => {
     document.getElementById('detailModal').classList.remove('flex');
 };
 
-window.requestScholarship = function(studentId) {
+window.requestScholarship = function (studentId) {
     if (studentTomSelect) studentTomSelect.setValue(studentId);
     switchTab('form');
     goToStep(1);
@@ -718,6 +720,7 @@ function loadRecipientsTabData() {
         return;
     }
 
+    // โหลดตัวกรอง
     fetchRecipientsData().then(result => {
         const years = [...new Set(result.data.map(s => s.academic_year).filter(y => y && y !== '-'))];
         const semesters = [...new Set(result.data.map(s => s.semester).filter(s => s))];
@@ -727,11 +730,61 @@ function loadRecipientsTabData() {
             semesters.map(s => `<option value="${s}">เทอม ${s}</option>`).join(''));
     });
 
+    // สร้างปุ่มลบ (เฉพาะแอดมิน)
+    if (!$('#recipient-actions').length && isAdminUserLocal()) {
+        $('#recipientTable_wrapper').before(`
+            <div id="recipient-actions" class="admin-only flex flex-wrap items-center gap-2 mb-3">
+                <button onclick="deleteSelectedScholarships()" id="deleteSelectedBtn" class="btn-danger-gradient px-4 py-2 text-sm flex items-center gap-2" disabled>
+                    <i class="fas fa-trash"></i> ลบที่เลือก
+                </button>
+                <button onclick="deleteAllScholarships()" class="btn-danger-gradient px-4 py-2 text-sm flex items-center gap-2">
+                    <i class="fas fa-trash-alt"></i> ลบทั้งหมด
+                </button>
+                <span class="text-xs text-slate-400 ml-2" id="selectedCount">เลือก 0 รายการ</span>
+            </div>
+        `);
+        // ใส่ style
+        $('<style> .btn-danger-gradient { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; border-radius: 9999px; border: none; padding: 0.5rem 1rem; font-weight: 600; transition: 0.2s; } .btn-danger-gradient:hover { opacity: 0.8; } .btn-danger-gradient:disabled { opacity: 0.5; cursor: not-allowed; } </style>').appendTo('head');
+    }
+
+    // คอลัมน์ตาราง (เพิ่ม checkbox ที่คอลัมน์แรก)
+    const columns = [
+        {
+            data: null,
+            className: 'dt-center',
+            orderable: false,
+            render: function (data, type, row) {
+                return `<input type="checkbox" class="recipient-checkbox" data-id="${row.id}">`;
+            }
+        },
+        { data: 'grade', className: 'text-center font-semibold text-slate-600' },
+        { data: 'code', className: 'font-mono text-slate-600' },
+        { data: 'name', className: 'font-medium text-slate-800' },
+        { data: 'scholarship_name', className: 'font-medium text-emerald-700' },
+        { data: 'amount', className: 'text-center font-bold text-slate-700', render: d => d ? d.toLocaleString() : 0 },
+        { data: 'academic_year', className: 'text-center' },
+        { data: 'semester', className: 'text-center', render: d => d ? 'เทอม ' + d : '-' },
+        { data: 'note', className: 'text-sm text-slate-500', render: d => d || '-' },
+        {
+            data: 'id',
+            className: 'text-center whitespace-nowrap',
+            render: function (id, type, row) {
+                const isAdmin = isAdminUserLocal();
+                let html = `<button onclick="viewScholarshipDetail('${id}')" class="action-btn view-btn" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
+                if (isAdmin) {
+                    html += `<button onclick="openEditScholarshipModal('${id}')" class="action-btn text-amber-600 hover:bg-amber-50" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
+                    html += `<button onclick="deleteScholarshipRecord('${id}')" class="action-btn text-rose-600 hover:bg-rose-50" title="ลบ"><i class="fas fa-trash"></i></button>`;
+                }
+                return html;
+            }
+        }
+    ];
+
     $('#recipientTable').DataTable({
         responsive: {
             details: {
                 display: $.fn.dataTable.Responsive.display.modal({
-                    header: function(row) { return 'รายละเอียดข้อมูล'; }
+                    header: function (row) { return 'รายละเอียดข้อมูล'; }
                 }),
                 renderer: $.fn.dataTable.Responsive.renderer.tableAll({ tableClass: 'table' })
             }
@@ -749,7 +802,7 @@ function loadRecipientsTabData() {
         language: {
             url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
         },
-        ajax: function(data, callback, settings) {
+        ajax: function (data, callback, settings) {
             fetchRecipientsData()
                 .then(result => {
                     callback({ data: result.data, recordsTotal: result.total, recordsFiltered: result.total });
@@ -759,31 +812,65 @@ function loadRecipientsTabData() {
                     callback({ data: [], recordsTotal: 0, recordsFiltered: 0 });
                 });
         },
-        columns: [
-            { data: 'grade', className: 'text-center font-semibold text-slate-600' },
-            { data: 'code', className: 'font-mono text-slate-600' },
-            { data: 'name', className: 'font-medium text-slate-800' },
-            { data: 'scholarship_name', className: 'font-medium text-emerald-700' },
-            { data: 'amount', className: 'text-center font-bold text-slate-700', render: d => d ? d.toLocaleString() : 0 },
-            { data: 'academic_year', className: 'text-center' },
-            { data: 'semester', className: 'text-center', render: d => d ? 'เทอม ' + d : '-' },
-            { data: 'note', className: 'text-sm text-slate-500', render: d => d || '-' },
-            {
-                data: 'id',
-                className: 'text-center whitespace-nowrap',
-                render: function(id, type, row) {
-                    const isAdmin = isAdminUserLocal();
-                    let html = `<button onclick="viewScholarshipDetail('${id}')" class="action-btn view-btn" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
-                    if (isAdmin) {
-                        html += `<button onclick="openEditScholarshipModal('${id}')" class="action-btn text-amber-600 hover:bg-amber-50" title="แก้ไข"><i class="fas fa-edit"></i></button>`;
-                        html += `<button onclick="deleteScholarshipRecord('${id}')" class="action-btn text-rose-600 hover:bg-rose-50" title="ลบ"><i class="fas fa-trash"></i></button>`;
+        columns: columns,
+        drawCallback: function () {
+            // จัดการ checkbox แต่ละแถว
+            $('.recipient-checkbox').off('change').on('change', function () {
+                const id = $(this).data('id');
+                if (this.checked) {
+                    selectedRecipientIds.add(id);
+                } else {
+                    selectedRecipientIds.delete(id);
+                }
+                updateDeleteButtonState();
+                updateSelectAllState(); // อัปเดตสถานะ select-all
+            });
+
+            // จัดการ select-all checkbox
+            $('#selectAllRecipients').off('change').on('change', function () {
+                const isChecked = this.checked;
+                // วนลูป checkbox ทุกตัวในหน้าปัจจุบัน
+                $('.recipient-checkbox').each(function () {
+                    const cb = $(this);
+                    const id = cb.data('id');
+                    if (isChecked) {
+                        cb.prop('checked', true);
+                        selectedRecipientIds.add(id);
+                    } else {
+                        cb.prop('checked', false);
+                        selectedRecipientIds.delete(id);
                     }
-                    return html;
+                });
+                updateDeleteButtonState();
+                updateSelectAllState();
+            });
+
+            // อัปเดตสถานะ select-all ตาม checkbox ในหน้าปัจจุบัน
+            function updateSelectAllState() {
+                const total = $('.recipient-checkbox').length;
+                const checked = $('.recipient-checkbox:checked').length;
+                const selectAll = $('#selectAllRecipients');
+                if (total === 0) {
+                    selectAll.prop('checked', false);
+                    selectAll.prop('indeterminate', false);
+                } else if (checked === total) {
+                    selectAll.prop('checked', true);
+                    selectAll.prop('indeterminate', false);
+                } else if (checked > 0) {
+                    selectAll.prop('checked', false);
+                    selectAll.prop('indeterminate', true);
+                } else {
+                    selectAll.prop('checked', false);
+                    selectAll.prop('indeterminate', false);
                 }
             }
-        ],
-        drawCallback: function() {
+
+            // เรียกครั้งแรกเพื่อตั้งค่า
+            updateSelectAllState();
+            updateDeleteButtonState();
+
             $('.action-btn').tooltip ? $('.action-btn').tooltip() : null;
+
             const info = this.api().page.info();
             const isAdmin = isAdminUserLocal();
             $('#recipient-footer').html(
@@ -792,7 +879,132 @@ function loadRecipientsTabData() {
             );
         }
     });
+
+    // รีเซ็ต selection เมื่อโหลดใหม่
+    selectedRecipientIds.clear();
+    updateDeleteButtonState();
 }
+
+function updateDeleteButtonState() {
+    const count = selectedRecipientIds.size;
+    $('#selectedCount').text(`เลือก ${count} รายการ`);
+    $('#deleteSelectedBtn').prop('disabled', count === 0);
+}
+
+// ลบเฉพาะที่เลือก
+window.deleteSelectedScholarships = async function () {
+    if (!requireAdminLocal()) return;
+
+    const ids = Array.from(selectedRecipientIds);
+    if (ids.length === 0) {
+        return Swal.fire('ไม่มีรายการเลือก', 'กรุณาเลือกอย่างน้อย 1 รายการ', 'info');
+    }
+
+    const confirm = await Swal.fire({
+        title: `ยืนยันลบ ${ids.length} รายการ?`,
+        html: `<p>คุณกำลังจะลบทุนที่เลือก ${ids.length} รายการ</p><p style="color:#dc2626;">ข้อมูลจะถูกลบอย่างถาวร</p>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ลบเลย',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+        const { error } = await db.from('core_scholarships')
+            .delete()
+            .in('id', ids);
+        if (error) throw error;
+
+        await Swal.fire('สำเร็จ', `ลบข้อมูล ${ids.length} รายการเรียบร้อย`, 'success');
+        selectedRecipientIds.clear();
+        updateDeleteButtonState();
+
+        if ($.fn.DataTable.isDataTable('#recipientTable')) {
+            $('#recipientTable').DataTable().ajax.reload(null, false);
+        }
+        if (currentClassroomId) {
+            await loadStudentsForTable(currentClassroomId);
+        }
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถลบข้อมูลได้', 'error');
+    }
+};
+
+// ลบทั้งหมด (ตามข้อมูลที่แสดงในตาราง)
+window.deleteAllScholarships = async function () {
+    if (!requireAdminLocal()) return;
+
+    const confirm = await Swal.fire({
+        title: '⚠️ ลบทุนทั้งหมด?',
+        html: `<p>คุณกำลังจะลบ <strong>ทุกแถวที่แสดงในตาราง</strong> (ตามตัวกรองปัจจุบัน)</p>
+               <p style="color:#dc2626;">ข้อมูลจะถูกลบอย่างถาวร ไม่สามารถกู้คืนได้</p>
+               <p>กรุณาพิมพ์ <strong>ลบทั้งหมด</strong> เพื่อยืนยัน</p>`,
+        icon: 'warning',
+        input: 'text',
+        inputPlaceholder: 'พิมพ์ "ลบทั้งหมด"',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ลบทั้งหมด',
+        cancelButtonText: 'ยกเลิก',
+        preConfirm: (value) => {
+            if (value !== 'ลบทั้งหมด') {
+                Swal.showValidationMessage('กรุณาพิมพ์ "ลบทั้งหมด" ให้ถูกต้อง');
+                return false;
+            }
+            return true;
+        }
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    try {
+        const table = $('#recipientTable').DataTable();
+        const data = table.rows({ search: 'applied' }).data();
+        const ids = data.map(row => row.id).toArray();
+
+        if (ids.length === 0) {
+            return Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลที่จะลบ', 'info');
+        }
+
+        const confirm2 = await Swal.fire({
+            title: `ยืนยันลบทั้งหมด ${ids.length} รายการ?`,
+            text: `คุณกำลังจะลบข้อมูล ${ids.length} รายการทั้งหมด`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            cancelButtonColor: '#64748b',
+            confirmButtonText: 'ยืนยันลบ',
+            cancelButtonText: 'ยกเลิก'
+        });
+
+        if (!confirm2.isConfirmed) return;
+
+        const { error } = await db.from('core_scholarships')
+            .delete()
+            .in('id', ids);
+        if (error) throw error;
+
+        await Swal.fire('สำเร็จ', `ลบข้อมูลทั้งหมด ${ids.length} รายการเรียบร้อย`, 'success');
+        selectedRecipientIds.clear();
+        updateDeleteButtonState();
+
+        if ($.fn.DataTable.isDataTable('#recipientTable')) {
+            $('#recipientTable').DataTable().ajax.reload(null, false);
+        }
+        if (currentClassroomId) {
+            await loadStudentsForTable(currentClassroomId);
+        }
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถลบข้อมูลได้', 'error');
+    }
+};
 
 async function fetchRecipientsData() {
     try {
@@ -903,7 +1115,7 @@ function applyRecipientFilters() {
 
     const table = $('#recipientTable').DataTable();
     $.fn.dataTable.ext.search.push(
-        function(settings, data, dataIndex) {
+        function (settings, data, dataIndex) {
             const rowData = table.row(dataIndex).data();
             if (!rowData) return true;
             let match = true;
@@ -929,7 +1141,7 @@ function clearRecipientFilters() {
 // ==========================================
 
 // ===== ดูประวัติรายบุคคล (ใช้ Modal เดียวกัน) =====
-window.viewScholarshipDetail = async function(scholarshipId) {
+window.viewScholarshipDetail = async function (scholarshipId) {
     try {
         const { data, error } = await db.from('core_scholarships')
             .select('student_id')
@@ -972,7 +1184,7 @@ async function showStudentScholarshipHistory(studentId) {
                 const c = enroll.core_classrooms;
                 gradeInfo = `ม.${c.grade_level}/${c.room_number}`;
             }
-        } catch (e) {}
+        } catch (e) { }
 
         // ดึงประวัติทุนทั้งหมด
         let scholarships = [];
@@ -1087,7 +1299,7 @@ async function showStudentScholarshipHistory(studentId) {
 // ==========================================
 // EXPORT STUDENT SCHOLARSHIPS TO EXCEL
 // ==========================================
-window.exportStudentScholarships = async function(studentId) {
+window.exportStudentScholarships = async function (studentId) {
     if (!isAdminUserLocal()) {
         return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
     }
@@ -1151,7 +1363,7 @@ window.exportStudentScholarships = async function(studentId) {
             { wch: 30 }
         ];
         XLSX.utils.book_append_sheet(wb, ws, 'ประวัติทุน');
-        const fileName = `ประวัติทุน_${studentName}_${new Date().toISOString().slice(0,10)}.xlsx`;
+        const fileName = `ประวัติทุน_${studentName}_${new Date().toISOString().slice(0, 10)}.xlsx`;
         XLSX.writeFile(wb, fileName);
 
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อย', 'success');
@@ -1164,13 +1376,13 @@ window.exportStudentScholarships = async function(studentId) {
 // ==========================================
 // IMPORT STUDENT SCHOLARSHIPS FROM EXCEL
 // ==========================================
-window.importStudentScholarships = function(studentId) {
+window.importStudentScholarships = function (studentId) {
     if (!requireAdminLocal()) return;
 
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.xlsx,.xls';
-    input.onchange = async function(e) {
+    input.onchange = async function (e) {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -1191,7 +1403,7 @@ window.importStudentScholarships = function(studentId) {
                 return Swal.fire('คอลัมน์ไม่ถูกต้อง', `ขาดคอลัมน์: ${missing.join(', ')}`, 'error');
             }
 
-            const sample = jsonData.slice(0, 5).map(row => 
+            const sample = jsonData.slice(0, 5).map(row =>
                 `${row['ชื่อทุน']} (${row['จำนวนเงิน']} บาท) ${row['ปีการศึกษา']} เทอม ${row['ภาคเรียน']}`
             ).join('\n');
 
@@ -1303,7 +1515,7 @@ window.importStudentScholarships = function(studentId) {
 };
 
 // ===== แก้ไขทุน (ใช้ requireAdminLocal) =====
-window.openEditScholarshipModal = async function(scholarshipId) {
+window.openEditScholarshipModal = async function (scholarshipId) {
     if (!requireAdminLocal()) return;
 
     try {
@@ -1328,11 +1540,11 @@ window.openEditScholarshipModal = async function(scholarshipId) {
     }
 };
 
-window.closeEditScholarshipModal = function() {
+window.closeEditScholarshipModal = function () {
     $('#editScholarshipModal').addClass('hidden').removeClass('flex');
 };
 
-window.updateScholarshipRecord = async function() {
+window.updateScholarshipRecord = async function () {
     if (!requireAdminLocal()) return;
 
     const id = document.getElementById('edit_record_id').value;
@@ -1404,7 +1616,7 @@ window.updateScholarshipRecord = async function() {
 };
 
 // ===== ลบทุน (ใช้ requireAdminLocal) =====
-window.deleteScholarshipRecord = async function(scholarshipId) {
+window.deleteScholarshipRecord = async function (scholarshipId) {
     if (!requireAdminLocal()) return;
 
     try {
@@ -1467,7 +1679,7 @@ window.deleteScholarshipRecord = async function(scholarshipId) {
 // ADMIN SETTINGS (ใช้ requireAdminLocal)
 // ==========================================
 
-window.openAdminModal = async function() {
+window.openAdminModal = async function () {
     if (!requireAdminLocal()) return;
 
     await loadModuleSettings();
@@ -1543,7 +1755,7 @@ async function loadModuleAdminsList() {
     }
 }
 
-window.appointModuleAdmin = async function() {
+window.appointModuleAdmin = async function () {
     const teacherId = $('#select-teacher-appoint').val();
     if (!teacherId) return Swal.fire('กรุณาเลือกครู');
 
@@ -1559,7 +1771,7 @@ window.appointModuleAdmin = async function() {
     }
 };
 
-window.removeModuleAdmin = async function(id) {
+window.removeModuleAdmin = async function (id) {
     try {
         await db.from('core_scholarship_admins').delete().eq('id', id);
         loadModuleAdminsList();
@@ -1626,7 +1838,7 @@ function initRecordStudentSearch() {
         placeholder: 'พิมพ์ชื่อ นามสกุล หรือรหัสนักเรียน (อย่างน้อย 2 ตัวอักษร)',
         maxOptions: 20,
         shouldLoad: (query) => query.trim().length >= 2,
-        load: function(query, callback) {
+        load: function (query, callback) {
             searchStudentsForRecord(query)
                 .then(results => callback(results))
                 .catch(() => callback());
@@ -1680,7 +1892,7 @@ function clearRecordFields() {
     if (sem) sem.value = '';
 }
 
-window.openRecordScholarshipModal = async function() {
+window.openRecordScholarshipModal = async function () {
     if (!requireAdminLocal()) return;
 
     clearRecordFields();
@@ -1693,11 +1905,11 @@ window.openRecordScholarshipModal = async function() {
     $('#recordScholarshipModal').removeClass('hidden').addClass('flex');
 };
 
-window.closeRecordScholarshipModal = function() {
+window.closeRecordScholarshipModal = function () {
     $('#recordScholarshipModal').addClass('hidden').removeClass('flex');
 };
 
-window.saveScholarshipRecord = async function() {
+window.saveScholarshipRecord = async function () {
     if (!requireAdminLocal()) return;
 
     const studentId = document.getElementById('record_student_select').value;
@@ -1828,7 +2040,7 @@ window.saveScholarshipRecord = async function() {
 // APPLICANT LIST MODAL
 // ==========================================
 
-window.openApplicantListModal = async function() {
+window.openApplicantListModal = async function () {
     const modal = document.getElementById('applicantListModal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -1937,12 +2149,12 @@ window.openApplicantListModal = async function() {
     }
 };
 
-window.closeApplicantListModal = function() {
+window.closeApplicantListModal = function () {
     document.getElementById('applicantListModal').classList.add('hidden');
     document.getElementById('applicantListModal').classList.remove('flex');
 };
 
-window.exportApplicantListExcel = function() {
+window.exportApplicantListExcel = function () {
     Swal.fire({
         icon: 'info',
         title: 'ส่งออก Excel',
@@ -1951,7 +2163,7 @@ window.exportApplicantListExcel = function() {
     });
 };
 
-window.exportRecipientListExcel = function() {
+window.exportRecipientListExcel = function () {
     Swal.fire({
         icon: 'info',
         title: 'ส่งออก Excel',
@@ -1975,17 +2187,7 @@ async function insertScholarship(studentId, scholarshipName, amount, academicYea
     if (!studentId || !scholarshipName || isNaN(amount) || !academicYear || !semester) {
         return { success: false, error: 'ข้อมูลไม่ครบ' };
     }
-    // ตรวจสอบซ้ำ
-    const { data: existing } = await db.from('core_scholarships')
-        .select('id')
-        .eq('student_id', studentId)
-        .eq('scholarship_name', scholarshipName)
-        .eq('amount', amount)
-        .eq('academic_year', academicYear)
-        .eq('semester', semester);
-    if (existing && existing.length > 0) {
-        return { success: false, error: 'duplicate' };
-    }
+
     const insertData = {
         student_id: studentId,
         scholarship_name: scholarshipName,
@@ -1996,9 +2198,11 @@ async function insertScholarship(studentId, scholarshipName, amount, academicYea
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
+
     if (note && typeof note === 'string' && note.trim()) {
         insertData.note = note.trim();
     }
+
     try {
         const { error } = await db.from('core_scholarships').insert([insertData]);
         if (error) {
@@ -2016,7 +2220,7 @@ async function insertScholarship(studentId, scholarshipName, amount, academicYea
     }
 }
 
-window.exportRecipientsToExcel = async function() {
+window.exportRecipientsToExcel = async function () {
     if (!isAdminUserLocal()) {
         return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
     }
@@ -2042,7 +2246,7 @@ window.exportRecipientsToExcel = async function() {
             { wch: 10 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 30 }
         ];
         XLSX.utils.book_append_sheet(wb, ws, 'ผู้รับทุน');
-        const fileName = `ผู้รับทุน_${new Date().toISOString().slice(0,10)}.xlsx`;
+        const fileName = `ผู้รับทุน_${new Date().toISOString().slice(0, 10)}.xlsx`;
         XLSX.writeFile(wb, fileName);
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อย', 'success');
     } catch (err) {
@@ -2051,13 +2255,13 @@ window.exportRecipientsToExcel = async function() {
     }
 };
 
-window.importRecipientsFromExcel = function() {
+window.importRecipientsFromExcel = function () {
     if (!requireAdminLocal()) return;
 
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.xlsx,.xls';
-    input.onchange = async function(e) {
+    input.onchange = async function (e) {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -2078,17 +2282,19 @@ window.importRecipientsFromExcel = function() {
                 return Swal.fire('คอลัมน์ไม่ถูกต้อง', `ขาดคอลัมน์: ${missing.join(', ')}`, 'error');
             }
 
-            const sample = jsonData.slice(0, 5).map(row => 
+            const hasNameCol = headers.includes('ชื่อ-สกุล');
+            const sample = jsonData.slice(0, 5).map(row =>
                 `${row['รหัสประจำตัว']} - ${row['ชื่อทุน']} (${row['จำนวนเงิน']} บาท) ${row['ปีการศึกษา']} เทอม ${row['ภาคเรียน']}`
             ).join('\n');
 
-            const result = await Swal.fire({
+            // ยืนยันนำเข้า
+            const confirmResult = await Swal.fire({
                 title: `นำเข้าข้อมูลทุน (พบ ${jsonData.length} รายการ)`,
                 html: `
                     <div style="text-align:left;">
                         <p><strong>ตัวอย่างข้อมูล:</strong></p>
                         <pre style="background:#f1f5f9;padding:10px;border-radius:8px;font-size:12px;">${sample}</pre>
-                        <p style="margin-top:10px;">⚠️ ระบบจะค้นหานักเรียนจากรหัสประจำตัว และตรวจสอบความซ้ำซ้อน</p>
+                        <p style="margin-top:10px;">⚠️ ระบบจะค้นหานักเรียนจากรหัสประจำตัว ${hasNameCol ? 'และตรวจสอบชื่อ-สกุล' : ''} และตรวจสอบความซ้ำซ้อน (รหัส+ชื่อ+ชื่อทุน+จำนวนเงิน+ปี+เทอม)</p>
                     </div>
                 `,
                 icon: 'question',
@@ -2097,11 +2303,57 @@ window.importRecipientsFromExcel = function() {
                 cancelButtonText: 'ยกเลิก'
             });
 
-            if (!result.isConfirmed) return;
+            if (!confirmResult.isConfirmed) return;
 
-            let successCount = 0, skipCount = 0, errorCount = 0, notFoundCount = 0;
+            // ตัวแปรนับผล
+            let successCount = 0, skipCount = 0, errorCount = 0, notFoundCount = 0, nameMismatchCount = 0;
+            const duplicateRows = [];
+            const notFoundRows = [];
+            const nameMismatchRows = [];
+            const errorRows = [];
 
-            for (let row of jsonData) {
+            // แสดง Swal พร้อมความคืบหน้า
+            Swal.fire({
+                title: 'กำลังนำเข้า...',
+                html: `
+                    <div style="text-align:left;">
+                        <p>กำลังดำเนินการ: <span id="import-progress-text">0</span> / ${jsonData.length} รายการ</p>
+                        <div style="width:100%; background:#e2e8f0; border-radius:8px; height:20px; margin-top:10px;">
+                            <div id="import-progress-bar" style="width:0%; background:linear-gradient(135deg,#059669,#10B981); height:20px; border-radius:8px; transition:width 0.3s;"></div>
+                        </div>
+                        <div style="margin-top:10px; font-size:0.9rem;">
+                            <span style="color:#059669;">✅ สำเร็จ: <span id="import-success">0</span></span> |
+                            <span style="color:#b45309;">⏭️ ซ้ำ: <span id="import-skip">0</span></span> |
+                            <span style="color:#dc2626;">❌ ผิดพลาด: <span id="import-error">0</span></span>
+                        </div>
+                    </div>
+                `,
+                allowOutsideClick: false,
+                showConfirmButton: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
+            // ฟังก์ชันอัปเดต UI
+            const updateProgress = (processed, success, skip, error) => {
+                const popup = Swal.getPopup();
+                if (!popup) return;
+                const progressText = popup.querySelector('#import-progress-text');
+                const progressBar = popup.querySelector('#import-progress-bar');
+                const successSpan = popup.querySelector('#import-success');
+                const skipSpan = popup.querySelector('#import-skip');
+                const errorSpan = popup.querySelector('#import-error');
+                if (progressText) progressText.textContent = processed;
+                if (progressBar) progressBar.style.width = `${(processed / jsonData.length) * 100}%`;
+                if (successSpan) successSpan.textContent = success;
+                if (skipSpan) skipSpan.textContent = skip;
+                if (errorSpan) errorSpan.textContent = error;
+            };
+
+            // วนลูปประมวลผลทีละรายการ
+            for (let i = 0; i < jsonData.length; i++) {
+                const row = jsonData[i];
                 try {
                     const studentIdCard = row['รหัสประจำตัว']?.toString().trim();
                     const scholarshipName = row['ชื่อทุน']?.toString().trim();
@@ -2109,45 +2361,99 @@ window.importRecipientsFromExcel = function() {
                     const academicYear = row['ปีการศึกษา']?.toString().trim();
                     const semester = row['ภาคเรียน']?.toString().trim();
                     const note = row['หมายเหตุ']?.toString().trim() || '';
+                    const fullNameFromFile = hasNameCol ? row['ชื่อ-สกุล']?.toString().trim() : '';
 
                     if (!studentIdCard || !scholarshipName || isNaN(amount) || !academicYear || !semester) {
                         errorCount++;
+                        errorRows.push({ row: i + 1, reason: 'ข้อมูลไม่ครบ' });
+                        updateProgress(i + 1, successCount, skipCount, errorCount);
                         continue;
                     }
 
-                    const studentId = await getStudentIdByCard(studentIdCard);
-                    if (!studentId) {
+                    // ค้นหานักเรียนจากรหัส
+                    const student = await getStudentByCardWithName(studentIdCard);
+                    if (!student) {
                         notFoundCount++;
+                        notFoundRows.push({ row: i + 1, studentIdCard });
+                        updateProgress(i + 1, successCount, skipCount, errorCount);
                         continue;
                     }
 
-                    const resultInsert = await insertScholarship(studentId, scholarshipName, amount, academicYear, semester, note);
+                    // ตรวจสอบชื่อ (ถ้ามี)
+                    if (hasNameCol && fullNameFromFile) {
+                        const fullNameDB = `${student.prefix || ''}${student.first_name} ${student.last_name}`.trim();
+                        if (fullNameDB.replace(/\s+/g, ' ') !== fullNameFromFile.replace(/\s+/g, ' ')) {
+                            nameMismatchCount++;
+                            nameMismatchRows.push({ row: i + 1, studentIdCard, expected: fullNameDB, got: fullNameFromFile });
+                            updateProgress(i + 1, successCount, skipCount, errorCount);
+                            continue;
+                        }
+                    }
+
+                    // ตรวจสอบข้อมูลซ้ำ
+                    const isDuplicate = await checkDuplicateScholarship(student.id, scholarshipName, amount, academicYear, semester);
+                    if (isDuplicate) {
+                        skipCount++;
+                        duplicateRows.push({ row: i + 1, studentIdCard, scholarshipName, amount, academicYear, semester });
+                        updateProgress(i + 1, successCount, skipCount, errorCount);
+                        continue;
+                    }
+
+                    // บันทึกข้อมูล
+                    const resultInsert = await insertScholarship(student.id, scholarshipName, amount, academicYear, semester, note);
                     if (resultInsert.success) {
                         successCount++;
-                    } else if (resultInsert.error === 'duplicate') {
-                        skipCount++;
                     } else {
                         errorCount++;
+                        errorRows.push({ row: i + 1, reason: resultInsert.error || 'ไม่ทราบสาเหตุ' });
                     }
+                    updateProgress(i + 1, successCount, skipCount, errorCount);
+
                 } catch (err) {
                     errorCount++;
-                    console.error('Error importing row:', err);
+                    errorRows.push({ row: i + 1, reason: err.message });
+                    updateProgress(i + 1, successCount, skipCount, errorCount);
+                }
+
+                // ปล่อยให้ UI อัปเดต ทุก 5 รายการ
+                if (i % 5 === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
                 }
             }
 
-            let msg = `นำเข้าเสร็จสิ้น: สำเร็จ ${successCount} รายการ`;
-            if (skipCount > 0) msg += `, ข้าม ${skipCount} รายการ (ซ้ำ)`;
-            if (notFoundCount > 0) msg += `, ไม่พบนักเรียน ${notFoundCount} รายการ`;
-            if (errorCount > 0) msg += `, ผิดพลาด ${errorCount} รายการ`;
-            await Swal.fire('เสร็จสิ้น', msg, 'success');
+            // ปิด Swal กำลังโหลด
+            Swal.close();
 
-            // รีเฟรชตารางผู้รับทุน
+            // สร้าง HTML สรุปผลแบบละเอียด
+            let summaryHtml = `
+                <div style="text-align:left; font-size:0.95rem; line-height:1.8;">
+                    <p><strong>✅ สำเร็จ:</strong> ${successCount} รายการ</p>
+                    <p><strong>⏭️ ข้าม (ซ้ำ):</strong> ${skipCount} รายการ</p>
+                    ${skipCount > 0 ? `<details><summary>📋 รายการที่ซ้ำ</summary><ul style="max-height:150px; overflow-y:auto; background:#f8fafc; padding:8px; border-radius:8px;">${duplicateRows.map(r => `<li>แถว ${r.row}: ${r.studentIdCard} - ${r.scholarshipName} (${r.amount.toLocaleString()} บาท) ปี ${r.academicYear} เทอม ${r.semester}</li>`).join('')}</ul></details>` : ''}
+                    <p><strong>❌ ไม่พบนักเรียน:</strong> ${notFoundCount} รายการ</p>
+                    ${notFoundCount > 0 ? `<details><summary>📋 รายการที่ไม่พบ</summary><ul style="max-height:150px; overflow-y:auto; background:#f8fafc; padding:8px; border-radius:8px;">${notFoundRows.map(r => `<li>แถว ${r.row}: รหัส ${r.studentIdCard}</li>`).join('')}</ul></details>` : ''}
+                    <p><strong>⚠️ ชื่อไม่ตรง:</strong> ${nameMismatchCount} รายการ</p>
+                    ${nameMismatchCount > 0 ? `<details><summary>📋 รายการชื่อไม่ตรง</summary><ul style="max-height:150px; overflow-y:auto; background:#f8fafc; padding:8px; border-radius:8px;">${nameMismatchRows.map(r => `<li>แถว ${r.row}: ${r.studentIdCard} (พบ: ${r.expected} แต่ในไฟล์: ${r.got})</li>`).join('')}</ul></details>` : ''}
+                    <p><strong>❌ ผิดพลาด:</strong> ${errorCount} รายการ</p>
+                    ${errorCount > 0 ? `<details><summary>📋 รายการที่ผิดพลาด</summary><ul style="max-height:150px; overflow-y:auto; background:#f8fafc; padding:8px; border-radius:8px;">${errorRows.map(r => `<li>แถว ${r.row}: ${r.reason}</li>`).join('')}</ul></details>` : ''}
+                </div>
+            `;
+
+            await Swal.fire({
+                title: 'นำเข้าเสร็จสิ้น',
+                html: summaryHtml,
+                icon: 'success',
+                confirmButtonText: 'ตกลง'
+            });
+
+            // รีเฟรชตาราง
             if ($.fn.DataTable.isDataTable('#recipientTable')) {
                 $('#recipientTable').DataTable().ajax.reload(null, false);
             }
             if (currentClassroomId) {
                 await loadStudentsForTable(currentClassroomId);
             }
+
         } catch (err) {
             console.error(err);
             Swal.fire('ผิดพลาด', err.message || 'ไม่สามารถนำเข้าข้อมูลได้', 'error');
@@ -2157,11 +2463,39 @@ window.importRecipientsFromExcel = function() {
     input.click();
 };
 
+// ค้นหานักเรียนจากรหัสและดึงชื่อ
+async function getStudentByCardWithName(studentIdCard) {
+    if (!studentIdCard) return null;
+    const { data, error } = await db.from('core_students')
+        .select('id, student_id_card, prefix, first_name, last_name')
+        .eq('student_id_card', studentIdCard.trim())
+        .maybeSingle();
+    if (error || !data) return null;
+    return data;
+}
+
+// ตรวจสอบข้อมูลทุนซ้ำ (ใช้ student_id + ชื่อทุน + จำนวนเงิน + ปี + เทอม)
+async function checkDuplicateScholarship(studentId, scholarshipName, amount, academicYear, semester) {
+    const { data, error } = await db.from('core_scholarships')
+        .select('id')
+        .eq('student_id', studentId)
+        .eq('scholarship_name', scholarshipName)
+        .eq('amount', amount)
+        .eq('academic_year', academicYear)
+        .eq('semester', semester)
+        .maybeSingle();
+    if (error) {
+        console.warn('checkDuplicate error:', error);
+        return false;
+    }
+    return !!data;
+}
+
 // ==========================================
 // DOM READY (Event Listeners)
 // ==========================================
 
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', function () {
     const dependentsItems = [
         'ผู้สูงอายุ', 'ผู้ป่วยติดเตียง', 'ผู้พิการ',
         'ผู้ที่ไม่สามารถช่วยเหลือตนเองได้', 'ผู้ที่ต้องบำบัด',
@@ -2180,7 +2514,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     document.querySelectorAll('input[name="has_disease"]').forEach(radio => {
-        radio.addEventListener('change', function() {
+        radio.addEventListener('change', function () {
             document.getElementById('disease_fields').classList.toggle('hidden', this.value === 'no');
         });
     });
