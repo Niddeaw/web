@@ -1,10 +1,11 @@
 // scholarship_dashboard.js
-// ฟังก์ชันโหลดข้อมูล Dashboard + ฟังก์ชันคลิกการ์ดแสดงรายละเอียดด้วย DataTable
+// ปรับปรุงประสิทธิภาพด้วย Batch Query (Promise.all)
+// แก้ไข error .catch is not a function
 
 let dashboardChart = null;
 
 /**
- * โหลดข้อมูลสำหรับ Dashboard
+ * โหลดข้อมูลสำหรับ Dashboard (ใช้ Batch Query)
  * @param {string} academicYear - ปีการศึกษา เช่น '2566'
  * @param {string} semester - ภาคเรียน เช่น '1' หรือ '2'
  */
@@ -23,61 +24,82 @@ async function loadDashboard(academicYear, semester) {
             return;
         }
 
-        // 1. จำนวนทุนทั้งหมด (distinct scholarship_name)
-        const { data: scholarships, error: err1 } = await db
-            .from('core_scholarships')
-            .select('scholarship_name')
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
-        if (err1) throw err1;
+        // คำนวณวันที่สำหรับกรอง created_at
+        const startDate = new Date();
+        startDate.setFullYear(parseInt(academicYear) - 543);
+        startDate.setMonth(0, 1);
+        const endDate = new Date(startDate);
+        endDate.setFullYear(startDate.getFullYear() + 1);
 
-        const uniqueScholarshipNames = new Set(scholarships.map(s => s.scholarship_name));
-        const totalScholarships = uniqueScholarshipNames.size;
+        // ✅ สร้างฟังก์ชัน query ที่มี fallback ด้วย try/catch
+        const fetchApplicationsCount = async () => {
+            try {
+                const result = await db
+                    .from('core_scholarship_applications')
+                    .select('*', { count: 'exact', head: true })
+                    .gte('created_at', startDate.toISOString())
+                    .lt('created_at', endDate.toISOString());
+                return result;
+            } catch (e) {
+                console.warn('ไม่สามารถกรองด้วย created_at ได้ (fallback):', e);
+                const result = await db
+                    .from('core_scholarship_applications')
+                    .select('*', { count: 'exact', head: true });
+                return result;
+            }
+        };
 
-        // 2. จำนวนนักเรียนที่ได้รับทุน
-        const { data: distinctStudents, error: err2 } = await db
-            .from('core_scholarships')
-            .select('student_id')
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
-        if (err2) throw err2;
-        const uniqueStudentIds = new Set(distinctStudents.map(s => s.student_id));
+        const fetchApprovedCount = async () => {
+            try {
+                const result = await db
+                    .from('core_scholarship_applications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'approved')
+                    .gte('created_at', startDate.toISOString())
+                    .lt('created_at', endDate.toISOString());
+                return result;
+            } catch (e) {
+                console.warn('ไม่สามารถกรองอนุมัติด้วย created_at ได้ (fallback):', e);
+                const result = await db
+                    .from('core_scholarship_applications')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('status', 'approved');
+                return result;
+            }
+        };
+
+        // ✅ Batch Query 4 queries พร้อมกัน
+        const [
+            scholarshipsResult,
+            distinctStudentsResult,
+            applicationsCountResult,
+            approvedCountResult
+        ] = await Promise.all([
+            db.from('core_scholarships')
+                .select('scholarship_name')
+                .eq('academic_year', academicYear)
+                .eq('semester', semester),
+            db.from('core_scholarships')
+                .select('student_id')
+                .eq('academic_year', academicYear)
+                .eq('semester', semester),
+            fetchApplicationsCount(),
+            fetchApprovedCount()
+        ]);
+
+        // ตรวจสอบ error
+        if (scholarshipsResult.error) throw scholarshipsResult.error;
+        if (distinctStudentsResult.error) throw distinctStudentsResult.error;
+
+        // ประมวลผล
+        const uniqueNames = new Set(scholarshipsResult.data.map(s => s.scholarship_name));
+        const totalScholarships = uniqueNames.size;
+
+        const uniqueStudentIds = new Set(distinctStudentsResult.data.map(s => s.student_id));
         const totalStudentsReceived = uniqueStudentIds.size;
 
-        // 3. จำนวนผู้ขอทุน
-        let totalApplications = 0;
-        try {
-            const startDate = new Date();
-            startDate.setFullYear(parseInt(academicYear) - 543);
-            startDate.setMonth(0, 1);
-            const endDate = new Date(startDate);
-            endDate.setFullYear(startDate.getFullYear() + 1);
-
-            const { count, error } = await db
-                .from('core_scholarship_applications')
-                .select('*', { count: 'exact', head: true })
-                .gte('created_at', startDate.toISOString())
-                .lt('created_at', endDate.toISOString());
-            if (!error) totalApplications = count || 0;
-        } catch (e) { console.warn('ไม่สามารถนับคำขอทุนได้:', e); }
-
-        // 4. จำนวนอนุมัติ
-        let approvedApplications = 0;
-        try {
-            const startDate = new Date();
-            startDate.setFullYear(parseInt(academicYear) - 543);
-            startDate.setMonth(0, 1);
-            const endDate = new Date(startDate);
-            endDate.setFullYear(startDate.getFullYear() + 1);
-
-            const { count, error } = await db
-                .from('core_scholarship_applications')
-                .select('*', { count: 'exact', head: true })
-                .eq('status', 'approved')
-                .gte('created_at', startDate.toISOString())
-                .lt('created_at', endDate.toISOString());
-            if (!error) approvedApplications = count || 0;
-        } catch (e) { console.warn('ไม่สามารถนับอนุมัติได้:', e); }
+        const totalApplications = applicationsCountResult.count || 0;
+        const approvedApplications = approvedCountResult.count || 0;
 
         // อัปเดตการ์ด
         cardElements.totalScholarships.textContent = totalScholarships || 0;
@@ -85,26 +107,19 @@ async function loadDashboard(academicYear, semester) {
         cardElements.totalApplications.textContent = totalApplications || 0;
         cardElements.approvedApplications.textContent = approvedApplications || 0;
 
-        // 5. Chart (เหมือนเดิม)
-        const { data: scholarshipsForChart, error: err5 } = await db
-            .from('core_scholarships')
-            .select('student_id')
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
-        if (err5) throw err5;
-
-        const studentIds = scholarshipsForChart.map(s => s.student_id);
+        // ----- Chart (ใช้ distinctStudentsResult.data) -----
+        const studentIds = distinctStudentsResult.data.map(s => s.student_id);
         const gradeCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
         if (studentIds.length > 0) {
-            const { data: enrollments, error: err6 } = await db
+            const { data: enrollments, error: enrollErr } = await db
                 .from('student_enrollments')
                 .select('student_id, academic_year, semester, core_classrooms(grade_level)')
                 .in('student_id', studentIds)
                 .order('academic_year', { ascending: false })
                 .order('semester', { ascending: false });
 
-            if (!err6 && enrollments) {
+            if (!enrollErr && enrollments) {
                 const latestEnrollmentMap = new Map();
                 enrollments.forEach(en => {
                     const existing = latestEnrollmentMap.get(en.student_id);
@@ -184,17 +199,14 @@ async function loadDashboard(academicYear, semester) {
 // ฟังก์ชันกลางสำหรับแสดง DataTable ใน SweetAlert
 // ==========================================
 function showDataTableInSwal(title, columns, data, rowCallback) {
-    // ตรวจสอบว่า Swal เปิดอยู่หรือไม่ ถ้าเปิดอยู่ให้ปิดก่อน
     if (Swal.isVisible()) {
         Swal.close();
-        // รอให้ปิดแล้วค่อยเปิดใหม่
         setTimeout(() => {
             showDataTableInSwal(title, columns, data, rowCallback);
         }, 200);
         return;
     }
 
-    // กำหนด columns สำหรับ DataTable (ถ้าไม่มีการกำหนด render)
     const dtColumns = columns.map(col => {
         return {
             data: col.data,
@@ -224,11 +236,10 @@ function showDataTableInSwal(title, columns, data, rowCallback) {
                 language: {
                     url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
                 },
-                drawCallback: function() {
+                drawCallback: function () {
                     if (rowCallback) {
                         rowCallback(this);
                     }
-                    // รองรับ Tooltip ถ้ามี
                     $('[data-toggle="tooltip"]').tooltip ? $('[data-toggle="tooltip"]').tooltip() : null;
                 }
             });
@@ -324,20 +335,20 @@ window.showScholarshipList = async function () {
         const columns = [
             { data: 'scholarship_name', title: 'ชื่อทุน', className: 'text-left' },
             { data: 'count', title: 'จำนวน (ทุน)', className: 'text-center' },
-            { 
-                data: 'total_amount', 
-                title: 'รวมเงิน (บาท)', 
+            {
+                data: 'total_amount',
+                title: 'รวมเงิน (บาท)',
                 className: 'text-right',
-                render: function(data) {
+                render: function (data) {
                     return data ? data.toLocaleString() : '0';
                 }
             }
         ];
 
-        const rowCallback = function(api) {
+        const rowCallback = function (api) {
             const dt = (api && typeof api.rows === 'function') ? api : $(api).DataTable();
             if (dt && typeof dt.rows === 'function') {
-                dt.rows().every(function() {
+                dt.rows().every(function () {
                     const rowData = this.data();
                     if (rowData.scholarship_name === '📊 รวมทั้งหมด') {
                         $(this.node()).addClass('font-bold bg-slate-100');
@@ -354,7 +365,7 @@ window.showScholarshipList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 2: นักเรียนที่ได้รับทุน ----------
+// ---------- การ์ดที่ 2: นักเรียนที่ได้รับทุน (Batch Query) ----------
 window.showStudentList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -364,7 +375,6 @@ window.showStudentList = async function () {
     }
 
     try {
-        // ดึง student_id ที่ได้รับทุน
         const { data: scholarships, error: err1 } = await db
             .from('core_scholarships')
             .select('student_id')
@@ -378,47 +388,38 @@ window.showStudentList = async function () {
             return;
         }
 
-        // ดึงข้อมูลนักเรียน
-        const { data: students, error: err2 } = await db
-            .from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name')
-            .in('id', studentIds);
-        if (err2) throw err2;
+        const [studentsRes, enrollmentsRes] = await Promise.all([
+            db.from('core_students')
+                .select('id, student_id_card, prefix, first_name, last_name')
+                .in('id', studentIds),
+            db.from('student_enrollments')
+                .select('student_id, core_classrooms(grade_level, room_number)')
+                .in('student_id', studentIds)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false })
+        ]);
+
+        if (studentsRes.error) throw studentsRes.error;
+        if (enrollmentsRes.error) throw enrollmentsRes.error;
 
         const studentMap = {};
-        students.forEach(s => { studentMap[s.id] = s; });
-
-        // ดึง enrollment ล่าสุด
-        const { data: enrollments, error: err3 } = await db
-            .from('student_enrollments')
-            .select('student_id, core_classrooms(grade_level, room_number)')
-            .in('student_id', studentIds)
-            .order('academic_year', { ascending: false })
-            .order('semester', { ascending: false });
-        if (err3) throw err3;
+        studentsRes.data.forEach(s => { studentMap[s.id] = s; });
 
         const latestEnroll = {};
-        enrollments.forEach(en => {
+        enrollmentsRes.data.forEach(en => {
             if (!latestEnroll[en.student_id]) {
                 latestEnroll[en.student_id] = en;
             }
         });
 
-        const tableData = [];
-        studentIds.forEach(id => {
+        const tableData = studentIds.map(id => {
             const student = studentMap[id];
-            if (!student) return;
+            if (!student) return null;
             const enroll = latestEnroll[id];
             const grade = enroll?.core_classrooms ? `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-';
             const name = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
-            tableData.push({
-                student_id: student.id,
-                grade: grade,
-                id_card: student.student_id_card,
-                name: name,
-                // ใช้ render แทนการเก็บ HTML
-            });
-        });
+            return { student_id: student.id, grade, id_card: student.student_id_card, name };
+        }).filter(Boolean);
 
         const columns = [
             { data: 'grade', title: 'ชั้น', className: 'text-left' },
@@ -428,7 +429,7 @@ window.showStudentList = async function () {
                 data: 'student_id',
                 title: 'จัดการ',
                 className: 'text-center',
-                render: function(data) {
+                render: function (data) {
                     return `<button class="btn-view-history bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm transition" data-student-id="${data}">
                                 <i class="fas fa-eye mr-1"></i> ดูประวัติ
                             </button>`;
@@ -436,17 +437,15 @@ window.showStudentList = async function () {
             }
         ];
 
-        const rowCallback = function() {
-            $('.btn-view-history').off('click').on('click', function() {
+        const rowCallback = function () {
+            $('.btn-view-history').off('click').on('click', function () {
                 const studentId = $(this).data('student-id');
                 if (Swal.isVisible()) {
-                    Swal.close();  // ปิด Swal
-                    // รอให้ Swal ปิดสนิท แล้วค่อยเรียก viewStudentDetail
+                    Swal.close();
                     setTimeout(() => {
                         if (typeof viewStudentDetail === 'function') {
                             viewStudentDetail(studentId);
                         } else {
-                            console.error('viewStudentDetail is not defined');
                             Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบฟังก์ชันดูประวัติ', 'error');
                         }
                     }, 300);
@@ -462,7 +461,7 @@ window.showStudentList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 3: ผู้ขอทุน ----------
+// ---------- การ์ดที่ 3: ผู้ขอทุน (Batch Query) ----------
 window.showApplicantList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -472,7 +471,6 @@ window.showApplicantList = async function () {
     }
 
     try {
-        // ดึง applications ในปี/เทอมนี้
         const startDate = new Date();
         startDate.setFullYear(parseInt(academicYear) - 543);
         startDate.setMonth(0, 1);
@@ -486,7 +484,6 @@ window.showApplicantList = async function () {
             .lt('created_at', endDate.toISOString());
 
         if (err1) {
-            // fallback
             const { data: allApps, error: err2 } = await db
                 .from('core_scholarship_applications')
                 .select('student_id');
@@ -500,45 +497,38 @@ window.showApplicantList = async function () {
             return;
         }
 
-        // ดึงข้อมูลนักเรียนและ enrollment (เหมือนเดิม)
-        const { data: students, error: err3 } = await db
-            .from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name')
-            .in('id', studentIds);
-        if (err3) throw err3;
+        const [studentsRes, enrollmentsRes] = await Promise.all([
+            db.from('core_students')
+                .select('id, student_id_card, prefix, first_name, last_name')
+                .in('id', studentIds),
+            db.from('student_enrollments')
+                .select('student_id, core_classrooms(grade_level, room_number)')
+                .in('student_id', studentIds)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false })
+        ]);
+
+        if (studentsRes.error) throw studentsRes.error;
+        if (enrollmentsRes.error) throw enrollmentsRes.error;
 
         const studentMap = {};
-        students.forEach(s => { studentMap[s.id] = s; });
-
-        const { data: enrollments, error: err4 } = await db
-            .from('student_enrollments')
-            .select('student_id, core_classrooms(grade_level, room_number)')
-            .in('student_id', studentIds)
-            .order('academic_year', { ascending: false })
-            .order('semester', { ascending: false });
-        if (err4) throw err4;
+        studentsRes.data.forEach(s => { studentMap[s.id] = s; });
 
         const latestEnroll = {};
-        enrollments.forEach(en => {
+        enrollmentsRes.data.forEach(en => {
             if (!latestEnroll[en.student_id]) {
                 latestEnroll[en.student_id] = en;
             }
         });
 
-        const tableData = [];
-        studentIds.forEach(id => {
+        const tableData = studentIds.map(id => {
             const student = studentMap[id];
-            if (!student) return;
+            if (!student) return null;
             const enroll = latestEnroll[id];
             const grade = enroll?.core_classrooms ? `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-';
             const name = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
-            tableData.push({
-                student_id: student.id,
-                grade: grade,
-                id_card: student.student_id_card,
-                name: name,
-            });
-        });
+            return { student_id: student.id, grade, id_card: student.student_id_card, name };
+        }).filter(Boolean);
 
         const columns = [
             { data: 'grade', title: 'ชั้น', className: 'text-left' },
@@ -548,7 +538,7 @@ window.showApplicantList = async function () {
                 data: 'student_id',
                 title: 'จัดการ',
                 className: 'text-center',
-                render: function(data) {
+                render: function (data) {
                     return `<button class="btn-view-history bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm transition" data-student-id="${data}">
                                 <i class="fas fa-eye mr-1"></i> ดูประวัติ
                             </button>`;
@@ -556,8 +546,8 @@ window.showApplicantList = async function () {
             }
         ];
 
-        const rowCallback = function() {
-            $('.btn-view-history').off('click').on('click', function() {
+        const rowCallback = function () {
+            $('.btn-view-history').off('click').on('click', function () {
                 const studentId = $(this).data('student-id');
                 if (Swal.isVisible()) {
                     Swal.close();
@@ -580,7 +570,7 @@ window.showApplicantList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 4: อนุมัติแล้ว ----------
+// ---------- การ์ดที่ 4: อนุมัติแล้ว (Batch Query) ----------
 window.showApprovedList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -618,45 +608,38 @@ window.showApprovedList = async function () {
             return;
         }
 
-        // ดึงข้อมูลนักเรียนและ enrollment (เหมือนเดิม)
-        const { data: students, error: err3 } = await db
-            .from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name')
-            .in('id', studentIds);
-        if (err3) throw err3;
+        const [studentsRes, enrollmentsRes] = await Promise.all([
+            db.from('core_students')
+                .select('id, student_id_card, prefix, first_name, last_name')
+                .in('id', studentIds),
+            db.from('student_enrollments')
+                .select('student_id, core_classrooms(grade_level, room_number)')
+                .in('student_id', studentIds)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false })
+        ]);
+
+        if (studentsRes.error) throw studentsRes.error;
+        if (enrollmentsRes.error) throw enrollmentsRes.error;
 
         const studentMap = {};
-        students.forEach(s => { studentMap[s.id] = s; });
-
-        const { data: enrollments, error: err4 } = await db
-            .from('student_enrollments')
-            .select('student_id, core_classrooms(grade_level, room_number)')
-            .in('student_id', studentIds)
-            .order('academic_year', { ascending: false })
-            .order('semester', { ascending: false });
-        if (err4) throw err4;
+        studentsRes.data.forEach(s => { studentMap[s.id] = s; });
 
         const latestEnroll = {};
-        enrollments.forEach(en => {
+        enrollmentsRes.data.forEach(en => {
             if (!latestEnroll[en.student_id]) {
                 latestEnroll[en.student_id] = en;
             }
         });
 
-        const tableData = [];
-        studentIds.forEach(id => {
+        const tableData = studentIds.map(id => {
             const student = studentMap[id];
-            if (!student) return;
+            if (!student) return null;
             const enroll = latestEnroll[id];
             const grade = enroll?.core_classrooms ? `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}` : '-';
             const name = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
-            tableData.push({
-                student_id: student.id,
-                grade: grade,
-                id_card: student.student_id_card,
-                name: name,
-            });
-        });
+            return { student_id: student.id, grade, id_card: student.student_id_card, name };
+        }).filter(Boolean);
 
         const columns = [
             { data: 'grade', title: 'ชั้น', className: 'text-left' },
@@ -666,7 +649,7 @@ window.showApprovedList = async function () {
                 data: 'student_id',
                 title: 'จัดการ',
                 className: 'text-center',
-                render: function(data) {
+                render: function (data) {
                     return `<button class="btn-view-history bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded-lg text-sm transition" data-student-id="${data}">
                                 <i class="fas fa-eye mr-1"></i> ดูประวัติ
                             </button>`;
@@ -674,8 +657,8 @@ window.showApprovedList = async function () {
             }
         ];
 
-        const rowCallback = function() {
-            $('.btn-view-history').off('click').on('click', function() {
+        const rowCallback = function () {
+            $('.btn-view-history').off('click').on('click', function () {
                 const studentId = $(this).data('student-id');
                 if (Swal.isVisible()) {
                     Swal.close();

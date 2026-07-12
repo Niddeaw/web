@@ -666,19 +666,28 @@ let currentStep = 1;
 
 function goToStep(step) {
     currentStep = step;
+
+    // เปลี่ยนเนื้อหา step
     $('.step-content').removeClass('active');
     $(`#step-${step}`).addClass('active');
 
+    // อัปเดตแถบ progress
     const progress = (step - 1) * 33.33;
     $('#progressBar').css('width', `${progress}%`);
 
+    // เปลี่ยนสถานะของวงกลมและข้อความขั้นตอน
     for (let i = 1; i <= 4; i++) {
+        const circle = $(`#circle-${i}`);
+        const label = $(`#text-step-${i}`);
+
         if (i <= step) {
-            $(`#circle-${i}`).removeClass('bg-slate-100 text-slate-400').addClass('bg-amber-600 text-white');
-            $(`#text-step-${i}`).removeClass('text-slate-400').addClass('text-amber-700');
+            // ขั้นตอนที่ผ่านหรือปัจจุบัน: active
+            circle.removeClass('inactive').addClass('active');
+            label.removeClass('inactive').addClass('active');
         } else {
-            $(`#circle-${i}`).removeClass('bg-amber-600 text-white').addClass('bg-slate-100 text-slate-400');
-            $(`#text-step-${i}`).removeClass('text-amber-700').addClass('text-slate-400');
+            // ขั้นตอนที่ยังไม่ถึง: inactive
+            circle.removeClass('active').addClass('inactive');
+            label.removeClass('active').addClass('inactive');
         }
     }
 }
@@ -2050,18 +2059,26 @@ window.saveScholarshipRecord = async function () {
 };
 
 // ==========================================
-// APPLICANT LIST MODAL
+// APPLICANT LIST MODAL (DataTable + Actions)
+// แก้ไขให้ใช้เฉพาะคอลัมน์ที่มีในฐานข้อมูล
 // ==========================================
 
 window.openApplicantListModal = async function () {
+    if (!requireAdminLocal()) return;
+
     const modal = document.getElementById('applicantListModal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
-    document.getElementById('applicantListContent').innerHTML =
-        '<div class="text-center py-10 text-slate-400"><i class="fas fa-spinner fa-spin text-3xl mb-3"></i><p>กำลังโหลดข้อมูล...</p></div>';
+    document.getElementById('applicantListContent').innerHTML = `
+        <div class="text-center py-10 text-slate-400">
+            <i class="fas fa-spinner fa-spin text-3xl mb-3"></i>
+            <p>กำลังโหลดข้อมูล...</p>
+        </div>
+    `;
 
     try {
+        // ✅ เลือกเฉพาะคอลัมน์ที่มีอยู่จริง
         const { data: applications, error } = await db.from('core_scholarship_applications')
             .select(`
                 id,
@@ -2070,6 +2087,7 @@ window.openApplicantListModal = async function () {
                 usage_plan,
                 status,
                 created_at,
+                form_data,
                 core_students!inner (
                     id,
                     student_id_card,
@@ -2082,90 +2100,461 @@ window.openApplicantListModal = async function () {
 
         if (error) throw error;
 
-        if (!applications || applications.length === 0) {
-            document.getElementById('applicantListContent').innerHTML = `
-                <div class="text-center py-16 text-slate-400">
-                    <i class="fas fa-inbox text-5xl mb-4 text-slate-300"></i>
-                    <p class="text-lg font-medium">ยังไม่มีรายการคำขอทุน</p>
-                    <p class="text-sm">ยังไม่มีนักเรียนทำการขอทุนในระบบ</p>
-                </div>
-            `;
-            return;
+        // ดึงข้อมูลชั้นเรียน
+        const studentIds = applications.map(a => a.student_id);
+        let classroomMap = {};
+        if (studentIds.length > 0) {
+            const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+                .select('student_id, core_classrooms(grade_level, room_number)')
+                .in('student_id', studentIds)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false });
+            if (!enrollErr) {
+                const latest = {};
+                enrolls.forEach(en => {
+                    if (!latest[en.student_id]) {
+                        latest[en.student_id] = en;
+                    }
+                });
+                Object.keys(latest).forEach(id => {
+                    const en = latest[id];
+                    classroomMap[id] = en.core_classrooms ? `ม.${en.core_classrooms.grade_level}/${en.core_classrooms.room_number}` : '-';
+                });
+            }
         }
 
-        let html = `
-            <div class="table-scroll">
-                <table class="w-full text-sm border-collapse">
-                    <thead class="bg-slate-50 border-b-2 border-slate-200">
-                        <tr>
-                            <th class="p-3 text-left font-bold text-slate-600">รหัสประจำตัว</th>
-                            <th class="p-3 text-left font-bold text-slate-600">ชื่อ-สกุล</th>
-                            <th class="p-3 text-left font-bold text-slate-600">เหตุผลขอทุน</th>
-                            <th class="p-3 text-left font-bold text-slate-600">แผนการใช้เงิน</th>
-                            <th class="p-3 text-center font-bold text-slate-600">สถานะ</th>
-                            <th class="p-3 text-center font-bold text-slate-600">วันที่ขอ</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-        `;
-
-        const statusMap = {
-            'pending': { label: 'รอดำเนินการ', cls: 'badge-pending' },
-            'approved': { label: 'อนุมัติ', cls: 'badge-approved' },
-            'rejected': { label: 'ไม่อนุมัติ', cls: 'badge-rejected' }
-        };
-
-        applications.forEach(a => {
-            const student = a.core_students;
+        // เตรียมข้อมูล
+        const tableData = applications.map(app => {
+            const student = app.core_students;
             const name = student ? `${student.prefix || ''}${student.first_name} ${student.last_name}` : 'ไม่พบข้อมูล';
             const code = student ? student.student_id_card : '-';
-            const statusInfo = statusMap[a.status] || { label: a.status || 'รอดำเนินการ', cls: 'badge-pending' };
-            const date = a.created_at ? new Date(a.created_at).toLocaleDateString('th-TH', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric'
-            }) : '-';
+            const grade = classroomMap[app.student_id] || '-';
+            const statusMap = {
+                'pending': { label: 'รอดำเนินการ', cls: 'badge-pending' },
+                'approved': { label: 'อนุมัติแล้ว', cls: 'badge-approved' },
+                'rejected': { label: 'ไม่อนุมัติ', cls: 'badge-rejected' }
+            };
+            const st = statusMap[app.status] || statusMap['pending'];
+            const date = app.created_at ? new Date(app.created_at).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' }) : '-';
+            
+            // ดึง rejection_reason จาก form_data (ถ้ามี)
+            let rejectionReason = '';
+            if (app.form_data && typeof app.form_data === 'object' && app.form_data.rejection_reason) {
+                rejectionReason = app.form_data.rejection_reason;
+            }
 
-            const reasonShort = a.reason ? (a.reason.length > 60 ? a.reason.substring(0, 60) + '...' : a.reason) : '-';
-            const usageShort = a.usage_plan ? (a.usage_plan.length > 60 ? a.usage_plan.substring(0, 60) + '...' : a.usage_plan) : '-';
-
-            html += `
-                <tr class="hover:bg-slate-50/60 transition">
-                    <td class="p-3 font-mono text-slate-600">${code}</td>
-                    <td class="p-3 font-medium text-slate-800">${name}</td>
-                    <td class="p-3 text-sm text-slate-600" title="${a.reason || ''}">${reasonShort}</td>
-                    <td class="p-3 text-sm text-slate-600" title="${a.usage_plan || ''}">${usageShort}</td>
-                    <td class="p-3 text-center"><span class="badge-status ${statusInfo.cls}">${statusInfo.label}</span></td>
-                    <td class="p-3 text-center text-sm text-slate-500">${date}</td>
-                </tr>
-            `;
+            return {
+                id: app.id,
+                student_id: app.student_id,
+                grade: grade,
+                code: code,
+                name: name,
+                reason: app.reason || '-',
+                usage_plan: app.usage_plan || '-',
+                status: app.status,
+                status_label: st.label,
+                status_cls: st.cls,
+                date: date,
+                created_at: app.created_at,
+                rejection_reason: rejectionReason,
+                form_data: app.form_data || {}
+            };
         });
 
-        html += `
-                    </tbody>
+        const html = `
+            <div style="max-height:70vh; overflow:auto;">
+                <table id="applicantDataTable" class="display nowrap" style="width:100%;">
+                    <thead>
+                        <tr>
+                            <th>ชั้น</th>
+                            <th>รหัสประจำตัว</th>
+                            <th>ชื่อ-สกุล</th>
+                            <th>เหตุผลขอทุน</th>
+                            <th>แผนการใช้เงิน</th>
+                            <th>สถานะ</th>
+                            <th>วันที่ขอ</th>
+                            <th>จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
                 </table>
             </div>
-            <div class="mt-3 text-sm text-slate-500 bg-slate-50 p-2 rounded-xl text-center">
-                <i class="fas fa-database mr-1"></i> พบข้อมูลทั้งหมด ${applications.length} รายการ
-            </div>
         `;
-
         document.getElementById('applicantListContent').innerHTML = html;
+
+        const columns = [
+            { data: 'grade', className: 'text-center' },
+            { data: 'code', className: 'font-mono' },
+            { data: 'name', className: 'font-medium' },
+            { data: 'reason', render: (d) => d.length > 60 ? d.substring(0,60)+'...' : d },
+            { data: 'usage_plan', render: (d) => d.length > 60 ? d.substring(0,60)+'...' : d },
+            {
+                data: 'status',
+                render: function(data, type, row) {
+                    const label = row.status_label;
+                    const cls = row.status_cls;
+                    return `<span class="badge-status ${cls}">${label}</span>`;
+                }
+            },
+            { data: 'date' },
+// แทนที่ส่วน render ของคอลัมน์ "จัดการ" ใน openApplicantListModal
+{
+    data: null,
+    orderable: false,
+    render: function(data, type, row) {
+        const isAdmin = isAdminUserLocal();
+        if (!isAdmin) return '-';
+        let buttons = '';
+
+        // ✅ ปุ่มดูรายละเอียด (ทุกสถานะ)
+        buttons += `<button class="action-btn text-blue-600 hover:bg-blue-50" onclick="viewApplicationDetail('${row.id}')" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
+
+        // ✅ ปุ่มอนุมัติ (เฉพาะ pending)
+        if (row.status === 'pending') {
+            buttons += `<button class="action-btn text-emerald-600 hover:bg-emerald-50" onclick="approveApplication('${row.id}')" title="อนุมัติ"><i class="fas fa-check-circle"></i></button>`;
+            buttons += `<button class="action-btn text-rose-600 hover:bg-rose-50" onclick="rejectApplication('${row.id}')" title="ไม่อนุมัติ"><i class="fas fa-times-circle"></i></button>`;
+        } else {
+            // แสดงข้อมูลเพิ่มเติมสำหรับ approved/rejected
+            if (row.status === 'rejected' && row.rejection_reason) {
+                buttons += `<button class="action-btn text-slate-600" onclick="alert('เหตุผล: ${row.rejection_reason}')" title="ดูเหตุผล"><i class="fas fa-comment"></i></button>`;
+            }
+            if (row.status === 'approved') {
+                buttons += `<button class="action-btn text-slate-600" onclick="alert('อนุมัติแล้ว')" title="ข้อมูล"><i class="fas fa-check-circle text-emerald-600"></i></button>`;
+            }
+        }
+
+        // ✅ ปุ่มลบ (ทุกสถานะ)
+        buttons += `<button class="action-btn text-rose-600 hover:bg-rose-50" onclick="deleteApplication('${row.id}')" title="ลบ"><i class="fas fa-trash"></i></button>`;
+
+        return buttons;
+    }
+}
+        ];
+
+        if ($.fn.DataTable.isDataTable('#applicantDataTable')) {
+            $('#applicantDataTable').DataTable().destroy();
+        }
+        $('#applicantDataTable').DataTable({
+            data: tableData,
+            columns: columns,
+            responsive: true,
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            order: [[6, 'desc']],
+            language: {
+                url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
+            }
+        });
+
     } catch (err) {
         console.error('Error loading applicant list:', err);
         document.getElementById('applicantListContent').innerHTML = `
             <div class="text-center py-10 text-rose-500">
                 <i class="fas fa-exclamation-circle text-3xl mb-3"></i>
-                <p>เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</p>
+                <p>เกิดข้อผิดพลาด: ${err.message}</p>
             </div>
         `;
     }
 };
 
 window.closeApplicantListModal = function () {
-    document.getElementById('applicantListModal').classList.add('hidden');
-    document.getElementById('applicantListModal').classList.remove('flex');
+    const modal = document.getElementById('applicantListModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if ($.fn.DataTable.isDataTable('#applicantDataTable')) {
+        $('#applicantDataTable').DataTable().destroy();
+    }
 };
+
+// ==========================================
+// MANAGE APPLICATIONS (Admin only)
+// ==========================================
+// ===== ดูรายละเอียดคำขอของนักเรียน =====
+window.viewApplicationDetail = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    try {
+        const { data: app, error } = await db.from('core_scholarship_applications')
+            .select(`
+                id,
+                student_id,
+                reason,
+                usage_plan,
+                status,
+                created_at,
+                form_data,
+                core_students!inner (
+                    id,
+                    student_id_card,
+                    prefix,
+                    first_name,
+                    last_name,
+                    national_id,
+                    avatar_students_url
+                )
+            `)
+            .eq('id', applicationId)
+            .single();
+
+        if (error) throw error;
+
+        const student = app.core_students;
+        const form = app.form_data || {};
+        const studentName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
+
+        // สร้าง HTML แสดงข้อมูล
+        let html = `
+            <div style="max-height:70vh; overflow-y:auto; padding-right:5px;">
+                <div class="flex items-center gap-4 border-b pb-3 mb-4">
+                    <img src="${student.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(studentName)}&background=6366f1&color=fff&size=64`}" 
+                         class="w-16 h-16 rounded-full object-cover border-2 border-indigo-200">
+                    <div>
+                        <h3 class="text-xl font-bold text-indigo-800">${studentName}</h3>
+                        <p class="text-sm text-slate-500">รหัสประจำตัว: ${student.student_id_card} | สถานะ: <span class="badge-status ${app.status === 'pending' ? 'badge-pending' : app.status === 'approved' ? 'badge-approved' : 'badge-rejected'}">${app.status === 'pending' ? 'รอดำเนินการ' : app.status === 'approved' ? 'อนุมัติแล้ว' : 'ไม่อนุมัติ'}</span></p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <p class="text-xs text-slate-500 font-bold">📅 วันที่ขอ</p>
+                        <p class="font-semibold">${new Date(app.created_at).toLocaleString('th-TH')}</p>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <p class="text-xs text-slate-500 font-bold">📌 เหตุผลขอทุน</p>
+                        <p class="font-semibold text-sm">${app.reason || '-'}</p>
+                    </div>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl mb-4">
+                    <p class="text-xs text-slate-500 font-bold">📋 แผนการใช้เงิน</p>
+                    <p class="font-semibold text-sm">${app.usage_plan || '-'}</p>
+                </div>
+
+                <details class="border rounded-xl p-3 mb-4">
+                    <summary class="font-bold text-indigo-700 cursor-pointer"><i class="fas fa-user mr-2"></i>ข้อมูลครอบครัว</summary>
+                    <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
+                        <div><span class="text-slate-500">บิดา:</span> ${form.father?.name || '-'}</div>
+                        <div><span class="text-slate-500">อาชีพ:</span> ${form.father?.job || '-'}</div>
+                        <div><span class="text-slate-500">มารดา:</span> ${form.mother?.name || '-'}</div>
+                        <div><span class="text-slate-500">อาชีพ:</span> ${form.mother?.job || '-'}</div>
+                        <div><span class="text-slate-500">ผู้ปกครอง:</span> ${form.guardian?.name || '-'}</div>
+                        <div><span class="text-slate-500">สถานะครอบครัว:</span> ${form.parents_status || '-'}</div>
+                    </div>
+                </details>
+
+                <details class="border rounded-xl p-3 mb-4">
+                    <summary class="font-bold text-indigo-700 cursor-pointer"><i class="fas fa-map-pin mr-2"></i>ที่อยู่</summary>
+                    <div class="text-sm mt-2">
+                        <p>${form.address?.house || ''} ${form.address?.moo ? 'หมู่ '+form.address.moo : ''}</p>
+                        <p>${form.address?.subdistrict || ''} ${form.address?.district || ''} ${form.address?.province || ''}</p>
+                        <p>${form.address?.zipcode ? 'รหัสไปรษณีย์ '+form.address.zipcode : ''}</p>
+                    </div>
+                </details>
+
+                <details class="border rounded-xl p-3">
+                    <summary class="font-bold text-indigo-700 cursor-pointer"><i class="fas fa-coins mr-2"></i>เศรษฐกิจและสุขภาพ</summary>
+                    <div class="grid grid-cols-2 gap-2 mt-2 text-sm">
+                        <div><span class="text-slate-500">รายได้ครอบครัว:</span> ${form.economy?.family_income || '-'}</div>
+                        <div><span class="text-slate-500">โรคประจำตัว:</span> ${form.disease?.has === 'yes' ? form.disease.name || 'มี' : 'ไม่มี'}</div>
+                    </div>
+                </details>
+            </div>
+        `;
+
+        Swal.fire({
+            title: '📄 รายละเอียดคำขอทุน',
+            html: html,
+            width: '800px',
+            showCloseButton: true,
+            showConfirmButton: true,
+            confirmButtonText: 'ปิด',
+            confirmButtonColor: '#6366f1'
+        });
+
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูล', 'error');
+    }
+};
+
+// ----- อนุมัติคำขอ (สร้างทุน + อัปเดตสถานะ) -----
+window.approveApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    const { data: app, error: appErr } = await db.from('core_scholarship_applications')
+        .select('student_id, reason')
+        .eq('id', applicationId)
+        .single();
+    if (appErr) return Swal.fire('ผิดพลาด', 'ไม่พบคำขอ', 'error');
+
+    const year = currentYear || (await getCurrentYear()) || '2567';
+    const semester = currentTerm || (await getCurrentSemester()) || '1';
+
+    const { value: formValues } = await Swal.fire({
+        title: 'อนุมัติทุน',
+        html: `
+            <div style="text-align:left;">
+                <label class="field-label">ชื่อทุน <span class="text-rose-500">*</span></label>
+                <input id="swal-scholarship-name" class="swal2-input" placeholder="เช่น ทุนการศึกษาดีเด่น" value="ทุนทั่วไป">
+                <label class="field-label mt-3">จำนวนเงิน (บาท) <span class="text-rose-500">*</span></label>
+                <input id="swal-amount" class="swal2-input" type="number" placeholder="0" value="1000">
+                <label class="field-label mt-3">ปีการศึกษา</label>
+                <input id="swal-academic-year" class="swal2-input" value="${year}">
+                <label class="field-label mt-3">ภาคเรียน</label>
+                <select id="swal-semester" class="swal2-input">
+                    <option value="1" ${semester == 1 ? 'selected' : ''}>ภาคเรียนที่ 1</option>
+                    <option value="2" ${semester == 2 ? 'selected' : ''}>ภาคเรียนที่ 2</option>
+                </select>
+                <label class="field-label mt-3">หมายเหตุ (ถ้ามี)</label>
+                <input id="swal-note" class="swal2-input" placeholder="หมายเหตุเพิ่มเติม">
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'อนุมัติ',
+        cancelButtonText: 'ยกเลิก',
+        preConfirm: () => {
+            const name = document.getElementById('swal-scholarship-name').value.trim();
+            const amount = parseFloat(document.getElementById('swal-amount').value);
+            const academicYear = document.getElementById('swal-academic-year').value.trim();
+            const semester = document.getElementById('swal-semester').value;
+            const note = document.getElementById('swal-note').value.trim();
+
+            if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อทุน'); return false; }
+            if (isNaN(amount) || amount <= 0) { Swal.showValidationMessage('กรุณากรอกจำนวนเงินให้ถูกต้อง'); return false; }
+            if (!academicYear) { Swal.showValidationMessage('กรุณากรอกปีการศึกษา'); return false; }
+            return { name, amount, academicYear, semester, note };
+        }
+    });
+
+    if (!formValues) return;
+
+    try {
+        // บันทึกทุน
+        const { error: insertErr } = await db.from('core_scholarships').insert({
+            student_id: app.student_id,
+            scholarship_name: formValues.name,
+            amount: formValues.amount,
+            academic_year: formValues.academicYear,
+            semester: formValues.semester,
+            scholarship_type: 'ทุนทั่วไป',
+            note: formValues.note || '',
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        });
+        if (insertErr) throw insertErr;
+
+        // อัปเดตสถานะคำขอเป็น approved (ไม่ต้องมี approved_at)
+        const { error: updateErr } = await db.from('core_scholarship_applications')
+            .update({ status: 'approved' })
+            .eq('id', applicationId);
+        if (updateErr) throw updateErr;
+
+        Swal.fire('สำเร็จ', 'อนุมัติทุนเรียบร้อย', 'success');
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ----- ไม่อนุมัติ (บันทึกเหตุผลใน form_data) -----
+window.rejectApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    const { value: reason } = await Swal.fire({
+        title: 'ไม่อนุมัติคำขอ',
+        input: 'textarea',
+        inputLabel: 'เหตุผลที่ไม่อนุมัติ',
+        inputPlaceholder: 'ระบุเหตุผล...',
+        inputAttributes: { 'aria-label': 'ระบุเหตุผล' },
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => {
+            if (!value) return 'กรุณาระบุเหตุผล';
+        }
+    });
+
+    if (reason === undefined) return;
+
+    try {
+        // ดึงข้อมูล form_data เดิม
+        const { data: app, error: fetchErr } = await db.from('core_scholarship_applications')
+            .select('form_data')
+            .eq('id', applicationId)
+            .single();
+        if (fetchErr) throw fetchErr;
+
+        const currentFormData = app.form_data || {};
+        currentFormData.rejection_reason = reason;  // เก็บเหตุผลใน form_data
+
+        // อัปเดตสถานะและ form_data
+        const { error } = await db.from('core_scholarship_applications')
+            .update({
+                status: 'rejected',
+                form_data: currentFormData
+            })
+            .eq('id', applicationId);
+        if (error) throw error;
+
+        Swal.fire('สำเร็จ', 'บันทึกการไม่อนุมัติเรียบร้อย', 'success');
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ----- ลบคำขอ -----
+window.deleteApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    const confirm = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: 'คุณต้องการลบคำขอนี้หรือไม่? (ข้อมูลจะหายไปถาวร)',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ลบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+        const { error } = await db.from('core_scholarship_applications')
+            .delete()
+            .eq('id', applicationId);
+        if (error) throw error;
+
+        Swal.fire('ลบสำเร็จ', 'ลบคำขอเรียบร้อย', 'success');
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ----- ฟังก์ชันช่วยดึงปี/เทอม (ถ้ายังไม่มี) -----
+async function getCurrentYear() {
+    try {
+        const { data } = await db.from('core_school_info').select('current_academic_year').single();
+        return data?.current_academic_year || '2567';
+    } catch { return '2567'; }
+}
+async function getCurrentSemester() {
+    try {
+        const { data } = await db.from('core_school_info').select('current_semester').single();
+        return data?.current_semester || '1';
+    } catch { return '1'; }
+}
 
 window.exportApplicantListExcel = function () {
     Swal.fire({
@@ -2183,6 +2572,173 @@ window.exportRecipientListExcel = function () {
         text: 'กำลังพัฒนาฟังก์ชันส่งออกผู้รับทุน',
         confirmButtonText: 'ตกลง'
     });
+};
+
+// ==========================================
+// MANAGE APPLICATIONS (Admin only)
+// ==========================================
+
+// ----- อนุมัติคำขอ (สร้างทุนและอัปเดตสถานะ) -----
+window.approveApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    // ดึงข้อมูล application เพื่อนำ student_id
+    const { data: app, error: appErr } = await db.from('core_scholarship_applications')
+        .select('student_id, reason')
+        .eq('id', applicationId)
+        .single();
+    if (appErr) return Swal.fire('ผิดพลาด', 'ไม่พบคำขอ', 'error');
+
+    // ดึงปี/เทอมปัจจุบัน
+    const year = currentYear || (await getCurrentYear()) || '2567';
+    const semester = currentTerm || (await getCurrentSemester()) || '1';
+
+    const { value: formValues } = await Swal.fire({
+        title: 'อนุมัติทุน',
+        html: `
+            <div style="text-align:left;">
+                <label class="field-label">ชื่อทุน <span class="text-rose-500">*</span></label>
+                <input id="swal-scholarship-name" class="swal2-input" placeholder="เช่น ทุนการศึกษาดีเด่น" value="ทุนทั่วไป">
+                <label class="field-label mt-3">จำนวนเงิน (บาท) <span class="text-rose-500">*</span></label>
+                <input id="swal-amount" class="swal2-input" type="number" placeholder="0" value="1000">
+                <label class="field-label mt-3">ปีการศึกษา</label>
+                <input id="swal-academic-year" class="swal2-input" value="${year}">
+                <label class="field-label mt-3">ภาคเรียน</label>
+                <select id="swal-semester" class="swal2-input">
+                    <option value="1" ${semester == 1 ? 'selected' : ''}>ภาคเรียนที่ 1</option>
+                    <option value="2" ${semester == 2 ? 'selected' : ''}>ภาคเรียนที่ 2</option>
+                </select>
+                <label class="field-label mt-3">หมายเหตุ (ถ้ามี)</label>
+                <input id="swal-note" class="swal2-input" placeholder="หมายเหตุเพิ่มเติม">
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: 'อนุมัติ',
+        cancelButtonText: 'ยกเลิก',
+        preConfirm: () => {
+            const name = document.getElementById('swal-scholarship-name').value.trim();
+            const amount = parseFloat(document.getElementById('swal-amount').value);
+            const academicYear = document.getElementById('swal-academic-year').value.trim();
+            const semester = document.getElementById('swal-semester').value;
+            const note = document.getElementById('swal-note').value.trim();
+
+            if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อทุน'); return false; }
+            if (isNaN(amount) || amount <= 0) { Swal.showValidationMessage('กรุณากรอกจำนวนเงินให้ถูกต้อง'); return false; }
+            if (!academicYear) { Swal.showValidationMessage('กรุณากรอกปีการศึกษา'); return false; }
+            return { name, amount, academicYear, semester, note };
+        }
+    });
+
+    if (!formValues) return;
+
+    try {
+        // 1. บันทึกข้อมูลทุนใน core_scholarships
+        const { error: insertErr } = await db.from('core_scholarships').insert({
+            student_id: app.student_id,
+            scholarship_name: formValues.name,
+            amount: formValues.amount,
+            academic_year: formValues.academicYear,
+            semester: formValues.semester,
+            scholarship_type: 'ทุนทั่วไป',
+            note: formValues.note || '',
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        });
+        if (insertErr) throw insertErr;
+
+        // 2. อัปเดตสถานะคำขอเป็น approved พร้อมบันทึกวันที่
+        const { error: updateErr } = await db.from('core_scholarship_applications')
+            .update({
+                status: 'approved',
+                approved_at: new Date().toISOString(),
+                approved_by: currentUser.id
+            })
+            .eq('id', applicationId);
+        if (updateErr) throw updateErr;
+
+        Swal.fire('สำเร็จ', 'อนุมัติทุนเรียบร้อย', 'success');
+        // รีเฟรชตาราง
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard(); // อัปเดต Dashboard
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ----- ไม่อนุมัติ (พร้อมเหตุผล) -----
+window.rejectApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    const { value: reason } = await Swal.fire({
+        title: 'ไม่อนุมัติคำขอ',
+        input: 'textarea',
+        inputLabel: 'เหตุผลที่ไม่อนุมัติ',
+        inputPlaceholder: 'ระบุเหตุผล...',
+        inputAttributes: { 'aria-label': 'ระบุเหตุผล' },
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยัน',
+        cancelButtonText: 'ยกเลิก',
+        inputValidator: (value) => {
+            if (!value) return 'กรุณาระบุเหตุผล';
+        }
+    });
+
+    if (reason === undefined) return; // กดยกเลิก
+
+    try {
+        const { error } = await db.from('core_scholarship_applications')
+            .update({
+                status: 'rejected',
+                rejection_reason: reason,
+                approved_at: new Date().toISOString(),
+                approved_by: currentUser.id
+            })
+            .eq('id', applicationId);
+        if (error) throw error;
+
+        Swal.fire('สำเร็จ', 'บันทึกการไม่อนุมัติเรียบร้อย', 'success');
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ----- ลบคำขอ -----
+window.deleteApplication = async function (applicationId) {
+    if (!requireAdminLocal()) return;
+
+    const confirm = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: 'คุณต้องการลบคำขอนี้หรือไม่? (ข้อมูลจะหายไปถาวร)',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ลบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!confirm.isConfirmed) return;
+
+    try {
+        const { error } = await db.from('core_scholarship_applications')
+            .delete()
+            .eq('id', applicationId);
+        if (error) throw error;
+
+        Swal.fire('ลบสำเร็จ', 'ลบคำขอเรียบร้อย', 'success');
+        if (document.getElementById('applicantListModal').classList.contains('flex')) {
+            openApplicantListModal();
+        }
+        refreshDashboard();
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
 };
 
 // ===== ฟังก์ชันเสริมสำหรับนำเข้า/ส่งออก =====

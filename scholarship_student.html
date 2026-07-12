@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,16 +8,361 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <style>
+        .step-content {
+            display: none;
+            animation: fadeSlide 0.4s ease;
+        }
+        .step-content.active {
+            display: block;
+        }
+        @keyframes fadeSlide {
+            0% { opacity: 0; transform: translateY(16px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        .step-circle {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            font-size: 1rem;
+            transition: all 0.35s ease;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+        .step-circle.active {
+            background: linear-gradient(135deg, #D97706, #F59E0B);
+            color: #fff;
+            box-shadow: 0 6px 20px rgba(217, 119, 6, 0.35);
+        }
+        .step-circle.inactive {
+            background: #f1f5f9;
+            color: #94a3b8;
+        }
+        .step-label {
+            font-size: 0.7rem;
+            font-weight: 700;
+            margin-top: 6px;
+            transition: color 0.3s;
+        }
+        .step-label.active {
+            color: #D97706;
+        }
+        .step-label.inactive {
+            color: #94a3b8;
+        }
+        .field-label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: #64748b;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: block;
+        }
+        .btn-primary-gradient {
+            background: linear-gradient(135deg, #D97706, #F59E0B);
+            color: #fff;
+            border: none;
+            padding: 0.7rem 1.8rem;
+            border-radius: 14px;
+            font-weight: 700;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 16px rgba(217, 119, 6, 0.3);
+            cursor: pointer;
+        }
+        .btn-primary-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(217, 119, 6, 0.4);
+        }
+        .btn-success-gradient {
+            background: linear-gradient(135deg, #059669, #10B981);
+            color: #fff;
+            border: none;
+            padding: 0.7rem 1.8rem;
+            border-radius: 14px;
+            font-weight: 700;
+            transition: all 0.25s ease;
+            box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+            cursor: pointer;
+        }
+        .btn-success-gradient:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 28px rgba(5, 150, 105, 0.4);
+        }
+    </style>
 </head>
+
 <body class="bg-slate-50 pb-16">
-<nav class="bg-white shadow-sm p-4 flex justify-between items-center"><div><i class="fas fa-graduation-cap text-amber-600 text-2xl"></i><span class="font-bold ml-2">ระบบทุนการศึกษา</span></div><button onclick="logout()" class="bg-rose-100 px-4 py-2 rounded-xl">ออกจากระบบ</button></nav>
-<main class="container mx-auto px-4 mt-6">
-    <div class="glass-card p-6 rounded-2xl mb-6"><h2 class="text-xl font-bold">สวัสดี, <span id="studentName"></span></h2><p id="studentIdCard"></p></div>
-    <div class="flex gap-4 mb-6"><button onclick="showTab('apply')" id="applyTab" class="flex-1 bg-amber-600 text-white py-2 rounded-xl">ขอรับทุน</button><button onclick="showTab('history')" id="historyTab" class="flex-1 bg-white border py-2 rounded-xl">ประวัติการขอทุน</button><button onclick="showTab('received')" id="receivedTab" class="flex-1 bg-white border py-2 rounded-xl">ทุนที่ได้รับ</button></div>
-    <div id="applyPanel" class="space-y-4"><!-- ฟอร์มขอทุน (ย่อมาจาก teacher form แต่ไม่ต้องมีเลือกห้อง) --><p class="text-slate-500">ระบบกำลังโหลดข้อมูลนักเรียน...</p></div>
-    <div id="historyPanel" class="hidden"><div id="historyList" class="space-y-3"></div></div>
-    <div id="receivedPanel" class="hidden"><div id="receivedList" class="space-y-3"></div></div>
-</main>
-<script src="scholarship_student.js"></script>
+    <nav class="bg-white shadow-sm p-4 flex justify-between items-center">
+        <div>
+            <i class="fas fa-graduation-cap text-amber-600 text-2xl"></i>
+            <span class="font-bold ml-2">ระบบทุนการศึกษา</span>
+        </div>
+        <div class="flex items-center gap-2">
+            <button onclick="window.location.href='student_index.html'"
+                    class="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl hover:bg-indigo-100 transition flex items-center gap-2">
+                <i class="fas fa-home"></i> หน้าแรก
+            </button>
+            <button onclick="logout()"
+                    class="bg-rose-100 text-rose-600 px-4 py-2 rounded-xl hover:bg-rose-200 transition">
+                ออกจากระบบ
+            </button>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 mt-6">
+        <div class="glass-card p-6 rounded-2xl mb-6">
+            <h2 class="text-xl font-bold">สวัสดี, <span id="studentName"></span></h2>
+            <p id="studentIdCard"></p>
+        </div>
+
+        <div class="flex gap-4 mb-6">
+            <button onclick="showTab('apply')" id="applyTab"
+                    class="flex-1 bg-amber-600 text-white py-2 rounded-xl">ขอรับทุน</button>
+            <button onclick="showTab('history')" id="historyTab"
+                    class="flex-1 bg-white border py-2 rounded-xl">ประวัติการขอทุน</button>
+            <button onclick="showTab('received')" id="receivedTab"
+                    class="flex-1 bg-white border py-2 rounded-xl">ทุนที่ได้รับ</button>
+        </div>
+
+        <!-- ===== ฟอร์มขอรับทุน Multi-Step ===== -->
+        <div id="applyPanel" class="space-y-4">
+            <form id="scholarshipForm" onsubmit="event.preventDefault();"
+                  class="border-0 rounded-3xl shadow-xl overflow-hidden bg-white">
+                <div class="bg-gradient-to-r from-amber-50 to-white border-b border-amber-100 p-5 flex justify-between relative">
+                    <div class="absolute top-1/2 left-0 w-full h-1.5 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
+                    <div id="progressBar"
+                         class="absolute top-1/2 left-0 h-1.5 bg-gradient-to-r from-amber-500 to-amber-400 -z-10 -translate-y-1/2 rounded-full transition-all duration-500"
+                         style="width:0%"></div>
+                    <div class="flex flex-col items-center cursor-pointer z-10" onclick="goToStep(1)">
+                        <div id="circle-1" class="step-circle active">1</div>
+                        <span id="text-step-1" class="step-label active">ข้อมูลนักเรียน/ครอบครัว</span>
+                    </div>
+                    <div class="flex flex-col items-center cursor-pointer z-10" onclick="goToStep(2)">
+                        <div id="circle-2" class="step-circle inactive">2</div>
+                        <span id="text-step-2" class="step-label inactive">ที่อยู่อาศัย</span>
+                    </div>
+                    <div class="flex flex-col items-center cursor-pointer z-10" onclick="goToStep(3)">
+                        <div id="circle-3" class="step-circle inactive">3</div>
+                        <span id="text-step-3" class="step-label inactive">เศรษฐกิจ/สุขภาพ</span>
+                    </div>
+                    <div class="flex flex-col items-center cursor-pointer z-10" onclick="goToStep(4)">
+                        <div id="circle-4" class="step-circle inactive">4</div>
+                        <span id="text-step-4" class="step-label inactive">เหตุผลขอทุน</span>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 1: ข้อมูลนักเรียนและครอบครัว ===== -->
+                <div class="step-content active p-6 md:p-10" id="step-1">
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4">
+                        <i class="fas fa-user-graduate text-amber-600 text-2xl"></i>
+                        <h3 class="text-xl font-extrabold text-amber-950">ข้อมูลนักเรียนและครอบครัว</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                        <div><label class="field-label">เลขประจำตัว</label>
+                            <input type="text" id="student_id_card" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5"></div>
+                        <div><label class="field-label">ชื่อ-สกุล</label>
+                            <input type="text" id="student_fullname" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5 font-semibold"></div>
+                        <div><label class="field-label">ชั้น</label>
+                            <input type="text" id="student_grade" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2.5"></div>
+                    </div>
+
+                    <div class="border-2 border-amber-100/60 rounded-2xl p-5 mb-6 bg-amber-50/30">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div><label class="field-label">ชื่อ-สกุลบิดา</label>
+                                <input type="text" id="father_name" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">อาชีพบิดา</label>
+                                <input type="text" id="father_job" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">เบอร์โทรบิดา</label>
+                                <input type="text" id="father_phone" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">ชื่อ-สกุลมารดา</label>
+                                <input type="text" id="mother_name" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">อาชีพมารดา</label>
+                                <input type="text" id="mother_job" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">เบอร์โทรมารดา</label>
+                                <input type="text" id="mother_phone" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">ชื่อ-สกุลผู้ปกครอง</label>
+                                <input type="text" id="guardian_name" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">อาชีพผู้ปกครอง</label>
+                                <input type="text" id="guardian_job" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                            <div><label class="field-label">เบอร์โทรผู้ปกครอง</label>
+                                <input type="text" id="guardian_phone" readonly
+                                       class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        </div>
+                        <div class="mt-4"><label class="field-label">สถานภาพบิดามารดา</label>
+                            <select id="parents_status" class="w-full border border-slate-200 rounded-2xl px-4 py-2 bg-white">
+                                <option>อยู่ด้วยกัน</option>
+                                <option>หย่าร้าง</option>
+                                <option>แยกกันอยู่</option>
+                                <option>บิดาถึงแก่กรรม</option>
+                                <option>มารดาถึงแก่กรรม</option>
+                                <option>บิดาและมารดาถึงแก่กรรม</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div><label class="field-label">จำนวนพี่น้องทั้งหมด</label>
+                            <input type="number" id="siblings_total" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">กำลังศึกษากี่คน</label>
+                            <input type="number" id="siblings_study" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ทำงานแล้วกี่คน</label>
+                            <input type="number" id="siblings_work" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ยังไม่ทำงานกี่คน</label>
+                            <input type="number" id="siblings_notwork" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                    </div>
+
+                    <div><label class="field-label mb-2">ภาระพึ่งพิงในครอบครัว</label>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2" id="dependents_checklist"></div>
+                    </div>
+
+                    <div class="flex justify-end mt-8">
+                        <button type="button" onclick="nextStep(2)" class="btn-primary-gradient">
+                            ขั้นตอนถัดไป <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 2: ที่อยู่อาศัย ===== -->
+                <div class="step-content p-6 md:p-10" id="step-2">
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4">
+                        <i class="fas fa-map-marker-alt text-amber-600 text-2xl"></i>
+                        <h3 class="text-xl font-extrabold text-amber-950">ที่อยู่อาศัย</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div><label class="field-label">บ้านเลขที่</label>
+                            <input type="text" id="addr_house" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">หมู่ที่</label>
+                            <input type="text" id="addr_moo" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ตำบล</label>
+                            <input type="text" id="addr_subdistrict" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">อำเภอ</label>
+                            <input type="text" id="addr_district" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">จังหวัด</label>
+                            <input type="text" id="addr_province" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">รหัสไปรษณีย์</label>
+                            <input type="text" id="addr_zipcode" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div><img id="preview_outside" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพภายนอกบ้าน</p>
+                        </div>
+                        <div><img id="preview_inside" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพภายในบ้าน</p>
+                        </div>
+                        <div><img id="preview_teacher" class="h-32 w-full object-cover rounded-2xl border-2 border-slate-200">
+                            <p class="text-xs text-center mt-1 text-slate-500">ภาพครูเยี่ยมบ้าน</p>
+                        </div>
+                    </div>
+                    <div class="flex justify-between">
+                        <button type="button" onclick="prevStep(1)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button>
+                        <button type="button" onclick="nextStep(3)" class="btn-primary-gradient">ขั้นตอนถัดไป</button>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 3: เศรษฐกิจและสุขภาพ ===== -->
+                <div class="step-content p-6 md:p-10" id="step-3">
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4">
+                        <i class="fas fa-coins text-amber-600 text-2xl"></i>
+                        <h3 class="text-xl font-extrabold text-amber-950">ข้อมูลเศรษฐกิจและสุขภาพ</h3>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                        <div><label class="field-label">รายได้ครอบครัวต่อเดือน (บาท)</label>
+                            <input type="number" id="family_income" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าเดินทางของนักเรียน (บาท/วัน)</label>
+                            <input type="number" id="travel_expense" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าอาหาร (บาท/วัน)</label>
+                            <input type="number" id="food_expense" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                        <div><label class="field-label">ค่าใช้จ่ายอื่น (บาท/วัน)</label>
+                            <input type="number" id="other_expense" readonly
+                                   class="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2"></div>
+                    </div>
+                    <div class="mb-6 border-2 border-slate-200/60 p-5 rounded-2xl bg-slate-50/30">
+                        <label class="field-label mb-3">โรคประจำตัว</label>
+                        <div class="flex gap-6">
+                            <label class="flex items-center gap-2"><input type="radio" name="has_disease" value="no" checked> ไม่มี</label>
+                            <label class="flex items-center gap-2"><input type="radio" name="has_disease" value="yes"> มี</label>
+                        </div>
+                        <div id="disease_fields" class="hidden mt-4 grid grid-cols-1 gap-3">
+                            <input type="text" placeholder="ชื่อโรคประจำตัว" id="disease_name" readonly
+                                   class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2">
+                            <input type="text" placeholder="ยาประจำตัว" id="disease_medicine" readonly
+                                   class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2">
+                            <input type="text" placeholder="โรงพยาบาลที่รักษา" id="disease_hospital" readonly
+                                   class="bg-slate-50 border border-slate-200 rounded-2xl px-4 py-2">
+                        </div>
+                    </div>
+                    <div class="flex justify-between">
+                        <button type="button" onclick="prevStep(2)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button>
+                        <button type="button" onclick="nextStep(4)" class="btn-primary-gradient">ขั้นตอนถัดไป</button>
+                    </div>
+                </div>
+
+                <!-- ===== STEP 4: เหตุผลขอทุน ===== -->
+                <div class="step-content p-6 md:p-10" id="step-4">
+                    <div class="flex items-center gap-2 mb-6 border-b border-amber-200 pb-4">
+                        <i class="fas fa-file-alt text-amber-600 text-2xl"></i>
+                        <h3 class="text-xl font-extrabold text-amber-950">เหตุผลขอรับทุน</h3>
+                    </div>
+                    <div class="mb-6"><label class="field-label">เหตุผลในการขอรับทุนในครั้งนี้</label>
+                        <textarea id="reason" rows="5" maxlength="1000"
+                            class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
+                        <div class="text-right text-xs text-slate-400 mt-1"><span id="reason_counter">0</span>/1000</div>
+                    </div>
+                    <div class="mb-6"><label class="field-label">เมื่อได้รับทุนจะนำเงินไปใช้ประโยชน์อย่างไร</label>
+                        <textarea id="usage_plan" rows="4" maxlength="500"
+                            class="w-full border border-slate-200 rounded-2xl p-4 focus:ring-2 focus:ring-amber-200 focus:border-amber-400 transition"></textarea>
+                        <div class="text-right text-xs text-slate-400 mt-1"><span id="usage_counter">0</span>/500</div>
+                    </div>
+                    <div class="flex justify-between">
+                        <button type="button" onclick="prevStep(3)" class="px-6 py-3 bg-slate-200 hover:bg-slate-300 rounded-2xl font-semibold transition">ย้อนกลับ</button>
+                        <button type="button" onclick="submitStudentApplication()" class="btn-success-gradient">
+                            <i class="fas fa-paper-plane mr-2"></i>ส่งคำขอรับทุน
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+
+        <!-- ===== ประวัติการขอทุน ===== -->
+        <div id="historyPanel" class="hidden">
+            <div id="historyList" class="space-y-3"></div>
+        </div>
+
+        <!-- ===== ทุนที่ได้รับ ===== -->
+        <div id="receivedPanel" class="hidden">
+            <div id="receivedList" class="space-y-3"></div>
+        </div>
+    </main>
+
+    <script src="scholarship_student.js"></script>
 </body>
+
 </html>
