@@ -146,6 +146,7 @@ async function loadClassrooms() {
             placeholder: 'พิมพ์หรือเลือกห้องเรียน...',
             allowEmptyOption: true,
             maxOptions: null,
+            dropdownParent: 'body',   // ✅ เพิ่มบรรทัดนี้
             onChange(value) {
                 const div = document.getElementById('adviserDisplay');
                 const nameEl = document.getElementById('adviserNames');

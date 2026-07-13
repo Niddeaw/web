@@ -334,33 +334,58 @@
                 });
         }
 
-function updateUI() {
-    if (!currentUser) return;
-    document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-    let roleText = 'ครูผู้สอน (Teacher)';
-    
-    if (currentUser.role === 'super_admin') {
-        roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
-        document.getElementById('btnSuperAdmin').classList.remove('hidden');
-        
-        // เพิ่มบรรทัดนี้ลงไป เพื่อเปิดแสดงปุ่มศูนย์ช่วยเหลือบน Header
-        document.getElementById('adminHelpdeskBtn').classList.remove('hidden'); 
-        
-    } else if (currentUser.role === 'admin') {
-        roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
-    }
-    document.getElementById('userRole').innerText = roleText;
-}
+        function updateUI() {
+            if (!currentUser) return;
+            document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
+            let roleText = 'ครูผู้สอน (Teacher)';
+
+            if (currentUser.role === 'super_admin') {
+                roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
+                document.getElementById('btnSuperAdmin').classList.remove('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.remove('hidden');
+            } else if (currentUser.role === 'admin') {
+                roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
+                document.getElementById('btnSuperAdmin').classList.add('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.remove('hidden'); // ให้ admin เห็นปุ่มศูนย์ช่วยเหลือ
+            } else if (currentUser.role === 'director') {
+                roleText = 'ผู้อำนวยการ';
+                document.getElementById('btnSuperAdmin').classList.add('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
+            } else if (currentUser.role === 'deputy') {
+                roleText = 'รองผู้อำนวยการ';
+                document.getElementById('btnSuperAdmin').classList.add('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
+            } else if (currentUser.role === 'staff') {
+                roleText = 'เจ้าหน้าที่';
+                document.getElementById('btnSuperAdmin').classList.add('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
+            } else {
+                document.getElementById('btnSuperAdmin').classList.add('hidden');
+                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
+            }
+            document.getElementById('userRole').innerText = roleText;
+        }
 
         // ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็นแอดมินกลุ่มใด (แสดงปุ่มจัดการปฏิทิน)
         async function checkCalendarAdminAccess() {
             const { data: { session } } = await db.auth.getSession();
             if (!session) return;
+            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+            if (!profile) return;
+
+            // ใช้ canManageSettings จาก config.js เพื่อควบคุมปุ่มจัดการปฏิทิน
+            const hasSettingsAccess = window.canManageSettings(profile.role);
+            if (!hasSettingsAccess) {
+                document.getElementById('calendarAdminBtn').classList.add('hidden');
+                return;
+            }
+
+            // ถ้ามีสิทธิ์ตั้งค่า ให้ตรวจสอบว่าเป็น admin ของกลุ่มใดกลุ่มหนึ่ง (หรือไม่ก็แสดง)
             const managedDepts = await getUserManagedDepts(session.user.id);
             const btn = document.getElementById('calendarAdminBtn');
             if (btn && managedDepts.length > 0) {
                 btn.classList.remove('hidden');
-            } else if (btn) {
+            } else {
                 btn.classList.add('hidden');
             }
         }

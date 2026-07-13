@@ -1,57 +1,35 @@
-// behavior_admin.js - ฉบับปรับปรุงประสิทธิภาพ (Server-side + View + Cache)
-// ระบบงานปกครอง - ผู้ดูแลระบบ
+// behavior_admin.js - ระบบงานปกครอง - ผู้ดูแลระบบ (เฉพาะการจัดการข้อมูล)
+// (ตัดส่วน Dashboard, กราฟ, Recent Logs ออกไปไว้ใน behavior_dashboard.js)
 
 let currentUser = null;
 let schoolInfo = null;
 let systemConfig = null;
 let schoolStats = [];
 let allStudents = [];
-let classroomList = [];
 let criteriaList = [];
 let table = null;
 let classroomTomSelect = null;
-let currentFilter = null;   // ✅ เพิ่มตัวแปรนี้
-
-let positiveChart = null;
-let severityChart = null;
-
-// ========== ระบบแคช ==========
-let schoolStatsCache = null;
-let cacheTimestamp = null;
-const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
+let currentFilter = null;
 
 // ============================================================
 // เริ่มต้น
 // ============================================================
 $(document).ready(async function () {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    console.time('⏱️ โหลดทั้งหมด');
+    console.time('⏱️ Admin Management โหลด');
 
     try {
         await checkAuth();
-
         await Promise.all([
             loadSchoolInfo(),
             loadSystemConfig(),
             loadCriteria(),
             loadClassroomList()
         ]);
-
-        // ✅ โหลดข้อมูลพื้นฐาน (ใช้ View + Cache)
         await loadSchoolStats(false);
+        await initTableServerSide();
 
-        // ✅ เรียกใช้เฉพาะ Dashboard Stats (ไม่ต้องรอ DataTable)
-        loadDashboard();
-
-        // ✅ Charts ใช้การคำนวณจาก Cache
-        initCharts();
-        renderPositiveChartForGrade('all');
-        renderSeverityChartForGrade('all');
-
-        // ✅ DataTable ใช้ Server-side (โหลดเฉพาะ 25 คนแรก)
-        initTableServerSide();
-
-        // ✅ Event bindings
+        // Event bindings
         $('#search_student').on('input', function () { searchStudent($(this).val()); });
         $('#evidence_file').change(function (e) {
             const file = e.target.files[0];
@@ -64,7 +42,15 @@ $(document).ready(async function () {
             }
         });
 
-        console.timeEnd('⏱️ โหลดทั้งหมด');
+        // ตรวจสอบ query parameter สำหรับ filter จาก Dashboard
+        const urlParams = new URLSearchParams(window.location.search);
+        const filterParam = urlParams.get('filter');
+        if (filterParam) {
+            // ตั้ง filter ตามพารามิเตอร์
+            filterByScore(filterParam);
+        }
+
+        console.timeEnd('⏱️ Admin Management โหลด');
         Swal.close();
     } catch (err) {
         console.error(err);
@@ -73,39 +59,65 @@ $(document).ready(async function () {
 });
 
 // ============================================================
-// Authentication
+// Authentication (ปรับปรุง)
 // ============================================================
 async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) { window.location.replace('login.html'); return; }
+
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
     const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+
     currentUser = profile;
+
+    // ใช้ isAdminUser จาก config.js (รวม director, deputy)
+    const isAdmin = window.isAdminUser(profile.role, false);
+    const hasSettings = window.canManageSettings(profile.role);
+
+    // ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ
     let isDisciplineHead = false;
+    let managedGrades = [];
     if (sInfo?.current_academic_year) {
         const { data: discHead } = await db.from('core_discipline_heads')
             .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
         isDisciplineHead = !!discHead;
     }
     const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
-    currentUser.managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
-    currentUser.isDisciplineHead = isDisciplineHead;
+    managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
-    $('#btn_settings').addClass('hidden').removeClass('flex');
-    if (profile.role === 'super_admin') {
+    const hasAdminRight = isAdmin || isDisciplineHead || managedGrades.length > 0;
+
+    if (!hasAdminRight) {
+        window.location.replace('behavior_teacher.html');
+        return;
+    }
+
+    currentUser.role = isAdmin ? profile.role : 'admin';
+    currentUser.isDisciplineHead = isDisciplineHead;
+    currentUser.managedGrades = managedGrades;
+
+    // แสดงปุ่มตั้งค่าเฉพาะผู้มี canManageSettings
+    if (hasSettings) {
         $('#btn_settings').removeClass('hidden').addClass('flex');
+    }
+
+    // แสดงปุ่มนำเข้าเฉพาะ super_admin
+    if (profile.role === 'super_admin') {
         $('#btn_import_excel').removeClass('hidden').addClass('flex');
-        $('#role_label').html('<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser');
-        currentUser.role = 'super_admin';
-    } else if (isDisciplineHead || currentUser.managedGrades.length > 0) {
-        currentUser.role = 'admin';
-        if (isDisciplineHead) {
-            $('#btn_settings').removeClass('hidden').addClass('flex');
-            $('#role_label').html('<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> หัวหน้างานปกครอง');
-        } else {
-            $('#role_label').html(`<i class="fas fa-layer-group text-blue-500 mr-1"></i> หัวหน้าระดับ ม.${currentUser.managedGrades.join(', ')}`);
-        }
-    } else { window.location.replace('behavior_teacher.html'); return; }
+    }
+
+    // ปรับ label
+    let roleLabel = '';
+    if (profile.role === 'super_admin') {
+        roleLabel = '<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser';
+    } else if (isAdmin) {
+        roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> ผู้ดูแลระบบ';
+    } else if (isDisciplineHead) {
+        roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> หัวหน้างานปกครอง';
+    } else if (managedGrades.length > 0) {
+        roleLabel = `<i class="fas fa-layer-group text-blue-500 mr-1"></i> หัวหน้าระดับ ม.${managedGrades.join(', ')}`;
+    }
+    $('#role_label').html(roleLabel);
     $('#user_display').html(`ครู${profile.first_name} ${profile.last_name}`);
 }
 
@@ -118,15 +130,13 @@ async function loadSchoolInfo() { const { data } = await db.from('core_school_in
 async function loadSystemConfig() { const { data } = await db.from('behavior_system_config').select('*').eq('id', 1).maybeSingle(); systemConfig = data || null; }
 async function loadCriteria() { const { data } = await db.from('behavior_criteria').select('*'); if (data) criteriaList = data; }
 
-// ✅ แก้ไข loadClassroomList: สร้าง options ทุกห้อง ม.1/1 - ม.6/12 (ตามจำนวนจริง)
 async function loadClassroomList() {
     const sel = document.getElementById('classroom_select');
     if (!sel) return;
 
-    // ✅ สร้างตัวเลือกทั้งหมด
     sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
     for (let g = 1; g <= 6; g++) {
-        const maxRoom = (g <= 3) ? 15 : 12;   // ม.1-3 มี 15 ห้อง, ม.4-6 มี 12 ห้อง
+        const maxRoom = (g <= 3) ? 15 : 12;
         for (let r = 1; r <= maxRoom; r++) {
             const opt = document.createElement('option');
             opt.value = `${g}|${r}`;
@@ -135,7 +145,6 @@ async function loadClassroomList() {
         }
     }
 
-    // ✅ ทำลาย TomSelect เก่า (ถ้ามี)
     if (classroomTomSelect) {
         classroomTomSelect.destroy();
         classroomTomSelect = null;
@@ -145,7 +154,6 @@ async function loadClassroomList() {
         placeholder: '— เลือกชั้นเรียน —',
         allowEmptyOption: true,
         onChange: function (value) {
-            // ✅ เมื่อเปลี่ยนห้อง ให้ล้าง filter และ reload
             currentFilter = null;
             if (table) {
                 table.ajax.reload(null, false);
@@ -153,31 +161,32 @@ async function loadClassroomList() {
             if (!value) {
                 allStudents = [];
             }
+            // ลบ filter notice
+            $(table?.container()).find('.filter-notice').remove();
         }
     });
 
-    // ✅ ตั้งค่าเริ่มต้นเป็นค่าว่าง (ไม่เลือกห้องอัตโนมัติ)
     classroomTomSelect.setValue('', true);
 }
 
 // ============================================================
-// ✅ ฟังก์ชันโหลดข้อมูลโดยใช้ View (behavior_student_summary)
+// โหลดข้อมูลสถิติ (ใช้ Cache)
 // ============================================================
+let schoolStatsCache = null;
+let cacheTimestamp = null;
+const CACHE_EXPIRY = 5 * 60 * 1000;
+
 async function loadSchoolStats(forceRefresh = false) {
-    // ตรวจสอบ Cache
     if (!forceRefresh && schoolStatsCache && cacheTimestamp) {
         const now = Date.now();
         if (now - cacheTimestamp < CACHE_EXPIRY) {
-            console.log('✅ ใช้ข้อมูลจาก cache (', Math.round((now - cacheTimestamp) / 1000), 'วินาทีที่แล้ว)');
+            console.log('✅ ใช้ข้อมูลจาก cache');
             schoolStats = schoolStatsCache;
             return;
         }
     }
 
-    console.time('⏱️ loadSchoolStats (View)');
-
     try {
-        // ✅ ใช้ View ที่สร้างไว้ใน Supabase
         const { data, error } = await db
             .from('behavior_student_summary')
             .select('*')
@@ -202,128 +211,20 @@ async function loadSchoolStats(forceRefresh = false) {
             pos: row.pos_score || 0,
             neg: row.neg_score || 0,
             severityLevel: row.severity_level || 'sev_light',
-            severityLevelName: row.severity_level === 'sev_light' ? 'กลุ่ม 1 (90+ คะแนน)' :
-                               row.severity_level === 'sev_medium' ? 'กลุ่ม 2 (60-89 คะแนน)' :
-                               row.severity_level === 'sev_heavy' ? 'กลุ่ม 3 (30-59 คะแนน)' : 'กลุ่ม 4 (29 คะแนนลงมา)',
-            sevLight: row.severity_level === 'sev_light' ? 1 : 0,
-            sevMedium: row.severity_level === 'sev_medium' ? 1 : 0,
-            sevHeavy: row.severity_level === 'sev_heavy' ? 1 : 0,
-            sevVeryHeavy: row.severity_level === 'sev_very_heavy' ? 1 : 0,
             avatar: row.avatar_students_url || null
         }));
 
         schoolStatsCache = schoolStats;
         cacheTimestamp = Date.now();
-
-        console.timeEnd('⏱️ loadSchoolStats (View)');
-        console.log(`✅ โหลดนักเรียน ${schoolStats.length} คน (ใช้ View)`);
-
+        console.log(`✅ โหลดนักเรียน ${schoolStats.length} คน`);
     } catch (err) {
-        console.error('View error, fallback to original:', err);
-        // Fallback ไปใช้วิธีเดิม
-        await loadSchoolStatsFallback(forceRefresh);
+        console.error('Load error:', err);
+        schoolStats = [];
     }
-}
-
-// ✅ ฟังก์ชันสำรอง (ถ้า View ยังไม่พร้อม)
-async function loadSchoolStatsFallback(forceRefresh) {
-    console.time('⏱️ loadSchoolStats (Fallback)');
-
-    let allStudentsRaw = [];
-    let from = 0;
-    const STUDENT_LIMIT = 1000;
-    while (true) {
-        const { data, error } = await db
-            .from('core_students')
-            .select(`
-                id, student_id_card, prefix, first_name, last_name, avatar_students_url,
-                student_enrollments (
-                    student_number,
-                    core_classrooms (grade_level, room_number)
-                )
-            `)
-            .order('id', { ascending: true })
-            .range(from, from + STUDENT_LIMIT - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allStudentsRaw = allStudentsRaw.concat(data);
-        if (data.length < STUDENT_LIMIT) break;
-        from += STUDENT_LIMIT;
-    }
-
-    let allLogs = [];
-    let logFrom = 0;
-    const LOG_LIMIT = 5000;
-    while (true) {
-        const { data, error } = await db
-            .from('behavior_logs')
-            .select('student_id, score_change')
-            .order('created_at', { ascending: true })
-            .range(logFrom, logFrom + LOG_LIMIT - 1);
-        if (error) throw error;
-        if (!data || data.length === 0) break;
-        allLogs = allLogs.concat(data);
-        if (data.length < LOG_LIMIT) break;
-        logFrom += LOG_LIMIT;
-    }
-
-    const scoreMap = {};
-    allLogs.forEach(log => {
-        if (!scoreMap[log.student_id]) {
-            scoreMap[log.student_id] = { total: 0, pos: 0, neg: 0 };
-        }
-        const change = log.score_change || 0;
-        scoreMap[log.student_id].total += change;
-        if (change > 0) scoreMap[log.student_id].pos += change;
-        else if (change < 0) scoreMap[log.student_id].neg += Math.abs(change);
-    });
-
-    schoolStats = allStudentsRaw.map(s => {
-        const enroll = s.student_enrollments?.[0];
-        const classroom = enroll?.core_classrooms;
-        const sum = scoreMap[s.id] || { total: 0, pos: 0, neg: 0 };
-        const totalScore = 100 + sum.total;
-        let severityLevel = 'sev_light';
-        let severityLevelName = 'กลุ่ม 1 (90+ คะแนน)';
-        if (totalScore >= 90) { severityLevel = 'sev_light'; severityLevelName = 'กลุ่ม 1 (90+ คะแนน)'; }
-        else if (totalScore >= 60) { severityLevel = 'sev_medium'; severityLevelName = 'กลุ่ม 2 (60-89 คะแนน)'; }
-        else if (totalScore >= 30) { severityLevel = 'sev_heavy'; severityLevelName = 'กลุ่ม 3 (30-59 คะแนน)'; }
-        else { severityLevel = 'sev_very_heavy'; severityLevelName = 'กลุ่ม 4 (29 คะแนนลงมา)'; }
-        return {
-            id: s.id,
-            sid: s.student_id_card,
-            prefix: s.prefix || '',
-            firstName: s.first_name || '',
-            lastName: s.last_name || '',
-            fullName: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
-            student_number: enroll?.student_number || 0,
-            grade_level: classroom ? parseInt(classroom.grade_level) : 0,
-            room_number: classroom?.room_number?.toString().trim() || '',
-            roomDisplay: classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-',
-            score: totalScore,
-            pos: sum.pos,
-            neg: sum.neg,
-            severityLevel: severityLevel,
-            severityLevelName: severityLevelName,
-            sevLight: severityLevel === 'sev_light' ? 1 : 0,
-            sevMedium: severityLevel === 'sev_medium' ? 1 : 0,
-            sevHeavy: severityLevel === 'sev_heavy' ? 1 : 0,
-            sevVeryHeavy: severityLevel === 'sev_very_heavy' ? 1 : 0,
-            avatar: s.avatar_students_url || null
-        };
-    });
-
-    schoolStats.sort((a, b) => a.grade_level - b.grade_level || a.student_number - b.student_number);
-
-    schoolStatsCache = schoolStats;
-    cacheTimestamp = Date.now();
-
-    console.timeEnd('⏱️ loadSchoolStats (Fallback)');
-    console.log(`✅ โหลดนักเรียน ${schoolStats.length} คน (Fallback)`);
 }
 
 // ============================================================
-// ✅ DataTable Server-side Processing
+// DataTable Server-side
 // ============================================================
 function initTableServerSide() {
     if ($.fn.DataTable.isDataTable('#studentTable')) {
@@ -337,74 +238,31 @@ function initTableServerSide() {
             loadTableDataServerSide(dtParams, callback);
         },
         columns: [
-            { 
-                data: null,
-                title: 'ห้อง',
-                className: 'text-center',
-                render: function(data) {
-                    return `<span class="text-slate-600 font-medium">${data.roomDisplay || '-'}</span>`;
-                }
-            },
-            { 
-                data: 'student_number',
-                title: 'เลขที่',
-                className: 'text-center',
-                render: function(data) {
-                    return `<span class="font-bold text-gray-600">${data || '-'}</span>`;
-                }
-            },
-            { 
-                data: 'sid',
-                title: 'รหัส',
-                render: function(data) {
-                    return `<span class="font-medium text-slate-700">${data || '-'}</span>`;
-                }
-            },
-            { 
-                data: 'fullName',
-                title: 'ชื่อ-สกุล',
-                className: 'font-bold text-blue-800'
-            },
-            { 
-                data: 'score',
-                title: 'คะแนน',
-                className: 'text-center',
-                render: function(data) {
-                    const cls = data < 50 ? 'bg-red-100 text-red-600' : 
-                               (data >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600');
-                    return `<span class="px-3 py-1 rounded-lg text-sm font-black ${cls}">${data}</span>`;
-                }
-            },
-            {
-                data: 'student_id',
-                title: 'จัดการ',
-                className: 'text-center',
-                orderable: false,
-                render: function(data) {
-                    return `<button onclick="viewHistory('${data}')" class="history-btn bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm">
-                        <i class="fas fa-eye"></i> ประวัติ
-                    </button>`;
-                }
+            { data: null, title: 'ห้อง', className: 'text-center', render: data => `<span class="text-slate-600 font-medium">${data.roomDisplay || '-'}</span>` },
+            { data: 'student_number', title: 'เลขที่', className: 'text-center', render: data => `<span class="font-bold text-gray-600">${data || '-'}</span>` },
+            { data: 'sid', title: 'รหัส', render: data => `<span class="font-medium text-slate-700">${data || '-'}</span>` },
+            { data: 'fullName', title: 'ชื่อ-สกุล', className: 'font-bold text-blue-800' },
+            { data: 'score', title: 'คะแนน', className: 'text-center', render: data => {
+                const cls = data < 50 ? 'bg-red-100 text-red-600' : (data >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600');
+                return `<span class="px-3 py-1 rounded-lg text-sm font-black ${cls}">${data}</span>`;
+            }},
+            { data: 'student_id', title: 'จัดการ', className: 'text-center', orderable: false, render: data => 
+                `<button onclick="viewHistory('${data}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm">
+                    <i class="fas fa-eye"></i> ประวัติ
+                </button>`
             }
         ],
         order: [[0, 'asc'], [1, 'asc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        language: {
-            url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
-        },
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         drawCallback: function(settings) {
-            // ✅ แสดงข้อความแจ้งเมื่อมี filter และห้องถูกละเลย
             const api = this.api();
-            const info = api.page.info();
-            const classroomValue = classroomTomSelect?.getValue();
-            
-            // ตรวจสอบว่า table body มีข้อความ "ไม่พบข้อมูล" หรือไม่
+            // แสดง filter notice
             const bodyHtml = $(api.table().body()).html();
-            if (bodyHtml && bodyHtml.includes('ไม่พบข้อมูลตามเงื่อนไข')) {
-                // ถ้ามี currentFilter และไม่มีห้อง แสดงว่าเรากำลังแสดงทั่วโรงเรียน
-                if (currentFilter && !classroomValue) {
-                    // เพิ่มข้อความแจ้งที่ header ของตาราง
+            if (bodyHtml && bodyHtml.includes('ไม่พบข้อมูลตามเงื่อนไข') && currentFilter && !classroomTomSelect?.getValue()) {
+                const existing = $(api.table().container()).find('.filter-notice');
+                if (existing.length === 0) {
                     const filterLabels = {
                         'positive': 'นักเรียนที่มีคะแนนทำความดี',
                         'negative': 'นักเรียนที่มีคะแนนผิดระเบียบ',
@@ -416,29 +274,21 @@ function initTableServerSide() {
                         'sev_very_heavy': 'นักเรียนกลุ่ม 4 (ต่ำกว่า 30 คะแนน)'
                     };
                     const label = filterLabels[currentFilter] || currentFilter;
-                    // แทรกข้อความแจ้งไว้ด้านบนตาราง
-                    const existing = $(api.table().container()).find('.filter-notice');
-                    if (existing.length === 0) {
-                        $(api.table().container()).prepend(`
-                            <div class="filter-notice bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-sm text-blue-700 flex items-center gap-2">
-                                <i class="fas fa-filter"></i>
-                                <span>กำลังแสดง: <strong>${label}</strong> <span class="text-xs text-slate-500">(ทั่วทั้งโรงเรียน)</span></span>
-                                <button onclick="resetFilter()" class="ml-auto text-xs text-blue-600 hover:underline">ยกเลิกกรอง</button>
-                            </div>
-                        `);
-                    }
+                    $(api.table().container()).prepend(`
+                        <div class="filter-notice bg-blue-50 border border-blue-200 rounded-xl p-3 mb-3 text-sm text-blue-700 flex items-center gap-2">
+                            <i class="fas fa-filter"></i>
+                            <span>กำลังแสดง: <strong>${label}</strong> <span class="text-xs text-slate-500">(ทั่วทั้งโรงเรียน)</span></span>
+                            <button onclick="resetFilter()" class="ml-auto text-xs text-blue-600 hover:underline">ยกเลิกกรอง</button>
+                        </div>
+                    `);
                 }
             } else {
-                // ถ้าไม่มี filter หรือมีห้อง ให้ลบข้อความแจ้ง
                 $(api.table().container()).find('.filter-notice').remove();
             }
-            
-            updateDashboardStats();
         }
     });
 }
 
-// ✅ ฟังก์ชันโหลดข้อมูลแบบ Server-side (ปรับปรุง)
 async function loadTableDataServerSide(dtParams, callback) {
     const { start, length, search, order, draw } = dtParams;
 
@@ -446,39 +296,26 @@ async function loadTableDataServerSide(dtParams, callback) {
         let query = db.from('behavior_student_summary')
             .select('*', { count: 'exact', head: false });
 
-        // ✅ กรองตามห้องเรียน (เฉพาะเมื่อไม่มี currentFilter)
         const classroomValue = classroomTomSelect?.getValue();
         if (!currentFilter && classroomValue) {
             const [grade, room] = classroomValue.split('|');
-            query = query.eq('grade_level', parseInt(grade))
-                         .eq('room_number', room);
+            query = query.eq('grade_level', parseInt(grade)).eq('room_number', room);
         }
-        // ถ้ามี currentFilter จะไม่กรองตามห้อง (แสดงทั่วโรงเรียน)
 
-        // ✅ กรองตามสิทธิ์หัวหน้าระดับชั้น
         if (currentUser.managedGrades && currentUser.managedGrades.length > 0 && !currentUser.isDisciplineHead) {
             query = query.in('grade_level', currentUser.managedGrades);
         }
 
-        // ✅ กรองตาม filter (จาก currentFilter)
         if (currentFilter) {
-            if (currentFilter === 'positive') {
-                query = query.gt('pos_score', 0);
-            } else if (currentFilter === 'negative') {
-                query = query.gt('neg_score', 0);
-            } else if (currentFilter === 'high') {
-                query = query.gt('total_score', 100);
-            } else if (currentFilter === 'low') {
-                query = query.lt('total_score', 50);
-            } else if (currentFilter === 'sev_light') {
-                query = query.gte('total_score', 90);
-            } else if (currentFilter === 'sev_medium') {
-                query = query.gte('total_score', 60).lt('total_score', 90);
-            } else if (currentFilter === 'sev_heavy') {
-                query = query.gte('total_score', 30).lt('total_score', 60);
-            } else if (currentFilter === 'sev_very_heavy') {
-                query = query.lt('total_score', 30);
-            } else if (currentFilter.startsWith('custom_gt_')) {
+            if (currentFilter === 'positive') query = query.gt('pos_score', 0);
+            else if (currentFilter === 'negative') query = query.gt('neg_score', 0);
+            else if (currentFilter === 'high') query = query.gt('total_score', 100);
+            else if (currentFilter === 'low') query = query.lt('total_score', 50);
+            else if (currentFilter === 'sev_light') query = query.gte('total_score', 90);
+            else if (currentFilter === 'sev_medium') query = query.gte('total_score', 60).lt('total_score', 90);
+            else if (currentFilter === 'sev_heavy') query = query.gte('total_score', 30).lt('total_score', 60);
+            else if (currentFilter === 'sev_very_heavy') query = query.lt('total_score', 30);
+            else if (currentFilter.startsWith('custom_gt_')) {
                 const threshold = parseInt(currentFilter.split('_')[2]);
                 query = query.gt('total_score', threshold);
             } else if (currentFilter.startsWith('custom_lt_')) {
@@ -487,17 +324,11 @@ async function loadTableDataServerSide(dtParams, callback) {
             }
         }
 
-        // ✅ ค้นหา
         if (search.value) {
             const searchTerm = `%${search.value}%`;
-            query = query.or(
-                `student_id_card.ilike.${searchTerm},` +
-                `first_name.ilike.${searchTerm},` +
-                `last_name.ilike.${searchTerm}`
-            );
+            query = query.or(`student_id_card.ilike.${searchTerm},first_name.ilike.${searchTerm},last_name.ilike.${searchTerm}`);
         }
 
-        // ✅ เรียงลำดับ
         if (order && order.length > 0) {
             const colIndex = order[0].column;
             const colNames = ['room_display', 'student_number', 'student_id_card', 'full_name', 'total_score'];
@@ -505,13 +336,10 @@ async function loadTableDataServerSide(dtParams, callback) {
             query = query.order(colName, { ascending: order[0].dir === 'asc' });
         }
 
-        // ✅ Pagination
-        const { data, error, count } = await query
-            .range(start, start + length - 1);
+        const { data, error, count } = await query.range(start, start + length - 1);
 
         if (error) throw error;
 
-        // ✅ แปลงข้อมูล
         const formattedData = (data || []).map(row => ({
             student_id: row.student_id,
             roomDisplay: `ม.${row.grade_level}/${row.room_number}`,
@@ -530,132 +358,19 @@ async function loadTableDataServerSide(dtParams, callback) {
 
     } catch (err) {
         console.error('Server-side error:', err);
-        callback({
-            draw: dtParams.draw,
-            recordsTotal: 0,
-            recordsFiltered: 0,
-            data: []
-        });
+        callback({ draw: dtParams.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
     }
 }
 
 // ============================================================
-// ✅ Dashboard (Lazy Load)
-// ============================================================
-function loadDashboard() {
-    // ✅ โหลดทันทีจาก Cache
-    updateDashboardStats();
-
-    // ✅ โหลด Recent Logs ทีหลัง
-    setTimeout(() => { loadRecentLogs(); }, 300);
-
-    // ✅ โหลด Charts ทีหลัง
-    setTimeout(() => {
-        renderPositiveChartForGrade('all');
-        renderSeverityChartForGrade('all');
-    }, 500);
-}
-
-function updateDashboardStats() {
-    // ✅ ใช้ Cache ถ้ามี
-    const stats = getDashboardStatsFromCache();
-    if (stats) {
-        $('#stat_positive').text(stats.positive);
-        $('#stat_negative').text(stats.negative);
-        $('#stat_high').text(stats.high);
-        $('#stat_low').text(stats.low);
-        $('#stat_sev_light').text(stats.sevLight);
-        $('#stat_sev_medium').text(stats.sevMedium);
-        $('#stat_sev_heavy').text(stats.sevHeavy);
-        $('#stat_sev_very_heavy').text(stats.sevVeryHeavy);
-    }
-}
-
-function getDashboardStatsFromCache() {
-    if (!schoolStats || schoolStats.length === 0) return null;
-    return {
-        positive: schoolStats.filter(s => s.pos > 0).length,
-        negative: schoolStats.filter(s => s.neg > 0).length,
-        high: schoolStats.filter(s => s.score > 100).length,
-        low: schoolStats.filter(s => s.score < 50).length,
-        sevLight: schoolStats.filter(s => s.severityLevel === 'sev_light').length,
-        sevMedium: schoolStats.filter(s => s.severityLevel === 'sev_medium').length,
-        sevHeavy: schoolStats.filter(s => s.severityLevel === 'sev_heavy').length,
-        sevVeryHeavy: schoolStats.filter(s => s.severityLevel === 'sev_very_heavy').length
-    };
-}
-
-// ============================================================
-// Recent Logs (โหลดแบบ Async)
-// ============================================================
-async function loadRecentLogs() {
-    const cols = 'id, student_id, score_change, created_at, behavior_criteria(title), recorder:core_personnel!recorder_id(prefix, first_name, last_name), student:core_students!student_id(student_id_card, first_name, last_name, student_enrollments(student_number, core_classrooms(grade_level, room_number)))';
-    try {
-        const [posRes, negRes] = await Promise.all([
-            db.from('behavior_logs').select(cols).gt('score_change', 0).order('created_at', { ascending: false }).limit(10),
-            db.from('behavior_logs').select(cols).lt('score_change', 0).order('created_at', { ascending: false }).limit(10)
-        ]);
-        renderRecentTable('recent_positive_body', posRes.data || [], 'positive');
-        renderRecentTable('recent_negative_body', negRes.data || [], 'negative');
-    } catch (err) {
-        console.error('loadRecentLogs error:', err);
-    }
-}
-
-function renderRecentTable(tbodyId, logs, type) {
-    if (!logs.length) { $('#' + tbodyId).html('<tr><td colspan="7" class="py-6 text-center text-slate-300">ยังไม่มีรายการ</td></tr>'); return; }
-    const isPos = type === 'positive';
-    let html = '';
-    logs.forEach(function (log) {
-        const date = new Date(log.created_at).toLocaleDateString('th-TH', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        const student = log.student || {};
-        const enroll = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
-        const classroom = enroll?.core_classrooms || {};
-        const room = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
-        const sid = student.student_id_card || '-';
-        const fullName = ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-';
-        const criteria = log.behavior_criteria?.title || '-';
-        const scoreVal = (isPos ? '+' : '') + log.score_change;
-        const scoreClass = isPos ? 'text-green-600 font-black' : 'text-red-600 font-black';
-        const rec = log.recorder ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name : '-';
-        html += `<tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition" onclick="viewHistory('${log.student_id}')" title="ดูประวัติ ${fullName}">
-            <td class="py-2 pr-2 text-slate-400 whitespace-nowrap">${date}</td>
-            <td class="py-2 pr-2 whitespace-nowrap">${room}</td>
-            <td class="py-2 pr-2 text-slate-500">${sid}</td>
-            <td class="py-2 pr-3 font-medium text-slate-700 whitespace-nowrap">${fullName}</td>
-            <td class="py-2 pr-2 text-slate-500 max-w-[120px] truncate" title="${criteria}">${criteria}</td>
-            <td class="py-2 pr-2 text-center ${scoreClass}">${scoreVal}</td>
-            <td class="py-2 text-slate-400 whitespace-nowrap">${rec}</td>
-         </tr>`;
-    });
-    $('#' + tbodyId).html(html);
-}
-
-// ============================================================
-// ฟังก์ชันรีเฟรชข้อมูล
-// ============================================================
-async function refreshAllData() {
-    await loadSchoolStats(true); // force refresh
-    updateDashboardStats();
-    renderPositiveChartForGrade('all');
-    renderSeverityChartForGrade('all');
-    if (table) table.ajax.reload();
-    Swal.fire({ icon: 'success', title: 'รีเฟรชข้อมูลเรียบร้อย', timer: 1500, showConfirmButton: false });
-}
-
-// ============================================================
-// ฟังก์ชันค้นหาและบันทึกพฤติกรรม
+// ฟังก์ชันค้นหาและบันทึกพฤติกรรม (คงเดิม)
 // ============================================================
 async function searchStudent(val) {
     if (val.length < 2) { $('#search_results').hide(); return; }
-    const matched = schoolStats.filter(s => 
-        (s.sid || '').includes(val) || 
-        (s.fullName || '').includes(val)
-    ).slice(0, 10);
+    const matched = schoolStats.filter(s => (s.sid || '').includes(val) || (s.fullName || '').includes(val)).slice(0, 10);
     let html = '';
     matched.forEach(s => {
-        html += `<div onclick="selectStudent('${s.id}')" 
-                 class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">
+        html += `<div onclick="selectStudent('${s.id}')" class="p-3 hover:bg-blue-50 cursor-pointer border-b text-sm font-medium text-slate-700">
                  ${s.sid} - ${s.fullName} (${s.roomDisplay})
                  </div>`;
     });
@@ -664,10 +379,7 @@ async function searchStudent(val) {
 
 function selectStudent(id) {
     const student = schoolStats.find(s => s.id === id);
-    if (!student) {
-        Swal.fire('ไม่พบข้อมูล', 'กรุณาลองค้นหาใหม่', 'error');
-        return;
-    }
+    if (!student) { Swal.fire('ไม่พบข้อมูล', 'กรุณาลองค้นหาใหม่', 'error'); return; }
     $('#selected_student_id').val(student.id);
     $('#selected_student_name').text(`นักเรียนที่เลือก: ${student.sid} - ${student.fullName} (${student.roomDisplay})`);
     $('#selected_student_info').removeClass('hidden').addClass('flex');
@@ -727,9 +439,7 @@ async function saveBehaviorRecord() {
     }
     
     const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
-    if (!student) {
-        return Swal.fire('ไม่พบข้อมูลนักเรียน', 'กรุณาลองค้นหาใหม่', 'error');
-    }
+    if (!student) return Swal.fire('ไม่พบข้อมูลนักเรียน', 'กรุณาลองค้นหาใหม่', 'error');
     
     const studentSid = student.sid || studentId;
     const studentFirstName = student.firstName || '';
@@ -750,12 +460,7 @@ async function saveBehaviorRecord() {
             const base64Data = await blobToBase64(resizedBlob);
             const response = await fetch(systemConfig.gas_url, { 
                 method: "POST", 
-                body: JSON.stringify({ 
-                    action: 'upload', 
-                    base64: base64Data, 
-                    fileName: fileName, 
-                    folderId: systemConfig.drive_folder_id 
-                }) 
+                body: JSON.stringify({ action: 'upload', base64: base64Data, fileName: fileName, folderId: systemConfig.drive_folder_id }) 
             });
             const resData = await response.json();
             if (resData.status === 'success') {
@@ -783,10 +488,8 @@ async function saveBehaviorRecord() {
     }]);
     
     if (!error) {
-        // ✅ เคลียร์แคช
         schoolStatsCache = null;
         cacheTimestamp = null;
-        
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
         clearSelectedStudent();
         $('#criteria_select').val('');
@@ -794,20 +497,15 @@ async function saveBehaviorRecord() {
         $('#description_text').val('');
         closeRecordModal();
         
-        // ✅ โหลดใหม่ (ใช้ Cache)
         await loadSchoolStats(false);
-        updateDashboardStats();
         if (table) table.ajax.reload();
-        renderPositiveChartForGrade('all');
-        renderSeverityChartForGrade('all');
-        loadRecentLogs();
     } else {
         Swal.fire('Error', error.message, 'error');
     }
 }
 
 // ============================================================
-// ฟังก์ชันนำเข้า Excel
+// ฟังก์ชัน Import/Export 
 // ============================================================
 function importFromExcel() { document.getElementById('excel_import_input').value = ''; document.getElementById('excel_import_input').click(); }
 
@@ -880,94 +578,41 @@ async function processImportData(rows) {
     if (dedupedLogs.length === 0) { await Swal.fire({ icon: 'info', title: 'ไม่มีรายการใหม่', html: `<p>ข้อมูลทั้งหมด <b>${dupSkipped.length}</b> รายการมีอยู่ในระบบแล้ว</p><p class="text-sm text-slate-500 mt-1">ระบบข้ามรายการซ้ำทั้งหมด ไม่มีการเพิ่มข้อมูล</p>` }); return; }
     const BATCH = 100; let success = 0;
     for (let i = 0; i < dedupedLogs.length; i += BATCH) { const batchData = dedupedLogs.slice(i, i + BATCH); const { error } = await db.from('behavior_logs').insert(batchData); if (error) throw error; success += batchData.length; }
-    const invalidSkip = dataRows.length - logsToInsert.length; const totalSkipped = dupSkipped.length + invalidSkip;
+    const invalidSkip = dataRows.length - logsToInsert.length;
     schoolStatsCache = null;
     cacheTimestamp = null;
     await Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', html: `<div class="text-left space-y-1"><p>✅ เพิ่มใหม่ <b class="text-green-700">${success}</b> รายการ</p>${dupSkipped.length > 0 ? `<p>⏭️ ข้ามซ้ำ <b class="text-blue-600">${dupSkipped.length}</b> รายการ (มีอยู่แล้ว)</p>` : ''}${invalidSkip > 0 ? `<p>⚠️ ข้ามผิดพลาด <b class="text-amber-600">${invalidSkip}</b> รายการ (รหัสไม่พบ/คะแนนผิด)</p>` : ''}</div>${errors.length > 0 ? `<details class="mt-3 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error (${errors.length} รายการ)</summary><pre class="text-xs text-red-400 max-h-28 overflow-y-auto mt-1 bg-red-50 p-2 rounded-lg">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}` });
+
+    // ✅ แก้ไข: โหลดข้อมูลใหม่และรีเฟรชตารางเท่านั้น (ไม่เรียก Dashboard functions)
     await loadSchoolStats(false);
-    updateDashboardStats();
     if (table) table.ajax.reload();
-    renderPositiveChartForGrade('all');
-    renderSeverityChartForGrade('all');
-    loadRecentLogs();
 }
 
 // ============================================================
-// ✅ ฟังก์ชันกรองและรีเซ็ต (ปรับปรุงให้ clear ห้องเมื่อมี filter)
+// ฟังก์ชันกรอง
 // ============================================================
 function filterByScore(type) {
     currentFilter = type;
-    
-    // ✅ ล้างการเลือกห้องเรียน (เพื่อแสดงผลทั่วทั้งโรงเรียน)
-    if (classroomTomSelect) {
-        classroomTomSelect.clear(); // clear() จะ reset เป็นค่าเริ่มต้น (ค่าว่าง)
-    }
-    
-    if (table) {
-        table.ajax.reload(null, false);
-    }
-    updateDashboardStats();
-    
-    // แจ้งเตือนผู้ใช้
-    const filterLabels = {
-        'positive': 'นักเรียนที่มีคะแนนทำความดี',
-        'negative': 'นักเรียนที่มีคะแนนผิดระเบียบ',
-        'high': 'นักเรียนที่มีคะแนนสูงกว่า 100',
-        'low': 'นักเรียนที่มีคะแนนต่ำกว่า 50',
-        'sev_light': 'นักเรียนกลุ่ม 1 (90+ คะแนน)',
-        'sev_medium': 'นักเรียนกลุ่ม 2 (60-89 คะแนน)',
-        'sev_heavy': 'นักเรียนกลุ่ม 3 (30-59 คะแนน)',
-        'sev_very_heavy': 'นักเรียนกลุ่ม 4 (ต่ำกว่า 30 คะแนน)'
-    };
-    const label = filterLabels[type] || type;
-    Swal.fire({
-        toast: true,
-        position: 'bottom-end',
-        icon: 'info',
-        title: `กำลังแสดง: ${label} (ทั่วทั้งโรงเรียน)`,
-        showConfirmButton: false,
-        timer: 2000
-    });
-    
-    document.querySelector('.glass.rounded-3xl.p-6')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (classroomTomSelect) classroomTomSelect.clear();
+    if (table) table.ajax.reload(null, false);
+    Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: `กำลังแสดง: ${type}`, showConfirmButton: false, timer: 2000 });
 }
 
 function resetFilter() {
     currentFilter = null;
     $('#filter_score_val').val('');
     $('#filter_result_count').text('');
-    // ✅ ไม่ clear ห้อง ปล่อยให้เป็นห้องที่เลือก (ถ้ามี)
-    if (table) {
-        table.ajax.reload(null, false);
-    }
-    // ลบข้อความแจ้ง
+    if (table) table.ajax.reload(null, false);
     $(table?.container()).find('.filter-notice').remove();
 }
 
 function filterCustomScore(mode) {
     const val = parseInt($('#filter_score_val').val());
-    if (isNaN(val)) { 
-        $('#filter_result_count').text('');
-        return; 
-    }
+    if (isNaN(val)) { $('#filter_result_count').text(''); return; }
     currentFilter = `custom_${mode}_${val}`;
-    
-    // ✅ ล้างห้องเมื่อมี custom filter
-    if (classroomTomSelect) {
-        classroomTomSelect.clear();
-    }
-    
-    if (table) {
-        table.ajax.reload(null, false);
-    }
-    Swal.fire({
-        toast: true,
-        position: 'bottom-end',
-        icon: 'info',
-        title: `กำลังแสดง: คะแนน ${mode === 'more' ? '>' : '<'} ${val} (ทั่วทั้งโรงเรียน)`,
-        showConfirmButton: false,
-        timer: 2000
-    });
+    if (classroomTomSelect) classroomTomSelect.clear();
+    if (table) table.ajax.reload(null, false);
+    Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: `กำลังแสดง: คะแนน ${mode === 'more' ? '>' : '<'} ${val}`, showConfirmButton: false, timer: 2000 });
 }
 
 // ============================================================
@@ -1033,26 +678,48 @@ async function exportSummary() {
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`; const fileName = `สรุปคะแนนความประพฤติ_${dateStr}.xlsx`;
     _writeExcel(exportData, fileName, 'สรุปคะแนน');
 }
-function _writeExcel(exportData, fileName, sheetName) { const worksheet = XLSX.utils.json_to_sheet(exportData); const cols = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length * 2, 12) })); worksheet['!cols'] = cols; const workbook = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31)); XLSX.writeFile(workbook, fileName); Swal.close(); }
+
+function _writeExcel(exportData, fileName, sheetName) {
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const cols = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length * 2, 12) }));
+    worksheet['!cols'] = cols;
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName.slice(0, 31));
+    XLSX.writeFile(workbook, fileName);
+    Swal.close();
+}
 
 // ============================================================
 // ฟังก์ชันดูประวัติ (viewHistory, loadStudentHistory, editLog, deleteLog)
 // ============================================================
 function viewHistory(studentId) {
     const student = schoolStats.find(s => s.id === studentId)
-                 || allStudents.find(s => s.id === studentId);
+        || allStudents.find(s => s.id === studentId);
+
     if (!student) {
         $('#historyStudentName').text('กำลังโหลด...');
         $('#historyStudentScore').text('-');
         $('#historyAvatar').addClass('hidden');
         $('#historyAvatarWrap').addClass('hidden');
         $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
+
         db.from('core_students')
             .select('id, student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(student_number, core_classrooms(grade_level, room_number)), behavior_logs(score_change)')
             .eq('id', studentId).single()
             .then(({ data: s }) => {
                 if (!s) return;
-                const mapped = mapStudent(s, s.avatar_students_url);
+                // ✅ แทนที่ mapStudent() ด้วยการสร้าง object โดยตรง
+                const enroll = s.student_enrollments?.[0];
+                const classroom = enroll?.core_classrooms;
+                const roomDisplay = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+                const totalScore = 100 + (s.behavior_logs?.reduce((sum, l) => sum + l.score_change, 0) || 0);
+                const mapped = {
+                    fullName: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
+                    roomDisplay: roomDisplay,
+                    score: totalScore,
+                    avatar: s.avatar_students_url || null
+                };
+
                 $('#historyStudentName').text(mapped.fullName + ' (' + mapped.roomDisplay + ')');
                 $('#historyStudentScore').text(mapped.score);
                 if (mapped.avatar) {
@@ -1115,7 +782,6 @@ async function editLog(logId, studentId) {
     schoolStatsCache = null;
     cacheTimestamp = null;
     await loadSchoolStats(false);
-    updateDashboardStats();
     if (table) table.ajax.reload();
     const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
     if (student) $('#historyStudentScore').text(student.score);
@@ -1132,7 +798,6 @@ async function deleteLog(logId, studentId) {
     schoolStatsCache = null;
     cacheTimestamp = null;
     await loadSchoolStats(false);
-    updateDashboardStats();
     if (table) table.ajax.reload();
     const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
     if (student) $('#historyStudentScore').text(student.score);
@@ -1141,248 +806,3 @@ async function deleteLog(logId, studentId) {
 }
 
 function closeHistoryModal() { $('#historyModal').addClass('hidden').removeClass('flex'); }
-
-// ============================================================
-// ฟังก์ชัน Logs Modal
-// ============================================================
-let _logsType = 'negative', _logsTab = 'day', _weekOffset = 0, _monthOffset = 0, _logsRawData = [];
-
-function openLogsModal(type) { _logsType = type; _weekOffset = 0; _monthOffset = 0; const isPos = type === 'positive'; $('#logsModalIcon').html(isPos ? '<i class="fas fa-star text-green-600"></i>' : '<i class="fas fa-exclamation-triangle text-red-600"></i>').removeClass('bg-green-100 bg-red-100').addClass(isPos ? 'bg-green-100' : 'bg-red-100'); $('#logsModalTitle').text(isPos ? 'บันทึกทำความดี' : 'บันทึกผิดระเบียบ'); $('#logsCountBadge').removeClass('bg-green-100 text-green-700 bg-red-100 text-red-700').addClass(isPos ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'); const today = new Date().toISOString().slice(0, 10); $('#logsPickerDay').val(today); setLogsTab('day'); $('#logsModal').removeClass('hidden').addClass('flex'); }
-function closeLogsModal() { $('#logsModal').addClass('hidden').removeClass('flex'); }
-function setLogsTab(tab) { _logsTab = tab; _weekOffset = 0; _monthOffset = 0;['day', 'week', 'month'].forEach(t => { $('#logsTab' + t.charAt(0).toUpperCase() + t.slice(1)).toggleClass('active', t === tab); }); $('#filterDay').toggleClass('hidden', tab !== 'day').toggleClass('flex', tab === 'day'); $('#filterWeek').toggleClass('hidden', tab !== 'week').toggleClass('flex', tab === 'week'); $('#filterMonth').toggleClass('hidden', tab !== 'month').toggleClass('flex', tab === 'month'); if (tab === 'week') updateWeekLabel(); if (tab === 'month') updateMonthLabel(); fetchLogsData(); }
-function getWeekRange(offset) { const now = new Date(); const day = now.getDay() === 0 ? 6 : now.getDay() - 1; const mon = new Date(now); mon.setDate(now.getDate() - day + offset * 7); const sun = new Date(mon); sun.setDate(mon.getDate() + 6); return { start: mon, end: sun }; }
-function updateWeekLabel() { const { start, end } = getWeekRange(_weekOffset); const fmt = d => d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' }); const label = _weekOffset === 0 ? 'สัปดาห์นี้' : (_weekOffset === -1 ? 'สัปดาห์ที่แล้ว' : ''); $('#logsWeekLabel').text((label ? label + '  ' : '') + fmt(start) + ' – ' + fmt(end)); }
-function shiftWeek(dir) { _weekOffset += dir; updateWeekLabel(); fetchLogsData(); }
-function getMonthRange(offset) { const now = new Date(); const year = now.getFullYear(); const month = now.getMonth() + offset; const start = new Date(year, month, 1); const end = new Date(year, month + 1, 0); return { start, end }; }
-function updateMonthLabel() { const { start } = getMonthRange(_monthOffset); const label = start.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' }); const rel = _monthOffset === 0 ? ' (เดือนนี้)' : (_monthOffset === -1 ? ' (เดือนที่แล้ว)' : ''); $('#logsMonthLabel').text(label + rel); }
-function shiftMonth(dir) { _monthOffset += dir; updateMonthLabel(); fetchLogsData(); }
-
-async function fetchLogsData() {
-    $('#logsLoading').removeClass('hidden').addClass('flex');
-    $('#logsEmpty').removeClass('flex').addClass('hidden');
-    $('#logsTableWrap').addClass('hidden');
-    $('#logsCountBadge').addClass('hidden');
-    $('#logsModalSub').text('กำลังโหลด...');
-    let dateStart, dateEnd;
-    const pad = n => String(n).padStart(2, '0');
-    const toISO = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    if (_logsTab === 'day') {
-        const val = $('#logsPickerDay').val();
-        if (!val) { showLogsEmpty(); return; }
-        dateStart = val + 'T00:00:00';
-        dateEnd = val + 'T23:59:59';
-    } else if (_logsTab === 'week') {
-        const { start, end } = getWeekRange(_weekOffset);
-        dateStart = toISO(start) + 'T00:00:00';
-        dateEnd = toISO(end) + 'T23:59:59';
-    } else {
-        const { start, end } = getMonthRange(_monthOffset);
-        dateStart = toISO(start) + 'T00:00:00';
-        dateEnd = toISO(end) + 'T23:59:59';
-    }
-    const scoreFilter = _logsType === 'positive' ? 'gt' : 'lt';
-    const cols = 'id, student_id, score_change, created_at, behavior_criteria(title), recorder:core_personnel!recorder_id(prefix, first_name, last_name), student:core_students!student_id(student_id_card, first_name, last_name, student_enrollments(student_number, core_classrooms(grade_level, room_number)))';
-    try {
-        let query = db.from('behavior_logs').select(cols).gte('created_at', dateStart).lte('created_at', dateEnd).order('created_at', { ascending: false });
-        if (_logsType === 'positive') query = query.gt('score_change', 0);
-        else query = query.lt('score_change', 0);
-        const { data, error } = await query;
-        $('#logsLoading').addClass('hidden').removeClass('flex');
-        if (error) throw error;
-        if (!data || data.length === 0) { showLogsEmpty(); return; }
-        const subMap = { day: 'วันที่ ' + (dateStart.slice(0, 10)), week: $('#logsWeekLabel').text(), month: $('#logsMonthLabel').text() };
-        $('#logsModalSub').text(subMap[_logsTab]);
-        $('#logsCountBadge').text(data.length + ' รายการ').removeClass('hidden');
-        renderLogsModalTable(data);
-    } catch (err) {
-        $('#logsLoading').addClass('hidden').removeClass('flex');
-        console.error(err);
-        showLogsEmpty();
-    }
-}
-
-function showLogsEmpty() { $('#logsLoading').addClass('hidden').removeClass('flex'); $('#logsTableWrap').addClass('hidden'); $('#logsCountBadge').addClass('hidden'); $('#logsExportBtn').addClass('hidden').removeClass('flex'); $('#logsEmpty').removeClass('hidden').addClass('flex'); $('#logsModalSub').text('ไม่พบข้อมูล'); }
-
-function renderLogsModalTable(logs) {
-    _logsRawData = logs;
-    const isPos = _logsType === 'positive';
-    let html = '';
-    logs.forEach(function (log) {
-        const date = new Date(log.created_at).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' });
-        const student = log.student || {};
-        const enroll = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
-        const classroom = enroll?.core_classrooms || {};
-        const room = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
-        const sid = student.student_id_card || '-';
-        const fullName = ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-';
-        const criteria = log.behavior_criteria?.title || '-';
-        const scoreVal = (isPos ? '+' : '') + log.score_change;
-        const scoreClass = isPos ? 'bg-green-100 text-green-700 font-black px-2 py-0.5 rounded-lg' : 'bg-red-100 text-red-700 font-black px-2 py-0.5 rounded-lg';
-        const rec = log.recorder ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name : '-';
-        html += `<tr class="border-b border-slate-50 hover:bg-slate-50 cursor-pointer transition" onclick="closeLogsModal(); setTimeout(()=>viewHistory('${log.student_id}'), 300)" title="ดูประวัติ ${fullName}"><td class="py-3 px-4 text-slate-400 whitespace-nowrap text-xs">${date}</td><td class="py-3 px-4 whitespace-nowrap font-medium text-slate-600 text-xs">${room}</td><td class="py-3 px-4 text-slate-500 text-xs">${sid}</td><td class="py-3 px-4 font-bold text-blue-800 whitespace-nowrap">${fullName}</td><td class="py-3 px-4 text-slate-500 truncate text-xs" title="${criteria}">${criteria}</td><td class="py-3 px-4 text-center"><span class="${scoreClass}">${scoreVal}</span></td><td class="py-3 px-4 text-slate-400 text-xs whitespace-nowrap">${rec}</td></tr>`;
-    });
-    $('#logsTableBody').html(html);
-    $('#logsTableWrap').removeClass('hidden').addClass('flex').css('flex-direction', 'column');
-    $('#logsExportBtn').removeClass('hidden').addClass('flex');
-}
-
-function exportLogsModal() {
-    if (!_logsRawData.length) return;
-    const isPos = _logsType === 'positive';
-    const typeLabel = isPos ? 'ทำความดี' : 'ผิดระเบียบ';
-    const pad = n => String(n).padStart(2, '0');
-    let periodLabel = '';
-    if (_logsTab === 'day') {
-        periodLabel = $('#logsPickerDay').val() || 'รายวัน';
-    } else if (_logsTab === 'week') {
-        const { start, end } = getWeekRange(_weekOffset);
-        const fmt = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`;
-        periodLabel = `สัปดาห์_${fmt(start)}-${fmt(end)}`;
-    } else {
-        periodLabel = $('#logsMonthLabel').text().replace(/\s*\(.*\)/, '').trim();
-    }
-    const fileName = `บันทึก${typeLabel}_${periodLabel}.xlsx`;
-    const sheetName = `${typeLabel} (${periodLabel})`.slice(0, 31);
-    const exportData = _logsRawData.map(log => {
-        const student = log.student || {};
-        const enroll = Array.isArray(student.student_enrollments) ? student.student_enrollments[0] : student.student_enrollments;
-        const classroom = enroll?.core_classrooms || {};
-        const room = classroom.grade_level ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
-        const rec = log.recorder ? (log.recorder.prefix || '') + log.recorder.first_name + ' ' + log.recorder.last_name : '-';
-        const dateStr = new Date(log.created_at).toLocaleString('th-TH');
-        return {
-            'วันที่/เวลา': dateStr,
-            'ชั้นเรียน': room,
-            'เลขประจำตัว': student.student_id_card || '-',
-            'ชื่อ-สกุล': ((student.first_name || '') + ' ' + (student.last_name || '')).trim() || '-',
-            'รายการ': log.behavior_criteria?.title || '-',
-            'คะแนน': log.score_change,
-            'ผู้บันทึก': rec
-        };
-    });
-    _writeExcel(exportData, fileName, sheetName);
-}
-
-// ============================================================
-// ฟังก์ชัน Charts
-// ============================================================
-function initCharts() {
-    const posCtx = document.getElementById('positiveChart');
-    if (posCtx && !positiveChart) {
-        positiveChart = new Chart(posCtx.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'],
-                datasets: [{
-                    label: 'จำนวนครั้งทำความดี',
-                    data: [0, 0, 0, 0, 0, 0],
-                    backgroundColor: '#22c55e',
-                    borderRadius: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.raw} ครั้ง`
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1, precision: 0 },
-                        grid: { color: '#f1f5f9' }
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    }
-
-    const sevCtx = document.getElementById('severityChart');
-    if (sevCtx && !severityChart) {
-        severityChart = new Chart(sevCtx.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: ['กลุ่ม 1\n(90+ คะแนน)', 'กลุ่ม 2\n(60-89 คะแนน)', 'กลุ่ม 3\n(30-59 คะแนน)', 'กลุ่ม 4\n(<30 คะแนน)'],
-                datasets: [{
-                    label: 'จำนวนนักเรียน (คน)',
-                    data: [0, 0, 0, 0],
-                    backgroundColor: ['#fbbf24', '#f97316', '#ef4444', '#7c3aed'],
-                    borderRadius: 10
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.raw} คน`,
-                            title: ctx => ctx[0].label.replace('\n', ' ')
-                        }
-                    }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1, precision: 0 },
-                        grid: { color: '#f1f5f9' }
-                    },
-                    x: { grid: { display: false } }
-                }
-            }
-        });
-    }
-}
-
-function renderPositiveChartForGrade(grade) {
-    document.querySelectorAll('.pos-grade-btn').forEach(btn => {
-        const active = btn.dataset.posGrade === String(grade);
-        btn.classList.remove('bg-blue-600', 'text-white', 'bg-slate-100');
-        btn.classList.add(active ? 'bg-blue-600' : 'bg-slate-100');
-        if (active) btn.classList.add('text-white');
-        else btn.classList.remove('text-white');
-    });
-    let targetGrades = (grade === 'all') ? [1, 2, 3, 4, 5, 6] : [parseInt(grade)];
-    const data = [0, 0, 0, 0, 0, 0];
-    for (let g of targetGrades) {
-        const studentsInGrade = schoolStats.filter(s => s.grade_level === g);
-        const totalPos = studentsInGrade.reduce((sum, s) => sum + (s.pos || 0), 0);
-        data[g - 1] = totalPos;
-    }
-    if (positiveChart) {
-        positiveChart.data.datasets[0].data = data;
-        positiveChart.data.datasets[0].label = (grade === 'all')
-            ? 'จำนวนครั้งทำความดีทั้งโรงเรียน'
-            : `จำนวนครั้งทำความดี ม.${grade}`;
-        positiveChart.update();
-    }
-}
-
-function renderSeverityChartForGrade(grade) {
-    document.querySelectorAll('.sev-grade-btn').forEach(btn => {
-        const active = btn.dataset.sevGrade === String(grade);
-        btn.classList.remove('bg-blue-600', 'text-white', 'bg-slate-100');
-        btn.classList.add(active ? 'bg-blue-600' : 'bg-slate-100');
-        if (active) btn.classList.add('text-white');
-        else btn.classList.remove('text-white');
-    });
-    const src = (grade === 'all') ? schoolStats : schoolStats.filter(s => s.grade_level === parseInt(grade));
-    if (severityChart) {
-        severityChart.data.datasets[0].data = [
-            src.filter(s => s.severityLevel === 'sev_light').length,
-            src.filter(s => s.severityLevel === 'sev_medium').length,
-            src.filter(s => s.severityLevel === 'sev_heavy').length,
-            src.filter(s => s.severityLevel === 'sev_very_heavy').length
-        ];
-        severityChart.data.labels = ['กลุ่ม 1\n(90+ คะแนน)', 'กลุ่ม 2\n(60-89 คะแนน)', 'กลุ่ม 3\n(30-59 คะแนน)', 'กลุ่ม 4\n(<30 คะแนน)'];
-        severityChart.data.datasets[0].label = (grade === 'all') ? 'จำนวนนักเรียนทั้งโรงเรียน (คน)' : `จำนวนนักเรียน ม.${grade} (คน)`;
-        severityChart.update();
-    }
-}

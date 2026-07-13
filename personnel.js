@@ -15,11 +15,8 @@ let isModuleAdmin = false;
 const isSuperAdmin = () => !forceTeacherMode && currentProfile?.role === 'super_admin';
 const isAdmin = () => {
     if (forceTeacherMode) return false;
-    // 1. ตรวจสอบ Global Admin (จาก config.js)
     if (isAdminUser(currentProfile?.role, false)) return true;
-    // 2. ตรวจสอบ Module Admin (จาก core_module_admins)
     if (moduleAdminChecked && isModuleAdmin) return true;
-    // 3. ตรวจสอบ Local Admin (จาก settings)
     const localAdmins = window._personnelSettings?.local_admins || [];
     return localAdmins.includes(currentProfile?.id);
 };
@@ -27,6 +24,11 @@ const isTeacher = () => !isAdmin();
 const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
 const canDelete = () => isSuperAdmin();
 
+// ✅ เปลี่ยนชื่อเป็น canManagePersonnelSettings
+const canManagePersonnelSettings = () => {
+    if (forceTeacherMode) return false;
+    return window.canManageSettings(currentProfile?.role);
+};
 /* ── Position Logic ─────────── */
 const posLogic = {
     "ครูอัตราจ้าง": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
@@ -113,9 +115,11 @@ window.onload = async () => {
 function applyRoleUI() {
     const btnAdd = document.getElementById('btn-add');
     if (btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
+
+    // 🔥 เปลี่ยนจาก canManageSettings() เป็น canManagePersonnelSettings()
     const btnSettings = document.getElementById('btn-settings');
     if (btnSettings) {
-        if (isAdmin()) {
+        if (canManagePersonnelSettings()) {
             btnSettings.classList.remove('hidden');
             btnSettings.classList.add('flex');
         } else {
@@ -123,18 +127,23 @@ function applyRoleUI() {
             btnSettings.classList.remove('flex');
         }
     }
+
     const infoBlocks = document.getElementById('info-blocks-section');
     if (infoBlocks) infoBlocks.classList.toggle('hidden', !isAdmin());
+
     const btnImport = document.getElementById('btn-import');
     const btnTemplate = document.getElementById('btn-template');
-    if (btnImport) btnImport.style.display = isAdmin() ? '' : 'none';
     const btnImportSheets = document.getElementById('btn-import-sheets');
+    if (btnImport) btnImport.style.display = isAdmin() ? '' : 'none';
     if (btnImportSheets) btnImportSheets.style.display = isAdmin() ? '' : 'none';
     if (btnTemplate) btnTemplate.style.display = isAdmin() ? '' : 'none';
 
     let roleLabel = '🟢 ครูผู้สอน';
     if (isSuperAdmin()) roleLabel = '🔴 Super Admin';
     else if (currentProfile?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
+    else if (currentProfile?.role === 'director') roleLabel = '🟣 ผู้อำนวยการ';
+    else if (currentProfile?.role === 'deputy') roleLabel = '🟠 รองผู้อำนวยการ';
+    else if (currentProfile?.role === 'staff') roleLabel = '🔵 เจ้าหน้าที่';
     else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
 
     if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
@@ -164,8 +173,8 @@ function applyRoleUI() {
 }
 
 function toggleRoleView() {
-    // ใช้ isAdminUser จาก config.js
-    if (!isAdminUser(currentProfile?.role, false) && !isModuleAdmin) {
+    // ใช้ isAdmin() เพราะ director/deputy ก็ควรสลับโหมดได้ (ดูเฉพาะตัวเองได้)
+    if (!isAdmin()) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
         return;
     }
@@ -210,6 +219,11 @@ async function loadSettings() {
 }
 
 async function saveSetting(key, value) {
+    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้บันทึกการตั้งค่า', 'error');
+        return;
+    }
+
     const newSettings = { ...(sysSettings || {}), [key]: value };
     const updates = key === 'is_active'
         ? { is_active: value, updated_at: new Date().toISOString() }
@@ -227,7 +241,8 @@ async function saveSetting(key, value) {
 }
 
 function openSettings() {
-    if (!requireAdmin(currentProfile?.role, isAdmin(), 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบบุคลากรได้')) {
+    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบบุคลากรได้', 'warning');
         return;
     }
     const modal = document.getElementById('settings-modal');
@@ -288,6 +303,10 @@ function renderLocalAdmins() {
 }
 
 async function addLocalAdmin() {
+    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มแอดมินได้', 'warning');
+        return;
+    }
     const sel = document.getElementById('sel-add-local-admin');
     const uid = sel.value;
     if (!uid) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากรก่อน', 'warning');
@@ -304,6 +323,10 @@ async function addLocalAdmin() {
 }
 
 async function removeLocalAdmin(uid) {
+    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ถอดแอดมินได้', 'warning');
+        return;
+    }
     let admins = window._personnelSettings?.local_admins || [];
     admins = admins.filter(id => id !== uid);
     await saveSetting('local_admins', admins);

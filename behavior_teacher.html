@@ -29,10 +29,12 @@
             <span id="user_display"
                 class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
 
-            <!-- <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
-                class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm">
-                <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
-            </button> -->
+            <!-- ภายใน Navbar เพิ่มปุ่มนี้ถัดจากปุ่ม "โหมดแอดมิน" -->
+            <button onclick="window.location.href='behavior_dashboard.html'"
+                class="h-10 px-3 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm">
+                <i class="fa-solid fa-chart-pie sm:mr-1"></i> <span
+                    class="hidden sm:inline text-sm font-bold">แดชบอร์ด</span>
+            </button>
 
             <button id="btnAdminMode" onclick="window.location.href='behavior_admin.html'"
                 class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
@@ -89,6 +91,7 @@
 
         $(document).ready(async () => { await checkAuth(); });
 
+        // behavior_teacher.html — แทนที่ฟังก์ชัน checkAuth
         async function checkAuth() {
             Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -99,29 +102,29 @@
             const userDisplayName = `ครู${profile.first_name} ${profile.last_name}`;
             $('#user_display').html(`<i class="fas fa-user-tie mr-2 text-blue-500"></i>${userDisplayName}`);
 
-            // รวบรวมสถานะ admin (ผู้ที่มีสิทธิ์เห็นปุ่มไปหน้าแอดมิน)
-            let hasAdminRight = (profile.role === 'super_admin' || profile.role === 'admin');
+            // ใช้ isAdminUser จาก config.js (รวม director, deputy)
+            const isAdmin = window.isAdminUser(profile.role, false);
+            let hasAdminRight = isAdmin;
 
-            // --- 1. ตรวจสอบหัวหน้างานปกครอง (core_discipline_heads) ---
-            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-            if (sInfo?.current_academic_year) {
-                const { data: discHead } = await db.from('core_discipline_heads')
-                    .select('id')
-                    .eq('personnel_id', session.user.id)
-                    .eq('academic_year', sInfo.current_academic_year)
-                    .maybeSingle();
-                if (discHead) hasAdminRight = true;
+            // ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (เสริม)
+            if (!hasAdminRight) {
+                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+                if (sInfo?.current_academic_year) {
+                    const { data: discHead } = await db.from('core_discipline_heads')
+                        .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
+                    if (discHead) hasAdminRight = true;
+                }
+                if (!hasAdminRight) {
+                    const { data: gradeHead } = await db.from('behavior_grade_heads')
+                        .select('id').eq('teacher_id', session.user.id).maybeSingle();
+                    if (gradeHead) hasAdminRight = true;
+                }
             }
 
-            // --- 2. ตรวจสอบหัวหน้าระดับ (behavior_grade_heads) ---
-            const { data: gradeHead } = await db.from('behavior_grade_heads')
-                .select('id')
-                .eq('teacher_id', session.user.id)
-                .maybeSingle();
-            if (gradeHead) hasAdminRight = true;
-
-            // แสดงปุ่มโหมดแอดมินถ้ามีสิทธิ์
-            if (hasAdminRight) $('#btnAdminMode').removeClass('hidden').addClass('flex');
+            // แสดงปุ่มไปหน้าแอดมินถ้ามีสิทธิ์
+            if (hasAdminRight) {
+                $('#btnAdminMode').removeClass('hidden').addClass('flex');
+            }
 
             // ดึงห้องที่ปรึกษา
             const { data: classroom } = await db.from('core_classrooms')
@@ -131,7 +134,7 @@
 
             if (!classroom) {
                 if (hasAdminRight) {
-                    // ❗️ มีสิทธิ์ admin แต่ไม่ใช่ครูที่ปรึกษา → ไปหน้าแอดมินโดยตรง ไม่มี popup
+                    // ถ้ามีสิทธิ์ admin แต่ไม่มีห้องที่ปรึกษา → ส่งไปหน้า admin โดยตรง
                     window.location.replace('behavior_admin.html');
                 } else {
                     Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info')
@@ -143,6 +146,7 @@
             myClassroom = classroom;
             $('#my_room').text(`ม.${classroom.grade_level}/${classroom.room_number}`);
             await loadMyStudents();
+            Swal.close();
         }
 
         async function logout() {

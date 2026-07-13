@@ -13,16 +13,21 @@
 
     <style>
         .ts-control {
-            border-radius: 0.75rem !important; /* rounded-xl */
+            border-radius: 0.75rem !important;
+            /* rounded-xl */
             padding: 0.65rem 1rem !important;
-            border: 1px solid #e2e8f0 !important; /* border-slate-200 */
+            border: 1px solid #e2e8f0 !important;
+            /* border-slate-200 */
             box-shadow: none !important;
-            background-color: #f8fafc !important; /* bg-slate-50 */
+            background-color: #f8fafc !important;
+            /* bg-slate-50 */
             transition: all 0.2s ease-in-out;
         }
+
         .ts-control.focus {
             background-color: #ffffff !important;
-            border-color: #a855f7 !important; /* focus ring purple */
+            border-color: #a855f7 !important;
+            /* focus ring purple */
             box-shadow: 0 0 0 2px rgba(168, 85, 247, 0.2) !important;
         }
     </style>
@@ -31,19 +36,22 @@
 <body class="p-4 md:p-6 pb-24 bg-slate-50/50">
     <div class="max-w-6xl mx-auto space-y-6">
 
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 md:px-7 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
+        <div
+            class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-5 md:px-7 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden">
             <div class="absolute top-0 left-0 w-2 h-full bg-blue-600"></div>
             <div>
                 <h2 class="text-xl md:text-2xl font-black text-slate-800 tracking-tight flex items-center">
                     <i class="fas fa-cog mr-3 text-blue-600 drop-shadow-sm"></i>ตั้งค่าเกณฑ์ระบบงานปกครอง
                 </h2>
-                <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Behavior System Configurations</p>
+                <p class="text-xs font-bold text-slate-400 mt-1 uppercase tracking-widest">Behavior System
+                    Configurations</p>
             </div>
 
             <div class="flex items-center gap-2 w-full sm:w-auto">
                 <button onclick="window.location.href='behavior_admin.html'"
                     class="flex-1 sm:flex-none h-11 px-5 flex items-center justify-center rounded-2xl bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900 transition-all border border-slate-200 shadow-sm text-sm font-bold gap-2 group">
-                    <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i> <span>กลับหน้าแอดมิน</span>
+                    <i class="fa-solid fa-arrow-left group-hover:-translate-x-1 transition-transform"></i>
+                    <span>กลับหน้าแอดมิน</span>
                 </button>
                 <button onclick="window.location.href='index.html'"
                     class="h-11 w-11 flex items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm shrink-0 group"
@@ -54,26 +62,37 @@
         </div>
 
         <div class="space-y-6">
-            
-            <div id="api_config_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+
+            <div id="api_config_section"
+                class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
                 <div class="absolute top-0 left-0 w-full h-1 bg-blue-500"></div>
                 <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
                     <h3 class="font-bold text-slate-800 flex items-center">
-                        <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-cloud-upload-alt"></i></div> 
+                        <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
+                            <i class="fas fa-cloud-upload-alt"></i></div>
                         การตั้งค่าการเชื่อมต่อ API & Google Drive
                     </h3>
-                    <span class="text-[9px] font-black bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full uppercase tracking-wider border border-blue-100">Superuser Only</span>
+                    <span
+                        class="text-[9px] font-black bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full uppercase tracking-wider border border-blue-100">Superuser
+                        Only</span>
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google Apps Script URL</label>
-                        <input type="text" id="config_gas_url" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="https://script.google.com/macros/s/...">
+                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google Apps
+                            Script URL</label>
+                        <input type="text" id="config_gas_url"
+                            class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                            placeholder="https://script.google.com/macros/s/...">
                     </div>
                     <div>
-                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google Drive Folder ID</label>
+                        <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">Google
+                            Drive Folder ID</label>
                         <div class="flex gap-2">
-                            <input type="text" id="config_folder_id" class="flex-1 border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="Drive Folder ID...">
-                            <button onclick="saveApiConfig()" class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap">
+                            <input type="text" id="config_folder_id"
+                                class="flex-1 border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                                placeholder="Drive Folder ID...">
+                            <button onclick="saveApiConfig()"
+                                class="bg-blue-600 text-white px-6 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-sm flex items-center gap-2 whitespace-nowrap">
                                 <i class="fas fa-save"></i> บันทึกข้อมูล
                             </button>
                         </div>
@@ -82,47 +101,66 @@
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                
-                <div id="grade_head_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+
+                <div id="grade_head_section"
+                    class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
                     <div class="absolute top-0 left-0 w-full h-1 bg-purple-500"></div>
                     <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
                         <h3 class="font-bold text-slate-800 flex items-center">
-                            <div class="bg-purple-100 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-user-tie"></i></div> แต่งตั้งหัวหน้าระดับชั้น
+                            <div
+                                class="bg-purple-100 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
+                                <i class="fas fa-user-tie"></i></div> แต่งตั้งหัวหน้าระดับชั้น
                         </h3>
                     </div>
                     <div class="flex flex-col gap-3 mb-4">
-                        <select id="grade_head_teacher" class="w-full"><option value="">-- พิมพ์ชื่อครู --</option></select>
+                        <select id="grade_head_teacher" class="w-full">
+                            <option value="">-- พิมพ์ชื่อครู --</option>
+                        </select>
                         <div class="flex gap-2">
-                            <select id="grade_head_level" class="w-1/3 border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm outline-none focus:border-purple-500 focus:bg-white transition-all font-bold text-slate-700">
-                                <option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option>
-                                <option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option>
+                            <select id="grade_head_level"
+                                class="w-1/3 border border-slate-200 bg-slate-50 rounded-xl px-3 py-2 text-sm outline-none focus:border-purple-500 focus:bg-white transition-all font-bold text-slate-700">
+                                <option value="1">ม.1</option>
+                                <option value="2">ม.2</option>
+                                <option value="3">ม.3</option>
+                                <option value="4">ม.4</option>
+                                <option value="5">ม.5</option>
+                                <option value="6">ม.6</option>
                             </select>
-                            <button onclick="saveGradeHead()" class="flex-1 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                            <button onclick="saveGradeHead()"
+                                class="flex-1 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
                                 <i class="fas fa-plus"></i> เพิ่มรายชื่อ
                             </button>
                         </div>
                     </div>
-                    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
+                    <div
+                        class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
                         <table class="w-full text-sm text-left">
                             <tbody id="grade_head_list" class="divide-y divide-slate-200"></tbody>
                         </table>
                     </div>
                 </div>
 
-                <div id="discipline_head_section" class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
+                <div id="discipline_head_section"
+                    class="hidden bg-white p-6 rounded-3xl shadow-sm border border-slate-200 relative overflow-hidden group hover:shadow-md transition-shadow">
                     <div class="absolute top-0 left-0 w-full h-1 bg-emerald-500"></div>
                     <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
                         <h3 class="font-bold text-slate-800 flex items-center">
-                            <div class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2"><i class="fas fa-shield-alt"></i></div> แต่งตั้งหัวหน้างานปกครอง
+                            <div
+                                class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
+                                <i class="fas fa-shield-alt"></i></div> แต่งตั้งหัวหน้างานปกครอง
                         </h3>
                     </div>
                     <div class="flex flex-col gap-3 mb-4">
-                        <select id="select-discipline-head" class="w-full"><option value="">-- พิมพ์ชื่อครู --</option></select>
-                        <button onclick="addDisciplineHead()" class="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                        <select id="select-discipline-head" class="w-full">
+                            <option value="">-- พิมพ์ชื่อครู --</option>
+                        </select>
+                        <button onclick="addDisciplineHead()"
+                            class="w-full bg-emerald-600 text-white py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition-colors shadow-sm flex items-center justify-center gap-2 active:scale-[0.98]">
                             <i class="fas fa-plus"></i> ยืนยันการแต่งตั้ง
                         </button>
                     </div>
-                    <div class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
+                    <div
+                        class="bg-slate-50 rounded-xl border border-slate-200 overflow-hidden h-44 overflow-y-auto custom-scrollbar">
                         <table class="w-full text-sm text-left">
                             <tbody id="discipline-head-list" class="divide-y divide-slate-200"></tbody>
                         </table>
@@ -133,35 +171,48 @@
         </div>
 
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-6">
-            
+
             <div class="space-y-6">
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                    <h3 id="form_title" class="font-black mb-5 text-blue-900 border-b border-slate-100 pb-3 text-lg flex items-center">
-                        <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-plus"></i></div> เพิ่มเกณฑ์ใหม่
+                    <h3 id="form_title"
+                        class="font-black mb-5 text-blue-900 border-b border-slate-100 pb-3 text-lg flex items-center">
+                        <div
+                            class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
+                            <i class="fas fa-plus"></i></div> เพิ่มเกณฑ์ใหม่
                     </h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ชื่อรายการความประพฤติ</label>
-                            <input type="text" id="crit_title" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all" placeholder="เช่น มาสาย, จิตอาสา, ทะเลาะวิวาท">
+                            <label
+                                class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ชื่อรายการความประพฤติ</label>
+                            <input type="text" id="crit_title"
+                                class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                                placeholder="เช่น มาสาย, จิตอาสา, ทะเลาะวิวาท">
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
-                                <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ประเภท</label>
-                                <select id="crit_category" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-700">
+                                <label
+                                    class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">ประเภท</label>
+                                <select id="crit_category"
+                                    class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-bold text-slate-700">
                                     <option value="positive">🟢 ความดี (+)</option>
                                     <option value="negative">🔴 ผิดระเบียบ (-)</option>
                                 </select>
                             </div>
                             <div>
-                                <label class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">คะแนนมาตรฐาน</label>
-                                <input type="number" id="crit_score" class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-black text-center text-blue-700" placeholder="ตัวเลข">
+                                <label
+                                    class="block text-xs mb-1.5 text-slate-500 font-bold uppercase tracking-wide">คะแนนมาตรฐาน</label>
+                                <input type="number" id="crit_score"
+                                    class="w-full border border-slate-200 bg-slate-50 focus:bg-white rounded-xl p-3 text-sm focus:ring-2 ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-black text-center text-blue-700"
+                                    placeholder="ตัวเลข">
                             </div>
                         </div>
                         <div class="flex gap-2 pt-3">
-                            <button id="btn_save" onclick="saveCriteria()" class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-colors active:scale-[0.98]">
+                            <button id="btn_save" onclick="saveCriteria()"
+                                class="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 shadow-sm transition-colors active:scale-[0.98]">
                                 บันทึกเกณฑ์
                             </button>
-                            <button id="btn_cancel_edit" onclick="cancelEdit()" class="hidden w-24 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 shadow-sm transition-colors active:scale-[0.98]">
+                            <button id="btn_cancel_edit" onclick="cancelEdit()"
+                                class="hidden w-24 bg-slate-100 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-200 shadow-sm transition-colors active:scale-[0.98]">
                                 ยกเลิก
                             </button>
                         </div>
@@ -169,36 +220,48 @@
                 </div>
 
                 <div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
-                    <h3 class="font-black mb-5 text-emerald-800 border-b border-slate-100 pb-3 text-lg flex items-center">
-                        <div class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-file-excel"></i></div> จัดการด้วย Excel
+                    <h3
+                        class="font-black mb-5 text-emerald-800 border-b border-slate-100 pb-3 text-lg flex items-center">
+                        <div
+                            class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
+                            <i class="fas fa-file-excel"></i></div> จัดการด้วย Excel
                     </h3>
                     <div class="space-y-3">
-                        <button onclick="downloadTemplate()" class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-3 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98]">
+                        <button onclick="downloadTemplate()"
+                            class="w-full bg-slate-50 text-slate-700 border border-slate-200 py-3 rounded-xl hover:bg-slate-100 hover:border-slate-300 transition-all font-bold text-sm flex items-center justify-center gap-2 active:scale-[0.98]">
                             <i class="fas fa-download text-emerald-600"></i> โหลดไฟล์ต้นแบบ (Template)
                         </button>
-                        <input type="file" id="excel_file" accept=".xlsx, .xls" class="hidden" onchange="importExcel(this)">
-                        <button onclick="document.getElementById('excel_file').click()" class="w-full bg-emerald-600 text-white py-3 rounded-xl hover:bg-emerald-700 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]">
+                        <input type="file" id="excel_file" accept=".xlsx, .xls" class="hidden"
+                            onchange="importExcel(this)">
+                        <button onclick="document.getElementById('excel_file').click()"
+                            class="w-full bg-emerald-600 text-white py-3 rounded-xl hover:bg-emerald-700 transition-all font-bold text-sm flex items-center justify-center gap-2 shadow-sm active:scale-[0.98]">
                             <i class="fas fa-file-import"></i> นำเข้าข้อมูลจาก Excel
                         </button>
                     </div>
                 </div>
             </div>
 
-            <div class="xl:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col h-[750px]">
-                
+            <div
+                class="xl:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-slate-200 flex flex-col h-[750px]">
+
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-4">
                     <h3 class="font-black text-slate-800 text-lg flex items-center">
-                        <div class="bg-amber-100 text-amber-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm"><i class="fas fa-list-check"></i></div> ฐานข้อมูลเกณฑ์ทั้งหมด
+                        <div
+                            class="bg-amber-100 text-amber-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
+                            <i class="fas fa-list-check"></i></div> ฐานข้อมูลเกณฑ์ทั้งหมด
                     </h3>
 
                     <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <button id="btn_delete_selected" onclick="deleteSelectedCriteria()" class="hidden text-xs bg-rose-50 text-rose-600 border border-rose-200 px-4 py-2 rounded-xl hover:bg-rose-100 transition-colors font-bold shadow-sm items-center gap-1.5 flex-1 sm:flex-none justify-center active:scale-[0.98]">
+                        <button id="btn_delete_selected" onclick="deleteSelectedCriteria()"
+                            class="hidden text-xs bg-rose-50 text-rose-600 border border-rose-200 px-4 py-2 rounded-xl hover:bg-rose-100 transition-colors font-bold shadow-sm items-center gap-1.5 flex-1 sm:flex-none justify-center active:scale-[0.98]">
                             <i class="fas fa-check-double"></i> ลบที่เลือก (<span id="selected_count">0</span>)
                         </button>
-                        <button onclick="deleteAllCriteria()" class="text-xs bg-white text-rose-500 border border-slate-200 px-4 py-2 rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
+                        <button onclick="deleteAllCriteria()"
+                            class="text-xs bg-white text-rose-500 border border-slate-200 px-4 py-2 rounded-xl hover:bg-rose-50 hover:border-rose-200 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
                             <i class="fas fa-dumpster"></i> ลบทั้งหมด
                         </button>
-                        <button onclick="exportCriteria()" class="text-xs bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
+                        <button onclick="exportCriteria()"
+                            class="text-xs bg-slate-800 text-white px-4 py-2 rounded-xl hover:bg-slate-700 transition-colors font-bold shadow-sm flex items-center justify-center gap-1.5 flex-1 sm:flex-none active:scale-[0.98]">
                             <i class="fas fa-file-export text-slate-300"></i> ส่งออก
                         </button>
                     </div>
@@ -209,16 +272,24 @@
                         <thead class="sticky top-0 bg-slate-100/90 backdrop-blur-md z-10 shadow-sm">
                             <tr class="text-slate-600">
                                 <th class="p-3.5 text-center w-12">
-                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50">
+                                    <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"
+                                        class="rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50">
                                 </th>
                                 <th class="p-3.5 font-black uppercase tracking-wider text-xs">ชื่อรายการ</th>
-                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-32">ประเภท</th>
-                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">คะแนน</th>
-                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">จัดการ</th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-32">ประเภท
+                                </th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">คะแนน
+                                </th>
+                                <th class="p-3.5 font-black uppercase tracking-wider text-xs text-center w-24">จัดการ
+                                </th>
                             </tr>
                         </thead>
                         <tbody id="criteria_list" class="divide-y divide-slate-100 bg-white">
-                            <tr><td colspan="5" class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-circle-notch fa-spin text-2xl mb-3 text-blue-300 block"></i> กำลังโหลดข้อมูล...</td></tr>
+                            <tr>
+                                <td colspan="5" class="p-16 text-center text-slate-400 font-bold"><i
+                                        class="fas fa-circle-notch fa-spin text-2xl mb-3 text-blue-300 block"></i>
+                                    กำลังโหลดข้อมูล...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -236,49 +307,62 @@
             loadCriteria();
         });
 
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) { window.location.replace('index.html'); return; }
+        // behavior_settings.html — แทนที่ฟังก์ชัน checkAuth
+        async function checkAuth() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) { window.location.replace('index.html'); return; }
 
-    const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
-    const { data: moduleAdmin } = await db.from('core_module_admins')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('module_id', 'behavior')
-        .maybeSingle();
+            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+            const { data: moduleAdmin } = await db.from('core_module_admins')
+                .select('*')
+                .eq('user_id', session.user.id)
+                .eq('module_id', 'behavior')
+                .maybeSingle();
 
-    // ✅ เพิ่มตรวจสอบว่าเป็นหัวหน้างานปกครองหรือไม่
-    const { data: schoolInfo } = await db.from('core_school_info')
-        .select('current_academic_year')
-        .single();
-    const academicYear = schoolInfo?.current_academic_year || '';
+            // ตรวจสอบหัวหน้างานปกครอง
+            const { data: schoolInfo } = await db.from('core_school_info')
+                .select('current_academic_year')
+                .single();
+            const academicYear = schoolInfo?.current_academic_year || '';
+            const { data: disciplineHead } = await db.from('core_discipline_heads')
+                .select('id')
+                .eq('personnel_id', session.user.id)
+                .eq('academic_year', academicYear)
+                .maybeSingle();
 
-    const { data: disciplineHead } = await db.from('core_discipline_heads')
-        .select('id')
-        .eq('personnel_id', session.user.id)
-        .eq('academic_year', academicYear)
-        .maybeSingle();
+            // ✅ ใช้ canManageSettings จาก config.js (เฉพาะ super_admin, admin)
+            const hasSettings = window.canManageSettings(profile.role);
+            const isAdmin = window.isAdminUser(profile.role, false);
 
-    // อนุญาตถ้าเป็น super_admin, module admin ของ behavior, หรือเป็นหัวหน้างานปกครอง
-    if (profile.role !== 'super_admin' && !moduleAdmin && !disciplineHead) {
-        await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
-        history.back();
-        return;
-    }
+            // อนุญาตเฉพาะผู้ที่มีสิทธิ์ตั้งค่า หรือเป็น module admin หรือหัวหน้างานปกครอง
+            if (!hasSettings && !moduleAdmin && !disciplineHead) {
+                await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
+                history.back();
+                return;
+            }
 
-    // 🌟 ซ่อน/แสดงส่วนของ Super Admin (เหมือนเดิม)
-    if (profile.role === 'super_admin') {
-        $('#api_config_section').removeClass('hidden');
-        $('#grade_head_section').removeClass('hidden');
-        $('#discipline_head_section').removeClass('hidden');
-        loadTeachersForSelect();
-        loadGradeHeads();
-    }
-}
+            // 🌟 แสดงส่วนเฉพาะ Super Admin (ถ้ามีสิทธิ์ตั้งค่าและเป็น super_admin)
+            if (profile.role === 'super_admin') {
+                $('#api_config_section').removeClass('hidden');
+                $('#grade_head_section').removeClass('hidden');
+                $('#discipline_head_section').removeClass('hidden');
+                loadTeachersForSelect();
+                loadGradeHeads();
+                loadDisciplineHeads();
+                loadApiConfig();
+                loadCriteria();
+            } else {
+                // admin หรือหัวหน้างานปกครอง จะเห็นเฉพาะส่วนจัดการเกณฑ์ (ไม่เห็น API/หัวหน้า)
+                $('#api_config_section').addClass('hidden');
+                $('#grade_head_section').addClass('hidden');
+                $('#discipline_head_section').addClass('hidden');
+                loadCriteria();
+            }
+        }
         // ==========================================
         // ส่วนจัดการแอดมินหัวหน้าระดับชั้น (ใช้ Tom Select)
         // ==========================================
-        let teacherTomSelect = null; 
+        let teacherTomSelect = null;
 
         async function loadTeachersForSelect() {
             const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');

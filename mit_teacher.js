@@ -36,7 +36,7 @@ if (typeof MI_NORM === 'undefined') {
 // ==========================================
 
 window.addEventListener('load', async () => {
-    const result = await checkSessionAndRole('mit', ['super_admin', 'admin', 'teacher']);
+    const result = await checkSessionAndRole('mit', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
     if (!result) return; // redirect ไป login.html แล้ว
 
     currentUser = result.user;
@@ -83,18 +83,23 @@ window.addEventListener('load', async () => {
 // ==========================================
 
 function applyAdminVisibility() {
-    // ใช้ applyVisibilityByRole จาก config.js เพื่อควบคุมปุ่มตั้งค่าและสลับโหมด
+    // ใช้ applyVisibilityByRole จาก config.js
     applyVisibilityByRole(currentUserRole, isAdminMode, {
         settingsBtn: 'btn-settings',
         toggleBtn: 'btnToggleMode'
     });
 
-    // อัปเดตข้อความปุ่มสลับโหมด
+    // ถ้าเป็น director/deputy (ไม่สามารถตั้งค่าได้) ให้ซ่อนปุ่มตั้งค่าด้วย
+    if (!canManageSettings()) {
+        const btnSettings = document.getElementById('btn-settings');
+        if (btnSettings) {
+            btnSettings.classList.add('hidden');
+            btnSettings.classList.remove('flex');
+        }
+    }
+
     updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
 
-    // ปุ่มนำเข้า/ส่งออก ครูใช้ได้เสมอ (ไม่ต้องซ่อน)
-    // ฟังก์ชันนี้ถูกเรียกเมื่อโหลดและเมื่อ toggle mode
-    // เราแยกส่วนที่แสดงเฉพาะ admin (Filter classroom)
     const adminFilter = document.getElementById('adminFilterSection');
     const teacherBar = document.getElementById('teacherActionBar');
     if (isAdminMode) {
@@ -1453,7 +1458,10 @@ async function processImportRows(rows) {
 // ==========================================
 
 function openSettings() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    if (!canManageSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้', 'warning');
+        return;
+    }
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
@@ -1471,7 +1479,10 @@ function closeSettings() {
 }
 
 async function saveSettings() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    if (!canManageSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้ตั้งค่าระบบ', 'error');
+        return;
+    }
     const delay = parseInt(document.getElementById('set-delay').value) || 0;
     const active = document.getElementById('set-active').checked;
     const { error } = await db.from('mi_settings').upsert({
