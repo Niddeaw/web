@@ -85,12 +85,13 @@ async function checkAuth() {
 }
 
 // ✅ ตรวจสอบการสมัครด้วย academic_year เท่านั้น (ไม่ใช้ semester)
+// ✅ ฟังก์ชัน checkCurrentEnrollment (ไม่กรอง semester/academic_year)
 async function checkCurrentEnrollment() {
     const { data, error } = await db.from('club_registrations')
         .select('*, club_lists(*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name))')
         .eq('student_id', currentStudent.id)
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
-        // ❌ ไม่มี .eq('semester', ...)
+        // ❌ ลบ .eq('academic_year', currentSchoolInfo.current_academic_year)
+        // ❌ ลบ .eq('semester', ...)
         .maybeSingle();
 
     if (data) {
@@ -103,20 +104,13 @@ async function checkCurrentEnrollment() {
     }
 }
 
-async function loadCategories() {
-    const { data } = await db.from('club_categories').select('*').order('name');
-    $('#category-filter').empty().append('<option value="all">ทุกหมวดหมู่</option>');
-    data.forEach(cat => $('#category-filter').append(`<option value="${cat.id}">${cat.name}</option>`));
-    $('#category-filter').off('change').on('change', loadClubs);
-}
-
-// ✅ (ตัวเลือก) loadClubs แบบไม่กรอง semester (แสดงทุกชุมนุมของปี)
+// ✅ ฟังก์ชัน loadClubs (ไม่กรอง semester)
 async function loadClubs() {
     const filterId = $('#category-filter').val();
     let query = db.from('club_lists')
         .select('*, core_personnel(id, prefix, first_name, last_name, avatar_url), club_categories(name)')
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
-        // ❌ ลบ .eq('semester', ...) ออก เพื่อแสดงทุกชุมนุมของปี
+        // ❌ ลบ .eq('academic_year', currentSchoolInfo.current_academic_year)
+        // ❌ ลบ .eq('semester', ...)
         .eq('is_locked', false);
 
     if (filterId !== 'all') query = query.eq('category_id', filterId);
@@ -128,7 +122,7 @@ async function loadClubs() {
     // ✅ นับจำนวนผู้สมัคร (ไม่กรอง semester)
     const { data: memberships } = await db.from('club_registrations')
         .select('club_id')
-        .eq('academic_year', currentSchoolInfo.current_academic_year)
+        // ❌ ลบ .eq('academic_year', ...)
         .neq('status', 'rejected');
 
     clubMemberCounts = {};
@@ -139,6 +133,12 @@ async function loadClubs() {
     }
 
     renderClubs();
+}
+async function loadCategories() {
+    const { data } = await db.from('club_categories').select('*').order('name');
+    $('#category-filter').empty().append('<option value="all">ทุกหมวดหมู่</option>');
+    data.forEach(cat => $('#category-filter').append(`<option value="${cat.id}">${cat.name}</option>`));
+    $('#category-filter').off('change').on('change', loadClubs);
 }
 
 window.viewTeacherImage = (url, name) => {

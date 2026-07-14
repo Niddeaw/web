@@ -185,17 +185,42 @@ async function submitAssessment() {
     if (answered < 40) {
         return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/40 ข้อ`, 'warning');
     }
-    Swal.fire({ title: 'กำลังบันทึกผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    // ตรวจสอบ classroom_id
-    if (!currentClassroomId) {
-        console.warn('⚠️ ไม่พบ classroom_id ของนักเรียน');
-        // อาจใช้ null ก็ได้ แต่ควรมี
+    // ✅ ตรวจสอบและดึง classroom_id ใหม่ (ไม่ต้องกรองปี/ภาค)
+    let classroomId = currentClassroomId;
+    if (!classroomId) {
+        const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
+            .select('classroom_id')
+            .eq('student_id', currentStudent.id)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (enrollErr) {
+            console.error('Error fetching enrollment:', enrollErr);
+        }
+
+        if (enroll?.classroom_id) {
+            classroomId = enroll.classroom_id;
+            currentClassroomId = classroomId;
+        } else {
+            Swal.close();
+            return Swal.fire(
+                'ไม่พบข้อมูลห้องเรียน',
+                'กรุณาติดต่อครูที่ปรึกษาเพื่อลงทะเบียนเรียนก่อนทำแบบประเมิน',
+                'error'
+            );
+        }
     }
 
+    Swal.fire({ title: 'กำลังบันทึกผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     const payload = buildAssessmentPayloadMI(
-        currentStudent.id, currentClassroomId,
-        schoolInfo.current_academic_year, schoolInfo.current_semester,
+        currentStudent.id,
+        classroomId,
+        schoolInfo.current_academic_year,
+        schoolInfo.current_semester,
         answers
     );
 
@@ -206,7 +231,6 @@ async function submitAssessment() {
 
         if (error) throw error;
 
-        // ✅ ลบ Draft ทันทีที่บันทึกสำเร็จ
         await db.from('mi_drafts')
             .delete()
             .eq('student_id', currentStudent.id)

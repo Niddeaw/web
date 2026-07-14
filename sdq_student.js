@@ -46,21 +46,17 @@ $(document).ready(async () => {
 // 🌟 ฟังก์ชันตรวจสอบสิทธิ์และดึงข้อมูลนักเรียน (ฉบับแก้ไขอาการค้าง)
 async function checkStudentAuth() {
     try {
-        // 1. ตรวจสอบ Session จาก Supabase
         const { data: { session }, error: authError } = await db.auth.getSession();
         if (authError || !session) {
             window.location.href = 'login.html';
             return;
         }
 
-        // 2. ดึงข้อมูลปีการศึกษาปัจจุบัน (สำคัญมาก: ต้องมีค่าก่อนทำขั้นตอนอื่น)
         const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
         currentSchoolInfo = schoolInfo;
 
-        // 3. ดึงเลขประจำตัวจาก Email (sid@student.wrk)
         const sidFromEmail = session.user.email.split('@')[0];
 
-        // 4. ดึงข้อมูลนักเรียนและห้องเรียน
         const { data: studentData, error: stdError } = await db
             .from('core_students')
             .select(`
@@ -75,17 +71,13 @@ async function checkStudentAuth() {
 
         if (stdError || !studentData) throw new Error("ไม่พบข้อมูลนักเรียนในฐานข้อมูล");
 
-        // เซ็ตตัวแปร Global
         currentUser = studentData;
 
-        // 5. หาข้อมูลการลงทะเบียน (Enrollment) ของปีการศึกษาปัจจุบัน
+        // ✅ ใช้ enrollment ล่าสุด (ไม่ต้องกรองปี/ภาค)
         if (studentData.student_enrollments && studentData.student_enrollments.length > 0) {
-            currentEnrollment = studentData.student_enrollments.find(
-                e => e.academic_year === currentSchoolInfo.current_academic_year
-            ) || studentData.student_enrollments[0];
+            currentEnrollment = studentData.student_enrollments[0]; // ใช้อันแรก (เรียงตามคิวรี)
         }
 
-        // 🌟 6. อัปเดตข้อมูลลงบนหน้าจอ (แถบด้านบน)
         const fullName = `${studentData.prefix || ''}${studentData.first_name} ${studentData.last_name}`;
         const userInfoEl = document.getElementById('userInfoDisplay');
         if (userInfoEl) {
@@ -97,11 +89,9 @@ async function checkStudentAuth() {
             userInfoEl.textContent = `${fullName}${roomText}`;
         }
 
-        // 🌟 7. ปิดหน้าโหลด แล้วโชว์ "หน้าเลือกบทบาท"
         const viewLoading = document.getElementById('view-loading');
         if (viewLoading) viewLoading.classList.add('hidden');
 
-        // แสดงหน้าเลือกผู้ประเมิน
         const roleSelection = document.getElementById('role-selection');
         if (roleSelection) roleSelection.classList.remove('hidden');
 
@@ -112,7 +102,6 @@ async function checkStudentAuth() {
         Swal.fire('พบข้อผิดพลาด', err.message, 'error');
     }
 }
-
 /* ── ฟังก์ชันเริ่มทำแบบประเมิน (คลิกจากหน้าเลือกบทบาท) ── */
 async function startSDQ(role) {
     activeRole = role; // กำหนดค่าบทบาท 'student' หรือ 'parent'

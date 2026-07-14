@@ -79,7 +79,6 @@ async function checkAuth() {
 
         // ✅ ใช้ฟังก์ชันกลางตรวจสอบ role
         if (!window.isAllowedRole || !window.isAllowedRole(actualUserRole)) {
-            // ถ้า config.js ยังไม่โหลด ให้ใช้ fallback
             const allowedRoles = ['super_admin', 'admin', 'teacher'];
             if (!allowedRoles.includes(actualUserRole)) {
                 await Swal.fire({
@@ -134,7 +133,6 @@ async function checkAuth() {
         let managedGrades = [];
         let isDisciplineHead = false;
 
-        // ตรวจสอบว่าเป็น Admin หรือไม่ (ใช้ฟังก์ชันกลาง)
         const isAdmin = window.isAdminUser ? window.isAdminUser(actualUserRole, false) : ['super_admin', 'admin'].includes(actualUserRole);
 
         if (!isAdmin) {
@@ -179,7 +177,6 @@ async function checkAuth() {
         $('#user-display').html(userDisplayText);
 
         const toggleBtn = document.getElementById('btnAdminMode');
-        // admin/super_admin เริ่มต้นในโหมดครูก่อนเสมอ
         currentViewRole = 'teacher';
         if (isAdmin) {
             $('#admin-settings-btn').addClass('hidden').removeClass('flex');
@@ -196,11 +193,10 @@ async function checkAuth() {
             $('#admin-settings-btn').addClass('hidden').removeClass('flex');
         }
 
+        // ✅ แก้ไข: ดึงห้องเรียนทั้งหมด (ไม่กรองปี/ภาค)
         const { data: allClassrooms, error: classError } = await queryTimeout(
             db.from('core_classrooms')
                 .select('*')
-                .eq('academic_year', schoolInfo.current_academic_year)
-                .eq('semester', schoolInfo.current_semester)
                 .order('grade_level', { ascending: true })
                 .order('room_number', { ascending: true }),
             'core_classrooms'
@@ -217,7 +213,6 @@ async function checkAuth() {
         const btnStatsReport = document.getElementById('btn-stats-report');
         if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && !isAdmin);
 
-        // โหมดครู: แสดงเฉพาะห้องที่เป็นครูที่ปรึกษา (ทุก role รวม admin)
         await populateClassroomSelect(user.id, isDisciplineHead);
         return;
 
@@ -435,7 +430,14 @@ async function loadHomeroomAdvisors(classroomId) {
 let promptedFillMap = {};
 
 async function loadStudentList(classroomId) {
-    if (!classroomId) return;
+    if (!classroomId) {
+        console.error('❌ classroomId is null or undefined');
+        return;
+    }
+    
+    console.log('🔍 classroomId ที่ได้รับ:', classroomId);
+    console.log('📋 ประเภทของ classroomId:', typeof classroomId);
+
     loadHomeroomAdvisors(classroomId);
 
     promptedFillMap = {};
@@ -452,7 +454,6 @@ async function loadStudentList(classroomId) {
             }
         }));
     }
-
     const checkDate = $('#check-date').val();
     await loadClassroomOverview(classroomId);
     if (!checkDate) return;
@@ -516,11 +517,15 @@ async function loadStudentList(classroomId) {
 
     $('#student-list').html('<tr><td colspan="3" class="text-center py-10"><i class="fas fa-spinner fa-spin text-3xl text-blue-200 mb-3"></i> กำลังดึงข้อมูล...</td></tr>');
 
+    console.log('📋 กำลัง query student_enrollments ด้วย classroom_id =', classroomId);
     const [{ data: enrollments }, { data: attendance }] = await Promise.all([
         db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card, avatar_students_url)`).eq('classroom_id', classroomId).order('student_number', { ascending: true }),
         db.from('homeroom_attendance').select('student_id, status').eq('classroom_id', classroomId).eq('check_date', checkDate)
     ]);
 
+    console.log('📋 Enrollments ที่ได้:', enrollments);
+    console.log('📋 Attendance ที่ได้:', attendance);
+    
     attendanceData = {};
     attendance?.forEach(r => { attendanceData[r.student_id] = r.status; });
     currentDashboardStudents = enrollments || [];

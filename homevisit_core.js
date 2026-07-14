@@ -171,8 +171,11 @@ const fieldKeyMap = {
 // 2. ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js มาตรฐานกลาง)
 // ==========================================
 function applyAdminVisibility() {
-    // ✅ ใช้ฟังก์ชันกลาง applyVisibilityByRole เพื่อจัดการปุ่มพื้นฐาน
-    window.applyVisibilityByRole(currentUserRole, isAdminMode, {
+    // ✅ ใช้ isAdminEffective = isAdminMode (จาก role) หรือ isModuleAdmin
+    const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
+
+    // ✅ ใช้ฟังก์ชันกลาง applyVisibilityByRole โดยส่ง isAdminEffective
+    window.applyVisibilityByRole(currentUserRole, isAdminEffective, {
         settingsBtn: 'admin-settings-btn',
         toggleBtn: 'btnAdminMode',
         adminManagerBtn: 'adminManagerBtn'  // ถ้ามีปุ่มนี้ใน HTML
@@ -187,8 +190,8 @@ function applyAdminVisibility() {
         }
     });
 
-    // ✅ อัปเดตข้อความปุ่มสลับโหมด (ใช้ฟังก์ชันกลาง)
-    window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnAdminMode');
+    // ✅ อัปเดตข้อความปุ่มสลับโหมด (ใช้ isAdminEffective)
+    window.updateToggleModeUI(currentUserRole, isAdminEffective, 'btnAdminMode');
 }
 
 // ==========================================
@@ -245,10 +248,10 @@ async function checkAuth() {
             isReadOnly = false;
         }
 
-        // ✅ ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์
+        // ✅ ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์ (ใช้ isAdminEffective)
         applyAdminVisibility();
 
-        // แสดงปุ่มโหมดแอดมินเฉพาะผู้มีสิทธิ์
+        // แสดงปุ่มโหมดแอดมินเฉพาะผู้มีสิทธิ์ (super_admin หรือ module_admin)
         if (role === 'super_admin' || isModuleAdmin) {
             document.getElementById('btnAdminMode')?.classList.remove('hidden');
         }
@@ -298,8 +301,12 @@ function updateUIByRole() {
 }
 
 window.toggleRoleView = function () {
-    // ✅ ใช้ isAdminUser จาก config.js
-    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    // ✅ ใช้ isAdminEffective (รวม Module Admin)
+    const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
+    if (!isAdminEffective) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
+        return;
+    }
 
     const newRole = (currentViewRole === 'teacher') ? (isModuleAdmin ? 'module_admin' : 'teacher') : 'teacher';
     const isAdmin = newRole !== 'teacher';
@@ -319,7 +326,7 @@ window.toggleRoleView = function () {
             : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
     }
 
-    // ✅ ใช้ applyAdminVisibility อัปเดต UI
+    // ✅ ใช้ applyAdminVisibility อัปเดต UI (จะใช้ isAdminEffective ภายใน)
     applyAdminVisibility();
     updateUIByRole();
     loadClassrooms();

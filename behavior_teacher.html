@@ -29,9 +29,9 @@
             <span id="user_display"
                 class="text-sm font-bold text-slate-600 mr-2 hidden md:inline bg-slate-100 px-3 py-1 rounded-full"></span>
 
-            <!-- ภายใน Navbar เพิ่มปุ่มนี้ถัดจากปุ่ม "โหมดแอดมิน" -->
-            <button onclick="window.location.href='behavior_dashboard.html'"
-                class="h-10 px-3 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm">
+            <!-- ✅ ปุ่มแดชบอร์ด (เพิ่ม id) -->
+            <button id="btnDashboard" onclick="window.location.href='behavior_dashboard.html'"
+                class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm">
                 <i class="fa-solid fa-chart-pie sm:mr-1"></i> <span
                     class="hidden sm:inline text-sm font-bold">แดชบอร์ด</span>
             </button>
@@ -91,7 +91,6 @@
 
         $(document).ready(async () => { await checkAuth(); });
 
-        // behavior_teacher.html — แทนที่ฟังก์ชัน checkAuth
         async function checkAuth() {
             Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -106,19 +105,30 @@
             const isAdmin = window.isAdminUser(profile.role, false);
             let hasAdminRight = isAdmin;
 
-            // ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (เสริม)
+            // ✅ ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (เพื่อแสดงปุ่มแดชบอร์ด)
+            let isDisciplineHead = false;
+            let managedGrades = [];
+            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+            if (sInfo?.current_academic_year) {
+                const { data: discHead } = await db.from('core_discipline_heads')
+                    .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
+                isDisciplineHead = !!discHead;
+            }
+            const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
+            managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
+
+            // ✅ ควบคุมปุ่มแดชบอร์ด
+            const hasDashboardAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
+            if (hasDashboardAccess) {
+                $('#btnDashboard').removeClass('hidden').addClass('flex');
+            } else {
+                $('#btnDashboard').addClass('hidden').removeClass('flex');
+            }
+
+            // ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (สำหรับปุ่มโหมดแอดมิน)
             if (!hasAdminRight) {
-                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-                if (sInfo?.current_academic_year) {
-                    const { data: discHead } = await db.from('core_discipline_heads')
-                        .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
-                    if (discHead) hasAdminRight = true;
-                }
-                if (!hasAdminRight) {
-                    const { data: gradeHead } = await db.from('behavior_grade_heads')
-                        .select('id').eq('teacher_id', session.user.id).maybeSingle();
-                    if (gradeHead) hasAdminRight = true;
-                }
+                if (isDisciplineHead) hasAdminRight = true;
+                if (!hasAdminRight && managedGrades.length > 0) hasAdminRight = true;
             }
 
             // แสดงปุ่มไปหน้าแอดมินถ้ามีสิทธิ์
@@ -134,7 +144,6 @@
 
             if (!classroom) {
                 if (hasAdminRight) {
-                    // ถ้ามีสิทธิ์ admin แต่ไม่มีห้องที่ปรึกษา → ส่งไปหน้า admin โดยตรง
                     window.location.replace('behavior_admin.html');
                 } else {
                     Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info')

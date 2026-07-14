@@ -1,7 +1,9 @@
 /**
- * eq_student.js — เวอร์ชันสมบูรณ์ (14 มิ.ย. 2569)
+ * eq_student.js — เวอร์ชันปรับปรุง (16 มิ.ย. 2569)
+ * - แก้ไข submitAssessment() ให้ดึง classroom_id ใหม่ถ้าเป็น null
+ * - ปรับปรุง printResult() ให้ใช้ relations เพื่อแสดงข้อมูลนักเรียนและห้องเรียน
  * - แสดงผลหน้าเว็บ 3 แถว (สรุป, กราฟ, การ์ด 3 กลุ่ม)
- * - พิมพ์ PDF เรียบร้อย ใช้ table, รอโหลดรูป, margin พอดี
+ * - พิมพ์ PDF ใช้ table, margin เหมาะสม
  */
 
 let currentStudent = null;
@@ -185,19 +187,22 @@ async function saveDraft() {
     }, { onConflict: 'student_id,academic_year,semester' });
 }
 
+/* ---------- SUBMIT ASSESSMENT (แก้ไขแล้ว) ---------- */
 async function submitAssessment() {
     const answered = Object.keys(answers).length;
     if (answered < 52) {
         return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/52 ข้อ`, 'warning');
     }
 
-    // ✅ ตรวจสอบและดึง classroom_id
+    // ✅ ตรวจสอบและดึง classroom_id ใหม่ (ไม่ต้องกรองปี/ภาค)
     let classroomId = currentClassroomId;
     if (!classroomId) {
         const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
             .select('classroom_id')
             .eq('student_id', currentStudent.id)
-            .eq('academic_year', schoolInfo.current_academic_year)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (enrollErr) {
@@ -206,8 +211,9 @@ async function submitAssessment() {
 
         if (enroll?.classroom_id) {
             classroomId = enroll.classroom_id;
-            currentClassroomId = classroomId; // อัปเดตตัวแปร
+            currentClassroomId = classroomId;
         } else {
+            Swal.close();
             return Swal.fire(
                 'ไม่พบข้อมูลห้องเรียน',
                 'กรุณาติดต่อครูที่ปรึกษาเพื่อลงทะเบียนเรียนก่อนทำแบบประเมิน',
@@ -346,12 +352,11 @@ function showResult(data) {
     }
 }
 
-/* ---------- พิมพ์ PDF (สมบูรณ์, รอโหลดรูป, margin 0.5cm, ใช้ table) ---------- */
-/* ---------- พิมพ์ PDF (เหมือนรุ่นครู) ---------- */
+/* ---------- พิมพ์ PDF (ปรับปรุงให้ใช้ relations) ---------- */
 async function printResult() {
     Swal.fire({ title: 'กำลังสร้างไฟล์ PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        // ดึงข้อมูลการประเมิน พร้อมข้อมูลนักเรียนและห้องเรียน (เหมือน eq_teacher)
+        // ✅ ดึงข้อมูลพร้อม relations (เหมือน eq_teacher)
         const { data: assessment, error } = await db.from('eq_assessments')
             .select(`
                 *,
@@ -362,10 +367,9 @@ async function printResult() {
             .eq('academic_year', schoolInfo.current_academic_year)
             .eq('semester', schoolInfo.current_semester)
             .single();
-
         if (error || !assessment) throw new Error('ไม่พบข้อมูลการประเมิน');
 
-        // ดึงข้อมูลครูที่ปรึกษา
+        // ดึงข้อมูลครูที่ปรึกษาจาก classroom_id
         let adviser1 = '-', adviser2 = '-';
         if (assessment.classroom_id) {
             const { data: cls } = await db.from('core_classrooms')
@@ -433,7 +437,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     @page { margin: 0.5cm 0.5cm 1.2cm 0.5cm; }
     body { font-family: 'Sarabun', 'Anuphan', sans-serif; font-size: 13px; color: #1e293b; background: white; margin: 0; padding: 0; }
 
-    /* Header */
     .header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #312e81; padding-bottom: 8px; margin-bottom: 15px; }
     .logo-area { display: flex; align-items: center; gap: 12px; }
     .logo { height: 50px; width: auto; }
@@ -441,7 +444,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     .school-sub { margin: 2px 0 0; font-size: 11px; color: #475569; }
     .info-area { text-align: right; font-size: 12px; }
 
-    /* 2 คอลัมน์หลัก */
     .two-col { display: flex; gap: 12px; margin-bottom: 15px; }
     .col-left { flex: 1.1; background: #f8fafc; border-radius: 10px; padding: 14px; display: flex; align-items: flex-start; gap: 14px; }
     .col-right { flex: 0.9; border-radius: 10px; padding: 14px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; }
@@ -453,27 +455,23 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     .total-label { font-size: 15px; font-weight: bold; margin-top: 8px; }
     .group-summary { margin-top: 10px; font-size: 11px; color: #475569; }
 
-    /* กราฟ */
     .chart-title { font-size: 16px; font-weight: bold; margin: 10px 0 8px; }
     .bar-item { margin-bottom: 10px; }
     .bar-label { display: flex; justify-content: space-between; font-size: 11px; margin-bottom: 3px; }
     .bar-bg { background: #e2e8f0; border-radius: 20px; height: 10px; width: 100%; }
     .bar-fill { height: 10px; border-radius: 20px; }
 
-    /* ตาราง */
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { border: 1px solid #cbd5e1; padding: 8px; text-align: left; vertical-align: top; }
     th { background: #312e81; color: white; }
     .sub-item { margin-bottom: 5px; }
 
-    /* Footer */
     .footer { font-size: 8px; text-align: center; color: #94a3b8; margin-top: 15px; border-top: 1px solid #e2e8f0; padding-top: 6px; page-break-inside: avoid; }
     table { page-break-inside: avoid; }
 </style>
 </head>
 <body>
 
-<!-- Header -->
 <div class="header">
     <div class="logo-area">
         <img class="logo" src="${logoUrl}" crossorigin="anonymous">
@@ -488,7 +486,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     </div>
 </div>
 
-<!-- 2 คอลัมน์ -->
 <div class="two-col">
     <div class="col-left">
         <div style="flex-shrink:0;">${avatarHtml}</div>
@@ -512,7 +509,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
     </div>
 </div>
 
-<!-- กราฟ -->
 <div class="chart-title">📊 กราฟแสดงคะแนนรายด้านย่อย</div>
 ${subDims.map(d => {
     const percent = (d.score / d.max) * 100;
@@ -526,7 +522,6 @@ ${subDims.map(d => {
     </div>`;
 }).join('')}
 
-<!-- ตารางสรุป -->
 <table>
     <thead>
         <tr><th>ด้าน</th><th>คะแนนรวม</th><th>ระดับ</th><th>รายละเอียดด้านย่อย (คะแนน)</th></tr>
@@ -554,12 +549,10 @@ ${subDims.map(d => {
 <div class="footer">ระบบ WRK School Management System | EQ แบบประเมินกรมสุขภาพจิต (อายุ 12–17 ปี)</div>
 </body></html>`;
 
-    // Preload รูปก่อนสร้าง PDF
     const imgUrls = [logoUrl, avatarUrl].filter(Boolean);
     if (imgUrls.length === 0) {
         generateStudentPdfNow(html, fullName);
     } else {
-        // ✅ เพิ่ม timeout 10 วินาที ป้องกันการค้าง
         let loaded = 0;
         let timedOut = false;
         const timer = setTimeout(() => {
@@ -594,6 +587,7 @@ function generateStudentPdfNow(html, fullName) {
     }).from(html, 'string').save();
 }
 
+/* ---------- LOGOUT ---------- */
 async function logout() {
     const result = await Swal.fire({
         title: 'ออกจากระบบ?', icon: 'question', showCancelButton: true,

@@ -25,7 +25,6 @@ $(document).ready(async function () {
         await renderSeverityChartForGrade('all');
         await loadRecentLogs();
 
-        // วันที่แสดงผล
         document.getElementById('dashboardDate').textContent = new Date().toLocaleDateString('th-TH', { 
             year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
         });
@@ -51,12 +50,27 @@ async function checkAuth() {
     const isAdmin = window.isAdminUser(profile.role, false);
     const hasSettings = window.canManageSettings(profile.role);
 
-    // แสดงปุ่มไปหน้า Admin Management (เฉพาะผู้มีสิทธิ์)
-    if (isAdmin) {
+    // ✅ เพิ่มการตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ
+    let isDisciplineHead = false;
+    let managedGrades = [];
+    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
+    if (sInfo?.current_academic_year) {
+        const { data: discHead } = await db.from('core_discipline_heads')
+            .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
+        isDisciplineHead = !!discHead;
+    }
+    const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
+    managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
+
+    // ✅ ควบคุมปุ่ม "จัดการนักเรียน"
+    const hasAdminAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
+    if (hasAdminAccess) {
         $('#btnGoToAdmin').removeClass('hidden').addClass('flex');
+    } else {
+        $('#btnGoToAdmin').addClass('hidden').removeClass('flex');
     }
 
-    // แสดงปุ่มตั้งค่า (เฉพาะ super_admin, admin)
+    // แสดงปุ่มตั้งค่าเฉพาะผู้มี canManageSettings
     if (hasSettings) {
         $('#btn_settings').removeClass('hidden').addClass('flex');
     }
@@ -78,7 +92,6 @@ async function checkAuth() {
     $('#role_label').html(roleLabel);
 
     // ปีการศึกษา
-    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
     if (sInfo) {
         $('#schoolYearBadge').text(`ปีการศึกษา ${sInfo.current_academic_year}`);
     }
@@ -363,12 +376,11 @@ function renderSeverityChartForGrade(grade) {
 // View History (สำหรับ recent logs)
 // ============================================================
 function viewHistory(studentId) {
-    // เปิดหน้าประวัติในแท็บใหม่ หรือ redirect ไป student_history.html
     window.open(`student_history.html?id=${studentId}`, '_blank');
 }
 
 // ============================================================
-// Logs Modal (เหมือนเดิม)
+// Logs Modal
 // ============================================================
 function openLogsModal(type) {
     _logsType = type;

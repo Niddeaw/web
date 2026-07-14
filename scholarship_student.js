@@ -75,8 +75,9 @@ async function getCurrentClassroom(studentId) {
         const { data } = await db.from('student_enrollments')
             .select('core_classrooms(grade_level, room_number)')
             .eq('student_id', studentId)
-            .eq('academic_year', currentAcademicYear)
-            .eq('semester', currentSemester)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false })
+            .limit(1)
             .maybeSingle();
         if (data && data.core_classrooms) {
             return `ม.${data.core_classrooms.grade_level}/${data.core_classrooms.room_number}`;

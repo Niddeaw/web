@@ -1,6 +1,7 @@
 /**
  * WRK System - Student Attendance Viewer
  * นักเรียนดูประวัติการเช็คชื่อของตนเอง
+ * ใช้ Nested Select เพื่อดึงข้อมูลนักเรียน + Enrollment + ห้องเรียน พร้อมกัน
  */
 
 let currentStudent = null;
@@ -24,7 +25,6 @@ $(document).ready(async () => {
 });
 
 async function checkAuth() {
-    // ✅ ตรวจสอบ session จาก Supabase Auth แทน localStorage
     const { data: { session } } = await db.auth.getSession();
 
     if (!session) {
@@ -33,62 +33,93 @@ async function checkAuth() {
     }
 
     try {
-        // ✅ ดึง SID จาก email (รูปแบบ: {student_id_card}@wrk.ac.th)
         const studentSid = session.user.email.split('@')[0];
+        console.log('🔍 Student SID:', studentSid);
 
-        // ดึงข้อมูลนักเรียนจาก core_students
+        // ✅ ใช้ Nested Select (แบบเดียวกับ behavior_student.html)
         const { data: student, error: studentError } = await db
             .from('core_students')
-            .select('*')
+            .select(`
+                *,
+                student_enrollments (
+                    student_number,
+                    classroom_id,
+                    academic_year,
+                    semester,
+                    core_classrooms (
+                        grade_level,
+                        room_number
+                    )
+                )
+            `)
             .eq('student_id_card', studentSid)
             .single();
 
         if (studentError || !student) {
-            console.error("ไม่พบข้อมูลนักเรียน:", studentError);
+            console.error('❌ Student not found:', studentError);
             await db.auth.signOut();
             window.location.replace("index.html");
             return;
         }
 
         currentStudent = student;
+        console.log('✅ Student found:', currentStudent.id);
 
-        // ดึงข้อมูลโรงเรียน
-        const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
-        if (schoolInfo) currentSchoolInfo = schoolInfo;
+        // ✅ ตรวจสอบ enrollment
+        const enrollments = student.student_enrollments || [];
+        console.log('📋 Enrollments from nested select:', enrollments);
 
-        // หาการลงทะเบียนปัจจุบัน
-        const { data: enrollment, error: enrollError } = await db.from('student_enrollments')
-            .select('student_number, classroom_id, core_classrooms!inner(grade_level, room_number, academic_year, semester)')
-            .eq('student_id', currentStudent.id)
-            .eq('core_classrooms.academic_year', schoolInfo?.current_academic_year)
-            .eq('core_classrooms.semester', schoolInfo?.current_semester)
-            .maybeSingle();
-
-        if (enrollError || !enrollment) {
-            Swal.fire('ไม่พบห้องเรียน', 'ท่านไม่ได้ลงทะเบียนในภาคเรียนนี้', 'warning').then(() => logout());
+        if (enrollments.length === 0) {
+            Swal.fire('ไม่พบห้องเรียน', 'ท่านไม่ได้ลงทะเบียนในระบบ กรุณาติดต่อครูที่ปรึกษา', 'warning').then(() => logout());
             return;
         }
 
-        currentEnrollment = enrollment;
+        // ✅ เลือก enrollment ล่าสุด
+        const sorted = [...enrollments].sort((a, b) => {
+            const yearA = parseInt(a.academic_year) || 0;
+            const yearB = parseInt(b.academic_year) || 0;
+            if (yearA !== yearB) return yearB - yearA;
+            return (b.semester || 0) - (a.semester || 0);
+        });
 
-        // 🟢 1. แสดงข้อมูลส่วนตัว (อัปเดตให้ตรงกับ HTML ดีไซน์ใหม่)
+        const enrollment = sorted[0];
+        console.log('✅ Selected enrollment:', enrollment);
+
+        // ✅ ตรวจสอบ classroom
+        const classroom = enrollment.core_classrooms;
+        if (!classroom) {
+            console.error('❌ No classroom data');
+            Swal.fire('ไม่พบห้องเรียน', 'ไม่พบข้อมูลห้องเรียนของท่าน กรุณาติดต่อครูที่ปรึกษา', 'warning').then(() => logout());
+            return;
+        }
+
+        // ✅ เก็บข้อมูล
+        currentEnrollment = {
+            student_number: enrollment.student_number,
+            classroom_id: enrollment.classroom_id,
+            core_classrooms: classroom
+        };
+
+        const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
+        if (schoolInfo) currentSchoolInfo = schoolInfo;
+
+        // ✅ แสดงข้อมูลส่วนตัว
         const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
-        const className = `ม.${enrollment.core_classrooms.grade_level}/${enrollment.core_classrooms.room_number}`;
+        const className = `ม.${classroom.grade_level}/${classroom.room_number}`;
         
         $('#student-fullname').text(fullName);
         $('#student-info').html(`
             <p><i class="fas fa-graduation-cap w-5 text-center text-emerald-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ${className}</p>
-            <p><i class="fas fa-list-ol w-5 text-center text-emerald-400 drop-shadow-sm"></i> เลขที่ ${enrollment.student_number}</p>
+            <p><i class="fas fa-list-ol w-5 text-center text-emerald-400 drop-shadow-sm"></i> เลขที่ ${currentEnrollment.student_number || '-'}</p>
             <p><i class="fas fa-id-card w-5 text-center text-emerald-400 drop-shadow-sm"></i> รหัสประจำตัว: ${currentStudent.student_id_card || '-'}</p>
         `);
         
-        // 🟢 2. จัดการรูปโปรไฟล์ (Avatar)
+        // ✅ จัดการรูปโปรไฟล์
         const avatarUrl = currentStudent.avatar_students_url;
         if (avatarUrl) {
             $('#student-avatar').attr('src', avatarUrl).removeClass('hidden');
             $('#student-avatar-placeholder').addClass('hidden');
         } else {
-            // ถ้าไม่มีรูประบบจะเจนรูปตัวอักษรสีเขียว (สไตล์หน้าเด็กนักเรียน) แทนให้อัตโนมัติ
             const fallbackUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(currentStudent.first_name)}&background=d1fae5&color=059669&font-size=0.4&bold=true`;
             $('#student-avatar').attr('src', fallbackUrl).removeClass('hidden');
             $('#student-avatar-placeholder').addClass('hidden');
@@ -98,7 +129,7 @@ async function checkAuth() {
 
         await loadAttendanceHistory();
     } catch (err) {
-        console.error("Auth Error:", err);
+        console.error('❌ Auth Error:', err);
         window.location.replace("index.html");
     }
 }
@@ -117,7 +148,6 @@ async function loadAttendanceHistory() {
 
     attendanceHistory = data || [];
 
-    // คำนวณสถิติ
     let counts = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
     attendanceHistory.forEach(h => {
         if (counts[h.status] !== undefined) counts[h.status]++;
@@ -129,7 +159,6 @@ async function loadAttendanceHistory() {
     $('#count-leave').text(counts['ลา']);
     $('#count-sick').text(counts['ป่วย']);
 
-    // สร้างตารางประวัติย้อนหลัง
     if (attendanceHistory.length === 0) {
         $('#history-list').html('<tr><td colspan="2" class="text-center py-16 text-slate-400 font-medium">ยังไม่มีประวัติการเช็คชื่อในเทอมนี้</td></tr>');
         return;
@@ -138,9 +167,7 @@ async function loadAttendanceHistory() {
     let rows = '';
     attendanceHistory.forEach(h => {
         const thaiDate = formatThaiDateFull(h.check_date);
-        let colorClass = 'text-slate-700 bg-slate-100'; // Default
-        
-        // 🟢 เปลี่ยนสีสถานะให้ตรงกับสีในการ์ดด้านบน (Tailwind CSS)
+        let colorClass = 'text-slate-700 bg-slate-100';
         if (h.status === 'มา') colorClass = 'text-emerald-700 bg-emerald-50 border-emerald-200';
         else if (h.status === 'ขาด') colorClass = 'text-rose-700 bg-rose-50 border-rose-200';
         else if (h.status === 'สาย') colorClass = 'text-orange-700 bg-orange-50 border-orange-200';
@@ -160,7 +187,6 @@ async function loadAttendanceHistory() {
     $('#history-list').html(rows);
 }
 
-// 🟢 3. แก้ชื่อฟังก์ชันให้ตรงกับปุ่มใน HTML (จาก exportMyPDF -> exportToPDF)
 async function exportToPDF() {
     if (attendanceHistory.length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติให้พิมพ์', 'info');
@@ -270,7 +296,6 @@ async function exportToPDF() {
     });
 }
 
-// ✅ logout
 async function logout() {
     await db.auth.signOut();
     window.location.href = "index.html";

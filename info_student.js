@@ -163,8 +163,7 @@ async function deleteProfilePicture() {
 function openLightbox(imgSrc) { if(imgSrc){ const img = document.getElementById('lightboxImage'); if(img) img.src = imgSrc; document.getElementById('lightboxModal')?.classList.remove('hidden'); } }
 function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
 
-// ========== โหลดและแสดงข้อมูลนักเรียน ==========
-// ========== แก้ไข openMyData ให้แสดงข้อมูลครอบครัวและเพิ่มรหัสนักเรียน ==========
+// ========== โหลดและแสดงข้อมูลนักเรียน (ปรับปรุงแล้ว) ==========
 async function openMyData(studentId, studentData) {
     const modal = document.getElementById('studentDetailModal');
     if (!modal) return;
@@ -180,94 +179,82 @@ async function openMyData(studentId, studentData) {
     safeSetText('view_national_id', studentData.national_id ? formatNationalId(studentData.national_id) : 'ไม่มีข้อมูล');
 
     try {
-        // 1. ดึงข้อมูลชั้นเรียนและเลขที่ (ปี/ภาคปัจจุบัน)
+        // ✅ 1. ดึงข้อมูลชั้นเรียนและเลขที่ (ไม่ต้องกรองปี/ภาค)
         const { data: enroll } = await db.from('student_enrollments')
             .select('student_number, core_classrooms(grade_level, room_number)')
             .eq('student_id', studentId)
-            .eq('academic_year', currentAcademicYear)
-            .eq('semester', currentSemester)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         let classInfoText = '-';
         if (enroll && enroll.core_classrooms) {
             classInfoText = `ม.${enroll.core_classrooms.grade_level}/${enroll.core_classrooms.room_number}  เลขที่ ${enroll.student_number || '-'}`;
-        } else {
-            // fallback กรณีไม่มีข้อมูลในปี/ภาคปัจจุบัน
-            const { data: anyEnroll } = await db.from('student_enrollments')
-                .select('student_number, core_classrooms(grade_level, room_number)')
-                .eq('student_id', studentId)
-                .maybeSingle();
-            if (anyEnroll && anyEnroll.core_classrooms) {
-                classInfoText = `ม.${anyEnroll.core_classrooms.grade_level}/${anyEnroll.core_classrooms.room_number}  เลขที่ ${anyEnroll.student_number || '-'}`;
-            }
         }
-        // เพิ่มรหัสนักเรียนต่อท้าย (ตามที่ขอ)
         if (studentData.student_id_card) {
             classInfoText += ` (รหัสประจำตัว: ${studentData.student_id_card})`;
         }
         safeSetText('view_class_info', classInfoText);
 
         // 2. ดึงข้อมูลครอบครัวและที่อยู่ (จาก module_home_visits ล่าสุด)
-let homeVisit = null;
-try {
-    const { data, error } = await db.from('module_home_visits')
-        .select('*')
-        .eq('student_id', studentId)
-        .order('visit_date', { ascending: false, nullsFirst: false })
-        .maybeSingle();
-    
-    if (error) {
-        console.error('❌ Error fetching homeVisit:', error);
-    } else {
-        homeVisit = data;
-        console.log('📋 homeVisit data:', homeVisit);
-    }
-} catch(err) {
-    console.error('❌ Exception fetching homeVisit:', err);
-}
+        let homeVisit = null;
+        try {
+            const { data, error } = await db.from('module_home_visits')
+                .select('*')
+                .eq('student_id', studentId)
+                .order('visit_date', { ascending: false, nullsFirst: false })
+                .maybeSingle();
+            if (error) {
+                console.error('❌ Error fetching homeVisit:', error);
+            } else {
+                homeVisit = data;
+                console.log('📋 homeVisit data:', homeVisit);
+            }
+        } catch(err) {
+            console.error('❌ Exception fetching homeVisit:', err);
+        }
 
-// ตรวจสอบว่า element ต่างๆ มีอยู่จริงก่อน set
-const requiredIds = ['view_parent_status', 'view_father_name', 'view_father_job', 'view_father_phone',
-                     'view_mother_name', 'view_mother_job', 'view_mother_phone',
-                     'view_guardian_name', 'view_guardian_relation', 'view_guardian_job', 'view_guardian_phone',
-                     'view_address'];
+        const requiredIds = ['view_parent_status', 'view_father_name', 'view_father_job', 'view_father_phone',
+                             'view_mother_name', 'view_mother_job', 'view_mother_phone',
+                             'view_guardian_name', 'view_guardian_relation', 'view_guardian_job', 'view_guardian_phone',
+                             'view_address'];
+        const missingIds = requiredIds.filter(id => !document.getElementById(id));
+        if (missingIds.length > 0) {
+            console.warn('⚠️ Missing elements in HTML:', missingIds);
+        }
 
-const missingIds = requiredIds.filter(id => !document.getElementById(id));
-if (missingIds.length > 0) {
-    console.warn('⚠️ Missing elements in HTML:', missingIds);
-}
+        if (homeVisit) {
+            safeSetText('view_parent_status', `สถานะครอบครัว: ${homeVisit.parents_status || 'ไม่ระบุ'}`);
+            safeSetText('view_father_name', homeVisit.father_name || '-');
+            safeSetText('view_father_job', homeVisit.father_job || '-');
+            safeSetText('view_father_phone', homeVisit.father_phone || '-');
+            safeSetText('view_mother_name', homeVisit.mother_name || '-');
+            safeSetText('view_mother_job', homeVisit.mother_job || '-');
+            safeSetText('view_mother_phone', homeVisit.mother_phone || '-');
+            safeSetText('view_guardian_name', homeVisit.guardian_name || '-');
+            safeSetText('view_guardian_relation', homeVisit.guardian_relation || '-');
+            safeSetText('view_guardian_job', homeVisit.guardian_job || '-');
+            safeSetText('view_guardian_phone', homeVisit.guardian_phone || '-');
 
-if (homeVisit) {
-    safeSetText('view_parent_status', `สถานะครอบครัว: ${homeVisit.parents_status || 'ไม่ระบุ'}`);
-    safeSetText('view_father_name', homeVisit.father_name || '-');
-    safeSetText('view_father_job', homeVisit.father_job || '-');
-    safeSetText('view_father_phone', homeVisit.father_phone || '-');
-    safeSetText('view_mother_name', homeVisit.mother_name || '-');
-    safeSetText('view_mother_job', homeVisit.mother_job || '-');
-    safeSetText('view_mother_phone', homeVisit.mother_phone || '-');
-    safeSetText('view_guardian_name', homeVisit.guardian_name || '-');
-    safeSetText('view_guardian_relation', homeVisit.guardian_relation || '-');
-    safeSetText('view_guardian_job', homeVisit.guardian_job || '-');
-    safeSetText('view_guardian_phone', homeVisit.guardian_phone || '-');
+            const addrParts = [
+                homeVisit.house_number ? `บ้านเลขที่ ${homeVisit.house_number}` : '',
+                homeVisit.village_no ? `หมู่ ${homeVisit.village_no}` : '',
+                homeVisit.sub_district ? `ต.${homeVisit.sub_district}` : '',
+                homeVisit.district ? `อ.${homeVisit.district}` : '',
+                homeVisit.province ? `จ.${homeVisit.province}` : '',
+                homeVisit.zipcode ? `รหัสไปรษณีย์ ${homeVisit.zipcode}` : ''
+            ].filter(p => p).join(' ');
+            safeSetText('view_address', addrParts || 'ไม่มีข้อมูลที่อยู่');
+        } else {
+            console.log('ℹ️ No home visit record for student', studentId);
+            safeSetText('view_parent_status', 'สถานะครอบครัว: ไม่มีข้อมูล');
+            ['father_name','father_job','father_phone','mother_name','mother_job','mother_phone',
+             'guardian_name','guardian_relation','guardian_job','guardian_phone'].forEach(id => safeSetText(`view_${id}`, '-'));
+            safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
+        }
 
-    const addrParts = [
-        homeVisit.house_number ? `บ้านเลขที่ ${homeVisit.house_number}` : '',
-        homeVisit.village_no ? `หมู่ ${homeVisit.village_no}` : '',
-        homeVisit.sub_district ? `ต.${homeVisit.sub_district}` : '',
-        homeVisit.district ? `อ.${homeVisit.district}` : '',
-        homeVisit.province ? `จ.${homeVisit.province}` : '',
-        homeVisit.zipcode ? `รหัสไปรษณีย์ ${homeVisit.zipcode}` : ''
-    ].filter(p => p).join(' ');
-    safeSetText('view_address', addrParts || 'ไม่มีข้อมูลที่อยู่');
-} else {
-    console.log('ℹ️ No home visit record for student', studentId);
-    safeSetText('view_parent_status', 'สถานะครอบครัว: ไม่มีข้อมูล');
-    ['father_name','father_job','father_phone','mother_name','mother_job','mother_phone',
-     'guardian_name','guardian_relation','guardian_job','guardian_phone'].forEach(id => safeSetText(`view_${id}`, '-'));
-    safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
-}
-
-        // 3. Attendance, Behavior, SDQ, EQ, Club (คงเดิม ไม่ต้องแก้)
+        // 3. Attendance, Behavior, SDQ, EQ, Club (คงเดิม)
         // Attendance
         let present = 0, absent = 0, late = 0, pleave = 0, sleave = 0;
         const { data: attData } = await db.from('homeroom_attendance').select('status').eq('student_id', studentId);
@@ -312,12 +299,32 @@ if (homeVisit) {
             }
         }
 
-        // EQ
+        // === แก้ไขส่วน EQ ===
         const { data: eqData } = await db.from('eq_assessments').select('*').eq('student_id', studentId).maybeSingle();
         const eqDiv = document.getElementById('view_eq_container');
         if (eqDiv) {
-            if (!eqData) eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation"></i> ยังไม่ได้ประเมิน</div>';
-            else eqDiv.innerHTML = `<div class="text-3xl font-black ${eqData.result_summary === 'ปกติ' ? 'text-pink-600' : 'text-orange-500'}">${eqData.result_summary}</div><p class="text-sm">${eqData.detail || ''}</p>`;
+            if (!eqData) {
+                eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation"></i> ยังไม่ได้ประเมิน</div>';
+            } else {
+                // ✅ ดึงข้อมูลที่แท้จริง
+                const totalScore = eqData.score_total || 0;
+                const levelTotal = eqData.level_total || 'ไม่ระบุ';
+                let colorClass = 'text-pink-600';
+                if (levelTotal === 'สูงกว่าเกณฑ์') colorClass = 'text-green-600';
+                else if (levelTotal === 'เกณฑ์ปกติ') colorClass = 'text-blue-600';
+                else if (levelTotal === 'ต่ำกว่าเกณฑ์') colorClass = 'text-red-600';
+
+                eqDiv.innerHTML = `
+                    <div class="text-3xl font-black ${colorClass}">${totalScore} <span class="text-base font-normal text-slate-500">/ 208</span></div>
+                    <p class="text-sm font-bold mt-1">ระดับรวม: ${levelTotal}</p>
+                    <div class="text-xs text-slate-500 mt-2 space-y-1">
+                        <p>ด้านดี: ${eqData.score_good || 0}/72  (${eqData.level_good || '-'})</p>
+                        <p>ด้านเก่ง: ${eqData.score_skill || 0}/72  (${eqData.level_skill || '-'})</p>
+                        <p>ด้านสุข: ${eqData.score_happy || 0}/64  (${eqData.level_happy || '-'})</p>
+                    </div>
+                    <p class="text-[10px] text-slate-400 mt-2">ประเมินเมื่อ: ${eqData.completed_at ? new Date(eqData.completed_at).toLocaleDateString('th-TH') : '-'}</p>
+                `;
+            }
         }
 
         // Club
@@ -344,7 +351,6 @@ async function fetchStudentClub(studentId) {
 
 function formatNationalId(id) {
     if (!id) return '-';
-    // ลบอักขระที่ไม่ใช่ตัวเลขออก แล้วแสดงเป็นเลข 13 หลักติดกัน (ไม่มีขีด)
     return id.toString().replace(/\D/g, '');
 }
 
@@ -365,7 +371,7 @@ function renderAttendanceChart(p,a,l,pl,sl) {
 function closeStudentModal() {
     const modal = document.getElementById('studentDetailModal');
     if (modal) modal.classList.add('hidden');
-    window.location.href = 'student_index.html';  // กลับไปหน้าแรก
+    window.location.href = 'student_index.html';
 }
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));

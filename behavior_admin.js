@@ -46,7 +46,6 @@ $(document).ready(async function () {
         const urlParams = new URLSearchParams(window.location.search);
         const filterParam = urlParams.get('filter');
         if (filterParam) {
-            // ตั้ง filter ตามพารามิเตอร์
             filterByScore(filterParam);
         }
 
@@ -86,6 +85,14 @@ async function checkAuth() {
     managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
     const hasAdminRight = isAdmin || isDisciplineHead || managedGrades.length > 0;
+
+    // ✅ ควบคุมปุ่มแดชบอร์ด
+    const hasDashboardAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
+    if (hasDashboardAccess) {
+        $('#btnDashboard').removeClass('hidden').addClass('flex');
+    } else {
+        $('#btnDashboard').addClass('hidden').removeClass('flex');
+    }
 
     if (!hasAdminRight) {
         window.location.replace('behavior_teacher.html');
@@ -161,7 +168,6 @@ async function loadClassroomList() {
             if (!value) {
                 allStudents = [];
             }
-            // ลบ filter notice
             $(table?.container()).find('.filter-notice').remove();
         }
     });
@@ -258,7 +264,6 @@ function initTableServerSide() {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         drawCallback: function(settings) {
             const api = this.api();
-            // แสดง filter notice
             const bodyHtml = $(api.table().body()).html();
             if (bodyHtml && bodyHtml.includes('ไม่พบข้อมูลตามเงื่อนไข') && currentFilter && !classroomTomSelect?.getValue()) {
                 const existing = $(api.table().container()).find('.filter-notice');
@@ -363,7 +368,7 @@ async function loadTableDataServerSide(dtParams, callback) {
 }
 
 // ============================================================
-// ฟังก์ชันค้นหาและบันทึกพฤติกรรม (คงเดิม)
+// ฟังก์ชันค้นหาและบันทึกพฤติกรรม
 // ============================================================
 async function searchStudent(val) {
     if (val.length < 2) { $('#search_results').hide(); return; }
@@ -505,7 +510,7 @@ async function saveBehaviorRecord() {
 }
 
 // ============================================================
-// ฟังก์ชัน Import/Export 
+// ฟังก์ชัน Import/Export
 // ============================================================
 function importFromExcel() { document.getElementById('excel_import_input').value = ''; document.getElementById('excel_import_input').click(); }
 
@@ -581,11 +586,18 @@ async function processImportData(rows) {
     const invalidSkip = dataRows.length - logsToInsert.length;
     schoolStatsCache = null;
     cacheTimestamp = null;
+    
     await Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', html: `<div class="text-left space-y-1"><p>✅ เพิ่มใหม่ <b class="text-green-700">${success}</b> รายการ</p>${dupSkipped.length > 0 ? `<p>⏭️ ข้ามซ้ำ <b class="text-blue-600">${dupSkipped.length}</b> รายการ (มีอยู่แล้ว)</p>` : ''}${invalidSkip > 0 ? `<p>⚠️ ข้ามผิดพลาด <b class="text-amber-600">${invalidSkip}</b> รายการ (รหัสไม่พบ/คะแนนผิด)</p>` : ''}</div>${errors.length > 0 ? `<details class="mt-3 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error (${errors.length} รายการ)</summary><pre class="text-xs text-red-400 max-h-28 overflow-y-auto mt-1 bg-red-50 p-2 rounded-lg">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}` });
-
-    // ✅ แก้ไข: โหลดข้อมูลใหม่และรีเฟรชตารางเท่านั้น (ไม่เรียก Dashboard functions)
+    
+    // ✅ แก้ไข: โหลดข้อมูลใหม่และรีเฟรชตารางเท่านั้น
     await loadSchoolStats(false);
     if (table) table.ajax.reload();
+    
+    // ❌ ลบบรรทัดเหล่านี้ (ฟังก์ชันถูกย้ายไป Dashboard)
+    // updateDashboardStats();
+    // renderPositiveChartForGrade('all');
+    // renderSeverityChartForGrade('all');
+    // loadRecentLogs();
 }
 
 // ============================================================
@@ -674,7 +686,7 @@ async function exportSummary() {
     const logMap = {}; (allLogs || []).forEach(log => { if (!logMap[log.student_id]) logMap[log.student_id] = []; logMap[log.student_id].push(log); });
     const now = new Date(); const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()); const dayOfWeek = now.getDay(); const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1)); const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const sorted = [...schoolStats].sort((a, b) => a.grade_level - b.grade_level || a.room_number - b.room_number || String(a.sid).localeCompare(String(b.sid)));
-    const exportData = sorted.map(s => { const logs = logMap[s.id] || []; const logsDay = logs.filter(l => new Date(l.created_at) >= startOfDay); const logsWeek = logs.filter(l => new Date(l.created_at) >= startOfWeek); const logsMonth = logs.filter(l => new Date(l.created_at) >= startOfMonth); const sumScore = arr => arr.reduce((acc, l) => acc + l.score_change, 0); const posScore = arr => arr.filter(l => l.score_change > 0).reduce((acc, l) => acc + l.score_change, 0); const negScore = arr => arr.filter(l => l.score_change < 0).reduce((acc, l) => acc + Math.abs(l.score_change), 0); return { 'เลขประจำตัว': s.sid, 'ชื่อ-นามสกุล': `${s.prefix}${s.firstName} ${s.lastName}`.trim(), 'ชั้นเรียน': s.roomDisplay, 'คะแนนปัจจุบัน': s.score, 'รวมได้รับ (ทั้งหมด)': posScore(logs), 'รวมถูกตัด (ทั้งหมด)': negScore(logs), 'รวมได้รับ (เดือนนี้)': posScore(logsMonth), 'รวมถูกตัด (เดือนนี้)': negScore(logsMonth), 'รวมได้รับ (สัปดาห์นี้)': posScore(logsWeek), 'รวมถูกตัด (สัปดาห์นี้)': negScore(logsWeek), 'รวมได้รับ (วันนี้)': posScore(logsDay), 'รวมถูกตัด (วันนี้)': negScore(logsDay), 'จำนวนครั้งทำดี': s.pos, 'จำนวนครั้งผิดระเบียบ': s.neg }; });
+    const exportData = sorted.map(s => { const logs = logMap[s.id] || []; const logsDay = logs.filter(l => new Date(l.created_at) >= startOfDay); const logsWeek = logs.filter(l => new Date(l.created_at) >= startOfWeek); const logsMonth = logs.filter(l => new Date(l.created_at) >= startOfMonth); const posScore = arr => arr.filter(l => l.score_change > 0).reduce((acc, l) => acc + l.score_change, 0); const negScore = arr => arr.filter(l => l.score_change < 0).reduce((acc, l) => acc + Math.abs(l.score_change), 0); return { 'เลขประจำตัว': s.sid, 'ชื่อ-นามสกุล': `${s.prefix}${s.firstName} ${s.lastName}`.trim(), 'ชั้นเรียน': s.roomDisplay, 'คะแนนปัจจุบัน': s.score, 'รวมได้รับ (ทั้งหมด)': posScore(logs), 'รวมถูกตัด (ทั้งหมด)': negScore(logs), 'รวมได้รับ (เดือนนี้)': posScore(logsMonth), 'รวมถูกตัด (เดือนนี้)': negScore(logsMonth), 'รวมได้รับ (สัปดาห์นี้)': posScore(logsWeek), 'รวมถูกตัด (สัปดาห์นี้)': negScore(logsWeek), 'รวมได้รับ (วันนี้)': posScore(logsDay), 'รวมถูกตัด (วันนี้)': negScore(logsDay), 'จำนวนครั้งทำดี': s.pos, 'จำนวนครั้งผิดระเบียบ': s.neg }; });
     const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`; const fileName = `สรุปคะแนนความประพฤติ_${dateStr}.xlsx`;
     _writeExcel(exportData, fileName, 'สรุปคะแนน');
 }
@@ -697,6 +709,7 @@ function viewHistory(studentId) {
         || allStudents.find(s => s.id === studentId);
 
     if (!student) {
+        // กรณีไม่พบใน Cache → ดึงจากฐานข้อมูลโดยตรง
         $('#historyStudentName').text('กำลังโหลด...');
         $('#historyStudentScore').text('-');
         $('#historyAvatar').addClass('hidden');
@@ -708,6 +721,7 @@ function viewHistory(studentId) {
             .eq('id', studentId).single()
             .then(({ data: s }) => {
                 if (!s) return;
+
                 // ✅ แทนที่ mapStudent() ด้วยการสร้าง object โดยตรง
                 const enroll = s.student_enrollments?.[0];
                 const classroom = enroll?.core_classrooms;
@@ -731,6 +745,7 @@ function viewHistory(studentId) {
         return;
     }
 
+    // กรณีพบใน Cache
     $('#historyStudentName').text(student.fullName + ' (' + student.roomDisplay + ')');
     $('#historyStudentScore').text(student.score);
 

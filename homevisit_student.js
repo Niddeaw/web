@@ -132,8 +132,8 @@ async function loadExistingHomeVisit(studentId) {
         const { data: records, error } = await db.from('module_home_visits')
             .select('*')
             .eq('student_id', studentId)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            // ❌ ลบ .eq('academic_year', currentYear)
+            // ❌ ลบ .eq('semester', currentTerm)
             .limit(1);
 
         if (error) throw error;
