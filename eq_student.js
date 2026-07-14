@@ -190,23 +190,57 @@ async function submitAssessment() {
     if (answered < 52) {
         return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/52 ข้อ`, 'warning');
     }
+
+    // ✅ ตรวจสอบและดึง classroom_id
+    let classroomId = currentClassroomId;
+    if (!classroomId) {
+        const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
+            .select('classroom_id')
+            .eq('student_id', currentStudent.id)
+            .eq('academic_year', schoolInfo.current_academic_year)
+            .maybeSingle();
+
+        if (enrollErr) {
+            console.error('Error fetching enrollment:', enrollErr);
+        }
+
+        if (enroll?.classroom_id) {
+            classroomId = enroll.classroom_id;
+            currentClassroomId = classroomId; // อัปเดตตัวแปร
+        } else {
+            return Swal.fire(
+                'ไม่พบข้อมูลห้องเรียน',
+                'กรุณาติดต่อครูที่ปรึกษาเพื่อลงทะเบียนเรียนก่อนทำแบบประเมิน',
+                'error'
+            );
+        }
+    }
+
     Swal.fire({ title: 'กำลังบันทึกผล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     const payload = buildAssessmentPayloadV2(
-        currentStudent.id, currentClassroomId,
-        schoolInfo.current_academic_year, schoolInfo.current_semester,
+        currentStudent.id,
+        classroomId,
+        schoolInfo.current_academic_year,
+        schoolInfo.current_semester,
         answers
     );
+
     const { data, error } = await db.from('eq_assessments')
         .upsert(payload, { onConflict: 'student_id,academic_year,semester' })
         .select().single();
+
     if (error) {
+        console.error('Save error:', error);
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
         return;
     }
+
     await db.from('eq_drafts').delete()
         .eq('student_id', currentStudent.id)
         .eq('academic_year', schoolInfo.current_academic_year)
         .eq('semester', schoolInfo.current_semester);
+
     Swal.close();
     showResult(data);
 }
