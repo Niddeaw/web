@@ -878,8 +878,14 @@ function markDirty() {
     const text = document.getElementById('status-text');
     if (badge && text) {
         badge.className = 'px-3 py-2 bg-orange-50 text-orange-600 rounded-xl text-center border border-orange-100';
-        text.innerHTML = '<i class="fas fa-circle text-orange-400 text-[8px] mr-1 animate-pulse"></i> มีการแก้ไข (ยังไม่บันทึก)';
+        text.innerHTML = '<i class="fas fa-circle text-orange-400 text-[8px] mr-1 animate-pulse"></i> มีการแก้ไข (กำลังบันทึกอัตโนมัติ...)';
     }
+
+    // ✅ เพิ่ม: เรียก autoSaveStep ทันทีที่เกิดการเปลี่ยนแปลง (ดีเลย์ 1.5 วินาที)
+    clearTimeout(window._autoSaveTimer);
+    window._autoSaveTimer = setTimeout(async () => {
+        await autoSaveStep();
+    }, 1500);
 }
 
 function initDirtyTracking() {
@@ -1000,11 +1006,33 @@ async function autoSaveIfDirty() {
 }
 
 async function autoSaveStep() {
-    if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return true;
+    // ถ้าไม่มีข้อมูลเปลี่ยนแปลง หรือไม่มี student/classroom หรือถูก lock
+    if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) {
+        return true;
+    }
+
     if (isAutoSaving) return true;
+
     isAutoSaving = true;
+    
+    // ✅ แสดงสถานะกำลังบันทึก (เฉพาะครั้งแรก)
+    const toastLoading = Swal.fire({
+        toast: true,
+        position: 'bottom-end',
+        icon: 'info',
+        title: '⏳ กำลังบันทึกอัตโนมัติ...',
+        showConfirmButton: false,
+        timer: 1500,
+        timerProgressBar: true,
+        didOpen: (toast) => {
+            toast.addEventListener('mouseenter', Swal.stopTimer);
+            toast.addEventListener('mouseleave', Swal.resumeTimer);
+        }
+    });
+
     try {
         const formData = buildFormData(currentStudentId, window.currentClassroomId);
+
         const { data: existingRecords, error: selectError } = await db
             .from('module_home_visits')
             .select('id')
@@ -1012,23 +1040,77 @@ async function autoSaveStep() {
             .eq('academic_year', currentYear)
             .eq('semester', currentTerm)
             .limit(1);
+
         if (selectError) throw selectError;
+
         const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
         let savedData, saveError;
+
         if (existingRow) {
-            const { data, error } = await db.from('module_home_visits').update(formData).eq('id', existingRow.id).select('id');
-            savedData = data; saveError = error;
+            const { data, error } = await db
+                .from('module_home_visits')
+                .update(formData)
+                .eq('id', existingRow.id)
+                .select('id');
+            savedData = data;
+            saveError = error;
         } else {
-            const { data, error } = await db.from('module_home_visits').insert([formData]).select('id');
-            savedData = data; saveError = error;
+            const { data, error } = await db
+                .from('module_home_visits')
+                .insert([formData])
+                .select('id');
+            savedData = data;
+            saveError = error;
         }
+
         if (saveError) throw saveError;
-        if (!savedData || savedData.length === 0) throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
+        if (!savedData || savedData.length === 0) {
+            throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
+        }
+
         formIsDirty = false;
         updateStatusBadge('completed');
+
+        // ✅ ปิด Toast เก่า (ถ้ายังมี)
+        Swal.close();
+
+        // ✅ แสดง Toast บันทึกสำเร็จ
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'success',
+            title: '💾 บันทึกอัตโนมัติสำเร็จ',
+            showConfirmButton: false,
+            timer: 2000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        });
+
         return true;
     } catch (err) {
         console.error('Auto-save step error:', err);
+        
+        // ✅ ปิด Toast เก่า
+        Swal.close();
+
+        // ✅ แสดง Toast แจ้งเตือน (ไม่ใช่ error รุนแรง)
+        Swal.fire({
+            toast: true,
+            position: 'bottom-end',
+            icon: 'warning',
+            title: '⚠️ บันทึกอัตโนมัติล้มเหลว',
+            text: err.message || 'กรุณาบันทึกด้วยตนเอง',
+            showConfirmButton: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: (toast) => {
+                toast.addEventListener('mouseenter', Swal.stopTimer);
+                toast.addEventListener('mouseleave', Swal.resumeTimer);
+            }
+        });
         return false;
     } finally {
         isAutoSaving = false;
