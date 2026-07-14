@@ -463,6 +463,7 @@ async function loadStudentsForClassroom(classroomId) {
             create: false,
             placeholder: '-- ค้นหาและเลือกนักเรียน --',
             options: options,
+            dropdownParent: 'body',
             onChange: async (val) => {
                 if (val) {
                     if (formIsDirty && currentStudentId && !isReadOnly) {
