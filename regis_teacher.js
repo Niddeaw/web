@@ -46,6 +46,9 @@ window.onload = async () => {
 // ปรับปรุงสิทธิ์: ให้ super_admin, admin, director, deputy เข้าได้โดยไม่ต้องแต่งตั้ง
 // ส่วนบทบาทอื่น (teacher, staff) ต้องเป็น module admin ของ regis
 // ==========================================
+// ==========================================
+// ฟังก์ชัน checkAuth - แก้ไขให้ซ่อนปุ่มตั้งค่า ถ้าไม่ใช่ super_admin
+// ==========================================
 async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
     try {
@@ -70,6 +73,7 @@ async function checkAuth() {
         currentProfile = personnel;
         currentUserRole = role;
         isAdminMode = isAdmin;
+        isSuperAdmin = (role === 'super_admin'); // เก็บสถานะ super_admin
 
         let hasAccess = false;
 
@@ -120,6 +124,18 @@ async function checkAuth() {
         if (displayName && currentProfile) {
             displayName.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
             console.log(`✅ แสดงชื่อ: ${displayName.textContent}`);
+        }
+
+        // ✅ ซ่อน/แสดงปุ่มตั้งค่า ตามสิทธิ์ super_admin
+        const settingsBtn = document.querySelector('[onclick="openSettingsModal()"]');
+        if (settingsBtn) {
+            if (isSuperAdmin) {
+                settingsBtn.style.display = '';
+                console.log('✅ แสดงปุ่มตั้งค่า (super_admin)');
+            } else {
+                settingsBtn.style.display = 'none';
+                console.log('🔒 ซ่อนปุ่มตั้งค่า (ไม่ใช่ super_admin)');
+            }
         }
 
         // แสดงเนื้อหา
