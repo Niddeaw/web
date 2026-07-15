@@ -1,65 +1,126 @@
+// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin)
+// แก้ไขเพิ่ม try...catch สำหรับ Swal และ window.onerror เพื่อป้องกันหน้าขาว
+
 let tableInstance = null;
 let allRequests = [];
 let sysSettings = null;
 let currentUser = null;
 let currentProfile = null;
-let tomSelectInstance = null;
+let isAdminMode = false;
+let currentUserRole = null;
+
+// ✅ ดัก error ทั่วไปที่อาจเกิดขึ้น
+window.onerror = function(message, source, lineno, colno, error) {
+    console.error('❌ Global error caught:', message, error);
+    Swal.fire({
+        icon: 'error',
+        title: 'เกิดข้อผิดพลาด',
+        text: 'กรุณารีเฟรชหน้าหรือติดต่อผู้ดูแลระบบ',
+        confirmButtonText: 'ตกลง'
+    }).then(() => {
+        window.location.replace('index.html');
+    });
+    return true;
+};
 
 window.onload = async () => {
-    await checkAuth();
+    console.log('✅ window.onload เริ่มทำงาน');
+    try {
+        await checkAuth();
+    } catch (error) {
+        console.error('❌ Unhandled error in window.onload:', error);
+        try {
+            await Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาดร้ายแรง',
+                text: error.message || 'ไม่สามารถโหลดระบบได้ กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'ตกลง'
+            });
+        } catch (e) {}
+        window.location.replace('index.html');
+    }
 };
 
 // ==========================================
-// การันตีความปลอดภัย: เช็คสิทธิ์ 2 ชั้น
+// ตรวจสอบสิทธิ์ ใช้ checkSessionAndRole + ตรวจสอบ module admin
+// แก้ไขให้ใช้ await Swal.fire และ log เพื่อ debug
 // ==========================================
+// regis_teacher.js - เฉพาะฟังก์ชัน checkAuth ที่ใช้ alert สำรอง
+// แก้ไขให้แสดง alert ธรรมดาเมื่อ SweetAlert ไม่ทำงาน
+
 async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) {
-        window.location.replace('index.html');
-        return;
-    }
+    console.log('🔍 checkAuth เริ่มทำงาน');
+    try {
+        if (typeof WRK_ROLES === 'undefined') {
+            console.error('❌ WRK_ROLES ไม่ถูกนิยาม');
+            alert('เกิดข้อผิดพลาด: ไม่พบตัวแปร WRK_ROLES');
+            window.location.replace('index.html');
+            return;
+        }
 
-    const userId = session.user.id;
-    let hasAccess = false;
+        console.log('📌 เรียก checkSessionAndRole...');
+        const result = await window.checkSessionAndRole('regis_teacher', WRK_ROLES.ALLOWED);
+        if (!result) {
+            console.log('❌ checkSessionAndRole ส่งคืน null');
+            return;
+        }
 
-    currentUser = session.user;
+        const { user, personnel, role, isAdmin, isTeacher } = result;
+        console.log('✅ checkSessionAndRole สำเร็จ:', { user: user.id, role, isAdmin });
 
-    const { data: userProfile } = await db.from('core_personnel').select('*').eq('id', userId).single();
-    if (userProfile) {
-        currentProfile = userProfile;
-        if (userProfile.role === 'super_admin') {
+        currentUser = user;
+        currentProfile = personnel;
+        currentUserRole = role;
+        isAdminMode = isAdmin;
+
+        let hasAccess = false;
+        if (role === 'super_admin') {
             hasAccess = true;
+            console.log('✅ User เป็น super_admin');
         } else {
-            const { data: modAdminCheck } = await db.from('core_module_admins')
+            console.log('🔍 ตรวจสอบ core_module_admins...');
+            const { data: modAdmin, error } = await db.from('core_module_admins')
                 .select('id')
-                .eq('user_id', userId)
+                .eq('user_id', user.id)
                 .eq('module_id', 'regis')
-                .single();
-            if (modAdminCheck) {
+                .maybeSingle();
+            if (error) {
+                console.error('❌ Error checking module admin:', error);
+            }
+            if (modAdmin) {
                 hasAccess = true;
+                console.log('✅ User เป็น module admin ของ regis');
+            } else {
+                console.log('❌ User ไม่ใช่ module admin');
             }
         }
-    }
 
-    if (!hasAccess) {
-        Swal.fire({
-            icon: 'error',
-            title: 'การเข้าถึงถูกปฏิเสธ',
-            text: 'ระบบนี้เข้าถึงได้แค่ super_admin และ admin โมดูลงานทะเบียนเท่านั้น'
-        }).then(() => {
+        if (!hasAccess) {
+            console.log('🚫 ไม่มีสิทธิ์เข้าใช้งาน - แสดง Alert');
+            // ใช้ alert แทน SweetAlert เพื่อป้องกันไม่ให้หน้าค้าง
+            alert('❌ ไม่มีสิทธิ์เข้าใช้งาน\n\nคุณไม่มีสิทธิ์เข้าใช้งานระบบนี้\nกรุณาติดต่อผู้ดูแลระบบ');
+            console.log('🚀 กำลัง redirect ไป index.html');
             window.location.replace('index.html');
-        });
-        return;
-    }
+            return;
+        }
 
-    const displayName = document.getElementById('display-name');
-    if (displayName && currentProfile) {
-        displayName.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
-    }
+        const displayName = document.getElementById('display-name');
+        if (displayName && currentProfile) {
+            displayName.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+            console.log(`✅ แสดงชื่อ: ${displayName.textContent}`);
+        }
 
-    document.getElementById('mainBody').classList.remove('hidden');
-    await loadSettings();
-    await loadData();
+        document.getElementById('mainBody').classList.remove('hidden');
+        console.log('✅ แสดงเนื้อหาหลัก');
+
+        await loadSettings();
+        await loadData();
+
+    } catch (error) {
+        console.error('❌ checkAuth error:', error);
+        alert('เกิดข้อผิดพลาด: ' + (error.message || 'ไม่สามารถตรวจสอบสิทธิ์ได้'));
+        window.location.replace('index.html');
+    }
 }
 
 // ==========================================
@@ -81,61 +142,146 @@ async function logout() {
 }
 
 // ==========================================
-// โหลดการตั้งค่าระบบ (รองรับกรณีไม่มีข้อมูล)
+// โหลดการตั้งค่าระบบ (ใช้ maybeSingle)
 // ==========================================
 async function loadSettings() {
-    const { data, error } = await db.from('regis_settings').select('*').maybeSingle();
+    console.log('🔍 loadSettings เริ่มทำงาน');
+    try {
+        const { data, error } = await db.from('regis_settings').select('*').maybeSingle();
 
-    if (error && error.code === 'PGRST116') {
-        // ยังไม่มีข้อมูล สร้าง default
-        const { data: newData, error: insertError } = await db.from('regis_settings')
-            .insert([{
-                gas_api_url: '',
-                slide_template_id: '',
-                pdf_folder_id: ''
-            }])
-            .select()
-            .single();
+        if (error && error.code !== 'PGRST116') {
+            console.error('❌ Error loading settings:', error);
+            throw new Error('ไม่สามารถโหลดการตั้งค่าระบบ');
+        }
 
-        if (!insertError) {
-            sysSettings = newData;
+        if (data) {
+            sysSettings = data;
+            document.getElementById('gasApiUrl').value = data.gas_api_url || '';
+            document.getElementById('slideTemplateId').value = data.slide_template_id || '';
+            document.getElementById('pdfFolderId').value = data.pdf_folder_id || '';
+            console.log('✅ โหลดการตั้งค่าสำเร็จ:', sysSettings);
+        } else {
+            sysSettings = { gas_api_url: '', slide_template_id: '', pdf_folder_id: '' };
             document.getElementById('gasApiUrl').value = '';
             document.getElementById('slideTemplateId').value = '';
             document.getElementById('pdfFolderId').value = '';
-        } else {
-            console.error('insert settings error:', insertError);
-            Swal.fire('Error', 'ไม่สามารถสร้างการตั้งค่าระบบ', 'error');
+            console.log('ℹ️ ยังไม่มีการตั้งค่าระบบ ใช้ค่าว่าง');
+            
+            if (currentUserRole === 'super_admin') {
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'ยังไม่มีการตั้งค่าระบบ',
+                    text: 'กรุณากรอกข้อมูลในหน้าตั้งค่า (เฉพาะ super_admin)',
+                    confirmButtonText: 'ตกลง'
+                });
+            }
         }
-        return;
-    }
-
-    if (data) {
-        sysSettings = data;
-        document.getElementById('gasApiUrl').value = data.gas_api_url || '';
-        document.getElementById('slideTemplateId').value = data.slide_template_id || '';
-        document.getElementById('pdfFolderId').value = data.pdf_folder_id || '';
+    } catch (error) {
+        console.error('❌ loadSettings error:', error);
+        sysSettings = { gas_api_url: '', slide_template_id: '', pdf_folder_id: '' };
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ข้อผิดพลาดในการโหลดการตั้งค่า',
+            text: error.message || 'กรุณาติดต่อผู้ดูแลระบบ',
+            confirmButtonText: 'ตกลง'
+        });
     }
 }
 
 // ==========================================
-// โหลดข้อมูลคำขอ
+// บันทึกการตั้งค่า (ใช้ upsert พร้อมจัดการ RLS)
+// ==========================================
+async function saveSettings(e) {
+    e.preventDefault();
+    const gas = document.getElementById('gasApiUrl').value;
+    const template = document.getElementById('slideTemplateId').value;
+    const folder = document.getElementById('pdfFolderId').value;
+
+    try {
+        const { error } = await db.from('regis_settings')
+            .upsert({
+                id: sysSettings?.id || 1,
+                gas_api_url: gas,
+                slide_template_id: template,
+                pdf_folder_id: folder
+            }, { onConflict: 'id' })
+            .select();
+
+        if (error) {
+            if (error.code === '42501') {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่มีสิทธิ์บันทึกการตั้งค่า',
+                    text: 'เฉพาะ super_admin เท่านั้นที่สามารถตั้งค่าระบบได้',
+                    confirmButtonText: 'ตกลง'
+                });
+                return;
+            }
+            throw error;
+        }
+
+        Swal.fire('สำเร็จ', 'อัปเดตการตั้งค่าเรียบร้อย', 'success');
+        closeSettingsModal();
+        await loadSettings();
+
+    } catch (error) {
+        console.error('❌ saveSettings error:', error);
+        Swal.fire('Error', error.message || 'ไม่สามารถบันทึกการตั้งค่าได้', 'error');
+    }
+}
+
+// ==========================================
+// โหลดข้อมูลคำขอ (เพิ่ม avatar_students_url)
 // ==========================================
 async function loadData() {
+    console.log('🔍 loadData เริ่มทำงาน');
     Swal.fire({ title: 'กำลังโหลดข้อมูลงานทะเบียน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-    const { data, error } = await db.from('regis_requests')
-        .select(`*, core_students(student_id_card, prefix, first_name, last_name, student_enrollments(core_classrooms(grade_level, room_number)))`)
-        .order('created_at', { ascending: false });
+    try {
+        const { data, error } = await db.from('regis_requests')
+            .select(`*, core_students(student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(core_classrooms(grade_level, room_number)))`)
+            .order('created_at', { ascending: false });
 
-    Swal.close();
-    if (error) {
-        Swal.fire('Error', error.message, 'error');
-        return;
+        Swal.close();
+
+        if (error) {
+            console.error('❌ Error loading requests:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'ไม่สามารถโหลดข้อมูลได้',
+                text: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาตรวจสอบ Console',
+                confirmButtonText: 'ลองอีกครั้ง'
+            });
+            return;
+        }
+
+        if (!data || data.length === 0) {
+            allRequests = [];
+            Swal.fire({
+                icon: 'info',
+                title: 'ไม่มีรายการคำขอ',
+                text: 'ยังไม่มีนักเรียนยื่นคำขอเอกสารในระบบ',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } else {
+            allRequests = data;
+            console.log(`✅ โหลดข้อมูลสำเร็จ: ${data.length} รายการ`);
+        }
+
+        updateDashboard();
+        renderTable();
+
+    } catch (err) {
+        Swal.close();
+        console.error('❌ Unexpected error:', err);
+        Swal.fire({
+            icon: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            text: err.message || 'ไม่สามารถโหลดข้อมูลได้',
+            confirmButtonText: 'ตกลง'
+        });
     }
-
-    allRequests = data;
-    updateDashboard();
-    renderTable();
 }
 
 function updateDashboard() {
@@ -149,7 +295,7 @@ function updateDashboard() {
 }
 
 // ==========================================
-// แสดงตาราง
+// แสดงตาราง (เรียงตามวันที่ล่าสุด)
 // ==========================================
 function renderTable() {
     if (tableInstance) tableInstance.destroy();
@@ -157,10 +303,33 @@ function renderTable() {
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
 
+    if (allRequests.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center py-8 text-slate-400">
+                    <i class="fa-solid fa-inbox text-3xl block mb-2"></i>
+                    ยังไม่มีคำขอเอกสาร
+                </td>
+            </tr>
+        `;
+        tableInstance = $('#requestsTable').DataTable({
+            language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/th.json' },
+            dom: '<"flex flex-col md:flex-row justify-between items-center mb-4"Bf>rt<"flex justify-between items-center mt-4"ip>',
+            buttons: [
+                {
+                    extend: 'excelHtml5',
+                    text: '<i class="fa-solid fa-file-excel mr-1"></i> ปุ่มส่งออกไฟล์ Excel',
+                    className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-sm border-none shadow'
+                }
+            ]
+        });
+        return;
+    }
+
     allRequests.forEach(req => {
         const std = req.core_students;
         let classStr = '-';
-        if (std.student_enrollments && std.student_enrollments.length > 0) {
+        if (std && std.student_enrollments && std.student_enrollments.length > 0) {
             const cls = std.student_enrollments[0].core_classrooms;
             classStr = `${cls.grade_level}/${cls.room_number}`;
         }
@@ -169,23 +338,30 @@ function renderTable() {
         const dateStr = dateObj.toLocaleDateString('th-TH');
         const timeStr = dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
         const badgeColor = req.status === 'กำลังดำเนินการ' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+        const timestamp = dateObj.getTime();
 
         const tr = `
             <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-slate-700">
                 <td class="px-4 py-3 font-mono text-xs">${req.id.substring(0, 8).toUpperCase()}</td>
-                <td class="px-4 py-3">${dateStr}</td>
+                <td class="px-4 py-3" data-order="${timestamp}">${dateStr}</td>
                 <td class="px-4 py-3 text-slate-400">${timeStr} น.</td>
-                <td class="px-4 py-3">${std.student_id_card}</td>
-                <td class="px-4 py-3 font-medium">${std.prefix}${std.first_name} ${std.last_name} (${classStr})</td>
+                <td class="px-4 py-3">${std ? std.student_id_card : '-'}</td>
+                <td class="px-4 py-3 font-medium">${std ? `${std.prefix || ''}${std.first_name} ${std.last_name} (${classStr})` : 'ไม่พบข้อมูล'}</td>
                 <td class="px-4 py-3">
                     <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${req.status}</span>
                 </td>
                 <td class="px-4 py-3 text-center">
-                    <div class="flex items-center gap-3">
-                        <button onclick="requestGASPDF('${req.id}')" class="text-blue-500 hover:text-blue-700" title="พิมพ์ PDF ผ่าน GAS"><i class="fa-solid fa-cloud-arrow-down"></i></button>
+                    <div class="flex items-center justify-center gap-3">
+                        <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียดคำขอ">
+                            <i class="fa-solid fa-eye text-lg"></i>
+                        </button>
                         ${req.status === 'กำลังดำเนินการ' ?
-                          `<button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700" title="ปรับสถานะเรียบร้อย"><i class="fa-solid fa-circle-check"></i></button>` : ''}
-                        <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600" title="ลบข้อมูล"><i class="fa-solid fa-trash"></i></button>
+                          `<button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="ปรับสถานะเรียบร้อย">
+                              <i class="fa-solid fa-circle-check text-lg"></i>
+                          </button>` : ''}
+                        <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600 transition" title="ลบข้อมูล">
+                            <i class="fa-solid fa-trash text-lg"></i>
+                        </button>
                     </div>
                 </td>
             </tr>
@@ -202,69 +378,143 @@ function renderTable() {
                 text: '<i class="fa-solid fa-file-excel mr-1"></i> ปุ่มส่งออกไฟล์ Excel',
                 className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-sm border-none shadow'
             }
+        ],
+        order: [[1, 'desc']],
+        columnDefs: [
+            { targets: 1, type: 'num' }
         ]
     });
 }
 
 // ==========================================
-// สร้าง PDF ผ่าน GAS API
+// เปิด Lightbox สำหรับรูปนักเรียน (ใช้ SweetAlert2)
 // ==========================================
-async function requestGASPDF(id) {
+function openLightbox(imgSrc, studentName) {
+    if (!imgSrc) {
+        Swal.fire('ไม่มีรูป', 'ไม่พบรูปนักเรียน', 'info');
+        return;
+    }
+    Swal.fire({
+        imageUrl: imgSrc,
+        imageWidth: '80%',
+        imageHeight: 'auto',
+        imageAlt: `รูปของ ${studentName}`,
+        title: `รูปของ ${studentName}`,
+        showCloseButton: true,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#4f46e5',
+        customClass: {
+            popup: 'rounded-2xl',
+            image: 'rounded-xl shadow-lg max-h-[80vh] object-contain'
+        }
+    });
+}
+
+// ==========================================
+// เปิด Modal รายละเอียดคำขอ (พร้อมรูปนักเรียนและ Lightbox)
+// ==========================================
+function viewRequestDetail(id) {
     const req = allRequests.find(r => r.id === id);
-    if (!req || !sysSettings || !sysSettings.gas_api_url) {
-        Swal.fire('ข้อผิดพลาด', 'ไม่พบการตั้งค่าเครือข่าย GAS API ในระบบ', 'warning');
+    if (!req) {
+        Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลคำขอ', 'error');
         return;
     }
 
-    Swal.fire({ title: 'ระบบคลาวด์กำลังประมวลผล...', text: 'กำลังเขียนข้อมูลแทนที่ลงบน Template สไลด์', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
+    const std = req.core_students;
     let classInfo = '-';
-    if (req.core_students.student_enrollments && req.core_students.student_enrollments.length > 0) {
-        classInfo = `${req.core_students.student_enrollments[0].core_classrooms.grade_level}/${req.core_students.student_enrollments[0].core_classrooms.room_number}`;
+    if (std && std.student_enrollments && std.student_enrollments.length > 0) {
+        const cls = std.student_enrollments[0].core_classrooms;
+        classInfo = `ชั้น ${cls.grade_level}/${cls.room_number}`;
     }
 
-    const requestBody = {
-        templateId: sysSettings.slide_template_id,
-        folderId: sysSettings.pdf_folder_id,
-        filename: `คำขอที่อนุมัติ_${req.core_students.student_id_card}`,
-        dataPairs: {
-            "schoolName": "ข้อมูลโรงเรียนส่วนกลาง",
-            "reqDate": new Date(req.request_date).toLocaleDateString('th-TH'),
-            "fullName": `${req.core_students.prefix}${req.core_students.first_name} ${req.core_students.last_name}`,
-            "studentId": req.core_students.student_id_card,
-            "classroom": classInfo,
-            "fatherName": req.father_name,
-            "motherName": req.mother_name,
-            "phone": req.phone,
-            "pp1Qty": req.doc_pp1_qty > 0 ? `${req.doc_pp1_qty} ฉบับ` : "-",
-            "pp7Qty": req.doc_pp7_qty > 0 ? `${req.doc_pp7_qty} ฉบับ` : "-",
-            "otherText": req.doc_other_qty > 0 ? `${req.doc_other_text} (${req.doc_other_qty} ฉบับ)` : "-",
-            "purpose": req.purpose
-        }
-    };
+    const requestDate = req.request_date ? new Date(req.request_date).toLocaleDateString('th-TH') : '-';
+    const createdDate = req.created_at ? new Date(req.created_at).toLocaleString('th-TH') : '-';
 
-    try {
-        const response = await fetch(sysSettings.gas_api_url, {
-            method: 'POST',
-            mode: 'cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(requestBody)
-        });
-        const resJson = await response.json();
-        Swal.close();
+    const fullName = std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'นักเรียน';
+    let avatarUrl = std?.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=256&font-size=0.4`;
 
-        if (resJson.status === 'success') {
-            Swal.fire({
-                icon: 'success',
-                title: 'ประมวลผลเอกสารสำเร็จ',
-                html: `<a href="${resJson.pdfUrl}" target="_blank" class="text-blue-600 font-bold underline"><i class="fa-solid fa-eye"></i> คลิกเพื่อเปิดดูพิมพ์ไฟล์ PDF ข้อมูลบน Drive</a>`
-            });
-        } else {
-            throw new Error(resJson.message);
+    const detailHTML = `
+        <div class="flex flex-col md:flex-row gap-6 items-start">
+            <div class="flex-shrink-0 flex flex-col items-center">
+                <img src="${avatarUrl}" 
+                     alt="รูปนักเรียน" 
+                     class="w-32 h-32 rounded-full object-cover border-4 border-blue-200 shadow-lg cursor-pointer hover:shadow-xl transition-shadow duration-200"
+                     onclick="openLightbox('${avatarUrl}', '${fullName}')"
+                     title="คลิกเพื่อดูรูปขนาดใหญ่">
+                <p class="text-xs text-slate-400 mt-1">คลิกที่รูปเพื่อขยาย</p>
+            </div>
+
+            <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-left w-full">
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">รหัสคำขอ</p>
+                    <p class="text-sm font-mono font-bold text-slate-800">${req.id}</p>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">สถานะ</p>
+                    <p class="text-sm font-bold ${req.status === 'กำลังดำเนินการ' ? 'text-amber-600' : 'text-emerald-600'}">
+                        ${req.status}
+                    </p>
+                </div>
+                
+                <div class="bg-blue-50 p-3 rounded-xl md:col-span-2">
+                    <p class="text-xs text-blue-500 font-bold uppercase">ข้อมูลนักเรียน</p>
+                    <p class="text-sm font-semibold text-slate-800">${std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'ไม่พบข้อมูล'}</p>
+                    <p class="text-sm text-slate-600">รหัสประจำตัว: ${std ? std.student_id_card : '-'} | ${classInfo}</p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">วันที่ยื่นคำขอ</p>
+                    <p class="text-sm font-semibold">${requestDate}</p>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">วันที่บันทึกในระบบ</p>
+                    <p class="text-sm font-semibold">${createdDate}</p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">ชื่อบิดา</p>
+                    <p class="text-sm font-semibold">${req.father_name || '-'}</p>
+                </div>
+                <div class="bg-slate-50 p-3 rounded-xl">
+                    <p class="text-xs text-slate-500 font-bold uppercase">ชื่อมารดา</p>
+                    <p class="text-sm font-semibold">${req.mother_name || '-'}</p>
+                </div>
+
+                <div class="bg-slate-50 p-3 rounded-xl md:col-span-2">
+                    <p class="text-xs text-slate-500 font-bold uppercase">เบอร์โทรติดต่อ</p>
+                    <p class="text-sm font-semibold">${req.phone || '-'}</p>
+                </div>
+
+                <div class="bg-emerald-50 p-3 rounded-xl md:col-span-2">
+                    <p class="text-xs text-emerald-500 font-bold uppercase">เอกสารที่ขอ</p>
+                    <ul class="text-sm space-y-1 mt-1">
+                        ${req.doc_pp1_qty > 0 ? `<li class="flex items-center gap-2"><i class="fa-regular fa-file-pdf text-emerald-600"></i> ใบแสดงผลการเรียน (ปพ.1) จำนวน ${req.doc_pp1_qty} ฉบับ</li>` : ''}
+                        ${req.doc_pp7_qty > 0 ? `<li class="flex items-center gap-2"><i class="fa-regular fa-file-pdf text-emerald-600"></i> ใบรับรองการเป็นนักเรียน (ปพ.7) จำนวน ${req.doc_pp7_qty} ฉบับ</li>` : ''}
+                        ${req.doc_other_qty > 0 ? `<li class="flex items-center gap-2"><i class="fa-regular fa-file-pdf text-emerald-600"></i> ${req.doc_other_text} จำนวน ${req.doc_other_qty} ฉบับ</li>` : ''}
+                    </ul>
+                    ${req.doc_pp1_qty === 0 && req.doc_pp7_qty === 0 && req.doc_other_qty === 0 ? '<p class="text-sm text-slate-500">- ไม่มีรายการเอกสาร -</p>' : ''}
+                </div>
+
+                <div class="bg-indigo-50 p-3 rounded-xl md:col-span-2">
+                    <p class="text-xs text-indigo-500 font-bold uppercase">วัตถุประสงค์</p>
+                    <p class="text-sm font-semibold">${req.purpose || '-'}</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    Swal.fire({
+        title: `📄 รายละเอียดคำขอ`,
+        html: detailHTML,
+        width: 850,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#4f46e5',
+        showCloseButton: true,
+        customClass: {
+            popup: 'rounded-2xl',
+            confirmButton: 'font-bold px-6 py-2.5'
         }
-    } catch (err) {
-        Swal.fire('GAS Integration Error', err.message, 'error');
-    }
+    });
 }
 
 // ==========================================
@@ -275,6 +525,8 @@ async function approveRequest(id) {
     if (!error) {
         Swal.fire('สำเร็จ', 'อัปเดตสถานะคำขอแล้ว', 'success');
         loadData();
+    } else {
+        Swal.fire('Error', error.message, 'error');
     }
 }
 
@@ -282,10 +534,21 @@ async function approveRequest(id) {
 // ลบคำขอ
 // ==========================================
 async function deleteRequest(id) {
-    Swal.fire({ title: 'คุณแน่ใจหรือไม่?', text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูลส่วนกลาง', icon: 'warning', showCancelButton: true, confirmButtonText: 'ยืนยันลบ' }).then(async (res) => {
+    Swal.fire({
+        title: 'คุณแน่ใจหรือไม่?',
+        text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูลส่วนกลาง',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันลบ',
+        confirmButtonColor: '#dc2626'
+    }).then(async (res) => {
         if (res.isConfirmed) {
-            await db.from('regis_requests').delete().eq('id', id);
-            loadData();
+            const { error } = await db.from('regis_requests').delete().eq('id', id);
+            if (!error) {
+                loadData();
+            } else {
+                Swal.fire('Error', error.message, 'error');
+            }
         }
     });
 }
@@ -297,30 +560,24 @@ function openSettingsModal() { document.getElementById('settingsModal').classLis
 function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 
 // ==========================================
-// บันทึกการตั้งค่า
+// จัดการผู้ดูแลระบบโมดูล
 // ==========================================
-async function saveSettings(e) {
-    e.preventDefault();
-    const gas = document.getElementById('gasApiUrl').value;
-    const template = document.getElementById('slideTemplateId').value;
-    const folder = document.getElementById('pdfFolderId').value;
+function openAdminModal() {
+    document.getElementById('adminModal').classList.remove('hidden');
+    ensureModuleExists().then(() => {
+        loadModuleAdmins();
+        loadPersonnelOptions();
+    });
+}
 
-    const { error } = await db.from('regis_settings')
-        .update({ gas_api_url: gas, slide_template_id: template, pdf_folder_id: folder })
-        .eq('id', sysSettings.id);
-
-    if (!error) {
-        Swal.fire('สำเร็จ', 'อัปเดตโทเคนการตั้งค่าส่วนคลาวด์สำเร็จ', 'success');
-        closeSettingsModal();
-        loadSettings();
-    } else {
-        Swal.fire('Error', error.message, 'error');
+function closeAdminModal() {
+    document.getElementById('adminModal').classList.add('hidden');
+    if (window.tomSelectInstance) {
+        window.tomSelectInstance.destroy();
+        window.tomSelectInstance = null;
     }
 }
 
-// ==========================================
-// ตรวจสอบและสร้างโมดูล 'regis' ถ้ายังไม่มี (แก้ไข foreign key constraint)
-// ==========================================
 async function ensureModuleExists() {
     const { data, error } = await db.from('core_system_modules')
         .select('module_id')
@@ -334,7 +591,6 @@ async function ensureModuleExists() {
     }
 
     if (!data) {
-        // ยังไม่มีโมดูลนี้ ต้องสร้าง
         const { error: insertError } = await db.from('core_system_modules')
             .insert([{
                 module_id: 'regis',
@@ -344,36 +600,13 @@ async function ensureModuleExists() {
             }]);
         if (insertError) {
             console.error('Error creating module:', insertError);
-            Swal.fire('Error', 'ไม่สามารถสร้างโมดูลงานทะเบียนในระบบ กรุณาติดต่อผู้ดูแลระบบ', 'error');
+            Swal.fire('Error', 'ไม่สามารถสร้างโมดูลงานทะเบียนในระบบ', 'error');
             return false;
         }
     }
     return true;
 }
 
-// ==========================================
-// จัดการผู้ดูแลระบบโมดูล (Tom Select)
-// ==========================================
-function openAdminModal() {
-    document.getElementById('adminModal').classList.remove('hidden');
-    // ก่อนโหลดข้อมูล admin ให้ตรวจสอบโมดูล (เผื่อไว้)
-    ensureModuleExists().then(() => {
-        loadModuleAdmins();
-        loadPersonnelOptions();
-    });
-}
-
-function closeAdminModal() {
-    document.getElementById('adminModal').classList.add('hidden');
-    if (tomSelectInstance) {
-        tomSelectInstance.destroy();
-        tomSelectInstance = null;
-    }
-}
-
-// ==========================================
-// โหลดรายชื่อ Admin ปัจจุบัน (ไม่ใช้ join)
-// ==========================================
 async function loadModuleAdmins() {
     const { data: adminRecords, error } = await db
         .from('core_module_admins')
@@ -425,9 +658,6 @@ async function loadModuleAdmins() {
     }).join('');
 }
 
-// ==========================================
-// โหลดตัวเลือกบุคลากร (พร้อม Tom Select)
-// ==========================================
 async function loadPersonnelOptions() {
     const { data: admins } = await db.from('core_module_admins')
         .select('user_id')
@@ -460,19 +690,16 @@ async function loadPersonnelOptions() {
     initTomSelect();
 }
 
-// ==========================================
-// เริ่มต้น Tom Select
-// ==========================================
 function initTomSelect() {
     const selectEl = document.getElementById('adminUserSelect');
     if (!selectEl) return;
 
-    if (tomSelectInstance) {
-        tomSelectInstance.destroy();
-        tomSelectInstance = null;
+    if (window.tomSelectInstance) {
+        window.tomSelectInstance.destroy();
+        window.tomSelectInstance = null;
     }
 
-    tomSelectInstance = new TomSelect(selectEl, {
+    window.tomSelectInstance = new TomSelect(selectEl, {
         maxItems: 1,
         placeholder: '-- ค้นหาชื่อบุคลากร --',
         searchField: ['text'],
@@ -487,9 +714,6 @@ function initTomSelect() {
     });
 }
 
-// ==========================================
-// เพิ่มผู้ดูแลระบบ (เรียก ensureModuleExists ก่อน insert)
-// ==========================================
 async function addModuleAdmin() {
     const userId = document.getElementById('adminUserSelect').value;
     if (!userId) {
@@ -497,7 +721,6 @@ async function addModuleAdmin() {
         return;
     }
 
-    // ตรวจสอบและสร้างโมดูล (ถ้ายังไม่มี)
     const moduleExists = await ensureModuleExists();
     if (!moduleExists) return;
 
@@ -516,12 +739,9 @@ async function addModuleAdmin() {
 
     Swal.fire('สำเร็จ', 'เพิ่มผู้ดูแลระบบเรียบร้อยแล้ว', 'success');
     loadModuleAdmins();
-    loadPersonnelOptions(); // re-load options และ re-init Tom Select
+    loadPersonnelOptions();
 }
 
-// ==========================================
-// ลบผู้ดูแลระบบ
-// ==========================================
 async function removeModuleAdmin(userId) {
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบ',
@@ -550,5 +770,5 @@ async function removeModuleAdmin(userId) {
 
     Swal.fire('สำเร็จ', 'ลบผู้ดูแลระบบเรียบร้อยแล้ว', 'success');
     loadModuleAdmins();
-    loadPersonnelOptions(); // re-load options และ re-init Tom Select
+    loadPersonnelOptions();
 }

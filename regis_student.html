@@ -6,7 +6,6 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
-
 </head>
 <body class="bg-slate-50 text-slate-800 min-h-screen font-sans hidden" id="mainBody">
     
@@ -19,16 +18,20 @@
                     <p class="text-xs text-slate-500">ระบบขอเอกสารงานทะเบียน (นักเรียน)</p>
                 </div>
             </div>
-            <button onclick="window.location.href='student_index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm"
-                title="กลับหน้าหลัก">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm"
-                title="ออกจากระบบ">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
+            <div class="flex items-center gap-3">
+                <span id="studentDisplayName" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">กำลังโหลด...</span>
+                
+                <button onclick="window.location.href='student_index.html'"
+                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition border border-emerald-200 shadow-sm"
+                    title="กลับหน้าหลัก">
+                    <i class="fas fa-house text-sm"></i>
+                </button>
+                <button onclick="logout()"
+                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm"
+                    title="ออกจากระบบ">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
         </div>
     </nav>
 
@@ -46,7 +49,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">วันที่ยื่นคำขอ</label>
+                            <label class="block text-sm font-medium text-slate-700 mb-1">วันที่ยื่นคำขอ <span class="text-red-500">*</span></label>
                             <input type="text" id="requestDate" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring focus:ring-primary-200 p-2 border" required>
                         </div>
                         <div>
@@ -68,14 +71,14 @@
                         <label class="block text-sm font-bold text-slate-700 mb-3">เอกสารที่ต้องการขอ</label>
                         
                         <div class="space-y-3">
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 flex-wrap">
                                 <input type="checkbox" id="chkPP1" class="w-5 h-5 text-primary-600 rounded focus:ring-primary-500 border-gray-300" onchange="toggleInput('docPP1Qty', this.checked)">
                                 <span class="text-sm">ใบแสดงผลการเรียน (ปพ.1)</span>
                                 <input type="number" id="docPP1Qty" min="1" class="w-20 rounded-lg border-slate-300 shadow-sm p-1 border text-center" placeholder="จำนวน" disabled>
                                 <span class="text-sm">ฉบับ</span>
                             </div>
                             
-                            <div class="flex items-center gap-3">
+                            <div class="flex items-center gap-3 flex-wrap">
                                 <input type="checkbox" id="chkPP7" class="w-5 h-5 text-primary-600 rounded focus:ring-primary-500 border-gray-300" onchange="toggleInput('docPP7Qty', this.checked)">
                                 <span class="text-sm">ใบรับรองการเป็นนักเรียน (ปพ.7)</span>
                                 <input type="number" id="docPP7Qty" min="1" class="w-20 rounded-lg border-slate-300 shadow-sm p-1 border text-center" placeholder="จำนวน" disabled>
@@ -97,6 +100,12 @@
                         <input type="text" id="purpose" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border" placeholder="เช่น นำไปใช้สมัครเรียนต่อ..." required>
                     </div>
 
+                    <!-- ✅ เพิ่มข้อความหมายเหตุ -->
+                    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
+                        <p class="font-bold"><i class="fa-solid fa-circle-info mr-1"></i> หมายเหตุ :</p>
+                        <p class="mt-1">ส่งรูปถ่ายขนาด 3 x 4 ซม. จำนวน 1 รูปต่อ 1 ฉบับ ขอรับหนังสือรับรองหลังจากยื่นคำร้อง 3 วัน</p>
+                    </div>
+
                     <div class="pt-4 text-right">
                         <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-6 rounded-xl shadow-md transition-all">
                             <i class="fa-solid fa-paper-plane mr-2"></i>บันทึกและยื่นคำขอ
@@ -116,7 +125,8 @@
         </div>
     </main>
 
-    <div id="pdfTemplate" class="hidden bg-white p-10 text-black"></div>
+    <!-- Template สำหรับสร้าง PDF (เก็บไว้เผื่อใช้งานในอนาคต) -->
+    <div id="pdfTemplate" class="hidden bg-white p-10 text-black" style="font-family: 'Sarabun', 'TH Sarabun New', sans-serif;"></div>
 
     <script src="regis_student.js"></script>
 </body>

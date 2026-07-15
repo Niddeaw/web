@@ -4,7 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <title>ระบบบริหารจัดการงานทะเบียน - ผู้ดูแลระบบ</title>
+    <!-- core_head.js ต้องโหลดก่อนทุกอย่าง -->
     <script src="core_head.js"></script>
+    <!-- config.js ต้องโหลดก่อน regis_teacher.js -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -151,12 +153,10 @@
                         </table>
                     </div>
                 </div>
-                <!-- เพิ่ม admin ใช้ Tom Select -->
                 <div class="border-t pt-4">
                     <h4 class="text-sm font-semibold text-slate-600 mb-3">เพิ่มผู้ดูแลระบบ</h4>
                     <div class="flex flex-col sm:flex-row gap-3">
                         <select id="adminUserSelect" class="flex-1 rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border" placeholder="-- ค้นหาชื่อบุคลากร --">
-                            <!-- options จะถูกเติมจาก JS -->
                         </select>
                         <button onclick="addModuleAdmin()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow transition whitespace-nowrap">
                             <i class="fa-solid fa-plus mr-1"></i> เพิ่ม
@@ -168,6 +168,8 @@
     </div>
 
     <div id="pdfTemplateAdmin" class="hidden bg-white p-10 text-black"></div>
+
+    <!-- ต้องโหลด regis_teacher.js เป็นตัวสุดท้าย -->
     <script src="regis_teacher.js"></script>
 </body>
 
