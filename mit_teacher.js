@@ -1,8 +1,10 @@
 /**
  * mit_teacher.js — ระบบบริหารพหุปัญญา (MI) 8 ด้าน
- * ปรับปรุงการตรวจสอบสิทธิ์ให้เป็นมาตรฐานเดียวกับระบบอื่น
- * ใช้ config.js และ core_head.js
+ * ใช้ core_module_admins สำหรับจัดการแอดมินโมดูล
+ * ไม่มีการแก้ไข role ใน core_personnel
  */
+
+const MODULE_ID = 'mit';
 
 let currentUser = null;
 let currentProfile = null;
@@ -16,6 +18,7 @@ let importMode = 'excel';
 let currentUserId = null;
 let adviserMap = {};
 let currentSelectedClassroomId = null;
+let isModuleAdmin = false;
 
 if (typeof MI_NORM === 'undefined') {
     window.MI_NORM = {
@@ -36,30 +39,23 @@ if (typeof MI_NORM === 'undefined') {
 // ==========================================
 
 window.addEventListener('load', async () => {
-    const result = await checkSessionAndRole('mit', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
-    if (!result) return; // redirect ไป login.html แล้ว
+    const result = await checkSessionAndRole(MODULE_ID, ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
+    if (!result) return;
 
     currentUser = result.user;
     currentProfile = result.personnel;
     currentUserId = currentUser.id;
     currentUserRole = currentProfile.role;
 
-    // ตรวจสอบสิทธิ์ admin (รวม module admin)
     const isAdminByRole = isAdminUser(currentUserRole, false);
-    let isModuleAdmin = false;
-    if (!isAdminByRole) {
-        isModuleAdmin = await hasModuleAccess(currentUserRole, 'mit', currentUserId);
-    }
+    isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
     isAdminMode = isAdminByRole || isModuleAdmin;
 
-    // แสดงชื่อผู้ใช้
     document.getElementById('user-display').textContent =
         `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
 
-    // ใช้ฟังก์ชันจาก config.js จัดการปุ่มต่าง ๆ
     applyAdminVisibility();
 
-    // โหลดข้อมูลโรงเรียน
     const { data: si } = await db.from('core_school_info').select('*').single();
     schoolInfo = si;
 
@@ -79,17 +75,30 @@ window.addEventListener('load', async () => {
 });
 
 // ==========================================
-// ฟังก์ชันจัดการ UI ตามสิทธิ์ (ใช้ของ config.js)
+// ฟังก์ชันจัดการ UI ตามสิทธิ์
 // ==========================================
 
+function canManageSettings() {
+    return isAdminUser(currentUserRole, false) || isModuleAdmin;
+}
+
 function applyAdminVisibility() {
-    // ใช้ applyVisibilityByRole จาก config.js
     applyVisibilityByRole(currentUserRole, isAdminMode, {
         settingsBtn: 'btn-settings',
         toggleBtn: 'btnToggleMode'
     });
 
-    // ถ้าเป็น director/deputy (ไม่สามารถตั้งค่าได้) ให้ซ่อนปุ่มตั้งค่าด้วย
+    const btnAdminManager = document.getElementById('btnAdminManager');
+    if (btnAdminManager) {
+        if (canManageSettings()) {
+            btnAdminManager.classList.remove('hidden');
+            btnAdminManager.classList.add('flex');
+        } else {
+            btnAdminManager.classList.add('hidden');
+            btnAdminManager.classList.remove('flex');
+        }
+    }
+
     if (!canManageSettings()) {
         const btnSettings = document.getElementById('btn-settings');
         if (btnSettings) {
@@ -111,12 +120,11 @@ function applyAdminVisibility() {
     }
 }
 
-// ==========================================
-// TOGGLE MODE (สลับโหมด)
-// ==========================================
-
 async function toggleMode() {
-    if (!isAdminMode) return; // ถ้าไม่ใช่ admin ก็ไม่ต้องสลับ
+    if (!canManageSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
+        return;
+    }
     isAdminMode = !isAdminMode;
     applyAdminVisibility();
     if (miTable) { miTable.destroy(); miTable = null; }
@@ -125,11 +133,7 @@ async function toggleMode() {
     await loadStats();
 }
 
-// ==========================================
-// LOGOUT - ใช้ login.html ตามมาตรฐาน
-// ==========================================
-
-async function handleLogout() {
+async function logout() {
     const r = await Swal.fire({
         title: 'ออกจากระบบ?',
         icon: 'warning',
@@ -145,7 +149,7 @@ async function handleLogout() {
 }
 
 // ==========================================
-// CLASSROOMS, STATS, LOAD RESULTS (ไม่เปลี่ยนแปลง)
+// LOAD CLASSROOMS, STATS, CHARTS, etc.
 // ==========================================
 
 async function loadClassrooms() {
@@ -215,11 +219,6 @@ async function loadClassrooms() {
         }
     }
 }
-
-// ==========================================
-// STATS, RENDER TABLE, VIEW, EDIT, DELETE, EXPORT, IMPORT
-// (ฟังก์ชันเหล่านี้คงเดิม - เปลี่ยนเฉพาะการเรียก requireAdmin)
-// ==========================================
 
 async function loadStats(forceClassroomId = null) {
     const academicYear = String(schoolInfo?.current_academic_year);
@@ -676,7 +675,7 @@ function renderTable(rows) {
 }
 
 // ==========================================
-// VIEW RESULT (ไม่เปลี่ยนแปลง)
+// VIEW RESULT
 // ==========================================
 
 function closeViewModal() {
@@ -790,7 +789,7 @@ async function openViewResult(studentId) {
 }
 
 // ==========================================
-// EDIT (CRUD) - ใช้ requireAdmin จาก config.js
+// EDIT (CRUD)
 // ==========================================
 
 function closeEditModal() {
@@ -900,7 +899,10 @@ async function saveEdit() {
 }
 
 async function deleteResult(studentId) {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    if (!canManageSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้', 'warning');
+        return;
+    }
     const r = await Swal.fire({
         title: 'ลบผลการประเมิน?',
         icon: 'warning',
@@ -919,7 +921,7 @@ async function deleteResult(studentId) {
 }
 
 // ==========================================
-// EXPORT EXCEL (ครูใช้ได้)
+// EXPORT EXCEL
 // ==========================================
 
 function exportExcel() {
@@ -951,7 +953,7 @@ function exportExcel() {
 }
 
 // ==========================================
-// PRINT STUDENT PDF (ไม่เปลี่ยนแปลง)
+// PRINT STUDENT PDF (ย่อส่วน)
 // ==========================================
 
 async function printStudentPdf(studentId) {
@@ -1052,13 +1054,13 @@ function buildMIPdfHtml(opts) {
     var fullName = opts.fullName || '';
     var avatarUrl = opts.avatarUrl || '';
     var dims = opts.dims || [];
-    var studentIdCard = opts.studentIdCard || opts.studentCode || opts.student_id || '-';
+    var studentIdCard = opts.studentIdCard || '-';
     var studentNumber = opts.studentNumber || '-';
     var gradeLevel = opts.gradeLevel || '-';
     var roomNumber = opts.roomNumber || '-';
     var docTitle = opts.docTitle || 'รายงานผลการประเมินพหุปัญญา (MIT)';
 
-    var scoreTotal = (assessment.score_total !== undefined && assessment.score_total !== null) ? assessment.score_total : '-';
+    var scoreTotal = assessment.score_total ?? '-';
     var totalLevel = assessment.level_total || '-';
 
     var isHigh = ['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(totalLevel) >= 0;
@@ -1296,7 +1298,7 @@ function generateStudentPDFMI(assessment, schoolName, academicYear, semester, ad
         assessment.score_total = dims.reduce(function (s, d) { return s + d.score; }, 0);
     }
     if (!assessment.level_total) {
-        const normTotal = (MI_NORM && MI_NORM.total) ? MI_NORM.total : { min: 80, max: 144 };
+        const normTotal = MI_NORM.total || { min: 80, max: 144 };
         assessment.level_total = _getLevel(assessment.score_total, normTotal);
     }
 
@@ -1338,7 +1340,7 @@ function generateStudentPdfFromHtml(html, fullName) {
 }
 
 // ==========================================
-// IMPORT (ครูใช้ได้)
+// IMPORT (ครูและ Admin ใช้ได้)
 // ==========================================
 
 function openImportModal() {
@@ -1454,7 +1456,7 @@ async function processImportRows(rows) {
 }
 
 // ==========================================
-// SETTINGS & USER MANAGEMENT (ใช้ requireAdmin)
+// SETTINGS (ไม่มีส่วนแก้ไข role)
 // ==========================================
 
 function openSettings() {
@@ -1465,6 +1467,7 @@ function openSettings() {
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
+    // แสดงเฉพาะ super_admin (จัดการผู้ใช้ทั่วไป) แต่ไม่มีการเปลี่ยน role
     if (currentUserRole === 'super_admin') {
         document.getElementById('user-management-section').classList.remove('hidden');
         loadPersonnelForSettings();
@@ -1502,7 +1505,7 @@ async function saveSettings() {
 let allPersonnel = [];
 
 async function loadPersonnelForSettings() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
+    if (!canManageSettings()) return;
     if (currentUserRole !== 'super_admin') return;
     const { data, error } = await db.from('core_personnel')
         .select('id, first_name, last_name, email, role, prefix')
@@ -1528,23 +1531,15 @@ function renderUserTableForSettings(users) {
     const tbody = document.getElementById('user-list-settings-tbody');
     if (!tbody) return;
     tbody.innerHTML = users.map(user => {
-        const canEdit = currentUserRole === 'super_admin' && user.role !== 'super_admin';
         const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
         const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
-            (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
+                          (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
         return `<tr>
             <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
             <td class="px-2 py-1">${user.email || '-'}</td>
             <td class="px-2 py-1"><span class="px-2 py-0.5 rounded-full text-xs ${roleClass}">${roleDisplay}</span></td>
-            <td class="px-2 py-1">
-                ${canEdit ? `<select id="role-select-${user.id}" class="border rounded px-1 text-xs">
-                    <option value="admin" ${user.role === 'admin' ? 'selected' : ''}>Admin</option>
-                    <option value="teacher" ${user.role === 'teacher' ? 'selected' : ''}>ครู</option>
-                </select>` : '-'}
-            </td>
-            <td class="px-2 py-1">
-                ${canEdit ? `<button onclick="updateUserRoleFromSettings('${user.id}')" class="bg-emerald-500 text-white px-2 py-0.5 rounded text-xs">บันทึก</button>` : ''}
-            </td>
+            <td class="px-2 py-1">-</td>
+            <td class="px-2 py-1">-</td>
         </tr>`;
     }).join('');
     const searchInput = document.getElementById('user-search-settings');
@@ -1554,24 +1549,292 @@ function renderUserTableForSettings(users) {
     }
 }
 
-async function updateUserRoleFromSettings(userId) {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    const select = document.getElementById(`role-select-${userId}`);
-    if (!select) return;
-    const newRole = select.value;
-    const { error } = await db.from('core_personnel').update({ role: newRole }).eq('id', userId);
-    if (error) {
-        Swal.fire('ผิดพลาด', error.message, 'error');
-    } else {
-        Swal.fire({ icon: 'success', title: 'อัปเดตบทบาทแล้ว', timer: 1200, showConfirmButton: false });
-        await loadPersonnelForSettings();
+// ==========================================
+// MODULE ADMIN MANAGEMENT (ใช้ core_module_admins)
+// ==========================================
+
+function openAdminManager() {
+    if (!canManageSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการแอดมินโมดูลได้', 'warning');
+        return;
+    }
+    document.getElementById('adminManagerModal').classList.remove('hidden');
+    loadPersonnelOptions();
+    loadCurrentAdmins();
+}
+
+function closeAdminManager() {
+    document.getElementById('adminManagerModal').classList.add('hidden');
+}
+
+async function loadPersonnelOptions() {
+    try {
+        const { data: currentAdmins } = await db
+            .from('core_module_admins')
+            .select('user_id')
+            .eq('module_id', MODULE_ID);
+
+        const adminUserIds = currentAdmins ? currentAdmins.map(a => a.user_id) : [];
+
+        const { data: personnel, error } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, position, department')
+            .order('first_name', { ascending: true });
+
+        if (error) throw error;
+
+        const select = document.getElementById('personnelSelect');
+        select.innerHTML = '';
+
+        if (select.tomselect) select.tomselect.destroy();
+
+        const emptyOption = document.createElement('option');
+        emptyOption.value = '';
+        emptyOption.textContent = '-- เลือกบุคลากร --';
+        select.appendChild(emptyOption);
+
+        personnel.forEach(p => {
+            if (adminUserIds.includes(p.id)) return;
+            const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+            const dept = p.department ? ` [${p.department}]` : '';
+            const pos = p.position ? ` - ${p.position}` : '';
+            const option = document.createElement('option');
+            option.value = p.id;
+            option.textContent = `${fullName}${pos}${dept}`;
+            select.appendChild(option);
+        });
+
+        new TomSelect(select, {
+            placeholder: 'ค้นหาชื่อครู/บุคลากร...',
+            allowEmptyOption: true,
+            plugins: ['clear_button'],
+            maxOptions: null,
+            dropdownParent: 'body'
+        });
+    } catch (err) {
+        console.error('Load personnel error:', err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดรายชื่อบุคลากรได้', 'error');
     }
 }
 
-async function refreshUserList() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    if (currentUserRole !== 'super_admin') return;
-    await loadPersonnelForSettings();
+async function loadCurrentAdmins() {
+    try {
+        const { data: moduleAdminsRaw, error: adminError } = await db
+            .from('core_module_admins')
+            .select('id, user_id, created_at')
+            .eq('module_id', MODULE_ID);
+
+        if (adminError) throw adminError;
+
+        let moduleAdmins = [];
+        if (moduleAdminsRaw && moduleAdminsRaw.length > 0) {
+            const userIds = moduleAdminsRaw.map(a => a.user_id);
+            const { data: personnelList, error: pErr } = await db
+                .from('core_personnel')
+                .select('id, prefix, first_name, last_name, position, department')
+                .in('id', userIds);
+            if (pErr) throw pErr;
+
+            const personnelMap = {};
+            (personnelList || []).forEach(p => { personnelMap[p.id] = p; });
+            moduleAdmins = moduleAdminsRaw
+                .map(a => ({ ...a, core_personnel: personnelMap[a.user_id] || null }))
+                .filter(a => a.core_personnel);
+        }
+
+        const { data: superAdmins, error: superError } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, position, department')
+            .eq('role', 'super_admin');
+
+        if (superError) throw superError;
+
+        const adminListDiv = document.getElementById('adminList');
+        let html = '';
+        let totalCount = 0;
+
+        // แสดง Super Admin (ถาวร)
+        if (superAdmins && superAdmins.length > 0) {
+            superAdmins.forEach(admin => {
+                const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
+                const dept = admin.department || '';
+                const pos = admin.position || '';
+                html += `
+                    <div class="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                                <i class="fa-solid fa-crown text-amber-600"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-slate-800">${fullName}</div>
+                                <div class="text-xs text-slate-500">${pos}${dept ? ` · ${dept}` : ''}</div>
+                                <span class="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">
+                                    <i class="fa-solid fa-star mr-1"></i>Super Admin
+                                </span>
+                            </div>
+                        </div>
+                        <span class="text-xs text-slate-400">ถาวร</span>
+                    </div>
+                `;
+                totalCount++;
+            });
+        }
+
+        if (moduleAdmins && moduleAdmins.length > 0) {
+            moduleAdmins.forEach(admin => {
+                const p = admin.core_personnel;
+                const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+                const dept = p.department || '';
+                const pos = p.position || '';
+                const createdDate = admin.created_at
+                    ? new Date(admin.created_at).toLocaleDateString('th-TH')
+                    : 'ไม่ระบุ';
+
+                html += `
+                    <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                                <i class="fa-solid fa-user-shield text-indigo-600"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-slate-800">${fullName}</div>
+                                <div class="text-xs text-slate-500">${pos}${dept ? ` · ${dept}` : ''}</div>
+                                <span class="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">
+                                    <i class="fa-solid fa-clock mr-1"></i>ตั้งแต่ ${createdDate}
+                                </span>
+                            </div>
+                        </div>
+                        <button onclick="removeModuleAdmin('${admin.id}', '${fullName}')" 
+                                class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-sm font-bold transition-colors">
+                            <i class="fa-solid fa-trash mr-1"></i>ถอดถอน
+                        </button>
+                    </div>
+                `;
+                totalCount++;
+            });
+        }
+
+        if (html === '') {
+            html = `
+                <div class="text-center text-slate-400 py-8">
+                    <i class="fa-solid fa-user-slash text-3xl mb-2"></i>
+                    <p>ยังไม่มีผู้ดูแลระบบ ${MODULE_ID.toUpperCase()}</p>
+                </div>
+            `;
+        }
+
+        adminListDiv.innerHTML = html;
+        document.getElementById('adminCount').textContent = `(${totalCount} คน)`;
+    } catch (err) {
+        console.error('Load admins error:', err);
+        document.getElementById('adminList').innerHTML = `
+            <div class="text-center text-rose-400 py-8">
+                <i class="fa-solid fa-triangle-exclamation text-3xl mb-2"></i>
+                <p>ไม่สามารถโหลดข้อมูลได้</p>
+                <p class="text-xs mt-1">${err.message}</p>
+            </div>
+        `;
+    }
+}
+
+async function addModuleAdmin() {
+    if (!canManageSettings()) return;
+
+    const select = document.getElementById('personnelSelect');
+    const personnelId = select.tomselect ? select.tomselect.getValue() : select.value;
+
+    if (!personnelId || personnelId === '') {
+        return Swal.fire('กรุณาเลือก', 'กรุณาเลือกครู/บุคลากรก่อน', 'warning');
+    }
+
+    try {
+        const { data: personnel, error: personnelError } = await db
+            .from('core_personnel')
+            .select('id, email, prefix, first_name, last_name')
+            .eq('id', personnelId)
+            .single();
+
+        if (personnelError || !personnel) {
+            return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลบุคลากร', 'error');
+        }
+
+        const userId = personnel.id;
+        const { data: existing, error: existingError } = await db
+            .from('core_module_admins')
+            .select('id')
+            .eq('user_id', userId)
+            .eq('module_id', MODULE_ID)
+            .maybeSingle();
+
+        if (existing) {
+            return Swal.fire('ซ้ำซ้อน', 'บุคลากรนี้เป็นผู้ดูแล MI อยู่แล้ว', 'info');
+        }
+
+        const { error: insertError } = await db
+            .from('core_module_admins')
+            .insert({
+                user_id: userId,
+                module_id: MODULE_ID,
+                created_at: new Date().toISOString()
+            });
+
+        if (insertError) throw insertError;
+
+        Swal.fire({
+            icon: 'success',
+            title: 'แต่งตั้งสำเร็จ!',
+            text: `${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name} มีสิทธิ์จัดการระบบ MI แล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        if (select.tomselect) select.tomselect.clear();
+        await loadCurrentAdmins();
+        await loadPersonnelOptions();
+
+    } catch (err) {
+        console.error('Add admin error:', err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเพิ่มผู้ดูแลได้: ' + err.message, 'error');
+    }
+}
+
+async function removeModuleAdmin(adminId, adminName) {
+    if (!canManageSettings()) return;
+
+    const result = await Swal.fire({
+        title: 'ยืนยันการถอดถอน?',
+        html: `คุณต้องการถอดถอน <strong>${adminName}</strong> จากการเป็นผู้ดูแลระบบ MI ใช่หรือไม่?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#ef4444',
+        confirmButtonText: 'ถอดถอน',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!result.isConfirmed) return;
+
+    try {
+        const { error } = await db
+            .from('core_module_admins')
+            .delete()
+            .eq('id', adminId);
+
+        if (error) throw error;
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ถอดถอนสำเร็จ!',
+            text: `${adminName} ไม่มีสิทธิ์จัดการระบบ MI แล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        await loadCurrentAdmins();
+        await loadPersonnelOptions();
+    } catch (err) {
+        console.error('Remove admin error:', err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถถอดถอนได้: ' + err.message, 'error');
+    }
 }
 
 // ==========================================

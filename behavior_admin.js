@@ -1,18 +1,24 @@
 // behavior_admin.js - ระบบงานปกครอง - ผู้ดูแลระบบ (เฉพาะการจัดการข้อมูล)
-// (ตัดส่วน Dashboard, กราฟ, Recent Logs ออกไปไว้ใน behavior_dashboard.js)
+// ปรับให้โหลดเร็วด้วย Lazy Loading สำหรับ schoolStats (นักเรียน 3,150 คน)
 
 let currentUser = null;
 let schoolInfo = null;
 let systemConfig = null;
-let schoolStats = [];
-let allStudents = [];
+let schoolStats = [];          // ข้อมูลนักเรียนทั้งหมด (โหลดเมื่อจำเป็น)
 let criteriaList = [];
 let table = null;
 let classroomTomSelect = null;
 let currentFilter = null;
 
+// ── Cache สำหรับ schoolStats ──
+let schoolStatsCache = null;
+let cacheTimestamp = null;
+const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
+let schoolStatsLoading = false;      // ป้องกันการเรียกซ้ำขณะโหลด
+let schoolStatsLoaded = false;
+
 // ============================================================
-// เริ่มต้น
+// เริ่มต้น (ไม่โหลด schoolStats)
 // ============================================================
 $(document).ready(async function () {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -26,16 +32,26 @@ $(document).ready(async function () {
             loadCriteria(),
             loadClassroomList()
         ]);
-        await loadSchoolStats(false);
+        // ❌ ไม่เรียก loadSchoolStats() ที่นี่
         await initTableServerSide();
 
         // Event bindings
-        $('#search_student').on('input', function () { searchStudent($(this).val()); });
+        $('#search_student').on('input', function () {
+            const val = $(this).val();
+            if (val.length >= 2) {
+                ensureSchoolStats().then(() => searchStudent(val));
+            } else {
+                $('#search_results').hide();
+            }
+        });
+
         $('#evidence_file').change(function (e) {
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = function (e) { $('#evidence_preview').attr('src', e.target.result).removeClass('hidden'); };
+                reader.onload = function (e) {
+                    $('#evidence_preview').attr('src', e.target.result).removeClass('hidden');
+                };
                 reader.readAsDataURL(file);
             } else {
                 $('#evidence_preview').addClass('hidden');
@@ -69,7 +85,7 @@ async function checkAuth() {
 
     currentUser = profile;
 
-    // ใช้ isAdminUser จาก config.js (รวม director, deputy)
+    // ใช้ isAdminUser จาก config.js
     const isAdmin = window.isAdminUser(profile.role, false);
     const hasSettings = window.canManageSettings(profile.role);
 
@@ -86,7 +102,7 @@ async function checkAuth() {
 
     const hasAdminRight = isAdmin || isDisciplineHead || managedGrades.length > 0;
 
-    // ✅ ควบคุมปุ่มแดชบอร์ด
+    // ปุ่มแดชบอร์ด
     const hasDashboardAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
     if (hasDashboardAccess) {
         $('#btnDashboard').removeClass('hidden').addClass('flex');
@@ -131,68 +147,40 @@ async function checkAuth() {
 async function logout() { await db.auth.signOut(); window.location.replace('login.html'); }
 
 // ============================================================
-// โหลดข้อมูลพื้นฐาน
+// โหลดข้อมูลพื้นฐาน (ไม่รวม schoolStats)
 // ============================================================
 async function loadSchoolInfo() { const { data } = await db.from('core_school_info').select('*').single(); schoolInfo = data || {}; }
 async function loadSystemConfig() { const { data } = await db.from('behavior_system_config').select('*').eq('id', 1).maybeSingle(); systemConfig = data || null; }
 async function loadCriteria() { const { data } = await db.from('behavior_criteria').select('*'); if (data) criteriaList = data; }
 
-async function loadClassroomList() {
-    const sel = document.getElementById('classroom_select');
-    if (!sel) return;
-
-    sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
-    for (let g = 1; g <= 6; g++) {
-        const maxRoom = (g <= 3) ? 15 : 12;
-        for (let r = 1; r <= maxRoom; r++) {
-            const opt = document.createElement('option');
-            opt.value = `${g}|${r}`;
-            opt.textContent = `ม.${g}/${r}`;
-            sel.appendChild(opt);
-        }
-    }
-
-    if (classroomTomSelect) {
-        classroomTomSelect.destroy();
-        classroomTomSelect = null;
-    }
-
-    classroomTomSelect = new TomSelect('#classroom_select', {
-        placeholder: '— เลือกชั้นเรียน —',
-        allowEmptyOption: true,
-        onChange: function (value) {
-            currentFilter = null;
-            if (table) {
-                table.ajax.reload(null, false);
-            }
-            if (!value) {
-                allStudents = [];
-            }
-            $(table?.container()).find('.filter-notice').remove();
-        }
-    });
-
-    classroomTomSelect.setValue('', true);
-}
-
 // ============================================================
-// โหลดข้อมูลสถิติ (ใช้ Cache)
+// Lazy Load: ensureSchoolStats() – โหลดเฉพาะเมื่อจำเป็น
 // ============================================================
-let schoolStatsCache = null;
-let cacheTimestamp = null;
-const CACHE_EXPIRY = 5 * 60 * 1000;
-
-async function loadSchoolStats(forceRefresh = false) {
+async function ensureSchoolStats(forceRefresh = false) {
+    // ถ้ามี Cache และยังไม่หมดอายุ และไม่ต้องการบังคับ refresh
     if (!forceRefresh && schoolStatsCache && cacheTimestamp) {
         const now = Date.now();
         if (now - cacheTimestamp < CACHE_EXPIRY) {
-            console.log('✅ ใช้ข้อมูลจาก cache');
-            schoolStats = schoolStatsCache;
+            if (schoolStats.length === 0 && schoolStatsCache.length > 0) {
+                schoolStats = schoolStatsCache;
+                schoolStatsLoaded = true;
+            }
+            console.log('✅ ใช้ข้อมูลจาก cache (นักเรียน ' + schoolStats.length + ' คน)');
             return;
         }
     }
 
+    // ถ้ากำลังโหลดอยู่ ให้รอ
+    if (schoolStatsLoading) {
+        while (schoolStatsLoading) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return;
+    }
+
+    schoolStatsLoading = true;
     try {
+        console.log('⏳ กำลังโหลดข้อมูลนักเรียนจากฐานข้อมูล...');
         const { data, error } = await db
             .from('behavior_student_summary')
             .select('*')
@@ -222,15 +210,25 @@ async function loadSchoolStats(forceRefresh = false) {
 
         schoolStatsCache = schoolStats;
         cacheTimestamp = Date.now();
-        console.log(`✅ โหลดนักเรียน ${schoolStats.length} คน`);
+        schoolStatsLoaded = true;
+        console.log(`✅ โหลดนักเรียน ${schoolStats.length} คน (ใช้เวลา ${(Date.now() - cacheTimestamp)/1000} วินาที)`);
     } catch (err) {
-        console.error('Load error:', err);
+        console.error('Load schoolStats error:', err);
         schoolStats = [];
+        schoolStatsLoaded = false;
+        throw err;
+    } finally {
+        schoolStatsLoading = false;
     }
 }
 
+// ฟังก์ชัน loadSchoolStats() เดิมใช้สำหรับ refresh cache (เรียกว่า forceRefresh)
+async function loadSchoolStats(forceRefresh = false) {
+    await ensureSchoolStats(forceRefresh);
+}
+
 // ============================================================
-// DataTable Server-side
+// DataTable Server-side (ไม่ต้องใช้ schoolStats)
 // ============================================================
 function initTableServerSide() {
     if ($.fn.DataTable.isDataTable('#studentTable')) {
@@ -368,10 +366,11 @@ async function loadTableDataServerSide(dtParams, callback) {
 }
 
 // ============================================================
-// ฟังก์ชันค้นหาและบันทึกพฤติกรรม
+// ฟังก์ชันค้นหาและบันทึกพฤติกรรม (ใช้ Lazy Loading)
 // ============================================================
 async function searchStudent(val) {
     if (val.length < 2) { $('#search_results').hide(); return; }
+    await ensureSchoolStats(); // โหลดถ้ายังไม่มี
     const matched = schoolStats.filter(s => (s.sid || '').includes(val) || (s.fullName || '').includes(val)).slice(0, 10);
     let html = '';
     matched.forEach(s => {
@@ -383,8 +382,12 @@ async function searchStudent(val) {
 }
 
 function selectStudent(id) {
+    // schoolStats ควรถูกโหลดแล้ว (จาก searchStudent) แต่เผื่อไว้
     const student = schoolStats.find(s => s.id === id);
-    if (!student) { Swal.fire('ไม่พบข้อมูล', 'กรุณาลองค้นหาใหม่', 'error'); return; }
+    if (!student) {
+        Swal.fire('ไม่พบข้อมูล', 'กรุณาลองค้นหาใหม่', 'error');
+        return;
+    }
     $('#selected_student_id').val(student.id);
     $('#selected_student_name').text(`นักเรียนที่เลือก: ${student.sid} - ${student.fullName} (${student.roomDisplay})`);
     $('#selected_student_info').removeClass('hidden').addClass('flex');
@@ -395,6 +398,7 @@ function selectStudent(id) {
 function clearSelectedStudent() { $('#selected_student_id').val(''); $('#selected_student_info').addClass('hidden').removeClass('flex'); }
 
 function openRecordModal(type = 'all') {
+    // ไม่ต้องใช้ schoolStats
     $('#recordModal').removeClass('hidden').addClass('flex');
     let html = '<option value="">-- เลือกรายการความประพฤติ --</option>';
     let filteredCriteria = criteriaList;
@@ -443,7 +447,9 @@ async function saveBehaviorRecord() {
         return Swal.fire('กรุณาแนบรูปหลักฐาน', 'ต้องอัปโหลดรูปภาพหลักฐานทุกครั้ง', 'warning');
     }
     
-    const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
+    await ensureSchoolStats(); // โหลด student info
+    
+    const student = schoolStats.find(s => s.id === studentId);
     if (!student) return Swal.fire('ไม่พบข้อมูลนักเรียน', 'กรุณาลองค้นหาใหม่', 'error');
     
     const studentSid = student.sid || studentId;
@@ -493,8 +499,10 @@ async function saveBehaviorRecord() {
     }]);
     
     if (!error) {
+        // ล้าง cache เพื่อให้ข้อมูลอัปเดต
         schoolStatsCache = null;
         cacheTimestamp = null;
+        schoolStatsLoaded = false;
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
         clearSelectedStudent();
         $('#criteria_select').val('');
@@ -502,7 +510,8 @@ async function saveBehaviorRecord() {
         $('#description_text').val('');
         closeRecordModal();
         
-        await loadSchoolStats(false);
+        // โหลดข้อมูลใหม่ (แบบเงียบ)
+        await ensureSchoolStats(true);
         if (table) table.ajax.reload();
     } else {
         Swal.fire('Error', error.message, 'error');
@@ -510,7 +519,7 @@ async function saveBehaviorRecord() {
 }
 
 // ============================================================
-// ฟังก์ชัน Import/Export
+// ฟังก์ชัน Import/Export (ใช้ Lazy Loading)
 // ============================================================
 function importFromExcel() { document.getElementById('excel_import_input').value = ''; document.getElementById('excel_import_input').click(); }
 
@@ -586,18 +595,13 @@ async function processImportData(rows) {
     const invalidSkip = dataRows.length - logsToInsert.length;
     schoolStatsCache = null;
     cacheTimestamp = null;
+    schoolStatsLoaded = false;
     
     await Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', html: `<div class="text-left space-y-1"><p>✅ เพิ่มใหม่ <b class="text-green-700">${success}</b> รายการ</p>${dupSkipped.length > 0 ? `<p>⏭️ ข้ามซ้ำ <b class="text-blue-600">${dupSkipped.length}</b> รายการ (มีอยู่แล้ว)</p>` : ''}${invalidSkip > 0 ? `<p>⚠️ ข้ามผิดพลาด <b class="text-amber-600">${invalidSkip}</b> รายการ (รหัสไม่พบ/คะแนนผิด)</p>` : ''}</div>${errors.length > 0 ? `<details class="mt-3 text-left"><summary class="text-xs cursor-pointer text-slate-400">รายละเอียด error (${errors.length} รายการ)</summary><pre class="text-xs text-red-400 max-h-28 overflow-y-auto mt-1 bg-red-50 p-2 rounded-lg">${errors.slice(0, 15).join('\n')}</pre></details>` : ''}` });
     
-    // ✅ แก้ไข: โหลดข้อมูลใหม่และรีเฟรชตารางเท่านั้น
-    await loadSchoolStats(false);
+    // โหลดข้อมูลใหม่และรีเฟรชตาราง
+    await ensureSchoolStats(true);
     if (table) table.ajax.reload();
-    
-    // ❌ ลบบรรทัดเหล่านี้ (ฟังก์ชันถูกย้ายไป Dashboard)
-    // updateDashboardStats();
-    // renderPositiveChartForGrade('all');
-    // renderSeverityChartForGrade('all');
-    // loadRecentLogs();
 }
 
 // ============================================================
@@ -628,9 +632,10 @@ function filterCustomScore(mode) {
 }
 
 // ============================================================
-// ฟังก์ชันส่งออก Excel
+// ฟังก์ชันส่งออก Excel (ใช้ Lazy Loading)
 // ============================================================
 async function exportTable() {
+    await ensureSchoolStats();
     const { value: exportType } = await Swal.fire({
         title: '<i class="fas fa-file-excel mr-2 text-green-600"></i>ส่งออก Excel',
         html: `<div class="text-left space-y-4 pt-2"><div><p class="text-xs font-bold text-slate-500 mb-2">1. เลือกประเภทรายการ</p><div class="grid grid-cols-2 gap-2"><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_type" value="positive" class="accent-blue-500"><span class="text-sm font-medium text-green-700"><i class="fas fa-plus-circle mr-1"></i>เพิ่มคะแนน</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_type" value="negative" class="accent-blue-500"><span class="text-sm font-medium text-red-700"><i class="fas fa-minus-circle mr-1"></i>ตัดคะแนน</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_type" value="both" class="accent-blue-500"><span class="text-sm font-medium text-blue-700"><i class="fas fa-exchange-alt mr-1"></i>เพิ่ม+ตัดคะแนน</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_type" value="all_students" class="accent-blue-500" checked><span class="text-sm font-medium text-slate-700"><i class="fas fa-users mr-1"></i>นักเรียนทุกคน</span></label></div></div><div><p class="text-xs font-bold text-slate-500 mb-2">2. เลือกช่วงเวลา</p><div class="grid grid-cols-2 gap-2"><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_period" value="day" class="accent-blue-500"><span class="text-sm font-medium"><i class="fas fa-calendar-day mr-1 text-slate-400"></i>รายวัน (วันนี้)</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_period" value="week" class="accent-blue-500"><span class="text-sm font-medium"><i class="fas fa-calendar-week mr-1 text-slate-400"></i>รายสัปดาห์</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_period" value="month" class="accent-blue-500" onchange="document.getElementById('month_picker').classList.toggle('hidden', this.value !== 'month')"><span class="text-sm font-medium"><i class="fas fa-calendar-alt mr-1 text-slate-400"></i>รายเดือน</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_period" value="all" class="accent-blue-500" checked onchange="document.getElementById('month_picker').classList.add('hidden')"><span class="text-sm font-medium"><i class="fas fa-calendar mr-1 text-slate-400"></i>ทั้งหมด</span></label></div><div id="month_picker" class="hidden mt-2 flex gap-2"><select id="sel_month" class="flex-1 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">${['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'].map((m, i) => `<option value="${i}" ${i === new Date().getMonth() ? 'selected' : ''}>${m}</option>`).join('')}</select><select id="sel_year" class="w-28 border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400">${Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i).map(y => `<option value="${y}" ${y === new Date().getFullYear() ? 'selected' : ''}>${y + 543}</option>`).join('')}</select></div></div><div><p class="text-xs font-bold text-slate-500 mb-2">3. เลือกระดับชั้น</p><div class="grid grid-cols-3 gap-2"><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="1" class="accent-blue-500"><span class="text-sm font-medium">ม.1</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="2" class="accent-blue-500"><span class="text-sm font-medium">ม.2</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="3" class="accent-blue-500"><span class="text-sm font-medium">ม.3</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="4" class="accent-blue-500"><span class="text-sm font-medium">ม.4</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="5" class="accent-blue-500"><span class="text-sm font-medium">ม.5</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="6" class="accent-blue-500"><span class="text-sm font-medium">ม.6</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="1-3" class="accent-blue-500"><span class="text-sm font-medium">ม.1-3</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="4-6" class="accent-blue-500"><span class="text-sm font-medium">ม.4-6</span></label><label class="flex items-center gap-2 border-2 border-slate-200 rounded-xl px-3 py-2 cursor-pointer hover:border-blue-400 transition has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50"><input type="radio" name="exp_grade" value="all" class="accent-blue-500" checked><span class="text-sm font-medium">ทุกระดับ</span></label></div></div></div>`,
@@ -680,6 +685,7 @@ async function exportTable() {
 }
 
 async function exportSummary() {
+    await ensureSchoolStats();
     Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { data: allLogs, error } = await db.from('behavior_logs').select('student_id, score_change, created_at');
     if (error) { Swal.close(); return Swal.fire('ผิดพลาด', error.message, 'error'); }
@@ -705,69 +711,68 @@ function _writeExcel(exportData, fileName, sheetName) {
 // ฟังก์ชันดูประวัติ (viewHistory, loadStudentHistory, editLog, deleteLog)
 // ============================================================
 function viewHistory(studentId) {
-    const student = schoolStats.find(s => s.id === studentId)
-        || allStudents.find(s => s.id === studentId);
+    // ใช้ schoolStats ถ้ามี ถ้าไม่โหลดแบบ Lazy
+    ensureSchoolStats().then(() => {
+        const student = schoolStats.find(s => s.id === studentId);
 
-    if (!student) {
-        // กรณีไม่พบใน Cache → ดึงจากฐานข้อมูลโดยตรง
-        $('#historyStudentName').text('กำลังโหลด...');
-        $('#historyStudentScore').text('-');
-        $('#historyAvatar').addClass('hidden');
-        $('#historyAvatarWrap').addClass('hidden');
+        if (!student) {
+            // กรณีไม่พบใน Cache → ดึงจากฐานข้อมูลโดยตรง
+            $('#historyStudentName').text('กำลังโหลด...');
+            $('#historyStudentScore').text('-');
+            $('#historyAvatar').addClass('hidden');
+            $('#historyAvatarWrap').addClass('hidden');
+            $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
+
+            db.from('core_students')
+                .select('id, student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(student_number, core_classrooms(grade_level, room_number)), behavior_logs(score_change)')
+                .eq('id', studentId).single()
+                .then(({ data: s }) => {
+                    if (!s) return;
+                    const enroll = s.student_enrollments?.[0];
+                    const classroom = enroll?.core_classrooms;
+                    const roomDisplay = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
+                    const totalScore = 100 + (s.behavior_logs?.reduce((sum, l) => sum + l.score_change, 0) || 0);
+                    const mapped = {
+                        fullName: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
+                        roomDisplay: roomDisplay,
+                        score: totalScore,
+                        avatar: s.avatar_students_url || null
+                    };
+                    $('#historyStudentName').text(mapped.fullName + ' (' + mapped.roomDisplay + ')');
+                    $('#historyStudentScore').text(mapped.score);
+                    if (mapped.avatar) {
+                        $('#historyAvatar').attr('src', mapped.avatar).removeClass('hidden');
+                        $('#historyAvatarWrap').removeClass('hidden');
+                    }
+                });
+            loadStudentHistory(studentId);
+            return;
+        }
+
+        // กรณีพบใน Cache
+        $('#historyStudentName').text(student.fullName + ' (' + student.roomDisplay + ')');
+        $('#historyStudentScore').text(student.score);
+
+        const $avatar = $('#historyAvatar');
+        const $avatarWrap = $('#historyAvatarWrap');
+        if (student.avatar) {
+            $avatar.attr('src', student.avatar).removeClass('hidden');
+            $avatarWrap.removeClass('hidden');
+        } else {
+            $avatar.addClass('hidden');
+            $avatarWrap.addClass('hidden');
+            db.from('core_students').select('avatar_students_url').eq('id', studentId).single()
+                .then(({ data }) => {
+                    if (data?.avatar_students_url) {
+                        $avatar.attr('src', data.avatar_students_url).removeClass('hidden');
+                        $avatarWrap.removeClass('hidden');
+                    }
+                });
+        }
+
         $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
-
-        db.from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(student_number, core_classrooms(grade_level, room_number)), behavior_logs(score_change)')
-            .eq('id', studentId).single()
-            .then(({ data: s }) => {
-                if (!s) return;
-
-                // ✅ แทนที่ mapStudent() ด้วยการสร้าง object โดยตรง
-                const enroll = s.student_enrollments?.[0];
-                const classroom = enroll?.core_classrooms;
-                const roomDisplay = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
-                const totalScore = 100 + (s.behavior_logs?.reduce((sum, l) => sum + l.score_change, 0) || 0);
-                const mapped = {
-                    fullName: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
-                    roomDisplay: roomDisplay,
-                    score: totalScore,
-                    avatar: s.avatar_students_url || null
-                };
-
-                $('#historyStudentName').text(mapped.fullName + ' (' + mapped.roomDisplay + ')');
-                $('#historyStudentScore').text(mapped.score);
-                if (mapped.avatar) {
-                    $('#historyAvatar').attr('src', mapped.avatar).removeClass('hidden');
-                    $('#historyAvatarWrap').removeClass('hidden');
-                }
-            });
         loadStudentHistory(studentId);
-        return;
-    }
-
-    // กรณีพบใน Cache
-    $('#historyStudentName').text(student.fullName + ' (' + student.roomDisplay + ')');
-    $('#historyStudentScore').text(student.score);
-
-    const $avatar = $('#historyAvatar');
-    const $avatarWrap = $('#historyAvatarWrap');
-    if (student.avatar) {
-        $avatar.attr('src', student.avatar).removeClass('hidden');
-        $avatarWrap.removeClass('hidden');
-    } else {
-        $avatar.addClass('hidden');
-        $avatarWrap.addClass('hidden');
-        db.from('core_students').select('avatar_students_url').eq('id', studentId).single()
-            .then(({ data }) => {
-                if (data?.avatar_students_url) {
-                    $avatar.attr('src', data.avatar_students_url).removeClass('hidden');
-                    $avatarWrap.removeClass('hidden');
-                }
-            });
-    }
-
-    $('#historyModal').data('studentId', studentId).removeClass('hidden').addClass('flex');
-    loadStudentHistory(studentId);
+    });
 }
 
 async function loadStudentHistory(studentId) {
@@ -796,9 +801,10 @@ async function editLog(logId, studentId) {
     if (updErr) return Swal.fire('ผิดพลาด', updErr.message, 'error');
     schoolStatsCache = null;
     cacheTimestamp = null;
-    await loadSchoolStats(false);
+    schoolStatsLoaded = false;
+    await ensureSchoolStats(true);
     if (table) table.ajax.reload();
-    const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
+    const student = schoolStats.find(s => s.id === studentId);
     if (student) $('#historyStudentScore').text(student.score);
     await loadStudentHistory(studentId);
     Swal.fire({ icon: 'success', title: 'แก้ไขสำเร็จ', timer: 1200, showConfirmButton: false });
@@ -812,12 +818,54 @@ async function deleteLog(logId, studentId) {
     if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
     schoolStatsCache = null;
     cacheTimestamp = null;
-    await loadSchoolStats(false);
+    schoolStatsLoaded = false;
+    await ensureSchoolStats(true);
     if (table) table.ajax.reload();
-    const student = schoolStats.find(s => s.id === studentId) || allStudents.find(s => s.id === studentId);
+    const student = schoolStats.find(s => s.id === studentId);
     if (student) $('#historyStudentScore').text(student.score);
     await loadStudentHistory(studentId);
     Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1200, showConfirmButton: false });
 }
 
 function closeHistoryModal() { $('#historyModal').addClass('hidden').removeClass('flex'); }
+
+// ============================================================
+// ฟังก์ชันโหลดห้องเรียน (ปรับ)
+// ============================================================
+async function loadClassroomList() {
+    const sel = document.getElementById('classroom_select');
+    if (!sel) return;
+
+    sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
+    for (let g = 1; g <= 6; g++) {
+        const maxRoom = (g <= 3) ? 15 : 12;
+        for (let r = 1; r <= maxRoom; r++) {
+            const opt = document.createElement('option');
+            opt.value = `${g}|${r}`;
+            opt.textContent = `ม.${g}/${r}`;
+            sel.appendChild(opt);
+        }
+    }
+
+    if (classroomTomSelect) {
+        classroomTomSelect.destroy();
+        classroomTomSelect = null;
+    }
+
+    classroomTomSelect = new TomSelect('#classroom_select', {
+        placeholder: '— เลือกชั้นเรียน —',
+        allowEmptyOption: true,
+        onChange: function (value) {
+            currentFilter = null;
+            if (table) {
+                table.ajax.reload(null, false);
+            }
+            if (!value) {
+                allStudents = [];
+            }
+            $(table?.container()).find('.filter-notice').remove();
+        }
+    });
+
+    classroomTomSelect.setValue('', true);
+}
