@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ระบบบริหารจัดการงานทะเบียน - ผู้ดูแลระบบ</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body class="bg-slate-50 text-slate-800 min-h-screen font-sans hidden" id="mainBody">
+
+    <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 object-contain" alt="Logo">
+                <div>
+                    <h1 class="text-xl font-bold text-primary-600 leading-tight">WRK System</h1>
+                    <p class="text-xs text-slate-500">ระบบบริหารจัดการงานทะเบียน (Admin)</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-4">
+                <span id="display-name" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">กำลังโหลด...</span>
+
+                <button onclick="openSettingsModal()" class="text-slate-600 hover:text-primary-600 transition">
+                    <i class="fa-solid fa-gear text-lg"></i>
+                </button>
+
+                <button onclick="window.location.href='index.html'"
+                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                    title="กลับหน้าหลัก">
+                    <i class="fas fa-house text-sm"></i>
+                </button>
+
+                <button onclick="logout()"
+                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
+                    title="ออกจากระบบ">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="max-w-7xl mx-auto px-4 py-8">
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-blue-500">
+                <div class="p-4 bg-blue-50 rounded-xl text-blue-500 text-2xl"><i class="fa-solid fa-users"></i></div>
+                <div>
+                    <p class="text-sm text-slate-500 font-medium">คำขอทั้งหมด</p>
+                    <h3 class="text-2xl font-bold text-slate-800" id="dashTotal">0</h3>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-amber-500">
+                <div class="p-4 bg-amber-50 rounded-xl text-amber-500 text-2xl"><i class="fa-solid fa-hourglass-half"></i></div>
+                <div>
+                    <p class="text-sm text-slate-500 font-medium">กำลังดำเนินการ</p>
+                    <h3 class="text-2xl font-bold text-slate-800" id="dashPending">0</h3>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-emerald-500">
+                <div class="p-4 bg-emerald-50 rounded-xl text-emerald-500 text-2xl"><i class="fa-solid fa-check-double"></i></div>
+                <div>
+                    <p class="text-sm text-slate-500 font-medium">ดำเนินการเรียบร้อย</p>
+                    <h3 class="text-2xl font-bold text-slate-800" id="dashCompleted">0</h3>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-table-list text-primary-500 mr-2"></i>รายการคำขอเอกสาร</h2>
+            </div>
+            <div class="overflow-x-auto">
+                <table id="requestsTable" class="w-full text-sm text-left">
+                    <thead class="bg-slate-50 text-slate-600">
+                        <tr>
+                            <th class="px-4 py-3 rounded-tl-lg">รหัสคำขอ</th>
+                            <th class="px-4 py-3">วันที่ยื่น</th>
+                            <th class="px-4 py-3">เวลา</th>
+                            <th class="px-4 py-3">เลขประจำตัว</th>
+                            <th class="px-4 py-3">ชื่อ-สกุล</th>
+                            <th class="px-4 py-3">สถานะ</th>
+                            <th class="px-4 py-3 rounded-tr-lg">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-sliders text-primary-500 mr-2"></i>ตั้งค่าระบบงานทะเบียน</h3>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-6">
+                <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">URL GAS API</label>
+                        <input type="url" id="gasApiUrl" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัส Template สไลด์ (Google Slides)</label>
+                        <input type="text" id="slideTemplateId" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัสโฟลเดอร์เก็บ PDF (Google Drive)</label>
+                        <input type="text" id="pdfFolderId" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                    </div>
+
+                    <div class="pt-4 border-t mt-4">
+                        <button type="button" onclick="openAdminModal()" class="w-full mb-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold py-2 px-4 rounded-xl transition">
+                            <i class="fa-solid fa-user-shield mr-2"></i>ตั้งค่าผู้ดูแลระบบโมดูลนี้
+                        </button>
+                        <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition">
+                            บันทึกการตั้งค่า
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Admin Management Modal -->
+    <div id="adminModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all">
+            <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-user-shield text-indigo-500 mr-2"></i>จัดการผู้ดูแลระบบโมดูลงานทะเบียน</h3>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[70vh]">
+                <div class="mb-6">
+                    <h4 class="text-sm font-semibold text-slate-600 mb-3">รายชื่อผู้ดูแลระบบปัจจุบัน</h4>
+                    <div id="adminListContainer">
+                        <table class="w-full text-sm">
+                            <thead class="bg-slate-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left">ชื่อ-สกุล</th>
+                                    <th class="px-3 py-2 text-left">บทบาท</th>
+                                    <th class="px-3 py-2 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="adminTableBody">
+                                <!-- dynamic -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- เพิ่ม admin ใช้ Tom Select -->
+                <div class="border-t pt-4">
+                    <h4 class="text-sm font-semibold text-slate-600 mb-3">เพิ่มผู้ดูแลระบบ</h4>
+                    <div class="flex flex-col sm:flex-row gap-3">
+                        <select id="adminUserSelect" class="flex-1 rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border" placeholder="-- ค้นหาชื่อบุคลากร --">
+                            <!-- options จะถูกเติมจาก JS -->
+                        </select>
+                        <button onclick="addModuleAdmin()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow transition whitespace-nowrap">
+                            <i class="fa-solid fa-plus mr-1"></i> เพิ่ม
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="pdfTemplateAdmin" class="hidden bg-white p-10 text-black"></div>
+    <script src="regis_teacher.js"></script>
+</body>
+
+</html>

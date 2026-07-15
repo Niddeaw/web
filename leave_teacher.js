@@ -32,7 +32,7 @@ async function checkAuth() {
     }
 }
 
-async function handleLogout() {
+async function logout() {
     const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' });
     if (isConfirmed) { await db.auth.signOut(); window.location.replace('login.html'); }
 }
