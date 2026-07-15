@@ -483,7 +483,7 @@ function openLightbox(imgSrc, studentName) {
 }
 
 // ==========================================
-// เปิด Modal รายละเอียดคำขอ (พร้อมรูปนักเรียนและ Lightbox)
+// เปิด Modal รายละเอียดคำขอ (แก้ไขรหัสคำขอแสดงแค่ 8 ตัว)
 // ==========================================
 function viewRequestDetail(id) {
     const req = allRequests.find(r => r.id === id);
@@ -505,6 +505,9 @@ function viewRequestDetail(id) {
     const fullName = std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'นักเรียน';
     let avatarUrl = std?.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=256&font-size=0.4`;
 
+    // ✅ แสดงรหัสคำขอแค่ 8 ตัวแรก
+    const shortId = req.id.substring(0, 8).toUpperCase();
+
     const detailHTML = `
         <div class="flex flex-col md:flex-row gap-6 items-start">
             <div class="flex-shrink-0 flex flex-col items-center">
@@ -519,7 +522,7 @@ function viewRequestDetail(id) {
             <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-left w-full">
                 <div class="bg-slate-50 p-3 rounded-xl">
                     <p class="text-xs text-slate-500 font-bold uppercase">รหัสคำขอ</p>
-                    <p class="text-sm font-mono font-bold text-slate-800">${req.id}</p>
+                    <p class="text-sm font-mono font-bold text-slate-800">${shortId}</p>
                 </div>
                 <div class="bg-slate-50 p-3 rounded-xl">
                     <p class="text-xs text-slate-500 font-bold uppercase">สถานะ</p>
