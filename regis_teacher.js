@@ -1,5 +1,5 @@
-// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin)
-// แก้ไขเพิ่ม try...catch สำหรับ Swal และ window.onerror เพื่อป้องกันหน้าขาว
+// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin) ฉบับสมบูรณ์
+// แก้ไข: loadSettings ถูกกำหนดแล้ว, saveSettings ใช้ insert/update แยก
 
 let tableInstance = null;
 let allRequests = [];
@@ -7,19 +7,14 @@ let sysSettings = null;
 let currentUser = null;
 let currentProfile = null;
 let isAdminMode = false;
-let currentUserRole = null;
+let currentUserRole = null;    // ✅ ประกาศไว้แล้ว
+let isSuperAdmin = false;      // ✅ ประกาศไว้แล้ว
 
-// ✅ ดัก error ทั่วไปที่อาจเกิดขึ้น
+// ✅ ดัก error ทั่วไป
 window.onerror = function(message, source, lineno, colno, error) {
     console.error('❌ Global error caught:', message, error);
-    Swal.fire({
-        icon: 'error',
-        title: 'เกิดข้อผิดพลาด',
-        text: 'กรุณารีเฟรชหน้าหรือติดต่อผู้ดูแลระบบ',
-        confirmButtonText: 'ตกลง'
-    }).then(() => {
-        window.location.replace('index.html');
-    });
+    alert('เกิดข้อผิดพลาด: ' + message);
+    window.location.replace('index.html');
     return true;
 };
 
@@ -29,25 +24,13 @@ window.onload = async () => {
         await checkAuth();
     } catch (error) {
         console.error('❌ Unhandled error in window.onload:', error);
-        try {
-            await Swal.fire({
-                icon: 'error',
-                title: 'เกิดข้อผิดพลาดร้ายแรง',
-                text: error.message || 'ไม่สามารถโหลดระบบได้ กรุณาติดต่อผู้ดูแลระบบ',
-                confirmButtonText: 'ตกลง'
-            });
-        } catch (e) {}
+        alert('เกิดข้อผิดพลาดร้ายแรง: ' + error.message);
         window.location.replace('index.html');
     }
 };
 
 // ==========================================
-// ฟังก์ชัน checkAuth สำหรับ regis_teacher.js
-// ปรับปรุงสิทธิ์: ให้ super_admin, admin, director, deputy เข้าได้โดยไม่ต้องแต่งตั้ง
-// ส่วนบทบาทอื่น (teacher, staff) ต้องเป็น module admin ของ regis
-// ==========================================
-// ==========================================
-// ฟังก์ชัน checkAuth - แก้ไขให้ซ่อนปุ่มตั้งค่า ถ้าไม่ใช่ super_admin
+// ตรวจสอบสิทธิ์
 // ==========================================
 async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
@@ -73,16 +56,14 @@ async function checkAuth() {
         currentProfile = personnel;
         currentUserRole = role;
         isAdminMode = isAdmin;
-        isSuperAdmin = (role === 'super_admin'); // เก็บสถานะ super_admin
+        isSuperAdmin = (role === 'super_admin');
 
         let hasAccess = false;
 
-        // ✅ เงื่อนไขใหม่: ถ้าบทบาทอยู่ใน WRK_ROLES.ADMIN (super_admin, admin, director, deputy) ให้เข้าได้ทันที
         if (WRK_ROLES.ADMIN.includes(role)) {
             hasAccess = true;
-            console.log('✅ User มีบทบาทในกลุ่ม ADMIN (super_admin, admin, director, deputy)');
+            console.log('✅ User มีบทบาทในกลุ่ม ADMIN');
         } else {
-            // ถ้าไม่ใช่กลุ่ม ADMIN ให้ตรวจสอบว่าเป็น module admin ของ regis หรือไม่
             console.log('🔍 ตรวจสอบ core_module_admins...');
             const { data: modAdmin, error } = await db.from('core_module_admins')
                 .select('id')
@@ -118,6 +99,7 @@ async function checkAuth() {
             window.location.replace('index.html');
             return;
         }
+console.log('🔍 role:', role, 'isSuperAdmin:', isSuperAdmin);
 
         // แสดงชื่อผู้ใช้ใน navbar
         const displayName = document.getElementById('display-name');
@@ -126,7 +108,7 @@ async function checkAuth() {
             console.log(`✅ แสดงชื่อ: ${displayName.textContent}`);
         }
 
-        // ✅ ซ่อน/แสดงปุ่มตั้งค่า ตามสิทธิ์ super_admin
+        // ✅ ซ่อนปุ่มตั้งค่า ถ้าไม่ใช่ super_admin
         const settingsBtn = document.querySelector('[onclick="openSettingsModal()"]');
         if (settingsBtn) {
             if (isSuperAdmin) {
@@ -138,11 +120,9 @@ async function checkAuth() {
             }
         }
 
-        // แสดงเนื้อหา
         document.getElementById('mainBody').classList.remove('hidden');
         console.log('✅ แสดงเนื้อหาหลัก');
 
-        // โหลดข้อมูล
         await loadSettings();
         await loadData();
 
@@ -206,7 +186,7 @@ async function loadSettings() {
             document.getElementById('pdfFolderId').value = '';
             console.log('ℹ️ ยังไม่มีการตั้งค่าระบบ ใช้ค่าว่าง');
             
-            if (currentUserRole === 'super_admin') {
+            if (isSuperAdmin) {
                 await Swal.fire({
                     icon: 'info',
                     title: 'ยังไม่มีการตั้งค่าระบบ',
@@ -228,23 +208,69 @@ async function loadSettings() {
 }
 
 // ==========================================
-// บันทึกการตั้งค่า (ใช้ upsert พร้อมจัดการ RLS)
+// บันทึกการตั้งค่า (ตรวจสอบสิทธิ์ super_admin ก่อน)
+// ==========================================
+// ==========================================
+// บันทึกการตั้งค่า (ตรวจสอบสิทธิ์จาก currentUserRole)
 // ==========================================
 async function saveSettings(e) {
     e.preventDefault();
+
+    // ✅ ตรวจสอบสิทธิ์จาก currentUserRole โดยตรง
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์บันทึกการตั้งค่า',
+            text: 'เฉพาะ super_admin เท่านั้นที่สามารถตั้งค่าระบบได้',
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
+
     const gas = document.getElementById('gasApiUrl').value;
     const template = document.getElementById('slideTemplateId').value;
     const folder = document.getElementById('pdfFolderId').value;
 
+    // แสดง Loading
+    Swal.fire({
+        title: 'กำลังบันทึกการตั้งค่า...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
     try {
-        const { error } = await db.from('regis_settings')
-            .upsert({
-                id: sysSettings?.id || 1,
-                gas_api_url: gas,
-                slide_template_id: template,
-                pdf_folder_id: folder
-            }, { onConflict: 'id' })
-            .select();
+        // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
+        const { data: existing, error: checkError } = await db.from('regis_settings')
+            .select('id')
+            .maybeSingle();
+
+        if (checkError && checkError.code !== 'PGRST116') {
+            throw checkError;
+        }
+
+        let error;
+        if (existing) {
+            // ถ้ามีข้อมูล → Update
+            const { error: updateError } = await db.from('regis_settings')
+                .update({
+                    gas_api_url: gas,
+                    slide_template_id: template,
+                    pdf_folder_id: folder
+                })
+                .eq('id', existing.id);
+            error = updateError;
+        } else {
+            // ถ้าไม่มีข้อมูล → Insert
+            const { error: insertError } = await db.from('regis_settings')
+                .insert({
+                    gas_api_url: gas,
+                    slide_template_id: template,
+                    pdf_folder_id: folder
+                });
+            error = insertError;
+        }
+
+        Swal.close();
 
         if (error) {
             if (error.code === '42501') {
@@ -264,10 +290,17 @@ async function saveSettings(e) {
         await loadSettings();
 
     } catch (error) {
+        Swal.close();
         console.error('❌ saveSettings error:', error);
         Swal.fire('Error', error.message || 'ไม่สามารถบันทึกการตั้งค่าได้', 'error');
     }
 }
+
+// ==========================================
+// Modal Settings
+// ==========================================
+function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
+function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 
 // ==========================================
 // โหลดข้อมูลคำขอ (เพิ่ม avatar_students_url)
@@ -591,12 +624,6 @@ async function deleteRequest(id) {
         }
     });
 }
-
-// ==========================================
-// Modal Settings
-// ==========================================
-function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
 
 // ==========================================
 // จัดการผู้ดูแลระบบโมดูล
