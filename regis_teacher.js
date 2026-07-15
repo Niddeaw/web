@@ -42,12 +42,10 @@ window.onload = async () => {
 };
 
 // ==========================================
-// ตรวจสอบสิทธิ์ ใช้ checkSessionAndRole + ตรวจสอบ module admin
-// แก้ไขให้ใช้ await Swal.fire และ log เพื่อ debug
+// ฟังก์ชัน checkAuth สำหรับ regis_teacher.js
+// ปรับปรุงสิทธิ์: ให้ super_admin, admin, director, deputy เข้าได้โดยไม่ต้องแต่งตั้ง
+// ส่วนบทบาทอื่น (teacher, staff) ต้องเป็น module admin ของ regis
 // ==========================================
-// regis_teacher.js - เฉพาะฟังก์ชัน checkAuth ที่ใช้ alert สำรอง
-// แก้ไขให้แสดง alert ธรรมดาเมื่อ SweetAlert ไม่ทำงาน
-
 async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
     try {
@@ -74,10 +72,13 @@ async function checkAuth() {
         isAdminMode = isAdmin;
 
         let hasAccess = false;
-        if (role === 'super_admin') {
+
+        // ✅ เงื่อนไขใหม่: ถ้าบทบาทอยู่ใน WRK_ROLES.ADMIN (super_admin, admin, director, deputy) ให้เข้าได้ทันที
+        if (WRK_ROLES.ADMIN.includes(role)) {
             hasAccess = true;
-            console.log('✅ User เป็น super_admin');
+            console.log('✅ User มีบทบาทในกลุ่ม ADMIN (super_admin, admin, director, deputy)');
         } else {
+            // ถ้าไม่ใช่กลุ่ม ADMIN ให้ตรวจสอบว่าเป็น module admin ของ regis หรือไม่
             console.log('🔍 ตรวจสอบ core_module_admins...');
             const { data: modAdmin, error } = await db.from('core_module_admins')
                 .select('id')
@@ -96,29 +97,51 @@ async function checkAuth() {
         }
 
         if (!hasAccess) {
-            console.log('🚫 ไม่มีสิทธิ์เข้าใช้งาน - แสดง Alert');
-            // ใช้ alert แทน SweetAlert เพื่อป้องกันไม่ให้หน้าค้าง
-            alert('❌ ไม่มีสิทธิ์เข้าใช้งาน\n\nคุณไม่มีสิทธิ์เข้าใช้งานระบบนี้\nกรุณาติดต่อผู้ดูแลระบบ');
+            console.log('🚫 ไม่มีสิทธิ์เข้าใช้งาน - แสดง SweetAlert');
+            try {
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                    text: 'คุณไม่มีสิทธิ์เข้าใช้งานระบบนี้ กรุณาติดต่อผู้ดูแลระบบ',
+                    confirmButtonText: 'ตกลง'
+                });
+                console.log('✅ SweetAlert แสดงและปิดแล้ว');
+            } catch (swalError) {
+                console.error('❌ SweetAlert error:', swalError);
+                alert('❌ ไม่มีสิทธิ์เข้าใช้งาน\n\nคุณไม่มีสิทธิ์เข้าใช้งานระบบนี้\nกรุณาติดต่อผู้ดูแลระบบ');
+            }
             console.log('🚀 กำลัง redirect ไป index.html');
             window.location.replace('index.html');
             return;
         }
 
+        // แสดงชื่อผู้ใช้ใน navbar
         const displayName = document.getElementById('display-name');
         if (displayName && currentProfile) {
             displayName.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
             console.log(`✅ แสดงชื่อ: ${displayName.textContent}`);
         }
 
+        // แสดงเนื้อหา
         document.getElementById('mainBody').classList.remove('hidden');
         console.log('✅ แสดงเนื้อหาหลัก');
 
+        // โหลดข้อมูล
         await loadSettings();
         await loadData();
 
     } catch (error) {
         console.error('❌ checkAuth error:', error);
-        alert('เกิดข้อผิดพลาด: ' + (error.message || 'ไม่สามารถตรวจสอบสิทธิ์ได้'));
+        try {
+            await Swal.fire({
+                icon: 'error',
+                title: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์',
+                text: error.message || 'กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'ตกลง'
+            });
+        } catch (e) {
+            alert('เกิดข้อผิดพลาด: ' + error.message);
+        }
         window.location.replace('index.html');
     }
 }
