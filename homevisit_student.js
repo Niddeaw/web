@@ -100,6 +100,27 @@ $(document).ready(async function () {
 
         window._student = student;
 
+        // ✅ FIX Bug 1: แสดงรูปโปรไฟล์จาก core_students ทันที (เหมือนฝั่งครู)
+        const avatarUrl = student.avatar_students_url;
+        const avatarImg = document.getElementById('student-avatar-img');
+        const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
+        const avatarBadge = document.getElementById('student-avatar-badge');
+        const avatarStatus = document.getElementById('student-avatar-status');
+        if (avatarUrl) {
+            if (avatarImg) { avatarImg.src = avatarUrl; avatarImg.classList.remove('hidden'); }
+            if (avatarPlaceholder) avatarPlaceholder.classList.add('hidden');
+            if (avatarBadge) avatarBadge.classList.remove('hidden');
+            if (avatarStatus) avatarStatus.textContent = 'มีรูปโปรไฟล์แล้ว ✓';
+        } else {
+            if (avatarImg) { avatarImg.src = ''; avatarImg.classList.add('hidden'); }
+            if (avatarPlaceholder) avatarPlaceholder.classList.remove('hidden');
+            if (avatarBadge) avatarBadge.classList.add('hidden');
+            if (avatarStatus) avatarStatus.textContent = 'ยังไม่มีรูปโปรไฟล์';
+        }
+
+        // ✅ ดึงรูปโปรไฟล์ไปแสดงใน Step 4 Card 1 ด้วย
+        applyAvatarToStep4(avatarUrl);
+
         // โหลดข้อมูลเยี่ยมบ้าน
         await loadExistingHomeVisit(currentStudentId);
         initForm();
@@ -114,7 +135,42 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// 2. เริ่มต้นฟอร์ม
+// 2. ดึงรูปโปรไฟล์ไปใช้ใน Step 4 Card 1
+// ==========================================
+function applyAvatarToStep4(avatarUrl) {
+    const autoBanner = document.getElementById('avatar-auto-banner');
+    const missingBanner = document.getElementById('avatar-missing-banner');
+    const autoThumb = document.getElementById('avatar-auto-thumb');
+    const studentPicInput = document.getElementById('pic_student');
+    const previewImg = document.getElementById('preview1');
+    const delBtn = document.getElementById('del_btn1');
+    const cloudBtn = document.getElementById('cloud_btn1');
+
+    if (avatarUrl) {
+        // แสดง banner "ดึงจากโปรไฟล์อัตโนมัติ"
+        if (autoBanner) { autoBanner.classList.remove('hidden'); autoBanner.classList.add('flex'); }
+        if (missingBanner) { missingBanner.classList.add('hidden'); missingBanner.classList.remove('flex'); }
+        if (autoThumb) { autoThumb.src = avatarUrl; }
+
+        // set dataset + preview เหมือนกับที่ uploadสำเร็จแล้ว
+        if (studentPicInput) { studentPicInput.dataset.uploadedUrl = avatarUrl; }
+        if (previewImg) { previewImg.src = avatarUrl; previewImg.classList.remove('hidden'); }
+        if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
+        if (cloudBtn) {
+            cloudBtn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> ใช้รูปโปรไฟล์เดิม';
+            cloudBtn.classList.add('bg-slate-700', 'text-white');
+            cloudBtn.classList.remove('bg-green-600', 'opacity-40');
+            cloudBtn.disabled = true;
+        }
+    } else {
+        // แสดง banner "ยังไม่มีรูปโปรไฟล์"
+        if (autoBanner) { autoBanner.classList.add('hidden'); autoBanner.classList.remove('flex'); }
+        if (missingBanner) { missingBanner.classList.remove('hidden'); missingBanner.classList.add('flex'); }
+    }
+}
+
+// ==========================================
+// 3. เริ่มต้นฟอร์ม
 // ==========================================
 function initForm() {
     initPlugins();
@@ -129,11 +185,15 @@ function initForm() {
 // ==========================================
 async function loadExistingHomeVisit(studentId) {
     try {
-        const { data: records, error } = await db.from('module_home_visits')
+        // ✅ FIX Bug 2: filter academic_year + semester ให้ตรงกับ submit/autoSave
+        // เพื่อป้องกัน load ผิด row แล้วข้อมูลที่กรอกหาย
+        let query = db.from('module_home_visits')
             .select('*')
-            .eq('student_id', studentId)
-            // ❌ ลบ .eq('academic_year', currentYear)
-            // ❌ ลบ .eq('semester', currentTerm)
+            .eq('student_id', studentId);
+        if (currentYear) query = query.eq('academic_year', currentYear);
+        if (currentTerm) query = query.eq('semester', currentTerm);
+        const { data: records, error } = await query
+            .order('created_at', { ascending: false })
             .limit(1);
 
         if (error) throw error;
@@ -984,11 +1044,21 @@ window.previewSelectedImage = function (input, previewId, cloudBtnId, delBtnId) 
 };
 
 window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
-    document.getElementById(inputId).value = '';
-    const img = document.getElementById(previewId);
-    if (img) { img.src = ''; img.classList.add('hidden'); }
+    const fileInput = document.getElementById(inputId);
+    if (fileInput) fileInput.value = '';
+
     const delBtn = event.currentTarget;
     if (delBtn) delBtn.classList.add('hidden');
+
+    // ✅ ถ้าเป็น pic_student ให้ restore กลับเป็น avatar โปรไฟล์ แทนที่จะล้างทิ้ง
+    if (inputId === 'pic_student') {
+        const avatarUrl = window._student?.avatar_students_url || null;
+        applyAvatarToStep4(avatarUrl);
+        return;
+    }
+
+    const img = document.getElementById(previewId);
+    if (img) { img.src = ''; img.classList.add('hidden'); }
     const cloudBtn = document.getElementById(cloudBtnId);
     if (cloudBtn) {
         cloudBtn.disabled = true;
@@ -996,7 +1066,6 @@ window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
         cloudBtn.classList.remove('bg-slate-700');
         cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
     }
-    const fileInput = document.getElementById(inputId);
     if (fileInput) delete fileInput.dataset.uploadedUrl;
 };
 
@@ -1054,17 +1123,17 @@ function initAllTomSelects() {
         if (window[k]) window[k].destroy();
     });
 
-    window.tomLivingWith = new TomSelect('#living_with', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.living_with.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('living_with', 'living_with_other', val) });
-    window.tomParentsStatus = new TomSelect('#parents_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.parents_status.map(v => ({ value: v, text: v })) });
-    window.tomHouseType = new TomSelect('#house_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.house_type.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('house_type', 'house_type_other', val) });
-    window.tomTravelMethod = new TomSelect('#travel_method', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.travel_method.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('travel_method', 'travel_method_other', val) });
-    window.tomEnvHouseStatus = new TomSelect('#env_house_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_house_status.map(v => ({ value: v, text: v })) });
-    window.tomEnvCleanStatus = new TomSelect('#env_clean_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_clean_status.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('env_clean_status', 'env_clean_other', val) });
-    window.tomEnvLocationStatus = new TomSelect('#env_location_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_location_status.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('env_location_status', 'env_location_other', val) });
-    window.tomInformantType = new TomSelect('#informant_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.informant_type.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('informant_type', 'informant_type_other', val) });
-    window.tomFamilyRelationStatus = new TomSelect('#family_relation_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.family_relation_status.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('family_relation_status', 'family_relation_other', val) });
-    window.tomLeaveWithWhom = new TomSelect('#leave_with_whom_details', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.leave_with_whom.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('leave_with_whom_details', 'leave_with_whom_other', val) });
-    window.tomAllowanceSource = new TomSelect('#student_allowance_source', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.allowance_source.map(v => ({ value: v, text: v })), onChange: (val) => toggleOtherInput('student_allowance_source', 'student_allowance_source_other', val) });
+    window.tomLivingWith = new TomSelect('#living_with', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.living_with.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('living_with', 'living_with_other', val) });
+    window.tomParentsStatus = new TomSelect('#parents_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.parents_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', });
+    window.tomHouseType = new TomSelect('#house_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.house_type.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('house_type', 'house_type_other', val) });
+    window.tomTravelMethod = new TomSelect('#travel_method', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.travel_method.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('travel_method', 'travel_method_other', val) });
+    window.tomEnvHouseStatus = new TomSelect('#env_house_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_house_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', });
+    window.tomEnvCleanStatus = new TomSelect('#env_clean_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_clean_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('env_clean_status', 'env_clean_other', val) });
+    window.tomEnvLocationStatus = new TomSelect('#env_location_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_location_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('env_location_status', 'env_location_other', val) });
+    window.tomInformantType = new TomSelect('#informant_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.informant_type.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('informant_type', 'informant_type_other', val) });
+    window.tomFamilyRelationStatus = new TomSelect('#family_relation_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.family_relation_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('family_relation_status', 'family_relation_other', val) });
+    window.tomLeaveWithWhom = new TomSelect('#leave_with_whom_details', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.leave_with_whom.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('leave_with_whom_details', 'leave_with_whom_other', val) });
+    window.tomAllowanceSource = new TomSelect('#student_allowance_source', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.allowance_source.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('student_allowance_source', 'student_allowance_source_other', val) });
 }
 
 // ---------- Status Badge ----------

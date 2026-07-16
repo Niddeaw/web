@@ -786,8 +786,28 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <!-- Card 1 -->
             <div id="card_upload_1"
-                class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
-                <div><span class="block text-sm font-extrabold text-slate-700 mb-3">1. ภาพถ่ายตัวนักเรียน</span>
+                class="border border-green-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
+                <div>
+                    <span class="block text-sm font-extrabold text-slate-700 mb-2">1. ภาพถ่ายตัวนักเรียน</span>
+                    <!-- ✅ Banner รูปโปรไฟล์อัตโนมัติ -->
+                    <div id="avatar-auto-banner"
+                        class="hidden mb-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-left">
+                        <img id="avatar-auto-thumb"
+                            class="w-10 h-10 rounded-lg object-cover border-2 border-emerald-300 shadow-sm flex-shrink-0"
+                            src="" alt="รูปโปรไฟล์">
+                        <div class="flex-1 min-w-0">
+                            <p class="text-[10px] font-black text-emerald-700 uppercase tracking-wider leading-none mb-0.5">
+                                <i class="fas fa-circle-check mr-0.5"></i> ดึงจากโปรไฟล์อัตโนมัติ</p>
+                            <p class="text-[10px] text-emerald-600 font-medium truncate">บันทึกใช้งานแล้ว — อัพโหลดใหม่เพื่อเปลี่ยน</p>
+                        </div>
+                    </div>
+                    <!-- Banner เมื่อยังไม่มีรูปโปรไฟล์ -->
+                    <div id="avatar-missing-banner"
+                        class="hidden mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-left">
+                        <i class="fas fa-circle-exclamation text-amber-500 text-lg flex-shrink-0"></i>
+                        <p class="text-[10px] text-amber-700 font-bold leading-tight">ยังไม่มีรูปโปรไฟล์<br>
+                            <span class="font-normal">กรุณาถ่ายหรือเลือกรูปนักเรียน</span></p>
+                    </div>
                     <div class="flex justify-center gap-2">
                         <label
                             class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm"><i
