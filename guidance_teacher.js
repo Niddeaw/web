@@ -1,7 +1,9 @@
 // ==========================================
-// ไฟล์ guidance_teacher.js (ระบบครูผู้สอนแนะแนว)
-// ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
-//          คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม (ไม่มีการเปลี่ยนแปลง)
+// guidance_teacher.js — ระบบครูผู้สอนแนะแนว (ปรับใช้ config.js ฉบับสมบูรณ์)
+// - ใช้ checkSessionAndRole, isAdminUser, hasModuleAccess
+// - ใช้ logUserAction() ในทุก CRUD
+// - ใช้ logout() มาตรฐานกลาง
+// - คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม
 // ==========================================
 
 let currentUserProfile = null;
@@ -31,12 +33,33 @@ const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
 let currentUserRole = 'teacher';
 let isAdminMode = false;
 let currentUserId = null;
+let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
 // ==========================================
-// INIT (ปรับปรุงสิทธิ์)
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+}
+
+// ==========================================
+// INIT
 // ==========================================
 window.onload = async () => {
     const result = await window.checkSessionAndRole('guidance_teacher');
@@ -48,6 +71,9 @@ window.onload = async () => {
     currentUserRole = role;
     isAdminMode = isAdmin;
 
+    // ✅ ตรวจสอบ Module Admin
+    isModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
+
     const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).single();
     if (!isGui) {
         await Swal.fire('ปฏิเสธการเข้าถึง', 'คุณยังไม่ได้รับสิทธิ์เป็นครูแนะแนว', 'error');
@@ -57,8 +83,7 @@ window.onload = async () => {
 
     const isTeacherMode = localStorage.getItem('activeMode') === 'teacher';
     if (window.isAdminUser(role, isAdminMode) && !isTeacherMode) {
-        const hasModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
-        if (hasModuleAdmin) {
+        if (isModuleAdmin) {
             window.location.replace('guidance_admin.html');
             return;
         }
@@ -68,25 +93,17 @@ window.onload = async () => {
     document.getElementById('dashboardMain').classList.remove('hidden');
     document.getElementById('dashboardMain').classList.add('flex');
 
-    if (window.isAdminUser(role, isAdminMode)) {
+    if (window.isAdminUser(role, isAdminMode) || isModuleAdmin) {
         const btnAdmin = document.getElementById('btnAdminMode');
         if (btnAdmin) btnAdmin.classList.remove('hidden');
         window.updateToggleModeUI(role, isAdminMode, 'btnAdminMode');
     }
 
+    // ✅ บันทึก Log การเข้าใช้งาน
+    await window.logUserAction('เข้าสู่ระบบแนะแนว (ครู)', 'guidance');
+
     await initDashboard(user.id, personnel);
 };
-
-function handleLogout() {
-    Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
-        .then(async (result) => {
-            if (result.isConfirmed) {
-                localStorage.removeItem('activeMode');
-                await db.auth.signOut();
-                window.location.replace('index.html');
-            }
-        });
-}
 
 async function initDashboard(userId, profile) {
     currentUserProfile = profile;
@@ -398,7 +415,7 @@ function renderAttributesTab() {
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
 
-// ========== saveAllData (พร้อมเคลียร์ Cache) ==========
+// ========== saveAllData (พร้อมเคลียร์ Cache และ Log) ==========
 async function saveAllData() {
     if (!globalIsSystemOpen) return Swal.fire('ผิดพลาด', 'ระบบถูกปิดการบันทึกแล้ว', 'error');
     if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียน', 'warning');
@@ -426,12 +443,15 @@ async function saveAllData() {
         delete dataCache.attributes[cacheKey];
         delete cacheTimestamp[cacheKey];
 
+        // ✅ บันทึก Log
+        await window.logUserAction(`บันทึกข้อมูลห้อง ${classId}`, 'guidance');
+
         await updateClassStatusBadges();
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
 
-// ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF (เหมือนเดิม ไม่มีการเปลี่ยนแปลง) ==========
+// ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF ==========
 function formatThaiDateShort(dateInput) {
     if (!dateInput) return '-';
     const d = new Date(dateInput);
@@ -448,7 +468,7 @@ function formatThaiDateFullStr(dateString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-// ========== พิมพ์ PDF (คงไว้เหมือนต้นฉบับทุกประการ) ==========
+// ========== พิมพ์ PDF (คงไว้เหมือนต้นฉบับ) ==========
 async function printPDF_v7() {
     if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนพิมพ์', 'warning');
     Swal.fire({ title: 'กำลังเตรียมหน้ากระดาษ...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -763,6 +783,9 @@ function exportExcelAll() {
     globalStudents.forEach(std => { const row = [std.student_number, std.student_id_card, std.first_name, std.last_name]; ATTR_COLS.forEach(c => { const el = document.getElementById(`at_${std.id}_${c}`); row.push(el ? (el.value === '1' ? 'ผ' : 'มผ') : ''); }); attrData.push(row); });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attrData), "คุณลักษณะ");
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
+    
+    // ✅ บันทึก Log
+    window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }
 
 async function importExcelAll(event) {
@@ -786,12 +809,33 @@ async function importExcelAll(event) {
 // TOGGLE MODE - ใช้ isAdminUser
 // ==========================================
 async function toggleRoleView() {
-    if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
+    if (!window.isAdminUser(currentUserRole, isAdminMode) && !isModuleAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
     isAdminMode = !isAdminMode;
     window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnAdminMode');
+    await window.logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'} (แนะแนว)`, 'guidance');
     if (isAdminMode) {
         window.location.href = 'guidance_admin.html';
     } else {
         window.location.reload();
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.toggleRoleView = toggleRoleView;
+window.switchTab = switchTab;
+window.printPDF_v7 = printPDF_v7;
+window.exportExcelAll = exportExcelAll;
+window.importExcelAll = importExcelAll;
+window.saveAllData = saveAllData;
+window.selectColor = selectColor;
+window.calcAttTotal = calcAttTotal;
+window.calcScoreTotal = calcScoreTotal;
+window.calcAttr = calcAttr;
+
+console.log('✅ guidance_teacher.js loaded with config.js integration');

@@ -1,70 +1,141 @@
+// ============================================================
+// leave_admin.js — ระบบการลา (ฝ่ายบริหาร) ฉบับแก้ไขสมบูรณ์
+// - ใช้ checkSessionAndRole(), hasModuleAccess(), requireAdmin()
+// - ใช้ logUserAction() ทุกการกระทำสำคัญ
+// - ใช้ applyVisibilityByRole() และ canManageSettings()
+// - ใช้ logout() มาตรฐานกลาง
+// - เรียกใช้ฟังก์ชันจาก leave_core.js
+// ============================================================
+
 let currentUser = null;
 let currentProfile = null;
+let currentUserId = null;
+let currentUserRole = '';
+let isAdminMode = false;
+let isModuleAdmin = false;
 let dataTable = null;
 let systemSettings = null;
 let allLeavesData = [];
 let allPersonnelData = [];
-let isSuperAdmin = false;
 let attendanceDataTable = null;
 let allAttendanceData = [];
 
-$(document).ready(async function () {
-    Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    const auth = await checkAdminAuth();
-    if (!auth) {
-        await Swal.fire('ปฏิเสธการเข้าถึง', 'หน้านี้จำกัดเฉพาะผู้ดูแลระบบฝ่ายบุคลากรเท่านั้น', 'error');
-        window.location.replace('leave_teacher.html');
-        return;
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
     }
-    currentUser = auth.user;
-    currentProfile = auth.profile;
-    await loadPersonnelSearch();
-    await loadSystemSettings();
-    updateUI();
-    await loadDashboardStats();
-    await loadAttendanceTable();
-    initAttendanceFlatpickr();
-    initEditFlatpickr();
-    initAdminFlatpickr();
-    Swal.close();
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-});
-
-async function checkAdminAuth() {
-    const result = await checkSessionAndRole('leave', WRK_ROLES.ALLOWED);
-    if (!result) return null;
-    const user = result.user;
-    const profile = result.personnel;
-    const isAdmin = isAdminUser(profile.role, false);
-    if (isAdmin) return { user, profile };
-    const { data: modAdmin } = await db.from('core_module_admins').select('id').eq('user_id', user.id).eq('module_id', 'leave').maybeSingle();
-    if (modAdmin) return { user, profile };
-    return null;
 }
 
+// ==========================================
+// INIT
+// ==========================================
+$(document).ready(async function () {
+    Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const session = await checkSessionAndRole('leave_admin');
+        if (!session) return;
+
+        const { user, personnel, role, isAdmin } = session;
+        currentUser = user;
+        currentProfile = personnel;
+        currentUserId = user.id;
+        currentUserRole = role;
+        isAdminMode = isAdmin;
+
+        isModuleAdmin = await hasModuleAccess(role, 'leave', user.id);
+
+        if (!isAdmin && !isModuleAdmin) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'คุณไม่ได้รับอนุญาตให้ใช้ระบบจัดการการลา กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'กลับหน้าหลัก'
+            });
+            window.location.href = 'index.html';
+            return;
+        }
+
+        applyVisibilityByRole(role, isAdminMode, {
+            settingsBtn: 'btn-settings',
+            toggleBtn: null
+        });
+
+        await logUserAction('เข้าสู่ระบบจัดการการลา (Admin)', 'leave');
+
+        await loadPersonnelSearch();
+        await loadSystemSettings();
+        updateUI();
+        await loadDashboardStats();
+        await loadAttendanceTable();
+        initAttendanceFlatpickr();
+        initEditFlatpickr();
+        initAdminFlatpickr();
+
+        Swal.close();
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+});
+
+// ==========================================
+// อัปเดต UI ตามสิทธิ์
+// ==========================================
 function updateUI() {
     $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
-    isSuperAdmin = (currentProfile.role === 'super_admin');
-    if (typeof toggleSettingsTab !== 'undefined') toggleSettingsTab(isSuperAdmin);
-    if (currentProfile.role === 'super_admin') {
+
+    const isSuperAdmin = canManageSettings(currentUserRole);
+
+    if (isSuperAdmin) {
         $('#btn-import-excel').removeClass('hidden').addClass('flex');
+        $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin, #sign_hr_deputy, #sign_director').prop('disabled', false);
+        $('#superadmin-only-section table').removeClass('opacity-50 pointer-events-none');
     } else {
+        $('#btn-import-excel').addClass('hidden').removeClass('flex');
         $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin, #sign_hr_deputy, #sign_director').prop('disabled', true);
         $('#superadmin-only-section table').addClass('opacity-50 pointer-events-none');
     }
 }
 
+// ==========================================
+// สลับแท็บ
+// ==========================================
 function switchTab(tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
     $('.sidebar-item').removeClass('sidebar-active');
     $(`#btn-${tabId}`).addClass('sidebar-active');
-    const titles = { 'dashboard': 'แดชบอร์ดสรุปผล', 'manage-leave': 'จัดการรายการลา', 'attendance': 'บันทึกขาด/มาสาย', 'settings': 'ตั้งค่าระบบ & แอดมิน' };
+    const titles = {
+        'dashboard': 'แดชบอร์ดสรุปผล',
+        'manage-leave': 'จัดการรายการลา',
+        'attendance': 'บันทึกขาด/มาสาย',
+        'settings': 'ตั้งค่าระบบ & แอดมิน'
+    };
     $('#page-title').text(titles[tabId] || 'แดชบอร์ดสรุปผล');
     if (tabId === 'manage-leave' && dataTable) dataTable.columns.adjust().draw();
     if (tabId === 'attendance' && attendanceDataTable) attendanceDataTable.columns.adjust().draw();
 }
 
+// ==========================================
+// ระบบตั้งค่า (ใช้ requireAdmin)
+// ==========================================
 async function loadSystemSettings() {
     const { data: leaveData } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').maybeSingle();
     systemSettings = leaveData?.settings || {
@@ -96,7 +167,8 @@ async function loadSystemSettings() {
 
 async function saveSystemSettings(e) {
     e.preventDefault();
-    if (currentProfile.role !== 'super_admin') return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบสูงสุดเท่านั้น')) return;
+
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const newSettings = {
         fiscal_year: $('#fiscal_year').val().trim(),
@@ -111,11 +183,15 @@ async function saveSystemSettings(e) {
     else {
         systemSettings = newSettings;
         $('#dash-fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
+        await logUserAction(`บันทึกการตั้งค่าระบบลา (ปี ${systemSettings.fiscal_year})`, 'leave');
         Swal.fire({ icon: 'success', title: 'บันทึกการตั้งค่าสำเร็จ', timer: 1500, showConfirmButton: false });
         loadDashboardStats();
     }
 }
 
+// ==========================================
+// จัดการบุคลากรและผู้ดูแลระบบ
+// ==========================================
 async function loadPersonnelSearch() {
     const { data } = await db.from('core_personnel')
         .select('id, prefix, first_name, last_name, department, position, academic_standing')
@@ -138,10 +214,14 @@ async function loadPersonnelSearch() {
         initTomSelect('#filter-personnel', { placeholder: '-- ดูข้อมูลทุกคน --', allowEmptyOption: true });
         initTomSelect('#sign_leave_admin', { placeholder: '-- เลือกผู้รับผิดชอบ --' });
         initTomSelect('#admin_personnel_id', { placeholder: '-- เลือกบุคลากร --' });
+        initTomSelect('#att_personnel_id', { placeholder: '-- เลือกบุคลากร --' });
     }
-    if (currentProfile.role === 'super_admin') loadAdminList();
+    if (currentUserRole === 'super_admin') loadAdminList();
 }
 
+// ==========================================
+// จัดการ Module Admin (ใช้ requireAdmin)
+// ==========================================
 async function loadAdminList() {
     const { data, error } = await db.from('core_module_admins')
         .select('id, core_personnel(prefix, first_name, last_name)')
@@ -161,6 +241,8 @@ async function loadAdminList() {
 }
 
 async function addModuleAdmin() {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const userId = $('#select-new-admin').val();
     if (!userId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากรก่อนครับ', 'warning');
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -169,6 +251,7 @@ async function addModuleAdmin() {
         if (error.code === '23505') Swal.fire('ซ้ำซ้อน', 'บุคลากรท่านนี้เป็นแอดมินอยู่แล้ว', 'warning');
         else Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        await logUserAction(`แต่งตั้ง Module Admin ลา (ID: ${userId})`, 'leave');
         Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
         const selAdmin = document.getElementById('select-new-admin');
         if (selAdmin && selAdmin.tomselect) selAdmin.tomselect.clear();
@@ -177,14 +260,20 @@ async function addModuleAdmin() {
 }
 
 async function removeModuleAdmin(id) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     Swal.fire({ title: 'กำลังลบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const { error } = await db.from('core_module_admins').delete().eq('id', id);
     if (!error) {
+        await logUserAction(`ถอดถอน Module Admin ลา (ID: ${id})`, 'leave');
         Swal.fire({ icon: 'success', title: 'ถอดถอนสิทธิ์สำเร็จ', timer: 1500, showConfirmButton: false });
         loadAdminList();
     } else Swal.fire('ผิดพลาด', error.message, 'error');
 }
 
+// ==========================================
+// Dashboard & ตารางข้อมูล
+// ==========================================
 async function loadDashboardStats() {
     const { data: leaves, error } = await db.from('leave_requests')
         .select('*, core_personnel(prefix, first_name, last_name)')
@@ -228,21 +317,13 @@ function checkLeaveLimits(validLeaves) {
 
     Object.values(personnelStats).forEach(p => {
         const warnings = [];
-        if (p.sick >= 25) {
-            warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
-        }
-        if (p.personal >= 40) {
-            warnings.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
-        }
+        if (p.sick >= 25) warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
+        if (p.personal >= 40) warnings.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
         if (p.totalCount >= 4) {
             let msg = '';
-            if (p.totalCount > 6) {
-                msg = `<span class="text-red-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (เกินเกณฑ์ 6 ครั้ง)</span>`;
-            } else if (p.totalCount === 6) {
-                msg = `<span class="text-orange-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ถึงเกณฑ์ 6 ครั้ง)</span>`;
-            } else {
-                msg = `<span class="text-amber-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ใกล้เกณฑ์ 6 ครั้ง)</span>`;
-            }
+            if (p.totalCount > 6) msg = `<span class="text-red-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (เกินเกณฑ์ 6 ครั้ง)</span>`;
+            else if (p.totalCount === 6) msg = `<span class="text-orange-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ถึงเกณฑ์ 6 ครั้ง)</span>`;
+            else msg = `<span class="text-amber-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ใกล้เกณฑ์ 6 ครั้ง)</span>`;
             warnings.push(msg);
         }
         if (warnings.length > 0) {
@@ -379,8 +460,8 @@ function renderTable() {
             if (isRejected) typeClass = 'text-slate-400 line-through';
             let pdfHtml = '';
             if (l.pdf_url) pdfHtml = `<a href="${l.pdf_url}" target="_blank" class="bg-green-50 text-green-600 hover:bg-green-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="เปิดไฟล์ PDF"><i class="fas fa-file-pdf"></i></a>`;
-            else pdfHtml = `<button onclick="printLeavePDF('${l.id}')" class="bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="สร้างใบลา (PDF)"><i class="fas fa-print"></i></button>`;
-            const canDelete = (isSuperAdmin || l.status !== 'อนุมัติ');
+            else pdfHtml = `<button onclick="window.generateLeavePDF('${l.id}', systemSettings)" class="bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="สร้างใบลา (PDF)"><i class="fas fa-print"></i></button>`;
+            const canDelete = (canManageSettings(currentUserRole) || l.status !== 'อนุมัติ');
             const deleteBtn = canDelete ? `<button onclick="deleteLeave('${l.id}', '${fullName}')" class="text-slate-300 hover:text-rose-600 transition" title="ลบรายการนี้"><i class="fas fa-trash-alt"></i></button>` : '';
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="text-center text-slate-400 text-xs">${l.id.substring(0,6)}</td>
@@ -404,14 +485,16 @@ function renderTable() {
         responsive: true, scrollX: false, 
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         order: [[0, 'desc']], 
-        columnDefs: [
-            { responsivePriority: 1, targets: -1}, 
-            { orderable: false, targets: [7] }
-        ], 
+        columnDefs: [{ responsivePriority: 1, targets: -1}, { orderable: false, targets: [7] }], 
         pageLength: 25
     });
 }
 
+// ==========================================
+// ฟังก์ชันจัดการใบลา (ใช้ requireAdmin)
+// ==========================================
+
+// ----- แก้ไขใบลา -----
 function initEditFlatpickr() {
     flatpickr(".edit-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y", onChange: function () { calculateEditDays(); } });
 }
@@ -444,6 +527,8 @@ function editLeave(id) {
 }
 $('#editLeaveForm').on('submit', async function(e) {
     e.preventDefault();
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const id = $('#edit_leave_id').val();
     const updateData = {
         type: $('#edit_leave_type').val(),
@@ -458,164 +543,32 @@ $('#editLeaveForm').on('submit', async function(e) {
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
     if (error) Swal.fire('ข้อผิดพลาด', error.message, 'error');
-    else { closeEditModal(); Swal.fire({ title: 'บันทึกสำเร็จ', text:'แก้ไขข้อมูลเรียบร้อย', icon:'success', timer:1500, showConfirmButton:false }); await loadDashboardStats(); }
+    else { 
+        await logUserAction(`แก้ไขใบลา ID: ${id}`, 'leave');
+        closeEditModal(); 
+        Swal.fire({ title: 'บันทึกสำเร็จ', text:'แก้ไขข้อมูลเรียบร้อย', icon:'success', timer:1500, showConfirmButton:false }); 
+        await loadDashboardStats(); 
+    }
 });
 function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLeaveForm')[0].reset(); }
 
-function initAttendanceFlatpickr() {
-    flatpickr(".att-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y" });
-}
-
-async function loadAttendanceTable() {
-    try {
-        const { data, error } = await db.from('personnel_attendance')
-            .select('*, core_personnel(prefix, first_name, last_name, department)')
-            .eq('fiscal_year', systemSettings.fiscal_year)
-            .eq('eval_round', systemSettings.eval_round)
-            .order('record_date', { ascending: false });
-        if (error) throw error;
-        allAttendanceData = data || [];
-        renderAttendanceTable();
-    } catch (err) {
-        console.error('Error loading attendance:', err);
-        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลการขาด/มาสายได้', 'error');
-    }
-}
-function renderAttendanceTable() {
-    if ($.fn.DataTable.isDataTable('#attendanceTable')) $('#attendanceTable').DataTable().destroy();
-    const tbody = document.getElementById('tb-attendance');
-    const fmtDate = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
-    if (allAttendanceData.length > 0) {
-        tbody.innerHTML = allAttendanceData.map(a => {
-            const fullName = `${a.core_personnel?.prefix || ''}${a.core_personnel?.first_name} ${a.core_personnel?.last_name}`;
-            const dept = a.core_personnel?.department || '-';
-            const typeClass = a.record_type === 'มาสาย' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200';
-            const typeBadge = `<span class="px-3 py-1 rounded-full text-xs font-bold border ${typeClass}">${a.record_type}</span>`;
-            return `<tr class="hover:bg-slate-50">
-                <td class="text-center">${fmtDate(a.record_date)}</td>
-                <td class="font-bold text-slate-700">${fullName}</td>
-                <td class="text-slate-600 text-sm">${dept}</td>
-                <td class="text-center">${typeBadge}</td>
-                <td class="text-slate-500 text-sm truncate max-w-[200px]">${a.reason || '-'}</td>
-                <td class="text-center whitespace-nowrap">
-                    <button onclick="openAttendanceModal('edit', '${a.id}')" class="bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไข"><i class="fas fa-edit"></i></button>
-                    <button onclick="deleteAttendance('${a.id}')" class="text-slate-300 hover:text-rose-600 transition p-1.5" title="ลบ"><i class="fas fa-trash-alt"></i></button>
-                </td>
-            </tr>`;
-        }).join('');
-    } else tbody.innerHTML = '';
-    attendanceDataTable = $('#attendanceTable').DataTable({
-        responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [5] }]
-    });
-}
-
-function openAttendanceModal(mode, id = null) {
-    $('#attendanceForm')[0].reset();
-    $('#att_id').val('');
-    $('#att_department').val('');
-
-    const optionsHtml = $('#filter-personnel').html();
-    const attEl = document.getElementById('att_personnel_id');
-    if (attEl.tomselect) attEl.tomselect.destroy();
-    attEl.innerHTML = optionsHtml;
-    new TomSelect(attEl, {
-        create: false,
-        placeholder: '-- ค้นหาและเลือกรายชื่อ --',
-        dropdownParent: 'body',
-        onChange: function(value) {
-            const person = allPersonnelData.find(p => p.id === value);
-            $('#att_department').val(person?.department || 'ไม่ระบุ/ไม่มีกลุ่มสาระฯ');
-        }
-    });
-    attEl.tomselect.clear(true);
-
-    const recordDateInput = document.querySelector("#att_record_date");
-    if (!recordDateInput._flatpickr) {
-        flatpickr("#att_record_date", {
-            locale: "th",
-            dateFormat: "Y-m-d",
-            altInput: true,
-            altFormat: "j F Y"
-        });
-    }
-
-    if (mode === 'add') {
-        $('#att_modal_title').html('<i class="fas fa-plus-circle mr-2"></i>เพิ่มรายการ ขาด/มาสาย');
-        if (recordDateInput._flatpickr) {
-            recordDateInput._flatpickr.setDate(new Date());
-        } else {
-            document.querySelector("#att_record_date").value = new Date().toISOString().split('T')[0];
-        }
-    } else if (mode === 'edit') {
-        $('#att_modal_title').html('<i class="fas fa-edit mr-2"></i>แก้ไขรายการ');
-        const record = allAttendanceData.find(r => r.id === id);
-        if (record) {
-            $('#att_id').val(record.id);
-            attEl.tomselect.setValue(record.personnel_id);
-            if (recordDateInput._flatpickr) {
-                recordDateInput._flatpickr.setDate(record.record_date);
-            } else {
-                document.querySelector("#att_record_date").value = record.record_date;
-            }
-            $('#att_record_type').val(record.record_type);
-            $('#att_reason').val(record.reason);
-        }
-    }
-    $('#attendanceModal').removeClass('hidden');
-}
-
-function closeAttendanceModal() { $('#attendanceModal').addClass('hidden'); }
-$('#attendanceForm').on('submit', async function(e) {
-    e.preventDefault();
-    const id = $('#att_id').val();
-    const payload = {
-        personnel_id: $('#att_personnel_id').val(),
-        record_date: $('#att_record_date').val(),
-        record_type: $('#att_record_type').val(),
-        reason: $('#att_reason').val(),
-        fiscal_year: systemSettings.fiscal_year,
-        eval_round: systemSettings.eval_round
-    };
-    if (!payload.personnel_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
-    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    let dbError;
-    if (id) {
-        payload.updated_at = new Date().toISOString();
-        const { error } = await db.from('personnel_attendance').update(payload).eq('id', id);
-        dbError = error;
-    } else {
-        const { error } = await db.from('personnel_attendance').insert([payload]);
-        dbError = error;
-    }
-    if (dbError) Swal.fire('ข้อผิดพลาด', dbError.message, 'error');
-    else { closeAttendanceModal(); Swal.fire({ title: 'บันทึกสำเร็จ', icon: 'success', timer: 1500, showConfirmButton: false }); await loadAttendanceTable(); }
-});
-async function deleteAttendance(id) {
-    const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบรายการนี้ใช่หรือไม่?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ใช่, ลบเลย!' });
-    if (isConfirmed) {
-        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-        const { error } = await db.from('personnel_attendance').delete().eq('id', id);
-        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
-        else { Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); await loadAttendanceTable(); }
-    }
-}
-
-async function printLeavePDF(id) {
-    await generateLeavePDF(id, systemSettings);
-}
-
+// ----- อนุมัติ/ไม่อนุมัติ -----
 async function updateStatus(id, newStatus) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update({ status: newStatus, reject_comment: null, updated_at: new Date().toISOString() }).eq('id', id);
     if (error) Swal.fire('ผิดพลาด', error.message, 'error');
     else {
+        await logUserAction(`อนุมัติใบลา ID: ${id} (${newStatus})`, 'leave');
         const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 });
         Toast.fire({ icon: 'success', title: `ปรับสถานะเป็น "${newStatus}" เรียบร้อย` });
         await loadDashboardStats();
     }
 }
 async function rejectLeave(id) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { value: comment } = await Swal.fire({
         title: 'ไม่อนุมัติการลา',
         html: '<p class="text-sm text-slate-500 mb-3">กรุณาระบุเหตุผลที่ไม่อนุมัติ เพื่อส่งกลับไปให้บุคลากรทราบ</p>',
@@ -628,13 +581,24 @@ async function rejectLeave(id) {
         Swal.fire({ title: 'กำลังอัปเดตข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
         const { error } = await db.from('leave_requests').update({ status: 'ไม่อนุมัติ', reject_comment: comment.trim(), updated_at: new Date().toISOString() }).eq('id', id);
         if (error) Swal.fire('ผิดพลาด', error.message, 'error');
-        else { Swal.fire({ icon: 'success', title: 'ไม่อนุมัติเรียบร้อย', timer: 1500, showConfirmButton: false }); await loadDashboardStats(); }
+        else { 
+            await logUserAction(`ไม่อนุมัติใบลา ID: ${id} (เหตุผล: ${comment})`, 'leave');
+            Swal.fire({ icon: 'success', title: 'ไม่อนุมัติเรียบร้อย', timer: 1500, showConfirmButton: false }); 
+            await loadDashboardStats(); 
+        }
     }
 }
+function showRejectComment(comment) {
+    Swal.fire({ icon: 'info', title: 'เหตุผลที่ไม่อนุมัติ', html: `<div class="text-left bg-rose-50 p-4 rounded-xl border border-rose-100 text-rose-800 mt-2 font-medium">${comment}</div>`, confirmButtonColor: '#4f46e5', confirmButtonText: 'ปิดหน้าต่าง' });
+}
+
+// ----- ลบใบลา -----
 async function deleteLeave(id, name) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { data: leave, error: fetchError } = await db.from('leave_requests').select('status').eq('id', id).single();
     if (fetchError) { Swal.fire('ผิดพลาด', fetchError.message, 'error'); return; }
-    if (leave.status === 'อนุมัติ' && !isSuperAdmin) {
+    if (leave.status === 'อนุมัติ' && !canManageSettings(currentUserRole)) {
         Swal.fire('ไม่สามารถลบได้', 'รายการลาที่อนุมัติแล้วไม่สามารถลบได้ เพื่อรักษาความถูกต้องของสถิติ หากจำเป็นต้องลบ โปรดติดต่อ Super Admin', 'warning');
         return;
     }
@@ -642,11 +606,18 @@ async function deleteLeave(id, name) {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
         const { error } = await db.from('leave_requests').delete().eq('id', id);
-        if (!error) { await loadDashboardStats(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
+        if (!error) { 
+            await logUserAction(`ลบใบลา ID: ${id} (${name})`, 'leave');
+            await loadDashboardStats(); 
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); 
+        }
         else Swal.fire('ผิดพลาด', error.message, 'error');
     }
 }
 
+// ==========================================
+// ฟังก์ชันส่งออก Excel
+// ==========================================
 function exportLeaveReport() {
     if (allLeavesData.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
     const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
@@ -663,6 +634,7 @@ function exportLeaveReport() {
     ws['!cols'] = [{ wch:15 }, { wch:25 }, { wch:12 }, { wch:12 }, { wch:15 }, { wch:15 }, { wch:15 }, { wch:12 }, { wch:12 }, { wch:35 }, { wch:15 }, { wch:30 }];
     const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "สรุปการลา");
     XLSX.writeFile(wb, `สรุปการลา_ปีงบประมาณ_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
+    logUserAction(`ส่งออกสรุปการลา (Excel)`, 'leave');
 }
 
 async function exportLeaveSummaryReport() {
@@ -788,41 +760,12 @@ async function exportLeaveSummaryReport() {
         XLSX.utils.book_append_sheet(wb, ws, 'สรุปการลา_ตามกลุ่มสาระฯ');
         XLSX.writeFile(wb, `สรุปการลา_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
 
+        await logUserAction(`ส่งออกรายงานสรุปการลา (Excel)`, 'leave');
         Swal.fire({ icon: 'success', title: 'ส่งออกรายงานสำเร็จ', timer: 1500, showConfirmButton: false });
     } catch (err) {
         console.error(err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
-}
-
-async function importLeaveExcel(event) {
-    const file = event.target.files[0]; if (!file) return; event.target.value = '';
-    Swal.fire({ title: 'กำลังนำเข้าข้อมูล...', html: 'กรุณารอสักครู่ ระบบกำลังอ่านไฟล์ Excel', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-        try {
-            const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
-            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
-            if (rows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel');
-            let success = 0;
-            for (let row of rows) {
-                const fullName = row['ชื่อ-สกุล'] ? row['ชื่อ-สกุล'].trim() : '';
-                const person = allPersonnelData.find(p => `${p.prefix || ''}${p.first_name} ${p.last_name}` === fullName || `${p.first_name} ${p.last_name}` === fullName);
-                if (person) {
-                    const parseDate = (d) => { if (!d) return null; const p = d.split('/'); return `${parseInt(p[2]) - 543}-${p[1]}-${p[0]}`; };
-                    await db.from('leave_requests').insert({
-                        personnel_id: person.id, type: row['ประเภทการลา'] || 'ลาป่วย', start_date: parseDate(row['เริ่มวันที่']), end_date: parseDate(row['ถึงวันที่']),
-                        total_days: parseInt(row['จำนวน (วัน)']) || 0, reason: row['สาเหตุ'] || 'นำเข้าจากระบบเก่า',
-                        fiscal_year: row['ปีงบประมาณ'] || systemSettings.fiscal_year, eval_round: row['รอบประเมิน'] || systemSettings.eval_round,
-                        status: row['สถานะ'] || 'อนุมัติ', reject_comment: row['หมายเหตุ (ถ้าไม่อนุมัติ)'] || null
-                    });
-                    success++;
-                }
-            }
-            await loadDashboardStats(); Swal.fire('สำเร็จ', `นำเข้าข้อมูลการลา ${success} รายการเรียบร้อยแล้ว`, 'success');
-        } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
-    };
-    reader.readAsArrayBuffer(file);
 }
 
 async function exportAttendanceReport() {
@@ -874,6 +817,7 @@ async function exportAttendanceReport() {
         XLSX.utils.book_append_sheet(wb, ws, 'สรุปการขาด-มาสาย');
         XLSX.writeFile(wb, `สรุปการขาด_มาสาย_${systemSettings.fiscal_year}_รอบ${systemSettings.eval_round}.xlsx`);
 
+        await logUserAction(`ส่งออกสรุปการขาด/มาสาย (Excel)`, 'leave');
         Swal.fire({ icon: 'success', title: 'ส่งออกข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false });
     } catch (err) {
         console.error(err);
@@ -881,10 +825,203 @@ async function exportAttendanceReport() {
     }
 }
 
-function showRejectComment(comment) {
-    Swal.fire({ icon: 'info', title: 'เหตุผลที่ไม่อนุมัติ', html: `<div class="text-left bg-rose-50 p-4 rounded-xl border border-rose-100 text-rose-800 mt-2 font-medium">${comment}</div>`, confirmButtonColor: '#4f46e5', confirmButtonText: 'ปิดหน้าต่าง' });
+// ==========================================
+// นำเข้า Excel (เฉพาะ Super Admin)
+// ==========================================
+async function importLeaveExcel(event) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    const file = event.target.files[0]; if (!file) return; event.target.value = '';
+    Swal.fire({ title: 'กำลังนำเข้าข้อมูล...', html: 'กรุณารอสักครู่ ระบบกำลังอ่านไฟล์ Excel', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const workbook = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
+            if (rows.length === 0) throw new Error('ไม่พบข้อมูลในไฟล์ Excel');
+            let success = 0;
+            for (let row of rows) {
+                const fullName = row['ชื่อ-สกุล'] ? row['ชื่อ-สกุล'].trim() : '';
+                const person = allPersonnelData.find(p => `${p.prefix || ''}${p.first_name} ${p.last_name}` === fullName || `${p.first_name} ${p.last_name}` === fullName);
+                if (person) {
+                    const parseDate = (d) => { if (!d) return null; const p = d.split('/'); return `${parseInt(p[2]) - 543}-${p[1]}-${p[0]}`; };
+                    await db.from('leave_requests').insert({
+                        personnel_id: person.id, type: row['ประเภทการลา'] || 'ลาป่วย', start_date: parseDate(row['เริ่มวันที่']), end_date: parseDate(row['ถึงวันที่']),
+                        total_days: parseInt(row['จำนวน (วัน)']) || 0, reason: row['สาเหตุ'] || 'นำเข้าจากระบบเก่า',
+                        fiscal_year: row['ปีงบประมาณ'] || systemSettings.fiscal_year, eval_round: row['รอบประเมิน'] || systemSettings.eval_round,
+                        status: row['สถานะ'] || 'อนุมัติ', reject_comment: row['หมายเหตุ (ถ้าไม่อนุมัติ)'] || null
+                    });
+                    success++;
+                }
+            }
+            await logUserAction(`นำเข้า Excel: ${success} รายการ`, 'leave');
+            await loadDashboardStats(); 
+            Swal.fire('สำเร็จ', `นำเข้าข้อมูลการลา ${success} รายการเรียบร้อยแล้ว`, 'success');
+        } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
+    };
+    reader.readAsArrayBuffer(file);
 }
 
+// ==========================================
+// ระบบบันทึกขาด/มาสาย (ใช้ requireAdmin)
+// ==========================================
+function initAttendanceFlatpickr() {
+    flatpickr(".att-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y" });
+}
+
+async function loadAttendanceTable() {
+    try {
+        const { data, error } = await db.from('personnel_attendance')
+            .select('*, core_personnel(prefix, first_name, last_name, department)')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round)
+            .order('record_date', { ascending: false });
+        if (error) throw error;
+        allAttendanceData = data || [];
+        renderAttendanceTable();
+    } catch (err) {
+        console.error('Error loading attendance:', err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลการขาด/มาสายได้', 'error');
+    }
+}
+function renderAttendanceTable() {
+    if ($.fn.DataTable.isDataTable('#attendanceTable')) $('#attendanceTable').DataTable().destroy();
+    const tbody = document.getElementById('tb-attendance');
+    const fmtDate = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
+    if (allAttendanceData.length > 0) {
+        tbody.innerHTML = allAttendanceData.map(a => {
+            const fullName = `${a.core_personnel?.prefix || ''}${a.core_personnel?.first_name} ${a.core_personnel?.last_name}`;
+            const dept = a.core_personnel?.department || '-';
+            const typeClass = a.record_type === 'มาสาย' ? 'bg-orange-100 text-orange-700 border-orange-200' : 'bg-red-100 text-red-700 border-red-200';
+            const typeBadge = `<span class="px-3 py-1 rounded-full text-xs font-bold border ${typeClass}">${a.record_type}</span>`;
+            return `<tr class="hover:bg-slate-50">
+                <td class="text-center">${fmtDate(a.record_date)}</td>
+                <td class="font-bold text-slate-700">${fullName}</td>
+                <td class="text-slate-600 text-sm">${dept}</td>
+                <td class="text-center">${typeBadge}</td>
+                <td class="text-slate-500 text-sm truncate max-w-[200px]">${a.reason || '-'}</td>
+                <td class="text-center whitespace-nowrap">
+                    <button onclick="openAttendanceModal('edit', '${a.id}')" class="bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไข"><i class="fas fa-edit"></i></button>
+                    <button onclick="deleteAttendance('${a.id}')" class="text-slate-300 hover:text-rose-600 transition p-1.5" title="ลบ"><i class="fas fa-trash-alt"></i></button>
+                </td>
+            </tr>`;
+        }).join('');
+    } else tbody.innerHTML = '';
+    attendanceDataTable = $('#attendanceTable').DataTable({
+        responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [5] }]
+    });
+}
+
+function openAttendanceModal(mode, id = null) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    $('#attendanceForm')[0].reset();
+    $('#att_id').val('');
+    $('#att_department').val('');
+
+    const optionsHtml = $('#filter-personnel').html();
+    const attEl = document.getElementById('att_personnel_id');
+    if (attEl.tomselect) attEl.tomselect.destroy();
+    attEl.innerHTML = optionsHtml;
+    new TomSelect(attEl, {
+        create: false,
+        placeholder: '-- ค้นหาและเลือกรายชื่อ --',
+        dropdownParent: 'body',
+        onChange: function(value) {
+            const person = allPersonnelData.find(p => p.id === value);
+            $('#att_department').val(person?.department || 'ไม่ระบุ/ไม่มีกลุ่มสาระฯ');
+        }
+    });
+    attEl.tomselect.clear(true);
+
+    const recordDateInput = document.querySelector("#att_record_date");
+    if (!recordDateInput._flatpickr) {
+        flatpickr("#att_record_date", {
+            locale: "th",
+            dateFormat: "Y-m-d",
+            altInput: true,
+            altFormat: "j F Y"
+        });
+    }
+
+    if (mode === 'add') {
+        $('#att_modal_title').html('<i class="fas fa-plus-circle mr-2"></i>เพิ่มรายการ ขาด/มาสาย');
+        if (recordDateInput._flatpickr) {
+            recordDateInput._flatpickr.setDate(new Date());
+        } else {
+            document.querySelector("#att_record_date").value = new Date().toISOString().split('T')[0];
+        }
+    } else if (mode === 'edit') {
+        $('#att_modal_title').html('<i class="fas fa-edit mr-2"></i>แก้ไขรายการ');
+        const record = allAttendanceData.find(r => r.id === id);
+        if (record) {
+            $('#att_id').val(record.id);
+            attEl.tomselect.setValue(record.personnel_id);
+            if (recordDateInput._flatpickr) {
+                recordDateInput._flatpickr.setDate(record.record_date);
+            } else {
+                document.querySelector("#att_record_date").value = record.record_date;
+            }
+            $('#att_record_type').val(record.record_type);
+            $('#att_reason').val(record.reason);
+        }
+    }
+    $('#attendanceModal').removeClass('hidden');
+}
+
+function closeAttendanceModal() { $('#attendanceModal').addClass('hidden'); }
+$('#attendanceForm').on('submit', async function(e) {
+    e.preventDefault();
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    const id = $('#att_id').val();
+    const payload = {
+        personnel_id: $('#att_personnel_id').val(),
+        record_date: $('#att_record_date').val(),
+        record_type: $('#att_record_type').val(),
+        reason: $('#att_reason').val(),
+        fiscal_year: systemSettings.fiscal_year,
+        eval_round: systemSettings.eval_round
+    };
+    if (!payload.personnel_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
+    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    let dbError;
+    if (id) {
+        payload.updated_at = new Date().toISOString();
+        const { error } = await db.from('personnel_attendance').update(payload).eq('id', id);
+        dbError = error;
+    } else {
+        const { error } = await db.from('personnel_attendance').insert([payload]);
+        dbError = error;
+    }
+    if (dbError) Swal.fire('ข้อผิดพลาด', dbError.message, 'error');
+    else { 
+        await logUserAction(`${id ? 'แก้ไข' : 'เพิ่ม'}รายการขาด/มาสาย (${payload.record_type})`, 'leave');
+        closeAttendanceModal(); 
+        Swal.fire({ title: 'บันทึกสำเร็จ', icon: 'success', timer: 1500, showConfirmButton: false }); 
+        await loadAttendanceTable(); 
+    }
+});
+async function deleteAttendance(id) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบรายการนี้ใช่หรือไม่?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ใช่, ลบเลย!' });
+    if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+        const { error } = await db.from('personnel_attendance').delete().eq('id', id);
+        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+        else { 
+            await logUserAction(`ลบรายการขาด/มาสาย ID: ${id}`, 'leave');
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); 
+            await loadAttendanceTable(); 
+        }
+    }
+}
+
+// ==========================================
+// สร้างใบลา (Admin)
+// ==========================================
 function initAdminFlatpickr() {
     const config = {
         locale: 'th', dateFormat: 'd/m/Y',
@@ -904,16 +1041,60 @@ function initAdminFlatpickr() {
     flatpickr("#admin_start_date", config);
     flatpickr("#admin_end_date", config);
 }
+
 function adminCalculateDays() {
     const startIso = $('#admin_start_date_iso').val();
     const endIso = $('#admin_end_date_iso').val();
     const type = $('#admin_leave_type').val();
-    const days = calculateDaysByType(startIso, endIso, type);
+    const days = window.calculateDaysByType(startIso, endIso, type);
     $('#admin_calc_days').text(days);
 }
+
 function adminUpdateLeaveGuide() {
     const type = $('#admin_leave_type').val();
     const guideBox = $('#admin_leave_guide');
+    
+    const personnelId = $('#admin_personnel_id').val();
+    const personnel = allPersonnelData.find(p => p.id === personnelId);
+    const prefix = personnel?.prefix || '';
+    const gender = window.getGenderFromPrefix(prefix);
+    
+    const resetLeaveType = () => {
+        $('#admin_leave_type').val('');
+        guideBox.addClass('hidden');
+        adminCalculateDays();
+    };
+    
+    if (type === 'ลาคลอดบุตร' && gender !== 'หญิง') {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่สามารถเลือกลาคลอดบุตรได้',
+            text: 'บุคลากรท่านนี้เป็นเพศชาย ไม่มีสิทธิ์ลาคลอดบุตร',
+            confirmButtonText: 'ตกลง'
+        }).then(() => resetLeaveType());
+        return;
+    }
+    
+    if (type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร' && gender !== 'ชาย') {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่สามารถเลือกลาไปช่วยเหลือภริยาได้',
+            text: 'บุคลากรท่านนี้เป็นเพศหญิง ไม่มีสิทธิ์ลาไปช่วยเหลือภริยาที่คลอดบุตร',
+            confirmButtonText: 'ตกลง'
+        }).then(() => resetLeaveType());
+        return;
+    }
+    
+    if (type === 'ลาพักผ่อน') {
+        Swal.fire({
+            icon: 'warning',
+            title: 'ไม่สามารถเลือกลาพักผ่อนได้',
+            text: 'ผู้ปฏิบัติงานในสถานศึกษาและได้หยุดราชการตามวันหยุดภาคการศึกษาเกินกว่าวันลาพักผ่อน (ปิดเทอม) ไม่มีสิทธิ์ลาพักผ่อน',
+            confirmButtonText: 'ตกลง'
+        }).then(() => resetLeaveType());
+        return;
+    }
+    
     const guides = {
         "ลาป่วย": "<i class='fas fa-info-circle'></i> ลาป่วยตั้งแต่ 3 วันทำการขึ้นไป ให้แนบใบรับรองแพทย์",
         "ลากิจส่วนตัว": "<i class='fas fa-info-circle'></i> ต้องส่งใบอนุญาตล่วงหน้าก่อนวันลาอย่างน้อย 3 วันทำการ",
@@ -924,7 +1105,10 @@ function adminUpdateLeaveGuide() {
     else guideBox.addClass('hidden');
     adminCalculateDays();
 }
+
 async function openAdminLeaveModal() {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const selectEl = document.getElementById('admin_personnel_id');
     if (selectEl.tomselect) selectEl.tomselect.destroy();
     let options = '<option value="">-- เลือกบุคลากร --</option>';
@@ -947,6 +1131,8 @@ function closeAdminLeaveModal() {
 }
 async function saveLeaveForAdmin(e) {
     e.preventDefault();
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const personnelId = $('#admin_personnel_id').val();
     if (!personnelId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
     const type = $('#admin_leave_type').val();
@@ -968,8 +1154,40 @@ async function saveLeaveForAdmin(e) {
     try {
         const { error } = await db.from('leave_requests').insert([payload]);
         if (error) throw error;
+        await logUserAction(`บันทึกใบลาให้ ${personnelId} (${type})`, 'leave');
         closeAdminLeaveModal();
         Swal.fire({ icon: 'success', title: 'บันทึกใบลาเรียบร้อย', text: 'ใบลาอยู่ในสถานะรออนุมัติ', timer: 1500, showConfirmButton: false });
         await loadDashboardStats();
     } catch(err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.switchTab = switchTab;
+window.loadDashboardStats = loadDashboardStats;
+window.filterTableByPerson = filterTableByPerson;
+window.editLeave = editLeave;
+window.closeEditModal = closeEditModal;
+window.updateStatus = updateStatus;
+window.rejectLeave = rejectLeave;
+window.deleteLeave = deleteLeave;
+window.exportLeaveReport = exportLeaveReport;
+window.exportLeaveSummaryReport = exportLeaveSummaryReport;
+window.exportAttendanceReport = exportAttendanceReport;
+window.importLeaveExcel = importLeaveExcel;
+window.showRejectComment = showRejectComment;
+window.openAttendanceModal = openAttendanceModal;
+window.closeAttendanceModal = closeAttendanceModal;
+window.deleteAttendance = deleteAttendance;
+window.openAdminLeaveModal = openAdminLeaveModal;
+window.closeAdminLeaveModal = closeAdminLeaveModal;
+window.saveLeaveForAdmin = saveLeaveForAdmin;
+window.adminUpdateLeaveGuide = adminUpdateLeaveGuide;
+window.adminCalculateDays = adminCalculateDays;
+window.addModuleAdmin = addModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
+window.saveSystemSettings = saveSystemSettings;
+window.logout = logout;
+
+console.log('✅ leave_admin.js loaded with config.js & leave_core.js integration');

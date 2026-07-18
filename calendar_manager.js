@@ -1,7 +1,10 @@
 // ==========================================
 // calendar_manager.js (ฉบับสมบูรณ์ พร้อมฟังก์ชัน getEventsByMonthYear)
 // ==========================================
-
+// ==========================================
+// calendar_manager.js (ปรับปรุงเล็กน้อย)
+// เพิ่มการตรวจสอบ Super Admin ด้วย canManageSettings
+// ==========================================
 // ----------------------------------------------
 // ระบบ Cache สำหรับ Google Calendar
 // ----------------------------------------------
@@ -278,16 +281,20 @@ async function getDeptAdmins(deptKey) {
     return data;
 }
 
+// ----------------------------------------------
+// จัดการ Admin ประจำกลุ่ม (ปรับปรุง)
+// ----------------------------------------------
 async function getUserManagedDepts(userId) {
+    // ✅ ใช้ canManageSettings เพื่อตรวจสอบ Super Admin
     const { data: profile } = await db.from('core_personnel').select('role').eq('id', userId).single();
-    if (profile?.role === 'super_admin') {
+    if (profile && window.canManageSettings && window.canManageSettings(profile.role)) {
         return ['academic', 'budget', 'personnel', 'general'];
     }
+
     const { data, error } = await db.from('calendar_dept_admins').select('dept_key').eq('user_id', userId);
     if (error) return [];
     return data.map(d => d.dept_key);
 }
-
 // ----------------------------------------------
 // ตั้งค่า Config (Super Admin)
 // ----------------------------------------------

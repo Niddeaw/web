@@ -1,4 +1,11 @@
-// info_teacher.js - สำหรับครู/แอดมิน (ปรับปรุงสิทธิ์ ใช้ config.js)
+// info_teacher.js - สำหรับครู/แอดมิน (ปรับปรุงสิทธิ์ตาม config.js)
+// ==========================================
+// สิทธิ์:
+// 1. super_admin, admin, director, deputy, teacher → เข้าใช้งานได้ (อัปโหลดรูปได้)
+// 2. หัวหน้างานปกครอง, หัวหน้าระดับ → เข้าใช้งานได้ (ดูอย่างเดียว, ไม่สามารถอัปโหลดรูปได้)
+// 3. staff, office → ไม่สามารถเข้าใช้งานได้ (แจ้งเตือนและ redirect)
+// ==========================================
+
 // ==========================================
 // ตัวแปร Global
 // ==========================================
@@ -7,6 +14,8 @@ let currentUserRole = 'teacher';
 let isAdminMode = false;
 let isModuleAdmin = false;
 let currentUserId = null;
+let isHead = false;          // เป็นหัวหน้างานปกครองหรือหัวหน้าระดับ
+let isReadOnly = false;      // โหมดอ่านอย่างเดียว (สำหรับหัวหน้า)
 let chartInstance = null;
 let activeStudentId = null;
 let gasSettingsCache = null;
@@ -23,10 +32,10 @@ function safeSetHtml(id, html) { const el = document.getElementById(id); if (el)
 function safeSetSrc(id, src) { const el = document.getElementById(id); if (el) el.src = src; else console.warn(`Element ${id} not found`); }
 
 // ==========================================
-// ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js)
+// ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js) (เพิ่มการแสดงปุ่มสลับโหมดสำหรับหัวหน้า)
 // ==========================================
 function applyAdminVisibility() {
-    // ✅ ใช้ isAdminMode โดยตรง
+    // ✅ ใช้ isAdminMode โดยตรง (เฉพาะ admin จริง)
     const isAdmin = isAdminMode;
 
     // ✅ ใช้ applyVisibilityByRole จาก config.js
@@ -41,7 +50,8 @@ function applyAdminVisibility() {
     // ✅ จัดการ adminFilterSection
     const filterSection = document.getElementById('adminFilterSection');
     if (filterSection) {
-        if (isAdminMode) {
+        // แสดง adminFilterSection เมื่อเป็น admin หรือหัวหน้าระดับ/ปกครอง
+        if (isAdminMode || isHead) {
             filterSection.classList.remove('hidden');
             filterSection.classList.add('block');
         } else {
@@ -53,22 +63,74 @@ function applyAdminVisibility() {
     // ✅ อัปเดต badge หน้าเพจ
     const badge = document.getElementById('pageBadge');
     if (badge) {
-        badge.innerText = isAdminMode
-            ? 'มุมมองผู้ดูแลระบบ (Admin View - เลือกดูทีละห้อง)'
-            : 'มุมมองครูที่ปรึกษา (Teacher View - เฉพาะห้องโฮมรูม)';
+        if (isAdminMode) {
+            badge.innerText = 'มุมมองผู้ดูแลระบบ (Admin View - เลือกดูทีละห้อง)';
+        } else if (isHead) {
+            badge.innerText = 'มุมมองหัวหน้าระดับ/ปกครอง (ดูอย่างเดียว - เลือกห้องเรียนได้)';
+        } else {
+            badge.innerText = 'มุมมองครูที่ปรึกษา (Teacher View - เฉพาะห้องโฮมรูม)';
+        }
     }
 
-    // ✅ ตั้งค่าปุ่มสลับโหมด
+    // ✅ ตั้งค่าปุ่มสลับโหมด (เฉพาะ admin เท่านั้น)
     const toggleBtn = document.getElementById('btnToggleMode');
     if (toggleBtn) {
         if (isAdminMode) {
             toggleBtn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
             toggleBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all shadow-sm';
-        } else {
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.classList.add('flex');
+        } else if (isAdminUser(currentUserRole, false)) {
+            // admin (แต่ไม่ได้อยู่ในโหมด admin) → แสดงปุ่ม
             toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
             toggleBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 transition-all shadow-sm';
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.classList.add('flex');
+        } else {
+            // ไม่ใช่ admin → ซ่อนปุ่ม
+            toggleBtn.classList.add('hidden');
+            toggleBtn.classList.remove('flex');
         }
     }
+
+    // ✅ ใช้โหมดอ่านอย่างเดียว (ถ้าเป็นหัวหน้า)
+    applyReadOnlyState();
+}
+
+// ==========================================
+// ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
+// ==========================================
+function applyReadOnlyState() {
+    if (!isReadOnly) return;
+
+    // 1. ซ่อน/ปิดการใช้งานปุ่มอัปโหลดรูป
+    const uploadBtns = document.querySelectorAll('#profileFileInput, #cloudUploadBtn, .delete-profile-btn');
+    uploadBtns.forEach(btn => {
+        if (btn) {
+            btn.disabled = true;
+            btn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    });
+
+    // 2. ซ่อนปุ่มลบรูป
+    const deleteBtn = document.querySelector('button[onclick="deleteProfilePicture()"]');
+    if (deleteBtn) deleteBtn.style.display = 'none';
+
+    // 3. แสดงข้อความแจ้งเตือนว่าเป็นโหมดดูอย่างเดียว
+    const existingBanner = document.getElementById('readonly-banner');
+    if (!existingBanner) {
+        const banner = document.createElement('div');
+        banner.id = 'readonly-banner';
+        banner.className = 'bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2';
+        banner.innerHTML = `
+            <i class="fas fa-eye text-amber-600"></i>
+            <span class="font-bold">คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถอัปโหลดรูปหรือแก้ไขได้)</span>
+        `;
+        const modalBody = document.querySelector('#studentDetailModal .p-6');
+        if (modalBody) modalBody.prepend(banner);
+    }
+
+    console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
 
 // ==========================================
@@ -81,11 +143,12 @@ function updateUserDisplay() {
     const fullName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
     let roleText = '';
 
-    // ✅ ตรวจสอบบทบาท
     if (isAdminMode) {
         roleText = ' (ผู้ดูแลระบบ)';
     } else if (currentUserRole === 'teacher' || currentUserRole === 'staff') {
         roleText = ' (ครูที่ปรึกษา)';
+    } else if (isHead) {
+        roleText = ' (หัวหน้า - ดูอย่างเดียว)';
     } else {
         roleText = ' (บุคลากร)';
     }
@@ -212,6 +275,11 @@ async function uploadProfilePicture(file, studentCode) {
 }
 
 function onFileSelected(event) {
+    if (isReadOnly) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว ไม่สามารถเปลี่ยนรูปได้', 'warning');
+        event.target.value = '';
+        return;
+    }
     const file = event.target.files[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) return Swal.fire('ไฟล์ใหญ่เกินไป', 'ไม่เกิน 5MB', 'error');
@@ -221,6 +289,10 @@ function onFileSelected(event) {
     reader.readAsDataURL(file);
 }
 async function uploadPendingProfile() {
+    if (isReadOnly) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว ไม่สามารถอัปโหลดรูปได้', 'warning');
+        return;
+    }
     if (!pendingProfileFile) return Swal.fire('ยังไม่มีรูป', 'กรุณาเลือกรูปด้วยปุ่มกล้องก่อน', 'info');
     if (!activeStudentId) return;
     const { data: student, error } = await db.from('core_students').select('student_id_card').eq('id', activeStudentId).single();
@@ -237,6 +309,10 @@ async function uploadPendingProfile() {
     if (spinner) spinner.classList.add('hidden');
 }
 async function deleteProfilePicture() {
+    if (isReadOnly) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว ไม่สามารถลบรูปได้', 'warning');
+        return;
+    }
     if (!activeStudentId) return;
     const result = await Swal.fire({
         icon: 'warning',
@@ -271,8 +347,8 @@ function closeLightbox() { document.getElementById('lightboxModal')?.classList.a
 async function openSettingsModal() {
     if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
     await loadGasSettings();
-    safeSetText('settingsGasUrl', moduleSettings.gas_avatar_api_url);
-    safeSetText('settingsFolderId', moduleSettings.gas_avatar_folder_id);
+    document.getElementById('settingsGasUrl').value = moduleSettings.gas_avatar_api_url;
+    document.getElementById('settingsFolderId').value = moduleSettings.gas_avatar_folder_id;
     document.getElementById('settingsModal')?.classList.remove('hidden');
 }
 function closeSettingsModal() { document.getElementById('settingsModal')?.classList.add('hidden'); }
@@ -291,7 +367,7 @@ async function saveSettings() {
 }
 
 // ==========================================
-// Toggle Mode
+// Toggle Mode (ปรับให้รองรับหัวหน้า)
 // ==========================================
 async function toggleTeacherAdminMode() {
     if (!window.isAdminUser(currentUserRole, isAdminMode)) {
@@ -301,17 +377,16 @@ async function toggleTeacherAdminMode() {
 
     isAdminMode = !isAdminMode;
     applyAdminVisibility();
-    updateUserDisplay(); // ✅ อัปเดตชื่อและบทบาท
+    updateUserDisplay();
 
-    // ✅ บังคับจัดการ adminFilterSection
     const filterSection = document.getElementById('adminFilterSection');
     if (filterSection) {
         if (isAdminMode) {
             filterSection.classList.remove('hidden');
             filterSection.classList.add('block');
         } else {
-            filterSection.classList.add('hidden');
-            filterSection.classList.remove('block');
+            // ถ้าเป็นหัวหน้า ก็ยังให้แสดง filterSection (แต่จะถูกควบคุมโดย applyAdminVisibility)
+            // ดังนั้นไม่ต้องซ่อนตรงนี้ ปล่อยให้ applyAdminVisibility จัดการ
         }
     }
 
@@ -342,15 +417,15 @@ async function toggleTeacherAdminMode() {
 }
 
 // ==========================================
-// โหลดห้องเรียน
+// โหลดห้องเรียน (รองรับหัวหน้าระดับ/ปกครอง)
 // ==========================================
 async function loadClassrooms() {
     await loadCurrentYearAndSemester();
-    const isHighLevel = isAdminMode;
 
+    // ✅ กำหนดการแสดง adminFilterSection
     const filterSection = document.getElementById('adminFilterSection');
     if (filterSection) {
-        if (isAdminMode) {
+        if (isAdminMode || isHead) {
             filterSection.classList.remove('hidden');
             filterSection.classList.add('block');
         } else {
@@ -359,14 +434,29 @@ async function loadClassrooms() {
         }
     }
 
+    // ✅ กำหนด query ตามสิทธิ์
     let query = db.from('core_classrooms')
         .select('id, grade_level, room_number, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
         .eq('academic_year', currentAcademicYear)
         .eq('semester', currentSemester)
         .order('grade_level').order('room_number');
 
-    if (!isHighLevel) {
+    // ถ้าเป็นครูที่ปรึกษา (ไม่ใช่ admin และไม่ใช่หัวหน้า)
+    if (!isAdminMode && !isHead) {
         query = query.or(`adviser_id_1.eq.${currentUserId},adviser_id_2.eq.${currentUserId}`);
+    }
+
+    // ถ้าเป็นหัวหน้าระดับ → กรองเฉพาะระดับที่ดูแล
+    if (isHead && !isAdminMode && currentUserRole !== 'super_admin' && currentUserRole !== 'admin') {
+        // ตรวจสอบหัวหน้าระดับ (ไม่ใช่หัวหน้างานปกครอง)
+        const { data: gradeHead } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', currentUserId)
+            .maybeSingle();
+        if (gradeHead) {
+            query = query.eq('grade_level', gradeHead.grade_level);
+        }
+        // ถ้าเป็นหัวหน้างานปกครอง → ไม่กรองระดับ (เห็นทุกห้อง)
     }
 
     const { data: classrooms, error } = await query;
@@ -376,7 +466,8 @@ async function loadClassrooms() {
         return;
     }
 
-    if (isHighLevel) {
+    // ✅ กรณี admin หรือหัวหน้า → แสดง dropdown ให้เลือกห้อง
+    if (isAdminMode || isHead) {
         document.getElementById('adminFilterSection')?.classList.remove('hidden');
         document.getElementById('no-classroom-msg')?.classList.remove('hidden');
         document.getElementById('studentDataTable')?.classList.add('hidden');
@@ -434,6 +525,7 @@ async function loadClassrooms() {
             });
         }
     } else {
+        // ครูที่ปรึกษา → ไม่มี dropdown, โหลดห้องแรก
         document.getElementById('adminFilterSection')?.classList.add('hidden');
         if (classrooms && classrooms.length > 0) {
             await loadStudentsData(classrooms[0].id);
@@ -605,59 +697,147 @@ function renderAttendanceChart(p, a, l, pl, sl) { const ctx = document.getElemen
 function closeStudentModal() { document.getElementById('studentDetailModal')?.classList.add('hidden'); activeStudentId = null; }
 function switchTab(tabId) { document.querySelectorAll('.tab-content').forEach(e => e.classList.add('hidden')); document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('text-blue-700', 'bg-blue-200/50')); const t = document.getElementById(tabId); if (t) t.classList.remove('hidden'); const btn = document.getElementById('btn-' + tabId); if (btn) btn.classList.add('text-blue-700', 'bg-blue-200/50'); }
 async function fetchStudentClub(id) { try { const { data: reg } = await db.from('club_registrations').select('club_id').eq('student_id', id).maybeSingle(); if (reg?.club_id) { const { data: ci } = await db.from('club_lists').select('club_name').eq('id', reg.club_id).maybeSingle(); return ci ? ci.club_name : 'ไม่พบชื่อชุมนุม'; } return 'ยังไม่ได้ลงทะเบียนชุมนุม'; } catch (e) { return 'ไม่สามารถดึงข้อมูลได้'; } }
-function logout() { db.auth.signOut().then(() => window.location.replace('index.html')); }
 
 // ==========================================
-// เริ่มต้น (ใช้ checkSessionAndRole)
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+}
+
+// ==========================================
+// เริ่มต้น (ใช้ checkSessionAndRole) — แก้ไขเพิ่มการตรวจสอบหัวหน้า
 // ==========================================
 window.onload = async () => {
-    const result = await window.checkSessionAndRole('info_teacher');
-    if (!result) return;
+    try {
+        // ✅ ขั้นตอนที่ 1: ตรวจสอบ session
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) {
+            window.location.href = 'login.html';
+            return;
+        }
 
-    const { user, personnel, role, isAdmin, isTeacher } = result;
-    currentUser = personnel;
-    currentUserId = user.id;
-    currentUserRole = role;
-    isAdminMode = isAdmin;
+        // ✅ ขั้นตอนที่ 2: ดึงข้อมูลบุคลากรเพื่อตรวจสอบ role
+        const { data: personnel, error: profileError } = await db.from('core_personnel')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
 
-    // ✅ แสดงชื่อและบทบาท
-    updateUserDisplay();
+        if (profileError || !personnel) {
+            Swal.fire({
+                icon: 'error',
+                title: 'ไม่พบข้อมูลบุคลากร',
+                text: 'กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'กลับหน้าหลัก'
+            }).then(() => {
+                window.location.href = 'index.html';
+            });
+            return;
+        }
 
-    isModuleAdmin = await window.hasModuleAccess(role, 'info_teacher', user.id);
-    applyAdminVisibility();
+        const role = personnel.role;
 
-    // ✅ แสดงชื่อผู้ใช้ที่ Nav Bar
-    const nameDisplay = document.getElementById('user-display');
-    console.log('🔍 nameDisplay element:', nameDisplay);
+        // ✅ ขั้นตอนที่ 3: ตรวจสอบสิทธิ์ staff / office → แสดง SweetAlert และ redirect
+        if (role === 'staff' || role === 'office') {
+            await Swal.fire({
+                icon: 'error',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'คุณไม่ได้รับอนุญาตให้ใช้ระบบข้อมูลนักเรียน กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'กลับหน้าหลัก'
+            });
+            window.location.href = 'index.html';
+            return;
+        }
 
-    if (nameDisplay) {
-        const fullName = `${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`;
-        console.log('📝 ชื่อที่จะแสดง:', fullName);
-        nameDisplay.textContent = fullName;
-        nameDisplay.classList.remove('hidden');
-        nameDisplay.classList.add('block');
-    } else {
-        console.error('❌ ไม่พบ element user-display ใน DOM');
+        // ✅ ขั้นตอนที่ 4: ใช้ checkSessionAndRole สำหรับ role ที่อนุญาต
+        const result = await window.checkSessionAndRole('info_teacher', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
+        if (!result) return;
+
+        const { user, isAdmin, isTeacher } = result;
+        currentUser = personnel;
+        currentUserId = user.id;
+        currentUserRole = role;
+        isAdminMode = isAdmin;
+
+        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ (สำหรับสิทธิ์อ่านอย่างเดียว + เลือกห้องเรียนได้)
+        const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        currentAcademicYear = sInfo?.current_academic_year;
+        currentSemester = sInfo?.current_semester;
+        updateTermDisplay();
+
+        let isDisciplineHead = false;
+        let isGradeHead = false;
+
+        // ตรวจสอบหัวหน้างานปกครอง
+        const { data: discHead } = await db.from('core_discipline_heads')
+            .select('id')
+            .eq('personnel_id', user.id)
+            .eq('academic_year', currentAcademicYear)
+            .maybeSingle();
+        if (discHead) isDisciplineHead = true;
+
+        // ตรวจสอบหัวหน้าระดับ
+        const { data: gradeHead } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', user.id)
+            .maybeSingle();
+        if (gradeHead) isGradeHead = true;
+
+        // ✅ ตั้งค่า isHead และ isReadOnly
+        if (isDisciplineHead || isGradeHead) {
+            isHead = true;
+            isReadOnly = true;
+        } else {
+            isHead = false;
+            isReadOnly = false;
+        }
+
+        // ✅ แสดงชื่อและบทบาท
+        updateUserDisplay();
+
+        // ✅ ตรวจสอบ Module Admin
+        isModuleAdmin = await window.hasModuleAccess(role, 'info_teacher', user.id);
+        applyAdminVisibility();
+
+        // ✅ แสดงปุ่มตั้งค่าเฉพาะผู้มีสิทธิ์
+        if (isAdmin || isModuleAdmin) {
+            document.getElementById('btnSettings')?.classList.remove('hidden');
+            document.getElementById('btnToggleMode')?.classList.remove('hidden');
+        } else {
+            document.getElementById('btnSettings')?.classList.add('hidden');
+            document.getElementById('btnToggleMode')?.classList.add('hidden');
+        }
+
+        await loadCurrentYearAndSemester();
+        await loadGasSettings();
+
+        document.getElementById('profileFileInput')?.addEventListener('change', onFileSelected);
+        document.getElementById('cloudUploadBtn')?.addEventListener('click', uploadPendingProfile);
+
+        await loadClassrooms();
+
+        // ✅ บันทึก Log การเข้าใช้งาน
+        await window.logUserAction('เข้าสู่ระบบข้อมูลนักเรียน', 'info_teacher');
+
+        document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
+
+    } catch (err) {
+        console.error('Error initializing:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
-
-    isModuleAdmin = await window.hasModuleAccess(role, 'info_teacher', user.id);
-    applyAdminVisibility();
-
-    if (isAdmin || isModuleAdmin) {
-        document.getElementById('btnSettings')?.classList.remove('hidden');
-        document.getElementById('btnToggleMode')?.classList.remove('hidden');
-    } else {
-        document.getElementById('btnSettings')?.classList.add('hidden');
-        document.getElementById('btnToggleMode')?.classList.add('hidden');
-    }
-
-    await loadCurrentYearAndSemester();
-    await loadGasSettings();
-
-    document.getElementById('profileFileInput')?.addEventListener('change', onFileSelected);
-    document.getElementById('cloudUploadBtn')?.addEventListener('click', uploadPendingProfile);
-
-    await loadClassrooms();
 };
 
 document.getElementById('settingsModal')?.addEventListener('click', e => { if (e.target === document.getElementById('settingsModal')) closeSettingsModal(); });

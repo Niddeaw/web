@@ -1,42 +1,80 @@
+// ==========================================
+// helpdesk_admin.js — ระบบศูนย์ช่วยเหลือ (ผู้ดูแลระบบ)
+// ปรับใช้ config.js ฉบับใหม่
+// - ใช้ checkSessionAndRole(), requireAdmin(), hasModuleAccess()
+// - ใช้ logUserAction() ทุก CRUD
+// - ใช้ logout() มาตรฐานกลาง
+// ==========================================
+
 let currentUserId = null;
+let currentUserRole = null;
 let currentTicketId = null;
 let currentTicketSenderId = null;
 let currentTicketSenderType = null;
-let isProcessing = false; // Prevent rapid-fire requests
-let allTicketsList = []; // เก็บตั๋วทั้งหมดไว้บนเครื่องเพื่อค้นหาแบบ Realtime
-let currentFilterStatus = 'all'; // สถานะตัวกรองปัจจุบัน
+let isProcessing = false;
+let allTicketsList = [];
+let currentFilterStatus = 'all';
+let isModuleAdmin = false;
 
-window.onload = async () => {
-    await checkAuth();
-};
-
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) {
-        window.location.replace('index.html');
-        return;
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
     }
-    currentUserId = session.user.id;
-    const { data: profile } = await db.from('core_personnel').select('role').eq('id', currentUserId).single();
-    let isAuthorized = false;
-    if (profile && profile.role === 'super_admin') {
-        isAuthorized = true;
-    } else {
-        const { data: adminRight } = await db.from('core_module_admins')
-            .select('id')
-            .eq('user_id', currentUserId)
-            .eq('module_id', 'helpdesk')
-            .single();
-        if (adminRight) isAuthorized = true;
-    }
-    if (!isAuthorized) {
-        Swal.fire('ปฏิเสธการเข้าถึง', 'คุณไม่มีสิทธิ์เข้าถึงระบบฝากข้อความ', 'error');
-        setTimeout(() => window.location.replace('index.html'), 2000);
-        return;
-    }
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-    await loadTickets();
 }
+
+// ==========================================
+// INIT (ใช้ checkSessionAndRole)
+// ==========================================
+window.onload = async () => {
+    try {
+        // ✅ ใช้ checkSessionAndRole จาก config.js
+        const result = await window.checkSessionAndRole('helpdesk_admin');
+        if (!result) return;
+
+        const { user, personnel, role, isAdmin } = result;
+        currentUserId = user.id;
+        currentUserRole = role;
+
+        // ✅ ตรวจสอบสิทธิ์ Module Admin
+        isModuleAdmin = await window.hasModuleAccess(role, 'helpdesk', user.id);
+
+        // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+        if (!isAdmin && !isModuleAdmin) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'คุณไม่ได้รับอนุญาตให้ใช้ระบบศูนย์ช่วยเหลือ',
+                confirmButtonText: 'กลับหน้าหลัก'
+            });
+            window.location.href = 'index.html';
+            return;
+        }
+
+        // ✅ บันทึก Log การเข้าใช้งาน
+        await window.logUserAction('เข้าสู่ระบบศูนย์ช่วยเหลือ (Admin)', 'helpdesk');
+
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+        await loadTickets();
+
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+};
 
 function linkify(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -62,90 +100,9 @@ function formatThaiDateTime(dateString) {
     return d.locale('th').format('DD MMM ') + yearBE + d.format(' HH:mm');
 }
 
-// Refactored: Single function to load sender maps (teachers and students)
-async function loadSenderMaps(teacherIds, studentIds) {
-    let teachersMap = new Map();
-    let studentsMap = new Map();
-
-    // Load teachers
-    if (teacherIds.length) {
-        try {
-            const { data: teachers, error: err } = await db.from('core_personnel')
-                .select('id, prefix, first_name, last_name, avatar_url')
-                .in('id', teacherIds);
-            if (err) throw err;
-            if (teachers) {
-                teachers.forEach(t => {
-                    const fullName = `${t.prefix || ''}${t.prefix ? ' ' : ''}${t.first_name} ${t.last_name}`.trim();
-                    teachersMap.set(t.id, {
-                        fullName: fullName || 'บุคลากร',
-                        photoUrl: t.avatar_url || '',
-                        shortName: (t.first_name || '') + ' ' + (t.last_name || '')
-                    });
-                });
-            }
-        } catch (e) {
-            console.error('โหลดครูผิดพลาด:', e);
-            teacherIds.forEach(id => {
-                teachersMap.set(id, { fullName: 'บุคลากร', photoUrl: '', shortName: 'บุคลากร' });
-            });
-        }
-    }
-
-    // Load students (from core_students ONLY - removed risky admin.listUsers call)
-    if (studentIds.length) {
-        try {
-            const { data: students, error: errStudent } = await db.from('core_students')
-                .select('id, student_id_card, prefix, first_name, last_name, avatar_students_url')
-                .in('id', studentIds);
-            
-            if (errStudent) throw errStudent;
-
-            if (students && students.length) {
-                students.forEach(s => {
-                    const fullName = `${s.prefix || ''}${s.prefix ? ' ' : ''}${s.first_name || ''} ${s.last_name || ''}`.trim();
-                    const shortName = `${s.first_name || ''} ${s.last_name || ''}`.trim();
-                    studentsMap.set(s.id, {
-                        fullName: fullName || `นักเรียน (${s.student_id_card || '-'})`,
-                        photoUrl: s.avatar_students_url || '',
-                        shortName: shortName || `นศ.${s.student_id_card?.slice(-4) || '?'}`,
-                        detailLine: `เลขที่ ${s.student_id_card || '-'}`
-                    });
-                });
-            }
-
-            // Fallback for IDs not found in core_students
-            const foundIds = students ? students.map(s => s.id) : [];
-            const missingIds = studentIds.filter(id => !foundIds.includes(id));
-            missingIds.forEach(id => {
-                studentsMap.set(id, {
-                    fullName: `นักเรียน (ID: ${id.slice(0,8)}...)`,
-                    photoUrl: '',
-                    shortName: 'นักเรียน',
-                    detailLine: 'ไม่พบข้อมูลในระบบ'
-                });
-            });
-        } catch (e) {
-            console.error('โหลดนักเรียนผิดพลาด:', e);
-            studentIds.forEach(id => {
-                studentsMap.set(id, {
-                    fullName: 'นักเรียน',
-                    photoUrl: '',
-                    shortName: 'นักเรียน',
-                    detailLine: 'ไม่พบข้อมูล'
-                });
-            });
-        }
-    }
-
-    return { teachersMap, studentsMap };
-}
-
 // ==========================================
-// ระบบค้นหา กรอง และ แจ้งเตือนตั๋ว (Admin)
+// โหลดตั๋วทั้งหมด (Admin)
 // ==========================================
-
-// 1. ดึงข้อมูลทั้งหมดจากฐานข้อมูล (เรียกใช้ตอนโหลดหน้าแรก หรือเวลามีอัปเดต)
 async function loadTickets() {
     try {
         const { data: tickets, error } = await db.from('module_helpdesk_tickets')
@@ -172,19 +129,17 @@ async function loadTickets() {
             allTicketsList = [];
         }
 
-        // อัปเดตตัวเลขแจ้งเตือน (นับเฉพาะตั๋วที่เป็น 'open')
         updateBadgeCount();
-        // สั่งประมวลผลการค้นหาและแสดงผล
         filterTickets();
 
     } catch (err) {
         console.error(err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้', 'error');
     }
 }
 
-// 2. ฟังก์ชันอัปเดตตัวเลขแจ้งเตือน (Badge ด้านบน)
 function updateBadgeCount() {
-    const openCount = allTicketsList.filter(t => t.status === 'open').length;
+    const openCount = allTicketsList.filter(t => t.status === 'open' || t.status === 'replied').length;
     const badge = document.getElementById('unreadCountBadge');
     if (openCount > 0) {
         badge.innerText = `${openCount} ข้อความใหม่`;
@@ -194,16 +149,11 @@ function updateBadgeCount() {
     }
 }
 
-// 3. ฟังก์ชันค้นหาและกรอง (เมื่อพิมพ์ค้นหา หรือกดปุ่มเปลี่ยนหมวดหมู่)
 function filterTickets() {
     const keyword = document.getElementById('searchTicketInput').value.toLowerCase();
     
-    // คัดกรองข้อมูลจาก Array ในเครื่อง
     const filtered = allTicketsList.filter(t => {
-        // เช็คหมวดหมู่ (All, Open, Closed)
         if (currentFilterStatus !== 'all' && t.status !== currentFilterStatus) return false;
-        
-        // เช็คคำค้นหา (ค้นได้ทั้งชื่อเรื่อง และ ชื่อผู้ส่ง)
         if (keyword) {
             const topic = (t.topic || '').toLowerCase();
             const senderName = (t.sender_display_name || '').toLowerCase();
@@ -215,7 +165,6 @@ function filterTickets() {
     renderTicketList(filtered);
 }
 
-// 4. ฟังก์ชันเปลี่ยนสีปุ่มตัวกรอง
 function setFilter(status) {
     currentFilterStatus = status;
     ['all', 'open', 'closed'].forEach(s => {
@@ -229,17 +178,19 @@ function setFilter(status) {
     filterTickets();
 }
 
-// 5. นำข้อมูลที่ผ่านการกรองมาแปลงเป็น HTML แสดงผล (ใส่จุดแดงกะพริบที่ตั๋วใหม่ด้วย)
 function renderTicketList(tickets) {
     const ticketList = document.getElementById('ticketList');
     if (tickets.length > 0) {
         ticketList.innerHTML = tickets.map(ticket => {
-            const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700' : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700');
-            const statusText = ticket.status === 'open' ? 'รอตรวจสอบ' : (ticket.status === 'closed' ? 'ปิดงาน' : 'ตอบแล้ว');
+            const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700' 
+                : (ticket.status === 'replied' ? 'bg-green-100 text-green-700'
+                : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'));
+            const statusText = ticket.status === 'open' ? 'รอตรวจสอบ' 
+                : (ticket.status === 'replied' ? 'ตอบแล้ว' 
+                : (ticket.status === 'closed' ? 'ปิดงาน' : 'รอตรวจสอบ'));
             
-            // 🔴 เพิ่มจุดแดงแจ้งเตือน หากเป็นตั๋วใหม่ (open)
-            const redBadgeHtml = ticket.status === 'open' 
-                ? `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>` 
+            const redBadgeHtml = (ticket.status === 'open' || ticket.status === 'replied') && ticket.id !== currentTicketId
+                ? `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>`
                 : '';
 
             return `
@@ -261,7 +212,9 @@ function renderTicketList(tickets) {
     }
 }
 
-// เปิดหน้าต่างแชท และดึงข้อมูลผู้ใช้ (รองรับ Avatar และ รหัสนักเรียน)
+// ==========================================
+// เปิดแชท (Admin)
+// ==========================================
 async function openTicket(ticketId, topic, senderId, senderType) {
     currentTicketId = ticketId;
     currentTicketSenderId = senderId;
@@ -276,36 +229,30 @@ async function openTicket(ticketId, topic, senderId, senderType) {
     
     let displayName = "ไม่พบข้อมูลผู้ใช้งาน";
     let detailText = senderType === 'teacher' ? 'บุคลากร/ครู' : 'นักเรียน';
-    let avatarUrl = `https://ui-avatars.com/api/?name=${senderType}&background=random`; // รูปพื้นฐาน
-    
+    let avatarUrl = `https://ui-avatars.com/api/?name=${senderType}&background=random`;
+
     document.getElementById('activeSenderName').innerText = "กำลังโหลด...";
     document.getElementById('activeSenderDetail').innerText = detailText;
 
     try {
         if (senderType === 'teacher') {
-            // ดึงข้อมูลครู (สมมติว่าตารางครูมีคอลัมน์ avatar_url)
             const { data, error } = await db.from('core_personnel')
                 .select('prefix, first_name, last_name, avatar_url')
                 .eq('id', senderId)
                 .single();
-                
             if (data) {
                 displayName = `ครู ${data.first_name} ${data.last_name}`;
                 if (data.avatar_url) avatarUrl = data.avatar_url;
                 else avatarUrl = `https://ui-avatars.com/api/?name=${data.first_name}&background=random`;
             }
         } else {
-            // ดึงข้อมูลนักเรียน ตามตารางที่คุณยืนยันมา
             const { data, error } = await db.from('core_students')
                 .select('student_id_card, prefix, first_name, last_name, avatar_students_url')
                 .eq('id', senderId)
-                .maybeSingle(); // <--- เปลี่ยนเป็นตัวนี้
-                
+                .maybeSingle();
             if (data) {
                 displayName = `${data.prefix || ''}${data.first_name} ${data.last_name}`;
                 detailText = `รหัส: ${data.student_id_card || 'ไม่มีข้อมูล'}`;
-                
-                // ใช้รูปนักเรียนถ้ามี ถ้าไม่มีให้สร้างจากชื่อ
                 if (data.avatar_students_url) {
                     avatarUrl = data.avatar_students_url;
                 } else {
@@ -317,7 +264,6 @@ async function openTicket(ticketId, topic, senderId, senderType) {
         console.error("Error fetching user detail:", err);
     }
 
-    // อัปเดตข้อมูลขึ้นหน้าจอ
     document.getElementById('activeSenderName').innerText = displayName;
     document.getElementById('activeSenderDetail').innerText = detailText;
     
@@ -326,17 +272,14 @@ async function openTicket(ticketId, topic, senderId, senderType) {
         avatarImgElement.src = avatarUrl;
     }
 
-    // เช็คว่าคนนี้ถูกแบนอยู่ไหม เพื่อสลับปุ่ม Ban / Unban บนหัวแชท
     await checkUserBanStatus();
-
-    // โหลดข้อความแชท
     await fetchMessages();
-    
-    // โหมดมือถือ
     showChatOnMobile();
 }
 
-// 3. ฟังก์ชันตรวจสอบว่าผู้ใช้คนนี้ "ถูกแบน" อยู่หรือไม่ (ใช้สลับปุ่ม Ban/Unban)
+// ==========================================
+// ตรวจสอบสถานะแบน
+// ==========================================
 async function checkUserBanStatus() {
     if (!currentTicketSenderId || !currentTicketSenderType) return;
     
@@ -359,7 +302,9 @@ async function checkUserBanStatus() {
     }
 }
 
-// ดึงข้อความแชท (เพิ่มปุ่มลบข้อความแต่ละบรรทัด)
+// ==========================================
+// ดึงข้อความแชท (Admin)
+// ==========================================
 async function fetchMessages() {
     if (!currentTicketId) return;
 
@@ -379,7 +324,6 @@ async function fetchMessages() {
                 const bubbleColor = isAdmin ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none';
                 const textColor = isAdmin ? 'text-blue-100' : 'text-gray-400';
                 
-                // 🗑️ ปุ่มลบข้อความ (ซ่อนไว้ โชว์ตอน hover ด้วยคำสั่ง group-hover)
                 const deleteBtnHtml = `<button onclick="deleteMessage('${msg.id}')" class="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[10px] bg-red-100 text-red-600 hover:bg-red-500 hover:text-white px-1.5 py-0.5 rounded cursor-pointer"><i class="fa-solid fa-trash"></i> ลบ</button>`;
 
                 return `
@@ -393,8 +337,6 @@ async function fetchMessages() {
                     </div>
                 </div>`;
             }).join('');
-            
-            // เลื่อนลงล่างสุดอัตโนมัติ
             container.scrollTop = container.scrollHeight;
         }
     } catch (err) {
@@ -402,14 +344,18 @@ async function fetchMessages() {
     }
 }
 
+// ==========================================
+// ส่งข้อความ (Admin) — ใช้ requireAdmin
+// ==========================================
 async function sendMessage(e) {
     e.preventDefault();
     if (!currentTicketId || isProcessing) return;
     
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const input = document.getElementById('replyMessage');
     const message = input.value.trim();
-    
-    // FIX: Add message validation
     if (!message) return;
     if (message.length > 5000) {
         Swal.fire('ข้อความยาวเกินไป', 'ข้อความต้องไม่เกิน 5000 ตัวอักษร', 'warning');
@@ -425,6 +371,10 @@ async function sendMessage(e) {
         });
         if (msgErr) throw msgErr;
         await db.from('module_helpdesk_tickets').update({ status: 'replied' }).eq('id', currentTicketId);
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`ตอบกลับข้อความ Helpdesk (Ticket: ${currentTicketId})`, 'helpdesk');
+        
         input.value = '';
         await fetchMessages();
         await loadTickets();
@@ -435,8 +385,15 @@ async function sendMessage(e) {
     }
 }
 
+// ==========================================
+// ปิด Ticket — ใช้ requireAdmin
+// ==========================================
 async function closeTicket() {
     if (!currentTicketId || isProcessing) return;
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการปิดงาน?',
         text: "คุณได้แก้ไขปัญหานี้เรียบร้อยแล้วใช่หรือไม่?",
@@ -450,12 +407,16 @@ async function closeTicket() {
         isProcessing = true;
         try {
             await db.from('module_helpdesk_tickets').update({ status: 'closed' }).eq('id', currentTicketId);
-            Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ', timer: 1500, showConfirmButton: false });
             await db.from('module_helpdesk_messages').insert({
                 ticket_id: currentTicketId,
                 sender_id: currentUserId,
                 message: '🟢 ผู้ดูแลระบบได้ทำการปิดเคสนี้เรียบร้อยแล้ว'
             });
+            
+            // ✅ บันทึก Log
+            await window.logUserAction(`ปิด Ticket Helpdesk (ID: ${currentTicketId})`, 'helpdesk');
+            
+            Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ', timer: 1500, showConfirmButton: false });
             await fetchMessages();
             await loadTickets();
         } catch (err) {
@@ -466,9 +427,16 @@ async function closeTicket() {
     }
 }
 
+// ==========================================
+// ลบข้อความ — ใช้ requireAdmin
+// ==========================================
 async function deleteMessage(messageId) {
     if (isProcessing) return;
-        const { isConfirmed } = await Swal.fire({
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบข้อความ',
         text: 'คุณต้องการลบข้อความนี้ใช่หรือไม่? (ข้อความจะหายจากระบบทันที)',
         icon: 'warning',
@@ -481,25 +449,31 @@ async function deleteMessage(messageId) {
     
     isProcessing = true;
     try {
-        console.log('Attempting to delete message ID:', messageId);
-        const { data, error } = await db.from('module_helpdesk_messages').delete().eq('id', messageId).select();
+        const { error } = await db.from('module_helpdesk_messages').delete().eq('id', messageId);
         if (error) throw error;
-        console.log('Delete successful, deleted count:', data?.length);
-        Swal.fire({ icon: 'success', title: 'ลบข้อความเรียบร้อย', toast: true, timer: 2000 });
         
-        // รีเฟรชข้อมูลอย่างแน่นอน
+        // ✅ บันทึก Log
+        await window.logUserAction(`ลบข้อความ Helpdesk (ID: ${messageId})`, 'helpdesk');
+        
+        Swal.fire({ icon: 'success', title: 'ลบข้อความเรียบร้อย', toast: true, timer: 2000 });
         await fetchMessages();
-        await loadTickets(); // เพื่ออัปเดต badge สถานะถ้ามีผล
+        await loadTickets();
     } catch (err) {
-        console.error('Delete failed:', err);
         handleError(err, 'ไม่สามารถลบข้อความได้');
     } finally {
         isProcessing = false;
     }
 }
 
+// ==========================================
+// ลบข้อความทั้งหมด — ใช้ requireAdmin
+// ==========================================
 async function deleteAllMessages() {
     if (!currentTicketId || isProcessing) return;
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบข้อความทั้งหมด',
         html: `คุณต้องการลบ <strong>ข้อความทั้งหมด</strong> ในแชทนี้ใช่หรือไม่?<br>(ข้อความของผู้แจ้งและผู้ดูแลระบบจะถูกลบอย่างถาวร)`,
@@ -519,6 +493,10 @@ async function deleteAllMessages() {
             sender_id: currentUserId,
             message: '🗑️ ผู้ดูแลระบบได้ลบข้อความทั้งหมดในแชทนี้แล้ว'
         });
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`ลบข้อความทั้งหมดใน Ticket ${currentTicketId}`, 'helpdesk');
+        
         Swal.fire({ icon: 'success', title: 'ลบข้อความทั้งหมดเรียบร้อย', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
         await fetchMessages();
         await loadTickets();
@@ -529,8 +507,15 @@ async function deleteAllMessages() {
     }
 }
 
+// ==========================================
+// ลบ Ticket — ใช้ requireAdmin
+// ==========================================
 async function deleteTicket() {
     if (!currentTicketId || isProcessing) return;
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'ลบ Ticket นี้ทิ้งทั้งใบ?',
         html: `คุณต้องการลบ <strong>หัวข้อและข้อความทั้งหมด</strong> ของ Ticket นี้ใช่หรือไม่?<br>(การดำเนินการนี้ไม่สามารถกู้คืนได้)`,
@@ -546,6 +531,10 @@ async function deleteTicket() {
     try {
         await db.from('module_helpdesk_messages').delete().eq('ticket_id', currentTicketId);
         await db.from('module_helpdesk_tickets').delete().eq('id', currentTicketId);
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`ลบ Ticket Helpdesk (ID: ${currentTicketId})`, 'helpdesk');
+        
         Swal.fire({ icon: 'success', title: 'ลบ Ticket สำเร็จ', timer: 1500, showConfirmButton: false });
         currentTicketId = null;
         document.getElementById('emptyState').classList.remove('hidden');
@@ -560,6 +549,9 @@ async function deleteTicket() {
     }
 }
 
+// ==========================================
+// แบนผู้ใช้ — ใช้ requireAdmin
+// ==========================================
 async function banUser() {
     if (!currentTicketSenderId || !currentTicketSenderType || isProcessing) {
         Swal.fire('ไม่พบข้อมูลผู้ใช้', 'ไม่สามารถระบุผู้ใช้ได้', 'error');
@@ -569,6 +561,10 @@ async function banUser() {
         Swal.fire('ไม่สามารถแบนตัวเองได้', 'คุณคือผู้ดูแลระบบ', 'error');
         return;
     }
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'แบนผู้ใช้นี้',
         html: `คุณต้องการแบนผู้ใช้นี้ไม่ให้สร้างเรื่องใหม่หรือส่งข้อความในระบบ Helpdesk ใช่หรือไม่?<br><strong>ผู้ใช้จะยังคงเห็นข้อความเดิม แต่ไม่สามารถโต้ตอบได้</strong>`,
@@ -590,6 +586,10 @@ async function banUser() {
             sender_id: currentUserId,
             message: `🚫 ผู้ดูแลระบบได้ทำการแบนผู้ใช้นี้ (${currentTicketSenderType}) ไม่ให้ส่งข้อความเพิ่มเติม`
         });
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`แบนผู้ใช้ Helpdesk (ID: ${currentTicketSenderId})`, 'helpdesk');
+        
         Swal.fire({ icon: 'success', title: 'แบนผู้ใช้สำเร็จ', timer: 2000, showConfirmButton: false });
         await fetchMessages();
     } catch (err) {
@@ -599,11 +599,18 @@ async function banUser() {
     }
 }
 
+// ==========================================
+// ยกเลิกแบน — ใช้ requireAdmin
+// ==========================================
 async function unbanUser() {
     if (!currentTicketSenderId || !currentTicketSenderType || isProcessing) {
         Swal.fire('ไม่พบข้อมูลผู้ใช้', 'ไม่สามารถระบุผู้ใช้ได้', 'error');
         return;
     }
+    
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'ยกเลิกแบนผู้ใช้',
         text: `คุณต้องการยกเลิกแบนผู้ใช้นี้ใช่หรือไม่? เขาจะสามารถส่งข้อความและสร้างเรื่องใหม่ได้อีกครั้ง`,
@@ -625,6 +632,10 @@ async function unbanUser() {
             sender_id: currentUserId,
             message: `✅ ผู้ดูแลระบบได้ยกเลิกแบนผู้ใช้นี้ (${currentTicketSenderType}) แล้ว`
         });
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`ยกเลิกแบนผู้ใช้ Helpdesk (ID: ${currentTicketSenderId})`, 'helpdesk');
+        
         Swal.fire({ icon: 'success', title: 'ยกเลิกแบนสำเร็จ', timer: 2000, showConfirmButton: false });
         await fetchMessages();
     } catch (err) {
@@ -634,28 +645,20 @@ async function unbanUser() {
     }
 }
 
-// Unified error handler (consistent feedback to users)
 function handleError(err, userMessage) {
     console.error('Error:', err);
     Swal.fire('ข้อผิดพลาด', userMessage || err.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ', 'error');
 }
 
 // ==========================================
-// Mobile Responsive UI Handlers (อัปเดตใหม่)
+// Mobile UI Handlers
 // ==========================================
-
 function showChatOnMobile() {
-    // ถ้าหน้าจอเป็นคอมพิวเตอร์ หรือแท็บเล็ตแนวนอน (> 768px) ไม่ต้องสลับหน้าจอ
-    if (window.innerWidth >= 768) return; 
-
+    if (window.innerWidth >= 768) return;
     const sidebar = document.getElementById('sidebarPanel');
     const chat = document.getElementById('chatPanel');
-    
-    // 1. บังคับซ่อน Sidebar (ต้องเอา flex ออกก่อน ไม่งั้นจะไม่ยอมซ่อน)
     sidebar.classList.remove('flex');
     sidebar.classList.add('hidden');
-    
-    // 2. บังคับโชว์ Chat 
     chat.classList.remove('hidden');
     chat.classList.add('flex');
 }
@@ -663,18 +666,28 @@ function showChatOnMobile() {
 function showSidebarOnMobile() {
     const sidebar = document.getElementById('sidebarPanel');
     const chat = document.getElementById('chatPanel');
-    
-    // 1. โชว์ Sidebar กลับมา
     sidebar.classList.remove('hidden');
     sidebar.classList.add('flex');
-    
-    // 2. ซ่อน Chat
     chat.classList.remove('flex');
     chat.classList.add('hidden');
-    
-    // เคลียร์สถานะการโฟกัสตั๋ว (เฉพาะฝั่ง Admin ที่มีตัวแปร currentTicketId)
-    if (typeof currentTicketId !== 'undefined') {
-        currentTicketId = null; 
-        if (typeof loadTickets === 'function') loadTickets();
-    }
+    currentTicketId = null;
+    if (typeof loadTickets === 'function') loadTickets();
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.setFilter = setFilter;
+window.filterTickets = filterTickets;
+window.openTicket = openTicket;
+window.sendMessage = sendMessage;
+window.closeTicket = closeTicket;
+window.deleteMessage = deleteMessage;
+window.deleteAllMessages = deleteAllMessages;
+window.deleteTicket = deleteTicket;
+window.banUser = banUser;
+window.unbanUser = unbanUser;
+window.showSidebarOnMobile = showSidebarOnMobile;
+
+console.log('✅ helpdesk_admin.js loaded with config.js integration');

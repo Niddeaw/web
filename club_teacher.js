@@ -1,7 +1,7 @@
 // ==========================================
 // System Module: Club Management (Unified Teacher/Admin)
 // ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
-// แก้ไข: เพิ่ม null check ใน toggleRoleView()
+// แก้ไข: เพิ่ม logUserAction ในทุก CRUD และเปลี่ยน logout ให้เป็นมาตรฐาน
 // ==========================================
 const MODULE_ID = 'club_system';
 
@@ -35,7 +35,7 @@ async function initSystem() {
 
     try {
         // ✅ ใช้ checkSessionAndRole จาก config.js
-        const result = await checkSessionAndRole('club_system');
+        const result = await checkSessionAndRole('ระบบชุมนุม (ครู)', ['super_admin', 'admin', 'teacher', 'staff']);
         if (!result) return;
 
         const { user, personnel, role, isAdmin, isTeacher } = result;
@@ -51,7 +51,7 @@ async function initSystem() {
         applyVisibilityByRole(role, isAdminMode, {
             settingsBtn: 'admin-settings-btn',
             toggleBtn: 'btnAdminMode',
-            adminManagerBtn: 'adminManagerBtn'
+            adminManagerBtn: null
         });
 
         if (isAdminMode || isModuleAdmin) {
@@ -66,6 +66,9 @@ async function initSystem() {
         await fetchSchoolInfo();
         await loadCategories();
         await loadMyClub();
+
+        // ✅ บันทึก Log การเข้าใช้งาน
+        await logUserAction('เข้าสู่ระบบจัดการชุมนุม (ครู)', 'club');
 
         Swal.close();
     } catch (err) {
@@ -92,16 +95,18 @@ async function loadAllTeachers() {
 }
 
 // ==========================================
-// 2. Role Switcher (ใช้ config.js) - ปรับปรุงให้ไม่ต้องพึ่ง mode-icon/mode-text
+// 2. Role Switcher (ใช้ config.js)
 // ==========================================
 window.toggleRoleView = () => {
     // ✅ ตรวจสอบสิทธิ์ Admin
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!isAdminUser(userRole, isAdminMode)) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
+        return;
+    }
 
     const teacherView = document.getElementById('teacher-view');
     const adminView = document.getElementById('admin-view');
 
-    // ✅ ตรวจสอบ view หลัก – ถ้าไม่มีให้หยุดทำงาน
     if (!teacherView || !adminView) {
         console.warn('Cannot toggle role: Missing teacher-view or admin-view');
         return;
@@ -112,11 +117,7 @@ window.toggleRoleView = () => {
         position: 'top-end',
         showConfirmButton: false,
         timer: 1500,
-        timerProgressBar: true,
-        didOpen: (toast) => {
-            toast.addEventListener('mouseenter', Swal.stopTimer);
-            toast.addEventListener('mouseleave', Swal.resumeTimer);
-        }
+        timerProgressBar: true
     });
 
     if (currentMode === 'teacher') {
@@ -142,8 +143,12 @@ window.toggleRoleView = () => {
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 
-    // ✅ ใช้ฟังก์ชันกลาง updateToggleModeUI เพื่ออัปเดตปุ่มทั้งหมด
+    // ✅ ใช้ฟังก์ชันกลางอัปเดตปุ่ม
     updateToggleModeUI(userRole, isAdminMode, 'btnAdminMode');
+    applyVisibilityByRole(userRole, isAdminMode, {
+        settingsBtn: 'admin-settings-btn',
+        toggleBtn: 'btnAdminMode'
+    });
 };
 
 // ==========================================
@@ -239,6 +244,7 @@ window.lockClub = async () => {
             .eq('club_id', myClubInfo.id)
             .eq('status', 'pending');
         await db.from('club_lists').update({ is_locked: true }).eq('id', myClubInfo.id);
+        await logUserAction(`ล็อคชุมนุม "${myClubInfo.club_name}"`, 'club');
         await loadMyClub();
         Swal.fire({ icon: 'success', title: 'ล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
@@ -255,6 +261,7 @@ window.unlockMyClub = async () => {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังปลดล็อค...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').update({ is_locked: false }).eq('id', myClubInfo.id);
+        await logUserAction(`ปลดล็อคชุมนุม "${myClubInfo.club_name}"`, 'club');
         await loadMyClub();
         Swal.fire({ icon: 'success', title: 'ปลดล็อคชุมนุมเรียบร้อย', timer: 1500, showConfirmButton: false });
     }
@@ -447,6 +454,7 @@ window.updateStatus = async (id, status, reason = null) => {
     }
 
     await db.from('club_registrations').update(payload).eq('id', id);
+    await logUserAction(`เปลี่ยนสถานะนักเรียน ID ${id} เป็น ${status}`, 'club');
     await loadTeacherApplicants();
     Swal.close();
 };
@@ -632,6 +640,8 @@ window.removeStudentFromClub = async (regId, studentName, clubId, clubName) => {
         try {
             const { error } = await db.from('club_registrations').delete().eq('id', regId);
             if (error) throw error;
+
+            await logUserAction(`ลบนักเรียน "${studentName}" ออกจากชุมนุม "${clubName}"`, 'club');
 
             Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
             Swal.close();
@@ -925,6 +935,8 @@ window.saSetStatus = async (regId, status) => {
         }).eq('id', regId);
 
         if (error) return Swal.fire('Error', error.message, 'error');
+        
+        await logUserAction(`Super Admin เปลี่ยนสถานะเป็น ${status} (ID: ${regId})`, 'club');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1000, showConfirmButton: false });
 
         await loadAllStudentsReport();
@@ -950,6 +962,8 @@ window.saDeleteReg = async (regId) => {
         const { error } = await db.from('club_registrations').delete().eq('id', regId);
 
         if (error) return Swal.fire('Error', error.message, 'error');
+        
+        await logUserAction(`Super Admin ลบประวัติการสมัคร (ID: ${regId})`, 'club');
         Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1000, showConfirmButton: false });
 
         await loadAllStudentsReport();
@@ -1039,6 +1053,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
                 if (error) throw error;
             }
             
+            await logUserAction(`ย้ายนักเรียน "${studentName}" ไปชุมนุมใหม่`, 'club');
             Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
             
             await loadAllStudentsReport();
@@ -1071,6 +1086,7 @@ window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
                 .eq('status', 'pending');
         }
         await db.from('club_lists').update({ is_locked: !isCurrentlyLocked }).eq('id', id);
+        await logUserAction(`${actionText}ชุมนุม "${name}"`, 'club');
         await loadAdminClubs();
         Swal.fire('สำเร็จ', `${actionText}ชุมนุมเรียบร้อยแล้ว`, 'success');
     }
@@ -1381,6 +1397,8 @@ async function processExcelImport(file, clubId) {
             else successCount++;
         }
 
+        await logUserAction(`นำเข้าสมาชิก ${successCount} คน เข้าชุมนุม ID ${clubId}`, 'club');
+
         Swal.fire({
             icon: successCount > 0 ? 'success' : 'warning',
             title: 'สรุปการนำเข้า',
@@ -1531,6 +1549,7 @@ window.saveAdminClub = async (e) => {
         if (error.code === '23505') Swal.fire('ข้อผิดพลาด', 'ครูท่านนี้เปิดชุมนุมในเทอมนี้ไปแล้ว', 'error');
         else Swal.fire('Error', error.message, 'error');
     } else {
+        await logUserAction(`${id ? 'แก้ไข' : 'เพิ่ม'}ชุมนุม "${payload.club_name}"`, 'club');
         closeAdminClubModal();
         await loadAdminClubs();
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
@@ -1550,6 +1569,7 @@ window.deleteAdminClub = async (id, name) => {
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
         await db.from('club_lists').delete().eq('id', id);
+        await logUserAction(`ลบชุมนุม "${name}"`, 'club');
         await loadAdminClubs();
         Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
     }
@@ -1660,6 +1680,7 @@ window.addModuleAdmin = async () => {
         
         if (error) throw error;
         
+        await logUserAction(`แต่งตั้ง Module Admin (ID: ${uid})`, 'club');
         await loadModuleAdmins();
         
         const sel = document.getElementById('sel-add-module-admin');
@@ -1694,6 +1715,7 @@ window.removeModuleAdmin = async (id) => {
         const { error } = await db.from('core_module_admins').delete().eq('id', id);
         if (error) throw error;
         
+        await logUserAction(`ลบ Module Admin (ID: ${id})`, 'club');
         await loadModuleAdmins();
         
         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'ลบสิทธิ์สำเร็จ', timer: 1500, showConfirmButton: false });
@@ -1903,7 +1925,7 @@ window.showPendingStudentsModal = () => {
 };
 
 // ==========================================
-// Logout
+// Logout (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -1921,3 +1943,6 @@ async function logout() {
         window.location.replace("login.html");
     }
 }
+
+// ประกาศฟังก์ชัน global
+window.logout = logout;

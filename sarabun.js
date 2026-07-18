@@ -1,5 +1,7 @@
-// sarabun.js - ฉบับปรับปรุงสมบูรณ์ (Server-side DataTables, Excel, RLS, วันที่ไทย, Responsive)
-// แก้ไข TomSelect Multi ให้สามารถพิมพ์เพิ่มได้ทั้งฟอร์มบันทึกและแก้ไข
+// sarabun.js - ระบบสารบรรณ (ปรับปรุงตาม config.js)
+// สิทธิ์: ทุกคนสามารถเข้าใช้งานได้ (teacher, staff, office, admin, super_admin)
+// office ต้องมีสิทธิ์ module admin หรือ super_admin ถึงจะใช้งานได้
+
 let currentUser = null;
 let currentProfile = null;
 let userRole = null;
@@ -13,106 +15,153 @@ let cropper = null;
 let teacherTable = null;
 let adminTable = null;
 
+// ==========================================
+// INIT
+// ==========================================
 window.onload = async () => {
     await checkAuth();
     initUIComponents();
     initCropperEvents();
     await loadSettings();
-    await loadDashboardStats(); // ✅ เพิ่มบรรทัดนี้
+    await loadDashboardStats();
 };
 
 // ==========================================
-// ฟังก์ชันแปลงวันที่เป็นภาษาไทย (แบบเต็ม)
-// ==========================================
-function formatThaiDate(dateStr) {
-    if (!dateStr) return '-';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '-';
-    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
-        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-    const day = d.getDate();
-    const month = months[d.getMonth()];
-    const year = d.getFullYear() + 543;
-    return `${day} ${month} ${year}`;
-}
-
-// ==========================================
-// ฟังก์ชันแปลงวันที่สำหรับ input (YYYY-MM-DD) ให้ใช้ local time
-// ==========================================
-function formatDateForInput(dateStr) {
-    if (!dateStr) return '';
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return '';
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-}
-
-// ==========================================
-// 1. ระบบตรวจสอบสิทธิ์ (ใช้ config.js)
+// 1. ตรวจสอบสิทธิ์ (ใช้ config.js)
 // ==========================================
 async function checkAuth() {
-    const result = await checkSessionAndRole('sarabun', WRK_ROLES.ALLOWED);
-    if (!result) return;
+    try {
+        // ใช้ checkSessionAndRole กับ ALLOWED roles (ทุกคน)
+        const result = await checkSessionAndRole('sarabun', WRK_ROLES.ALLOWED);
+        if (!result) return;
 
-    currentUser = result.user;
-    currentProfile = result.personnel;
-    userRole = currentProfile.role;
+        currentUser = result.user;
+        currentProfile = result.personnel;
+        userRole = currentProfile.role;
 
-    // อัปเดตชื่อผู้ใช้
-    const userDisplay = document.getElementById('userNameDisplay');
-    if (userDisplay) {
-        const prefix = currentProfile.prefix || '';
-        userDisplay.innerText = `${prefix}${currentProfile.first_name} ${currentProfile.last_name}`;
-    }
-
-    // อัปเดตชื่อผู้บันทึกในฟอร์ม
-    const recorderDisplay = document.getElementById('recorder_name_display');
-    if (recorderDisplay) {
-        const prefix = currentProfile.prefix || '';
-        recorderDisplay.innerText = `${prefix}${currentProfile.first_name} ${currentProfile.last_name}`;
-    }
-
-    // ตรวจสอบสิทธิ์ Admin
-    const isGlobalAdmin = isAdminUser(userRole, false);
-    if (isGlobalAdmin) {
-        isSarabunAdmin = true;
-    } else {
-        isSarabunAdmin = await hasModuleAccess(userRole, 'sarabun', currentUser.id);
-    }
-
-    // ตั้งค่าโหมด Admin
-    const hasAdminRight = isAdminUser(userRole, false) || isSarabunAdmin;
-    isAdminMode = hasAdminRight;
-
-    // อัปเดต UI
-    updateUIByRole();
-
-    // จัดการปุ่มสลับโหมด
-    const toggleBtn = document.getElementById('btnToggleMode');
-    if (toggleBtn) {
-        if (isAdminMode) {
-            toggleBtn.classList.remove('hidden');
-            toggleBtn.classList.add('flex');
-            window.updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-        } else {
-            toggleBtn.classList.add('hidden');
-            toggleBtn.classList.remove('flex');
+        // อัปเดตชื่อผู้ใช้
+        const userDisplay = document.getElementById('userNameDisplay');
+        if (userDisplay) {
+            userDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
         }
+
+        // อัปเดตชื่อผู้บันทึกในฟอร์ม
+        const recorderDisplay = document.getElementById('recorder_name_display');
+        if (recorderDisplay) {
+            recorderDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+        }
+
+        // ตรวจสอบสิทธิ์ Admin (super_admin, admin, director, deputy)
+        const isGlobalAdmin = isAdminUser(userRole, false);
+
+        // ตรวจสอบ module admin (sarabun) เฉพาะ teacher, staff, office
+        let isModuleAdmin = false;
+        if (!isGlobalAdmin) {
+            isModuleAdmin = await hasModuleAccess(userRole, 'sarabun', currentUser.id);
+        }
+
+        // ✅ office และทุก role ใน ALLOWED เข้าดูได้ปกติ
+        // - Global Admin / Module Admin: ได้สิทธิ์แก้ไข/ลบ
+        // - office, teacher, staff ที่ไม่มี module access: ดูได้อย่างเดียว
+        const isOffice = isOfficeUser(userRole);
+
+        isSarabunAdmin = isModuleAdmin || isGlobalAdmin;
+        isAdminMode = isSarabunAdmin;
+
+        // ใช้ applyVisibilityByRole แสดง/ซ่อนปุ่มตั้งค่า (เฉพาะ super_admin และ admin เท่านั้น)
+        applyVisibilityByRole(userRole, isAdminMode, {
+            settingsBtn: 'admin-settings-btn',
+            toggleBtn: 'btnToggleMode'
+        });
+
+        // จัดการปุ่มสลับโหมด (แสดงเฉพาะ Admin)
+        const toggleBtn = document.getElementById('btnToggleMode');
+        if (toggleBtn) {
+            if (isAdminMode) {
+                toggleBtn.classList.remove('hidden');
+                toggleBtn.classList.add('flex');
+                updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
+            } else {
+                toggleBtn.classList.add('hidden');
+                toggleBtn.classList.remove('flex');
+            }
+        }
+
+        // แสดงแท็บ Admin
+        const tabAdmin = document.getElementById('tab-admin');
+        if (isAdminMode) {
+            tabAdmin.classList.remove('hidden');
+            tabAdmin.classList.add('flex');
+        } else {
+            tabAdmin.classList.add('hidden');
+            tabAdmin.classList.remove('flex');
+        }
+
+        // แสดงบทบาท
+        let roleText = 'Teacher';
+        if (isOffice) roleText = 'เจ้าหน้าที่สำนักงาน';
+        else if (isAdminMode) {
+            if (userRole === 'super_admin') roleText = 'Super Admin';
+            else if (userRole === 'admin') roleText = 'Admin';
+            else if (userRole === 'director') roleText = 'ผู้อำนวยการ';
+            else if (userRole === 'deputy') roleText = 'รองผู้อำนวยการ';
+            else if (isModuleAdmin) roleText = 'Sarabun Admin';
+        }
+        const roleDisplay = document.getElementById('userRoleDisplay');
+        if (roleDisplay) roleDisplay.innerText = roleText;
+
+        // ✅ บันทึก Log
+        await logUserAction('เข้าสู่ระบบสารบรรณ', 'sarabun');
+
+        // โหลด DataTables
+        await loadDocuments();
+
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+
+    } catch (error) {
+        console.error('❌ checkAuth error:', error);
+        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     }
-
-    // โหลด DataTables (Server-side)
-    await loadDocuments();
-
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 }
 
-function updateUIByRole() {
+// ==========================================
+// 2. LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+}
+
+// ==========================================
+// 3. ฟังก์ชันสลับโหมด (ใช้ updateToggleModeUI + ตรวจสอบสิทธิ์)
+// ==========================================
+async function toggleRoleView() {
+    // ✅ ตรวจสอบสิทธิ์โดยตรง (เผื่อ isAdminMode ผิดพลาด)
+    const isAdmin = isAdminUser(userRole, false) || isSarabunAdmin;
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
+        return;
+    }
+
+    // สลับโหมด
+    isAdminMode = !isAdminMode;
+    updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
     applyVisibilityByRole(userRole, isAdminMode, {
-        settingsBtn: 'admin-settings-btn'
+        settingsBtn: 'admin-settings-btn',
+        toggleBtn: 'btnToggleMode'
     });
 
+    // แสดง/ซ่อนแท็บ Admin
     const tabAdmin = document.getElementById('tab-admin');
     if (isAdminMode) {
         tabAdmin.classList.remove('hidden');
@@ -122,31 +171,11 @@ function updateUIByRole() {
         tabAdmin.classList.remove('flex');
     }
 
-    let roleText = 'Teacher';
-    if (isAdminMode) {
-        if (userRole === 'super_admin') roleText = 'Super Admin';
-        else if (userRole === 'admin') roleText = 'Admin';
-        else if (isSarabunAdmin) roleText = 'Sarabun Admin';
-    }
-    const roleDisplay = document.getElementById('userRoleDisplay');
-    if (roleDisplay) roleDisplay.innerText = roleText;
-}
-
-// ==========================================
-// 2. ฟังก์ชันสลับโหมด
-// ==========================================
-async function toggleRoleView() {
-    const hasAdminRight = isAdminUser(userRole, false) || isSarabunAdmin;
-    if (!hasAdminRight) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
-        return;
-    }
-    isAdminMode = !isAdminMode;
-    window.updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-    updateUIByRole();
     // รีเฟรช DataTables
     if (teacherTable) teacherTable.ajax.reload(null, false);
     if (adminTable) adminTable.ajax.reload(null, false);
+
+    await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'sarabun');
 
     Swal.fire({
         toast: true,
@@ -159,30 +188,11 @@ async function toggleRoleView() {
 }
 
 // ==========================================
-// 3. Logout
-// ==========================================
-async function logout() {
-    const result = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ใช่, ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (result.isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace('login.html');
-    }
-}
-
-// ==========================================
-// 4. UI Components
+// 4. UI Components (ไม่เปลี่ยนแปลง)
 // ==========================================
 function initUIComponents() {
-    // ✅ TomSelect Single – เฉพาะฟิลด์ที่ต้องการ (ข้าม doc_speed, doc_secret, edit_speed_level, edit_secret_level)
+    // TomSelect Single
     document.querySelectorAll('.tom-select-single').forEach(el => {
-        // ข้ามฟิลด์ที่เราใช้ select ธรรมดา
         if (el.id === 'doc_speed' || el.id === 'doc_secret' ||
             el.id === 'edit_speed_level' || el.id === 'edit_secret_level') {
             return;
@@ -195,35 +205,26 @@ function initUIComponents() {
         });
     });
 
-    // ✅ TomSelect Multi – สำหรับผู้เกี่ยวข้อง (doc_related, edit_related_depts)
+    // TomSelect Multi
     document.querySelectorAll('.tom-select-multi').forEach(el => {
         if (el.tomselect) el.tomselect.destroy();
-        console.log(`🔄 Creating TomSelect for ${el.id}`);
-        const config = {
+        new TomSelect(el, {
             plugins: ['remove_button'],
             dropdownParent: 'body',
-            create: function(input, callback) {
-                console.log(`🔍 create called with input: "${input}"`);
+            create: function (input, callback) {
                 if (input && input.trim().length > 0) {
-                    callback({
-                        value: input.trim(),
-                        text: input.trim()
-                    });
+                    callback({ value: input.trim(), text: input.trim() });
                 } else {
                     callback(null);
                 }
             },
-            createFilter: null,      // ไม่ต้องกรอง
-            persist: true,           // เก็บค่าที่สร้าง
+            createFilter: null,
+            persist: true,
             delimiter: ',',
             createOnBlur: true,
             maxItems: null,
-            placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...',
-            onItemAdd: (value) => { console.log(`✅ Item added: ${value}`); },
-            onItemRemove: (value) => { console.log(`🗑️ Item removed: ${value}`); }
-        };
-        const ts = new TomSelect(el, config);
-        console.log(`✅ TomSelect created for ${el.id}`, ts);
+            placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...'
+        });
     });
 
     flatpickr(".thai-datepicker", {
@@ -234,6 +235,9 @@ function initUIComponents() {
     });
 }
 
+// ==========================================
+// 5. Cropper Events (ไม่เปลี่ยนแปลง)
+// ==========================================
 function initCropperEvents() {
     const fileInput = document.getElementById('ocrImageInput');
     if (!fileInput) return;
@@ -262,7 +266,7 @@ function initCropperEvents() {
 }
 
 // ==========================================
-// 5. OCR และฟอร์ม
+// 6. OCR และฟอร์ม (ไม่เปลี่ยนแปลง)
 // ==========================================
 function nextStep(step) {
     if (step === 1) {
@@ -398,7 +402,7 @@ function escapeHtml(str) {
 }
 
 // ==========================================
-// 6. บีบอัดรูป
+// 7. บีบอัดรูป (ไม่เปลี่ยนแปลง)
 // ==========================================
 async function compressImage(file, maxSizeMB = 2) {
     if (!file.type.startsWith('image/')) return file;
@@ -429,18 +433,23 @@ async function compressImage(file, maxSizeMB = 2) {
         reader.onerror = error => reject(error);
     });
 }
-
 // ==========================================
-// 7. บันทึกข้อมูลและอัปโหลด
+// 8. บันทึกข้อมูล (ใช้ logUserAction และ requireAdmin)
 // ==========================================
 async function submitDocument(e) {
     e.preventDefault();
+
+    // ตรวจสอบว่ามีสิทธิ์ Admin หรือไม่ (ต้องเป็น Admin หรือ Sarabun Admin)
+    if (!isAdminMode) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถบันทึกหนังสือได้', 'warning');
+        return;
+    }
+
     const fileInput = document.getElementById('doc_file');
     let fileUrl = null;
 
     const speedLevel = document.getElementById('doc_speed').value;
     const secretLevel = document.getElementById('doc_secret').value;
-    console.log('🔍 ฟอร์ม submit: speed_level =', speedLevel, 'secret_level =', secretLevel);
 
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -455,14 +464,7 @@ async function submitDocument(e) {
 
         const relatedSelectEl = document.getElementById('doc_related');
         const relatedTomSelect = relatedSelectEl && relatedSelectEl.tomselect;
-        const relatedDepts = relatedTomSelect
-            ? relatedTomSelect.getValue()
-            : [];
-
-        if (!currentUser || !currentUser.id) {
-            Swal.fire('เกิดข้อผิดพลาด', 'ไม่พบข้อมูลผู้ใช้ กรุณาล็อกอินใหม่', 'error');
-            return;
-        }
+        const relatedDepts = relatedTomSelect ? relatedTomSelect.getValue() : [];
 
         const docData = {
             receive_number: document.getElementById('doc_receive_number').value,
@@ -480,26 +482,17 @@ async function submitDocument(e) {
             recorder_id: currentUser.id
         };
 
-        console.log('📦 docData ที่จะบันทึก:', docData);
-
         const { error } = await db.from('module_sarabun_docs').insert([docData]);
         if (error) {
             console.error('Insert error:', error);
-            if (error.message && error.message.includes('row-level security')) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'ข้อผิดพลาดด้านความปลอดภัย (RLS)',
-                    html: `<p class="text-left text-sm">ระบบไม่สามารถบันทึกข้อมูลได้ เนื่องจากข้อจำกัดด้านความปลอดภัยของฐานข้อมูล</p>
-                           <p class="text-left text-xs bg-slate-100 p-3 rounded-lg mt-2 font-mono">${error.message}</p>
-                           <p class="text-left text-xs text-amber-600 mt-3">💡 กรุณาแจ้ง Super Admin เพื่อตั้งค่า RLS Policy ใน Supabase</p>`,
-                    confirmButtonText: 'ตกลง'
-                });
-            } else {
-                Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-            }
+            Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
             return;
         }
 
+        // ✅ Log
+        await logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
+
+        // ส่ง Telegram
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
             const telegramData = {
                 ...docData,
@@ -510,22 +503,14 @@ async function submitDocument(e) {
         }
 
         Swal.fire('สำเร็จ', 'บันทึกหนังสือรับเข้าระบบเรียบร้อย', 'success').then(() => {
-            // ✅ รีเซ็ตฟอร์มทั่วไป
             document.getElementById('sarabunForm').reset();
-
-            // ✅ ตั้งค่า select ธรรมดาให้เป็นค่าเริ่มต้น
             document.getElementById('doc_speed').value = 'ปกติ';
             document.getElementById('doc_secret').value = 'ปกติ';
             document.getElementById('doc_action').value = 'มอบหมาย';
-
-            // ✅ เคลียร์เฉพาะ TomSelect Multi (doc_related) และตั้งค่าเริ่มต้น
             const relatedSelect = document.getElementById('doc_related');
             if (relatedSelect && relatedSelect.tomselect) {
                 relatedSelect.tomselect.clear();
-                // หลังจากเคลียร์แล้วไม่ต้อง set value เพราะต้องการให้ว่าง
             }
-
-            // ✅ กลับไป step 1 และเปลี่ยน panel
             nextStep(1);
             toggleAdminPanel('table');
             if (teacherTable) teacherTable.ajax.reload(null, false);
@@ -537,7 +522,7 @@ async function submitDocument(e) {
 }
 
 async function uploadToGAS(file) {
-    if (!systemSettings.gas_api_url) throw new Error('ยังไม่ได้ตั้งค่า GAS API URL ในเมนูตั้งค่าระบบ');
+    if (!systemSettings.gas_api_url) throw new Error('ยังไม่ได้ตั้งค่า GAS API URL');
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -563,7 +548,7 @@ async function uploadToGAS(file) {
 }
 
 // ==========================================
-// 8. โหลดข้อมูล DataTables (Server-side) + Responsive + ตัดคำ
+// 9. โหลด DataTables (ใช้โค้ดเดิม)
 // ==========================================
 function loadDocuments() {
     // --- Teacher Table ---
@@ -711,9 +696,8 @@ function loadDocuments() {
         });
     }
 }
-
 // ==========================================
-// Dashboard: โหลดสถิติจำนวนหนังสือ
+// 10. Dashboard Stats (โค้ดเดิม)
 // ==========================================
 async function loadDashboardStats() {
     try {
@@ -740,7 +724,7 @@ async function loadDashboardStats() {
 }
 
 // ==========================================
-// 9. ฟังก์ชันโหลดข้อมูลแบบ Server-side
+// 11. ฟังก์ชันโหลดข้อมูลแบบ Server-side (โค้ดเดิม)
 // ==========================================
 async function loadTableDataServerSide(dtParams, callback, tableType) {
     const { start, length, search, order, draw } = dtParams;
@@ -828,9 +812,8 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
         });
     }
 }
-
 // ==========================================
-// 10. View/Edit/Delete
+// 12. View/Edit/Delete (ใช้ requireAdmin และ logUserAction)
 // ==========================================
 async function viewDoc(id) {
     const { data } = await db.from('module_sarabun_docs')
@@ -887,21 +870,9 @@ function closeModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
-// ==========================================
-// 11. แก้ไขหนังสือ (Admin) — ฉบับแก้ไขพร้อม TomSelect เฉพาะ Multi
-// ==========================================
-function closeEditModal() {
-    const modal = document.getElementById('editDocModal');
-    const content = document.getElementById('editModalContent');
-    modal.classList.add('opacity-0');
-    content.classList.add('scale-95');
-    setTimeout(() => modal.classList.add('hidden'), 300);
-}
-
-// ==========================================
-// แก้ไขฟังก์ชัน editDoc (ฉบับสมบูรณ์) - ใช้ select ธรรมดาสำหรับ speed/secret
-// ==========================================
+// ---- Edit ----
 async function editDoc(id) {
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหนังสือได้')) return;
     try {
         console.log('🚀 editDoc started for id:', id);
 
@@ -1075,7 +1046,7 @@ async function editDoc(id) {
                     const ts = new TomSelect(relatedSelect, {
                         plugins: ['remove_button'],
                         dropdownParent: 'body',
-                        create: function(input, callback) {
+                        create: function (input, callback) {
                             console.log(`🔍 editDoc create called with: "${input}"`);
                             if (input && input.trim().length > 0) {
                                 callback({
@@ -1125,11 +1096,22 @@ async function editDoc(id) {
     }
 }
 
+function closeEditModal() {
+    const modal = document.getElementById('editDocModal');
+    const content = document.getElementById('editModalContent');
+    modal.classList.add('opacity-0');
+    content.classList.add('scale-95');
+    setTimeout(() => modal.classList.add('hidden'), 300);
+}
+
 async function saveEditDoc(e) {
     e.preventDefault();
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหนังสือได้')) return;
+
     const id = document.getElementById('edit_doc_id').value;
     if (!id) return Swal.fire('ผิดพลาด', 'ไม่พบ ID หนังสือ', 'error');
 
+    // ... (รวบรวมข้อมูล)
     const receiveNumber = document.getElementById('edit_receive_number').value.trim();
     const receiveDate = document.getElementById('edit_receive_date').value;
     const docNumber = document.getElementById('edit_doc_number').value.trim();
@@ -1170,6 +1152,7 @@ async function saveEditDoc(e) {
         const { error } = await db.from('module_sarabun_docs').update(updateData).eq('id', id);
         if (error) throw error;
 
+        await logUserAction(`แก้ไขหนังสือรับ ID: ${id}`, 'sarabun');
         Swal.fire('สำเร็จ', 'แก้ไขหนังสือเรียบร้อย', 'success');
         closeEditModal();
         if (teacherTable) teacherTable.ajax.reload(null, false);
@@ -1179,11 +1162,9 @@ async function saveEditDoc(e) {
     }
 }
 
-// ==========================================
-// 12. ลบหนังสือ (Admin)
-// ==========================================
+// ---- Delete ----
 async function deleteDoc(id) {
-    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบหนังสือได้')) return;
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบหนังสือได้')) return;
 
     Swal.fire({
         title: 'ยืนยันการลบ?',
@@ -1198,6 +1179,7 @@ async function deleteDoc(id) {
             const { error } = await db.from('module_sarabun_docs').delete().eq('id', id);
             if (error) Swal.fire('Error', error.message, 'error');
             else {
+                await logUserAction(`ลบหนังสือรับ ID: ${id}`, 'sarabun');
                 Swal.fire('ลบแล้ว!', 'ลบหนังสือรับเรียบร้อย', 'success');
                 if (teacherTable) teacherTable.ajax.reload(null, false);
                 if (adminTable) adminTable.ajax.reload(null, false);
@@ -1207,7 +1189,7 @@ async function deleteDoc(id) {
 }
 
 // ==========================================
-// 13. สลับแท็บ / Panel
+// 13. สลับแท็บ / Panel (โค้ดเดิม)
 // ==========================================
 function toggleAdminPanel(panel) {
     if (panel === 'table') {
@@ -1246,10 +1228,10 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// 14. Super Admin Settings & Module Admin
+// 14. Super Admin Settings & Module Admin (ใช้ requireAdmin, logUserAction)
 // ==========================================
 async function openSettingsModal() {
-    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) return;
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
     await loadSettings(true);
     await loadTeachersForAppoint();
     await loadModuleAdmins();
@@ -1309,6 +1291,8 @@ async function loadSettings(forceRefresh = false) {
 }
 
 async function saveSettings() {
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
+
     const updates = {
         id: 1,
         gas_api_url: document.getElementById('set_gas_url').value,
@@ -1318,13 +1302,16 @@ async function saveSettings() {
     };
     const { error } = await db.from('module_sarabun_settings').upsert(updates);
     if (error) return Swal.fire('Error', error.message, 'error');
+
+    await logUserAction('บันทึกการตั้งค่าระบบสารบรรณ', 'sarabun');
+
     Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกการตั้งค่าระบบเรียบร้อย', timer: 1500, showConfirmButton: false });
     systemSettings = updates;
     settingsCache = updates;
 }
 
 // ==========================================
-// 15. Module Admin Management
+// 15. Module Admin Management (ใช้ requireAdmin, logUserAction)
 // ==========================================
 async function ensureModuleExists(moduleId) {
     const { data, error } = await db.from('core_system_modules')
@@ -1355,7 +1342,8 @@ async function ensureModuleExists(moduleId) {
 
 async function loadTeachersForAppoint() {
     const { data: personnel } = await db.from('core_personnel')
-        .select('id, first_name, last_name, prefix')
+        .select('id, first_name, last_name, prefix, role')
+        .in('role', ['teacher', 'staff', 'office'])
         .order('first_name', { ascending: true });
 
     const { data: currentAdmins } = await db.from('core_module_admins')
@@ -1369,7 +1357,8 @@ async function loadTeachersForAppoint() {
     select.innerHTML = '<option value="">-- ค้นหาและเลือกรายชื่อ --</option>';
     available.forEach(p => {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-        select.innerHTML += `<option value="${p.id}">${escapeHtml(fullName)}</option>`;
+        const roleLabel = p.role === 'office' ? ' [เจ้าหน้าที่]' : '';
+        select.innerHTML += `<option value="${p.id}">${escapeHtml(fullName)}${roleLabel}</option>`;
     });
 
     if (appointTomSelect) appointTomSelect.destroy();
@@ -1391,7 +1380,7 @@ async function loadModuleAdmins() {
 
     const userIds = data.map(a => a.user_id);
     const { data: personnel } = await db.from('core_personnel')
-        .select('id, prefix, first_name, last_name')
+        .select('id, prefix, first_name, last_name, role')
         .in('id', userIds);
 
     const personnelMap = {};
@@ -1402,9 +1391,13 @@ async function loadModuleAdmins() {
         const fullName = person.first_name ?
             `${person.prefix || ''}${escapeHtml(person.first_name)} ${escapeHtml(person.last_name)}` :
             `(id: ${admin.user_id})`;
+        const isOfficePerson = person.role === 'office';
+        const roleBadge = isOfficePerson
+            ? `<span class="ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full bg-teal-100 text-teal-700 border border-teal-200">เจ้าหน้าที่</span>`
+            : `<span class="ml-2 px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-100 text-blue-700 border border-blue-200">ครู/บุคลากร</span>`;
         tbody.innerHTML += `
             <tr class="hover:bg-slate-50 transition">
-                <td class="py-2.5 px-4 font-bold text-slate-700">${fullName}</td>
+                <td class="py-2.5 px-4 font-bold text-slate-700">${fullName}${roleBadge}</td>
                 <td class="py-2.5 px-4 text-center">
                     <button onclick="removeModuleAdmin('${admin.id}')" class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white transition flex items-center justify-center mx-auto" title="ถอดถอน">
                         <i class="fas fa-times"></i>
@@ -1416,6 +1409,8 @@ async function loadModuleAdmins() {
 }
 
 async function appointModuleAdmin() {
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แต่งตั้งผู้ดูแลระบบได้')) return;
+
     const userId = appointTomSelect.getValue();
     if (!userId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากรที่ต้องการแต่งตั้ง', 'warning');
 
@@ -1442,12 +1437,23 @@ async function appointModuleAdmin() {
         return Swal.fire('Error', error.message, 'error');
     }
 
+    // ดึงชื่อผู้ใช้เพื่อ log
+    const { data: person } = await db.from('core_personnel')
+        .select('prefix, first_name, last_name')
+        .eq('id', userId)
+        .single();
+    const fullName = person ? `${person.prefix || ''}${person.first_name} ${person.last_name}` : userId;
+
+    await logUserAction(`แต่งตั้งผู้ดูแลระบบสารบรรณ: ${fullName}`, 'sarabun');
+
     Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
     await loadTeachersForAppoint();
     await loadModuleAdmins();
 }
 
 async function removeModuleAdmin(recordId) {
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ถอดถอนผู้ดูแลระบบได้')) return;
+
     Swal.fire({
         title: 'ยืนยันการถอดถอน?',
         text: "ผู้ใช้นี้จะหมดสิทธิ์ในการจัดการหนังสือรับทันที",
@@ -1460,6 +1466,14 @@ async function removeModuleAdmin(recordId) {
         if (result.isConfirmed) {
             const { error } = await db.from('core_module_admins').delete().eq('id', recordId);
             if (error) return Swal.fire('Error', error.message, 'error');
+
+            // หาชื่อผู้ใช้ (โดยการดึงจาก DOM)
+            const row = document.querySelector(`button[onclick="removeModuleAdmin('${recordId}')"]`)?.closest('tr');
+            const nameCell = row?.querySelector('td:first-child');
+            const adminName = nameCell ? nameCell.textContent.trim() : recordId;
+
+            await logUserAction(`ถอดถอนผู้ดูแลระบบสารบรรณ: ${adminName}`, 'sarabun');
+
             Swal.fire({ icon: 'success', title: 'ถอดถอนสำเร็จ', timer: 1500, showConfirmButton: false });
             await loadTeachersForAppoint();
             await loadModuleAdmins();
@@ -1468,13 +1482,10 @@ async function removeModuleAdmin(recordId) {
 }
 
 // ==========================================
-// 16. ส่งออก Excel (Admin)
+// 16. ส่งออก Excel (ใช้ requireAdmin)
 // ==========================================
 async function exportToExcel() {
-    if (!isAdminMode) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถส่งออกข้อมูลได้', 'warning');
-        return;
-    }
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ส่งออกข้อมูลได้')) return;
 
     Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
@@ -1484,7 +1495,6 @@ async function exportToExcel() {
             .order('receive_date', { ascending: false });
 
         if (error) throw error;
-
         if (!data || data.length === 0) {
             Swal.fire('ไม่มีข้อมูล', 'ไม่พบหนังสือรับในระบบ', 'info');
             return;
@@ -1508,15 +1518,15 @@ async function exportToExcel() {
 
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.json_to_sheet(rows);
-
         ws['!cols'] = [
             { wch: 18 }, { wch: 18 }, { wch: 20 }, { wch: 18 },
             { wch: 30 }, { wch: 20 }, { wch: 40 }, { wch: 12 },
             { wch: 12 }, { wch: 15 }, { wch: 25 }, { wch: 40 }, { wch: 30 }
         ];
-
         XLSX.utils.book_append_sheet(wb, ws, 'หนังสือรับ');
         XLSX.writeFile(wb, `หนังสือรับ_${new Date().toISOString().slice(0, 10)}.xlsx`);
+
+        await logUserAction('ส่งออกข้อมูลหนังสือรับ (Excel)', 'sarabun');
 
         Swal.close();
         Swal.fire({ icon: 'success', title: 'ส่งออกสำเร็จ', timer: 1500, showConfirmButton: false });
@@ -1527,14 +1537,13 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. นำเข้า Excel (Admin)
+// 17. นำเข้า Excel (ใช้ requireAdmin)
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    if (!isAdminMode) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้', 'warning');
+    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
         event.target.value = '';
         return;
     }
@@ -1663,6 +1672,9 @@ async function importFromExcel(event) {
 
             event.target.value = '';
 
+            // ✅ Log
+            await logUserAction(`นำเข้าข้อมูลหนังสือรับ (สำเร็จ ${success}, ล้มเหลว ${fail})`, 'sarabun');
+
             let msg = `✅ นำเข้าสำเร็จ ${success} รายการ`;
             if (fail > 0) {
                 msg += `\n❌ ล้มเหลว ${fail} รายการ`;
@@ -1692,8 +1704,30 @@ async function importFromExcel(event) {
 }
 
 // ==========================================
-// 18. แปลงวันที่ภาษาไทยเป็น ISO
+// 18. ฟังก์ชันช่วยเหลือ (ไม่เปลี่ยนแปลง)
 // ==========================================
+function formatThaiDate(dateStr) {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '-';
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const day = d.getDate();
+    const month = months[d.getMonth()];
+    const year = d.getFullYear() + 543;
+    return `${day} ${month} ${year}`;
+}
+
+function formatDateForInput(dateStr) {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function parseThaiDate(thaiDateStr) {
     if (!thaiDateStr) return null;
     const str = String(thaiDateStr).trim();
@@ -1779,3 +1813,29 @@ async function sendTelegram(docData) {
         console.error('❌ Fetch error:', err);
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.toggleRoleView = toggleRoleView;
+window.switchTab = switchTab;
+window.toggleAdminPanel = toggleAdminPanel;
+window.viewDoc = viewDoc;
+window.closeModal = closeModal;
+window.editDoc = editDoc;
+window.closeEditModal = closeEditModal;
+window.saveEditDoc = saveEditDoc;
+window.deleteDoc = deleteDoc;
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.saveSettings = saveSettings;
+window.appointModuleAdmin = appointModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
+window.submitDocument = submitDocument;
+window.cropAndOCR = cropAndOCR;
+window.skipOCR = skipOCR;
+window.nextStep = nextStep;
+window.exportToExcel = exportToExcel;
+window.importFromExcel = importFromExcel;
+window.loadDashboardStats = loadDashboardStats;

@@ -1,7 +1,7 @@
 /**
  * WRK System - Parent Network Logic (Complete CRUD)
  * ปรับปรุงให้ใช้ config.js และ core_head.js เป็นมาตรฐานกลาง
- * Updated: 2026-07-07
+ * Updated: 2026-07-18
  */
 
 let currentUser = null;
@@ -39,12 +39,55 @@ async function checkAuth() {
 
     try {
         // ✅ ใช้ checkSessionAndRole() จาก config.js
-        const result = await checkSessionAndRole('parent_network', WRK_ROLES.ALLOWED);
-        if (!result) return; // redirect ไป login.html แล้ว
+        // อนุญาตเฉพาะ role เหล่านี้ (staff, office จะถูกปฏิเสธ)
+        const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'teacher'];
+        const result = await checkSessionAndRole('parent_network', allowedRoles);
+
+        // ถ้า result เป็น null แสดงว่าไม่มี session หรือ role ไม่อนุญาต (ซึ่งถูก redirect ไป login.html)
+        // แต่เราต้องการให้ staff/office กลับไป index.html แทน login.html
+        // ตรวจสอบเพิ่มเติม: ถ้าไม่มี session หรือ role ไม่อยู่ใน allowed ให้ redirect ไป index.html
+        if (!result) {
+            // กรณีที่ไม่มี session (ยังไม่ได้ login) หรือ role ไม่ถูกต้อง
+            // checkSessionAndRole จะ redirect ไป login.html อยู่แล้ว แต่เราอาจต้องการเปลี่ยนเป็น index.html
+            // เนื่องจากเราต้องการให้ staff/office กลับ index.html
+            // ดังนั้นเราจะตรวจสอบ session และ role เองเพิ่ม
+            const { data: { session } } = await db.auth.getSession();
+            if (session) {
+                // มี session แต่ role ไม่ถูกต้อง -> แสดง alert แล้วไป index.html
+                const { data: personnel } = await db.from('core_personnel')
+                    .select('role')
+                    .eq('id', session.user.id)
+                    .single();
+                if (personnel && ['staff', 'office'].includes(personnel.role)) {
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                        text: 'ระบบนี้สงวนสิทธิ์สำหรับครูและผู้บริหารเท่านั้น',
+                        confirmButtonText: 'ตกลง'
+                    });
+                    window.location.href = 'index.html';
+                    return;
+                }
+            }
+            // กรณีอื่นให้ redirect ไป login.html ตามปกติ (checkSessionAndRole ทำไปแล้ว)
+            return;
+        }
 
         currentUser = result.user;
         currentProfile = result.personnel;
         actualRole = currentProfile.role;
+
+        // ✅ ตรวจสอบ staff/office อีกครั้ง (เผื่อกรณี)
+        if (['staff', 'office'].includes(actualRole)) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'ระบบนี้สงวนสิทธิ์สำหรับครูและผู้บริหารเท่านั้น',
+                confirmButtonText: 'ตกลง'
+            });
+            window.location.href = 'index.html';
+            return;
+        }
 
         // ✅ ดึงข้อมูลโรงเรียน
         const { data: sInfo } = await db.from('core_school_info')
@@ -77,10 +120,8 @@ async function checkAuth() {
         // ✅ กำหนด View Role
         if (actualRole === 'super_admin') {
             currentViewRole = 'super_admin';
-            document.getElementById('admin-settings-btn')?.classList.remove('hidden');
         } else if (isModuleAdmin) {
             currentViewRole = 'module_admin';
-            document.getElementById('admin-settings-btn')?.classList.remove('hidden');
         } else if (discHeadData) {
             currentViewRole = 'head_discipline';
             isReadOnly = true;
@@ -92,20 +133,25 @@ async function checkAuth() {
             isReadOnly = false;
         }
 
-        // ✅ แสดงปุ่มสลับโหมดเฉพาะผู้ที่มีสิทธิ์ admin
-        if (actualRole !== 'teacher' || isModuleAdmin) {
-            document.getElementById('role-toggle-btn')?.classList.remove('hidden');
-        }
+        // ✅ ใช้ applyVisibilityByRole แสดง/ซ่อนปุ่มต่างๆ
+        const isAdmin = isAdminUser(actualRole, isModuleAdmin);
+        applyVisibilityByRole(actualRole, isAdmin, {
+            settingsBtn: 'btnSettings',      // แก้จาก 'admin-settings-btn'
+            toggleBtn: 'btnToggleMode'       // แก้จาก 'role-toggle-btn'
+        });
 
         generateStepper();
         updateUIByRole();
 
-        // ✅ โหลดห้องเรียน + ตั้งค่าระบบ (ถ้าเป็น super_admin)
+        // ✅ โหลดห้องเรียน + ตั้งค่าระบบ (ถ้าเป็น super_admin หรือ module_admin)
         const promises = [loadClassrooms()];
-        if (actualRole === 'super_admin') {
+        if (actualRole === 'super_admin' || isModuleAdmin) {
             promises.push(loadAdminSettings());
         }
         await Promise.all(promises);
+
+        // ✅ บันทึก Log
+        await logUserAction('เข้าสู่ระบบเครือข่ายผู้ปกครอง', 'parent_network');
 
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
@@ -117,21 +163,22 @@ async function checkAuth() {
 }
 
 // ==========================================
-// 2. Logout (ไป login.html ตามมาตรฐาน)
+// 2. Logout (ใช้มาตรฐานกลางจาก config.js)
 // ==========================================
 async function logout() {
-    const result = await Swal.fire({
+    const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
-        icon: 'question',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
         confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
     });
-
-    if (result.isConfirmed) {
+    if (isConfirmed) {
         await db.auth.signOut();
-        window.location.href = 'login.html';
+        window.location.replace('login.html');
     }
 }
 
@@ -140,8 +187,12 @@ async function logout() {
 // ==========================================
 function updateUIByRole() {
     if (!currentProfile) return;
-    document.getElementById('userNameDisplay').innerText =
-        `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+
+    // ✅ ใช้ ID ใหม่: userDisplayName
+    const nameEl = document.getElementById('userDisplayName');
+    if (nameEl) {
+        nameEl.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+    }
 
     let roleText = 'ครูที่ปรึกษา';
     let badgeClass = "text-slate-400";
@@ -150,10 +201,11 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_discipline') { roleText = 'หัวหน้างานปกครอง (Viewer)'; badgeClass = "text-rose-600 font-black"; }
     else if (currentViewRole === 'head_grade') { roleText = 'หัวหน้าระดับชั้น (Viewer)'; badgeClass = "text-orange-600 font-black"; }
 
-    const roleEl = document.getElementById('userRoleDisplay');
+    // ✅ ใช้ ID ใหม่: userRoleBadge
+    const roleEl = document.getElementById('userRoleBadge');
     if (roleEl) {
         roleEl.innerText = roleText;
-        roleEl.className = `text-[10px] mt-1 uppercase ${badgeClass}`;
+        roleEl.className = `text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeClass}`;
     }
 }
 
@@ -169,21 +221,40 @@ function generateStepper() {
 }
 
 function toggleViewRole() {
-    // ใช้ isAdminUser จาก config.js เพื่อเช็คสิทธิ์
-    if (!isAdminUser(actualRole, currentViewRole !== 'teacher')) return;
+    const isAdmin = isAdminUser(actualRole, currentViewRole !== 'teacher');
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
+        return;
+    }
 
     currentViewRole = (currentViewRole === 'teacher') ? actualRole : 'teacher';
+    if (currentViewRole === actualRole && !isAdminUser(actualRole, false)) {
+        hasModuleAccess(actualRole, 'parent_network', currentUser.id).then(isModAdmin => {
+            if (isModAdmin) {
+                currentViewRole = 'module_admin';
+            } else {
+                currentViewRole = 'teacher';
+            }
+            applyModeUI();
+        });
+        return;
+    }
+
+    applyModeUI();
+}
+
+function applyModeUI() {
     isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
 
-    const btn = document.getElementById('role-toggle-btn');
+    const btn = document.getElementById('btnToggleMode');
     if (!btn) return;
 
     if (currentViewRole === 'teacher') {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดแอดมิน';
-        btn.className = "px-3 py-2 bg-blue-50 text-blue-700 border border-blue-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-blue-100 transition-all shadow-sm";
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> <span class="hidden sm:inline">สลับโหมด</span>';
+        btn.className = "btn-toggle-mode teacher-mode";
     } else {
-        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> โหมดครู';
-        btn.className = "px-3 py-2 bg-purple-50 text-purple-700 border border-purple-100 rounded-xl text-[11px] font-black uppercase tracking-tighter hover:bg-purple-100 transition-all shadow-sm";
+        btn.innerHTML = '<i class="fas fa-sync-alt mr-1"></i> <span class="hidden sm:inline">สลับโหมด</span>';
+        btn.className = "btn-toggle-mode admin-mode";
     }
 
     updateUIByRole();
@@ -194,6 +265,8 @@ function toggleViewRole() {
         toast: true, position: 'top-end', icon: 'info',
         title: `สลับเป็น${modeName}`, showConfirmButton: false, timer: 2000
     });
+
+    logUserAction(`สลับโหมดเป็น ${modeName}`, 'parent_network');
 }
 
 // ==========================================
@@ -230,6 +303,8 @@ async function loadClassrooms() {
     tsClassroom = new TomSelect("#select-classroom", {
         create: false,
         placeholder: "-- ค้นหาและเลือกห้องเรียน --",
+        dropdownParent: 'body',          // ✅ เพิ่ม
+        maxOptions: null,                // ✅ แสดงตัวเลือกทั้งหมดโดยไม่จำกัด
         onChange: (val) => { if (val) loadClassroomData(); }
     });
 }
@@ -398,6 +473,9 @@ async function clearRoomData() {
     const classId = document.getElementById('select-classroom').value;
     if (!classId) return;
 
+    // ✅ ใช้ requireAdmin
+    if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถล้างข้อมูลได้')) return;
+
     const result = await Swal.fire({
         title: 'ยืนยันการล้างข้อมูล?',
         text: "ข้อมูลเครือข่ายผู้ปกครองของห้องนี้จะถูกลบออกทั้งหมด",
@@ -421,7 +499,9 @@ async function clearRoomData() {
                 document.getElementById(`img-icon-${role.id}`)?.classList.remove('hidden');
             });
             updateStatusBadge('empty');
+            await logUserAction(`ล้างข้อมูลเครือข่ายห้อง ${classId}`, 'parent_network');
             Swal.fire('สำเร็จ', 'ล้างข้อมูลเรียบร้อย', 'success');
+            loadDataTable();
         }
     }
 }
@@ -503,8 +583,11 @@ async function saveNetworkData(e) {
         });
 
         if (error) throw error;
+
+        await logUserAction(`บันทึกข้อมูลเครือข่ายห้อง ${classId}`, 'parent_network');
         Swal.fire('สำเร็จ', 'บันทึกข้อมูลและอัปโหลดรูปภาพเรียบร้อยแล้ว', 'success');
         updateStatusBadge('completed');
+        loadDataTable();
 
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
@@ -595,6 +678,9 @@ async function loadAdminSettings() {
 }
 
 async function saveAdminSettings() {
+    // ✅ ใช้ requireAdmin
+    if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
+
     const payload = {
         id: 1,
         gd_api_url: document.getElementById('set-api-url').value.trim(),
@@ -607,6 +693,7 @@ async function saveAdminSettings() {
     const { error } = await db.from('module_parent_network_settings').upsert(payload);
     if (!error) {
         moduleSettings = payload;
+        await logUserAction('บันทึกการตั้งค่าระบบเครือข่ายผู้ปกครอง', 'parent_network');
         Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าระบบเรียบร้อย', 'success');
         closeAdminModal();
     } else {
@@ -615,8 +702,8 @@ async function saveAdminSettings() {
 }
 
 async function openAdminModal() {
-    // ใช้ requireAdmin จาก config.js
-    if (!requireAdmin(actualRole, currentViewRole !== 'teacher', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) {
+    // ✅ ใช้ requireAdmin
+    if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) {
         return;
     }
     document.getElementById('admin-modal').classList.remove('hidden');
@@ -630,14 +717,15 @@ function closeAdminModal() {
 
 async function loadTeachersForAppoint() {
     const { data } = await db.from('core_personnel')
-        .select('id, first_name, last_name')
+        .select('id, prefix, first_name, last_name')
         .order('first_name');
 
     const select = document.getElementById('select-teacher-appoint');
     select.innerHTML = '<option value="">-- ค้นหาชื่อครู --</option>';
     if (data) {
         data.forEach(teacher => {
-            select.innerHTML += `<option value="${teacher.id}">${teacher.first_name} ${teacher.last_name}</option>`;
+            const fullName = `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`;
+            select.innerHTML += `<option value="${teacher.id}">${fullName}</option>`;
         });
     }
     if (tsTeacherAppoint) tsTeacherAppoint.destroy();
@@ -654,7 +742,6 @@ async function loadModuleAdminsList() {
     try {
         tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
 
-        // ✅ ใช้ 2 queries แทนการ join ที่ซับซ้อน (safe & reliable)
         const { data: adminRecords, error: adminError } = await db
             .from('core_module_admins')
             .select('id, user_id')
@@ -667,7 +754,6 @@ async function loadModuleAdminsList() {
             return;
         }
 
-        // ✅ ดึงข้อมูลบุคลากรแยก (ใช้ Promise.all)
         const userIds = adminRecords.map(r => r.user_id);
         const { data: personnel, error: personnelError } = await db
             .from('core_personnel')
@@ -676,13 +762,11 @@ async function loadModuleAdminsList() {
 
         if (personnelError) throw personnelError;
 
-        // ✅ สร้าง Map สำหรับค้นหา
         const personnelMap = {};
         (personnel || []).forEach(p => {
             personnelMap[p.id] = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         });
 
-        // ✅ แสดงผล
         tbody.innerHTML = adminRecords.map(admin => {
             const name = personnelMap[admin.user_id] || 'ไม่พบชื่อ';
             return `
@@ -708,6 +792,9 @@ async function loadModuleAdminsList() {
 }
 
 async function appointModuleAdmin() {
+    // ✅ ใช้ requireAdmin
+    if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบ')) return;
+
     const teacherId = document.getElementById('select-teacher-appoint').value;
     if (!teacherId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครูที่ต้องการแต่งตั้ง', 'warning');
 
@@ -721,19 +808,29 @@ async function appointModuleAdmin() {
     if (error) {
         if (error.code === '23505') {
             Swal.fire('แจ้งเตือน', 'ครูท่านนี้เป็นแอดมินอยู่แล้ว', 'info');
-            // ✅ โหลดรายชื่อใหม่เพื่อให้เห็นว่ามีอยู่แล้ว
             loadModuleAdminsList();
             return;
         }
         return Swal.fire('ผิดพลาด', error.message, 'error');
     }
 
+    // ✅ ดึงชื่อครูเพื่อ log
+    const { data: teacher } = await db.from('core_personnel')
+        .select('prefix, first_name, last_name')
+        .eq('id', teacherId)
+        .single();
+    const teacherName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : teacherId;
+
+    await logUserAction(`แต่งตั้งผู้ดูแลระบบเครือข่าย: ${teacherName}`, 'parent_network');
     Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'แต่งตั้งแอดมินโมดูลเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-    tsTeacherAppoint.clear();
+    if (tsTeacherAppoint) tsTeacherAppoint.clear();
     loadModuleAdminsList();
 }
 
 async function removeModuleAdmin(recordId) {
+    // ✅ ใช้ requireAdmin
+    if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบ')) return;
+
     const result = await Swal.fire({
         title: 'ยืนยันการปลดสิทธิ์?',
         text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",
@@ -747,6 +844,11 @@ async function removeModuleAdmin(recordId) {
         Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading() });
         const { error } = await db.from('core_module_admins').delete().eq('id', recordId);
         if (!error) {
+            // หาชื่อที่ถูกลบ (จาก DOM หรือเก็บไว้)
+            const row = document.querySelector(`button[onclick="removeModuleAdmin('${recordId}')"]`)?.closest('tr');
+            const nameCell = row?.querySelector('td:first-child');
+            const adminName = nameCell ? nameCell.textContent.trim() : recordId;
+            await logUserAction(`ถอดถอนผู้ดูแลระบบเครือข่าย: ${adminName}`, 'parent_network');
             Swal.fire({ icon: 'success', title: 'ปลดสิทธิ์เรียบร้อย', timer: 1500, showConfirmButton: false });
             loadModuleAdminsList();
         }
@@ -1084,6 +1186,8 @@ async function exportToExcel() {
         ws['!cols'] = headers.map(() => ({ wch: 25 }));
         XLSX.utils.book_append_sheet(wb, ws, "NetworkReport");
         XLSX.writeFile(wb, `รายงานเครือข่ายผู้ปกครอง_${currentTerm}_${currentYear}.xlsx`);
+
+        await logUserAction('ส่งออกรายงานเครือข่ายผู้ปกครอง (Excel)', 'parent_network');
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อยแล้ว', 'success');
 
     } catch (err) {
@@ -1229,6 +1333,7 @@ async function printPDF(classroomId, forceGenerate = false) {
                 .eq('academic_year', currentYear)
                 .eq('semester', currentTerm);
 
+            await logUserAction(`สร้าง PDF เครือข่ายผู้ปกครองห้อง ${room}`, 'parent_network');
             Swal.close();
             window.open(result.url, '_blank');
             loadDataTable();
@@ -1241,3 +1346,27 @@ async function printPDF(classroomId, forceGenerate = false) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.toggleViewRole = toggleViewRole;
+window.switchTab = switchTab;
+window.goToStep = goToStep;
+window.nextStep = nextStep;
+window.prevStep = prevStep;
+window.clearRoomData = clearRoomData;
+window.saveNetworkData = saveNetworkData;
+window.previewImg = previewImg;
+window.exportToExcel = exportToExcel;
+window.printPDF = printPDF;
+window.editFromTable = editFromTable;
+window.openAdminModal = openAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.saveAdminSettings = saveAdminSettings;
+window.appointModuleAdmin = appointModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
+window.loadDataTable = loadDataTable; // เผื่อเรียกใช้
+
+console.log('✅ parents.js loaded (config.js integrated)');

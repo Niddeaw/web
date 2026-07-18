@@ -11,24 +11,55 @@ let actualIsAdmin = false;
 let moduleAdminChecked = false;
 let isModuleAdmin = false;
 
-/* ── Role Helpers (ใช้ config.js) ───────────── */
-const isSuperAdmin = () => !forceTeacherMode && currentProfile?.role === 'super_admin';
+// ==========================================
+// ROLE HELPERS (ใช้ config.js)
+// ==========================================
+const isSuperAdmin = () => {
+    if (forceTeacherMode) return false; // ✅ บังคับให้ไม่ใช่ Super Admin ในโหมดครู
+    return currentProfile?.role === 'super_admin';
+};
+
 const isAdmin = () => {
-    if (forceTeacherMode) return false;
+    if (forceTeacherMode) return false; // ✅ บังคับให้ไม่ใช่ Admin ในโหมดครู (ทุกคน)
+    if (currentProfile?.role === 'super_admin') return true;
     if (isAdminUser(currentProfile?.role, false)) return true;
     if (moduleAdminChecked && isModuleAdmin) return true;
     const localAdmins = window._personnelSettings?.local_admins || [];
     return localAdmins.includes(currentProfile?.id);
 };
-const isTeacher = () => !isAdmin();
-const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
-const canDelete = () => isSuperAdmin();
 
-// ✅ เปลี่ยนชื่อเป็น canManagePersonnelSettings
+const isTeacher = () => !isAdmin();
+
+// ✅ ใช้ canManageSettings จาก config.js โดยตรง
 const canManagePersonnelSettings = () => {
     if (forceTeacherMode) return false;
     return window.canManageSettings(currentProfile?.role);
 };
+
+// ✅ ตรวจสอบสิทธิ์แก้ไข
+const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
+
+// ✅ ตรวจสอบสิทธิ์ลบ (เฉพาะ Super Admin เท่านั้น)
+const canDelete = () => isSuperAdmin();
+
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+}
+
 /* ── Position Logic ─────────── */
 const posLogic = {
     "ครูอัตราจ้าง": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
@@ -54,8 +85,13 @@ function avColor(n) { let h = 0; for (let c of (n || 'ก')) h = c.charCodeAt(0)
 function setAvatar(elId, name, url) {
     const el = document.getElementById(elId);
     if (!el) return;
-    if (url) { el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.background='${avColor(name)}';this.parentElement.innerHTML='${(name || '?').charAt(0)}'">`; el.style.background = ''; }
-    else { el.innerHTML = (name || '?').charAt(0); el.style.background = avColor(name); }
+    if (url) {
+        el.innerHTML = `<img src="${url}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.background='${avColor(name)}';this.parentElement.innerHTML='${(name || '?').charAt(0)}'">`;
+        el.style.background = '';
+    } else {
+        el.innerHTML = (name || '?').charAt(0);
+        el.style.background = avColor(name);
+    }
 }
 
 /* ── Tab Logic ──────────────── */
@@ -73,7 +109,7 @@ window.onload = async () => {
     try {
         // ✅ ใช้ checkSessionAndRole จาก config.js
         const result = await checkSessionAndRole('personnel', WRK_ROLES.ALLOWED);
-        if (!result) return; // redirect ไป login.html แล้ว
+        if (!result) return;
 
         currentUser = result.user;
         currentProfile = result.personnel;
@@ -85,38 +121,42 @@ window.onload = async () => {
         moduleAdminChecked = true;
         isModuleAdmin = await hasModuleAccess(currentProfile.role, 'personnel', currentUser.id);
 
-        await loadCoreUsers();
-        await loadSettings();
+        // ✅ ใช้ applyVisibilityByRole
+        const isAdminByRole = isAdminUser(currentProfile.role, false);
+        actualIsAdmin = isAdminByRole || isModuleAdmin || (window._personnelSettings?.local_admins || []).includes(currentProfile.id);
 
-        const localAdmins = window._personnelSettings?.local_admins || [];
-        actualIsAdmin = isAdminUser(currentProfile.role, false) || localAdmins.includes(currentProfile.id) || isModuleAdmin;
+        applyVisibilityByRole(currentProfile.role, actualIsAdmin, {
+            settingsBtn: 'btn-settings',
+            toggleBtn: 'btnAdminMode'
+        });
 
+        // ✅ อัปเดตปุ่มสลับโหมด
         if (actualIsAdmin) {
-            const btnAdmin = document.getElementById('btnAdminMode');
-            if (btnAdmin) {
-                btnAdmin.classList.remove('hidden');
-                btnAdmin.classList.add('flex');
-                btnAdmin.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
-                btnAdmin.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
-            }
+            updateToggleModeUI(currentProfile.role, false, 'btnAdminMode');
         }
 
+        await loadCoreUsers();
+        await loadSettings();
         await loadPersonnelList();
         applyRoleUI();
         renderPAInputs();
         initFlatpickr();
         updatePositionLogic();
+
+        // ✅ บันทึก Log
+        await logUserAction('เข้าสู่ระบบบุคลากร', 'personnel');
+
     } catch (err) {
+        console.error('❌ Initialization error:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 };
 
-/* ── Apply Role UI & Toggle ──────────── */
+/* ── Apply Role UI ──────────── */
 function applyRoleUI() {
     const btnAdd = document.getElementById('btn-add');
     if (btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
 
-    // 🔥 เปลี่ยนจาก canManageSettings() เป็น canManagePersonnelSettings()
     const btnSettings = document.getElementById('btn-settings');
     if (btnSettings) {
         if (canManagePersonnelSettings()) {
@@ -128,24 +168,46 @@ function applyRoleUI() {
         }
     }
 
+    const toggleBtn = document.getElementById('btnAdminMode');
+    if (toggleBtn && actualIsAdmin) {
+        updateToggleModeUI(currentProfile.role, forceTeacherMode, 'btnAdminMode');
+        toggleBtn.classList.remove('hidden');
+        toggleBtn.classList.add('flex');
+    }
+
+    // ✅ แสดงการ์ดสถิติให้ทุกคนเห็น (ไม่ซ่อน)
+    const statCards = document.querySelector('.grid.grid-cols-2\\.sm\\:grid-cols-3\\.lg\\:grid-cols-6\\.gap-3');
+    if (statCards) {
+        statCards.classList.remove('hidden');
+    }
+
+    // ✅ Info Blocks (ตารางวิเคราะห์) ซ่อนเฉพาะคนที่ไม่ใช่ Admin
+    const isUserAdmin = isAdmin();
     const infoBlocks = document.getElementById('info-blocks-section');
-    if (infoBlocks) infoBlocks.classList.toggle('hidden', !isAdmin());
+    if (infoBlocks) {
+        if (isUserAdmin) {
+            infoBlocks.classList.remove('hidden');
+        } else {
+            infoBlocks.classList.add('hidden');
+        }
+    }
 
     const btnImport = document.getElementById('btn-import');
     const btnTemplate = document.getElementById('btn-template');
     const btnImportSheets = document.getElementById('btn-import-sheets');
-    if (btnImport) btnImport.style.display = isAdmin() ? '' : 'none';
-    if (btnImportSheets) btnImportSheets.style.display = isAdmin() ? '' : 'none';
-    if (btnTemplate) btnTemplate.style.display = isAdmin() ? '' : 'none';
+    if (btnImport) btnImport.style.display = isUserAdmin ? '' : 'none';
+    if (btnImportSheets) btnImportSheets.style.display = isUserAdmin ? '' : 'none';
+    if (btnTemplate) btnTemplate.style.display = isUserAdmin ? '' : 'none';
 
+    // roleLabel
     let roleLabel = '🟢 ครูผู้สอน';
     if (isSuperAdmin()) roleLabel = '🔴 Super Admin';
     else if (currentProfile?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
     else if (currentProfile?.role === 'director') roleLabel = '🟣 ผู้อำนวยการ';
     else if (currentProfile?.role === 'deputy') roleLabel = '🟠 รองผู้อำนวยการ';
     else if (currentProfile?.role === 'staff') roleLabel = '🔵 เจ้าหน้าที่';
+    else if (currentProfile?.role === 'office') roleLabel = '🟢 เจ้าหน้าที่สำนักงาน';
     else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
-
     if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
 
     const badge = document.getElementById('role-badge');
@@ -153,7 +215,7 @@ function applyRoleUI() {
 
     const sel = document.getElementById('inp-personnel-id');
     if (sel) {
-        if (isTeacher()) {
+        if (isTeacher() || forceTeacherMode) {
             if (sel.tomselect) {
                 sel.tomselect.setValue(currentProfile.id);
                 sel.tomselect.disable();
@@ -172,29 +234,37 @@ function applyRoleUI() {
     }
 }
 
+/* ── Toggle Role View ──────── */
+// เพิ่มตัวแปร actualIsAdmin ไว้ด้านบน (มีอยู่แล้ว)
+
 function toggleRoleView() {
-    // ใช้ isAdmin() เพราะ director/deputy ก็ควรสลับโหมดได้ (ดูเฉพาะตัวเองได้)
-    if (!isAdmin()) {
+    // ใช้ actualIsAdmin ที่ตั้งค่าไว้ใน checkAuth (ไม่สน forceTeacherMode)
+    if (!actualIsAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
         return;
     }
+
     forceTeacherMode = !forceTeacherMode;
+
     const toggleBtn = document.getElementById('btnAdminMode');
-    if (forceTeacherMode) {
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
-            toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
-        }
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'info', title: 'เปลี่ยนเป็นมุมมองครู', showConfirmButton: false, timer: 1500 });
-    } else {
-        if (toggleBtn) {
-            toggleBtn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
-            toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
-        }
-        Swal.fire({ toast: true, position: 'bottom-end', icon: 'success', title: 'เปลี่ยนเป็นมุมมอง Admin', showConfirmButton: false, timer: 1500 });
+    if (toggleBtn && actualIsAdmin) {
+        updateToggleModeUI(currentProfile.role, forceTeacherMode, 'btnAdminMode');
     }
+
+    logUserAction(`สลับโหมดเป็น ${forceTeacherMode ? 'Teacher' : 'Admin'}`, 'personnel');
+
     applyRoleUI();
     loadPersonnelList();
+
+    const modeName = forceTeacherMode ? 'มุมมองครู' : 'มุมมอง Admin';
+    Swal.fire({
+        toast: true,
+        position: 'bottom-end',
+        icon: forceTeacherMode ? 'info' : 'success',
+        title: `เปลี่ยนเป็น ${modeName}`,
+        showConfirmButton: false,
+        timer: 1500
+    });
 }
 
 /* ── Settings (Admin/SuperAdmin) ── */
@@ -219,7 +289,8 @@ async function loadSettings() {
 }
 
 async function saveSetting(key, value) {
-    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+    // ✅ ใช้ canManagePersonnelSettings
+    if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้บันทึกการตั้งค่า', 'error');
         return;
     }
@@ -235,13 +306,17 @@ async function saveSetting(key, value) {
     if (key !== 'is_active') sysSettings = newSettings;
     window._personnelSettings = sysSettings;
 
+    // ✅ Log
+    await logUserAction(`บันทึกการตั้งค่า: ${key}`, 'personnel');
+
     const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 2000, timerProgressBar: true });
     Toast.fire({ icon: 'success', title: `บันทึก ${key === 'is_active' ? 'สถานะระบบ' : key === 'drive_folder_id' ? 'Folder ID' : key === 'gas_url' ? 'GAS URL' : 'แอดมินระบบ'} สำเร็จ` });
     await loadSettings();
 }
 
 function openSettings() {
-    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+    // ✅ ใช้ canManagePersonnelSettings
+    if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบบุคลากรได้', 'warning');
         return;
     }
@@ -303,7 +378,8 @@ function renderLocalAdmins() {
 }
 
 async function addLocalAdmin() {
-    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+    // ✅ ใช้ canManagePersonnelSettings
+    if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มแอดมินได้', 'warning');
         return;
     }
@@ -314,6 +390,12 @@ async function addLocalAdmin() {
     if (admins.includes(uid)) return Swal.fire('มีอยู่แล้ว', 'บุคลากรท่านนี้เป็นแอดมินอยู่แล้ว', 'info');
     admins.push(uid);
     await saveSetting('local_admins', admins);
+
+    // ✅ Log
+    const user = allPersonnelData.find(u => u.id === uid);
+    const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : uid;
+    await logUserAction(`แต่งตั้งแอดมินระบบบุคลากร: ${name}`, 'personnel');
+
     renderLocalAdmins();
     if (sel.tomselect) {
         sel.tomselect.clear();
@@ -323,30 +405,21 @@ async function addLocalAdmin() {
 }
 
 async function removeLocalAdmin(uid) {
-    if (!canManagePersonnelSettings()) {   // 🔥 เปลี่ยนแล้ว
+    // ✅ ใช้ canManagePersonnelSettings
+    if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ถอดแอดมินได้', 'warning');
         return;
     }
     let admins = window._personnelSettings?.local_admins || [];
     admins = admins.filter(id => id !== uid);
     await saveSetting('local_admins', admins);
-    renderLocalAdmins();
-}
 
-/* ── Logout (ไป login.html ตามมาตรฐาน) ── */
-async function handleLogout() {
-    const r = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (r.isConfirmed) {
-        await db.auth.signOut();
-        window.location.href = 'login.html';
-    }
+    // ✅ Log
+    const user = allPersonnelData.find(u => u.id === uid);
+    const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : uid;
+    await logUserAction(`ถอดถอนแอดมินระบบบุคลากร: ${name}`, 'personnel');
+
+    renderLocalAdmins();
 }
 
 /* ── Load Users Dropdown ───── */
@@ -854,6 +927,19 @@ function populateForm(p) {
 /* ── SAVE ───────────────────── */
 async function savePersonnel(e) {
     e.preventDefault();
+
+    // ✅ ตรวจสอบสิทธิ์ด้วย requireAdmin
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่บันทึกข้อมูลบุคลากรได้')) {
+        // แต่ถ้าเป็นเจ้าของข้อมูลตัวเอง ก็ให้บันทึกได้ (allow self-edit)
+        // requireAdmin จะ return false ถ้าไม่ใช่ admin แต่เราต้องตรวจสอบว่าเป็นตัวเองหรือไม่
+        const userId = document.getElementById('inp-personnel-id').value;
+        const editId = document.getElementById('edit-id').value;
+        const targetId = editId || userId;
+        if (currentProfile?.id !== targetId && !isAdmin()) {
+            return;
+        }
+    }
+
     const btn = document.getElementById('btn-submit');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังบันทึก...';
@@ -906,6 +992,11 @@ async function savePersonnel(e) {
         const { error } = await db.from('core_personnel').update(updatePayload).eq('id', targetId);
         if (error) throw error;
 
+        // ✅ Log
+        const user = allPersonnelData.find(u => u.id === targetId);
+        const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : targetId;
+        await logUserAction(`บันทึกข้อมูลบุคลากร: ${name}`, 'personnel');
+
         await Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1600, showConfirmButton: false });
         closeModal();
         await loadPersonnelList();
@@ -919,9 +1010,12 @@ async function savePersonnel(e) {
 
 /* ── DELETE ─────────────────── */
 async function deletePersonnel(id, name) {
-    if (!canDelete()) {
-        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถลบข้อมูลได้', 'warning');
+    // ✅ ใช้ requireAdmin (เฉพาะ Super Admin)
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะ Super Admin เท่านั้นที่ลบข้อมูลบุคลากรได้')) {
+        // ตรวจสอบเพิ่มว่าเป็น Super Admin จริงๆ
+        if (!isSuperAdmin()) return;
     }
+
     const r = await Swal.fire({
         title: `ลบข้อมูล "${name}"?`,
         html: '<span class="text-sm text-red-500">ข้อมูลบุคลากรจะถูกล้าง (บัญชีผู้ใช้ยังคงอยู่)</span>',
@@ -936,6 +1030,10 @@ async function deletePersonnel(id, name) {
         pa_status: null, pa_docs: null, avatar_url: null
     }).eq('id', id);
     if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
+
+    // ✅ Log
+    await logUserAction(`ลบข้อมูลบุคลากร: ${name}`, 'personnel');
+
     Swal.fire({ icon: 'success', title: 'ลบข้อมูลแล้ว', timer: 1400, showConfirmButton: false });
     await loadPersonnelList();
 }
@@ -951,11 +1049,16 @@ async function loadPersonnelList() {
     personnelMap.clear();
     const tbody = document.getElementById('main-tbody');
     tbody.innerHTML = '';
+
+    // ✅ ข้อมูลที่ใช้แสดงในตาราง (กรองตามโหมด)
+    let displayData = allPersonnelData;
+    if (isTeacher() || forceTeacherMode) {
+        displayData = allPersonnelData.filter(p => p.id === currentProfile?.id);
+    }
+
     const today = dayjs(), cyBE = today.year() + 543;
 
-    const tableData = isTeacher() ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
-
-    tableData.forEach(p => {
+    displayData.forEach(p => {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const avHtml = p.avatar_url
             ? `<img src="${p.avatar_url}" style="width:38px;height:38px;border-radius:10px;object-fit:cover;" onerror="this.style.display='none'">`
@@ -965,9 +1068,13 @@ async function loadPersonnelList() {
 
         let retireHtml = '<span class="text-slate-400 text-xs">-</span>';
         if (p.birth_date) {
-            const b = dayjs(p.birth_date); let ry = b.year() + 60; if (b.month() > 8) ry++;
+            const b = dayjs(p.birth_date);
+            let ry = b.year() + 60;
+            if (b.month() > 8) ry++;
             const rBE = ry + 543;
-            retireHtml = rBE === cyBE ? `<span class="badge badge-orange">⚠️ ${rBE}</span>` : `<span class="text-slate-600 text-sm">${rBE}</span>`;
+            retireHtml = rBE === cyBE
+                ? `<span class="badge badge-orange">⚠️ ${rBE}</span>`
+                : `<span class="text-slate-600 text-sm">${rBE}</span>`;
         }
 
         let govHtml = '<span class="text-slate-400 text-xs">-</span>';
@@ -976,8 +1083,15 @@ async function loadPersonnelList() {
             govHtml = `<span class="text-slate-600 text-sm">${gy} ปี</span>`;
         }
 
-        const paMap = { 'ผ่าน': 'badge-blue', 'กำลังดำเนินการ': 'badge-orange', 'ไม่ผ่าน': 'badge-red', 'ยังไม่ดำเนินการ': 'badge-gray' };
-        const paHtml = p.pa_status ? `<span class="badge ${paMap[p.pa_status] || 'badge-gray'}">${p.pa_status}</span>` : `<span class="text-slate-300 text-xs">-</span>`;
+        const paMap = {
+            'ผ่าน': 'badge-blue',
+            'กำลังดำเนินการ': 'badge-orange',
+            'ไม่ผ่าน': 'badge-red',
+            'ยังไม่ดำเนินการ': 'badge-gray'
+        };
+        const paHtml = p.pa_status
+            ? `<span class="badge ${paMap[p.pa_status] || 'badge-gray'}">${p.pa_status}</span>`
+            : `<span class="text-slate-300 text-xs">-</span>`;
 
         let licHtml = '<span class="text-slate-400 text-xs">-</span>';
         if (p.license_expiry) {
@@ -1012,27 +1126,45 @@ async function loadPersonnelList() {
                     <p class="text-xs text-indigo-600 font-medium">${p.academic_standing || ''}</p>
                     <p class="text-[10px] text-slate-400">${p.rank || ''} ${p.position_number ? '| เลขที่ ' + p.position_number : ''}</p>
                 </td>
-                <td><span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-medium">${p.department || '-'}</span></td>
+                <td>
+                    <span class="bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg text-xs font-medium">
+                        ${p.department || '-'}
+                    </span>
+                </td>
                 <td class="text-center text-sm">${ageY != null ? `${ageY} ปี` : '-'}</td>
                 <td class="text-center">${retireHtml}</td>
                 <td class="text-center">${govHtml}</td>
                 <td class="text-center">${licHtml}</td>
                 <td class="text-center">
                     <div class="flex items-center justify-center gap-1">
-                        <button onclick='editPersonnel("${p.id}")' class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
+                        <button onclick='editPersonnel("${p.id}")' class="h-8 w-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center" title="แก้ไข">
+                            <i class="fas fa-pen text-xs"></i>
+                        </button>
                         ${deleteBtnHtml}
                     </div>
                 </td>
-            </tr>`);
+            </tr>
+        `);
     });
 
     personnelTable = new DataTable('#personnelTable', {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        responsive: true, scrollX: true, pageLength: 25,
-        columnDefs: [{ orderable: false, targets: [0, 7] }],
+        responsive: true,
+        scrollX: true,
+        pageLength: 25,
+        columnDefs: [
+            { orderable: false, targets: [0, 7] }
+        ],
         order: [[2, 'asc']],
-        layout: { topStart: 'pageLength', topEnd: 'search', bottomStart: 'info', bottomEnd: 'paging' }
+        layout: {
+            topStart: 'pageLength',
+            topEnd: 'search',
+            bottomStart: 'info',
+            bottomEnd: 'paging'
+        }
     });
+
+    // ✅ ใช้ allPersonnelData เพื่อให้สถิติคงที่ (ไม่กรองตามโหมด)
     updateDashboard(allPersonnelData);
 }
 
@@ -1183,7 +1315,7 @@ function renderInfoBlocks(data) {
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel() {
-    const exportData = isTeacher() ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
+    const exportData = isTeacher() || forceTeacherMode ? allPersonnelData.filter(p => p.id === currentProfile?.id) : allPersonnelData;
 
     if (!exportData.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
     const be = iso => isoToBE(iso) || '-';
@@ -1411,6 +1543,9 @@ async function processImportRows(rows, foundHeaders) {
     }
     Swal.close();
 
+    // ✅ Log
+    await logUserAction(`นำเข้าข้อมูลบุคลากร (สำเร็จ ${success}, ล้มเหลว ${failed})`, 'personnel');
+
     let html = `<div class="text-left text-sm space-y-1">
         <p class="text-green-600 font-bold">✅ อัปเดตสำเร็จ: ${success} รายการ</p>
         ${failed > 0 ? `<p class="text-red-500 font-bold">❌ ล้มเหลว: ${failed} รายการ</p>
@@ -1424,6 +1559,11 @@ async function processImportRows(rows, foundHeaders) {
 
 /* ── IMPORT FROM GOOGLE SHEETS ── */
 async function importFromGoogleSheets() {
+    // ✅ ตรวจสอบสิทธิ์ Admin
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
+        return;
+    }
+
     const { value: sheetUrl } = await Swal.fire({
         title: '<i class="fab fa-google-drive text-green-600 mr-2"></i>นำเข้าจาก Google Sheets',
         html: `<div class="text-left text-sm space-y-3">
@@ -1533,6 +1673,13 @@ function parseCsv(text) {
 /* ── IMPORT FROM EXCEL ──────── */
 async function importFromExcel(event) {
     const file = event.target.files[0]; if (!file) return;
+
+    // ✅ ตรวจสอบสิทธิ์ Admin
+    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
+        event.target.value = '';
+        return;
+    }
+
     event.target.value = '';
     const reader = new FileReader();
     reader.onload = async (e) => {
@@ -1550,3 +1697,33 @@ async function importFromExcel(event) {
     };
     reader.readAsArrayBuffer(file);
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.toggleRoleView = toggleRoleView;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveSetting = saveSetting;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.savePersonnel = savePersonnel;
+window.editPersonnel = editPersonnel;
+window.deletePersonnel = deletePersonnel;
+window.exportToExcel = exportToExcel;
+window.downloadTemplate = downloadTemplate;
+window.importFromExcel = importFromExcel;
+window.importFromGoogleSheets = importFromGoogleSheets;
+window.switchTab = switchTab;
+window.checkLicense = checkLicense;
+window.previewAvatar = previewAvatar;
+window.applyAvatarUrl = applyAvatarUrl;
+window.clearAvatar = clearAvatar;
+window.uploadAvatarNow = uploadAvatarNow;
+window.onNameSelect = onNameSelect;
+window.updatePositionLogic = updatePositionLogic;
+window.clearDate = clearDate;
+window.previewPA = previewPA;
+window.addLocalAdmin = addLocalAdmin;
+window.removeLocalAdmin = removeLocalAdmin;

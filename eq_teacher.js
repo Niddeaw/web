@@ -2,10 +2,10 @@
  * eq_teacher.js — Admin/Teacher Dashboard สำหรับ EQ 9 ด้าน (ดี/เก่ง/สุข)
  * ปรับปรุงการตรวจสอบสิทธิ์ให้เป็นมาตรฐานเดียวกับ config.js (ระบบชุมนุม)
  * รองรับการจัดการแอดมินโมดูล (Module Admin) โดยใช้ core_module_admins
- * ไม่มีการแก้ไข role ใน core_personnel
  * 
  * แก้ไขล่าสุด: ใช้ checkSessionAndRole, hasModuleAccess, applyVisibilityByRole
  * เพิ่มระบบจัดการ Module Admin เหมือน SDQ
+ * เพิ่ม logUserAction ในทุก CRUD
  */
 
 const MODULE_ID = 'eq';
@@ -51,71 +51,92 @@ if (typeof EQ_NORM === 'undefined') {
 // INIT
 // ==========================================
 window.addEventListener('load', async () => {
-    const result = await checkSessionAndRole(MODULE_ID, ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
-    if (!result) return;
+    try {
+        // ✅ ใช้ checkSessionAndRole จาก config.js
+        const result = await checkSessionAndRole('ระบบประเมิน EQ', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
+        if (!result) return;
 
-    currentUser = result.user;
-    currentProfile = result.personnel;
-    currentUserId = currentUser.id;
-    currentUserRole = currentProfile.role;
+        currentUser = result.user;
+        currentProfile = result.personnel;
+        currentUserId = currentUser.id;
+        currentUserRole = currentProfile.role;
 
-    const isAdminByRole = isAdminUser(currentUserRole, false);
-    isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
-    isAdminMode = isAdminByRole || isModuleAdmin;
+        const isAdminByRole = isAdminUser(currentUserRole, false);
+        isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
+        isAdminMode = isAdminByRole || isModuleAdmin;
 
-    document.getElementById('user-display').textContent =
-        `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+        // ✅ แสดงชื่อผู้ใช้
+        document.getElementById('user-display').textContent =
+            `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
 
-    applyAdminVisibility();
+        // ✅ ใช้ applyVisibilityByRole และ updateToggleModeUI
+        applyVisibilityByRole(currentUserRole, isAdminMode, {
+            settingsBtn: 'btn-settings',
+            toggleBtn: 'btnToggleMode',
+            adminManagerBtn: 'btnAdminManager'
+        });
+        updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
 
-    const { data: si } = await db.from('core_school_info').select('*').single();
-    schoolInfo = si;
-
-    if (si) {
-        const { data: s } = await db.from('eq_settings')
-            .select('*').eq('academic_year', si.current_academic_year).eq('semester', si.current_semester).maybeSingle();
-        if (s) {
-            document.getElementById('set-delay').value = s.delay_seconds;
-            document.getElementById('set-active').checked = s.is_active;
+        // ✅ ปุ่ม Admin Manager (เฉพาะผู้มีสิทธิ์)
+        const btnAdminManager = document.getElementById('btnAdminManager');
+        if (btnAdminManager) {
+            const hasSettings = canManageSettings(currentUserRole);
+            btnAdminManager.classList.toggle('hidden', !hasSettings);
+            btnAdminManager.classList.toggle('flex', hasSettings);
         }
-    }
 
-    await loadClassrooms();
-    await loadStats();
+        // ✅ โหลดข้อมูลโรงเรียน
+        const { data: si } = await db.from('core_school_info').select('*').single();
+        schoolInfo = si;
+
+        if (si) {
+            const { data: s } = await db.from('eq_settings')
+                .select('*').eq('academic_year', si.current_academic_year).eq('semester', si.current_semester).maybeSingle();
+            if (s) {
+                document.getElementById('set-delay').value = s.delay_seconds;
+                document.getElementById('set-active').checked = s.is_active;
+            }
+        }
+
+        // ✅ ควบคุมการแสดงโหมด Admin/Teacher
+        const adminFilter = document.getElementById('adminFilterSection');
+        const teacherBar = document.getElementById('teacherActionBar');
+        if (isAdminMode) {
+            adminFilter.classList.remove('hidden');
+            teacherBar.classList.add('hidden');
+        } else {
+            adminFilter.classList.add('hidden');
+            teacherBar.classList.remove('hidden');
+        }
+
+        // ✅ บันทึก Log การเข้าใช้งาน
+        await logUserAction('เข้าสู่ระบบประเมิน EQ', 'eq');
+
+        await loadClassrooms();
+        await loadStats();
+
+    } catch (err) {
+        console.error('Init error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 });
 
 // ==========================================
-// ฟังก์ชันอัปเดต UI ตามสิทธิ์
+// TOGGLE MODE
 // ==========================================
-function canManageSettings() {
-    return isAdminUser(currentUserRole, false) || isModuleAdmin;
-}
-
-function applyAdminVisibility() {
+async function toggleMode() {
+    if (!canManageSettings(currentUserRole) && !isModuleAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
+        return;
+    }
+    isAdminMode = !isAdminMode;
+    
+    // ✅ อัปเดต UI ด้วยฟังก์ชันกลาง
     applyVisibilityByRole(currentUserRole, isAdminMode, {
         settingsBtn: 'btn-settings',
-        toggleBtn: 'btnToggleMode'
+        toggleBtn: 'btnToggleMode',
+        adminManagerBtn: 'btnAdminManager'
     });
-
-    const btnAdminManager = document.getElementById('btnAdminManager');
-    if (btnAdminManager) {
-        if (canManageSettings()) {
-            btnAdminManager.classList.remove('hidden');
-            btnAdminManager.classList.add('flex');
-        } else {
-            btnAdminManager.classList.add('hidden');
-            btnAdminManager.classList.remove('flex');
-        }
-    }
-
-    if (!canManageSettings()) {
-        const btnSettings = document.getElementById('btn-settings');
-        if (btnSettings) {
-            btnSettings.classList.add('hidden');
-            btnSettings.classList.remove('flex');
-        }
-    }
-
     updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
 
     const adminFilter = document.getElementById('adminFilterSection');
@@ -127,39 +148,32 @@ function applyAdminVisibility() {
         adminFilter.classList.add('hidden');
         teacherBar.classList.remove('hidden');
     }
-}
 
-// ==========================================
-// TOGGLE MODE
-// ==========================================
-async function toggleMode() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
-        return;
-    }
-    isAdminMode = !isAdminMode;
-    applyAdminVisibility();
     if (eqTable) { eqTable.destroy(); eqTable = null; }
     document.getElementById('eq-tbody').innerHTML = '';
     await loadClassrooms();
     await loadStats();
+    
+    await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'eq');
 }
 
 // ==========================================
-// LOGOUT
+// LOGOUT (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
-    const r = await Swal.fire({
+    const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ออก',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
     });
-    if (r.isConfirmed) {
+    if (isConfirmed) {
         await db.auth.signOut();
-        window.location.href = 'login.html';
+        window.location.replace("login.html");
     }
 }
 
@@ -526,6 +540,7 @@ function renderGoodSkillHappyChart(good, skill, happy) {
         }
     });
 }
+
 // ==========================================
 // VIEW RESULT
 // ==========================================
@@ -655,7 +670,7 @@ async function openViewResult(studentId) {
 }
 
 // ==========================================
-// EDIT (CRUD) - ใช้ canManageSettings แทน requireAdmin
+// EDIT (CRUD) - ใช้ requireAdmin
 // ==========================================
 
 function closeEditModal() {
@@ -664,6 +679,11 @@ function closeEditModal() {
 }
 
 async function openEditForStudent(studentId) {
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขผลการประเมินได้')) {
+        return;
+    }
+
     let row = allResults.find(r => r.student_id === studentId);
     if (!row) {
         const { data: enroll } = await db.from('student_enrollments')
@@ -695,10 +715,11 @@ async function openEditForStudent(studentId) {
 }
 
 async function saveEdit() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขผลการประเมินได้', 'warning');
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขผลการประเมินได้')) {
         return;
     }
+
     const studentId = document.getElementById('edit-student-id').value;
     const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
         .select('classroom_id')
@@ -767,6 +788,10 @@ async function saveEdit() {
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
         return;
     }
+    
+    // ✅ บันทึก Log
+    await logUserAction(`แก้ไขผลประเมิน EQ ของนักเรียน ID ${studentId}`, 'eq');
+    
     Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1500, showConfirmButton: false });
     closeEditModal();
     loadResults();
@@ -774,10 +799,11 @@ async function saveEdit() {
 }
 
 async function deleteResult(studentId) {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้', 'warning');
+    // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้')) {
         return;
     }
+    
     const r = await Swal.fire({
         title: 'ลบผลการประเมิน?',
         icon: 'warning',
@@ -786,10 +812,15 @@ async function deleteResult(studentId) {
         confirmButtonText: 'ลบ'
     });
     if (!r.isConfirmed) return;
+    
     await db.from('eq_assessments').delete()
         .eq('student_id', studentId)
         .eq('academic_year', schoolInfo.current_academic_year)
         .eq('semester', schoolInfo.current_semester);
+    
+    // ✅ บันทึก Log
+    await logUserAction(`ลบผลประเมิน EQ ของนักเรียน ID ${studentId}`, 'eq');
+    
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
     loadResults();
     loadStats();
@@ -827,10 +858,13 @@ function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'EQ_9dim');
     XLSX.writeFile(wb, `EQ_${isAdminMode ? 'admin' : 'teacher'}_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
+    
+    // ✅ บันทึก Log
+    logUserAction(`ส่งออก Excel EQ (${isAdminMode ? 'Admin' : 'Teacher'})`, 'eq');
 }
 
 // ==========================================
-// PRINT STUDENT PDF (ย่อส่วน - ยังคงฟังก์ชันเดิม)
+// PRINT STUDENT PDF
 // ==========================================
 async function printStudentPdf(studentId) {
     Swal.fire({ title: 'กำลังเตรียมเอกสาร PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -906,9 +940,6 @@ function generateStudentPDF(assessment, schoolName, academicYear, semester, advi
         year: 'numeric', month: 'long', day: 'numeric'
     });
 
-    // HTML ภายในฟังก์ชัน generateStudentPDF นี้ยาวมาก (คงไว้เหมือนเดิม) แต่เราไม่ต้องแก้
-    // ... (โค้ดเดิมที่สร้าง HTML) ...
-    // เนื่องจากความยาวจำกัด ผมจะใช้ฟังก์ชัน buildEQPdfHtml แทน
     const html = buildEQPdfHtml({ assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl, room, studentNumber, subDims, totalColor, totalBg, assessedDate });
     const imgUrls = [logoUrl, avatarUrl].filter(Boolean);
     if (imgUrls.length === 0) {
@@ -937,11 +968,10 @@ function generateStudentPdfNow(html, fullName) {
 }
 
 // ==========================================
-// IMPORT - เฉพาะผู้ดูแลระบบเท่านั้น
+// IMPORT - ใช้ requireAdmin
 // ==========================================
 function openImportModal() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้', 'warning');
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) {
         return;
     }
     document.getElementById('import-modal').classList.remove('hidden');
@@ -960,7 +990,10 @@ function setImportMode(mode) {
 }
 
 async function handleFileImport(input) {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) {
+        input.value = '';
+        return;
+    }
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -974,7 +1007,9 @@ async function handleFileImport(input) {
 }
 
 async function handleSheetsImport() {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) {
+        return;
+    }
     const url = document.getElementById('sheets-url').value.trim();
     const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (!m) return Swal.fire('URL ไม่ถูกต้อง', '', 'error');
@@ -1004,7 +1039,9 @@ async function handleSheetsImport() {
 }
 
 async function processImportRows(rows) {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) {
+        return;
+    }
     const dataRows = rows.filter(r => r['รหัสนักเรียน']);
     if (!dataRows.length) return Swal.fire('ไม่พบข้อมูล', '', 'warning');
     Swal.fire({ title: `พบ ${dataRows.length} รายการ`, text: 'กำลังนำเข้า...', didOpen: () => Swal.showLoading() });
@@ -1075,26 +1112,28 @@ async function processImportRows(rows) {
     }
     Swal.close();
     closeImportModal();
+    
+    // ✅ บันทึก Log
+    await logUserAction(`นำเข้าข้อมูล EQ: ${success} รายการสำเร็จ, ${fail} รายการล้มเหลว`, 'eq');
+    
     Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
     loadResults();
     loadStats();
 }
 
 // ==========================================
-// SETTINGS (เฉพาะผู้ดูแลระบบเท่านั้น)
+// SETTINGS (ใช้ requireAdmin)
 // ==========================================
 let allPersonnel = [];
 
 function openSettings() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้', 'warning');
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
         return;
     }
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
-    // แสดงเฉพาะ super_admin (จัดการผู้ใช้ทั่วไป) แต่ไม่มีการเปลี่ยน role
     if (currentUserRole === 'super_admin') {
         document.getElementById('user-management-section').classList.remove('hidden');
         loadPersonnelForSettings();
@@ -1109,8 +1148,7 @@ function closeSettings() {
 }
 
 async function saveSettings() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้ตั้งค่าระบบ', 'error');
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
         return;
     }
     const delay = parseInt(document.getElementById('set-delay').value) || 0;
@@ -1124,13 +1162,15 @@ async function saveSettings() {
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        // ✅ บันทึก Log
+        await logUserAction(`บันทึกการตั้งค่า EQ (delay=${delay}s, active=${active})`, 'eq');
         Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1400, showConfirmButton: false });
         closeSettings();
     }
 }
 
 async function loadPersonnelForSettings() {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode)) return;
     if (currentUserRole !== 'super_admin') return;
     const { data, error } = await db.from('core_personnel')
         .select('id, first_name, last_name, email, role, prefix')
@@ -1178,8 +1218,7 @@ function renderUserTableForSettings(users) {
 // MODULE ADMIN MANAGEMENT (ใช้ core_module_admins)
 // ==========================================
 function openAdminManager() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการแอดมินโมดูลได้', 'warning');
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการแอดมินโมดูลได้')) {
         return;
     }
     document.getElementById('adminManagerModal').classList.remove('hidden');
@@ -1361,7 +1400,9 @@ async function loadCurrentAdmins() {
 }
 
 async function addModuleAdmin() {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แต่งตั้งผู้ดูแลโมดูลได้')) {
+        return;
+    }
 
     const select = document.getElementById('personnelSelect');
     const personnelId = select.tomselect ? select.tomselect.getValue() : select.value;
@@ -1403,6 +1444,9 @@ async function addModuleAdmin() {
 
         if (insertError) throw insertError;
 
+        // ✅ บันทึก Log
+        await logUserAction(`แต่งตั้ง Module Admin EQ: ${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`, 'eq');
+
         Swal.fire({
             icon: 'success',
             title: 'แต่งตั้งสำเร็จ!',
@@ -1422,7 +1466,9 @@ async function addModuleAdmin() {
 }
 
 async function removeModuleAdmin(adminId, adminName) {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ถอดถอนผู้ดูแลโมดูลได้')) {
+        return;
+    }
 
     const result = await Swal.fire({
         title: 'ยืนยันการถอดถอน?',
@@ -1443,6 +1489,9 @@ async function removeModuleAdmin(adminId, adminName) {
             .eq('id', adminId);
 
         if (error) throw error;
+
+        // ✅ บันทึก Log
+        await logUserAction(`ถอดถอน Module Admin EQ: ${adminName}`, 'eq');
 
         Swal.fire({
             icon: 'success',
@@ -1583,3 +1632,29 @@ ${subRows}
 <div class="footer">ระบบ WRK School Management System | EQ แบบประเมินกรมสุขภาพจิต (อายุ 12–17 ปี)</div>
 </body></html>`;
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.toggleMode = toggleMode;
+window.logout = logout;
+window.openViewResult = openViewResult;
+window.closeViewModal = closeViewModal;
+window.openEditForStudent = openEditForStudent;
+window.closeEditModal = closeEditModal;
+window.saveEdit = saveEdit;
+window.deleteResult = deleteResult;
+window.exportExcel = exportExcel;
+window.printStudentPdf = printStudentPdf;
+window.openImportModal = openImportModal;
+window.closeImportModal = closeImportModal;
+window.setImportMode = setImportMode;
+window.handleFileImport = handleFileImport;
+window.handleSheetsImport = handleSheetsImport;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveSettings = saveSettings;
+window.openAdminManager = openAdminManager;
+window.closeAdminManager = closeAdminManager;
+window.addModuleAdmin = addModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;

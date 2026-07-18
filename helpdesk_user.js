@@ -1,82 +1,123 @@
+// ==========================================
+// helpdesk_user.js — ระบบศูนย์ช่วยเหลือ (ผู้ใช้งาน)
+// ปรับปรุง: ใช้ logUserAction, logout มาตรฐาน และตรวจสอบสิทธิ์แบบเดิม (ค้นหา core_personnel และ core_students)
+// ==========================================
+
 let currentUserId = null;
 let currentUserType = 'student';
 let currentTicketId = null;
 let isBanned = false;
+let currentUserRole = 'student';
 
-window.onload = async () => {
-    await checkAuth();
-};
-
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) {
-        window.location.replace('index.html');
-        return;
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
     }
-    currentUserId = session.user.id;
+}
 
-    const userEmail = session.user.email;
-    const studentIdCard = userEmail.split('@')[0];
-
-    // ค้นหาใน core_personnel ก่อน (ครู/บุคลากร)
-    const { data: teacherProfile, error: teacherError } = await db
-        .from('core_personnel')
-        .select('id, helpdesk_banned')
-        .eq('id', currentUserId)
-        .maybeSingle();
-
-    if (teacherProfile && !teacherError) {
-        currentUserType = 'teacher';
-        isBanned = teacherProfile.helpdesk_banned || false;
+// ==========================================
+// ฟังก์ชันกลับหน้า
+// ==========================================
+function goBack() {
+    if (currentUserType === 'teacher') {
+        window.location.replace('index.html');
     } else {
-        // ค้นหาใน core_students ด้วย student_id_card จาก email
-        const { data: studentProfile, error: studentError } = await db
-            .from('core_students')
-            .select('id, helpdesk_banned')
-            .eq('student_id_card', studentIdCard)
+        window.location.replace('student_index.html');
+    }
+}
+
+// ==========================================
+// INIT — ตรวจสอบสิทธิ์แบบเดิม (รองรับนักเรียนและบุคลากร)
+// ==========================================
+window.onload = async () => {
+    try {
+        const { data: { session } } = await db.auth.getSession();
+        if (!session) {
+            window.location.replace('index.html');
+            return;
+        }
+
+        const userEmail = session.user.email;
+        const studentIdCard = userEmail.split('@')[0];
+
+        // 1. ค้นหาใน core_personnel (ครู/บุคลากร)
+        const { data: teacherProfile, error: teacherError } = await db
+            .from('core_personnel')
+            .select('id, helpdesk_banned, role')
+            .eq('id', session.user.id)
             .maybeSingle();
 
-        if (studentProfile && !studentError) {
-            currentUserType = 'student';
-            currentUserId = studentProfile.id; // ✅ ใช้ UUID จาก core_students
-            isBanned = studentProfile.helpdesk_banned || false;
+        if (teacherProfile && !teacherError) {
+            currentUserType = 'teacher';
+            currentUserId = teacherProfile.id;
+            currentUserRole = teacherProfile.role || 'teacher';
+            isBanned = teacherProfile.helpdesk_banned || false;
         } else {
-            document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            // 2. ค้นหาใน core_students
+            const { data: studentProfile, error: studentError } = await db
+                .from('core_students')
+                .select('id, helpdesk_banned')
+                .eq('student_id_card', studentIdCard)
+                .maybeSingle();
+
+            if (studentProfile && !studentError) {
+                currentUserType = 'student';
+                currentUserId = studentProfile.id;
+                currentUserRole = 'student';
+                isBanned = studentProfile.helpdesk_banned || false;
+            } else {
+                // ไม่พบข้อมูลทั้งสองตาราง
+                Swal.fire({
+                    title: 'ข้อผิดพลาดของบัญชี',
+                    text: 'ไม่พบข้อมูลโปรไฟล์ของคุณในระบบ กรุณาแจ้งผู้ดูแลระบบ',
+                    icon: 'error',
+                    confirmButtonText: 'กลับหน้าหลัก'
+                }).then(() => {
+                    window.location.replace('index.html');
+                });
+                return;
+            }
+        }
+
+        if (isBanned) {
             Swal.fire({
-                title: 'ข้อผิดพลาดของบัญชี',
-                text: 'ไม่พบข้อมูลโปรไฟล์ของคุณในระบบ (รหัสผู้ใช้ไม่ตรงกับฐานข้อมูล) กรุณาแจ้งผู้ดูแลระบบ',
+                title: 'ถูกระงับการใช้งาน',
+                text: 'คุณถูกแบนไม่สามารถใช้ระบบ Helpdesk ได้ กรุณาติดต่อผู้ดูแลระบบ',
                 icon: 'error',
                 confirmButtonText: 'กลับหน้าหลัก'
             }).then(() => {
-                window.location.replace('index.html');
+                window.location.replace(currentUserType === 'teacher' ? 'index.html' : 'student_index.html');
             });
             return;
         }
-    }
 
-    if (isBanned) {
+        // ✅ บันทึก Log การเข้าใช้งาน
+        await window.logUserAction('เข้าสู่ระบบศูนย์ช่วยเหลือ (ผู้ใช้)', 'helpdesk');
+
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-        Swal.fire({
-            title: 'ถูกระงับการใช้งาน',
-            text: 'คุณถูกแบนไม่สามารถใช้ระบบ Helpdesk ได้ กรุณาติดต่อผู้ดูแลระบบ',
-            icon: 'error',
-            confirmButtonText: 'กลับหน้าหลัก'
-        }).then(() => {
-            window.location.replace(currentUserType === 'teacher' ? 'index.html' : 'student_index.html');
-        });
-        return;
-    }
+        await loadUserTickets();
 
-    const backBtn = document.getElementById('backToHomeBtn');
-    if (backBtn) {
-        backBtn.onclick = () => {
-            window.location.replace(currentUserType === 'teacher' ? 'index.html' : 'student_index.html');
-        };
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
+};
 
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-    await loadUserTickets();
-}
+// ========== ฟังก์ชันที่เหลือ (ไม่มีการเปลี่ยนแปลง) ==========
 
 function linkify(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
@@ -91,7 +132,6 @@ function formatThaiDateTime(dateString) {
     return d.locale('th').format('DD MMM ') + yearBE + d.format(' HH:mm');
 }
 
-// โหลดรายการเรื่องที่ผู้ใช้คนนี้เคยส่งไว้ (อัปเดต: เพิ่มระบบแจ้งเตือนจุดแดง)
 async function loadUserTickets() {
     try {
         const { data, error } = await db.from('module_helpdesk_tickets')
@@ -106,14 +146,11 @@ async function loadUserTickets() {
             ticketList.innerHTML = data.map(ticket => {
                 let statusColor = 'bg-amber-100 text-amber-700';
                 let statusText = 'รอแอดมินตรวจสอบ';
-                
-                // 🔴 จุดแดงจะโชว์เมื่อสถานะคือ 'replied' (แอดมินตอบแล้ว) และยังไม่ได้เปิดอ่าน (เราจะถือว่าถ้ากดเปิดแล้วคือ Active)
                 let redBadgeHtml = '';
 
                 if (ticket.status === 'replied') {
                     statusColor = 'bg-green-100 text-green-700';
                     statusText = 'แอดมินตอบกลับแล้ว';
-                    // ใส่จุดกะพริบเตือนถ้ายังไม่ได้คลิกเลือกห้องแชทนี้
                     if (ticket.id !== currentTicketId) {
                         redBadgeHtml = `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>`;
                     }
@@ -180,6 +217,10 @@ async function openNewTicketModal() {
                 status: 'open'
             }).select().single();
             if (error) throw error;
+            
+            // ✅ บันทึก Log
+            await window.logUserAction(`สร้าง Ticket Helpdesk: "${topic.trim()}"`, 'helpdesk');
+            
             Swal.fire({ icon: 'success', title: 'สร้างเรื่องสำเร็จ', text: 'กรุณาพิมพ์รายละเอียดปัญหาในช่องแชท', timer: 2000, showConfirmButton: false });
             await loadUserTickets();
             openTicket(newTicket.id, newTicket.topic, newTicket.status);
@@ -267,6 +308,10 @@ async function sendMessage(e) {
         });
         if (msgErr) throw msgErr;
         await db.from('module_helpdesk_tickets').update({ status: 'open' }).eq('id', currentTicketId);
+        
+        // ✅ บันทึก Log
+        await window.logUserAction(`ส่งข้อความ Helpdesk (Ticket: ${currentTicketId})`, 'helpdesk');
+        
         input.value = '';
         await fetchMessages();
     } catch (err) {
@@ -275,21 +320,14 @@ async function sendMessage(e) {
 }
 
 // ==========================================
-// Mobile Responsive UI Handlers (อัปเดตใหม่)
+// Mobile UI Handlers
 // ==========================================
-
 function showChatOnMobile() {
-    // ถ้าหน้าจอเป็นคอมพิวเตอร์ หรือแท็บเล็ตแนวนอน (> 768px) ไม่ต้องสลับหน้าจอ
-    if (window.innerWidth >= 768) return; 
-
+    if (window.innerWidth >= 768) return;
     const sidebar = document.getElementById('sidebarPanel');
     const chat = document.getElementById('chatPanel');
-    
-    // 1. บังคับซ่อน Sidebar (ต้องเอา flex ออกก่อน ไม่งั้นจะไม่ยอมซ่อน)
     sidebar.classList.remove('flex');
     sidebar.classList.add('hidden');
-    
-    // 2. บังคับโชว์ Chat 
     chat.classList.remove('hidden');
     chat.classList.add('flex');
 }
@@ -297,18 +335,23 @@ function showChatOnMobile() {
 function showSidebarOnMobile() {
     const sidebar = document.getElementById('sidebarPanel');
     const chat = document.getElementById('chatPanel');
-    
-    // 1. โชว์ Sidebar กลับมา
     sidebar.classList.remove('hidden');
     sidebar.classList.add('flex');
-    
-    // 2. ซ่อน Chat
     chat.classList.remove('flex');
     chat.classList.add('hidden');
-    
-    // เคลียร์สถานะการโฟกัสตั๋ว (เฉพาะฝั่ง Admin ที่มีตัวแปร currentTicketId)
-    if (typeof currentTicketId !== 'undefined') {
-        currentTicketId = null; 
-        if (typeof loadTickets === 'function') loadTickets();
-    }
+    currentTicketId = null;
+    if (typeof loadUserTickets === 'function') loadUserTickets();
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.goBack = goBack;
+window.openNewTicketModal = openNewTicketModal;
+window.openTicket = openTicket;
+window.sendMessage = sendMessage;
+window.showSidebarOnMobile = showSidebarOnMobile;
+window.loadUserTickets = loadUserTickets;
+
+console.log('✅ helpdesk_user.js loaded with config.js integration (checkAuth style)');

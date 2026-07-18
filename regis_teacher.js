@@ -1,149 +1,145 @@
-// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin) ฉบับสมบูรณ์
-// แก้ไข: loadSettings ถูกกำหนดแล้ว, saveSettings ใช้ insert/update แยก
+// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin) ใช้ config.js มาตรฐาน
+// สิทธิ์: super_admin, admin, director, deputy, office เท่านั้น
+// teacher, staff ถูกปฏิเสธ (alert + redirect index.html)
 
 let tableInstance = null;
 let allRequests = [];
 let sysSettings = null;
 let currentUser = null;
 let currentProfile = null;
+let currentUserRole = null;
 let isAdminMode = false;
-let currentUserRole = null;    // ✅ ประกาศไว้แล้ว
-let isSuperAdmin = false;      // ✅ ประกาศไว้แล้ว
+let isModuleAdmin = false;
 
-// ✅ ดัก error ทั่วไป
-window.onerror = function(message, source, lineno, colno, error) {
-    console.error('❌ Global error caught:', message, error);
-    alert('เกิดข้อผิดพลาด: ' + message);
-    window.location.replace('index.html');
-    return true;
-};
-
+// ==========================================
+// INIT
+// ==========================================
 window.onload = async () => {
-    console.log('✅ window.onload เริ่มทำงาน');
     try {
         await checkAuth();
     } catch (error) {
-        console.error('❌ Unhandled error in window.onload:', error);
+        console.error('❌ Unhandled error:', error);
         alert('เกิดข้อผิดพลาดร้ายแรง: ' + error.message);
-        window.location.replace('index.html');
+        window.location.href = 'index.html';
     }
 };
 
 // ==========================================
-// ตรวจสอบสิทธิ์
+// ตรวจสอบสิทธิ์ (ใช้ config.js)
 // ==========================================
 async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
+
     try {
-        if (typeof WRK_ROLES === 'undefined') {
-            console.error('❌ WRK_ROLES ไม่ถูกนิยาม');
-            alert('เกิดข้อผิดพลาด: ไม่พบตัวแปร WRK_ROLES');
+        // ตรวจสอบว่า Swal โหลดแล้ว
+        if (typeof Swal === 'undefined') {
+            console.error('❌ SweetAlert2 (Swal) ไม่ถูกโหลด');
+            alert('เกิดข้อผิดพลาด: SweetAlert2 ไม่ถูกโหลด กรุณาติดต่อผู้ดูแลระบบ');
             window.location.replace('index.html');
             return;
         }
 
-        console.log('📌 เรียก checkSessionAndRole...');
-        const result = await window.checkSessionAndRole('regis_teacher', WRK_ROLES.ALLOWED);
+        // ✅ ส่ง allowedRoles ที่ถูกต้องเข้าไปเลย — checkSessionAndRole จะ block teacher/staff เอง
+        //    ไม่ต้องเช็คซ้ำอีกรอบหลัง return
+        const allowedRolesForThisModule = ['super_admin', 'admin', 'director', 'deputy', 'office'];
+        const result = await window.checkSessionAndRole('ระบบงานทะเบียน', allowedRolesForThisModule);
         if (!result) {
-            console.log('❌ checkSessionAndRole ส่งคืน null');
+            // null = ไม่มี session (→ login.html) หรือ role ไม่ผ่าน (→ Swal + index.html)
+            // config.js จัดการทั้งหมดแล้ว หยุดทำงานได้เลย
             return;
         }
 
-        const { user, personnel, role, isAdmin, isTeacher } = result;
-        console.log('✅ checkSessionAndRole สำเร็จ:', { user: user.id, role, isAdmin });
-
+        const { user, personnel, role } = result;
         currentUser = user;
         currentProfile = personnel;
         currentUserRole = role;
-        isAdminMode = isAdmin;
-        isSuperAdmin = (role === 'super_admin');
 
-        let hasAccess = false;
+        console.log('✅ User:', currentProfile.first_name, 'Role:', role);
 
-        if (WRK_ROLES.ADMIN.includes(role)) {
-            hasAccess = true;
-            console.log('✅ User มีบทบาทในกลุ่ม ADMIN');
-        } else {
-            console.log('🔍 ตรวจสอบ core_module_admins...');
-            const { data: modAdmin, error } = await db.from('core_module_admins')
-                .select('id')
-                .eq('user_id', user.id)
-                .eq('module_id', 'regis')
-                .maybeSingle();
-            if (error) {
-                console.error('❌ Error checking module admin:', error);
-            }
-            if (modAdmin) {
-                hasAccess = true;
-                console.log('✅ User เป็น module admin ของ regis');
-            } else {
-                console.log('❌ User ไม่ใช่ module admin');
-            }
+        // 2. ตรวจสอบ admin mode
+        isAdminMode = isAdminUser(role, false);
+
+        // 4. ใช้ applyVisibilityByRole (ป้องกัน error)
+        try {
+            applyVisibilityByRole(role, isAdminMode, {
+                settingsBtn: 'btnSettings',
+                toggleBtn: null
+            });
+        } catch (e) {
+            console.warn('⚠️ applyVisibilityByRole error:', e);
         }
 
-        if (!hasAccess) {
-            console.log('🚫 ไม่มีสิทธิ์เข้าใช้งาน - แสดง SweetAlert');
-            try {
-                await Swal.fire({
-                    icon: 'error',
-                    title: 'ไม่มีสิทธิ์เข้าใช้งาน',
-                    text: 'คุณไม่มีสิทธิ์เข้าใช้งานระบบนี้ กรุณาติดต่อผู้ดูแลระบบ',
-                    confirmButtonText: 'ตกลง'
-                });
-                console.log('✅ SweetAlert แสดงและปิดแล้ว');
-            } catch (swalError) {
-                console.error('❌ SweetAlert error:', swalError);
-                alert('❌ ไม่มีสิทธิ์เข้าใช้งาน\n\nคุณไม่มีสิทธิ์เข้าใช้งานระบบนี้\nกรุณาติดต่อผู้ดูแลระบบ');
-            }
-            console.log('🚀 กำลัง redirect ไป index.html');
-            window.location.replace('index.html');
-            return;
-        }
-console.log('🔍 role:', role, 'isSuperAdmin:', isSuperAdmin);
-
-        // แสดงชื่อผู้ใช้ใน navbar
-        const displayName = document.getElementById('display-name');
-        if (displayName && currentProfile) {
-            displayName.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
-            console.log(`✅ แสดงชื่อ: ${displayName.textContent}`);
+        // 5. แสดงชื่อและสิทธิ์ (ป้องกัน error)
+        try {
+            updateUIRole();
+        } catch (e) {
+            console.warn('⚠️ updateUIRole error:', e);
         }
 
-        // ✅ ซ่อนปุ่มตั้งค่า ถ้าไม่ใช่ super_admin
-        const settingsBtn = document.querySelector('[onclick="openSettingsModal()"]');
-        if (settingsBtn) {
-            if (isSuperAdmin) {
-                settingsBtn.style.display = '';
-                console.log('✅ แสดงปุ่มตั้งค่า (super_admin)');
-            } else {
-                settingsBtn.style.display = 'none';
-                console.log('🔒 ซ่อนปุ่มตั้งค่า (ไม่ใช่ super_admin)');
-            }
-        }
+        // 6. บันทึก Log
+        await logUserAction('เข้าสู่ระบบงานทะเบียน', 'regis');
 
-        document.getElementById('mainBody').classList.remove('hidden');
-        console.log('✅ แสดงเนื้อหาหลัก');
+        // 7. แสดงเนื้อหา
+        const mainBody = document.getElementById('mainBody');
+        if (mainBody) mainBody.classList.remove('hidden');
 
+        // 8. โหลดข้อมูล
         await loadSettings();
         await loadData();
 
+        console.log('✅ checkAuth สำเร็จ');
+
     } catch (error) {
         console.error('❌ checkAuth error:', error);
-        try {
-            await Swal.fire({
-                icon: 'error',
-                title: 'เกิดข้อผิดพลาดในการตรวจสอบสิทธิ์',
-                text: error.message || 'กรุณาลองใหม่หรือติดต่อผู้ดูแลระบบ',
-                confirmButtonText: 'ตกลง'
-            });
-        } catch (e) {
-            alert('เกิดข้อผิดพลาด: ' + error.message);
-        }
-        window.location.replace('index.html');
+        Swal.fire({
+            icon: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            text: error.message || 'กรุณาติดต่อผู้ดูแลระบบ',
+            confirmButtonText: 'ตกลง'
+        }).then(() => {
+            window.location.replace('index.html');
+        });
     }
 }
 
 // ==========================================
-// ออกจากระบบ (logout)
+// แสดงชื่อผู้ใช้และสิทธิ์บน Navbar
+// ==========================================
+function updateUIRole() {
+    if (!currentProfile) {
+        console.warn('⚠️ updateUIRole: currentProfile is null');
+        return;
+    }
+
+    // แสดงชื่อ
+    const nameEl = document.getElementById('display-name');
+    if (nameEl) {
+        nameEl.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+    } else {
+        console.warn('⚠️ ไม่พบ element #display-name');
+    }
+
+    // แสดงสิทธิ์
+    const roleMap = {
+        'super_admin': 'ผู้ดูแลระบบสูงสุด',
+        'admin': 'ผู้ดูแลระบบ',
+        'director': 'ผู้อำนวยการ',
+        'deputy': 'รองผู้อำนวยการ',
+        'office': 'เจ้าหน้าที่สำนักงาน'
+    };
+
+    const roleEl = document.getElementById('userRoleBadge');
+    if (roleEl) {
+        const roleText = roleMap[currentUserRole] || currentUserRole || 'ไม่ระบุ';
+        roleEl.textContent = roleText;
+        roleEl.className = `text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700`;
+    } else {
+        console.warn('⚠️ ไม่พบ element #userRoleBadge');
+    }
+}
+
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -156,74 +152,43 @@ async function logout() {
     });
     if (isConfirmed) {
         await db.auth.signOut();
-        window.location.replace('login.html');
+        window.location.href = 'login.html';
     }
 }
 
 // ==========================================
-// โหลดการตั้งค่าระบบ (ใช้ maybeSingle)
+// โหลดการตั้งค่าระบบ
 // ==========================================
 async function loadSettings() {
-    console.log('🔍 loadSettings เริ่มทำงาน');
     try {
         const { data, error } = await db.from('regis_settings').select('*').maybeSingle();
-
         if (error && error.code !== 'PGRST116') {
-            console.error('❌ Error loading settings:', error);
-            throw new Error('ไม่สามารถโหลดการตั้งค่าระบบ');
+            console.error('❌ loadSettings error:', error);
+            return;
         }
-
         if (data) {
             sysSettings = data;
             document.getElementById('gasApiUrl').value = data.gas_api_url || '';
             document.getElementById('slideTemplateId').value = data.slide_template_id || '';
             document.getElementById('pdfFolderId').value = data.pdf_folder_id || '';
-            console.log('✅ โหลดการตั้งค่าสำเร็จ:', sysSettings);
         } else {
             sysSettings = { gas_api_url: '', slide_template_id: '', pdf_folder_id: '' };
             document.getElementById('gasApiUrl').value = '';
             document.getElementById('slideTemplateId').value = '';
             document.getElementById('pdfFolderId').value = '';
-            console.log('ℹ️ ยังไม่มีการตั้งค่าระบบ ใช้ค่าว่าง');
-            
-            if (isSuperAdmin) {
-                await Swal.fire({
-                    icon: 'info',
-                    title: 'ยังไม่มีการตั้งค่าระบบ',
-                    text: 'กรุณากรอกข้อมูลในหน้าตั้งค่า (เฉพาะ super_admin)',
-                    confirmButtonText: 'ตกลง'
-                });
-            }
         }
-    } catch (error) {
-        console.error('❌ loadSettings error:', error);
-        sysSettings = { gas_api_url: '', slide_template_id: '', pdf_folder_id: '' };
-        await Swal.fire({
-            icon: 'warning',
-            title: 'ข้อผิดพลาดในการโหลดการตั้งค่า',
-            text: error.message || 'กรุณาติดต่อผู้ดูแลระบบ',
-            confirmButtonText: 'ตกลง'
-        });
+    } catch (err) {
+        console.error('loadSettings error:', err);
     }
 }
 
 // ==========================================
-// บันทึกการตั้งค่า (ตรวจสอบสิทธิ์ super_admin ก่อน)
-// ==========================================
-// ==========================================
-// บันทึกการตั้งค่า (ตรวจสอบสิทธิ์จาก currentUserRole)
+// บันทึกการตั้งค่า (ใช้ requireAdmin)
 // ==========================================
 async function saveSettings(e) {
     e.preventDefault();
 
-    // ✅ ตรวจสอบสิทธิ์จาก currentUserRole โดยตรง
-    if (currentUserRole !== 'super_admin') {
-        Swal.fire({
-            icon: 'error',
-            title: 'ไม่มีสิทธิ์บันทึกการตั้งค่า',
-            text: 'เฉพาะ super_admin เท่านั้นที่สามารถตั้งค่าระบบได้',
-            confirmButtonText: 'ตกลง'
-        });
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
         return;
     }
 
@@ -231,15 +196,13 @@ async function saveSettings(e) {
     const template = document.getElementById('slideTemplateId').value;
     const folder = document.getElementById('pdfFolderId').value;
 
-    // แสดง Loading
     Swal.fire({
-        title: 'กำลังบันทึกการตั้งค่า...',
+        title: 'กำลังบันทึก...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
     });
 
     try {
-        // ตรวจสอบว่ามีข้อมูลอยู่แล้วหรือไม่
         const { data: existing, error: checkError } = await db.from('regis_settings')
             .select('id')
             .maybeSingle();
@@ -250,48 +213,31 @@ async function saveSettings(e) {
 
         let error;
         if (existing) {
-            // ถ้ามีข้อมูล → Update
             const { error: updateError } = await db.from('regis_settings')
-                .update({
-                    gas_api_url: gas,
-                    slide_template_id: template,
-                    pdf_folder_id: folder
-                })
+                .update({ gas_api_url: gas, slide_template_id: template, pdf_folder_id: folder })
                 .eq('id', existing.id);
             error = updateError;
         } else {
-            // ถ้าไม่มีข้อมูล → Insert
             const { error: insertError } = await db.from('regis_settings')
-                .insert({
-                    gas_api_url: gas,
-                    slide_template_id: template,
-                    pdf_folder_id: folder
-                });
+                .insert({ gas_api_url: gas, slide_template_id: template, pdf_folder_id: folder });
             error = insertError;
         }
 
         Swal.close();
 
         if (error) {
-            if (error.code === '42501') {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'ไม่มีสิทธิ์บันทึกการตั้งค่า',
-                    text: 'เฉพาะ super_admin เท่านั้นที่สามารถตั้งค่าระบบได้',
-                    confirmButtonText: 'ตกลง'
-                });
-                return;
-            }
-            throw error;
+            Swal.fire('Error', error.message, 'error');
+            return;
         }
 
+        await logUserAction('บันทึกการตั้งค่าระบบงานทะเบียน', 'regis');
         Swal.fire('สำเร็จ', 'อัปเดตการตั้งค่าเรียบร้อย', 'success');
         closeSettingsModal();
         await loadSettings();
 
     } catch (error) {
         Swal.close();
-        console.error('❌ saveSettings error:', error);
+        console.error('saveSettings error:', error);
         Swal.fire('Error', error.message || 'ไม่สามารถบันทึกการตั้งค่าได้', 'error');
     }
 }
@@ -299,15 +245,18 @@ async function saveSettings(e) {
 // ==========================================
 // Modal Settings
 // ==========================================
-function openSettingsModal() { document.getElementById('settingsModal').classList.remove('hidden'); }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.add('hidden'); }
+function openSettingsModal() {
+    document.getElementById('settingsModal').classList.remove('hidden');
+}
+function closeSettingsModal() {
+    document.getElementById('settingsModal').classList.add('hidden');
+}
 
 // ==========================================
-// โหลดข้อมูลคำขอ (เพิ่ม avatar_students_url)
+// โหลดข้อมูลคำขอ
 // ==========================================
 async function loadData() {
-    console.log('🔍 loadData เริ่มทำงาน');
-    Swal.fire({ title: 'กำลังโหลดข้อมูลงานทะเบียน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
         const { data, error } = await db.from('regis_requests')
@@ -317,58 +266,45 @@ async function loadData() {
         Swal.close();
 
         if (error) {
-            console.error('❌ Error loading requests:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'ไม่สามารถโหลดข้อมูลได้',
-                text: error.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล กรุณาตรวจสอบ Console',
-                confirmButtonText: 'ลองอีกครั้ง'
-            });
+            console.error('loadData error:', error);
+            Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
             return;
         }
 
-        if (!data || data.length === 0) {
-            allRequests = [];
-            Swal.fire({
-                icon: 'info',
-                title: 'ไม่มีรายการคำขอ',
-                text: 'ยังไม่มีนักเรียนยื่นคำขอเอกสารในระบบ',
-                timer: 2000,
-                showConfirmButton: false
-            });
-        } else {
-            allRequests = data;
-            console.log(`✅ โหลดข้อมูลสำเร็จ: ${data.length} รายการ`);
-        }
-
+        allRequests = data || [];
         updateDashboard();
         renderTable();
 
+        if (allRequests.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'ไม่มีรายการคำขอ',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+
+        console.log(`✅ โหลดข้อมูลสำเร็จ: ${allRequests.length} รายการ`);
+
     } catch (err) {
         Swal.close();
-        console.error('❌ Unexpected error:', err);
-        Swal.fire({
-            icon: 'error',
-            title: 'เกิดข้อผิดพลาด',
-            text: err.message || 'ไม่สามารถโหลดข้อมูลได้',
-            confirmButtonText: 'ตกลง'
-        });
+        console.error('loadData error:', err);
+        Swal.fire('Error', err.message, 'error');
     }
 }
 
+// ==========================================
+// ฟังก์ชันอื่นๆ (เหมือนเดิม)
+// ==========================================
 function updateDashboard() {
     const total = allRequests.length;
     const pending = allRequests.filter(r => r.status === 'กำลังดำเนินการ').length;
     const completed = allRequests.filter(r => r.status === 'ดำเนินการเรียบร้อย').length;
-
     document.getElementById('dashTotal').innerText = total;
     document.getElementById('dashPending').innerText = pending;
     document.getElementById('dashCompleted').innerText = completed;
 }
 
-// ==========================================
-// แสดงตาราง (เรียงตามวันที่ล่าสุด)
-// ==========================================
 function renderTable() {
     if (tableInstance) tableInstance.destroy();
 
@@ -452,39 +388,10 @@ function renderTable() {
             }
         ],
         order: [[1, 'desc']],
-        columnDefs: [
-            { targets: 1, type: 'num' }
-        ]
+        columnDefs: [{ targets: 1, type: 'num' }]
     });
 }
 
-// ==========================================
-// เปิด Lightbox สำหรับรูปนักเรียน (ใช้ SweetAlert2)
-// ==========================================
-function openLightbox(imgSrc, studentName) {
-    if (!imgSrc) {
-        Swal.fire('ไม่มีรูป', 'ไม่พบรูปนักเรียน', 'info');
-        return;
-    }
-    Swal.fire({
-        imageUrl: imgSrc,
-        imageWidth: '80%',
-        imageHeight: 'auto',
-        imageAlt: `รูปของ ${studentName}`,
-        title: `รูปของ ${studentName}`,
-        showCloseButton: true,
-        confirmButtonText: 'ปิด',
-        confirmButtonColor: '#4f46e5',
-        customClass: {
-            popup: 'rounded-2xl',
-            image: 'rounded-xl shadow-lg max-h-[80vh] object-contain'
-        }
-    });
-}
-
-// ==========================================
-// เปิด Modal รายละเอียดคำขอ (แก้ไขรหัสคำขอแสดงแค่ 8 ตัว)
-// ==========================================
 function viewRequestDetail(id) {
     const req = allRequests.find(r => r.id === id);
     if (!req) {
@@ -505,7 +412,6 @@ function viewRequestDetail(id) {
     const fullName = std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'นักเรียน';
     let avatarUrl = std?.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=256&font-size=0.4`;
 
-    // ✅ แสดงรหัสคำขอแค่ 8 ตัวแรก
     const shortId = req.id.substring(0, 8).toUpperCase();
 
     const detailHTML = `
@@ -592,12 +498,13 @@ function viewRequestDetail(id) {
     });
 }
 
-// ==========================================
-// อนุมัติคำขอ
-// ==========================================
 async function approveRequest(id) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่อนุมัติคำขอได้')) {
+        return;
+    }
     const { error } = await db.from('regis_requests').update({ status: 'ดำเนินการเรียบร้อย' }).eq('id', id);
     if (!error) {
+        await logUserAction(`อนุมัติคำขอทะเบียน ID: ${id}`, 'regis');
         Swal.fire('สำเร็จ', 'อัปเดตสถานะคำขอแล้ว', 'success');
         loadData();
     } else {
@@ -605,33 +512,56 @@ async function approveRequest(id) {
     }
 }
 
-// ==========================================
-// ลบคำขอ
-// ==========================================
 async function deleteRequest(id) {
-    Swal.fire({
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบคำขอได้')) {
+        return;
+    }
+    const { isConfirmed } = await Swal.fire({
         title: 'คุณแน่ใจหรือไม่?',
-        text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูลส่วนกลาง',
+        text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูล',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'ยืนยันลบ',
         confirmButtonColor: '#dc2626'
-    }).then(async (res) => {
-        if (res.isConfirmed) {
-            const { error } = await db.from('regis_requests').delete().eq('id', id);
-            if (!error) {
-                loadData();
-            } else {
-                Swal.fire('Error', error.message, 'error');
-            }
+    });
+    if (!isConfirmed) return;
+    const { error } = await db.from('regis_requests').delete().eq('id', id);
+    if (!error) {
+        await logUserAction(`ลบคำขอทะเบียน ID: ${id}`, 'regis');
+        loadData();
+    } else {
+        Swal.fire('Error', error.message, 'error');
+    }
+}
+
+function openLightbox(imgSrc, studentName) {
+    if (!imgSrc) {
+        Swal.fire('ไม่มีรูป', 'ไม่พบรูปนักเรียน', 'info');
+        return;
+    }
+    Swal.fire({
+        imageUrl: imgSrc,
+        imageWidth: '80%',
+        imageHeight: 'auto',
+        imageAlt: `รูปของ ${studentName}`,
+        title: `รูปของ ${studentName}`,
+        showCloseButton: true,
+        confirmButtonText: 'ปิด',
+        confirmButtonColor: '#4f46e5',
+        customClass: {
+            popup: 'rounded-2xl',
+            image: 'rounded-xl shadow-lg max-h-[80vh] object-contain'
         }
     });
 }
 
 // ==========================================
-// จัดการผู้ดูแลระบบโมดูล
+// จัดการผู้ดูแลระบบโมดูล (ใช้ requireAdmin)
 // ==========================================
 function openAdminModal() {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการผู้ดูแลระบบได้')) {
+        return;
+    }
     document.getElementById('adminModal').classList.remove('hidden');
     ensureModuleExists().then(() => {
         loadModuleAdmins();
@@ -784,6 +714,10 @@ function initTomSelect() {
 }
 
 async function addModuleAdmin() {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มผู้ดูแลระบบได้')) {
+        return;
+    }
+
     const userId = document.getElementById('adminUserSelect').value;
     if (!userId) {
         Swal.fire('กรุณาเลือกบุคลากร', '', 'warning');
@@ -806,12 +740,23 @@ async function addModuleAdmin() {
         return;
     }
 
+    const { data: person } = await db.from('core_personnel')
+        .select('prefix, first_name, last_name')
+        .eq('id', userId)
+        .single();
+    const fullName = person ? `${person.prefix || ''}${person.first_name} ${person.last_name}` : userId;
+
+    await logUserAction(`เพิ่มผู้ดูแลระบบงานทะเบียน: ${fullName}`, 'regis');
     Swal.fire('สำเร็จ', 'เพิ่มผู้ดูแลระบบเรียบร้อยแล้ว', 'success');
     loadModuleAdmins();
     loadPersonnelOptions();
 }
 
 async function removeModuleAdmin(userId) {
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบผู้ดูแลระบบได้')) {
+        return;
+    }
+
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบ',
         text: 'คุณต้องการลบผู้ดูแลระบบท่านนี้ออกจากโมดูลนี้ใช่หรือไม่?',
@@ -837,7 +782,30 @@ async function removeModuleAdmin(userId) {
         return;
     }
 
+    const { data: person } = await db.from('core_personnel')
+        .select('prefix, first_name, last_name')
+        .eq('id', userId)
+        .single();
+    const fullName = person ? `${person.prefix || ''}${person.first_name} ${person.last_name}` : userId;
+
+    await logUserAction(`ลบผู้ดูแลระบบงานทะเบียน: ${fullName}`, 'regis');
     Swal.fire('สำเร็จ', 'ลบผู้ดูแลระบบเรียบร้อยแล้ว', 'success');
     loadModuleAdmins();
     loadPersonnelOptions();
 }
+
+// ==========================================
+// ประกาศ global
+// ==========================================
+window.logout = logout;
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.saveSettings = saveSettings;
+window.viewRequestDetail = viewRequestDetail;
+window.approveRequest = approveRequest;
+window.deleteRequest = deleteRequest;
+window.openAdminModal = openAdminModal;
+window.closeAdminModal = closeAdminModal;
+window.addModuleAdmin = addModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
+window.openLightbox = openLightbox;

@@ -86,127 +86,320 @@
     </main>
 
     <script>
+        // ==========================================================================
+        // behavior_teacher.js - ระบบงานปกครอง (ครูที่ปรึกษา)
+        // - ใช้ checkSessionAndRole() แทน checkAuth() เดิม
+        // - ใช้ isAdminUser(), hasModuleAccess() ตรวจสอบสิทธิ์
+        // - ใช้ applyVisibilityByRole() ควบคุมปุ่ม
+        // - ใช้ logUserAction() บันทึกประวัติการเข้าใช้งาน
+        // - รองรับ Admin, หัวหน้างานปกครอง, หัวหน้าระดับ
+        // ==========================================================================
+
         let myClassroom = null;
         let studentData = [];
+        let currentUser = null;
+        let actualRole = '';
+        let isAdminMode = false;
+        let isDisciplineHead = false;
+        let managedGrades = [];
+        let dataTable = null;
 
-        $(document).ready(async () => { await checkAuth(); });
+        // ============================================================
+        // เริ่มต้น
+        // ============================================================
+        $(document).ready(async () => {
+            try {
+                Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-        async function checkAuth() {
-            Swal.fire({ title: 'กำลังตรวจสอบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+                // 1. ตรวจสอบเซสชันและสิทธิ์ด้วย config.js
+                const session = await checkSessionAndRole('ระบบงานปกครอง (ครูที่ปรึกษา)');
+                if (!session) return;
 
-            const { data: { session } } = await db.auth.getSession();
-            if (!session) { window.location.replace('index.html'); return; }
+                const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode: sessionMode } = session;
+                currentUser = personnel;
+                actualRole = role;
+                isAdminMode = sessionMode;
 
-            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-            const userDisplayName = `ครู${profile.first_name} ${profile.last_name}`;
-            $('#user_display').html(`<i class="fas fa-user-tie mr-2 text-blue-500"></i>${userDisplayName}`);
+                // 2. ใช้ applyVisibilityByRole เพื่อควบคุมปุ่มต่าง ๆ
+                applyVisibilityByRole(role, isAdminMode, {
+                    settingsBtn: null,
+                    toggleBtn: null,
+                    adminManagerBtn: null
+                });
 
-            // ใช้ isAdminUser จาก config.js (รวม director, deputy)
-            const isAdmin = window.isAdminUser(profile.role, false);
-            let hasAdminRight = isAdmin;
-
-            // ✅ ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (เพื่อแสดงปุ่มแดชบอร์ด)
-            let isDisciplineHead = false;
-            let managedGrades = [];
-            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-            if (sInfo?.current_academic_year) {
-                const { data: discHead } = await db.from('core_discipline_heads')
-                    .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
-                isDisciplineHead = !!discHead;
-            }
-            const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
-            managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
-
-            // ✅ ควบคุมปุ่มแดชบอร์ด
-            const hasDashboardAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
-            if (hasDashboardAccess) {
-                $('#btnDashboard').removeClass('hidden').addClass('flex');
-            } else {
-                $('#btnDashboard').addClass('hidden').removeClass('flex');
-            }
-
-            // ตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ (สำหรับปุ่มโหมดแอดมิน)
-            if (!hasAdminRight) {
-                if (isDisciplineHead) hasAdminRight = true;
-                if (!hasAdminRight && managedGrades.length > 0) hasAdminRight = true;
-            }
-
-            // แสดงปุ่มไปหน้าแอดมินถ้ามีสิทธิ์
-            if (hasAdminRight) {
-                $('#btnAdminMode').removeClass('hidden').addClass('flex');
-            }
-
-            // ดึงห้องที่ปรึกษา
-            const { data: classroom } = await db.from('core_classrooms')
-                .select('*')
-                .or(`adviser_id_1.eq.${session.user.id},adviser_id_2.eq.${session.user.id}`)
-                .single();
-
-            if (!classroom) {
-                if (hasAdminRight) {
-                    window.location.replace('behavior_admin.html');
-                } else {
-                    Swal.fire('ไม่พบสิทธิ์', 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษา', 'info')
-                        .then(() => window.location.replace('index.html'));
+                // 3. ตรวจสอบสิทธิ์เพิ่มเติม: หัวหน้างานปกครอง, หัวหน้าระดับ
+                const { data: sInfo } = await db.from('core_school_info')
+                    .select('current_academic_year')
+                    .single();
+                if (sInfo?.current_academic_year) {
+                    const { data: discHead } = await db.from('core_discipline_heads')
+                        .select('id')
+                        .eq('personnel_id', user.id)
+                        .eq('academic_year', sInfo.current_academic_year)
+                        .maybeSingle();
+                    isDisciplineHead = !!discHead;
                 }
-                return;
+                const { data: gradeHeads } = await db.from('behavior_grade_heads')
+                    .select('grade_level')
+                    .eq('teacher_id', user.id);
+                managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
+
+                // 4. ตรวจสอบสิทธิ์เข้าโมดูล (ถ้าไม่ใช่ admin)
+                if (!isAdmin) {
+                    const hasAccess = await hasModuleAccess(role, 'behavior', user.id);
+                    const hasSpecialAccess = isDisciplineHead || managedGrades.length > 0;
+                    if (!hasAccess && !hasSpecialAccess) {
+                        await Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                            text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบงานปกครอง กรุณาติดต่อผู้ดูแลระบบ',
+                            confirmButtonText: 'กลับหน้าหลัก'
+                        });
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
+                // 5. ปุ่มแดชบอร์ดและโหมดแอดมิน
+                const hasAdminAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
+                const hasDashboardAccess = hasAdminAccess;
+
+                const btnDashboard = document.getElementById('btnDashboard');
+                if (btnDashboard) {
+                    btnDashboard.classList.toggle('hidden', !hasDashboardAccess);
+                    btnDashboard.classList.toggle('flex', hasDashboardAccess);
+                }
+
+                const btnAdminMode = document.getElementById('btnAdminMode');
+                if (btnAdminMode) {
+                    btnAdminMode.classList.toggle('hidden', !hasAdminAccess);
+                    btnAdminMode.classList.toggle('flex', hasAdminAccess);
+                }
+
+                // 6. แสดงชื่อผู้ใช้
+                const userDisplay = document.getElementById('user_display');
+                if (userDisplay) {
+                    userDisplay.innerHTML = `<i class="fas fa-user-tie mr-2 text-blue-500"></i>ครู${currentUser.first_name} ${currentUser.last_name}`;
+                }
+
+                // 7. บันทึก Log การเข้าใช้งาน
+                await logUserAction('เข้าสู่ระบบงานปกครอง (ครูที่ปรึกษา)', 'behavior');
+
+                // 8. ดึงห้องที่ปรึกษา
+                const { data: classroom } = await db.from('core_classrooms')
+                    .select('*')
+                    .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
+                    .single();
+
+                if (!classroom) {
+                    if (hasAdminAccess) {
+                        window.location.replace('behavior_admin.html');
+                        return;
+                    } else {
+                        await Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่พบสิทธิ์ครูที่ปรึกษา',
+                            text: 'คุณยังไม่ได้ถูกระบุเป็นครูที่ปรึกษาในระบบ กรุณาติดต่อผู้ดูแลระบบ',
+                            confirmButtonText: 'กลับหน้าหลัก'
+                        });
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
+                myClassroom = classroom;
+                document.getElementById('my_room').textContent = `ม.${classroom.grade_level}/${classroom.room_number}`;
+
+                // 9. โหลดนักเรียน
+                await loadMyStudents();
+
+                Swal.close();
+                console.log('✅ behavior_teacher.js initialized successfully');
+
+            } catch (err) {
+                console.error('Initialization error:', err);
+                Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถเริ่มระบบได้', 'error');
             }
+        });
 
-            myClassroom = classroom;
-            $('#my_room').text(`ม.${classroom.grade_level}/${classroom.room_number}`);
-            await loadMyStudents();
-            Swal.close();
-        }
-
+        // ============================================================
+        // ออกจากระบบ (ใช้ฟังก์ชันจาก config.js)
+        // ============================================================
         async function logout() {
             await db.auth.signOut();
             window.location.replace('index.html');
         }
 
+        // ============================================================
+        // โหลดนักเรียนในห้องที่ปรึกษา
+        // ============================================================
         async function loadMyStudents() {
-            const { data: enrolls } = await db.from('student_enrollments')
-                .select(`student_number, core_students ( id, student_id_card, prefix, first_name, last_name, behavior_logs ( score_change ) )`)
-                .eq('classroom_id', myClassroom.id).order('student_number', { ascending: true });
+            try {
+                const { data: enrolls, error } = await db.from('student_enrollments')
+                    .select(`
+                student_number,
+                core_students (
+                    id,
+                    student_id_card,
+                    prefix,
+                    first_name,
+                    last_name,
+                    avatar_students_url,
+                    behavior_logs ( score_change )
+                )
+            `)
+                    .eq('classroom_id', myClassroom.id)
+                    .order('student_number', { ascending: true });
 
-            if (enrolls) {
+                if (error) throw error;
+
+                if (!enrolls || enrolls.length === 0) {
+                    document.getElementById('teacherBody').innerHTML = `
+                <tr><td colspan="5" class="text-center py-16 text-slate-400 font-bold">
+                    <i class="fas fa-user-slash text-4xl mb-3 block text-slate-300"></i>
+                    ยังไม่มีนักเรียนในห้องนี้
+                </td></tr>
+            `;
+                    return;
+                }
+
                 studentData = enrolls.map(item => {
                     const s = item.core_students;
-                    const totalScore = 100 + (s.behavior_logs?.reduce((sum, l) => sum + l.score_change, 0) || 0);
-                    return { no: item.student_number || '-', sid: s.student_id_card || '-', name: `${s.prefix || ''}${s.first_name} ${s.last_name}`, score: totalScore, id: s.id };
+                    const logs = s?.behavior_logs || [];
+                    const totalScore = 100 + logs.reduce((sum, l) => sum + (l.score_change || 0), 0);
+                    return {
+                        id: s?.id || '',
+                        no: item.student_number || '-',
+                        sid: s?.student_id_card || '-',
+                        name: `${s?.prefix || ''}${s?.first_name || ''} ${s?.last_name || ''}`.trim() || 'ไม่ระบุชื่อ',
+                        score: totalScore,
+                        avatar: s?.avatar_students_url || null
+                    };
                 });
+
+                renderTable();
+
+            } catch (err) {
+                console.error('Error loading students:', err);
+                document.getElementById('teacherBody').innerHTML = `
+            <tr><td colspan="5" class="text-center py-8 text-red-500 font-bold">
+                <i class="fas fa-exclamation-triangle mr-2"></i> เกิดข้อผิดพลาด: ${err.message}
+            </td></tr>
+        `;
+            }
+        }
+
+        // ============================================================
+        // แสดงตารางด้วย DataTable
+        // ============================================================
+        function renderTable() {
+            const tbody = document.getElementById('teacherBody');
+            if (!tbody) return;
+
+            if ($.fn.DataTable.isDataTable('#teacherTable')) {
+                $('#teacherTable').DataTable().destroy();
             }
 
+            let html = '';
+            studentData.forEach(s => {
+                const scoreClass = s.score < 50 ? 'bg-red-100 text-red-600'
+                    : (s.score >= 100 ? 'bg-green-100 text-green-700'
+                        : 'bg-orange-100 text-orange-600');
+
+                const avatarHtml = s.avatar
+                    ? `<img src="${s.avatar}" class="w-8 h-8 rounded-full object-cover border-2 border-slate-200 shadow-sm" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(s.name)}&background=ebd9fc&color=7c3aed&font-size=0.4&bold=true'">`
+                    : `<div class="w-8 h-8 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-xs font-bold">${s.name.charAt(0) || '?'}</div>`;
+
+                html += `
+            <tr class="hover:bg-blue-50/50 transition-colors border-b border-slate-50 cursor-pointer" onclick="viewHistory('${s.id}')" title="คลิกเพื่อดูประวัติ">
+                <td class="py-3 px-4 text-center font-bold text-slate-600">${s.no}</td>
+                <td class="py-3 px-4">
+                    <div class="flex items-center gap-3">
+                        ${avatarHtml}
+                        <span class="font-medium text-slate-600">${s.sid}</span>
+                    </div>
+                </td>
+                <td class="py-3 px-4 font-bold text-blue-800">${s.name}</td>
+                <td class="py-3 px-4 text-center">
+                    <span class="px-3 py-1.5 rounded-xl text-sm font-black ${scoreClass}">${s.score}</span>
+                </td>
+                <td class="py-3 px-4 text-center">
+                    <button onclick="event.stopPropagation(); viewHistory('${s.id}')" 
+                            class="bg-white border border-blue-200 text-blue-600 px-4 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm">
+                        <i class="fas fa-eye mr-1"></i> ประวัติ
+                    </button>
+                </td>
+            </tr>
+        `;
+            });
+
+            tbody.innerHTML = html;
+
             $('#teacherTable').DataTable({
-                data: studentData.map(s => [
-                    `<div class="text-center font-bold text-gray-600">${s.no}</div>`,
-                    `<div class="font-medium text-gray-700">${s.sid}</div>`,
-                    `<div class="font-bold text-blue-800">${s.name}</div>`,
-                    `<div class="text-center"><span class="px-3 py-1 rounded-lg text-sm font-black ${s.score < 50 ? 'bg-red-100 text-red-600' : (s.score >= 100 ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-600')}">${s.score}</span></div>`,
-                    `<div class="text-center"><button onclick="viewHistory('${s.id}')" class="bg-white border border-blue-200 text-blue-600 px-3 py-1.5 rounded-xl text-xs font-bold hover:bg-blue-50 transition shadow-sm"><i class="fas fa-eye"></i> ประวัติ</button></div>`
-                ]),
-                destroy: true,
-                responsive: { details: { type: 'column', target: 'tr' } },
+                responsive: true,
+                pageLength: 25,
+                lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+                language: {
+                    url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
+                },
                 columnDefs: [
                     { responsivePriority: 1, targets: 2 },
                     { responsivePriority: 2, targets: 4 },
                     { responsivePriority: 3, targets: 0 },
                 ],
-                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-                pageLength: 50,
+                order: [[0, 'asc']]
             });
-            Swal.close();
         }
 
+        // ============================================================
+        // ดูประวัติ
+        // ============================================================
+        function viewHistory(id) {
+            if (!id) return;
+            window.location.href = `behavior_history.html?id=${id}`;
+        }
+
+        // ============================================================
+        // ส่งออก Excel
+        // ============================================================
         function exportTeacherExcel() {
-            if (studentData.length === 0) return;
-            const exportData = studentData.map(s => ({ 'เลขที่': s.no, 'เลขประจำตัว': s.sid, 'ชื่อ-นามสกุล': s.name, 'คะแนนปัจจุบัน': s.score }));
+            if (studentData.length === 0) {
+                Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลนักเรียนในห้องนี้', 'warning');
+                return;
+            }
+
+            const exportData = studentData.map(s => ({
+                'เลขที่': s.no,
+                'เลขประจำตัว': s.sid,
+                'ชื่อ-นามสกุล': s.name,
+                'คะแนนปัจจุบัน': s.score
+            }));
+
             const ws = XLSX.utils.json_to_sheet(exportData);
+            const cols = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length * 2, 12) }));
+            ws['!cols'] = cols;
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "คะแนนความประพฤติ");
+            XLSX.utils.book_append_sheet(wb, ws, 'คะแนนความประพฤติ');
             XLSX.writeFile(wb, `คะแนนความประพฤติ_ม.${myClassroom.grade_level}_${myClassroom.room_number}.xlsx`);
+
+            logUserAction(`ส่งออก Excel ห้อง ม.${myClassroom.grade_level}/${myClassroom.room_number}`, 'behavior');
+
+            Swal.fire({
+                icon: 'success',
+                title: 'ส่งออก Excel สำเร็จ',
+                timer: 1500,
+                showConfirmButton: false
+            });
         }
 
-        function viewHistory(id) { location.href = `student_history.html?id=${id}`; }
+        // ============================================================
+        // ประกาศฟังก์ชัน global
+        // ============================================================
+        window.viewHistory = viewHistory;
+        window.exportTeacherExcel = exportTeacherExcel;
+        window.logout = logout;
+
+        console.log('✅ behavior_teacher.js (ฉบับสมบูรณ์) loaded with config.js integration');
     </script>
 </body>
 

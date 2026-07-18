@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <title>จัดการปฏิทินกิจกรรม</title>
@@ -11,21 +12,29 @@
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.2.2/dist/js/tom-select.complete.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <style>
-        .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-        .stat-card:hover { transform: translateY(-2px); }
-        /* Modal ใช้ class hidden/flex จัดการ */
-        #eventModal {
-            display: none; /* default hidden */
+        .stat-card {
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+        }
+
+        #eventModal {
+            display: none;
+        }
+
         #eventModal.flex {
             display: flex;
         }
+
         #eventModal .modal-content {
             max-height: 90vh;
             overflow-y: auto;
         }
     </style>
 </head>
+
 <body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
 
     <header class="bg-white shadow-sm border-b border-slate-200 px-6 py-4 sticky top-0 z-10">
@@ -38,10 +47,12 @@
                 </div>
             </div>
             <div class="flex gap-3">
-                <button onclick="window.location.href='index.html'" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold transition">
+                <button onclick="window.location.href='index.html'"
+                    class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-sm font-bold transition">
                     <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าหลัก
                 </button>
-                <button onclick="handleLogout()" class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-bold transition">
+                <button onclick="logout()"
+                    class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg text-sm font-bold transition">
                     <i class="fa-solid fa-right-from-bracket mr-1"></i> ออกจากระบบ
                 </button>
             </div>
@@ -64,17 +75,28 @@
         <!-- ตารางกิจกรรม -->
         <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
             <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-                <h3 class="text-lg font-bold text-slate-800"><i class="fa-regular fa-calendar-alt text-indigo-500 mr-2"></i>รายการกิจกรรม</h3>
+                <h3 class="text-lg font-bold text-slate-800"><i
+                        class="fa-regular fa-calendar-alt text-indigo-500 mr-2"></i>รายการกิจกรรม</h3>
                 <div class="flex flex-wrap gap-3 items-center">
                     <div class="flex gap-2 items-center bg-slate-100 p-1 rounded-lg">
                         <select id="monthSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
-                            <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option><option value="2">มีนาคม</option>
-                            <option value="3">เมษายน</option><option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
-                            <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option><option value="8">กันยายน</option>
-                            <option value="9">ตุลาคม</option><option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+                            <option value="0">มกราคม</option>
+                            <option value="1">กุมภาพันธ์</option>
+                            <option value="2">มีนาคม</option>
+                            <option value="3">เมษายน</option>
+                            <option value="4">พฤษภาคม</option>
+                            <option value="5">มิถุนายน</option>
+                            <option value="6">กรกฎาคม</option>
+                            <option value="7">สิงหาคม</option>
+                            <option value="8">กันยายน</option>
+                            <option value="9">ตุลาคม</option>
+                            <option value="10">พฤศจิกายน</option>
+                            <option value="11">ธันวาคม</option>
                         </select>
-                        <select id="yearSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
-                        <button id="btnLoadCalendar" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
+                        <select id="yearSelect"
+                            class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"></select>
+                        <button id="btnLoadCalendar"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
                             <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
                         </button>
                     </div>
@@ -82,7 +104,8 @@
                         <option value="">-- ทุกกลุ่ม --</option>
                         <option value="academic">กลุ่มวิชาการ (Google Calendar)</option>
                     </select>
-                    <button id="openModalBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">
+                    <button id="openModalBtn"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">
                         <i class="fa-solid fa-plus mr-1"></i> เพิ่มกิจกรรม
                     </button>
                 </div>
@@ -90,7 +113,13 @@
             <div class="overflow-x-auto">
                 <table id="eventsTable" class="w-full text-left text-sm border-collapse">
                     <thead class="bg-slate-50 border-b border-slate-200">
-                        <tr><th class="py-3 px-4">วันที่เริ่ม</th><th class="py-3 px-4">วันที่สิ้นสุด</th><th class="py-3 px-4">กิจกรรม</th><th class="py-3 px-4">กลุ่มงาน</th><th class="py-3 px-4 text-center">จัดการ</th></tr>
+                        <tr>
+                            <th class="py-3 px-4">วันที่เริ่ม</th>
+                            <th class="py-3 px-4">วันที่สิ้นสุด</th>
+                            <th class="py-3 px-4">กิจกรรม</th>
+                            <th class="py-3 px-4">กลุ่มงาน</th>
+                            <th class="py-3 px-4 text-center">จัดการ</th>
+                        </tr>
                     </thead>
                     <tbody id="eventsTbody"></tbody>
                 </table>
@@ -98,10 +127,11 @@
         </div>
     </main>
 
-    <!-- Modal: ใช้ class hidden/flex -->
+    <!-- Modal -->
     <div id="eventModal" class="fixed inset-0 bg-black/50 backdrop-blur-sm items-center justify-center z-50 p-4">
         <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4 modal-content">
-            <button id="closeModalBtn" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
+            <button id="closeModalBtn"
+                class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
             <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม</h3>
             <form id="eventForm">
                 <input type="hidden" id="event_id">
@@ -120,12 +150,16 @@
                     <textarea id="event_desc" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea>
                 </div>
                 <div class="grid grid-cols-2 gap-3 mb-3">
-                    <div><label class="block font-bold text-slate-700">วันที่เริ่ม *</label><input type="date" id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
-                    <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label><input type="date" id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
+                    <div><label class="block font-bold text-slate-700">วันที่เริ่ม *</label><input type="date"
+                            id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
+                    <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label><input type="date"
+                            id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
                 </div>
                 <div class="flex justify-end gap-2">
-                    <button type="button" id="cancelModalBtn" class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
-                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i class="fa-solid fa-save"></i> บันทึก</button>
+                    <button type="button" id="cancelModalBtn"
+                        class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i
+                            class="fa-solid fa-save"></i> บันทึก</button>
                 </div>
             </form>
         </div>
@@ -133,11 +167,15 @@
 
     <script src="calendar_manager.js"></script>
     <script>
+        // =====================================================
+        // calendar_admin.html — ปรับใช้ checkSessionAndRole
+        // =====================================================
+
         let managedDepts = [];
         let currentYear = new Date().getFullYear() + 543;
         let currentMonth = new Date().getMonth();
 
-        // ----- จัดการ Modal โดยใช้ class -----
+        // ----- จัดการ Modal -----
         const modal = document.getElementById('eventModal');
         function showModal() {
             modal.classList.remove('hidden');
@@ -148,7 +186,6 @@
             modal.classList.remove('flex');
         }
 
-        // ปุ่มเปิดปิด modal
         document.getElementById('openModalBtn').onclick = () => openAddEventModal();
         document.getElementById('closeModalBtn').onclick = () => hideModal();
         document.getElementById('cancelModalBtn').onclick = () => hideModal();
@@ -168,7 +205,6 @@
             }
         }
 
-        // ฟังก์ชันโหลดข้อมูล (เรียกใช้จาก calendar_manager.js)
         async function loadEvents() {
             const year = parseInt(document.getElementById('yearSelect').value);
             const month = parseInt(document.getElementById('monthSelect').value);
@@ -177,7 +213,6 @@
             if (!tbody) return;
             tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
             try {
-                // เรียกใช้ฟังก์ชันจาก calendar_manager.js
                 const events = await window.getEventsByMonthYearForAdmin(year, month, deptFilter);
                 renderTable(events);
                 document.getElementById('monthCount').innerText = events.length;
@@ -225,34 +260,71 @@
             return str.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
         }
 
+        // =====================================================
+        // ตรวจสอบสิทธิ์และโหลดข้อมูล (ใช้ checkSessionAndRole)
+        // =====================================================
         async function checkAuthAndLoad() {
-            const { data: { session } } = await db.auth.getSession();
-            if (!session) { window.location.replace('login.html'); return; }
-            const allManaged = await window.getUserManagedDepts(session.user.id);
-            managedDepts = allManaged.filter(d => d !== 'academic');
-            const deptNames = { academic: 'บริหารวิชาการ', budget: 'บริหารงบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
-            const displayDepts = managedDepts.map(d => deptNames[d] || d);
-            document.getElementById('deptCount').innerText = managedDepts.length;
-            document.getElementById('userRoleBadge').innerHTML = `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">แอดมินประจำกลุ่ม: ${displayDepts.join(', ') || 'ไม่มี (ดูได้เฉพาะกลุ่มวิชาการ)'}</span>`;
+            try {
+                // ✅ ใช้ checkSessionAndRole จาก config.js
+                const session = await checkSessionAndRole('ระบบปฏิทิน', ['super_admin', 'admin', 'staff']);
+                if (!session) return;
 
-            const filter = document.getElementById('deptFilter');
-            let options = '<option value="">-- ทุกกลุ่ม --</option><option value="academic">กลุ่มวิชาการ (Google Calendar)</option>';
-            for (const dept of managedDepts) options += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
-            filter.innerHTML = options;
+                const { user, role, isAdmin } = session;
 
-            const deptSelect = document.getElementById('event_dept');
-            let selectOptions = '<option value="">-- เลือกกลุ่มงาน --</option>';
-            for (const dept of managedDepts) selectOptions += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
-            deptSelect.innerHTML = selectOptions;
+                // ✅ ตรวจสอบสิทธิ์เข้าโมดูล calendar_system
+                if (!isAdmin) {
+                    const hasAccess = await hasModuleAccess(role, 'calendar_system', user.id);
+                    if (!hasAccess) {
+                        await Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                            text: 'คุณไม่ได้รับอนุญาตให้ใช้ระบบจัดการปฏิทิน',
+                            confirmButtonText: 'กลับหน้าหลัก'
+                        });
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
 
-            populateYearSelect();
-            document.getElementById('btnLoadCalendar').addEventListener('click', loadEvents);
-            document.getElementById('deptFilter').addEventListener('change', loadEvents);
-            document.getElementById('monthSelect').value = currentMonth;
-            await loadEvents();
+                // ✅ ดึงกลุ่มที่ดูแล (รวม Super Admin)
+                const allManaged = await window.getUserManagedDepts(user.id);
+                managedDepts = allManaged.filter(d => d !== 'academic');
+                const deptNames = { academic: 'บริหารวิชาการ', budget: 'บริหารงบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
+                const displayDepts = managedDepts.map(d => deptNames[d] || d);
+                document.getElementById('deptCount').innerText = managedDepts.length;
+                document.getElementById('userRoleBadge').innerHTML = `<span class="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">แอดมินประจำกลุ่ม: ${displayDepts.join(', ') || 'ไม่มี (ดูได้เฉพาะกลุ่มวิชาการ)'}</span>`;
+
+                // ✅ กรองตัวกรองกลุ่ม
+                const filter = document.getElementById('deptFilter');
+                let options = '<option value="">-- ทุกกลุ่ม --</option><option value="academic">กลุ่มวิชาการ (Google Calendar)</option>';
+                for (const dept of managedDepts) options += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
+                filter.innerHTML = options;
+
+                // ✅ เลือกกลุ่มใน Modal
+                const deptSelect = document.getElementById('event_dept');
+                let selectOptions = '<option value="">-- เลือกกลุ่มงาน --</option>';
+                for (const dept of managedDepts) selectOptions += `<option value="${dept}">${deptNames[dept] || dept}</option>`;
+                deptSelect.innerHTML = selectOptions;
+
+                // ✅ ตั้งค่าเดือน/ปี
+                populateYearSelect();
+                document.getElementById('btnLoadCalendar').addEventListener('click', loadEvents);
+                document.getElementById('deptFilter').addEventListener('change', loadEvents);
+                document.getElementById('monthSelect').value = currentMonth;
+                await loadEvents();
+
+                // ✅ บันทึก Log
+                await logUserAction('เข้าสู่หน้าจัดการปฏิทิน', 'calendar');
+
+            } catch (err) {
+                console.error('checkAuthAndLoad error:', err);
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+            }
         }
 
+        // ----- CRUD กิจกรรม (พร้อม logUserAction) -----
         let currentEventId = null;
+
         function openAddEventModal() {
             if (managedDepts.length === 0) {
                 Swal.fire('ไม่สามารถเพิ่มกิจกรรม', 'คุณไม่มีสิทธิ์เพิ่มกิจกรรมในกลุ่มใด (กลุ่มวิชาการเพิ่มผ่าน Google Calendar เท่านั้น)', 'info');
@@ -265,7 +337,7 @@
             showModal();
         }
 
-        window.editEvent = async function(eventId) {
+        window.editEvent = async function (eventId) {
             const { data, error } = await db.from('calendar_events').select('*').eq('id', eventId).single();
             if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
             currentEventId = eventId;
@@ -294,13 +366,14 @@
             try {
                 if (eventId) {
                     await window.updateInternalEvent(eventId, data);
+                    await logUserAction(`แก้ไขกิจกรรม "${data.title}" (ID: ${eventId})`, 'calendar');
                     Swal.fire({ toast: true, icon: 'success', title: 'อัปเดตกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
                 } else {
                     await window.createInternalEvent(data, session.user.id);
+                    await logUserAction(`เพิ่มกิจกรรม "${data.title}"`, 'calendar');
                     Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
                 }
                 hideModal();
-                // ล้าง cache Google (ถ้ามี)
                 if (window.clearGoogleCache) window.clearGoogleCache();
                 await loadEvents();
             } catch (err) {
@@ -308,22 +381,48 @@
             }
         };
 
-        window.deleteEvent = async function(eventId) {
-            const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบกิจกรรมนี้ใช่หรือไม่', icon: 'warning', showCancelButton: true, confirmButtonColor: '#d33', confirmButtonText: 'ลบเลย' });
+        window.deleteEvent = async function (eventId) {
+            const { isConfirmed } = await Swal.fire({
+                title: 'ยืนยันการลบ?',
+                text: 'คุณต้องการลบกิจกรรมนี้ใช่หรือไม่',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'ลบเลย'
+            });
             if (isConfirmed) {
+                // เอา title มาก่อนลบ
+                const { data } = await db.from('calendar_events').select('title').eq('id', eventId).single();
                 await window.deleteInternalEvent(eventId);
+                await logUserAction(`ลบกิจกรรม "${data?.title || eventId}"`, 'calendar');
                 if (window.clearGoogleCache) window.clearGoogleCache();
                 await loadEvents();
                 Swal.fire({ toast: true, icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
             }
         };
 
-        function handleLogout() {
-            Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
-                .then(async (result) => { if (result.isConfirmed) { await db.auth.signOut(); window.location.replace('login.html'); } });
+        // ----- ออกจากระบบ -----
+        function logout() {
+            Swal.fire({
+                title: 'ออกจากระบบ?',
+                text: "คุณต้องการออกจากระบบใช่หรือไม่",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                cancelButtonColor: '#64748b',
+                confirmButtonText: 'ออกจากระบบ',
+                cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    await db.auth.signOut();
+                    window.location.replace('login.html');
+                }
+            });
         }
 
+        // เริ่มต้น
         window.onload = checkAuthAndLoad;
     </script>
 </body>
+
 </html>

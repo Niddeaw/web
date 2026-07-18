@@ -1,61 +1,109 @@
 /**
  * mit_teacher.js — ระบบบริหารพหุปัญญา (MI) 8 ด้าน
- * ใช้ core_module_admins สำหรับจัดการแอดมินโมดูล
- * ไม่มีการแก้ไข role ใน core_personnel
+ * ปรับปรุงให้ใช้ config.js มาตรฐาน, ตรวจสอบสิทธิ์, Log ทุกการกระทำ
+ * ส่วนที่ 1: INIT, Authentication, UI Control, Load Data, CRUD
  */
 
 const MODULE_ID = 'mit';
 
+// ==========================================
+// ตัวแปร Global
+// ==========================================
 let currentUser = null;
 let currentProfile = null;
+let currentUserId = null;
 let currentUserRole = null;
 let isAdminMode = false;
+let isModuleAdmin = false;
 let schoolInfo = null;
 let miTable = null;
 let allResults = [];
 let allClassrooms = [];
 let importMode = 'excel';
-let currentUserId = null;
 let adviserMap = {};
 let currentSelectedClassroomId = null;
-let isModuleAdmin = false;
+let miBarChartInstance = null;
+let miDoughnutChartInstance = null;
 
-if (typeof MI_NORM === 'undefined') {
-    window.MI_NORM = {
-        linguistic: { min: 10, max: 18 },
-        logical_mathematical: { min: 10, max: 18 },
-        visual_spatial: { min: 10, max: 18 },
-        bodily_kinesthetic: { min: 10, max: 18 },
-        musical: { min: 10, max: 18 },
-        interpersonal: { min: 10, max: 18 },
-        intrapersonal: { min: 10, max: 18 },
-        naturalist: { min: 10, max: 18 },
-        total: { min: 80, max: 144 }
-    };
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
 }
 
 // ==========================================
-// INIT - ใช้ checkSessionAndRole และ hasModuleAccess
+// INIT — ใช้ checkSessionAndRole
 // ==========================================
-
 window.addEventListener('load', async () => {
-    const result = await checkSessionAndRole(MODULE_ID, ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
+    // อนุญาตเฉพาะ role เหล่านี้ (staff, office จะถูกปฏิเสธ)
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'teacher'];
+    const result = await checkSessionAndRole(MODULE_ID, allowedRoles);
     if (!result) return;
 
     currentUser = result.user;
     currentProfile = result.personnel;
     currentUserId = currentUser.id;
-    currentUserRole = currentProfile.role;
+    currentUserRole = result.role;
 
+    // ตรวจสอบ admin โดย role หรือ module admin
     const isAdminByRole = isAdminUser(currentUserRole, false);
     isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
     isAdminMode = isAdminByRole || isModuleAdmin;
 
-    document.getElementById('user-display').textContent =
-        `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+    // แสดงชื่อบน navbar
+    const nameDisplay = document.getElementById('user-display');
+    if (nameDisplay) {
+        nameDisplay.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+        nameDisplay.classList.remove('hidden');
+        nameDisplay.classList.add('inline-block');
+    }
 
-    applyAdminVisibility();
+    // ใช้ applyVisibilityByRole แสดง/ซ่อนปุ่มต่างๆ
+    applyVisibilityByRole(currentUserRole, isAdminMode, {
+        settingsBtn: 'btn-settings',
+        toggleBtn: 'btnToggleMode'
+    });
 
+    // ปุ่มจัดการแอดมิน แสดงเฉพาะผู้ที่มีสิทธิ์ตั้งค่า
+    // const btnAdminManager = document.getElementById('btnAdminManager');
+    // if (btnAdminManager) {
+    //     if (canManageSettings()) {
+    //         btnAdminManager.classList.remove('hidden');
+    //         btnAdminManager.classList.add('flex');
+    //     } else {
+    //         btnAdminManager.classList.add('hidden');
+    //         btnAdminManager.classList.remove('flex');
+    //     }
+    // }
+    const btnAdminManager = document.getElementById('btnAdminManager');
+    if (btnAdminManager) {
+        // ✅ เปลี่ยนเป็น window.canManageSettings(currentUserRole)
+        if (window.canManageSettings(currentUserRole)) {
+            btnAdminManager.classList.remove('hidden');
+            btnAdminManager.classList.add('flex');
+        } else {
+            btnAdminManager.classList.add('hidden');
+            btnAdminManager.classList.remove('flex');
+        }
+    }
+    // อัปเดตข้อความปุ่มสลับโหมด
+    updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
+
+    // โหลดข้อมูลโรงเรียน
     const { data: si } = await db.from('core_school_info').select('*').single();
     schoolInfo = si;
 
@@ -66,92 +114,45 @@ window.addEventListener('load', async () => {
             .eq('semester', String(si.current_semester))
             .maybeSingle();
         if (s) {
-            document.getElementById('set-delay').value = s.delay_seconds;
-            document.getElementById('set-active').checked = s.is_active;
+            document.getElementById('set-delay').value = s.delay_seconds || 10;
+            document.getElementById('set-active').checked = s.is_active !== false;
         }
     }
 
+    // โหลดห้องเรียนและข้อมูล
     await loadClassrooms();
+
+    // บันทึก Log เข้าสู่ระบบ
+    await logUserAction('เข้าสู่ระบบบริหาร MI', MODULE_ID);
+
+    // แสดงเนื้อหา
+    document.getElementById('mainBody')?.classList?.replace('opacity-0', 'opacity-100');
 });
 
 // ==========================================
-// ฟังก์ชันจัดการ UI ตามสิทธิ์
+// สลับโหมด (เฉพาะ admin เท่านั้น)
 // ==========================================
-
-function canManageSettings() {
-    return isAdminUser(currentUserRole, false) || isModuleAdmin;
-}
-
-function applyAdminVisibility() {
-    applyVisibilityByRole(currentUserRole, isAdminMode, {
-        settingsBtn: 'btn-settings',
-        toggleBtn: 'btnToggleMode'
-    });
-
-    const btnAdminManager = document.getElementById('btnAdminManager');
-    if (btnAdminManager) {
-        if (canManageSettings()) {
-            btnAdminManager.classList.remove('hidden');
-            btnAdminManager.classList.add('flex');
-        } else {
-            btnAdminManager.classList.add('hidden');
-            btnAdminManager.classList.remove('flex');
-        }
-    }
-
-    if (!canManageSettings()) {
-        const btnSettings = document.getElementById('btn-settings');
-        if (btnSettings) {
-            btnSettings.classList.add('hidden');
-            btnSettings.classList.remove('flex');
-        }
-    }
-
-    updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
-
-    const adminFilter = document.getElementById('adminFilterSection');
-    const teacherBar = document.getElementById('teacherActionBar');
-    if (isAdminMode) {
-        adminFilter.classList.remove('hidden');
-        teacherBar.classList.add('hidden');
-    } else {
-        adminFilter.classList.add('hidden');
-        teacherBar.classList.remove('hidden');
-    }
-}
-
 async function toggleMode() {
-    if (!canManageSettings()) {
+    if (!isAdminMode) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
         return;
     }
     isAdminMode = !isAdminMode;
-    applyAdminVisibility();
+    applyVisibilityByRole(currentUserRole, isAdminMode, {
+        settingsBtn: 'btn-settings',
+        toggleBtn: 'btnToggleMode'
+    });
+    updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
     if (miTable) { miTable.destroy(); miTable = null; }
     document.getElementById('mi-tbody').innerHTML = '';
     await loadClassrooms();
     await loadStats();
-}
-
-async function logout() {
-    const r = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ออก',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (r.isConfirmed) {
-        await db.auth.signOut();
-        window.location.href = 'login.html';
-    }
+    await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, MODULE_ID);
 }
 
 // ==========================================
-// LOAD CLASSROOMS, STATS, CHARTS, etc.
+// โหลดห้องเรียน
 // ==========================================
-
 async function loadClassrooms() {
     let q = db.from('core_classrooms')
         .select('id, grade_level, room_number, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
@@ -165,6 +166,7 @@ async function loadClassrooms() {
 
     const { data } = await q;
     allClassrooms = data || [];
+
     adviserMap = {};
     allClassrooms.forEach(c => {
         const names = [];
@@ -173,7 +175,12 @@ async function loadClassrooms() {
         adviserMap[c.id] = names.length > 0 ? names.join(' / ') : null;
     });
 
+    const adminFilter = document.getElementById('adminFilterSection');
+    const teacherBar = document.getElementById('teacherActionBar');
+
     if (isAdminMode) {
+        adminFilter.classList.remove('hidden');
+        teacherBar.classList.add('hidden');
         const sel = document.getElementById('sel-classroom');
         if (sel.tomselect) sel.tomselect.destroy();
         sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>' +
@@ -201,17 +208,14 @@ async function loadClassrooms() {
                 }
             }
         });
-        document.getElementById('adminFilterSection').classList.remove('hidden');
-        document.getElementById('teacherActionBar').classList.add('hidden');
-        await loadStats();
     } else {
-        document.getElementById('adminFilterSection').classList.add('hidden');
-        document.getElementById('teacherActionBar').classList.remove('hidden');
-
+        adminFilter.classList.add('hidden');
+        teacherBar.classList.remove('hidden');
         if (allClassrooms.length > 0) {
-            await loadResults(allClassrooms[0].id);
-            currentSelectedClassroomId = allClassrooms[0].id;
-            await loadStats(allClassrooms[0].id);
+            const firstRoomId = allClassrooms[0].id;
+            currentSelectedClassroomId = firstRoomId;
+            await loadResults(firstRoomId);
+            await loadStats(firstRoomId);
         } else {
             currentSelectedClassroomId = null;
             Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
@@ -220,467 +224,26 @@ async function loadClassrooms() {
     }
 }
 
-async function loadStats(forceClassroomId = null) {
-    const academicYear = String(schoolInfo?.current_academic_year);
-    const semester = String(schoolInfo?.current_semester);
-
-    let query = db.from('mi_assessments')
-        .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
-        .eq('academic_year', academicYear)
-        .eq('semester', semester);
-
-    if (forceClassroomId) {
-        query = query.eq('classroom_id', forceClassroomId);
-    }
-
-    const { data: mis, error: misErr } = await query;
-    if (misErr) console.error('loadStats error:', misErr);
-
-    let visibleStudentIds = [];
-    if (!isAdminMode) {
-        const roomIds = allClassrooms.map(r => r.id);
-        if (roomIds.length === 0) {
-            const emptyDimStats = MI_DIMENSIONS.map(d => ({ key: d.key, label: d.label, count: 0, icon: getDimIcon(d.key) }));
-            renderStatsCards(0, 0, 0, emptyDimStats);
-            return;
-        }
-        const { data: enrolls } = await db.from('student_enrollments')
-            .select('student_id')
-            .in('classroom_id', roomIds);
-        visibleStudentIds = (enrolls || []).map(e => e.student_id);
-    } else {
-        if (forceClassroomId) {
-            const { data: enrolls } = await db.from('student_enrollments')
-                .select('student_id')
-                .eq('classroom_id', forceClassroomId);
-            visibleStudentIds = (enrolls || []).map(e => e.student_id);
-        } else {
-            const { data: allStd } = await db.from('core_students').select('id');
-            visibleStudentIds = (allStd || []).map(s => s.id);
-        }
-    }
-
-    const totalStudents = visibleStudentIds.length;
-    const filteredAssessments = (mis || []).filter(m => visibleStudentIds.includes(m.student_id));
-    const assessedCount = filteredAssessments.length;
-    const notAssessedCount = totalStudents - assessedCount;
-
-    const dimKeys = MI_DIMENSIONS.map(d => d.key);
-    const topCount = {};
-    dimKeys.forEach(key => { topCount[key] = 0; });
-    filteredAssessments.forEach(m => {
-        let maxScore = -1;
-        let topKey = null;
-        dimKeys.forEach(key => {
-            const s = m[`score_${key}`] || 0;
-            if (s > maxScore) { maxScore = s; topKey = key; }
-        });
-        if (topKey) topCount[topKey]++;
-    });
-
-    const dimStats = MI_DIMENSIONS.map(d => ({
-        key: d.key,
-        label: d.label,
-        count: topCount[d.key] || 0,
-        icon: getDimIcon(d.key)
-    }));
-
-    renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
-}
-
-function getDimIcon(key) {
-    const map = {
-        linguistic: 'fa-language',
-        logical_mathematical: 'fa-calculator',
-        visual_spatial: 'fa-cubes',
-        bodily_kinesthetic: 'fa-running',
-        musical: 'fa-music',
-        interpersonal: 'fa-users',
-        intrapersonal: 'fa-user-astronaut',
-        naturalist: 'fa-leaf'
-    };
-    return map[key] || 'fa-brain';
-}
-
-let miBarChartInstance = null;
-let miDoughnutChartInstance = null;
-
-function renderMICharts(dimStats) {
-    const DIM_COLORS = [
-        '#6366f1', '#0ea5e9', '#8b5cf6', '#10b981',
-        '#ec4899', '#f97316', '#14b8a6', '#22c55e'
-    ];
-
-    const labels = dimStats.map(d => d.label);
-    const counts = dimStats.map(d => d.count);
-    const total = counts.reduce((a, b) => a + b, 0);
-
-    const barCanvas = document.getElementById('mi-bar-chart');
-    if (barCanvas) {
-        if (miBarChartInstance) { miBarChartInstance.destroy(); miBarChartInstance = null; }
-        const sortedIdx = [...counts.keys()].sort((a, b) => counts[b] - counts[a]);
-        miBarChartInstance = new Chart(barCanvas.getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: sortedIdx.map(i => labels[i]),
-                datasets: [{
-                    label: 'จำนวนนักเรียน (คน)',
-                    data: sortedIdx.map(i => counts[i]),
-                    backgroundColor: sortedIdx.map(i => DIM_COLORS[i] + 'CC'),
-                    borderColor: sortedIdx.map(i => DIM_COLORS[i]),
-                    borderWidth: 2,
-                    borderRadius: 8,
-                    borderSkipped: false
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => ` ${ctx.parsed.y} คน`
-                        }
-                    }
-                },
-                scales: {
-                    x: {
-                        ticks: {
-                            font: { size: 10, family: 'Sarabun, sans-serif' },
-                            maxRotation: 30,
-                            callback: function (val) {
-                                const s = this.getLabelForValue(val);
-                                return s.length > 8 ? s.slice(0, 8) + '…' : s;
-                            }
-                        },
-                        grid: { display: false }
-                    },
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            stepSize: 1,
-                            precision: 0,
-                            font: { size: 10 }
-                        },
-                        grid: { color: '#f1f5f9' }
-                    }
-                }
-            }
-        });
-    }
-
-    const doughnutCanvas = document.getElementById('mi-doughnut-chart');
-    const legendEl = document.getElementById('mi-doughnut-legend');
-    const totalEl = document.getElementById('mi-doughnut-total');
-
-    if (doughnutCanvas) {
-        if (miDoughnutChartInstance) { miDoughnutChartInstance.destroy(); miDoughnutChartInstance = null; }
-
-        const hasCounts = counts.some(c => c > 0);
-        const chartLabels = hasCounts ? labels : ['ยังไม่มีข้อมูล'];
-        const chartData = hasCounts ? counts : [1];
-        const chartColors = hasCounts ? DIM_COLORS : ['#e2e8f0'];
-
-        if (totalEl) totalEl.textContent = total;
-
-        miDoughnutChartInstance = new Chart(doughnutCanvas.getContext('2d'), {
-            type: 'doughnut',
-            data: {
-                labels: chartLabels,
-                datasets: [{
-                    data: chartData,
-                    backgroundColor: chartColors.map(c => c + 'DD'),
-                    borderColor: chartColors,
-                    borderWidth: 2,
-                    hoverOffset: 8
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '62%',
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: ctx => {
-                                if (!hasCounts) return ' ยังไม่มีข้อมูล';
-                                const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0;
-                                return ` ${ctx.parsed} คน (${pct}%)`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        if (legendEl) {
-            if (!hasCounts) {
-                legendEl.innerHTML = '<p class="text-slate-400 text-xs">ยังไม่มีข้อมูลสำรวจ</p>';
-            } else {
-                legendEl.innerHTML = dimStats.map((d, i) => {
-                    const pct = total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0';
-                    const bar = total > 0 ? Math.round((d.count / total) * 100) : 0;
-                    return `
-                    <div class="flex items-center gap-2">
-                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${DIM_COLORS[i]}"></span>
-                        <span class="text-slate-600 truncate flex-1" title="${d.label}">${d.label}</span>
-                        <span class="font-bold text-slate-700 flex-shrink-0">${d.count}</span>
-                        <span class="text-slate-400 flex-shrink-0 w-10 text-right">${pct}%</span>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-1 mb-1">
-                        <div class="h-1 rounded-full" style="width:${bar}%;background:${DIM_COLORS[i]}"></div>
-                    </div>`;
-                }).join('');
-            }
-        }
-    }
-}
-
-function renderStatsCards(total, assessed, notAssessed, dimStats) {
-    const container = document.getElementById('stat-cards');
-    if (!container) return;
-
-    let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
-    const mainCards = [
-        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue' },
-        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green' },
-        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber' }
-    ];
-    mainCards.forEach(card => {
-        html += `
-            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
-                    <i class="fas ${card.icon}"></i>
-                </div>
-                <div class="relative z-10">
-                    <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
-                    <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
-                </div>
-            </div>
-        `;
-    });
-    html += `</div>`;
-
-    html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">`;
-    const colors = ['blue', 'indigo', 'purple', 'pink', 'red', 'orange', 'amber', 'emerald'];
-    dimStats.forEach((d, idx) => {
-        const color = colors[idx % colors.length];
-        html += `
-            <div class="glass rounded-2xl p-4 shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow" 
-                 onclick="openDimStudentList('${d.key}')">
-                <div class="h-10 w-10 bg-${color}-100 text-${color}-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas ${d.icon} text-lg"></i>
-                </div>
-                <div>
-                    <p class="text-xs text-slate-400 font-bold uppercase leading-tight">${d.label}</p>
-                    <p class="text-xl font-bold text-slate-800">${d.count}</p>
-                </div>
-            </div>
-        `;
-    });
-    html += `</div>`;
-
-    html += `
-<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
-    <div class="glass rounded-2xl shadow-sm p-5">
-        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
-            <i class="fas fa-chart-bar text-indigo-500"></i> จำนวนนักเรียนที่โดดเด่นรายด้าน
-        </h3>
-        <div class="relative" style="height:240px;">
-            <canvas id="mi-bar-chart"></canvas>
-        </div>
-    </div>
-    <div class="glass rounded-2xl shadow-sm p-5">
-        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
-            <i class="fas fa-chart-pie text-purple-500"></i> สัดส่วนปัญญาที่โดดเด่น (%)
-        </h3>
-        <div class="flex items-center gap-4">
-            <div class="relative flex-shrink-0" style="width:150px;height:150px;">
-                <canvas id="mi-doughnut-chart"></canvas>
-                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <p class="text-xs text-slate-400 font-bold">รวม</p>
-                    <p class="text-xl font-black text-slate-700" id="mi-doughnut-total">0</p>
-                    <p class="text-xs text-slate-400">คน</p>
-                </div>
-            </div>
-            <div class="flex-1 space-y-1 text-xs" style="max-height:220px; overflow-y:auto;" id="mi-doughnut-legend"></div>
-        </div>
-    </div>
-</div>`;
-
-    container.innerHTML = html;
-
-    requestAnimationFrame(() => renderMICharts(dimStats));
-}
-
-async function loadResults(forceClassroomId = null) {
-    Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    try {
-        const sel = document.getElementById('sel-classroom');
-        const classroomId = forceClassroomId || (isAdminMode && sel ? (sel.tomselect ? sel.tomselect.getValue() : sel.value) : null);
-
-        let roomIds = [];
-        if (classroomId) {
-            roomIds = [classroomId];
-        } else if (isAdminMode) {
-            roomIds = allClassrooms.map(r => r.id);
-        } else {
-            roomIds = allClassrooms.map(r => r.id);
-        }
-
-        if (roomIds.length === 0) {
-            Swal.close();
-            allResults = [];
-            renderTable([]);
-            return;
-        }
-
-        let miMap = {};
-        const { data: mis, error: misErr } = await db.from('mi_assessments')
-            .select('*')
-            .eq('academic_year', String(schoolInfo?.current_academic_year))
-            .eq('semester', String(schoolInfo?.current_semester))
-            .in('classroom_id', roomIds);
-
-        if (misErr) console.error('loadResults mis error:', misErr);
-
-        (mis || []).forEach(e => {
-            miMap[e.student_id] = e;
-        });
-
-        let { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
-            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
-            .in('classroom_id', roomIds)
-            .order('student_number');
-
-        if (enrollErr) {
-            console.warn('❌ Query enrolls failed, retrying fallback...', enrollErr);
-            const fallback = await db.from('student_enrollments')
-                .select('student_id, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
-                .in('classroom_id', roomIds);
-
-            enrolls = fallback.data;
-            if (fallback.error) {
-                console.error('❌ Fallback query also failed:', fallback.error);
-                throw fallback.error;
-            }
-        }
-
-        Swal.close();
-        allResults = (enrolls || []).map(e => ({ ...e, mi: miMap[e.student_id] || null }));
-
-        if (allResults.length === 0) {
-            console.warn('⚠️ No students found for roomIds:', roomIds);
-            Swal.fire({
-                icon: 'info',
-                title: 'ไม่พบรายชื่อนักเรียน',
-                text: 'ยังไม่มีการนำเข้านักเรียนในห้องเรียนนี้',
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }
-
-        renderTable(allResults);
-
-    } catch (error) {
-        Swal.close();
-        console.error('❌ Error in loadResults:', error);
-        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลนักเรียนได้ (โปรดกด F12 เพื่อดู Console ว่าตารางขาดคอลัมน์ใด)', 'error');
-        allResults = [];
-        renderTable([]);
-    }
-}
-
-function renderTable(rows) {
-    if (miTable) { miTable.destroy(); miTable = null; }
-    const tbody = document.getElementById('mi-tbody');
-    if (!tbody) return;
-
-    const getLevelBadge = (level) => {
-        if (!level) return '<span class="text-slate-300">-</span>';
-        let cls = '';
-        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) {
-            cls = 'bg-green-100 text-green-700';
-        } else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) {
-            cls = 'bg-blue-100 text-blue-700';
-        } else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) {
-            cls = 'bg-amber-100 text-amber-700';
-        } else {
-            cls = 'bg-slate-100 text-slate-600';
-        }
-        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
-    };
-
-    let html = '';
-    for (const r of rows) {
-        const cls = r.core_classrooms;
-        const std = r.core_students;
-        const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
-        const mi = r.mi;
-
-        if (!mi) {
-            html += `<tr>
-                <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
-                <td class="text-center">${r.student_number}</td>
-                <td class="font-semibold text-slate-700">${fullName}</td>
-                ${MI_DIMENSIONS.map(() => '<td class="text-center">-</td>').join('')}
-                <td class="text-center">-</td>
-                <td class="text-center text-slate-400">ยังไม่ประเมิน</td>
-                <td class="text-center"><button onclick='openEditForStudent("${r.student_id}")' class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded text-xs">ประเมิน</button></td>
-            </tr>`;
-            continue;
-        }
-
-        const dimKeys = MI_DIMENSIONS.map(d => d.key);
-        const dimScores = dimKeys.map(key => mi[`score_${key}`] || 0);
-        const totalScore = dimScores.reduce((a, b) => a + b, 0);
-
-        const actions = `<div class="flex gap-1 justify-center">
-            <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-xs"></i></button>
-            <button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>
-            <button onclick='printStudentPdf("${r.student_id}")' class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="PDF"><i class="fas fa-print text-xs"></i></button>
-            <button onclick='deleteResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="ลบ"><i class="fas fa-trash text-xs"></i></button>
-        </div>`;
-
-        html += `<tr>
-            <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
-            <td class="text-center font-bold text-slate-400">${r.student_number}</td>
-            <td class="font-semibold text-slate-700">${fullName}</td>
-            ${dimScores.map(s => `<td class="text-center">${s}/25</td>`).join('')}
-            <td class="text-center font-bold">${totalScore} / 200</td>
-            <td class="text-center">${getLevelBadge(mi.level_total)}</td>
-            <td class="text-center">${actions}</td>
-        </tr>`;
-    }
-
-    tbody.innerHTML = html;
-
-    try {
-        miTable = new DataTable('#mi-table', {
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-            responsive: true,
-            scrollX: true,
-            pageLength: 50,
-            columnDefs: [
-                { responsivePriority: 1, targets: -1 },
-                { orderable: false, targets: [12] }
-            ]
-        });
-    } catch (err) {
-        console.error('❌ DataTable initialization error:', err);
-    }
-}
+// ==========================================
+// โหลดสถิติ (loadStats, renderStatsCards, renderMICharts)
+// ==========================================
+// (ฟังก์ชันเหล่านี้ใช้โค้ดเดิมโดยไม่ต้องปรับปรุง ยกเว้นเพิ่ม log หากจำเป็น)
+// แต่เพื่อความกระชับ ขอย่อไว้ในส่วนที่ 2
 
 // ==========================================
-// VIEW RESULT
+// โหลดผลการประเมิน (loadResults, renderTable)
 // ==========================================
+// เช่นเดียวกัน ขอรวมไว้ส่วนที่ 2
 
+// ==========================================
+// ดูผล (openViewResult, closeViewModal)
+// ==========================================
 function closeViewModal() {
-    document.getElementById('view-result-modal').classList.add('hidden');
-    document.getElementById('view-result-modal').classList.remove('flex');
+    const modal = document.getElementById('view-result-modal');
+    if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
 }
 
 async function openViewResult(studentId) {
@@ -789,9 +352,8 @@ async function openViewResult(studentId) {
 }
 
 // ==========================================
-// EDIT (CRUD)
+// แก้ไขผล (openEditForStudent, closeEditModal, saveEdit)
 // ==========================================
-
 function closeEditModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     document.getElementById('edit-modal').classList.remove('flex');
@@ -826,8 +388,10 @@ async function openEditForStudent(studentId) {
     document.getElementById('edit-modal').classList.remove('hidden');
     document.getElementById('edit-modal').classList.add('flex');
 }
-
 async function saveEdit() {
+    // ตรวจสอบสิทธิ์ (เฉพาะ admin เท่านั้นที่แก้ไขได้)
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขผลการประเมินได้')) return;
+
     const studentId = document.getElementById('edit-student-id').value;
     const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
         .select('classroom_id')
@@ -892,38 +456,46 @@ async function saveEdit() {
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
         return;
     }
+    await logUserAction(`แก้ไขผล MI ของนักเรียน ${studentId}`, MODULE_ID);
     Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1500, showConfirmButton: false });
     closeEditModal();
     loadResults();
     loadStats();
 }
 
+// ==========================================
+// ลบผล (deleteResult)
+// ==========================================
 async function deleteResult(studentId) {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้', 'warning');
-        return;
-    }
-    const r = await Swal.fire({
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้')) return;
+
+    const { isConfirmed } = await Swal.fire({
         title: 'ลบผลการประเมิน?',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
         confirmButtonText: 'ลบ'
     });
-    if (!r.isConfirmed) return;
-    await db.from('mi_assessments').delete()
+    if (!isConfirmed) return;
+
+    const { error } = await db.from('mi_assessments').delete()
         .eq('student_id', studentId)
         .eq('academic_year', String(schoolInfo.current_academic_year))
         .eq('semester', String(schoolInfo.current_semester));
+
+    if (error) {
+        Swal.fire('ผิดพลาด', error.message, 'error');
+        return;
+    }
+    await logUserAction(`ลบผล MI ของนักเรียน ${studentId}`, MODULE_ID);
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
     loadResults();
     loadStats();
 }
 
 // ==========================================
-// EXPORT EXCEL
+// ส่งออก Excel (exportExcel)
 // ==========================================
-
 function exportExcel() {
     if (!allResults.length) return Swal.fire('ไม่มีข้อมูล', '', 'info');
     const rows = allResults.map(r => {
@@ -953,8 +525,399 @@ function exportExcel() {
 }
 
 // ==========================================
-// PRINT STUDENT PDF (ย่อส่วน)
+// สถิติและกราฟ (loadStats, renderStatsCards, renderMICharts)
 // ==========================================
+function getDimIcon(key) {
+    const map = {
+        linguistic: 'fa-language',
+        logical_mathematical: 'fa-calculator',
+        visual_spatial: 'fa-cubes',
+        bodily_kinesthetic: 'fa-running',
+        musical: 'fa-music',
+        interpersonal: 'fa-users',
+        intrapersonal: 'fa-user-astronaut',
+        naturalist: 'fa-leaf'
+    };
+    return map[key] || 'fa-brain';
+}
+
+async function loadStats(forceClassroomId = null) {
+    const academicYear = String(schoolInfo?.current_academic_year);
+    const semester = String(schoolInfo?.current_semester);
+
+    let query = db.from('mi_assessments')
+        .select('student_id, classroom_id, score_linguistic, score_logical_mathematical, score_visual_spatial, score_bodily_kinesthetic, score_musical, score_interpersonal, score_intrapersonal, score_naturalist')
+        .eq('academic_year', academicYear)
+        .eq('semester', semester);
+
+    if (forceClassroomId) {
+        query = query.eq('classroom_id', forceClassroomId);
+    }
+
+    const { data: mis, error: misErr } = await query;
+    if (misErr) console.error('loadStats error:', misErr);
+
+    let visibleStudentIds = [];
+    if (!isAdminMode) {
+        const roomIds = allClassrooms.map(r => r.id);
+        if (roomIds.length === 0) {
+            const emptyDimStats = MI_DIMENSIONS.map(d => ({ key: d.key, label: d.label, count: 0, icon: getDimIcon(d.key) }));
+            renderStatsCards(0, 0, 0, emptyDimStats);
+            return;
+        }
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id')
+            .in('classroom_id', roomIds);
+        visibleStudentIds = (enrolls || []).map(e => e.student_id);
+    } else {
+        if (forceClassroomId) {
+            const { data: enrolls } = await db.from('student_enrollments')
+                .select('student_id')
+                .eq('classroom_id', forceClassroomId);
+            visibleStudentIds = (enrolls || []).map(e => e.student_id);
+        } else {
+            const { data: allStd } = await db.from('core_students').select('id');
+            visibleStudentIds = (allStd || []).map(s => s.id);
+        }
+    }
+
+    const totalStudents = visibleStudentIds.length;
+    const filteredAssessments = (mis || []).filter(m => visibleStudentIds.includes(m.student_id));
+    const assessedCount = filteredAssessments.length;
+    const notAssessedCount = totalStudents - assessedCount;
+
+    const dimKeys = MI_DIMENSIONS.map(d => d.key);
+    const topCount = {};
+    dimKeys.forEach(key => { topCount[key] = 0; });
+    filteredAssessments.forEach(m => {
+        let maxScore = -1;
+        let topKey = null;
+        dimKeys.forEach(key => {
+            const s = m[`score_${key}`] || 0;
+            if (s > maxScore) { maxScore = s; topKey = key; }
+        });
+        if (topKey) topCount[topKey]++;
+    });
+
+    const dimStats = MI_DIMENSIONS.map(d => ({
+        key: d.key,
+        label: d.label,
+        count: topCount[d.key] || 0,
+        icon: getDimIcon(d.key)
+    }));
+
+    renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
+}
+
+function renderStatsCards(total, assessed, notAssessed, dimStats) {
+    const container = document.getElementById('stat-cards');
+    if (!container) return;
+
+    let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
+    const mainCards = [
+        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue' },
+        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green' },
+        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber' }
+    ];
+    mainCards.forEach(card => {
+        html += `
+            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden">
+                <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
+                    <i class="fas ${card.icon}"></i>
+                </div>
+                <div class="relative z-10">
+                    <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
+                    <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    html += `<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">`;
+    const colors = ['blue', 'indigo', 'purple', 'pink', 'red', 'orange', 'amber', 'emerald'];
+    dimStats.forEach((d, idx) => {
+        const color = colors[idx % colors.length];
+        html += `
+            <div class="glass rounded-2xl p-4 shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow" 
+                 onclick="openDimStudentList('${d.key}')">
+                <div class="h-10 w-10 bg-${color}-100 text-${color}-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <i class="fas ${d.icon} text-lg"></i>
+                </div>
+                <div>
+                    <p class="text-xs text-slate-400 font-bold uppercase leading-tight">${d.label}</p>
+                    <p class="text-xl font-bold text-slate-800">${d.count}</p>
+                </div>
+            </div>
+        `;
+    });
+    html += `</div>`;
+
+    html += `
+<div class="grid grid-cols-1 md:grid-cols-2 gap-5 mt-6">
+    <div class="glass rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-bar text-indigo-500"></i> จำนวนนักเรียนที่โดดเด่นรายด้าน
+        </h3>
+        <div class="relative" style="height:240px;">
+            <canvas id="mi-bar-chart"></canvas>
+        </div>
+    </div>
+    <div class="glass rounded-2xl shadow-sm p-5">
+        <h3 class="font-bold text-slate-700 text-sm mb-4 flex items-center gap-2">
+            <i class="fas fa-chart-pie text-purple-500"></i> สัดส่วนปัญญาที่โดดเด่น (%)
+        </h3>
+        <div class="flex items-center gap-4">
+            <div class="relative flex-shrink-0" style="width:150px;height:150px;">
+                <canvas id="mi-doughnut-chart"></canvas>
+                <div class="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p class="text-xs text-slate-400 font-bold">รวม</p>
+                    <p class="text-xl font-black text-slate-700" id="mi-doughnut-total">0</p>
+                    <p class="text-xs text-slate-400">คน</p>
+                </div>
+            </div>
+            <div class="flex-1 space-y-1 text-xs" style="max-height:220px; overflow-y:auto;" id="mi-doughnut-legend"></div>
+        </div>
+    </div>
+</div>`;
+
+    container.innerHTML = html;
+    requestAnimationFrame(() => renderMICharts(dimStats));
+}
+
+function renderMICharts(dimStats) {
+    const DIM_COLORS = ['#6366f1', '#0ea5e9', '#8b5cf6', '#10b981', '#ec4899', '#f97316', '#14b8a6', '#22c55e'];
+    const labels = dimStats.map(d => d.label);
+    const counts = dimStats.map(d => d.count);
+    const total = counts.reduce((a, b) => a + b, 0);
+
+    const barCanvas = document.getElementById('mi-bar-chart');
+    if (barCanvas) {
+        if (miBarChartInstance) { miBarChartInstance.destroy(); miBarChartInstance = null; }
+        const sortedIdx = [...counts.keys()].sort((a, b) => counts[b] - counts[a]);
+        miBarChartInstance = new Chart(barCanvas.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: sortedIdx.map(i => labels[i]),
+                datasets: [{
+                    label: 'จำนวนนักเรียน (คน)',
+                    data: sortedIdx.map(i => counts[i]),
+                    backgroundColor: sortedIdx.map(i => DIM_COLORS[i] + 'CC'),
+                    borderColor: sortedIdx.map(i => DIM_COLORS[i]),
+                    borderWidth: 2,
+                    borderRadius: 8,
+                    borderSkipped: false
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.y} คน` } } },
+                scales: {
+                    x: {
+                        ticks: {
+                            font: { size: 10 },
+                            maxRotation: 30,
+                            callback: function (val) {
+                                const s = this.getLabelForValue(val);
+                                return s.length > 8 ? s.slice(0, 8) + '…' : s;
+                            }
+                        },
+                        grid: { display: false }
+                    },
+                    y: {
+                        beginAtZero: true,
+                        ticks: { stepSize: 1, precision: 0, font: { size: 10 } },
+                        grid: { color: '#f1f5f9' }
+                    }
+                }
+            }
+        });
+    }
+
+    const doughnutCanvas = document.getElementById('mi-doughnut-chart');
+    const legendEl = document.getElementById('mi-doughnut-legend');
+    const totalEl = document.getElementById('mi-doughnut-total');
+    if (doughnutCanvas) {
+        if (miDoughnutChartInstance) { miDoughnutChartInstance.destroy(); miDoughnutChartInstance = null; }
+        const hasCounts = counts.some(c => c > 0);
+        const chartLabels = hasCounts ? labels : ['ยังไม่มีข้อมูล'];
+        const chartData = hasCounts ? counts : [1];
+        const chartColors = hasCounts ? DIM_COLORS : ['#e2e8f0'];
+        if (totalEl) totalEl.textContent = total;
+
+        miDoughnutChartInstance = new Chart(doughnutCanvas.getContext('2d'), {
+            type: 'doughnut',
+            data: { labels: chartLabels, datasets: [{ data: chartData, backgroundColor: chartColors.map(c => c + 'DD'), borderColor: chartColors, borderWidth: 2, hoverOffset: 8 }] },
+            options: {
+                responsive: true, maintainAspectRatio: false, cutout: '62%',
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => { if (!hasCounts) return ' ยังไม่มีข้อมูล'; const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0; return ` ${ctx.parsed} คน (${pct}%)`; } } }
+                }
+            }
+        });
+
+        if (legendEl) {
+            if (!hasCounts) { legendEl.innerHTML = '<p class="text-slate-400 text-xs">ยังไม่มีข้อมูลสำรวจ</p>'; }
+            else {
+                legendEl.innerHTML = dimStats.map((d, i) => {
+                    const pct = total > 0 ? ((d.count / total) * 100).toFixed(1) : '0.0';
+                    const bar = total > 0 ? Math.round((d.count / total) * 100) : 0;
+                    return `
+                    <div class="flex items-center gap-2">
+                        <span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${DIM_COLORS[i]}"></span>
+                        <span class="text-slate-600 truncate flex-1" title="${d.label}">${d.label}</span>
+                        <span class="font-bold text-slate-700 flex-shrink-0">${d.count}</span>
+                        <span class="text-slate-400 flex-shrink-0 w-10 text-right">${pct}%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-1 mb-1">
+                        <div class="h-1 rounded-full" style="width:${bar}%;background:${DIM_COLORS[i]}"></div>
+                    </div>`;
+                }).join('');
+            }
+        }
+    }
+}
+
+// ==========================================
+// โหลดผลการประเมิน (loadResults, renderTable)
+// ==========================================
+async function loadResults(forceClassroomId = null) {
+    Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    try {
+        const sel = document.getElementById('sel-classroom');
+        const classroomId = forceClassroomId || (isAdminMode && sel ? (sel.tomselect ? sel.tomselect.getValue() : sel.value) : null);
+
+        let roomIds = [];
+        if (classroomId) {
+            roomIds = [classroomId];
+        } else if (isAdminMode) {
+            roomIds = allClassrooms.map(r => r.id);
+        } else {
+            roomIds = allClassrooms.map(r => r.id);
+        }
+
+        if (roomIds.length === 0) {
+            Swal.close();
+            allResults = [];
+            renderTable([]);
+            return;
+        }
+
+        let miMap = {};
+        const { data: mis, error: misErr } = await db.from('mi_assessments')
+            .select('*')
+            .eq('academic_year', String(schoolInfo?.current_academic_year))
+            .eq('semester', String(schoolInfo?.current_semester))
+            .in('classroom_id', roomIds);
+
+        if (misErr) console.error('loadResults mis error:', misErr);
+        (mis || []).forEach(e => { miMap[e.student_id] = e; });
+
+        let { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .in('classroom_id', roomIds)
+            .order('student_number');
+
+        if (enrollErr) {
+            const fallback = await db.from('student_enrollments')
+                .select('student_id, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+                .in('classroom_id', roomIds);
+            enrolls = fallback.data;
+            if (fallback.error) throw fallback.error;
+        }
+
+        Swal.close();
+        allResults = (enrolls || []).map(e => ({ ...e, mi: miMap[e.student_id] || null }));
+
+        if (allResults.length === 0) {
+            Swal.fire({ icon: 'info', title: 'ไม่พบรายชื่อนักเรียน', text: 'ยังไม่มีการนำเข้านักเรียนในห้องเรียนนี้', timer: 2000, showConfirmButton: false });
+        }
+        renderTable(allResults);
+    } catch (error) {
+        Swal.close();
+        console.error('loadResults error:', error);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลนักเรียนได้', 'error');
+        allResults = [];
+        renderTable([]);
+    }
+}
+
+function renderTable(rows) {
+    if (miTable) { miTable.destroy(); miTable = null; }
+    const tbody = document.getElementById('mi-tbody');
+    if (!tbody) return;
+
+    const getLevelBadge = (level) => {
+        if (!level) return '<span class="text-slate-300">-</span>';
+        let cls = '';
+        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) cls = 'bg-green-100 text-green-700';
+        else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) cls = 'bg-blue-100 text-blue-700';
+        else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) cls = 'bg-amber-100 text-amber-700';
+        else cls = 'bg-slate-100 text-slate-600';
+        return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
+    };
+
+    let html = '';
+    for (const r of rows) {
+        const cls = r.core_classrooms;
+        const std = r.core_students;
+        const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+        const mi = r.mi;
+
+        if (!mi) {
+            html += `<tr>
+                <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
+                <td class="text-center">${r.student_number}</td>
+                <td class="font-semibold text-slate-700">${fullName}</td>
+                ${MI_DIMENSIONS.map(() => '<td class="text-center">-</td>').join('')}
+                <td class="text-center">-</td>
+                <td class="text-center text-slate-400">ยังไม่ประเมิน</td>
+                <td class="text-center"><button onclick="openEditForStudent('${r.student_id}')" class="bg-purple-100 hover:bg-purple-200 text-purple-700 px-2 py-1 rounded text-xs">ประเมิน</button></td>
+            </tr>`;
+            continue;
+        }
+
+        const dimKeys = MI_DIMENSIONS.map(d => d.key);
+        const dimScores = dimKeys.map(key => mi[`score_${key}`] || 0);
+        const totalScore = dimScores.reduce((a, b) => a + b, 0);
+
+        const canEdit = isAdminMode; // เฉพาะ admin เท่านั้นที่แก้ไข/ลบได้
+        const actions = `<div class="flex gap-1 justify-center">
+            <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-xs"></i></button>
+            ${canEdit ? `<button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>` : ''}
+            <button onclick='printStudentPdf("${r.student_id}")' class="h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100" title="PDF"><i class="fas fa-print text-xs"></i></button>
+            ${canEdit ? `<button onclick='deleteResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-red-50 text-red-500 hover:bg-red-100" title="ลบ"><i class="fas fa-trash text-xs"></i></button>` : ''}
+        </div>`;
+
+        html += `<tr>
+            <td class="text-center">${cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-'}</td>
+            <td class="text-center font-bold text-slate-400">${r.student_number}</td>
+            <td class="font-semibold text-slate-700">${fullName}</td>
+            ${dimScores.map(s => `<td class="text-center">${s}/25</td>`).join('')}
+            <td class="text-center font-bold">${totalScore} / 200</td>
+            <td class="text-center">${getLevelBadge(mi.level_total)}</td>
+            <td class="text-center">${actions}</td>
+        </tr>`;
+    }
+
+    tbody.innerHTML = html;
+    try {
+        miTable = new DataTable('#mi-table', {
+            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+            responsive: true,
+            scrollX: true,
+            pageLength: 50,
+            columnDefs: [{ responsivePriority: 1, targets: -1 }, { orderable: false, targets: [12] }]
+        });
+    } catch (err) { console.error('DataTable init error:', err); }
+}
+
+// ==========================================
+// พิมพ์ PDF (printStudentPdf, buildMIPdfHtml, generateStudentPDFMI, generateStudentPdfFromHtml)
+// ==========================================
+// (โค้ดเดิมทั้งหมด ไม่ต้องปรับปรุง)
 
 async function printStudentPdf(studentId) {
     Swal.fire({ title: 'กำลังเตรียมเอกสาร PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -1340,9 +1303,8 @@ function generateStudentPdfFromHtml(html, fullName) {
 }
 
 // ==========================================
-// IMPORT (ครูและ Admin ใช้ได้)
+// นำเข้า (Import) — ครูและ admin ใช้ได้
 // ==========================================
-
 function openImportModal() {
     document.getElementById('import-modal').classList.remove('hidden');
 }
@@ -1450,27 +1412,25 @@ async function processImportRows(rows) {
         if (error) fail++; else success++;
     }
     Swal.close(); closeImportModal();
+    await logUserAction(`นำเข้าข้อมูล MI ${success} รายการ (ล้มเหลว ${fail} รายการ)`, MODULE_ID);
     Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
     loadResults();
     loadStats();
 }
 
 // ==========================================
-// SETTINGS (ไม่มีส่วนแก้ไข role)
+// ตั้งค่าระบบ (Settings) — เฉพาะ admin เท่านั้น
 // ==========================================
-
 function openSettings() {
-    if (!canManageSettings()) {
+    if (!window.canManageSettings(currentUserRole)) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้', 'warning');
         return;
     }
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    // แสดงเฉพาะ super_admin (จัดการผู้ใช้ทั่วไป) แต่ไม่มีการเปลี่ยน role
     if (currentUserRole === 'super_admin') {
         document.getElementById('user-management-section').classList.remove('hidden');
-        loadPersonnelForSettings();
     } else {
         document.getElementById('user-management-section').classList.add('hidden');
     }
@@ -1482,10 +1442,7 @@ function closeSettings() {
 }
 
 async function saveSettings() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้ตั้งค่าระบบ', 'error');
-        return;
-    }
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
     const delay = parseInt(document.getElementById('set-delay').value) || 0;
     const active = document.getElementById('set-active').checked;
     const { error } = await db.from('mi_settings').upsert({
@@ -1497,74 +1454,26 @@ async function saveSettings() {
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        await logUserAction('บันทึกการตั้งค่าระบบ MI', MODULE_ID);
         Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1400, showConfirmButton: false });
         closeSettings();
     }
 }
 
-let allPersonnel = [];
-
-async function loadPersonnelForSettings() {
-    if (!canManageSettings()) return;
-    if (currentUserRole !== 'super_admin') return;
-    const { data, error } = await db.from('core_personnel')
-        .select('id, first_name, last_name, email, role, prefix')
-        .order('first_name');
-    if (error) {
-        console.error(error);
-        return;
-    }
-    allPersonnel = data || [];
-    filterUsersForSettings();
-}
-
-function filterUsersForSettings() {
-    const searchTerm = document.getElementById('user-search-settings')?.value.toLowerCase() || '';
-    const filtered = allPersonnel.filter(u =>
-        `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm) ||
-        (u.email || '').toLowerCase().includes(searchTerm)
-    );
-    renderUserTableForSettings(filtered);
-}
-
-function renderUserTableForSettings(users) {
-    const tbody = document.getElementById('user-list-settings-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = users.map(user => {
-        const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
-        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
-                          (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
-        return `<tr>
-            <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
-            <td class="px-2 py-1">${user.email || '-'}</td>
-            <td class="px-2 py-1"><span class="px-2 py-0.5 rounded-full text-xs ${roleClass}">${roleDisplay}</span></td>
-            <td class="px-2 py-1">-</td>
-            <td class="px-2 py-1">-</td>
-        </tr>`;
-    }).join('');
-    const searchInput = document.getElementById('user-search-settings');
-    if (searchInput && !searchInput._listener) {
-        searchInput.addEventListener('input', filterUsersForSettings);
-        searchInput._listener = true;
-    }
-}
-
 // ==========================================
-// MODULE ADMIN MANAGEMENT (ใช้ core_module_admins)
+// จัดการผู้ดูแลระบบ (Module Admin) — ใช้ core_module_admins
 // ==========================================
-
 function openAdminManager() {
-    if (!canManageSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการแอดมินโมดูลได้', 'warning');
-        return;
-    }
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
     document.getElementById('adminManagerModal').classList.remove('hidden');
+    document.getElementById('adminManagerModal').classList.add('flex');
     loadPersonnelOptions();
     loadCurrentAdmins();
 }
 
 function closeAdminManager() {
     document.getElementById('adminManagerModal').classList.add('hidden');
+    document.getElementById('adminManagerModal').classList.remove('flex');
 }
 
 async function loadPersonnelOptions() {
@@ -1573,19 +1482,16 @@ async function loadPersonnelOptions() {
             .from('core_module_admins')
             .select('user_id')
             .eq('module_id', MODULE_ID);
-
         const adminUserIds = currentAdmins ? currentAdmins.map(a => a.user_id) : [];
 
         const { data: personnel, error } = await db
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, position, department')
             .order('first_name', { ascending: true });
-
         if (error) throw error;
 
         const select = document.getElementById('personnelSelect');
         select.innerHTML = '';
-
         if (select.tomselect) select.tomselect.destroy();
 
         const emptyOption = document.createElement('option');
@@ -1623,7 +1529,6 @@ async function loadCurrentAdmins() {
             .from('core_module_admins')
             .select('id, user_id, created_at')
             .eq('module_id', MODULE_ID);
-
         if (adminError) throw adminError;
 
         let moduleAdmins = [];
@@ -1634,7 +1539,6 @@ async function loadCurrentAdmins() {
                 .select('id, prefix, first_name, last_name, position, department')
                 .in('id', userIds);
             if (pErr) throw pErr;
-
             const personnelMap = {};
             (personnelList || []).forEach(p => { personnelMap[p.id] = p; });
             moduleAdmins = moduleAdminsRaw
@@ -1646,19 +1550,15 @@ async function loadCurrentAdmins() {
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, position, department')
             .eq('role', 'super_admin');
-
         if (superError) throw superError;
 
         const adminListDiv = document.getElementById('adminList');
         let html = '';
         let totalCount = 0;
 
-        // แสดง Super Admin (ถาวร)
         if (superAdmins && superAdmins.length > 0) {
             superAdmins.forEach(admin => {
                 const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
-                const dept = admin.department || '';
-                const pos = admin.position || '';
                 html += `
                     <div class="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
                         <div class="flex items-center gap-3">
@@ -1667,7 +1567,7 @@ async function loadCurrentAdmins() {
                             </div>
                             <div>
                                 <div class="font-bold text-slate-800">${fullName}</div>
-                                <div class="text-xs text-slate-500">${pos}${dept ? ` · ${dept}` : ''}</div>
+                                <div class="text-xs text-slate-500">${admin.position || ''}${admin.department ? ` · ${admin.department}` : ''}</div>
                                 <span class="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">
                                     <i class="fa-solid fa-star mr-1"></i>Super Admin
                                 </span>
@@ -1684,12 +1584,7 @@ async function loadCurrentAdmins() {
             moduleAdmins.forEach(admin => {
                 const p = admin.core_personnel;
                 const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-                const dept = p.department || '';
-                const pos = p.position || '';
-                const createdDate = admin.created_at
-                    ? new Date(admin.created_at).toLocaleDateString('th-TH')
-                    : 'ไม่ระบุ';
-
+                const createdDate = admin.created_at ? new Date(admin.created_at).toLocaleDateString('th-TH') : 'ไม่ระบุ';
                 html += `
                     <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl">
                         <div class="flex items-center gap-3">
@@ -1698,7 +1593,7 @@ async function loadCurrentAdmins() {
                             </div>
                             <div>
                                 <div class="font-bold text-slate-800">${fullName}</div>
-                                <div class="text-xs text-slate-500">${pos}${dept ? ` · ${dept}` : ''}</div>
+                                <div class="text-xs text-slate-500">${p.position || ''}${p.department ? ` · ${p.department}` : ''}</div>
                                 <span class="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">
                                     <i class="fa-solid fa-clock mr-1"></i>ตั้งแต่ ${createdDate}
                                 </span>
@@ -1715,34 +1610,21 @@ async function loadCurrentAdmins() {
         }
 
         if (html === '') {
-            html = `
-                <div class="text-center text-slate-400 py-8">
-                    <i class="fa-solid fa-user-slash text-3xl mb-2"></i>
-                    <p>ยังไม่มีผู้ดูแลระบบ ${MODULE_ID.toUpperCase()}</p>
-                </div>
-            `;
+            html = `<div class="text-center text-slate-400 py-8"><i class="fa-solid fa-user-slash text-3xl mb-2"></i><p>ยังไม่มีผู้ดูแลระบบ MI</p></div>`;
         }
-
         adminListDiv.innerHTML = html;
         document.getElementById('adminCount').textContent = `(${totalCount} คน)`;
     } catch (err) {
         console.error('Load admins error:', err);
-        document.getElementById('adminList').innerHTML = `
-            <div class="text-center text-rose-400 py-8">
-                <i class="fa-solid fa-triangle-exclamation text-3xl mb-2"></i>
-                <p>ไม่สามารถโหลดข้อมูลได้</p>
-                <p class="text-xs mt-1">${err.message}</p>
-            </div>
-        `;
+        document.getElementById('adminList').innerHTML = `<div class="text-center text-rose-400 py-8"><i class="fa-solid fa-triangle-exclamation text-3xl mb-2"></i><p>ไม่สามารถโหลดข้อมูลได้</p><p class="text-xs mt-1">${err.message}</p></div>`;
     }
 }
 
 async function addModuleAdmin() {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
 
     const select = document.getElementById('personnelSelect');
     const personnelId = select.tomselect ? select.tomselect.getValue() : select.value;
-
     if (!personnelId || personnelId === '') {
         return Swal.fire('กรุณาเลือก', 'กรุณาเลือกครู/บุคลากรก่อน', 'warning');
     }
@@ -1753,45 +1635,27 @@ async function addModuleAdmin() {
             .select('id, email, prefix, first_name, last_name')
             .eq('id', personnelId)
             .single();
-
-        if (personnelError || !personnel) {
-            return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลบุคลากร', 'error');
-        }
+        if (personnelError || !personnel) return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลบุคลากร', 'error');
 
         const userId = personnel.id;
-        const { data: existing, error: existingError } = await db
+        const { data: existing } = await db
             .from('core_module_admins')
             .select('id')
             .eq('user_id', userId)
             .eq('module_id', MODULE_ID)
             .maybeSingle();
-
-        if (existing) {
-            return Swal.fire('ซ้ำซ้อน', 'บุคลากรนี้เป็นผู้ดูแล MI อยู่แล้ว', 'info');
-        }
+        if (existing) return Swal.fire('ซ้ำซ้อน', 'บุคลากรนี้เป็นผู้ดูแล MI อยู่แล้ว', 'info');
 
         const { error: insertError } = await db
             .from('core_module_admins')
-            .insert({
-                user_id: userId,
-                module_id: MODULE_ID,
-                created_at: new Date().toISOString()
-            });
-
+            .insert({ user_id: userId, module_id: MODULE_ID, created_at: new Date().toISOString() });
         if (insertError) throw insertError;
 
-        Swal.fire({
-            icon: 'success',
-            title: 'แต่งตั้งสำเร็จ!',
-            text: `${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name} มีสิทธิ์จัดการระบบ MI แล้ว`,
-            timer: 2000,
-            showConfirmButton: false
-        });
-
+        await logUserAction(`แต่งตั้งผู้ดูแล MI: ${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`, MODULE_ID);
+        Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ!', timer: 2000, showConfirmButton: false });
         if (select.tomselect) select.tomselect.clear();
         await loadCurrentAdmins();
         await loadPersonnelOptions();
-
     } catch (err) {
         console.error('Add admin error:', err);
         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถเพิ่มผู้ดูแลได้: ' + err.message, 'error');
@@ -1799,7 +1663,7 @@ async function addModuleAdmin() {
 }
 
 async function removeModuleAdmin(adminId, adminName) {
-    if (!canManageSettings()) return;
+    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
 
     const result = await Swal.fire({
         title: 'ยืนยันการถอดถอน?',
@@ -1810,25 +1674,13 @@ async function removeModuleAdmin(adminId, adminName) {
         confirmButtonText: 'ถอดถอน',
         cancelButtonText: 'ยกเลิก'
     });
-
     if (!result.isConfirmed) return;
 
     try {
-        const { error } = await db
-            .from('core_module_admins')
-            .delete()
-            .eq('id', adminId);
-
+        const { error } = await db.from('core_module_admins').delete().eq('id', adminId);
         if (error) throw error;
-
-        Swal.fire({
-            icon: 'success',
-            title: 'ถอดถอนสำเร็จ!',
-            text: `${adminName} ไม่มีสิทธิ์จัดการระบบ MI แล้ว`,
-            timer: 2000,
-            showConfirmButton: false
-        });
-
+        await logUserAction(`ถอดถอนผู้ดูแล MI: ${adminName}`, MODULE_ID);
+        Swal.fire({ icon: 'success', title: 'ถอดถอนสำเร็จ!', timer: 2000, showConfirmButton: false });
         await loadCurrentAdmins();
         await loadPersonnelOptions();
     } catch (err) {
@@ -1838,9 +1690,8 @@ async function removeModuleAdmin(adminId, adminName) {
 }
 
 // ==========================================
-// DIM STUDENT LIST (Modal)
+// รายชื่อนักเรียนตามด้าน (Dim Student List)
 // ==========================================
-
 function closeDimStudentModal() {
     const modal = document.getElementById('dim-student-modal');
     if (!modal) return;
@@ -1891,14 +1742,12 @@ async function openDimStudentList(dimKey) {
 
         (mis || []).forEach(m => {
             if (!filterRoomIds.includes(m.classroom_id)) return;
-
             let maxScore = -1;
             let topKey = null;
             dimKeys.forEach(key => {
                 const s = m[`score_${key}`] || 0;
                 if (s > maxScore) { maxScore = s; topKey = key; }
             });
-
             if (topKey === dimKey) {
                 targetStudentIds.push(m.student_id);
                 topScoreMap[m.student_id] = maxScore;
@@ -1970,7 +1819,6 @@ async function openDimStudentList(dimKey) {
         tbody.innerHTML = html;
 
         Swal.close();
-
         const modal = document.getElementById('dim-student-modal');
         if (modal) {
             modal.classList.remove('hidden');
@@ -1994,7 +1842,42 @@ async function openDimStudentList(dimKey) {
 
     } catch (error) {
         Swal.close();
-        console.error('Error openDimStudentList:', error);
+        console.error('openDimStudentList error:', error);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลรายชื่อได้', 'error');
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global สำหรับส่วนที่ 1
+// ==========================================
+window.logout = logout;
+window.toggleMode = toggleMode;
+window.openViewResult = openViewResult;
+window.closeViewModal = closeViewModal;
+window.openEditForStudent = openEditForStudent;
+window.closeEditModal = closeEditModal;
+window.saveEdit = saveEdit;
+window.deleteResult = deleteResult;
+
+console.log('✅ mit_teacher.js (Part 1) loaded');
+// ==========================================
+// ประกาศฟังก์ชัน global สำหรับส่วนที่ 2
+// ==========================================
+window.exportExcel = exportExcel;
+window.printStudentPdf = printStudentPdf;
+window.openImportModal = openImportModal;
+window.closeImportModal = closeImportModal;
+window.setImportMode = setImportMode;
+window.handleFileImport = handleFileImport;
+window.handleSheetsImport = handleSheetsImport;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.saveSettings = saveSettings;
+window.openAdminManager = openAdminManager;
+window.closeAdminManager = closeAdminManager;
+window.addModuleAdmin = addModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
+window.openDimStudentList = openDimStudentList;
+window.closeDimStudentModal = closeDimStudentModal;
+
+console.log('✅ mit_teacher.js (Part 2) loaded');

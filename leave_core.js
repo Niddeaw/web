@@ -1,30 +1,24 @@
-// ==========================================
-// CORE FUNCTIONS for Leave System
-// ใช้ร่วมกันระหว่าง leave_teacher.js และ leave_admin.js
-// ==========================================
+// ============================================================
+// leave_core.js — ฟังก์ชันกลางระบบการลา (ใช้ร่วมกันทุกไฟล์)
+// ============================================================
+// ประกาศฟังก์ชันเป็น global เพื่อให้ไฟล์อื่นเรียกใช้ได้
 
-function getGenderFromPrefix(prefix) {
+// ==========================================
+// 1. ฟังก์ชันหาเพศจากคำนำหน้า
+// ==========================================
+window.getGenderFromPrefix = function(prefix) {
     if (!prefix) return 'unknown';
     const malePrefixes = ['นาย', 'ว่าที่ ร.ต.', 'ร.ต.', 'ด.ต.', 'ว่าที่', 'สามเณร', 'พระ', 'หม่อมหลวง'];
     const femalePrefixes = ['นางสาว', 'นาง', 'น.ส.', 'หม่อมหลวงหญิง'];
     if (malePrefixes.some(male => prefix.includes(male) || prefix === male)) return 'ชาย';
     if (femalePrefixes.some(female => prefix.includes(female) || prefix === female)) return 'หญิง';
     return 'unknown';
-}
+};
 
-function formatDateThai(isoString) {
-    if (!isoString) return '-';
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return '-';
-    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
-}
-
-function getThaiMonths() {
-    return ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-}
-
-function calculateDaysByType(startIso, endIso, type) {
+// ==========================================
+// 2. คำนวณวันลาตามประเภท
+// ==========================================
+window.calculateDaysByType = function(startIso, endIso, type) {
     if (!startIso || !endIso || !type) return 0;
     const startDate = new Date(startIso);
     const endDate = new Date(endIso);
@@ -41,9 +35,73 @@ function calculateDaysByType(startIso, endIso, type) {
         curDate.setDate(curDate.getDate() + 1);
     }
     return count;
-}
+};
 
-async function generateLeavePDF(id, systemSettings) {
+// ==========================================
+// 3. แปลงวันที่เป็นภาษาไทย
+// ==========================================
+window.formatDateThai = function(isoString) {
+    if (!isoString) return '-';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '-';
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+};
+
+// ==========================================
+// 4. รายชื่อเดือนภาษาไทย
+// ==========================================
+window.getThaiMonths = function() {
+    return ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+};
+
+// ==========================================
+// 5. สลับไปโหมดครู
+// ==========================================
+window.switchToTeacherMode = function() {
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'สลับเป็นโหมดครูผู้สอน',
+        showConfirmButton: false,
+        timer: 1000,
+        timerProgressBar: true
+    });
+    setTimeout(() => {
+        window.location.href = 'leave_teacher.html';
+    }, 500);
+};
+
+// ==========================================
+// 6. สลับไปโหมดแอดมิน (ตรวจสอบสิทธิ์)
+// ==========================================
+window.switchToAdminMode = function() {
+    // ✅ ใช้ config.js ตรวจสอบสิทธิ์
+    const isAdmin = window.isAdminUser?.(window.currentProfile?.role, false);
+    const isModuleAdmin = window.isModuleAdmin || false;
+    if (!isAdmin && !isModuleAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+        return;
+    }
+    Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'สลับเป็นโหมดผู้ดูแลระบบ',
+        showConfirmButton: false,
+        timer: 1000,
+        timerProgressBar: true
+    });
+    setTimeout(() => {
+        window.location.href = 'leave_admin.html';
+    }, 500);
+};
+
+// ==========================================
+// 7. สร้าง PDF ใบลา (ฟังก์ชันหลัก)
+// ==========================================
+window.generateLeavePDF = async function(id, systemSettings) {
     const db = window.db;
     const Swal = window.Swal;
     if (!systemSettings.gas_url || !systemSettings.slide_template_id || !systemSettings.pdf_folder_id) {
@@ -146,7 +204,7 @@ async function generateLeavePDF(id, systemSettings) {
         const academicStanding = p.academic_standing || '';
         const fullPosition = `${position}${rank ? ' ' + rank : ''}${academicStanding ? ' ' + academicStanding : ''}`;
 
-        const thMonths = getThaiMonths();
+        const thMonths = window.getThaiMonths();
         const sDate = new Date(leave.start_date);
         const eDate = new Date(leave.end_date);
         const wDateObj = new Date(leave.created_at);
@@ -185,8 +243,8 @@ async function generateLeavePDF(id, systemSettings) {
             const start = new Date(lastLeave.start_date);
             const end = new Date(lastLeave.end_date);
             if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
-                lastStartDate = formatDateThai(lastLeave.start_date);
-                lastEndDate = formatDateThai(lastLeave.end_date);
+                lastStartDate = window.formatDateThai(lastLeave.start_date);
+                lastEndDate = window.formatDateThai(lastLeave.end_date);
                 lastTotalDays = lastLeave.total_days.toString();
                 if (lastLeave.type === 'ลาป่วย') lastCheckSick = '✓';
                 else if (lastLeave.type === 'ลากิจส่วนตัว') lastCheckPersonal = '✓';
@@ -222,8 +280,8 @@ async function generateLeavePDF(id, systemSettings) {
             "{{FULL_POSITION}}": fullPosition,
             "{{DEPARTMENT}}": p.department || '-',
             "{{REASON}}": leave.reason,
-            "{{START_DATE}}": formatDateThai(leave.start_date),
-            "{{END_DATE}}": formatDateThai(leave.end_date),
+            "{{START_DATE}}": window.formatDateThai(leave.start_date),
+            "{{END_DATE}}": window.formatDateThai(leave.end_date),
             "{{TOTAL_DAYS}}": leave.total_days.toString(),
             "{{CONTACT_ADDRESS}}": leave.contact_address || '-',
             "{{PHONE_NUMBER}}": leave.phone_number || '-',
@@ -311,6 +369,8 @@ async function generateLeavePDF(id, systemSettings) {
         }
         if (result && result.status === 'success' && result.url) {
             await db.from('leave_requests').update({ pdf_url: result.url }).eq('id', id);
+            // ✅ บันทึก Log
+            await window.logUserAction?.(`สร้าง PDF ใบลา ID: ${id}`, 'leave');
             Swal.close();
             window.open(result.url, '_blank');
             return true;
@@ -324,34 +384,6 @@ async function generateLeavePDF(id, systemSettings) {
         Swal.fire('ผิดพลาด', errorMsg, 'error');
         return false;
     }
-}
+};
 
-function switchToTeacherMode() {
-    Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'สลับเป็นโหมดครูผู้สอน',
-        showConfirmButton: false,
-        timer: 1000,
-        timerProgressBar: true
-    });
-    setTimeout(() => {
-        window.location.href = 'leave_teacher.html';
-    }, 500);
-}
-
-function switchToAdminMode() {
-    Swal.fire({
-        toast: true,
-        position: 'top-end',
-        icon: 'success',
-        title: 'สลับเป็นโหมดผู้ดูแลระบบ',
-        showConfirmButton: false,
-        timer: 1000,
-        timerProgressBar: true
-    });
-    setTimeout(() => {
-        window.location.href = 'leave_admin.html';
-    }, 500);
-}
+console.log('✅ leave_core.js loaded (all functions registered globally)');

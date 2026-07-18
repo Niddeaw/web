@@ -69,7 +69,8 @@
                 <div class="flex items-center justify-between mb-5 border-b border-slate-100 pb-3">
                     <h3 class="font-bold text-slate-800 flex items-center">
                         <div class="bg-blue-100 text-blue-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
-                            <i class="fas fa-cloud-upload-alt"></i></div>
+                            <i class="fas fa-cloud-upload-alt"></i>
+                        </div>
                         การตั้งค่าการเชื่อมต่อ API & Google Drive
                     </h3>
                     <span
@@ -109,7 +110,8 @@
                         <h3 class="font-bold text-slate-800 flex items-center">
                             <div
                                 class="bg-purple-100 text-purple-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
-                                <i class="fas fa-user-tie"></i></div> แต่งตั้งหัวหน้าระดับชั้น
+                                <i class="fas fa-user-tie"></i>
+                            </div> แต่งตั้งหัวหน้าระดับชั้น
                         </h3>
                     </div>
                     <div class="flex flex-col gap-3 mb-4">
@@ -147,7 +149,8 @@
                         <h3 class="font-bold text-slate-800 flex items-center">
                             <div
                                 class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-lg flex items-center justify-center mr-2">
-                                <i class="fas fa-shield-alt"></i></div> แต่งตั้งหัวหน้างานปกครอง
+                                <i class="fas fa-shield-alt"></i>
+                            </div> แต่งตั้งหัวหน้างานปกครอง
                         </h3>
                     </div>
                     <div class="flex flex-col gap-3 mb-4">
@@ -178,7 +181,8 @@
                         class="font-black mb-5 text-blue-900 border-b border-slate-100 pb-3 text-lg flex items-center">
                         <div
                             class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
-                            <i class="fas fa-plus"></i></div> เพิ่มเกณฑ์ใหม่
+                            <i class="fas fa-plus"></i>
+                        </div> เพิ่มเกณฑ์ใหม่
                     </h3>
                     <div class="space-y-4">
                         <div>
@@ -224,7 +228,8 @@
                         class="font-black mb-5 text-emerald-800 border-b border-slate-100 pb-3 text-lg flex items-center">
                         <div
                             class="bg-emerald-100 text-emerald-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
-                            <i class="fas fa-file-excel"></i></div> จัดการด้วย Excel
+                            <i class="fas fa-file-excel"></i>
+                        </div> จัดการด้วย Excel
                     </h3>
                     <div class="space-y-3">
                         <button onclick="downloadTemplate()"
@@ -248,7 +253,8 @@
                     <h3 class="font-black text-slate-800 text-lg flex items-center">
                         <div
                             class="bg-amber-100 text-amber-600 w-8 h-8 rounded-full flex items-center justify-center mr-2 text-sm">
-                            <i class="fas fa-list-check"></i></div> ฐานข้อมูลเกณฑ์ทั้งหมด
+                            <i class="fas fa-list-check"></i>
+                        </div> ฐานข้อมูลเกณฑ์ทั้งหมด
                     </h3>
 
                     <div class="flex flex-wrap gap-2 w-full sm:w-auto">
@@ -299,66 +305,97 @@
     </div>
 
     <script>
+        // behavior_settings.html — ปรับใช้ config.js ใหม่
+        // - ใช้ checkSessionAndRole() แทน checkAuth() เดิม
+        // - ใช้ canManageSettings(), hasModuleAccess()
+        // - ใช้ requireAdmin() สำหรับฟังก์ชันลบ/แก้ไข
+        // - ใช้ logUserAction() บันทึกการกระทำ
+
         let currentEditId = null;
+        let currentUser = null;
+        let actualRole = '';
+        let isAdminMode = false;
+        let currentAcadYear = '';
+        let criteriaList = [];
 
         $(document).ready(async () => {
-            await checkAuth();
-            loadApiConfig();
-            loadCriteria();
+            try {
+                Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+                // 1. ตรวจสอบเซสชันและสิทธิ์ด้วย config.js
+                const session = await checkSessionAndRole('ระบบงานปกครอง (ตั้งค่า)');
+                if (!session) return;
+
+                const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode: sessionMode } = session;
+                currentUser = personnel;
+                actualRole = role;
+                isAdminMode = sessionMode;
+
+                // 2. ตรวจสอบสิทธิ์เข้าโมดูล (ถ้าไม่ใช่ admin)
+                if (!isAdmin) {
+                    const hasAccess = await hasModuleAccess(role, 'behavior', user.id);
+                    if (!hasAccess) {
+                        await Swal.fire({
+                            icon: 'warning',
+                            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                            text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบงานปกครอง',
+                            confirmButtonText: 'กลับหน้าหลัก'
+                        });
+                        window.location.href = 'index.html';
+                        return;
+                    }
+                }
+
+                // 3. ตรวจสอบสิทธิ์การตั้งค่า (canManageSettings)
+                const hasSettings = canManageSettings(role);
+                // อนุญาตเฉพาะผู้มี canManageSettings หรือเป็น module admin หรือหัวหน้างานปกครอง
+                const { data: schoolInfo } = await db.from('core_school_info')
+                    .select('current_academic_year')
+                    .single();
+                currentAcadYear = schoolInfo?.current_academic_year || '';
+                const { data: disciplineHead } = await db.from('core_discipline_heads')
+                    .select('id')
+                    .eq('personnel_id', user.id)
+                    .eq('academic_year', currentAcadYear)
+                    .maybeSingle();
+
+                const isDisciplineHead = !!disciplineHead;
+
+                if (!hasSettings && !isDisciplineHead) {
+                    await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
+                    history.back();
+                    return;
+                }
+
+                // 4. แสดง/ซ่อนส่วนต่าง ๆ
+                // ส่วน API Config และหัวหน้าต่าง ๆ แสดงเฉพาะ super_admin ที่มี canManageSettings
+                if (hasSettings && role === 'super_admin') {
+                    $('#api_config_section').removeClass('hidden');
+                    $('#grade_head_section').removeClass('hidden');
+                    $('#discipline_head_section').removeClass('hidden');
+                    loadTeachersForSelect();
+                    loadGradeHeads();
+                    loadDisciplineHeads();
+                    loadApiConfig();
+                    loadCriteria();
+                } else {
+                    // admin หรือหัวหน้างานปกครอง (ไม่ใช่ super_admin) จะเห็นเฉพาะจัดการเกณฑ์
+                    $('#api_config_section').addClass('hidden');
+                    $('#grade_head_section').addClass('hidden');
+                    $('#discipline_head_section').addClass('hidden');
+                    loadCriteria();
+                }
+
+                // 5. บันทึก Log การเข้าใช้งาน
+                await logUserAction('เข้าสู่หน้าตั้งค่าระบบงานปกครอง', 'behavior');
+
+                Swal.close();
+            } catch (err) {
+                console.error(err);
+                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+            }
         });
 
-        // behavior_settings.html — แทนที่ฟังก์ชัน checkAuth
-        async function checkAuth() {
-            const { data: { session } } = await db.auth.getSession();
-            if (!session) { window.location.replace('index.html'); return; }
-
-            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
-            const { data: moduleAdmin } = await db.from('core_module_admins')
-                .select('*')
-                .eq('user_id', session.user.id)
-                .eq('module_id', 'behavior')
-                .maybeSingle();
-
-            // ตรวจสอบหัวหน้างานปกครอง
-            const { data: schoolInfo } = await db.from('core_school_info')
-                .select('current_academic_year')
-                .single();
-            const academicYear = schoolInfo?.current_academic_year || '';
-            const { data: disciplineHead } = await db.from('core_discipline_heads')
-                .select('id')
-                .eq('personnel_id', session.user.id)
-                .eq('academic_year', academicYear)
-                .maybeSingle();
-
-            // ✅ ใช้ canManageSettings จาก config.js (เฉพาะ super_admin, admin)
-            const hasSettings = window.canManageSettings(profile.role);
-            const isAdmin = window.isAdminUser(profile.role, false);
-
-            // อนุญาตเฉพาะผู้ที่มีสิทธิ์ตั้งค่า หรือเป็น module admin หรือหัวหน้างานปกครอง
-            if (!hasSettings && !moduleAdmin && !disciplineHead) {
-                await Swal.fire('ปฏิเสธการเข้าถึง', 'เฉพาะผู้ดูแลระบบงานปกครองเท่านั้น', 'error');
-                history.back();
-                return;
-            }
-
-            // 🌟 แสดงส่วนเฉพาะ Super Admin (ถ้ามีสิทธิ์ตั้งค่าและเป็น super_admin)
-            if (profile.role === 'super_admin') {
-                $('#api_config_section').removeClass('hidden');
-                $('#grade_head_section').removeClass('hidden');
-                $('#discipline_head_section').removeClass('hidden');
-                loadTeachersForSelect();
-                loadGradeHeads();
-                loadDisciplineHeads();
-                loadApiConfig();
-                loadCriteria();
-            } else {
-                // admin หรือหัวหน้างานปกครอง จะเห็นเฉพาะส่วนจัดการเกณฑ์ (ไม่เห็น API/หัวหน้า)
-                $('#api_config_section').addClass('hidden');
-                $('#grade_head_section').addClass('hidden');
-                $('#discipline_head_section').addClass('hidden');
-                loadCriteria();
-            }
-        }
         // ==========================================
         // ส่วนจัดการแอดมินหัวหน้าระดับชั้น (ใช้ Tom Select)
         // ==========================================
@@ -366,18 +403,15 @@
 
         async function loadTeachersForSelect() {
             const { data } = await db.from('core_personnel').select('id, prefix, first_name, last_name').order('first_name');
-
             if (data) {
                 const options = data.map(t => ({
                     id: t.id,
                     full_name: `${t.prefix || ''}${t.first_name} ${t.last_name}`
                 }));
-
                 if (teacherTomSelect) {
                     teacherTomSelect.destroy();
                     $('#grade_head_teacher').empty();
                 }
-
                 teacherTomSelect = new TomSelect('#grade_head_teacher', {
                     options: options,
                     valueField: 'id',
@@ -399,35 +433,33 @@
         async function loadGradeHeads() {
             const { data, error } = await db.from('behavior_grade_heads').select('id, grade_level, teacher_id, core_personnel(prefix, first_name, last_name)').order('grade_level');
             const tbody = document.getElementById('grade_head_list');
-
             if (data && data.length > 0) {
                 tbody.innerHTML = data.map(h => `
-                    <tr class="hover:bg-slate-50 transition-colors group">
-                        <td class="p-3.5 pl-5 font-black text-slate-700 w-24">ม.${h.grade_level}</td>
-                        <td class="p-3.5 text-slate-600 font-bold">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
-                        <td class="p-3.5 text-center">
-                            <button onclick="deleteGradeHead('${h.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
-                        </td>
-                    </tr>
-                `).join('');
+                <tr class="hover:bg-slate-50 transition-colors group">
+                    <td class="p-3.5 pl-5 font-black text-slate-700 w-24">ม.${h.grade_level}</td>
+                    <td class="p-3.5 text-slate-600 font-bold">${h.core_personnel?.prefix || ''}${h.core_personnel?.first_name} ${h.core_personnel?.last_name}</td>
+                    <td class="p-3.5 text-center">
+                        <button onclick="deleteGradeHead('${h.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>
+            `).join('');
             } else {
                 tbody.innerHTML = '<tr><td colspan="3" class="p-8 text-center text-slate-400 font-bold"><i class="fas fa-info-circle mb-2 block text-2xl"></i>ยังไม่มีข้อมูลการแต่งตั้งหัวหน้าระดับชั้น</td></tr>';
             }
         }
 
         async function saveGradeHead() {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const teacherId = $('#grade_head_teacher').val();
             const gradeLevel = $('#grade_head_level').val();
-
             if (!teacherId || !gradeLevel) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกชื่อครูและระดับชั้นครับ', 'warning');
-
             Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const { error } = await db.from('behavior_grade_heads').insert({ grade_level: parseInt(gradeLevel), teacher_id: teacherId });
-
             if (error) {
                 if (error.code === '23505') Swal.fire('ซ้ำซ้อน', 'มีชื่อครูดูแลระดับชั้นนี้ในระบบแล้วครับ', 'warning');
                 else Swal.fire('ผิดพลาด', error.message, 'error');
             } else {
+                await logUserAction(`แต่งตั้งหัวหน้าระดับชั้น ม.${gradeLevel}`, 'behavior');
                 Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
                 if (teacherTomSelect) teacherTomSelect.clear();
                 loadGradeHeads();
@@ -435,10 +467,11 @@
         }
 
         async function deleteGradeHead(id) {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             Swal.fire({ title: 'กำลังลบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             const { error } = await db.from('behavior_grade_heads').delete().eq('id', id);
-
             if (!error) {
+                await logUserAction(`ลบหัวหน้าระดับชั้น ID ${id}`, 'behavior');
                 Swal.fire({ icon: 'success', title: 'ถอดถอนสิทธิ์สำเร็จ', timer: 1500, showConfirmButton: false });
                 loadGradeHeads();
             } else Swal.fire('ผิดพลาด', error.message, 'error');
@@ -447,22 +480,10 @@
         // ==========================================
         // 🌟 ระบบจัดการหัวหน้างานปกครอง (ใช้ Tom Select)
         // ==========================================
-        let currentAcadYear = '';
-
-        $(document).ready(async function () {
-            const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-            if (sInfo) currentAcadYear = sInfo.current_academic_year;
-
-            loadAllTeachersForSelect();
-            loadDisciplineHeads();
-        });
-
         async function loadAllTeachersForSelect() {
             const { data } = await db.from('core_personnel').select('id, first_name, last_name, prefix').order('first_name');
-
             if (data) {
                 const selectEl = document.getElementById('select-discipline-head');
-                // ล้าง options เดิมก่อน
                 selectEl.innerHTML = '<option value="">-- พิมพ์ชื่อเพื่อค้นหา --</option>';
                 data.forEach(t => {
                     const option = document.createElement('option');
@@ -470,11 +491,9 @@
                     option.text = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
                     selectEl.appendChild(option);
                 });
-
                 if (window.disciplineHeadTomSelect) {
                     window.disciplineHeadTomSelect.destroy();
                 }
-
                 window.disciplineHeadTomSelect = new TomSelect(selectEl, {
                     placeholder: "-- พิมพ์ค้นหาชื่อครู --",
                     allowEmptyOption: true,
@@ -487,19 +506,18 @@
             const { data } = await db.from('core_discipline_heads')
                 .select(`id, personnel_id, core_personnel(first_name, last_name, prefix)`)
                 .eq('academic_year', currentAcadYear);
-
             let html = '';
             if (data && data.length > 0) {
                 data.forEach(item => {
                     const p = item.core_personnel;
                     const name = p ? `${p.prefix || ''}${p.first_name} ${p.last_name}` : 'ไม่พบข้อมูล';
                     html += `
-                    <tr class="hover:bg-slate-50 transition-colors group">
-                        <td class="py-3.5 pl-5 font-bold text-slate-600">${name}</td>
-                        <td class="py-3.5 text-center">
-                            <button onclick="removeDisciplineHead('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
-                        </td>
-                    </tr>`;
+                <tr class="hover:bg-slate-50 transition-colors group">
+                    <td class="py-3.5 pl-5 font-bold text-slate-600">${name}</td>
+                    <td class="py-3.5 text-center">
+                        <button onclick="removeDisciplineHead('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors"><i class="fas fa-trash-alt"></i></button>
+                    </td>
+                </tr>`;
                 });
             } else {
                 html = `<tr><td colspan="2" class="p-8 text-center text-slate-400 font-bold"><i class="fas fa-info-circle mb-2 block text-2xl"></i>ยังไม่มีการแต่งตั้งหัวหน้างานปกครอง</td></tr>`;
@@ -508,30 +526,26 @@
         }
 
         async function addDisciplineHead() {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const pid = $('#select-discipline-head').val();
             if (!pid) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกครูที่ต้องการแต่งตั้ง', 'warning');
-
             Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
-
-            const { error } = await db.from('core_discipline_heads').insert([
-                { personnel_id: pid, academic_year: currentAcadYear }
-            ]);
-
+            const { error } = await db.from('core_discipline_heads').insert([{ personnel_id: pid, academic_year: currentAcadYear }]);
             if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
-
             if (window.disciplineHeadTomSelect) window.disciplineHeadTomSelect.clear();
             else $('#select-discipline-head').val('');
-
+            await logUserAction(`แต่งตั้งหัวหน้างานปกครอง ID ${pid}`, 'behavior');
             await loadDisciplineHeads();
             Swal.fire({ icon: 'success', title: 'แต่งตั้งเรียบร้อย', timer: 1500, showConfirmButton: false });
         }
 
         async function removeDisciplineHead(id) {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             if (!confirm('ต้องการยกเลิกสิทธิ์หัวหน้างานปกครองท่านนี้ใช่หรือไม่?')) return;
             Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
             const { error } = await db.from('core_discipline_heads').delete().eq('id', id);
             if (error) return Swal.fire('ข้อผิดพลาด', error.message, 'error');
-
+            await logUserAction(`ลบหัวหน้างานปกครอง ID ${id}`, 'behavior');
             await loadDisciplineHeads();
             Swal.close();
         }
@@ -548,6 +562,7 @@
         }
 
         async function saveApiConfig() {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const payload = {
                 gas_url: $('#config_gas_url').val().trim(),
                 drive_folder_id: $('#config_folder_id').val().trim(),
@@ -555,53 +570,51 @@
             };
             Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
             const { error } = await db.from('behavior_system_config').upsert([{ id: 1, ...payload }]);
-            if (!error) Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
-            else Swal.fire('ผิดพลาด', error.message, 'error');
+            if (!error) {
+                await logUserAction('บันทึก API Config', 'behavior');
+                Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+            } else Swal.fire('ผิดพลาด', error.message, 'error');
         }
 
         // ==========================================
         // ส่วนจัดการเกณฑ์ (Criteria)
         // ==========================================
-        let currentCriteria = [];
-
         async function loadCriteria() {
             const { data, error } = await db.from('behavior_criteria').select('*').order('created_at', { ascending: false });
-            currentCriteria = data || [];
+            criteriaList = data || [];
             let html = '';
-
             $('#selectAll').prop('checked', false);
             checkSelection();
-
-            if (currentCriteria.length === 0) {
+            if (criteriaList.length === 0) {
                 html = '<tr><td colspan="5" class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open mb-3 block text-4xl text-slate-300"></i>ยังไม่มีข้อมูลเกณฑ์คะแนน</td></tr>';
             } else {
-                currentCriteria.forEach(item => {
+                criteriaList.forEach(item => {
                     const isPos = item.category === 'positive';
                     const safeTitle = item.title.replace(/'/g, "\\'");
                     html += `
-                        <tr class="hover:bg-slate-50 transition-colors group">
-                            <td class="p-3.5 text-center border-b border-slate-50">
-                                <input type="checkbox" class="crit-checkbox rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50" value="${item.id}" onchange="checkSelection()">
-                            </td>
-                            <td class="p-3.5 font-bold text-slate-700 border-b border-slate-50">${item.title}</td>
-                            <td class="p-3.5 text-center border-b border-slate-50">
-                                <span class="px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide border ${isPos ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}">
-                                    ${isPos ? '<i class="fas fa-plus-circle mr-1"></i>ความดี' : '<i class="fas fa-minus-circle mr-1"></i>ผิดระเบียบ'}
-                                </span>
-                            </td>
-                            <td class="p-3.5 text-center font-black text-base border-b border-slate-50 ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
-                                ${isPos ? '+' : '-'}${item.default_score}
-                            </td>
-                            <td class="p-3.5 text-center whitespace-nowrap border-b border-slate-50">
-                                <button onclick="editCriteria('${item.id}', '${safeTitle}', '${item.category}', ${item.default_score})" class="text-slate-300 hover:text-amber-600 hover:bg-amber-50 h-8 w-8 rounded-lg transition-colors mr-1" title="แก้ไข">
-                                    <i class="fas fa-pen"></i>
-                                </button>
-                                <button onclick="deleteCriteria('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors" title="ลบ">
-                                    <i class="fas fa-trash-alt"></i>
-                                </button>
-                            </td>
-                        </tr>
-                    `;
+                    <tr class="hover:bg-slate-50 transition-colors group">
+                        <td class="p-3.5 text-center border-b border-slate-50">
+                            <input type="checkbox" class="crit-checkbox rounded border-slate-300 text-blue-600 cursor-pointer w-4 h-4 focus:ring-blue-500/50" value="${item.id}" onchange="checkSelection()">
+                        </td>
+                        <td class="p-3.5 font-bold text-slate-700 border-b border-slate-50">${item.title}</td>
+                        <td class="p-3.5 text-center border-b border-slate-50">
+                            <span class="px-3 py-1.5 rounded-xl text-[11px] font-black tracking-wide border ${isPos ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-rose-50 text-rose-700 border-rose-100'}">
+                                ${isPos ? '<i class="fas fa-plus-circle mr-1"></i>ความดี' : '<i class="fas fa-minus-circle mr-1"></i>ผิดระเบียบ'}
+                            </span>
+                        </td>
+                        <td class="p-3.5 text-center font-black text-base border-b border-slate-50 ${isPos ? 'text-emerald-600' : 'text-rose-600'}">
+                            ${isPos ? '+' : '-'}${item.default_score}
+                        </td>
+                        <td class="p-3.5 text-center whitespace-nowrap border-b border-slate-50">
+                            <button onclick="editCriteria('${item.id}', '${safeTitle}', '${item.category}', ${item.default_score})" class="text-slate-300 hover:text-amber-600 hover:bg-amber-50 h-8 w-8 rounded-lg transition-colors mr-1" title="แก้ไข">
+                                <i class="fas fa-pen"></i>
+                            </button>
+                            <button onclick="deleteCriteria('${item.id}')" class="text-slate-300 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition-colors" title="ลบ">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `;
                 });
             }
             $('#criteria_list').html(html);
@@ -626,40 +639,46 @@
         }
 
         async function deleteSelectedCriteria() {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const selectedIds = [];
             $('.crit-checkbox:checked').each(function () { selectedIds.push($(this).val()); });
             if (selectedIds.length === 0) return;
-
             const { isConfirmed } = await Swal.fire({
                 title: `ยืนยันการลบ ${selectedIds.length} รายการ?`, html: "ข้อมูลที่อ้างอิงเกณฑ์ที่เลือกจะถูกลบไปด้วย", icon: 'warning',
                 showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
             });
-
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
                 const { error } = await db.from('behavior_criteria').delete().in('id', selectedIds);
-                if (!error) { Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); loadCriteria(); }
-                else Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
+                if (!error) {
+                    await logUserAction(`ลบเกณฑ์ ${selectedIds.length} รายการ`, 'behavior');
+                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadCriteria();
+                } else Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
             }
         }
 
         async function deleteAllCriteria() {
-            if (currentCriteria.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ลบ', 'info');
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
+            if (criteriaList.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ลบ', 'info');
             const { isConfirmed } = await Swal.fire({
                 title: 'ยืนยันการลบ "ทั้งหมด"?', html: "รายการเกณฑ์ทั้งหมดและข้อมูลประวัติที่อ้างอิงจะหายไป <br><b class='text-rose-600'>ไม่สามารถกู้คืนได้</b>", icon: 'error',
                 showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ใช่, ลบทิ้งทั้งหมด', cancelButtonText: 'ยกเลิก'
             });
-
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังล้างข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-                const allIds = currentCriteria.map(c => c.id);
+                const allIds = criteriaList.map(c => c.id);
                 const { error } = await db.from('behavior_criteria').delete().in('id', allIds);
-                if (!error) { Swal.fire({ icon: 'success', title: 'ล้างข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false }); loadCriteria(); }
-                else Swal.fire('ผิดพลาด', error.message, 'error');
+                if (!error) {
+                    await logUserAction('ลบเกณฑ์ทั้งหมด', 'behavior');
+                    Swal.fire({ icon: 'success', title: 'ล้างข้อมูลสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadCriteria();
+                } else Swal.fire('ผิดพลาด', error.message, 'error');
             }
         }
 
         async function deleteCriteria(id) {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const { isConfirmed } = await Swal.fire({
                 title: 'ยืนยันการลบ?', html: "ข้อมูลที่อ้างอิงเกณฑ์นี้จะถูกลบไปด้วย", icon: 'warning',
                 showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: 'ลบข้อมูล', cancelButtonText: 'ยกเลิก'
@@ -667,8 +686,11 @@
             if (isConfirmed) {
                 Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
                 const { error } = await db.from('behavior_criteria').delete().eq('id', id);
-                if (!error) { Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); loadCriteria(); }
-                else Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
+                if (!error) {
+                    await logUserAction(`ลบเกณฑ์ ID ${id}`, 'behavior');
+                    Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+                    loadCriteria();
+                } else Swal.fire('ลบไม่สำเร็จ', error.message, 'error');
             }
         }
 
@@ -676,6 +698,7 @@
         // ระบบเพิ่ม/แก้ไขเกณฑ์เดี่ยว
         // ==========================================
         function editCriteria(id, title, category, score) {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             currentEditId = id;
             $('#crit_title').val(title);
             $('#crit_category').val(category);
@@ -697,18 +720,26 @@
         }
 
         async function saveCriteria() {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const payload = { title: $('#crit_title').val().trim(), category: $('#crit_category').val(), default_score: parseInt($('#crit_score').val()) };
             if (!payload.title || isNaN(payload.default_score)) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบและถูกต้อง', 'warning');
             Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-
             if (currentEditId) {
                 const { error } = await db.from('behavior_criteria').update(payload).eq('id', currentEditId);
-                if (!error) { Swal.fire({ icon: 'success', title: 'อัปเดตเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false }); cancelEdit(); loadCriteria(); }
-                else Swal.fire('ผิดพลาด', error.message, 'error');
+                if (!error) {
+                    await logUserAction(`แก้ไขเกณฑ์ ID ${currentEditId}`, 'behavior');
+                    Swal.fire({ icon: 'success', title: 'อัปเดตเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false });
+                    cancelEdit();
+                    loadCriteria();
+                } else Swal.fire('ผิดพลาด', error.message, 'error');
             } else {
                 const { error } = await db.from('behavior_criteria').insert([payload]);
-                if (!error) { Swal.fire({ icon: 'success', title: 'เพิ่มเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false }); cancelEdit(); loadCriteria(); }
-                else Swal.fire('ผิดพลาด', error.message, 'error');
+                if (!error) {
+                    await logUserAction(`เพิ่มเกณฑ์ ${payload.title}`, 'behavior');
+                    Swal.fire({ icon: 'success', title: 'เพิ่มเกณฑ์เรียบร้อย!', timer: 1500, showConfirmButton: false });
+                    cancelEdit();
+                    loadCriteria();
+                } else Swal.fire('ผิดพลาด', error.message, 'error');
             }
         }
 
@@ -725,6 +756,7 @@
         }
 
         async function importExcel(input) {
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
             const file = input.files[0]; if (!file) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
@@ -739,21 +771,70 @@
                         title: r.title.toString().trim(), category: r.category.toString().trim().toLowerCase(), default_score: parseInt(r.default_score)
                     }));
                     const { error } = await db.from('behavior_criteria').insert(validRows);
-                    if (!error) { Swal.fire({ icon: 'success', title: `นำเข้าสำเร็จ ${validRows.length} รายการ`, timer: 1500, showConfirmButton: false }); input.value = ""; loadCriteria(); }
-                    else throw error;
+                    if (!error) {
+                        await logUserAction(`นำเข้า Excel: ${validRows.length} รายการ`, 'behavior');
+                        Swal.fire({ icon: 'success', title: `นำเข้าสำเร็จ ${validRows.length} รายการ`, timer: 1500, showConfirmButton: false });
+                        input.value = "";
+                        loadCriteria();
+                    } else throw error;
                 } catch (err) { Swal.fire('ผิดพลาด', err.message || 'รูปแบบไฟล์ไม่ถูกต้อง', 'error'); }
             };
             reader.readAsArrayBuffer(file);
         }
 
         async function exportCriteria() {
-            if (currentCriteria.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
-            const exportData = currentCriteria.map(c => ({ 'title': c.title, 'category': c.category, 'default_score': c.default_score }));
+            if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
+            if (criteriaList.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
+            const exportData = criteriaList.map(c => ({ 'title': c.title, 'category': c.category, 'default_score': c.default_score }));
             const ws = XLSX.utils.json_to_sheet(exportData);
             const wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "Criteria");
             XLSX.writeFile(wb, `รายการเกณฑ์ความประพฤติ.xlsx`);
+            await logUserAction('ส่งออกเกณฑ์ Excel', 'behavior');
         }
+
+// ============================================================
+// ฟังก์ชันออกจากระบบ
+// ============================================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+}
+
+        // เปิดเผยฟังก์ชันสู่ global (HTML เรียกใช้)
+        window.saveGradeHead = saveGradeHead;
+        window.deleteGradeHead = deleteGradeHead;
+        window.addDisciplineHead = addDisciplineHead;
+        window.removeDisciplineHead = removeDisciplineHead;
+        window.loadApiConfig = loadApiConfig;
+        window.saveApiConfig = saveApiConfig;
+        window.loadCriteria = loadCriteria;
+        window.toggleSelectAll = toggleSelectAll;
+        window.checkSelection = checkSelection;
+        window.deleteSelectedCriteria = deleteSelectedCriteria;
+        window.deleteAllCriteria = deleteAllCriteria;
+        window.deleteCriteria = deleteCriteria;
+        window.editCriteria = editCriteria;
+        window.cancelEdit = cancelEdit;
+        window.saveCriteria = saveCriteria;
+        window.downloadTemplate = downloadTemplate;
+        window.importExcel = importExcel;
+        window.exportCriteria = exportCriteria;
+        window.logout = logout;
+
+        console.log('✅ behavior_settings.html script loaded with config.js integration');
     </script>
 </body>
 

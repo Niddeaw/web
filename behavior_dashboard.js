@@ -1,12 +1,26 @@
+// ==========================================================================
 // behavior_dashboard.js — ระบบงานปกครอง: หน้า Dashboard
-// แยกฟังก์ชันเกี่ยวกับภาพรวม (การ์ด, กราฟ, Recent Logs, Logs Modal)
+// - ใช้ checkSessionAndRole() แทน checkAuth()
+// - ใช้ applyVisibilityByRole() และ canManageSettings()
+// - ใช้ logUserAction() บันทึกการเข้าใช้งาน
+// - รองรับ Admin, หัวหน้างานปกครอง, หัวหน้าระดับ
+// ==========================================================================
 
 let currentUser = null;
+let actualRole = '';
+let isAdminMode = false;
+let isDisciplineHead = false;
+let managedGrades = [];
 let schoolInfo = null;
 let schoolStats = [];
 let positiveChart = null;
 let severityChart = null;
 let _logsType = 'negative', _logsTab = 'day', _weekOffset = 0, _monthOffset = 0, _logsRawData = [];
+
+// ── Cache สำหรับ schoolStats ──
+let schoolStatsCache = null;
+let cacheTimestamp = null;
+const CACHE_EXPIRY = 5 * 60 * 1000;
 
 // ============================================================
 // เริ่มต้น
@@ -16,7 +30,83 @@ $(document).ready(async function () {
     console.time('⏱️ Dashboard โหลด');
 
     try {
-        await checkAuth();
+        // 1. ตรวจสอบเซสชันและสิทธิ์ด้วย config.js
+        const session = await checkSessionAndRole('ระบบงานปกครอง (Dashboard)');
+        if (!session) return;
+
+        const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode: sessionMode } = session;
+        currentUser = personnel;
+        actualRole = role;
+        isAdminMode = sessionMode;
+
+        // 2. ใช้ applyVisibilityByRole เพื่อควบคุมปุ่มต่าง ๆ
+        applyVisibilityByRole(role, isAdminMode, {
+            settingsBtn: 'btn_settings',
+            toggleBtn: null,
+            adminManagerBtn: null
+        });
+
+        // 3. ตรวจสอบสิทธิ์เพิ่มเติม: หัวหน้างานปกครอง, หัวหน้าระดับ
+        const { data: sInfo } = await db.from('core_school_info')
+            .select('current_academic_year')
+            .single();
+        if (sInfo?.current_academic_year) {
+            const { data: discHead } = await db.from('core_discipline_heads')
+                .select('id')
+                .eq('personnel_id', user.id)
+                .eq('academic_year', sInfo.current_academic_year)
+                .maybeSingle();
+            isDisciplineHead = !!discHead;
+        }
+        const { data: gradeHeads } = await db.from('behavior_grade_heads')
+            .select('grade_level')
+            .eq('teacher_id', user.id);
+        managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
+
+        // 4. ตรวจสอบสิทธิ์เข้าโมดูล (ถ้าไม่ใช่ admin)
+        if (!isAdmin) {
+            const hasAccess = await hasModuleAccess(role, 'behavior', user.id);
+            const hasSpecialAccess = isDisciplineHead || managedGrades.length > 0;
+            if (!hasAccess && !hasSpecialAccess) {
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                    text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบงานปกครอง กรุณาติดต่อผู้ดูแลระบบ',
+                    confirmButtonText: 'กลับหน้าหลัก'
+                });
+                window.location.href = 'index.html';
+                return;
+            }
+        }
+
+        // 5. ปุ่ม "จัดการนักเรียน" (ไป Admin Management)
+        const hasAdminAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
+        if (hasAdminAccess) {
+            $('#btnGoToAdmin').removeClass('hidden').addClass('flex');
+        } else {
+            $('#btnGoToAdmin').addClass('hidden').removeClass('flex');
+        }
+
+        // 6. ปุ่มตั้งค่า (ใช้ canManageSettings)
+        if (canManageSettings(role)) {
+            $('#btn_settings').removeClass('hidden').addClass('flex');
+        } else {
+            $('#btn_settings').addClass('hidden').removeClass('flex');
+        }
+
+        // 7. แสดงชื่อผู้ใช้และบทบาท
+        $('#user_display').html(`<i class="fas fa-user-tie mr-2 text-blue-500"></i>ครู${currentUser.first_name} ${currentUser.last_name}`);
+        let roleLabel = '';
+        if (role === 'super_admin') roleLabel = '<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser';
+        else if (isAdmin) roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> Admin';
+        else if (isDisciplineHead) roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> หัวหน้างานปกครอง';
+        else roleLabel = '👀 ดูภาพรวม';
+        $('#role_label').html(roleLabel);
+
+        // 8. ปีการศึกษา
+        if (sInfo) $('#schoolYearBadge').text(`ปีการศึกษา ${sInfo.current_academic_year}`);
+
+        // 9. โหลดข้อมูล
         await loadSchoolInfo();
         await loadSchoolStats(false);
         await loadDashboard();
@@ -29,6 +119,9 @@ $(document).ready(async function () {
             year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' 
         });
 
+        // 10. บันทึก Log การเข้าใช้งาน
+        await logUserAction('เข้าสู่หน้า Dashboard งานปกครอง', 'behavior');
+
         console.timeEnd('⏱️ Dashboard โหลด');
         Swal.close();
     } catch (err) {
@@ -38,68 +131,23 @@ $(document).ready(async function () {
 });
 
 // ============================================================
-// Authentication
+// ฟังก์ชันออกจากระบบ
 // ============================================================
-async function checkAuth() {
-    const { data: { session } } = await db.auth.getSession();
-    if (!session) { window.location.replace('login.html'); return; }
-
-    const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-    currentUser = profile;
-
-    const isAdmin = window.isAdminUser(profile.role, false);
-    const hasSettings = window.canManageSettings(profile.role);
-
-    // ✅ เพิ่มการตรวจสอบหัวหน้างานปกครองและหัวหน้าระดับ
-    let isDisciplineHead = false;
-    let managedGrades = [];
-    const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-    if (sInfo?.current_academic_year) {
-        const { data: discHead } = await db.from('core_discipline_heads')
-            .select('id').eq('personnel_id', session.user.id).eq('academic_year', sInfo.current_academic_year).maybeSingle();
-        isDisciplineHead = !!discHead;
-    }
-    const { data: gradeHeads } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', session.user.id);
-    managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
-
-    // ✅ ควบคุมปุ่ม "จัดการนักเรียน"
-    const hasAdminAccess = isAdmin || isDisciplineHead || managedGrades.length > 0;
-    if (hasAdminAccess) {
-        $('#btnGoToAdmin').removeClass('hidden').addClass('flex');
-    } else {
-        $('#btnGoToAdmin').addClass('hidden').removeClass('flex');
-    }
-
-    // แสดงปุ่มตั้งค่าเฉพาะผู้มี canManageSettings
-    if (hasSettings) {
-        $('#btn_settings').removeClass('hidden').addClass('flex');
-    }
-
-    // แสดงชื่อผู้ใช้
-    $('#user_display').html(`<i class="fas fa-user-tie mr-2 text-blue-500"></i>ครู${profile.first_name} ${profile.last_name}`);
-
-    // Role Label
-    let roleLabel = '';
-    if (profile.role === 'super_admin') {
-        roleLabel = '<i class="fas fa-crown text-amber-500 mr-1"></i> Superuser';
-    } else if (profile.role === 'admin') {
-        roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> Admin';
-    } else if (isAdmin) {
-        roleLabel = '<i class="fas fa-shield-alt text-emerald-500 mr-1"></i> ผู้ดูแลระบบ';
-    } else {
-        roleLabel = '👀 ดูภาพรวม';
-    }
-    $('#role_label').html(roleLabel);
-
-    // ปีการศึกษา
-    if (sInfo) {
-        $('#schoolYearBadge').text(`ปีการศึกษา ${sInfo.current_academic_year}`);
-    }
-}
-
 async function logout() {
-    await db.auth.signOut();
-    window.location.replace('login.html');
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
 }
 
 // ============================================================
@@ -113,10 +161,6 @@ async function loadSchoolInfo() {
 // ============================================================
 // โหลดข้อมูลสถิติ (ใช้ Cache)
 // ============================================================
-let schoolStatsCache = null;
-let cacheTimestamp = null;
-const CACHE_EXPIRY = 5 * 60 * 1000;
-
 async function loadSchoolStats(forceRefresh = false) {
     if (!forceRefresh && schoolStatsCache && cacheTimestamp) {
         const now = Date.now();
@@ -126,7 +170,6 @@ async function loadSchoolStats(forceRefresh = false) {
             return;
         }
     }
-
     console.time('⏱️ loadSchoolStats (Dashboard)');
     try {
         const { data, error } = await db
@@ -135,9 +178,7 @@ async function loadSchoolStats(forceRefresh = false) {
             .order('grade_level', { ascending: true })
             .order('room_number', { ascending: true })
             .order('student_number', { ascending: true });
-
         if (error) throw error;
-
         schoolStats = (data || []).map(row => ({
             id: row.student_id,
             sid: row.student_id_card,
@@ -159,7 +200,6 @@ async function loadSchoolStats(forceRefresh = false) {
             sevVeryHeavy: row.severity_level === 'sev_very_heavy' ? 1 : 0,
             avatar: row.avatar_students_url || null
         }));
-
         schoolStatsCache = schoolStats;
         cacheTimestamp = Date.now();
         console.timeEnd('⏱️ loadSchoolStats (Dashboard)');
@@ -173,9 +213,7 @@ async function loadSchoolStats(forceRefresh = false) {
 // ============================================================
 // Dashboard Stats (การ์ด)
 // ============================================================
-function loadDashboard() {
-    updateDashboardStats();
-}
+function loadDashboard() { updateDashboardStats(); }
 
 function updateDashboardStats() {
     const stats = getDashboardStatsFromCache();
@@ -211,6 +249,7 @@ async function refreshDashboard() {
     renderPositiveChartForGrade('all');
     renderSeverityChartForGrade('all');
     loadRecentLogs();
+    await logUserAction('รีเฟรช Dashboard', 'behavior');
     Swal.fire({ icon: 'success', title: 'รีเฟรชข้อมูลเรียบร้อย', timer: 1500, showConfirmButton: false });
 }
 
@@ -294,7 +333,6 @@ function initCharts() {
             }
         });
     }
-
     const sevCtx = document.getElementById('severityChart');
     if (sevCtx && !severityChart) {
         severityChart = new Chart(sevCtx.getContext('2d'), {
@@ -373,10 +411,10 @@ function renderSeverityChartForGrade(grade) {
 }
 
 // ============================================================
-// View History (สำหรับ recent logs)
+// View History
 // ============================================================
 function viewHistory(studentId) {
-    window.open(`student_history.html?id=${studentId}`, '_blank');
+    window.open(`behavior_history.html?id=${studentId}`, '_blank');
 }
 
 // ============================================================
@@ -580,6 +618,7 @@ function exportLogsModal() {
         };
     });
     _writeExcel(exportData, fileName, sheetName);
+    logUserAction(`ส่งออก Logs ${fileName}`, 'behavior');
 }
 
 function _writeExcel(exportData, fileName, sheetName) {
@@ -591,3 +630,18 @@ function _writeExcel(exportData, fileName, sheetName) {
     XLSX.writeFile(workbook, fileName);
     Swal.close();
 }
+
+// ============================================================
+// ประกาศฟังก์ชัน global
+// ============================================================
+window.openLogsModal = openLogsModal;
+window.closeLogsModal = closeLogsModal;
+window.setLogsTab = setLogsTab;
+window.shiftWeek = shiftWeek;
+window.shiftMonth = shiftMonth;
+window.exportLogsModal = exportLogsModal;
+window.viewHistory = viewHistory;
+window.refreshDashboard = refreshDashboard;
+window.logout = logout;
+
+console.log('✅ behavior_dashboard.js (ฉบับสมบูรณ์) loaded');

@@ -1,5 +1,5 @@
 // ==========================================
-// homevisit_core.js (ปรับปรุงสิทธิ์)
+// homevisit_core.js (ปรับปรุงสิทธิ์ ใช้ config.js)
 // ตัวแปร Global, Auth, Role, Classroom, Student, Form, Auto-Save, Submit
 // ==========================================
 
@@ -7,12 +7,13 @@
 // 1. GLOBAL VARIABLES & CONSTANTS
 // ==========================================
 let currentUser = null;
-let currentUserId = null;  // ✅ เพิ่มบรรทัดนี้
+let currentUserId = null;
 let currentUserRole = 'teacher';
 let isAdminMode = false;
 let currentViewRole = 'teacher';
 let actualRole = '';
-let isReadOnly = false;
+let isReadOnly = false; // โหมดอ่านอย่างเดียวสำหรับหัวหน้าระดับ/ปกครอง
+let isHead = false;
 let isModuleAdmin = false;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_url: "", gd_pdf_folder_id: "", report_template_id: "" };
 let map, marker;
@@ -171,18 +172,14 @@ const fieldKeyMap = {
 // 2. ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js มาตรฐานกลาง)
 // ==========================================
 function applyAdminVisibility() {
-    // ✅ ใช้ isAdminEffective = isAdminMode (จาก role) หรือ isModuleAdmin
     const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
 
-    // ✅ ใช้ฟังก์ชันกลาง applyVisibilityByRole โดยส่ง isAdminEffective
     window.applyVisibilityByRole(currentUserRole, isAdminEffective, {
         settingsBtn: 'admin-settings-btn',
         toggleBtn: 'btnAdminMode',
-        adminManagerBtn: 'adminManagerBtn'  // ถ้ามีปุ่มนี้ใน HTML
+        adminManagerBtn: 'adminManagerBtn'
     });
 
-    // ✅ จัดการปุ่มนำเข้าและส่งออก (ให้แสดงทุกสิทธิ์)
-    // ใช้ selector ที่ตรงกับปุ่มใน HTML (ปรับตามจริง)
     document.querySelectorAll('#btn-import-excel, .btn-import, .btn-export').forEach(btn => {
         if (btn) {
             btn.classList.remove('hidden');
@@ -190,7 +187,6 @@ function applyAdminVisibility() {
         }
     });
 
-    // ✅ อัปเดตข้อความปุ่มสลับโหมด (ใช้ isAdminEffective)
     window.updateToggleModeUI(currentUserRole, isAdminEffective, 'btnAdminMode');
 }
 
@@ -198,79 +194,119 @@ function applyAdminVisibility() {
 // 3. AUTHENTICATION & ROLE MANAGEMENT (ใช้ config.js)
 // ==========================================
 async function checkAuth() {
-    Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     try {
-        // ✅ ใช้ checkSessionAndRole จาก config.js
-        const result = await window.checkSessionAndRole('homevisit');
-        if (!result) return;
+        // ใช้ checkSessionAndRole จาก config.js (จะแสดง SweetAlert และ redirect ถ้าไม่มีสิทธิ์)
+        const session = await window.checkSessionAndRole('ระบบเยี่ยมบ้าน', [
+            'super_admin', 'admin', 'director', 'deputy', 'teacher'
+        ]);
+        if (!session) {
+            // session เป็น null เมื่อถูก redirect ไปแล้ว
+            return;
+        }
 
-        const { user, personnel, role, isAdmin, isTeacher } = result;
+        const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode } = session;
         currentUser = personnel;
         currentUserId = user.id;
         currentUserRole = role;
         isAdminMode = isAdmin;
 
-        // ✅ ตรวจสอบ Module Admin
+        // ตรวจสอบ Module Admin
         isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
 
-        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ (สำหรับสิทธิ์อ่านอย่างเดียว)
-        const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        // ดึงปีการศึกษาและภาคเรียน
+        const { data: sInfo } = await db.from('core_school_info')
+            .select('current_academic_year, current_semester')
+            .single();
         currentYear = sInfo?.current_academic_year;
         currentTerm = sInfo?.current_semester;
+
+        // ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ
+        let isDisciplineHead = false;
+        let isGradeHead = false;
 
         const { data: discHead } = await db.from('core_discipline_heads')
             .select('id')
             .eq('personnel_id', user.id)
             .eq('academic_year', currentYear)
             .maybeSingle();
+        if (discHead) isDisciplineHead = true;
 
         const { data: gradeHead } = await db.from('behavior_grade_heads')
             .select('grade_level')
             .eq('teacher_id', user.id)
             .maybeSingle();
+        if (gradeHead) isGradeHead = true;
 
-        // กำหนดบทบาทการแสดงผล (view role) และสถานะอ่านอย่างเดียว
+        // กำหนดบทบาทการแสดงผล
         if (role === 'super_admin') {
             currentViewRole = 'super_admin';
             isReadOnly = false;
         } else if (isModuleAdmin) {
             currentViewRole = 'module_admin';
             isReadOnly = false;
-        } else if (discHead) {
-            currentViewRole = 'head_discipline';
-            isReadOnly = true;
-        } else if (gradeHead) {
-            currentViewRole = 'head_grade';
+        } else if (isDisciplineHead || isGradeHead) {
+            currentViewRole = isDisciplineHead ? 'head_discipline' : 'head_grade';
             isReadOnly = true;
         } else {
             currentViewRole = 'teacher';
             isReadOnly = false;
         }
 
-        // ✅ ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์ (ใช้ isAdminEffective)
+        // ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์
         applyAdminVisibility();
 
-        // แสดงปุ่มโหมดแอดมินเฉพาะผู้มีสิทธิ์ (super_admin หรือ module_admin)
+        // แสดงปุ่มสลับโหมดเฉพาะ super_admin หรือ module_admin
         if (role === 'super_admin' || isModuleAdmin) {
-            document.getElementById('btnAdminMode')?.classList.remove('hidden');
+            const toggleBtn = document.getElementById('btnAdminMode');
+            if (toggleBtn) toggleBtn.classList.remove('hidden');
         }
 
-        // ตั้งค่า term display
         const termDisplay = document.getElementById('term-display');
         if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
 
-        // อัปเดต UI ตามบทบาท
+        await window.logUserAction('เข้าสู่ระบบเยี่ยมบ้าน', 'homevisit');
+
         updateUIByRole();
         await loadClassrooms();
         applyReportVisibility();
+        applyReadOnlyState();
 
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
+
     } catch (error) {
         console.error("Auth Error:", error);
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถยืนยันตัวตนได้', 'error');
     }
+}
+
+// ==========================================
+// ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
+// ==========================================
+function applyReadOnlyState() {
+    if (!isReadOnly) return;
+
+    $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
+            $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+        }
+    });
+
+    $('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').each(function() {
+        if ($(this).attr('type') !== 'file') {
+            $(this).prop('disabled', true).addClass('opacity-60');
+        }
+    });
+
+    $('#btn-add-student, #btn-edit-student, #btn-delete-student, #btn-submit-homevisit, #btn-import').hide();
+
+    const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
+        <i class="fas fa-eye text-amber-600"></i>
+        <span class="font-bold">คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)</span>
+    </div>`;
+    $('#form-section .glass-card:first').prepend(alertHtml);
+
+    console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
 
 function updateUIByRole() {
@@ -284,14 +320,12 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
     document.getElementById('userRoleDisplay').innerText = roleText;
 
-    // ปิดการแก้ไขถ้าเป็น read-only
     const submitBtn = document.getElementById('btn-submit-homevisit');
     if (submitBtn) {
         submitBtn.disabled = isReadOnly;
         submitBtn.classList.toggle('opacity-50', isReadOnly);
     }
 
-    // disable input fields ตาม isReadOnly
     document.querySelectorAll('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').forEach(el => {
         if (el.type !== 'file') {
             el.disabled = isReadOnly;
@@ -301,14 +335,11 @@ function updateUIByRole() {
 }
 
 window.toggleRoleView = function () {
-    // ✅ ใช้ isAdminEffective (รวม Module Admin)
-    const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
-    if (!isAdminEffective) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
+    if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้')) {
         return;
     }
 
-    const newRole = (currentViewRole === 'teacher') ? (isModuleAdmin ? 'module_admin' : 'teacher') : 'teacher';
+    const newRole = (currentViewRole === 'teacher') ? 'admin' : 'teacher';
     const isAdmin = newRole !== 'teacher';
 
     if (isAdmin) {
@@ -326,7 +357,8 @@ window.toggleRoleView = function () {
             : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
     }
 
-    // ✅ ใช้ applyAdminVisibility อัปเดต UI (จะใช้ isAdminEffective ภายใน)
+    window.logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'homevisit');
+
     applyAdminVisibility();
     updateUIByRole();
     loadClassrooms();
@@ -341,18 +373,23 @@ window.toggleRoleView = function () {
     });
 };
 
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
 async function logout() {
-    const r = await Swal.fire({
+    const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ออก',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
     });
-    if (r.isConfirmed) {
+    if (isConfirmed) {
         await db.auth.signOut();
-        window.location.href = 'index.html';
+        window.location.replace("login.html");
     }
 }
 
@@ -381,7 +418,7 @@ function applyReportVisibility() {
 }
 
 // ==========================================
-// 4. CLASSROOM & STUDENT MANAGEMENT (คงเดิม)
+// 4. CLASSROOM & STUDENT MANAGEMENT
 // ==========================================
 async function loadClassrooms() {
     let query = db.from('core_classrooms')
@@ -508,7 +545,6 @@ async function loadStudentsForClassroom(classroomId) {
     }
 }
 
-// ... (ฟังก์ชัน loadStudentInfo, clearStudentInfo, loadExistingHomeVisit คงเดิม) ...
 async function loadStudentInfo(studentId) {
     suppressDirty = true;
     clearStudentInfo();
@@ -869,6 +905,34 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
+// ฟังก์ชันเสริม (updateStatusBadge, goToStep ฯลฯ)
+// ==========================================
+function updateStatusBadge(status) {
+    const badge = document.getElementById('status-badge');
+    const text = document.getElementById('status-text');
+    if (!badge || !text) return;
+    if (status === 'completed') {
+        badge.className = 'px-3 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-center border border-emerald-100';
+        text.innerHTML = '<i class="fas fa-check-circle text-emerald-400 mr-1"></i> บันทึกแล้ว';
+    } else if (status === 'saving') {
+        badge.className = 'px-3 py-2 bg-blue-50 text-blue-600 rounded-xl text-center border border-blue-100';
+        text.innerHTML = '<i class="fas fa-spinner fa-spin text-blue-400 mr-1"></i> กำลังบันทึก...';
+    } else {
+        badge.className = 'px-3 py-2 bg-slate-50 text-slate-400 rounded-xl text-center border border-slate-200';
+        text.innerHTML = '<i class="fas fa-circle text-slate-300 text-[8px] mr-1"></i> ยังไม่บันทึก';
+    }
+}
+
+function goToStep(step) {
+    // ฟังก์ชันนี้ควรมีอยู่แล้วในระบบ (สำหรับ UI tabs)
+    // ถ้าไม่มี ให้เพิ่มตามความเหมาะสม
+    console.log('Go to step:', step);
+}
+
+// ==========================================
+// จบ Part 1
+// ==========================================
+// ==========================================
 // 5. FORM HANDLING & AUTO-SAVE
 // ==========================================
 function markDirty() {
@@ -882,7 +946,6 @@ function markDirty() {
         text.innerHTML = '<i class="fas fa-circle text-orange-400 text-[8px] mr-1 animate-pulse"></i> มีการแก้ไข (กำลังบันทึกอัตโนมัติ...)';
     }
 
-    // ✅ เพิ่ม: เรียก autoSaveStep ทันทีที่เกิดการเปลี่ยนแปลง (ดีเลย์ 1.5 วินาที)
     clearTimeout(window._autoSaveTimer);
     window._autoSaveTimer = setTimeout(async () => {
         await autoSaveStep();
@@ -1007,7 +1070,6 @@ async function autoSaveIfDirty() {
 }
 
 async function autoSaveStep() {
-    // ถ้าไม่มีข้อมูลเปลี่ยนแปลง หรือไม่มี student/classroom หรือถูก lock
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) {
         return true;
     }
@@ -1015,8 +1077,7 @@ async function autoSaveStep() {
     if (isAutoSaving) return true;
 
     isAutoSaving = true;
-    
-    // ✅ แสดงสถานะกำลังบันทึก (เฉพาะครั้งแรก)
+
     const toastLoading = Swal.fire({
         toast: true,
         position: 'bottom-end',
@@ -1072,10 +1133,8 @@ async function autoSaveStep() {
         formIsDirty = false;
         updateStatusBadge('completed');
 
-        // ✅ ปิด Toast เก่า (ถ้ายังมี)
         Swal.close();
 
-        // ✅ แสดง Toast บันทึกสำเร็จ
         Swal.fire({
             toast: true,
             position: 'bottom-end',
@@ -1093,11 +1152,9 @@ async function autoSaveStep() {
         return true;
     } catch (err) {
         console.error('Auto-save step error:', err);
-        
-        // ✅ ปิด Toast เก่า
+
         Swal.close();
 
-        // ✅ แสดง Toast แจ้งเตือน (ไม่ใช่ error รุนแรง)
         Swal.fire({
             toast: true,
             position: 'bottom-end',
@@ -1174,3 +1231,161 @@ window.submitHomeVisit = async function (isAutoSave = false) {
         isSubmitting = false;
     }
 };
+
+// ==========================================
+// 6. MAP & ROUTE FUNCTIONS (ตัวอย่าง)
+// ==========================================
+function initMap(lat = SCHOOL_LAT, lng = SCHOOL_LNG) {
+    if (typeof L === 'undefined') {
+        console.warn('Leaflet not loaded');
+        return;
+    }
+    map = L.map('map').setView([lat, lng], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    const schoolIcon = L.icon({
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    schoolMarkerObj = L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon }).addTo(map)
+        .bindPopup('🏫 โรงเรียนวัดไร่ขิงวิทยา');
+
+    const homeIcon = L.icon({
+        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+    marker = L.marker([lat, lng], { icon: homeIcon, draggable: true }).addTo(map)
+        .bindPopup('📍 ที่อยู่บ้านนักเรียน');
+
+    marker.on('dragend', function(e) {
+        const pos = marker.getLatLng();
+        document.getElementById('lat').value = pos.lat.toFixed(6);
+        document.getElementById('lng').value = pos.lng.toFixed(6);
+        calculateDistanceAndRoute(pos.lat, pos.lng);
+        markDirty();
+    });
+
+    map.on('click', function(e) {
+        const lat = e.latlng.lat;
+        const lng = e.latlng.lng;
+        marker.setLatLng([lat, lng]);
+        document.getElementById('lat').value = lat.toFixed(6);
+        document.getElementById('lng').value = lng.toFixed(6);
+        calculateDistanceAndRoute(lat, lng);
+        markDirty();
+    });
+
+    // ถ้ามีพิกัดจากข้อมูลให้อัปเดต
+    const latInput = document.getElementById('lat');
+    const lngInput = document.getElementById('lng');
+    if (latInput && lngInput && latInput.value && lngInput.value) {
+        const latVal = parseFloat(latInput.value);
+        const lngVal = parseFloat(lngInput.value);
+        if (!isNaN(latVal) && !isNaN(lngVal)) {
+            marker.setLatLng([latVal, lngVal]);
+            map.setView([latVal, lngVal], 16);
+            calculateDistanceAndRoute(latVal, lngVal);
+        }
+    }
+}
+
+function calculateDistanceAndRoute(lat, lng) {
+    if (typeof L === 'undefined') return;
+    if (routeLayer) {
+        map.removeLayer(routeLayer);
+        routeLayer = null;
+    }
+
+    const start = [SCHOOL_LAT, SCHOOL_LNG];
+    const end = [lat, lng];
+
+    // ใช้ Leaflet Routing Machine ถ้ามี
+    if (typeof L.Routing !== 'undefined' && typeof L.Routing.control === 'function') {
+        routeLayer = L.Routing.control({
+            waypoints: [
+                L.latLng(start[0], start[1]),
+                L.latLng(end[0], end[1])
+            ],
+            routeWhileDragging: false,
+            showAlternatives: false,
+            lineOptions: {
+                styles: [{ color: '#0284c7', weight: 4 }]
+            },
+            createMarker: function() { return null; }
+        }).addTo(map);
+
+        routeLayer.on('routesfound', function(e) {
+            const routes = e.routes;
+            if (routes && routes.length > 0) {
+                const summary = routes[0].summary;
+                const distanceKm = (summary.totalDistance / 1000).toFixed(2);
+                document.getElementById('travel_distance').value = distanceKm;
+                updateRouteInfoPanel({ distance: distanceKm, time: summary.totalTime });
+            }
+        });
+    } else {
+        // ใช้การคำนวณระยะทางแบบเส้นตรง
+        const R = 6371;
+        const dLat = (lat - SCHOOL_LAT) * Math.PI / 180;
+        const dLng = (lng - SCHOOL_LNG) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                  Math.cos(SCHOOL_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+                  Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = (R * c).toFixed(2);
+        document.getElementById('travel_distance').value = distance;
+        updateRouteInfoPanel({ distance: distance, time: null });
+    }
+}
+
+function updateRouteInfoPanel(info) {
+    const panel = document.getElementById('route-info');
+    if (!panel) return;
+    if (info) {
+        let html = `<div class="bg-blue-50 p-3 rounded-lg text-sm"><i class="fas fa-route text-blue-600 mr-2"></i> ระยะทาง: <b>${info.distance}</b> กม.`;
+        if (info.time) {
+            const mins = Math.floor(info.time / 60);
+            const secs = info.time % 60;
+            html += ` | เวลาเดินทางโดยประมาณ: <b>${mins} นาที ${secs} วินาที</b>`;
+        }
+        html += '</div>';
+        panel.innerHTML = html;
+    } else {
+        panel.innerHTML = '';
+    }
+}
+
+// ==========================================
+// 7. OTHER UTILITY FUNCTIONS (ถ้ามี)
+// ==========================================
+// (ฟังก์ชันอื่น ๆ ที่ยังไม่ได้รวม เช่น การจัดการรูป, การส่งออกข้อมูล ฯลฯ
+// สามารถเพิ่มเติมตามความต้องการ โดยใช้หลักการเดียวกัน)
+
+// ==========================================
+// 8. INITIALIZATION
+// ==========================================
+$(document).ready(async function() {
+    try {
+        // ซ่อนเนื้อหาหลักไว้ก่อน
+        document.getElementById('mainBody').classList.add('opacity-0');
+        await checkAuth();
+        // เมื่อ checkAuth เสร็จจะแสดงเนื้อหา
+    } catch (err) {
+        console.error('Init error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเริ่มระบบได้', 'error');
+    }
+});
+
+// ==========================================
+// จบ Part 2
+// ==========================================

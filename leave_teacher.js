@@ -1,53 +1,112 @@
-let currentUser = null;
-let currentProfile = null;
-let systemSettings = null;
-let allMyLeaves = [];
-let dataTable = null;
-let editingOriginalLeaveType = null;
+// ============================================================
+// leave_teacher.js — ระบบการลา (ฝ่ายผู้ใช้งาน/ครู)
+// ใช้ window object ทั้งหมด เพื่อป้องกัน Identifier conflict
+// ============================================================
 
+window.currentUser = null;
+window.currentProfile = null;
+window.currentUserId = null;
+window.currentUserRole = '';
+window.isAdminMode = false;
+window.isModuleAdmin = false;
+window.systemSettings = null;
+window.allMyLeaves = [];
+window.dataTable = null;
+window.editingOriginalLeaveType = null;
+
+// ==========================================
+// LOGOUT
+// ==========================================
+window.logout = async function() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+};
+
+// ==========================================
+// INIT
+// ==========================================
 $(document).ready(async function () {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    await checkAuth();
-    await loadSystemSettings();
-    initFlatpickr();
-    await loadLeaveData();
-    Swal.close();
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    try {
+        await window.checkAuth();
+        await window.loadSystemSettings();
+        window.initFlatpickr();
+        await window.loadLeaveData();
+        window.applyVisibilityByRole(window.currentUserRole, window.isAdminMode, {
+            settingsBtn: null,
+            toggleBtn: 'btnAdminMode'
+        });
+        Swal.close();
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 });
 
-async function checkAuth() {
-    const result = await checkSessionAndRole('leave', WRK_ROLES.ALLOWED);
+// ==========================================
+// ตรวจสอบสิทธิ์ และประกาศ Global Variables
+// ==========================================
+window.checkAuth = async function() {
+    const result = await window.checkSessionAndRole('leave_teacher');
     if (!result) return;
-    currentUser = result.user;
-    currentProfile = result.personnel;
-    $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
-    const isAdmin = isAdminUser(currentProfile.role, false);
-    let isModuleAdmin = false;
-    if (!isAdmin) {
-        const { data: mod } = await db.from('core_module_admins').select('id').eq('user_id', currentUser.id).eq('module_id', 'leave').maybeSingle();
-        isModuleAdmin = !!mod;
-    }
-    if (isAdmin || isModuleAdmin) {
+    const { user, personnel, role, isAdmin, isTeacher } = result;
+    window.currentUser = user;
+    window.currentProfile = personnel;
+    window.currentUserId = user.id;
+    window.currentUserRole = role;
+    window.isAdminMode = isAdmin;
+    window.isModuleAdmin = await window.hasModuleAccess(role, 'leave', user.id);
+    // ประกาศตัวแปรลง window เพื่อให้ leave_core.js ใช้ได้
+    window.currentProfile = window.currentProfile;
+    window.currentUserRole = window.currentUserRole;
+    window.isModuleAdmin = window.isModuleAdmin;
+    window.isAdminMode = window.isAdminMode;
+
+    $('#display-name').text(`${window.currentProfile.prefix || ''}${window.currentProfile.first_name} ${window.currentProfile.last_name}`);
+    if (window.isAdminMode || window.isModuleAdmin) {
         $('#btnAdminMode').removeClass('hidden').addClass('flex');
+    } else {
+        $('#btnAdminMode').addClass('hidden').removeClass('flex');
     }
-}
+    await window.logUserAction('เข้าสู่ระบบการลา (ครู)', 'leave');
+};
 
-async function logout() {
-    const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' });
-    if (isConfirmed) { await db.auth.signOut(); window.location.replace('login.html'); }
-}
-
-async function loadSystemSettings() {
+// ==========================================
+// ระบบตั้งค่า
+// ==========================================
+window.loadSystemSettings = async function() {
     const { data } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').single();
-    systemSettings = data?.settings || {
+    window.systemSettings = data?.settings || {
         fiscal_year: (new Date().getFullYear() + 543).toString(),
         eval_round: '1',
         gas_url: '', slide_template_id: '', pdf_folder_id: ''
     };
-    $('#fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
-}
+    $('#fiscal-badge').text(`ปีงบประมาณ ${window.systemSettings.fiscal_year} (รอบที่ ${window.systemSettings.eval_round})`);
+};
 
-function initFlatpickr() {
+// ==========================================
+// Flatpickr (แก้ไขแล้ว)
+// ==========================================
+window.initFlatpickr = function() {
+    // ประกาศฟังก์ชัน updateYear ภายใน scope นี้
+    function updateYear(instance) {
+        const yearEl = instance.calendarContainer?.querySelector('.cur-year');
+        if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
+    }
+
     const config = {
         locale: 'th', dateFormat: 'd/m/Y',
         onChange: function (selectedDates, dateStr, instance) {
@@ -57,41 +116,51 @@ function initFlatpickr() {
                 document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
                 instance.element.value = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()+543}`;
             }
-            calculateDays();
+            window.calculateDays();
         },
         onReady: function (selectedDates, dateStr, instance) { updateYear(instance); },
         onMonthChange: function (selectedDates, dateStr, instance) { updateYear(instance); },
         onYearChange: function (selectedDates, dateStr, instance) { updateYear(instance); }
     };
-    function updateYear(instance) {
-        const yearEl = instance.calendarContainer?.querySelector('.cur-year');
-        if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
-    }
     flatpickr("#start_date", config);
     flatpickr("#end_date", config);
-}
+};
 
-function updateLeaveGuide() {
+// ==========================================
+// ฟังก์ชันคำนวณวันลา
+// ==========================================
+window.calculateDays = function() {
+    const startIso = $('#start_date_iso').val();
+    const endIso = $('#end_date_iso').val();
     const type = $('#leave_type').val();
-    const prefix = currentProfile?.prefix || '';
-    const gender = getGenderFromPrefix(prefix);
+    const days = window.calculateDaysByType(startIso, endIso, type);
+    $('#calc_days').text(days);
+};
+
+// ==========================================
+// อัปเดตคำแนะนำตามประเภทการลา
+// ==========================================
+window.updateLeaveGuide = function() {
+    const type = $('#leave_type').val();
+    const prefix = window.currentProfile?.prefix || '';
+    const gender = window.getGenderFromPrefix(prefix);
     const isEditMode = $('#leave_id').val() !== '';
     const resetLeaveType = (originalType = '') => {
         if (isEditMode && originalType) $('#leave_type').val(originalType);
         else $('#leave_type').val('');
         $('#leave_guide').addClass('hidden');
-        calculateDays();
+        window.calculateDays();
     };
     if (type === 'ลาคลอดบุตร' && gender !== 'หญิง') {
-        Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาคลอดบุตรได้', text: 'ท่านเป็นเพศชาย ไม่มีสิทธิ์ลาคลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(editingOriginalLeaveType));
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาคลอดบุตรได้', text: 'ท่านเป็นเพศชาย ไม่มีสิทธิ์ลาคลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
         return;
     }
     if (type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร' && gender !== 'ชาย') {
-        Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาไปช่วยเหลือภริยาได้', text: 'ท่านเป็นเพศหญิง ไม่มีสิทธิ์ลาไปช่วยเหลือภริยาที่คลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(editingOriginalLeaveType));
+        Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาไปช่วยเหลือภริยาได้', text: 'ท่านเป็นเพศหญิง ไม่มีสิทธิ์ลาไปช่วยเหลือภริยาที่คลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
         return;
     }
     if (type === 'ลาพักผ่อน') {
-        Swal.fire({ icon: 'warning', title: 'ไม่สามารถเลือกลาพักผ่อนได้', text: 'ผู้ปฏิบัติงานในสถานศึกษาและได้หยุดราชการตามวันหยุดภาคการศึกษาเกินกว่าวันลาพักผ่อน (ปิดเทอม) ไม่มีสิทธิ์ลาพักผ่อน', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(editingOriginalLeaveType));
+        Swal.fire({ icon: 'warning', title: 'ไม่สามารถเลือกลาพักผ่อนได้', text: 'ผู้ปฏิบัติงานในสถานศึกษาและได้หยุดราชการตามวันหยุดภาคการศึกษาเกินกว่าวันลาพักผ่อน (ปิดเทอม) ไม่มีสิทธิ์ลาพักผ่อน', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
         return;
     }
     const guides = {
@@ -102,51 +171,34 @@ function updateLeaveGuide() {
     };
     if (guides[type]) $('#leave_guide').html(guides[type]).removeClass('hidden');
     else $('#leave_guide').addClass('hidden');
-    calculateDays();
-}
+    window.calculateDays();
+};
 
-function calculateDays() {
-    const startIso = $('#start_date_iso').val();
-    const endIso = $('#end_date_iso').val();
-    const type = $('#leave_type').val();
-    const days = calculateDaysByType(startIso, endIso, type);
-    $('#calc_days').text(days);
-}
-
-async function loadLeaveData() {
+// ==========================================
+// โหลดข้อมูลการลา
+// ==========================================
+window.loadLeaveData = async function() {
     const { data, error } = await db.from('leave_requests')
         .select('*')
-        .eq('personnel_id', currentUser.id)
+        .eq('personnel_id', window.currentUser.id)
         .order('created_at', { ascending: false });
     if (error) { console.error(error); return; }
-    allMyLeaves = data || [];
-
-    const validLeaves = allMyLeaves.filter(l => 
-        l.fiscal_year === systemSettings.fiscal_year && 
-        l.eval_round === systemSettings.eval_round && 
+    window.allMyLeaves = data || [];
+    const validLeaves = window.allMyLeaves.filter(l => 
+        l.fiscal_year === window.systemSettings.fiscal_year && 
+        l.eval_round === window.systemSettings.eval_round && 
         l.status !== 'ไม่อนุมัติ'
     );
-
     let sickCount = 0, sickDays = 0;
     let personalCount = 0, personalDays = 0;
     let maternityCount = 0, maternityDays = 0;
-
     validLeaves.forEach(l => {
-        if (l.type === 'ลาป่วย') {
-            sickCount++;
-            sickDays += l.total_days;
-        } else if (l.type === 'ลากิจส่วนตัว') {
-            personalCount++;
-            personalDays += l.total_days;
-        } else if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') {
-            maternityCount++;
-            maternityDays += l.total_days;
-        }
+        if (l.type === 'ลาป่วย') { sickCount++; sickDays += l.total_days; }
+        else if (l.type === 'ลากิจส่วนตัว') { personalCount++; personalDays += l.total_days; }
+        else if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') { maternityCount++; maternityDays += l.total_days; }
     });
-
     const totalCount = sickCount + personalCount + maternityCount;
     const totalDays = sickDays + personalDays + maternityDays;
-
     $('#stat-sick-count').text(sickCount);
     $('#stat-sick-days').text(sickDays);
     $('#stat-personal-count').text(personalCount);
@@ -155,15 +207,17 @@ async function loadLeaveData() {
     $('#stat-maternity-days').text(maternityDays);
     $('#stat-total-count').text(totalCount);
     $('#stat-total-days').text(totalDays);
+    window.renderTable();
+};
 
-    renderTable();
-}
-
-function renderTable() {
+// ==========================================
+// แสดงตาราง
+// ==========================================
+window.renderTable = function() {
     if ($.fn.DataTable.isDataTable('#leaveTable')) $('#leaveTable').DataTable().destroy();
     const tbody = document.getElementById('tb-leave');
-    if (allMyLeaves.length > 0) {
-        tbody.innerHTML = allMyLeaves.map(l => {
+    if (window.allMyLeaves.length > 0) {
+        tbody.innerHTML = window.allMyLeaves.map(l => {
             const createDate = new Date(l.created_at).toLocaleDateString('th-TH', {
                 year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             });
@@ -178,7 +232,7 @@ function renderTable() {
                 statusHtml = '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200"><i class="fas fa-check-circle mr-1"></i> อนุมัติ</span>';
             } else {
                 const safeComment = l.reject_comment ? l.reject_comment.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '<br>') : 'ไม่มีการระบุเหตุผล';
-                statusHtml = `<button onclick="showRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm hover:scale-105"><i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ <i class="fas fa-hand-pointer ml-1 animate-pulse"></i></button>`;
+                statusHtml = `<button onclick="window.showRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm hover:scale-105"><i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ <i class="fas fa-hand-pointer ml-1 animate-pulse"></i></button>`;
             }
             let typeClass = l.type === 'ลาป่วย' ? 'text-blue-600' : (l.type === 'ลากิจส่วนตัว' ? 'text-orange-600' : 'text-rose-600');
             if (isRejected) typeClass = 'text-slate-400 line-through';
@@ -186,12 +240,12 @@ function renderTable() {
             if (l.pdf_url) {
                 pdfHtml = `<a href="${l.pdf_url}" target="_blank" class="bg-green-50 text-green-600 hover:bg-green-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="เปิดไฟล์ PDF"><i class="fas fa-file-pdf"></i></a>`;
             } else {
-                pdfHtml = `<button onclick="printLeavePDF('${l.id}')" class="bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="สร้างใบลา (PDF)"><i class="fas fa-print"></i></button>`;
+                pdfHtml = `<button onclick="window.generateLeavePDF('${l.id}', window.systemSettings)" class="bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="สร้างใบลา (PDF)"><i class="fas fa-print"></i></button>`;
             }
             let btnHtml = pdfHtml;
             if (l.status === 'รออนุมัติ') {
-                btnHtml += `<button onclick="editLeave('${l.id}')" class="text-yellow-600 hover:text-yellow-700 bg-yellow-50 px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไขใบลา"><i class="fas fa-pen text-xs"></i></button>
-                            <button onclick="deleteLeave('${l.id}')" class="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg transition shadow-sm" title="ลบใบลา"><i class="fas fa-trash text-xs"></i></button>`;
+                btnHtml += `<button onclick="window.editLeave('${l.id}')" class="text-yellow-600 hover:text-yellow-700 bg-yellow-50 px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไขใบลา"><i class="fas fa-pen text-xs"></i></button>
+                            <button onclick="window.deleteLeave('${l.id}')" class="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg transition shadow-sm" title="ลบใบลา"><i class="fas fa-trash text-xs"></i></button>`;
             }
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-4 text-center text-slate-500 text-xs" data-order="${new Date(l.created_at).getTime()}">${createDate} น.</td>
@@ -207,31 +261,37 @@ function renderTable() {
     } else {
         tbody.innerHTML = '';
     }
-    dataTable = $('#leaveTable').DataTable({
+    window.dataTable = $('#leaveTable').DataTable({
         responsive: true, scrollX: false, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [7] }], pageLength: 25
     });
-}
+};
 
-function openLeaveModal() {
+// ==========================================
+// เปิด Modal
+// ==========================================
+window.openLeaveModal = function() {
     document.getElementById('leaveForm').reset();
     $('#leave_id').val('');
     $('#start_date_iso, #end_date_iso').val('');
     $('#calc_days').text('0');
     $('#contact_address, #phone_number').val('');
-    editingOriginalLeaveType = null;
+    window.editingOriginalLeaveType = null;
     if ($('#start_date')[0] && $('#start_date')[0]._flatpickr) $('#start_date')[0]._flatpickr.clear();
     if ($('#end_date')[0] && $('#end_date')[0]._flatpickr) $('#end_date')[0]._flatpickr.clear();
     $('#leave_guide').addClass('hidden');
     $('#leaveModal').removeClass('hidden').addClass('flex');
-}
+};
 
-function closeLeaveModal() {
+window.closeLeaveModal = function() {
     $('#leaveModal').addClass('hidden').removeClass('flex');
-}
+};
 
-function editLeave(id) {
-    const l = allMyLeaves.find(item => item.id === id);
+// ==========================================
+// แก้ไขใบลา
+// ==========================================
+window.editLeave = function(id) {
+    const l = window.allMyLeaves.find(item => item.id === id);
     if (!l) return;
     $('#leave_id').val(l.id);
     $('#leave_type').val(l.type);
@@ -241,7 +301,7 @@ function editLeave(id) {
     $('#calc_days').text(l.total_days);
     $('#contact_address').val(l.contact_address || '');
     $('#phone_number').val(l.phone_number || '');
-    editingOriginalLeaveType = l.type;
+    window.editingOriginalLeaveType = l.type;
     const setFp = (iso, idDisplay) => {
         if (!iso) return;
         const parts = iso.split('-');
@@ -252,11 +312,14 @@ function editLeave(id) {
     };
     setFp(l.start_date, 'start_date');
     setFp(l.end_date, 'end_date');
-    updateLeaveGuide();
+    window.updateLeaveGuide();
     $('#leaveModal').removeClass('hidden').addClass('flex');
-}
+};
 
-async function saveLeave(e) {
+// ==========================================
+// บันทึกใบลา
+// ==========================================
+window.saveLeave = async function(e) {
     e.preventDefault();
     const id = $('#leave_id').val();
     const type = $('#leave_type').val();
@@ -269,9 +332,9 @@ async function saveLeave(e) {
     if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const payload = {
-        personnel_id: currentUser.id, type, reason, start_date: startDate, end_date: endDate, total_days: totalDays,
+        personnel_id: window.currentUser.id, type, reason, start_date: startDate, end_date: endDate, total_days: totalDays,
         contact_address: contactAddress, phone_number: phoneNumber,
-        fiscal_year: systemSettings.fiscal_year, eval_round: systemSettings.eval_round,
+        fiscal_year: window.systemSettings.fiscal_year, eval_round: window.systemSettings.eval_round,
         status: 'รออนุมัติ', reject_comment: null
     };
     try {
@@ -282,26 +345,37 @@ async function saveLeave(e) {
             const { error } = await db.from('leave_requests').insert([payload]);
             if (error) throw error;
         }
-        closeLeaveModal();
-        await loadLeaveData();
-        Swal.fire({ icon: 'success', title: 'ส่งใบลาเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+        await window.logUserAction(`${id ? 'แก้ไข' : 'ส่ง'}ใบลา (${type})`, 'leave');
+        window.closeLeaveModal();
+        await window.loadLeaveData();
+        Swal.fire({ icon: 'success', title: id ? 'แก้ไขใบลาเรียบร้อยแล้ว' : 'ส่งใบลาเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
-}
+};
 
-async function deleteLeave(id) {
+// ==========================================
+// ลบใบลา
+// ==========================================
+window.deleteLeave = async function(id) {
     const { isConfirmed } = await Swal.fire({ title: 'ยกเลิกใบลา?', text: "ต้องการยกเลิกและลบรายการลานี้ใช่หรือไม่?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ใช่, ลบเลย' });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { error } = await db.from('leave_requests').delete().eq('id', id);
-        if (!error) { await loadLeaveData(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
+        if (!error) { 
+            await window.logUserAction(`ลบใบลา ID: ${id}`, 'leave');
+            await window.loadLeaveData(); 
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); 
+        }
         else Swal.fire('ผิดพลาด', error.message, 'error');
     }
-}
+};
 
-function exportExcel() {
-    if (allMyLeaves.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
+// ==========================================
+// ส่งออก Excel
+// ==========================================
+window.exportExcel = function() {
+    if (window.allMyLeaves.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
     const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0])+543}`; };
-    const exportData = allMyLeaves.map(l => ({
+    const exportData = window.allMyLeaves.map(l => ({
         'วันที่ส่งใบลา': new Date(l.created_at).toLocaleDateString('th-TH'),
         'ปีงบประมาณ': l.fiscal_year, 'รอบประเมิน': l.eval_round, 'ประเภทการลา': l.type,
         'เริ่มวันที่': fmt(l.start_date), 'ถึงวันที่': fmt(l.end_date),
@@ -314,14 +388,14 @@ function exportExcel() {
     ws['!cols'] = [{ wch:15 }, { wch:12 }, { wch:12 }, { wch:20 }, { wch:15 }, { wch:15 }, { wch:12 }, { wch:12 }, { wch:35 }, { wch:35 }, { wch:15 }, { wch:15 }, { wch:30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ประวัติการลา");
-    XLSX.writeFile(wb, `ประวัติการลา_${currentProfile.first_name}.xlsx`);
-}
+    XLSX.writeFile(wb, `ประวัติการลา_${window.currentProfile.first_name}.xlsx`);
+    window.logUserAction('ส่งออกประวัติการลา (Excel)', 'leave');
+};
 
-async function printLeavePDF(id) {
-    await generateLeavePDF(id, systemSettings);
-}
-
-function showRejectComment(comment) {
+// ==========================================
+// แสดงเหตุผลที่ไม่อนุมัติ
+// ==========================================
+window.showRejectComment = function(comment) {
     Swal.fire({
         icon: 'info',
         title: 'เหตุผลที่ไม่อนุมัติ',
@@ -329,4 +403,13 @@ function showRejectComment(comment) {
         confirmButtonColor: '#4f46e5',
         confirmButtonText: 'ปิดหน้าต่าง'
     });
-}
+};
+
+// ==========================================
+// ฟังก์ชันสลับโหมด (เรียกโดยปุ่มใน HTML)
+// ==========================================
+window.toggleAdminMode = function() {
+    window.switchToAdminMode();
+};
+
+console.log('✅ leave_teacher.js loaded (using window object, fixed flatpickr updateYear)');

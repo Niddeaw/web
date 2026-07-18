@@ -1,19 +1,68 @@
 // ==========================================
-// ตัวแปร Global ของระบบ
+// meeting_room.js — ระบบจองห้องประชุม
+// ปรับปรุง: แสดงชื่อ+สิทธิ์บน Navbar, Flatpickr พร้อมปฏิทิน
+// ใช้ config.js มาตรฐาน
+// ==========================================
+
+// ==========================================
+// ตัวแปร Global
 // ==========================================
 let currentUser = null;
 let currentProfile = null;
+let currentUserId = null;
+let currentUserRole = '';
 let isAdmin = false;
-let currentMode = 'teacher'; // โหมดเริ่มต้น (teacher / admin)
+let isModuleAdmin = false;
+let currentMode = 'teacher';
 let calendarInstance = null;
 let roomsData = [];
+let personnelData = [];
+let responsibleSelect = null;
+let editFlatStart = null;
+let editFlatEnd = null;
+let editResponsibleSelect = null;
 
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+}
+
+// ==========================================
+// INIT
+// ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
-    await checkAuth();
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    try {
+        await checkAuth();
+        await loadRooms();
+        await initPersonnelSelect();
+        await initCalendar();
+        applyModeUI();
+        Swal.close();
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    } catch (err) {
+        console.error('Initialization error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 });
 
 // ==========================================
-// 1. ระบบ Authentication & RBAC (ใช้ config.js)
+// ตรวจสอบสิทธิ์ + แสดงชื่อ/บทบาทบน Navbar
 // ==========================================
 async function checkAuth() {
     const result = await checkSessionAndRole('meeting_room', WRK_ROLES.ALLOWED);
@@ -21,58 +70,58 @@ async function checkAuth() {
 
     currentUser = result.user;
     currentProfile = result.personnel;
+    currentUserId = currentUser.id;
+    currentUserRole = result.role;
 
-    // ตรวจสอบสิทธิ์ Admin (ใช้ isAdminUser และ hasModuleAccess)
-    const isAdminByRole = isAdminUser(currentProfile.role, false);
-    let isModuleAdmin = false;
+    // แสดงชื่อและบทบาทบน Navbar
+    const fullName = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+    const nameDisplay = document.getElementById('userDisplayName');
+    if (nameDisplay) {
+        nameDisplay.textContent = fullName;
+        nameDisplay.classList.remove('hidden');
+        nameDisplay.classList.add('inline-block');
+    }
+
+    const roleBadge = document.getElementById('userRoleBadge');
+    if (roleBadge) {
+        const roleLabel = currentUserRole === 'super_admin' ? 'Super Admin' :
+                          currentUserRole === 'admin' ? 'Admin' :
+                          currentUserRole === 'director' ? 'ผู้อำนวยการ' :
+                          currentUserRole === 'deputy' ? 'รองผู้อำนวยการ' :
+                          currentUserRole === 'teacher' ? 'ครู' :
+                          currentUserRole === 'staff' ? 'บุคลากร' :
+                          currentUserRole === 'office' ? 'เจ้าหน้าที่' : currentUserRole;
+        roleBadge.textContent = roleLabel;
+        roleBadge.classList.remove('hidden');
+        roleBadge.classList.add('inline-block');
+    }
+
+    // ตรวจสอบสิทธิ์ Admin
+    const isAdminByRole = isAdminUser(currentUserRole, false);
     if (!isAdminByRole) {
-        isModuleAdmin = await hasModuleAccess(currentProfile.role, 'meeting_room', currentUser.id);
+        isModuleAdmin = await hasModuleAccess(currentUserRole, 'meeting_room', currentUserId);
     }
     isAdmin = isAdminByRole || isModuleAdmin;
 
-    // เปิดแสดงปุ่มสลับโหมดและตั้งค่า หากเป็น Admin
+    // ใช้ applyVisibilityByRole
+    applyVisibilityByRole(currentUserRole, isAdmin, {
+        settingsBtn: 'btnSettings',
+        toggleBtn: 'btnToggleMode'
+    });
+
     if (isAdmin) {
-        document.getElementById('btnToggleMode').classList.remove('hidden');
-        document.getElementById('btnSettings').classList.remove('hidden');
         updateToggleModeButton();
     }
 
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-
-    await loadRooms();
-
-    // เริ่ม Flatpickr หลังจาก DOM elements พร้อมแล้ว
-    flatpickr("#bk_start", { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "th" });
-    flatpickr("#bk_end", { enableTime: true, dateFormat: "Y-m-d H:i", time_24hr: true, locale: "th" });
-
-    // โหลดรายชื่อครูสำหรับ Tom Select
-    await initPersonnelSelect();
-
-    await initCalendar();
-    applyModeUI(); // ตั้งค่า UI หน้าจอตามโหมด
-}
-
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ยืนยันการออกจากระบบ?',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#e11d48',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace('login.html');
-    }
+    await logUserAction('เข้าสู่ระบบจองห้องประชุม', 'meeting_room');
 }
 
 // ==========================================
-// 2. การควบคุม UI และโหมด (Mode & Tabs Switcher)
+// การควบคุม UI และโหมด
 // ==========================================
 function updateToggleModeButton() {
     const btn = document.getElementById('btnToggleMode');
+    if (!btn) return;
     if (currentMode === 'teacher') {
         btn.className = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200";
         btn.innerHTML = `<i class="fas fa-shield-halved text-sm"></i> สลับเป็นโหมดแอดมิน`;
@@ -87,6 +136,7 @@ function toggleTeacherAdminMode() {
     currentMode = currentMode === 'teacher' ? 'admin' : 'teacher';
     updateToggleModeButton();
     applyModeUI();
+    logUserAction(`สลับโหมดเป็น ${currentMode === 'admin' ? 'แอดมิน' : 'ครู'}`, 'meeting_room');
 }
 
 function applyModeUI() {
@@ -99,19 +149,19 @@ function applyModeUI() {
     if (currentMode === 'teacher') {
         badge.innerText = "มุมมองผู้ขอใช้ห้อง (Teacher View)";
         badge.className = "text-xs text-slate-500";
-
         userTabs.classList.remove('hidden');
         adminContent.classList.add('hidden');
-        switchTab('calendar-tab'); // กลับไปหน้าปฏิทินของครู
+        teacherCalendarTab.classList.remove('hidden');
+        teacherMyBookingTab.classList.remove('hidden');
+        switchTab('calendar-tab');
     } else {
         badge.innerText = "มุมมองผู้ดูแลระบบ (Admin View)";
         badge.className = "text-xs font-bold text-rose-600";
-
         userTabs.classList.add('hidden');
         teacherCalendarTab.classList.add('hidden');
         teacherMyBookingTab.classList.add('hidden');
         adminContent.classList.remove('hidden');
-        loadAdminBookings(); // โหลดคิวงานของแอดมิน
+        loadAdminBookings();
     }
 }
 
@@ -136,11 +186,8 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// 2.5 Tom Select - ค้นหาชื่อครู และกรอกเบอร์อัตโนมัติ
+// Tom Select - ค้นหาชื่อครู
 // ==========================================
-let personnelData = [];
-let responsibleSelect = null;
-
 async function initPersonnelSelect() {
     const { data, error } = await db
         .from('core_personnel')
@@ -150,51 +197,55 @@ async function initPersonnelSelect() {
     if (error || !data) return;
     personnelData = data;
 
-    if (responsibleSelect) {
-        responsibleSelect.destroy();
-        responsibleSelect = null;
-    }
-
-    responsibleSelect = new TomSelect('#bk_responsible', {
-        valueField: 'fullname',
-        labelField: 'fullname',
-        searchField: ['fullname'],
-        placeholder: 'ค้นหาชื่อครู...',
-        options: personnelData.map(p => ({
-            fullname: `${p.first_name} ${p.last_name}`,
-            phone: p.phone || ''
-        })),
-        onChange(value) {
-            const person = personnelData.find(p => `${p.first_name} ${p.last_name}` === value);
-            document.getElementById('bk_phone').value = person ? (person.phone || '') : '';
-        },
-        render: {
-            option(data, escape) {
-                return `<div class="py-1">
-                    <span class="font-bold">${escape(data.fullname)}</span>
-                    ${data.phone ? `<span class="text-xs text-slate-400 ml-2"><i class="fa-solid fa-phone"></i> ${escape(data.phone)}</span>` : ''}
-                </div>`;
+    const selectEl = document.getElementById('bk_responsible');
+    if (selectEl) {
+        if (responsibleSelect) responsibleSelect.destroy();
+        responsibleSelect = new TomSelect(selectEl, {
+            valueField: 'fullname',
+            labelField: 'fullname',
+            searchField: ['fullname'],
+            placeholder: 'ค้นหาชื่อครู...',
+            options: personnelData.map(p => ({
+                fullname: `${p.first_name} ${p.last_name}`,
+                phone: p.phone || ''
+            })),
+            onChange(value) {
+                const person = personnelData.find(p => `${p.first_name} ${p.last_name}` === value);
+                document.getElementById('bk_phone').value = person ? (person.phone || '') : '';
             },
-            item(data, escape) {
-                return `<div>${escape(data.fullname)}</div>`;
+            render: {
+                option(data, escape) {
+                    return `<div class="py-1">
+                        <span class="font-bold">${escape(data.fullname)}</span>
+                        ${data.phone ? `<span class="text-xs text-slate-400 ml-2"><i class="fa-solid fa-phone"></i> ${escape(data.phone)}</span>` : ''}
+                    </div>`;
+                },
+                item(data, escape) {
+                    return `<div>${escape(data.fullname)}</div>`;
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 // ==========================================
-// 3. จัดการห้องประชุม (Room Management & Modals)
+// จัดการห้องประชุม (Admin Only)
 // ==========================================
 async function loadRooms() {
     const { data, error } = await db.from('mr_rooms').select('*').order('capacity', { ascending: false });
-    if (error) return Swal.fire('Error', error.message, 'error');
+    if (error) {
+        console.error('loadRooms error:', error);
+        return Swal.fire('Error', error.message, 'error');
+    }
 
     roomsData = data || [];
 
     const select = document.getElementById('bk_room');
     if (select) {
         select.innerHTML = '<option value="">-- เลือกห้อง --</option>' +
-            roomsData.filter(r => r.is_active).map(r => `<option value="${r.id}">${r.room_name} (รับได้ ${r.capacity} คน)</option>`).join('');
+            roomsData.filter(r => r.is_active).map(r =>
+                `<option value="${r.id}">${r.room_name} (รับได้ ${r.capacity} คน)</option>`
+            ).join('');
     }
 
     const tbody = document.getElementById('tb-rooms');
@@ -227,6 +278,7 @@ function closeSettingsModal() {
 }
 
 function openRoomFormModal() {
+    if (!isAdmin) return;
     document.getElementById('roomForm').reset();
     document.getElementById('r_id').value = '';
     document.getElementById('roomModalTitle').innerText = 'เพิ่มห้องประชุมใหม่';
@@ -238,6 +290,7 @@ function closeRoomModal() {
 }
 
 async function editRoom(id) {
+    if (!isAdmin) return;
     const room = roomsData.find(r => r.id === id);
     if (!room) return;
     document.getElementById('r_id').value = room.id;
@@ -252,10 +305,12 @@ async function editRoom(id) {
 
 async function saveRoom(e) {
     e.preventDefault();
+    if (!isAdmin) return;
+
     const id = document.getElementById('r_id').value;
     const payload = {
         room_name: document.getElementById('r_name').value,
-        capacity: document.getElementById('r_capacity').value,
+        capacity: parseInt(document.getElementById('r_capacity').value),
         equipment: document.getElementById('r_equipment').value,
         is_active: document.getElementById('r_active').checked
     };
@@ -265,9 +320,11 @@ async function saveRoom(e) {
     if (id) {
         const { error } = await db.from('mr_rooms').update(payload).eq('id', id);
         err = error;
+        if (!err) await logUserAction(`แก้ไขห้องประชุม: ${payload.room_name} (ID: ${id})`, 'meeting_room');
     } else {
         const { error } = await db.from('mr_rooms').insert([payload]);
         err = error;
+        if (!err) await logUserAction(`เพิ่มห้องประชุม: ${payload.room_name}`, 'meeting_room');
     }
 
     if (err) Swal.fire('ผิดพลาด', err.message, 'error');
@@ -279,22 +336,31 @@ async function saveRoom(e) {
 }
 
 async function deleteRoom(id) {
+    if (!isAdmin) return;
+    const room = roomsData.find(r => r.id === id);
+    if (!room) return;
+
     const { isConfirmed } = await Swal.fire({
         title: 'ลบห้องประชุม?',
-        text: 'การลบจะทำให้ประวัติการจองห้องนี้หายไป (ถ้าตั้งเป็น CASCADE)',
+        text: `คุณต้องการลบ "${room.room_name}" ใช่หรือไม่?`,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626'
     });
     if (isConfirmed) {
+        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
         const { error } = await db.from('mr_rooms').delete().eq('id', id);
         if (error) Swal.fire('ผิดพลาด', error.message, 'error');
-        else { await loadRooms(); Swal.fire('ลบสำเร็จ', '', 'success'); }
+        else {
+            await logUserAction(`ลบห้องประชุม: ${room.room_name} (ID: ${id})`, 'meeting_room');
+            await loadRooms();
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+        }
     }
 }
 
 // ==========================================
-// 4. ระบบการจอง และ ตรวจสอบปฏิทิน
+// ระบบการจอง + Flatpickr พร้อมปฏิทินเวลา
 // ==========================================
 async function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -347,8 +413,29 @@ async function initCalendar() {
         }
     });
     calendarInstance.render();
+
+    // ตั้งค่า Flatpickr สำหรับฟอร์มหลัก (แสดงปฏิทิน + เวลา)
+    flatpickr("#bk_start", {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-d H:i",
+        locale: "th",
+        minDate: "today",
+        placeholder: "เลือกวันและเวลา"
+    });
+    flatpickr("#bk_end", {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-d H:i",
+        locale: "th",
+        minDate: "today",
+        placeholder: "เลือกวันและเวลา"
+    });
 }
 
+// ==========================================
+// ฟังก์ชันการจอง (submit, execute, switch)
+// ==========================================
 async function submitBooking(e) {
     e.preventDefault();
 
@@ -356,6 +443,10 @@ async function submitBooking(e) {
     const end = document.getElementById('bk_end').value;
     const roomId = document.getElementById('bk_room').value;
     const attendees = parseInt(document.getElementById('bk_attendees').value);
+
+    if (!start || !end || !roomId || !attendees) {
+        return Swal.fire('กรุณากรอกข้อมูลให้ครบ', '', 'warning');
+    }
 
     if (new Date(start) >= new Date(end)) {
         return Swal.fire('เวลาไม่ถูกต้อง', 'เวลาสิ้นสุดต้องมากกว่าเวลาเริ่มต้น', 'warning');
@@ -401,7 +492,9 @@ async function submitBooking(e) {
         const availableRooms = roomsData.filter(r => r.is_active && r.capacity >= attendees && !busyRoomIds.includes(r.id));
 
         if (availableRooms.length > 0) {
-            let suggestions = availableRooms.map(r => `<button onclick="switchRoomAndSubmit('${r.id}')" class="w-full text-left p-3 my-1 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-800 font-bold transition-colors"><i class="fa-solid fa-door-open mr-2"></i>เปลี่ยนเป็น ${r.room_name} (ความจุ ${r.capacity})</button>`).join('');
+            let suggestions = availableRooms.map(r =>
+                `<button onclick="switchRoomAndSubmit('${r.id}')" class="w-full text-left p-3 my-1 border border-blue-200 bg-blue-50 hover:bg-blue-100 rounded-lg text-blue-800 font-bold transition-colors"><i class="fa-solid fa-door-open mr-2"></i>เปลี่ยนเป็น ${r.room_name} (ความจุ ${r.capacity})</button>`
+            ).join('');
 
             return Swal.fire({
                 title: 'ห้องไม่ว่างในเวลานี้',
@@ -426,8 +519,9 @@ function switchRoomAndSubmit(newRoomId) {
 
 async function executeBooking(roomId) {
     Swal.fire({ title: 'กำลังส่งคำขอ...', didOpen: () => Swal.showLoading() });
+
     const payload = {
-        user_id: currentUser.id,
+        user_id: currentUserId,
         room_id: roomId,
         title: document.getElementById('bk_title').value,
         department: document.getElementById('bk_department').value,
@@ -443,21 +537,29 @@ async function executeBooking(roomId) {
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        await logUserAction(`ส่งคำขอจองห้อง: ${payload.title} (ห้อง ID: ${roomId})`, 'meeting_room');
         document.getElementById('bookingForm').reset();
         if (responsibleSelect) responsibleSelect.clear();
         document.getElementById('bk_phone').value = '';
+        // รีเซ็ต flatpickr ให้เป็นค่าว่าง
+        document.querySelectorAll("#bk_start, #bk_end").forEach(el => {
+            if (el._flatpickr) el._flatpickr.clear();
+        });
         if (calendarInstance) calendarInstance.refetchEvents();
         Swal.fire('สำเร็จ', 'ส่งคำขอจองห้องเรียบร้อย รอแอดมินอนุมัติครับ', 'success');
     }
 }
 
 // ==========================================
-// 5. แสดงผลตาราง DataTables สำหรับคุณครู และ แอดมิน
+// แสดงตาราง DataTables
 // ==========================================
 async function loadMyBookings() {
     if ($.fn.DataTable.isDataTable('#myTable')) $('#myTable').DataTable().destroy();
 
-    const { data, error } = await db.from('mr_reservations').select('*, mr_rooms(room_name)').eq('user_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await db.from('mr_reservations')
+        .select('*, mr_rooms(room_name)')
+        .eq('user_id', currentUserId)
+        .order('created_at', { ascending: false });
 
     const tbody = document.getElementById('tb-my-bookings');
     if (data && data.length > 0) {
@@ -492,14 +594,13 @@ async function loadMyBookings() {
                 </td>
             </tr>
         `).join('');
-    } else { tbody.innerHTML = ''; }
+    } else {
+        tbody.innerHTML = '';
+    }
 
     $('#myTable').DataTable({
         responsive: true,
-        language: {
-            url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json',
-            emptyTable: 'ไม่มีประวัติการจอง'
-        },
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json', emptyTable: 'ไม่มีประวัติการจอง' },
         columnDefs: [{ orderable: false, targets: [4, 5] }]
     });
 }
@@ -539,7 +640,9 @@ async function loadAdminBookings() {
                 </td>
             </tr>
         `).join('');
-    } else { tbody.innerHTML = ''; }
+    } else {
+        tbody.innerHTML = '';
+    }
 
     $('#adminBookingTable').DataTable({
         responsive: true,
@@ -552,7 +655,7 @@ async function loadAdminBookings() {
 }
 
 // ==========================================
-// 6. Helper Functions (Approve, Reject, Delete, Statuses)
+// Helper Functions
 // ==========================================
 function formatThaiDate(dateStr, short = false) {
     const d = dayjs(dateStr);
@@ -571,7 +674,15 @@ function getStatusBadge(status) {
     return '<span class="px-2 py-1 text-[10px] font-bold rounded-full bg-amber-100 text-amber-700">รออนุมัติ</span>';
 }
 
+// ==========================================
+// Admin Actions
+// ==========================================
 async function updateBookingStatus(id, newStatus, reason = null) {
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'error');
+        return;
+    }
+
     Swal.fire({ title: 'กำลังอัปเดต...', didOpen: () => Swal.showLoading() });
     const payload = { status: newStatus };
     if (reason) payload.reject_reason = reason;
@@ -579,6 +690,7 @@ async function updateBookingStatus(id, newStatus, reason = null) {
     const { error } = await db.from('mr_reservations').update(payload).eq('id', id);
     if (error) Swal.fire('ผิดพลาด', error.message, 'error');
     else {
+        await logUserAction(`${newStatus === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ'}การจอง ID: ${id}`, 'meeting_room');
         if (calendarInstance) calendarInstance.refetchEvents();
         await loadAdminBookings();
         Swal.fire({ icon: 'success', title: 'อัปเดตสถานะสำเร็จ', timer: 1500, showConfirmButton: false });
@@ -586,6 +698,7 @@ async function updateBookingStatus(id, newStatus, reason = null) {
 }
 
 async function rejectBooking(id) {
+    if (!isAdmin) return;
     const result = await Swal.fire({
         title: 'ระบุเหตุผลที่ไม่อนุมัติ',
         input: 'text',
@@ -601,12 +714,8 @@ async function rejectBooking(id) {
 }
 
 // ==========================================
-// 6.1 แก้ไขการจองของฉัน (Edit Booking Modal)
+// Edit Booking (สำหรับผู้จอง)
 // ==========================================
-let editFlatStart = null;
-let editFlatEnd = null;
-let editResponsibleSelect = null;
-
 async function openEditBookingModal(id) {
     const { data: r, error } = await db.from('mr_reservations').select('*').eq('id', id).single();
     if (error || !r) return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลการจอง', 'error');
@@ -622,10 +731,23 @@ async function openEditBookingModal(id) {
         `<option value="${rm.id}" ${rm.id === r.room_id ? 'selected' : ''}>${rm.room_name} (รับได้ ${rm.capacity} คน)</option>`
     ).join('');
 
+    // ตั้งค่า Flatpickr สำหรับฟอร์มแก้ไข (แสดงปฏิทิน + เวลา)
     if (editFlatStart) editFlatStart.destroy();
     if (editFlatEnd) editFlatEnd.destroy();
-    editFlatStart = flatpickr('#eb_start', { enableTime: true, dateFormat: 'Y-m-d H:i', time_24hr: true, locale: 'th', defaultDate: r.start_time });
-    editFlatEnd   = flatpickr('#eb_end',   { enableTime: true, dateFormat: 'Y-m-d H:i', time_24hr: true, locale: 'th', defaultDate: r.end_time });
+    editFlatStart = flatpickr('#eb_start', {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-d H:i",
+        locale: "th",
+        defaultDate: r.start_time
+    });
+    editFlatEnd = flatpickr('#eb_end', {
+        enableTime: true,
+        time_24hr: true,
+        dateFormat: "Y-m-d H:i",
+        locale: "th",
+        defaultDate: r.end_time
+    });
 
     if (editResponsibleSelect) { editResponsibleSelect.destroy(); editResponsibleSelect = null; }
     editResponsibleSelect = new TomSelect('#eb_responsible', {
@@ -709,13 +831,14 @@ async function saveEditBooking(e) {
         attendee_count:     attendees,
         start_time:         new Date(start).toISOString(),
         end_time:           new Date(end).toISOString(),
-        status:             'pending'
+        status:             'pending'  // รีเซ็ตเป็นรออนุมัติ
     };
 
     const { error } = await db.from('mr_reservations').update(payload).eq('id', id);
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        await logUserAction(`แก้ไขการจอง ID: ${id} (รีเซ็ตเป็นรออนุมัติ)`, 'meeting_room');
         closeEditBookingModal();
         if (calendarInstance) calendarInstance.refetchEvents();
         await loadMyBookings();
@@ -723,6 +846,9 @@ async function saveEditBooking(e) {
     }
 }
 
+// ==========================================
+// Cancel & Delete
+// ==========================================
 async function cancelBooking(id) {
     const { isConfirmed } = await Swal.fire({
         title: 'ยกเลิกคำขอจองห้อง?',
@@ -740,6 +866,7 @@ async function cancelBooking(id) {
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
+        await logUserAction(`ยกเลิกการจอง (โดยผู้จอง) ID: ${id}`, 'meeting_room');
         if (calendarInstance) calendarInstance.refetchEvents();
         await loadMyBookings();
         Swal.fire({ icon: 'success', title: 'ยกเลิกสำเร็จ', timer: 1500, showConfirmButton: false });
@@ -747,24 +874,65 @@ async function cancelBooking(id) {
 }
 
 async function deleteBooking(id, isUserInitiated) {
-    const { isConfirmed } = await Swal.fire({
-        title: isUserInitiated ? 'ยกเลิกคำขอจองห้อง?' : 'ลบประวัติการจองนี้อย่างถาวร?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ยืนยัน',
-        cancelButtonText: 'ยกเลิก'
-    });
+    if (!isAdmin && isUserInitiated) {
+        const { isConfirmed } = await Swal.fire({
+            title: 'ลบประวัติการจองนี้?',
+            text: 'คุณต้องการลบรายการนี้ใช่หรือไม่',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'ลบ'
+        });
+        if (!isConfirmed) return;
+    } else if (!isAdmin && !isUserInitiated) {
+        return;
+    } else if (isAdmin) {
+        const { isConfirmed } = await Swal.fire({
+            title: 'ลบประวัติการจองนี้อย่างถาวร?',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc2626',
+            confirmButtonText: 'ลบ',
+            cancelButtonText: 'ยกเลิก'
+        });
+        if (!isConfirmed) return;
+    }
 
-    if (isConfirmed) {
-        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
-        const { error } = await db.from('mr_reservations').delete().eq('id', id);
-        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
-        else {
-            if (calendarInstance) calendarInstance.refetchEvents();
-            if (isAdmin && !isUserInitiated) await loadAdminBookings();
-            if (isUserInitiated) await loadMyBookings();
-            Swal.fire({ icon: 'success', title: 'ดำเนินการสำเร็จ', timer: 1500, showConfirmButton: false });
-        }
+    Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+    const { error } = await db.from('mr_reservations').delete().eq('id', id);
+    if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+    else {
+        await logUserAction(`ลบการจอง ID: ${id} (${isAdmin ? 'โดยแอดมิน' : 'โดยผู้ใช้'})`, 'meeting_room');
+        if (calendarInstance) calendarInstance.refetchEvents();
+        if (isAdmin && !isUserInitiated) await loadAdminBookings();
+        if (isUserInitiated) await loadMyBookings();
+        Swal.fire({ icon: 'success', title: 'ดำเนินการสำเร็จ', timer: 1500, showConfirmButton: false });
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global สำหรับ HTML onclick
+// ==========================================
+window.logout = logout;
+window.toggleTeacherAdminMode = toggleTeacherAdminMode;
+window.switchTab = switchTab;
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.openRoomFormModal = openRoomFormModal;
+window.closeRoomModal = closeRoomModal;
+window.editRoom = editRoom;
+window.saveRoom = saveRoom;
+window.deleteRoom = deleteRoom;
+window.submitBooking = submitBooking;
+window.switchRoomAndSubmit = switchRoomAndSubmit;
+window.openEditBookingModal = openEditBookingModal;
+window.closeEditBookingModal = closeEditBookingModal;
+window.saveEditBooking = saveEditBooking;
+window.cancelBooking = cancelBooking;
+window.deleteBooking = deleteBooking;
+window.updateBookingStatus = updateBookingStatus;
+window.rejectBooking = rejectBooking;
+window.loadMyBookings = loadMyBookings;
+window.loadAdminBookings = loadAdminBookings;
+
+console.log('✅ meeting_room.js loaded with config.js integration, navbar & flatpickr improved');

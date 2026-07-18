@@ -1,6 +1,8 @@
 // ==========================================
-// ไฟล์ guidance_admin.js (ระบบเครื่องมือผู้ดูแลระบบแนะแนว)
-// ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
+// guidance_admin.js — ระบบเครื่องมือผู้ดูแลระบบแนะแนว (ปรับใช้ config.js ฉบับสมบูรณ์)
+// - ใช้ checkSessionAndRole, requireAdmin, isAdminUser, hasModuleAccess
+// - ใช้ logUserAction() ในทุก CRUD
+// - ใช้ logout() มาตรฐานกลาง
 // ==========================================
 
 let currentUserProfile = null;
@@ -25,6 +27,7 @@ let tomSelectInstances = []; // เก็บ TomSelect instances ใน modal
 let currentUserRole = 'admin';
 let isAdminMode = true;
 let currentUserId = null;
+let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
@@ -63,6 +66,26 @@ function applyAdminVisibility() {
 }
 
 // ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+}
+
+// ==========================================
 // INIT
 // ==========================================
 window.onload = async () => {
@@ -77,19 +100,22 @@ window.onload = async () => {
     isAdminMode = isAdmin;
 
     // ✅ ตรวจสอบสิทธิ์เพิ่มเติม (Module Admin)
-    const hasModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
-    if (!isAdmin && !hasModuleAdmin) {
+    isModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
+    if (!isAdmin && !isModuleAdmin) {
         window.location.replace('guidance_teacher.html');
         return;
     }
 
     // ✅ ถ้าเป็น Admin หรือ Module Admin ให้แสดงปุ่มโหมด
-    if (isAdmin || hasModuleAdmin) {
+    if (isAdmin || isModuleAdmin) {
         document.getElementById('btnAdminMode')?.classList.remove('hidden');
     }
 
     document.getElementById('adminNameDisplay').innerText = `แอดมิน: ${personnel.first_name} ${personnel.last_name}`;
     applyAdminVisibility();
+
+    // ✅ บันทึก Log การเข้าใช้งาน
+    await window.logUserAction('เข้าสู่ระบบแนะแนว (Admin)', 'guidance');
 
     await loadSystemSettings();
     await loadMonitoringData();
@@ -101,17 +127,6 @@ window.onload = async () => {
         if (btnAdmin) btnAdmin.classList.remove('hidden');
     }
 };
-
-function handleLogout() {
-    Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
-    .then(async (result) => {
-        if (result.isConfirmed) {
-            localStorage.removeItem('activeMode');
-            await db.auth.signOut();
-            window.location.replace('index.html');
-        }
-    });
-}
 
 // -----------------------------------
 // 1. ตั้งค่าระบบ
@@ -172,6 +187,8 @@ async function saveSystemSettings(e) {
     if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     else { 
         globalGuidanceSettings = { ...globalGuidanceSettings, ...updates }; 
+        // ✅ บันทึก Log
+        await window.logUserAction('บันทึกการตั้งค่าระบบแนะแนว', 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false }); 
     }
 }
@@ -181,6 +198,7 @@ async function toggleSystemStatus(el) {
     const label = document.getElementById('systemStatusLabel');
     const { error } = await db.from('core_system_modules').update({ is_active: isOpen }).eq('module_id', 'guidance');
     if (!error) {
+        await window.logUserAction(`${isOpen ? 'เปิด' : 'ปิด'}ระบบแนะแนว`, 'guidance');
         if (isOpen) { label.innerText = "ระบบเปิดอยู่"; label.classList.replace('text-gray-500', 'text-green-600'); Swal.fire({ icon: 'success', title: 'เปิดระบบแล้ว', timer: 1500, showConfirmButton: false}); } 
         else { label.innerText = "ปิดระบบ"; label.classList.replace('text-green-600', 'text-gray-500'); Swal.fire({ icon: 'warning', title: 'ปิดระบบแล้ว', timer: 1500, showConfirmButton: false}); }
     }
@@ -221,7 +239,6 @@ async function loadMonitoringData() {
     let attStats = {}, attrStats = {};
 
     if (classroomIds.length > 0) {
-        // เรียก RPC ฟังก์ชัน get_attendance_counts
         const { data: attCounts, error: attError } = await db.rpc('get_attendance_counts', {
             classroom_ids: classroomIds
         });
@@ -232,7 +249,6 @@ async function loadMonitoringData() {
             });
         }
 
-        // เรียก RPC ฟังก์ชัน get_attribute_counts_by_classroom
         const { data: attrCounts, error: attrError } = await db.rpc('get_attribute_counts_by_classroom', {
             classroom_ids: classroomIds
         });
@@ -397,7 +413,11 @@ async function openAddGuidanceTeacherModal() {
         Swal.fire({ title: 'กำลังแต่งตั้ง...', didOpen: () => Swal.showLoading() });
         const { error } = await db.from('guidance_teachers').insert({ teacher_id: selectedId });
         if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-        else { await loadMonitoringData(); Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ!', timer: 1500, showConfirmButton: false }); }
+        else { 
+            await window.logUserAction(`แต่งตั้งครูแนะแนว: ${selectedId}`, 'guidance');
+            await loadMonitoringData(); 
+            Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ!', timer: 1500, showConfirmButton: false }); 
+        }
     }
 }
 
@@ -409,6 +429,7 @@ async function removeGuidanceRole(teacherId, name) {
         Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading() });
         await db.from('guidance_classes').delete().eq('teacher_id', teacherId);
         await db.from('guidance_teachers').delete().eq('teacher_id', teacherId);
+        await window.logUserAction(`ถอดสิทธิ์ครูแนะแนว: ${name}`, 'guidance');
         await loadMonitoringData();
         Swal.fire({ icon: 'success', title: 'ถอดสิทธิ์สำเร็จ', timer: 1500, showConfirmButton: false });
     }
@@ -532,6 +553,7 @@ async function saveTeacherClasses() {
             if (error) throw error;
         }
         
+        await window.logUserAction(`บันทึกการจัดห้องสอนของครู ID ${currentTeacherId}`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
         closeTeacherModal();
         await loadMonitoringData();
@@ -544,7 +566,7 @@ async function saveTeacherClasses() {
 // 4. โหมดสวมรอยกรอกข้อมูล (Admin Editor)
 // -----------------------------------
 async function openAdminEditor(classId, classNameStr) {
-    if (!window.isAdminUser(currentUserRole, isAdminMode)) {
+    if (!window.isAdminUser(currentUserRole, isAdminMode) && !isModuleAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
         return;
     }
@@ -706,6 +728,7 @@ async function adminSaveAllData() {
         if(scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id, column_name' });
         if(atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id, attribute_name' });
 
+        await window.logUserAction(`Admin บันทึกข้อมูลห้อง ${classId} (บังคับ)`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
 }
@@ -752,6 +775,9 @@ function exportExcelAll() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attrData), "คุณลักษณะ");
 
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
+    
+    // ✅ บันทึก Log
+    window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }
 
 async function importExcelAll(event) {
@@ -826,6 +852,8 @@ async function toggleRoleView() {
     isAdminMode = !isAdminMode;
     applyAdminVisibility();
     await loadMonitoringData();
+    
+    await window.logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'guidance');
 }
 
 // ==========================================
@@ -840,3 +868,25 @@ function closeSettings() {
     document.getElementById('settings-modal').classList.add('hidden');
     document.getElementById('settings-modal').classList.remove('flex');
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.toggleRoleView = toggleRoleView;
+window.openSettings = openSettings;
+window.closeSettings = closeSettings;
+window.exportExcelAll = exportExcelAll;
+window.importExcelAll = importExcelAll;
+window.openAdminEditor = openAdminEditor;
+window.closeAdminEditor = closeAdminEditor;
+window.adminSaveAllData = adminSaveAllData;
+window.switchAdminTab = switchAdminTab;
+window.openAddGuidanceTeacherModal = openAddGuidanceTeacherModal;
+window.openTeacherModal = openTeacherModal;
+window.closeTeacherModal = closeTeacherModal;
+window.addModalRow = addModalRow;
+window.saveTeacherClasses = saveTeacherClasses;
+window.loadMonitoringData = loadMonitoringData;
+
+console.log('✅ guidance_admin.js loaded with config.js integration');

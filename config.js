@@ -14,16 +14,24 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 /**
  * WRK_ROLES — กำหนดบทบาทและสิทธิ์ของระบบ
  * แก้ไขตรงนี้เพียงที่เดียวเมื่อต้องการเพิ่ม/ลด Role
+ *
+ * วิธีเพิ่มเจ้าหน้าที่สำนักงาน (office):
+ *  1. เพิ่ม user ใน Supabase Auth (email + password)
+ *  2. Insert core_personnel → id = user.id, role = 'office'
+ *  3. Insert core_module_admins → user_id, module_id (ต่อโมดูลที่อนุญาต)
  */
 const WRK_ROLES = {
     // ✅ Role ที่สามารถเข้าใช้งานระบบต่างๆ ได้ (ทุกโมดูล)
-    ALLOWED: ['super_admin', 'admin', 'director', 'deputy', 'teacher', 'staff'],
+    ALLOWED: ['super_admin', 'admin', 'director', 'deputy', 'teacher', 'staff', 'office'],
 
     // ✅ Role ที่มีสิทธิ์ระดับ Admin (เห็นทุกห้อง, จัดการระบบ, ตั้งค่า)
     ADMIN: ['super_admin', 'admin', 'director', 'deputy'],
 
     // ✅ Role ที่เป็นครู (มีห้องที่ปรึกษา)
     TEACHER: ['teacher', 'staff'],
+
+    // ✅ Role เจ้าหน้าที่สำนักงาน (เข้าได้เฉพาะโมดูลที่ได้รับมอบหมาย ไม่เกี่ยวกับข้อมูลครู)
+    OFFICE: ['office'],
 
     // ✅ Role ที่มีสิทธิ์จัดการตั้งค่าระบบ (Settings) — เฉพาะ super_admin และ admin
     SETTINGS: ['super_admin', 'admin'],
@@ -45,9 +53,20 @@ function isTeacherUser(role, hasClassrooms) {
     return WRK_ROLES.TEACHER.includes(role) || hasClassrooms === true;
 }
 
+// ✅ เจ้าหน้าที่สำนักงาน — ไม่แสดงข้อมูลครู/ห้องเรียน
+function isOfficeUser(role) {
+    return WRK_ROLES.OFFICE.includes(role);
+}
+
 // ✅ ฟังก์ชันใหม่สำหรับสิทธิ์ตั้งค่าระบบ
 function canManageSettings(role) {
     return WRK_ROLES.SETTINGS.includes(role);
+}
+
+// ✅ เช็คว่า role นี้ต้องการ module-level permission หรือไม่
+//    (teacher, staff, office ต้องมี record ใน core_module_admins)
+function requiresModulePermission(role) {
+    return WRK_ROLES.TEACHER.includes(role) || WRK_ROLES.OFFICE.includes(role);
 }
 
 function requireAdmin(role, isAdminMode, customMessage = null) {
@@ -63,21 +82,37 @@ function requireAdmin(role, isAdminMode, customMessage = null) {
     return true;
 }
 
+/**
+ * hasModuleAccess — ตรวจสอบสิทธิ์เข้าโมดูล
+ *
+ * - Admin: เข้าได้ทุกโมดูลเสมอ
+ * - Teacher / Staff / Office: ต้องมี record ใน core_module_admins
+ *
+ * @param {string} role
+ * @param {string} moduleId  — ชื่อโมดูล เช่น 'finance', 'report'
+ * @param {string} userId    — user.id จาก Supabase Auth
+ * @returns {Promise<boolean>}
+ */
 async function hasModuleAccess(role, moduleId, userId) {
+    // Admin เข้าได้ทุกโมดูลเสมอ
     if (WRK_ROLES.ADMIN.includes(role)) return true;
-    if (WRK_ROLES.TEACHER.includes(role)) {
+
+    // Teacher / Staff / Office — เช็คจาก core_module_admins
+    if (WRK_ROLES.TEACHER.includes(role) || WRK_ROLES.OFFICE.includes(role)) {
         const { data, error } = await db
             .from('core_module_admins')
             .select('id')
             .eq('user_id', userId)
             .eq('module_id', moduleId)
             .maybeSingle();
+
         if (error) {
             console.error('Error checking module access:', error);
             return false;
         }
         return !!data;
     }
+
     return false;
 }
 
@@ -129,6 +164,19 @@ function updateToggleModeUI(role, isAdminMode, btnId = 'btnToggleMode') {
 // ฟังก์ชันสำหรับใช้ใน window.load (ช่วยให้โค้ดสั้นลง)
 // ==========================================
 
+/**
+ * checkSessionAndRole — ตรวจสอบ session และ role ก่อนโหลดโมดูล
+ *
+ * คืนค่า object ที่ประกอบด้วย:
+ *  - user, personnel, role
+ *  - isAdmin    : true ถ้าเป็น ADMIN role
+ *  - isTeacher  : true ถ้าเป็น TEACHER role
+ *  - isOffice   : true ถ้าเป็น OFFICE role (เจ้าหน้าที่สำนักงาน)
+ *  - isAdminMode: เริ่มต้นเป็น true สำหรับ Admin
+ *
+ * @param {string}        moduleName   — ชื่อโมดูลสำหรับแสดงในข้อความแจ้งเตือน
+ * @param {string[]|null} allowedRoles — กำหนด role ที่อนุญาต (null = ใช้ ALLOWED ทั้งหมด)
+ */
 async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const { data: { user } } = await db.auth.getUser();
     if (!user) {
@@ -136,11 +184,16 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         return null;
     }
 
-    const { data: personnel } = await db.from('core_personnel').select('*').eq('id', user.id).single();
+    const { data: personnel } = await db
+        .from('core_personnel')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
     if (!personnel) {
-        Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error').then(() => {
-            window.location.href = 'login.html';
-        });
+        // ✅ await — หยุดรอจนกว่า user จะกด OK แล้วค่อย redirect
+        await Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error');
+        window.location.href = 'login.html';
         return null;
     }
 
@@ -148,18 +201,22 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const allowed = allowedRoles || WRK_ROLES.ALLOWED;
 
     if (!allowed.includes(role)) {
+        // ✅ await — หยุดรอจนกว่า user จะกด ตกลง แล้วค่อย redirect
         await Swal.fire({
             icon: 'warning',
-            title: 'ไม่มีสิทธิ์เข้าถึง',
+            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
             text: `บทบาท "${role}" ไม่มีสิทธิ์ใช้งานระบบ ${moduleName}`,
-            confirmButtonText: 'กลับหน้าหลัก'
+            confirmButtonText: 'ตกลง',
+            allowOutsideClick: false,
+            allowEscapeKey: false
         });
-        window.location.href = 'login.html';
+        window.location.href = 'index.html';
         return null;
     }
 
-    const isAdmin = WRK_ROLES.ADMIN.includes(role);
+    const isAdmin   = WRK_ROLES.ADMIN.includes(role);
     const isTeacher = WRK_ROLES.TEACHER.includes(role);
+    const isOffice  = WRK_ROLES.OFFICE.includes(role);
 
     return {
         user,
@@ -167,6 +224,7 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         role,
         isAdmin,
         isTeacher,
+        isOffice,
         isAdminMode: isAdmin
     };
 }
@@ -256,15 +314,17 @@ async function logUserAction(action, module) {
 // ==========================================
 // ประกาศตัวแปรและฟังก์ชันให้เป็น Global
 // ==========================================
-window.WRK_ROLES = WRK_ROLES;
-window.isAllowedRole = isAllowedRole;
-window.isAdminUser = isAdminUser;
-window.isTeacherUser = isTeacherUser;
-window.canManageSettings = canManageSettings;
-window.requireAdmin = requireAdmin;
-window.hasModuleAccess = hasModuleAccess;
+window.WRK_ROLES             = WRK_ROLES;
+window.isAllowedRole         = isAllowedRole;
+window.isAdminUser           = isAdminUser;
+window.isTeacherUser         = isTeacherUser;
+window.isOfficeUser          = isOfficeUser;
+window.canManageSettings     = canManageSettings;
+window.requiresModulePermission = requiresModulePermission;
+window.requireAdmin          = requireAdmin;
+window.hasModuleAccess       = hasModuleAccess;
 window.applyVisibilityByRole = applyVisibilityByRole;
-window.updateToggleModeUI = updateToggleModeUI;
-window.checkSessionAndRole = checkSessionAndRole;
-window.logUserAction = logUserAction;
-window.db = db;
+window.updateToggleModeUI    = updateToggleModeUI;
+window.checkSessionAndRole   = checkSessionAndRole;
+window.logUserAction         = logUserAction;
+window.db                    = db;
