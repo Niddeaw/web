@@ -195,20 +195,18 @@ function applyAdminVisibility() {
 // ==========================================
 async function checkAuth() {
     try {
-        // ใช้ checkSessionAndRole จาก config.js (จะแสดง SweetAlert และ redirect ถ้าไม่มีสิทธิ์)
+        // ใช้ checkSessionAndRole จาก config.js
         const session = await window.checkSessionAndRole('ระบบเยี่ยมบ้าน', [
             'super_admin', 'admin', 'director', 'deputy', 'teacher'
         ]);
-        if (!session) {
-            // session เป็น null เมื่อถูก redirect ไปแล้ว
-            return;
-        }
+        if (!session) return;
 
-        const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode } = session;
+        // ✅ แก้ไขตรงนี้: ไม่ใช้ destructing กับ isAdminMode
+        const { user, personnel, role, isAdmin, isTeacher, isOffice } = session;
         currentUser = personnel;
         currentUserId = user.id;
         currentUserRole = role;
-        isAdminMode = isAdmin;
+        isAdminMode = isAdmin;   // ✅ กำหนดค่าให้ตัวแปร global ที่ประกาศด้วย let
 
         // ตรวจสอบ Module Admin
         isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
@@ -279,7 +277,6 @@ async function checkAuth() {
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถยืนยันตัวตนได้', 'error');
     }
 }
-
 // ==========================================
 // ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
 // ==========================================
