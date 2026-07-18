@@ -180,14 +180,7 @@ function applyAdminVisibility() {
         adminManagerBtn: 'adminManagerBtn'
     });
 
-    document.querySelectorAll('#btn-import-excel, .btn-import, .btn-export').forEach(btn => {
-        if (btn) {
-            btn.classList.remove('hidden');
-            btn.classList.add('flex');
-        }
-    });
-
-    window.updateToggleModeUI(currentUserRole, isAdminEffective, 'btnAdminMode');
+    // ❌ ไม่ต้องเรียก updateToggleModeUI ที่นี่ เพื่อไม่ให้ไปทับข้อความปุ่มที่ตั้งเอง
 }
 
 // ==========================================
@@ -201,12 +194,11 @@ async function checkAuth() {
         ]);
         if (!session) return;
 
-        // ✅ แก้ไขตรงนี้: ไม่ใช้ destructing กับ isAdminMode
         const { user, personnel, role, isAdmin, isTeacher, isOffice } = session;
         currentUser = personnel;
         currentUserId = user.id;
         currentUserRole = role;
-        isAdminMode = isAdmin;   // ✅ กำหนดค่าให้ตัวแปร global ที่ประกาศด้วย let
+        isAdminMode = isAdmin;
 
         // ตรวจสอบ Module Admin
         isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
@@ -253,6 +245,10 @@ async function checkAuth() {
         // ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์
         applyAdminVisibility();
 
+        // ✅ ตั้งค่าปุ่มโหมดเริ่มต้น (เฉพาะครั้งแรก)
+        const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
+        window.updateToggleModeUI(currentUserRole, isAdminEffective, 'btnAdminMode');
+
         // แสดงปุ่มสลับโหมดเฉพาะ super_admin หรือ module_admin
         if (role === 'super_admin' || isModuleAdmin) {
             const toggleBtn = document.getElementById('btnAdminMode');
@@ -277,19 +273,20 @@ async function checkAuth() {
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถยืนยันตัวตนได้', 'error');
     }
 }
+
 // ==========================================
 // ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
 // ==========================================
 function applyReadOnlyState() {
     if (!isReadOnly) return;
 
-    $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+    $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
         if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
         }
     });
 
-    $('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').each(function() {
+    $('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').each(function () {
         if ($(this).attr('type') !== 'file') {
             $(this).prop('disabled', true).addClass('opacity-60');
         }
@@ -332,39 +329,48 @@ function updateUIByRole() {
 }
 
 window.toggleRoleView = function () {
-    if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้')) {
+    const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
+    if (!isAdminEffective) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'warning');
         return;
     }
 
-    const newRole = (currentViewRole === 'teacher') ? 'admin' : 'teacher';
-    const isAdmin = newRole !== 'teacher';
-
-    if (isAdmin) {
-        currentViewRole = isModuleAdmin ? 'module_admin' : 'super_admin';
+    // สลับโหมด
+    if (currentViewRole === 'teacher') {
+        currentViewRole = isModuleAdmin ? 'module_admin' : (currentUserRole === 'super_admin' ? 'super_admin' : 'admin');
         isReadOnly = false;
     } else {
         currentViewRole = 'teacher';
         isReadOnly = false;
     }
 
+    // ✅ อัปเดตปุ่มด้วยตนเอง (ไม่ใช้ updateToggleModeUI)
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
-        btn.innerHTML = currentViewRole === 'teacher'
-            ? '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>'
-            : '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+        if (currentViewRole === 'teacher') {
+            btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
+            btn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
+        } else {
+            btn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+            btn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
+        }
     }
 
+    // ✅ บันทึก Log
     window.logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'homevisit');
 
+    // ✅ อัปเดต UI และโหลดข้อมูลใหม่ (applyAdminVisibility จะไม่เปลี่ยนข้อความปุ่มแล้ว)
     applyAdminVisibility();
     updateUIByRole();
     loadClassrooms();
 
+    // ✅ แสดง Toast
+    const modeName = currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแลระบบ';
     Swal.fire({
         toast: true,
         position: 'top-end',
         icon: 'info',
-        title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแล'}`,
+        title: `สลับเป็น ${modeName}`,
         showConfirmButton: false,
         timer: 2000
     });
@@ -448,8 +454,8 @@ async function loadClassrooms() {
         maxOptions: 1000,
         dropdownParent: 'body',
         searchField: ['text'],
-        score: function(search) {
-            return function(item) {
+        score: function (search) {
+            return function (item) {
                 if (item.text.toLowerCase().includes(search.toLowerCase())) return 1;
                 return 0;
             };
@@ -1264,7 +1270,7 @@ function initMap(lat = SCHOOL_LAT, lng = SCHOOL_LNG) {
     marker = L.marker([lat, lng], { icon: homeIcon, draggable: true }).addTo(map)
         .bindPopup('📍 ที่อยู่บ้านนักเรียน');
 
-    marker.on('dragend', function(e) {
+    marker.on('dragend', function (e) {
         const pos = marker.getLatLng();
         document.getElementById('lat').value = pos.lat.toFixed(6);
         document.getElementById('lng').value = pos.lng.toFixed(6);
@@ -1272,7 +1278,7 @@ function initMap(lat = SCHOOL_LAT, lng = SCHOOL_LNG) {
         markDirty();
     });
 
-    map.on('click', function(e) {
+    map.on('click', function (e) {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
         marker.setLatLng([lat, lng]);
@@ -1318,10 +1324,10 @@ function calculateDistanceAndRoute(lat, lng) {
             lineOptions: {
                 styles: [{ color: '#0284c7', weight: 4 }]
             },
-            createMarker: function() { return null; }
+            createMarker: function () { return null; }
         }).addTo(map);
 
-        routeLayer.on('routesfound', function(e) {
+        routeLayer.on('routesfound', function (e) {
             const routes = e.routes;
             if (routes && routes.length > 0) {
                 const summary = routes[0].summary;
@@ -1335,10 +1341,10 @@ function calculateDistanceAndRoute(lat, lng) {
         const R = 6371;
         const dLat = (lat - SCHOOL_LAT) * Math.PI / 180;
         const dLng = (lng - SCHOOL_LNG) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                  Math.cos(SCHOOL_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-                  Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(SCHOOL_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         const distance = (R * c).toFixed(2);
         document.getElementById('travel_distance').value = distance;
         updateRouteInfoPanel({ distance: distance, time: null });
@@ -1371,7 +1377,7 @@ function updateRouteInfoPanel(info) {
 // ==========================================
 // 8. INITIALIZATION
 // ==========================================
-$(document).ready(async function() {
+$(document).ready(async function () {
     try {
         // ซ่อนเนื้อหาหลักไว้ก่อน
         document.getElementById('mainBody').classList.add('opacity-0');
