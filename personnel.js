@@ -1166,6 +1166,7 @@ async function loadPersonnelList() {
 
     // ✅ ใช้ allPersonnelData เพื่อให้สถิติคงที่ (ไม่กรองตามโหมด)
     updateDashboard(allPersonnelData);
+    updateBirthdayNotification();   // ✅ เพิ่มบรรทัดนี้
 }
 
 function editPersonnel(id) {
@@ -1316,6 +1317,60 @@ function renderInfoBlocks(data) {
         </div>`;
     }).join('') : '<p class="text-slate-400 text-sm text-center py-6">ยังไม่มีผู้ครบคุณสมบัติ</p>';
 }
+
+/* ── Birthday Notification ── */
+function updateBirthdayNotification() {
+    const today = dayjs();
+    const currentYear = today.year();
+    let birthdayToday = [];
+    let upcoming = [];
+
+    allPersonnelData.forEach(p => {
+        if (!p.birth_date) return;
+        const bd = dayjs(p.birth_date);
+        const thisYearBD = bd.set('year', currentYear);
+        const diffDays = thisYearBD.diff(today, 'day');
+        if (diffDays === 0) {
+            birthdayToday.push(p);
+        } else if (diffDays > 0 && diffDays <= 7) {
+            upcoming.push({ days: diffDays, person: p });
+        }
+    });
+
+    const el = document.getElementById('birthday-notification');
+    if (!el) return;
+
+    if (birthdayToday.length === 0 && upcoming.length === 0) {
+        el.classList.add('hidden');
+        el.classList.remove('birthday-notification-badge', 'animated');
+        return;
+    }
+
+    el.classList.remove('hidden', 'animated');
+    el.classList.add('birthday-notification-badge');
+
+    let msg = '';
+    if (birthdayToday.length > 0) {
+        const names = birthdayToday.map(p => `${p.prefix || ''}${p.first_name} ${p.last_name}`).join(', ');
+        msg = `🎂 วันเกิดวันนี้: ${names}`;
+    } else {
+        const sorted = upcoming.sort((a, b) => a.days - b.days);
+        const days = sorted[0].days;
+        const count = sorted.length;
+        if (count === 1) {
+            const p = sorted[0].person;
+            msg = `🎉 จะมีวันเกิดใน ${days} วัน (${p.prefix || ''}${p.first_name} ${p.last_name})`;
+        } else {
+            msg = `🎉 จะมีวันเกิดใน ${days} วัน (${count} คน)`;
+        }
+    }
+    el.textContent = msg;
+
+    // รีเซ็ต animation เพื่อให้เล่นทุกครั้งที่มีการอัปเดต
+    void el.offsetWidth; // force reflow
+    el.classList.add('animated');
+}
+
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel() {
@@ -1786,6 +1841,7 @@ function closeRetireModal() {
     document.getElementById('retire-modal').classList.remove('flex');
 }
 
+
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
@@ -1819,3 +1875,4 @@ window.openStatsModal = openStatsModal;
 window.closeStatsModal = closeStatsModal;
 window.openRetireModal = openRetireModal;
 window.closeRetireModal = closeRetireModal;
+window.updateBirthdayNotification = updateBirthdayNotification;

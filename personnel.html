@@ -9,7 +9,56 @@
     <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <style>
+        @keyframes wiggle-blink {
 
+            0%,
+            100% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+
+            25% {
+                transform: rotate(-8deg);
+                opacity: 0.7;
+            }
+
+            50% {
+                transform: rotate(0deg);
+                opacity: 0.4;
+            }
+
+            75% {
+                transform: rotate(8deg);
+                opacity: 0.7;
+            }
+        }
+
+        .birthday-notification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #fce7f3;
+            color: #be185d;
+            padding: 0.3rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid #fbcfe8;
+            box-shadow: 0 2px 6px rgba(190, 24, 93, 0.15);
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: default;
+            transition: all 0.2s;
+        }
+
+        .birthday-notification-badge.animated {
+            animation: wiggle-blink 1.2s ease-in-out 3;
+        }
+
+        .birthday-notification-badge:hover {
+            transform: scale(1.05);
+            background: #fce4ec;
+        }
+    </style>
 </head>
 
 <body class="min-h-screen opacity-0 transition-opacity duration-300" id="mainBody">
@@ -32,6 +81,10 @@
                     class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full"></span>
                 <span id="role-badge"
                     class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm"></span>
+
+                <!-- ✅ เพิ่มตรงนี้ -->
+                <span id="birthday-notification"
+                    class="hidden md:flex items-center gap-1 text-sm font-medium text-slate-700 bg-pink-50 px-3 py-1.5 rounded-full border border-pink-200 shadow-sm"></span>
 
                 <button id="btn-settings" onclick="openSettings()"
                     class="hidden h-10 px-3 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
@@ -66,20 +119,24 @@
         <!-- ===== การ์ดสถิติ 4 ใบ (แก้ไขแล้ว) ===== -->
         <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <!-- การ์ดที่ 1: บุคลากรทั้งหมด (คลิกได้) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="openStatsModal()">
+            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
+                onclick="openStatsModal()">
                 <div
                     class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-users"></i></div>
+                    <i class="fas fa-users"></i>
+                </div>
                 <div>
                     <p class="text-slate-400 text-[10px] font-bold uppercase">บุคลากรทั้งหมด</p>
                     <h3 id="stat-total" class="text-2xl font-bold text-slate-800">0</h3>
                 </div>
             </div>
             <!-- การ์ดที่ 2: เกษียณปีนี้ (คลิกได้) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="openRetireModal()">
+            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
+                onclick="openRetireModal()">
                 <div
                     class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-user-clock"></i></div>
+                    <i class="fas fa-user-clock"></i>
+                </div>
                 <div>
                     <p class="text-slate-400 text-[10px] font-bold uppercase">เกษียณปีนี้</p>
                     <h3 id="stat-retire" class="text-2xl font-bold text-orange-500">0</h3>
@@ -89,7 +146,8 @@
             <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
                 <div
                     class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-id-card"></i></div>
+                    <i class="fas fa-id-card"></i>
+                </div>
                 <div>
                     <p class="text-slate-400 text-[10px] font-bold uppercase">ใบอนุญาตใกล้หมด</p>
                     <h3 id="stat-license" class="text-2xl font-bold text-red-500">0</h3>
@@ -99,7 +157,8 @@
             <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
                 <div
                     class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-medal"></i></div>
+                    <i class="fas fa-medal"></i>
+                </div>
                 <div>
                     <p class="text-slate-400 text-[10px] font-bold uppercase">สิทธิ์ขอวิทยฐานะ</p>
                     <h3 id="stat-eligible" class="text-2xl font-bold text-green-600">0</h3>
@@ -255,14 +314,15 @@
                                 <div class="section-header w-full"><i class="fas fa-image"></i> รูปประจำตัว</div>
                                 <div class="relative inline-block">
                                     <div id="avatar-display" class="avatar-ring">?</div>
-                                    <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
-    <span>รอ Upload</span>
-    <button type="button" onclick="uploadAvatarNow()" 
-            class="hover:text-yellow-200 transition focus:outline-none"
-            title="อัปโหลดไปยัง Google Drive เดี๋ยวนี้">
-        <i class="fas fa-cloud-upload-alt"></i>
-    </button>
-</div>
+                                    <div id="avatar-upload-badge"
+                                        class="hidden absolute -top-2 -right-2 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                                        <span>รอ Upload</span>
+                                        <button type="button" onclick="uploadAvatarNow()"
+                                            class="hover:text-yellow-200 transition focus:outline-none"
+                                            title="อัปโหลดไปยัง Google Drive เดี๋ยวนี้">
+                                            <i class="fas fa-cloud-upload-alt"></i>
+                                        </button>
+                                    </div>
                                     <label
                                         class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition"
                                         title="อัปโหลดจากเครื่อง">
@@ -545,15 +605,20 @@
     <div id="stats-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeStatsModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด</h3>
-                <button onclick="closeStatsModal()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด
+                </h3>
+                <button onclick="closeStatsModal()"
+                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto max-h-[60vh]">
                 <div id="stats-content" class="space-y-4"></div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeStatsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
+                <button onclick="closeStatsModal()"
+                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
             </div>
         </div>
     </div>
@@ -562,15 +627,20 @@
     <div id="retire-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeRetireModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i> รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
-                <button onclick="closeRetireModal()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i>
+                    รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
+                <button onclick="closeRetireModal()"
+                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <div class="p-6 overflow-y-auto max-h-[60vh]">
                 <div id="retire-content" class="space-y-2"></div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeRetireModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
+                <button onclick="closeRetireModal()"
+                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
             </div>
         </div>
     </div>
