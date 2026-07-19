@@ -1177,22 +1177,26 @@ function editPersonnel(id) {
 /* ── Dashboard ──────────────── */
 function updateDashboard(data) {
     const today = dayjs(), cyBE = today.year() + 543;
-    let retire = 0, lic = 0, eligible = 0, paPass = 0, paProc = 0;
+    let retire = 0, lic = 0, eligible = 0;
     data.forEach(p => {
-        if (p.birth_date) { const b = dayjs(p.birth_date); let ry = b.year() + 60; if (b.month() > 8) ry++; if (ry + 543 === cyBE) retire++; }
-        if (p.license_expiry) { const dl = dayjs(p.license_expiry).diff(today, 'day'); if (dl <= 90) lic++; }
+        if (p.birth_date) {
+            const b = dayjs(p.birth_date);
+            let ry = b.year() + 60;
+            if (b.month() > 8) ry++;
+            if (ry + 543 === cyBE) retire++;
+        }
+        if (p.license_expiry) {
+            const dl = dayjs(p.license_expiry).diff(today, 'day');
+            if (dl <= 90) lic++;
+        }
         if (p.appointment_date && !['ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
             if (today.diff(dayjs(p.appointment_date), 'year') >= 4) eligible++;
         }
-        if (p.pa_status === 'ผ่าน') paPass++;
-        if (p.pa_status === 'กำลังดำเนินการ') paProc++;
     });
     document.getElementById('stat-total').textContent = data.length;
     document.getElementById('stat-retire').textContent = retire;
     document.getElementById('stat-license').textContent = lic;
     document.getElementById('stat-eligible').textContent = eligible;
-    document.getElementById('stat-pa-pass').textContent = paPass;
-    document.getElementById('stat-pa-proc').textContent = paProc;
     renderInfoBlocks(data);
 }
 
@@ -1234,7 +1238,7 @@ function renderInfoBlocks(data) {
     }).sort((a, b) => {
         const getRetire = p => { const bi = dayjs(p.birth_date); let ry = bi.year() + 60; if (bi.month() > 8) ry++; return ry; };
         return getRetire(a) - getRetire(b);
-    }).slice(0, 10);
+    });
 
     const blockRetire = document.getElementById('block-retire');
     blockRetire.innerHTML = retireList.length ? retireList.map(p => {
@@ -1698,6 +1702,90 @@ async function importFromExcel(event) {
     reader.readAsArrayBuffer(file);
 }
 
+/* ── Modal Stats & Retire ── */
+
+function openStatsModal() {
+    const posStats = {};
+    const acadStats = {};
+    allPersonnelData.forEach(p => {
+        const pos = p.position || 'ไม่ระบุ';
+        posStats[pos] = (posStats[pos] || 0) + 1;
+        const acad = p.academic_standing || 'ไม่มีวิทยฐานะ';
+        acadStats[acad] = (acadStats[acad] || 0) + 1;
+    });
+    let html = `<div class="space-y-4">
+        <div>
+            <h4 class="text-sm font-bold text-slate-600 mb-2">แยกตามตำแหน่ง</h4>
+            <div class="grid grid-cols-2 gap-2">`;
+    Object.keys(posStats).sort().forEach(k => {
+        html += `<div class="flex justify-between bg-slate-50 px-3 py-2 rounded-lg"><span class="text-sm">${k}</span><span class="font-bold text-indigo-600">${posStats[k]}</span></div>`;
+    });
+    html += `</div></div>
+        <div>
+            <h4 class="text-sm font-bold text-slate-600 mb-2">แยกตามวิทยฐานะ</h4>
+            <div class="grid grid-cols-2 gap-2">`;
+    const acadOrder = ['ไม่มีวิทยฐานะ', 'ครูผู้ช่วย', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ครูเชี่ยวชาญ', 'ครูเชี่ยวชาญพิเศษ',
+        'รองผู้อำนวยการชำนาญการ', 'รองผู้อำนวยการชำนาญการพิเศษ', 'ผู้อำนวยการชำนาญการพิเศษ'];
+    const sortedAcad = Object.keys(acadStats).sort((a,b) => acadOrder.indexOf(a) - acadOrder.indexOf(b));
+    sortedAcad.forEach(k => {
+        html += `<div class="flex justify-between bg-slate-50 px-3 py-2 rounded-lg"><span class="text-sm">${k}</span><span class="font-bold text-indigo-600">${acadStats[k]}</span></div>`;
+    });
+    html += `</div></div>
+        <div class="text-xs text-slate-400">รวมทั้งหมด ${allPersonnelData.length} คน</div>
+    </div>`;
+    document.getElementById('stats-content').innerHTML = html;
+    document.getElementById('stats-modal').classList.remove('hidden');
+    document.getElementById('stats-modal').classList.add('flex');
+}
+
+function closeStatsModal() {
+    document.getElementById('stats-modal').classList.add('hidden');
+    document.getElementById('stats-modal').classList.remove('flex');
+}
+
+function openRetireModal() {
+    const today = dayjs();
+    const retireList = allPersonnelData.filter(p => {
+        if (!p.birth_date) return false;
+        const b = dayjs(p.birth_date);
+        let ry = b.year() + 60;
+        if (b.month() > 8) ry++;
+        const yearsLeft = ry - today.year();
+        return yearsLeft >= 0 && yearsLeft <= 10;
+    }).sort((a, b) => {
+        const getRetire = p => { const bi = dayjs(p.birth_date); let ry = bi.year() + 60; if (bi.month() > 8) ry++; return ry; };
+        return getRetire(a) - getRetire(b);
+    });
+    let html = '';
+    if (retireList.length === 0) {
+        html = '<p class="text-slate-400 text-center py-8">ไม่มีผู้ใกล้เกษียณภายใน 10 ปี</p>';
+    } else {
+        retireList.forEach(p => {
+            const b = dayjs(p.birth_date);
+            let ry = b.year() + 60;
+            if (b.month() > 8) ry++;
+            const yearsLeft = ry - today.year();
+            const retireYear = ry + 543;
+            const leftText = yearsLeft === 0 ? 'ปีนี้' : `${yearsLeft} ปี`;
+            html += `<div class="flex items-center justify-between px-4 py-2.5 bg-slate-50 rounded-xl hover:bg-slate-100 transition">
+                <div>
+                    <p class="text-sm font-semibold text-slate-700">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                    <p class="text-xs text-slate-400">${p.position || '-'} | ${p.department || '-'}</p>
+                </div>
+                <span class="text-sm font-bold text-orange-600">พ.ศ. ${retireYear} (${leftText})</span>
+            </div>`;
+        });
+    }
+    document.getElementById('retire-content').innerHTML = html;
+    document.getElementById('retire-modal').classList.remove('hidden');
+    document.getElementById('retire-modal').classList.add('flex');
+}
+
+function closeRetireModal() {
+    document.getElementById('retire-modal').classList.add('hidden');
+    document.getElementById('retire-modal').classList.remove('flex');
+}
+
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
@@ -1727,3 +1815,7 @@ window.clearDate = clearDate;
 window.previewPA = previewPA;
 window.addLocalAdmin = addLocalAdmin;
 window.removeLocalAdmin = removeLocalAdmin;
+window.openStatsModal = openStatsModal;
+window.closeStatsModal = closeStatsModal;
+window.openRetireModal = openRetireModal;
+window.closeRetireModal = closeRetireModal;
