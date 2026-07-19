@@ -21,11 +21,16 @@
             font-family: 'Anuphan', 'Sarabun', system-ui, sans-serif;
             min-height: 100vh;
             padding-bottom: 3rem;
+            /* ✅ ไม่ซ่อน body — Swal inject เข้า body ถ้า opacity:0 จะมองไม่เห็น */
+        }
+
+        /* ✅ ซ่อน content ด้วย #mainBody แทน — JS เพิ่ม class loaded หลังผ่านสิทธิ์ */
+        #mainBody {
             opacity: 0;
             transition: opacity 0.4s ease;
         }
 
-        body.loaded {
+        #mainBody.loaded {
             opacity: 1;
         }
 

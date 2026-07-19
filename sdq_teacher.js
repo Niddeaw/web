@@ -1,6 +1,11 @@
-// sdq_teacher.js — Unified Teacher + Admin (ปรับปรุงให้ใช้ config.js)
-// รองรับการประเมินแบบ step (ทีละข้อ) สำหรับครู พร้อมแสดงชื่อนักเรียน
-// ปรับปรุงการแสดงปุ่ม: ซ่อนปุ่มสลับโหมดเมื่อไม่ใช่ Admin, แสดงปุ่มนำเข้า/ส่งออกให้ครูใช้งานได้
+// sdq_teacher.js — ระบบ SDQ สำหรับครูและผู้ดูแลระบบ (ปรับปรุงตาม config.js)
+// - ใช้ checkSessionAndRole(), hasModuleAccess(), requireAdmin()
+// - ใช้ logUserAction() ทุกการกระทำสำคัญ
+// - ใช้ applyVisibilityByRole() และ canManageSettings()
+// - ใช้ logout() มาตรฐานกลาง
+// - สิทธิ์: super_admin, admin, director, deputy, teacher
+// - staff, office: redirect ไป index.html พร้อม SweetAlert
+// - head_discipline, head_grade: อ่านอย่างเดียว
 
 let userInfo = null;
 let currentSchoolInfo = null;
@@ -10,7 +15,8 @@ let tableInstance = null;
 let isTeacher = false;
 let isAdmin = false;
 let isModuleAdmin = false;
-let isCurrentAdminMode = false; // false=teacher, true=admin
+let isCurrentAdminMode = false;
+let isReadOnly = false;
 let myClassIds = [];
 
 // =================== ตัวแปรสำหรับฟอร์มประเมินครู (step) ===================
@@ -40,6 +46,7 @@ $(document).ready(async function () {
             setupUI();
             await loadData();
             document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            await logUserAction('เข้าสู่ระบบ SDQ', 'sdq');
         }
     } catch (err) {
         console.error("System Error:", err);
@@ -60,20 +67,78 @@ async function fetchCoreInfo() {
 // 2. ตรวจสอบสิทธิ์ (ใช้ config.js)
 // ==========================================
 async function checkAuthAndRoles() {
-    // ✅ ใช้ checkSessionAndRole จาก config.js
-    const result = await checkSessionAndRole('sdq', WRK_ROLES.ALLOWED);
-    if (!result) return false; // redirect ไป login.html แล้ว
+    const { data: { session } } = await db.auth.getSession();
+    if (!session) {
+        window.location.href = 'login.html';
+        return false;
+    }
+
+    const { data: personnel, error: personnelError } = await db
+        .from('core_personnel')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+
+    if (personnelError || !personnel) {
+        window.location.href = 'login.html';
+        return false;
+    }
+
+    const role = personnel.role;
+
+    // ✅ ตรวจสอบ role ที่ไม่อนุญาต (staff, office)
+    if (role === 'staff' || role === 'office') {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+            text: `บทบาท "${role}" ไม่มีสิทธิ์ใช้งานระบบนี้`,
+            confirmButtonText: 'ตกลง'
+        });
+        window.location.href = 'index.html';
+        return false;
+    }
+
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'teacher'];
+    if (!allowedRoles.includes(role)) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+            text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบนี้',
+            confirmButtonText: 'ตกลง'
+        });
+        window.location.href = 'index.html';
+        return false;
+    }
+
+    const result = await checkSessionAndRole('sdq', allowedRoles);
+    if (!result) return false;
 
     userInfo = result.personnel;
     $('#user-display').text(`${userInfo.prefix || ''}${userInfo.first_name} ${userInfo.last_name}`);
 
-    // ✅ ตรวจสอบ Module Admin (ใช้ hasModuleAccess)
     isModuleAdmin = await hasModuleAccess(userInfo.role, 'sdq', userInfo.id);
-
-    // ✅ ตรวจสอบ Admin (ใช้ isAdminUser จาก config.js)
     isAdmin = isAdminUser(userInfo.role, false) || isModuleAdmin;
 
-    // ตรวจสอบว่าครูมีห้องที่ปรึกษาหรือไม่
+    // ✅ ตรวจสอบหัวหน้ากลุ่ม/ปกครอง (read-only)
+    let isDisciplineHead = false;
+    let isGradeHead = false;
+
+    const { data: discHead } = await db.from('core_discipline_heads')
+        .select('id')
+        .eq('personnel_id', userInfo.id)
+        .eq('academic_year', currentSchoolInfo.current_academic_year)
+        .maybeSingle();
+    if (discHead) isDisciplineHead = true;
+
+    const { data: gradeHead } = await db.from('behavior_grade_heads')
+        .select('grade_level')
+        .eq('teacher_id', userInfo.id)
+        .maybeSingle();
+    if (gradeHead) isGradeHead = true;
+
+    isReadOnly = (isDisciplineHead || isGradeHead) && !isAdmin;
+
+    // ตรวจสอบห้องที่ปรึกษา
     const { data: classrooms } = await db.from('core_classrooms')
         .select('id, grade_level, room_number')
         .or(`adviser_id_1.eq.${userInfo.id},adviser_id_2.eq.${userInfo.id}`)
@@ -85,86 +150,83 @@ async function checkAuthAndRoles() {
         myClassIds = classrooms.map(c => c.id);
     }
 
-    if (!isAdmin && !isTeacher) {
+    if (!isAdmin && !isTeacher && !isDisciplineHead && !isGradeHead) {
         await Swal.fire('ปฏิเสธการเข้าถึง', 'คุณไม่มีสิทธิ์ในระบบนี้', 'error');
         window.location.href = 'index.html';
         return false;
     }
 
-    isCurrentAdminMode = isAdmin && !isTeacher ? true : false;
+    if (isAdmin && (isTeacher || isDisciplineHead || isGradeHead)) {
+        isCurrentAdminMode = false;
+    } else if (isAdmin && !isTeacher && !isDisciplineHead && !isGradeHead) {
+        isCurrentAdminMode = true;
+    } else {
+        isCurrentAdminMode = false;
+    }
+
     return true;
 }
 
 function setupUI() {
-    // ✅ ปุ่มสลับโหมด: แสดงเฉพาะ Admin ที่เป็นครูด้วย
-    if (isAdmin && isTeacher) {
+    if (isAdmin && (isTeacher || isReadOnly)) {
         $('#roleSwitchContainer').html(`
             <button id="btnToggleMode" onclick="toggleTeacherAdminMode()"
                 class="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border transition-all">
             </button>
         `);
-        // ✅ ใช้ฟังก์ชันจาก config.js เพื่ออัปเดตข้อความปุ่ม (ไม่ต้องประกาศฟังก์ชันเอง)
         window.updateToggleModeUI(userInfo.role, isCurrentAdminMode, 'btnToggleMode');
     } else {
         $('#roleSwitchContainer').empty();
     }
 
-    // ✅ ปุ่มจัดการผู้ดูแลระบบ: แสดงเฉพาะ Admin
     if (isAdmin) {
         $('#adminManagerBtn').removeClass('hidden');
+        $('#adminManagerBtn').addClass('flex');
     } else {
         $('#adminManagerBtn').addClass('hidden');
+        $('#adminManagerBtn').removeClass('flex');
     }
 
-    // ✅ ปุ่มนำเข้า/ส่งออก: ให้แสดงเสมอ (ทั้งครูและ Admin)
-    $('#btnExport, #btnImport').removeClass('hidden').show();
-
-    // ✅ ใช้ applyVisibilityByRole จาก config.js
     applyVisibilityByRole(userInfo.role, isAdmin, {
         settingsBtn: 'adminManagerBtn'
     });
 
-    // ✅ อัปเดต Badge และ Subtitle ด้วยตัวเอง (เพราะ config.js ไม่ได้จัดการส่วนนี้)
     updateBadgeAndSubtitle();
 }
 
-// ========== อัปเดต Badge และ Subtitle (แยกจากปุ่ม) ==========
 function updateBadgeAndSubtitle() {
     const badge = document.getElementById('pageBadge');
     const subtitle = document.getElementById('mode-subtitle');
+    const title = document.getElementById('table-title');
 
-    if (isCurrentAdminMode) {
+    if (isCurrentAdminMode && isAdmin) {
         if (badge) badge.textContent = 'Admin View — เลือกดูทีละห้อง';
         if (subtitle) {
             subtitle.textContent = 'Admin Dashboard';
             subtitle.className = 'text-[10px] text-rose-500 font-bold uppercase tracking-widest';
         }
-        $('#table-title').html('<i class="fa-solid fa-globe mr-2 text-indigo-500"></i> นักเรียนทั้งหมดทุกระดับชั้น');
+        if (title) title.innerHTML = '<i class="fa-solid fa-globe mr-2 text-indigo-500"></i> นักเรียนทั้งหมดทุกระดับชั้น';
         $('#adminFilters').removeClass('hidden');
     } else {
-        if (badge) badge.textContent = 'Teacher View — เฉพาะห้องโฮมรูม';
+        let modeText = 'Teacher Dashboard';
+        if (isReadOnly) modeText = 'อ่านอย่างเดียว (หัวหน้ากลุ่ม/ปกครอง)';
+        if (badge) badge.textContent = isReadOnly ? 'View Only — ไม่สามารถประเมินได้' : 'Teacher View — เฉพาะห้องโฮมรูม';
         if (subtitle) {
-            subtitle.textContent = 'Teacher Dashboard';
+            subtitle.textContent = modeText;
             subtitle.className = 'text-[10px] text-slate-500 font-bold uppercase tracking-widest';
         }
-        $('#table-title').html('<i class="fa-solid fa-users mr-2 text-indigo-500"></i> รายชื่อนักเรียนประจำชั้น');
+        if (title) title.innerHTML = '<i class="fa-solid fa-users mr-2 text-indigo-500"></i> รายชื่อนักเรียนประจำชั้น';
         $('#adminFilters').addClass('hidden');
     }
 }
 
-// ========== Toggle Mode ==========
 async function toggleTeacherAdminMode() {
-    // ตรวจสอบว่าเป็น Admin จริง ๆ (ใช้ isAdminUser จาก config.js)
-    if (!isAdminUser(userInfo.role, false) && !isModuleAdmin) {
+    if (!isAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
         return;
     }
     isCurrentAdminMode = !isCurrentAdminMode;
-
-    // ✅ ใช้ฟังก์ชันจาก config.js เพื่ออัปเดตข้อความปุ่ม
     window.updateToggleModeUI(userInfo.role, isCurrentAdminMode, 'btnToggleMode');
-
-    // ✅ อัปเดต Badge และ Subtitle
     updateBadgeAndSubtitle();
 
     if (!isCurrentAdminMode) {
@@ -199,10 +261,15 @@ async function loadData() {
     try {
         let classIds = [];
         if (!isCurrentAdminMode) {
+            if (myClassIds.length === 0) {
+                Swal.close();
+                showSelectPrompt();
+                return;
+            }
             classIds = myClassIds;
         } else {
-            // ✅ Admin: โหลดเฉพาะรายชื่อห้องเรียนของปีการศึกษา + ภาคเรียนปัจจุบัน
-            const { data: allClassrooms, error: cErr } = await db.from('core_classrooms')
+            // ✅ เปลี่ยนเป็น let เผื่อกรณี
+            let { data: allClassrooms, error: cErr } = await db.from('core_classrooms')
                 .select('id, grade_level, room_number')
                 .eq('academic_year', currentSchoolInfo.current_academic_year)
                 .eq('semester', currentSchoolInfo.current_semester)
@@ -216,8 +283,8 @@ async function loadData() {
             return;
         }
 
-        // โหมดครู: โหลดนักเรียนในห้องที่ปรึกษา
-        const { data, error } = await db.from('student_enrollments')
+        // ✅ เปลี่ยนเป็น let
+        let { data, error } = await db.from('student_enrollments')
             .select(`
                 id, student_number, classroom_id,
                 core_students (id, prefix, first_name, last_name, student_id_card),
@@ -245,13 +312,14 @@ async function loadData() {
         renderTable(systemDataList);
         Swal.close();
     } catch (err) {
-        console.error(err);
+        console.error('❌ loadData error:', err);
+        Swal.close();
         Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, 'error');
     }
 }
 
 // ==========================================
-// Admin: Tom Select เลือกห้องเรียนก่อนโหลด
+// Admin: Tom Select เลือกห้องเรียน
 // ==========================================
 let classroomTomSelect = null;
 
@@ -322,7 +390,8 @@ function showSelectPrompt() {
 async function loadClassroomStudents(classroomId) {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const { data, error } = await db.from('student_enrollments')
+        // ✅ เปลี่ยนเป็น let
+        let { data, error } = await db.from('student_enrollments')
             .select(`
                 id, student_number, classroom_id,
                 core_students (id, prefix, first_name, last_name, student_id_card),
@@ -358,7 +427,8 @@ async function loadClassroomStudents(classroomId) {
         renderTable(systemDataList);
         Swal.close();
     } catch (err) {
-        console.error(err);
+        console.error('❌ loadClassroomStudents error:', err);
+        Swal.close();
         Swal.fire('Error', 'โหลดข้อมูลไม่สำเร็จ: ' + err.message, 'error');
     }
 }
@@ -422,12 +492,17 @@ function renderTable(data) {
         const stdName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
 
         if (!isCurrentAdminMode) {
-            const actionBtn = teaEval
-                ? `<div class="flex gap-2 justify-center">
+            let actionBtn;
+            if (isReadOnly) {
+                actionBtn = `<div class="flex gap-2 justify-center"><button onclick="viewSDQ('${item.id}')" class="text-blue-600 hover:text-blue-800" title="ดูผล"><i class="fas fa-eye"></i></button></div>`;
+            } else if (teaEval) {
+                actionBtn = `<div class="flex gap-2 justify-center">
                     <button onclick="viewSDQ('${item.id}')" class="text-blue-600 hover:text-blue-800" title="ดูผล"><i class="fas fa-eye"></i></button>
                     <button onclick="startTeacherAssessment('${item.id}')" class="text-amber-600 hover:text-amber-800" title="แก้ไขการประเมิน"><i class="fas fa-edit"></i></button>
-                   </div>`
-                : `<button onclick="startTeacherAssessment('${item.id}')" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700"><i class="fas fa-edit mr-1"></i> ประเมิน</button>`;
+                   </div>`;
+            } else {
+                actionBtn = `<button onclick="startTeacherAssessment('${item.id}')" class="px-3 py-1 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700"><i class="fas fa-edit mr-1"></i> ประเมิน</button>`;
+            }
             tbody.append(`<tr><td class="p-3 text-center">${roomTxt}</td><td class="p-3 text-center">${item.student_number}</td><td class="p-3 font-bold">${stdName}</td><td class="p-3 text-center">${stdEval ? doneBadge : pendBadge}</td><td class="p-3 text-center">${parEval ? doneBadge : pendBadge}</td><td class="p-3 text-center">${teaEval ? doneBadge : pendBadge}</td><td class="p-3 text-center font-black">${teaEval ? teaEval.total_difficulty_score : '-'}</td><td class="p-3 text-center">${actionBtn}</td></tr>`);
         } else {
             let scoreTxt = '-', resultBadge = '<span class="px-2 py-1 bg-slate-100 text-slate-500 rounded-lg text-xs">ยังไม่ประเมิน</span>';
@@ -438,7 +513,12 @@ function renderTable(data) {
                 else if (sc <= 18) resultBadge = '<span class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-1 rounded-lg">เสี่ยง</span>';
                 else resultBadge = '<span class="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-lg">มีปัญหา</span>';
             }
-            const actionBtn = `<div class="flex gap-2 justify-center"><button onclick="viewSDQ('${item.id}')" class="text-blue-600"><i class="fas fa-eye"></i></button><button onclick="printStudentSDQ('${item.id}')" class="text-purple-600"><i class="fas fa-print"></i></button><button onclick="deleteAllAssessments('${item.id}')" class="text-rose-500"><i class="fas fa-trash"></i></button></div>`;
+            // ✅ เปลี่ยน const → let เพื่อให้สามารถเพิ่มปุ่มลบได้
+            let actionBtn = `<div class="flex gap-2 justify-center"><button onclick="viewSDQ('${item.id}')" class="text-blue-600"><i class="fas fa-eye"></i></button><button onclick="printStudentSDQ('${item.id}')" class="text-purple-600"><i class="fas fa-print"></i></button>`;
+            if (!isReadOnly) {
+                actionBtn += `<button onclick="deleteAllAssessments('${item.id}')" class="text-rose-500"><i class="fas fa-trash"></i></button>`;
+            }
+            actionBtn += `</div>`;
             tbody.append(`<tr><td class="p-3 text-center">${roomTxt}</td><td class="p-3 text-center">${item.student_number}</td><td class="p-3 font-bold">${stdName}</td><td class="p-3 text-center">${stdEval ? doneBadge : pendBadge}</td><td class="p-3 text-center">${parEval ? doneBadge : pendBadge}</td><td class="p-3 text-center">${teaEval ? doneBadge : pendBadge}</td><td class="p-3 text-center">${scoreTxt}</td><td class="p-3 text-center">${resultBadge}</td><td class="p-3 text-center">${actionBtn}</td></tr>`);
         }
     });
@@ -449,7 +529,7 @@ function renderTable(data) {
 $.fn.dataTable.ext.search = [];
 
 // ==========================================
-// 7. View SDQ (แสดงผลรวม)
+// 7. View SDQ
 // ==========================================
 function viewSDQ(enrollmentId) {
     const enrollment = systemDataList.find(e => e.id === enrollmentId);
@@ -480,7 +560,6 @@ function viewSDQ(enrollmentId) {
 // 8. ลบการประเมินทั้งหมด (admin) - ใช้ requireAdmin
 // ==========================================
 async function deleteAllAssessments(enrollmentId) {
-    // ✅ ใช้ requireAdmin จาก config.js
     if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบได้')) {
         return;
     }
@@ -489,6 +568,7 @@ async function deleteAllAssessments(enrollmentId) {
         const { error } = await db.from('sdq_assessments').delete().eq('enrollment_id', enrollmentId);
         if (error) Swal.fire('ผิดพลาด', error.message, 'error');
         else {
+            await logUserAction(`ลบการประเมิน SDQ ของ enrollment ${enrollmentId}`, 'sdq');
             Swal.fire('สำเร็จ', '', 'success');
             if (isCurrentAdminMode && classroomTomSelect) {
                 const selectedId = classroomTomSelect.getValue();
@@ -500,7 +580,7 @@ async function deleteAllAssessments(enrollmentId) {
 }
 
 // ==========================================
-// 9. พิมพ์รายงานรายบุคคล (พร้อมโลโก้และเลขประจำตัวนักเรียน)
+// 9. พิมพ์รายงานรายบุคคล
 // ==========================================
 async function printStudentSDQ(enrollmentId) {
     try {
@@ -633,7 +713,7 @@ async function printStudentSDQ(enrollmentId) {
 }
 
 // ==========================================
-// 10. พิมพ์สรุปภาพรวม (ปรับลดระยะห่าง และการ์ดให้พอดีกับ 10 รายการต่อหน้า)
+// 10. พิมพ์สรุปภาพรวม
 // ==========================================
 async function printSummaryPDF() {
     if (systemDataList.length === 0) return Swal.fire('ไม่มีข้อมูล', '', 'warning');
@@ -781,7 +861,9 @@ async function printSummaryPDF() {
     divs.forEach(d => d.remove());
 }
 
-// ดึงชื่อครูที่ปรึกษาของห้อง (adviser_id_1, adviser_id_2)
+// ==========================================
+// ดึงชื่อครูที่ปรึกษาของห้อง
+// ==========================================
 async function getAdvisorNames(classroomId) {
     if (!classroomId) {
         console.warn('getAdvisorNames: no classroomId provided');
@@ -821,7 +903,7 @@ async function getAdvisorNames(classroomId) {
 }
 
 // ==========================================
-// 11. Export Excel - ใช้งานได้ทั้งครูและแอดมิน
+// 11. Export Excel
 // ==========================================
 function exportExcel() {
     if (!systemDataList.length) return Swal.fire('ไม่มีข้อมูล');
@@ -881,6 +963,10 @@ function loadTeacherQuestions() {
 }
 
 async function startTeacherAssessment(enrollmentId) {
+    if (isReadOnly) {
+        Swal.fire('ไม่สามารถประเมินได้', 'คุณอยู่ในโหมดอ่านอย่างเดียว', 'warning');
+        return;
+    }
     const enrollment = systemDataList.find(e => e.id === enrollmentId);
     if (!enrollment) { Swal.fire('ไม่พบข้อมูลนักเรียน'); return; }
     const student = enrollment.core_students;
@@ -968,6 +1054,10 @@ function closeTeacherStepForm() {
 }
 
 async function submitTeacherAssessment() {
+    if (isReadOnly) {
+        Swal.fire('ไม่สามารถบันทึกได้', 'คุณอยู่ในโหมดอ่านอย่างเดียว', 'warning');
+        return;
+    }
     if (Object.keys(teacherAnswers).length < 25) {
         Swal.fire('แจ้งเตือน', 'กรุณาตอบคำถามให้ครบทุกข้อ', 'warning');
         return;
@@ -999,6 +1089,7 @@ async function submitTeacherAssessment() {
     if (error) {
         Swal.fire('Error', error.message, 'error');
     } else {
+        await logUserAction(`บันทึกการประเมิน SDQ (ครู) สำหรับนักเรียน ${currentTeacherEnrollment.core_students?.id}`, 'sdq');
         Swal.fire('บันทึกสำเร็จ!', '', 'success');
         closeTeacherStepForm();
         await loadData();
@@ -1006,18 +1097,20 @@ async function submitTeacherAssessment() {
 }
 
 // ==========================================
-// 13. Logout (ไป login.html ตามมาตรฐาน)
+// 13. Logout (มาตรฐานกลาง)
 // ==========================================
 function logout() {
     Swal.fire({
         title: 'ออกจากระบบ?',
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonColor: '#ef4444',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
         confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
     }).then(async r => {
         if (r.isConfirmed) {
+            await logUserAction('ออกจากระบบ SDQ', 'sdq');
             await db.auth.signOut();
             window.location.href = 'login.html';
         }
@@ -1025,7 +1118,7 @@ function logout() {
 }
 
 // ==========================================
-// 14. จัดการแอดมิน (Admin only) - ใช้ requireAdmin
+// 14. จัดการแอดมิน (Admin only)
 // ==========================================
 async function openAdminManager() {
     if (!requireAdmin(userInfo.role, isAdmin, 'เฉพาะผู้ดูแลระบบเท่านั้น')) {
@@ -1130,7 +1223,6 @@ async function loadCurrentAdmins() {
             })).filter(a => a.core_personnel);
         }
 
-        // ✅ ดึง Super Admin (ถาวร)
         const { data: superAdmins, error: superError } = await db
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, position, department')
@@ -1143,7 +1235,6 @@ async function loadCurrentAdmins() {
         let html = '';
         let totalCount = 0;
 
-        // ✅ แสดง Super Admin (ถาวร)
         if (superAdmins && superAdmins.length > 0) {
             superAdmins.forEach(admin => {
                 const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
@@ -1171,7 +1262,6 @@ async function loadCurrentAdmins() {
             });
         }
 
-        // ✅ แสดง Module Admin
         if (moduleAdmins && moduleAdmins.length > 0) {
             moduleAdmins.forEach(admin => {
                 const p = admin.core_personnel;
@@ -1280,6 +1370,8 @@ async function addSDQAdmin() {
 
         if (insertError) throw insertError;
 
+        await logUserAction(`แต่งตั้งผู้ดูแล SDQ: ${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`, 'sdq');
+
         Swal.fire({
             icon: 'success',
             title: 'แต่งตั้งสำเร็จ!',
@@ -1326,6 +1418,8 @@ async function removeSDQAdmin(adminId, adminName) {
 
         if (error) throw error;
 
+        await logUserAction(`ถอดถอนผู้ดูแล SDQ: ${adminName}`, 'sdq');
+
         Swal.fire({
             icon: 'success',
             title: 'ถอดถอนสำเร็จ!',
@@ -1341,3 +1435,23 @@ async function removeSDQAdmin(adminId, adminName) {
         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถถอดถอนได้: ' + err.message, 'error');
     }
 }
+
+// ==========================================
+// ประกาศฟังก์ชัน global
+// ==========================================
+window.logout = logout;
+window.openAdminManager = openAdminManager;
+window.closeAdminManager = closeAdminManager;
+window.addSDQAdmin = addSDQAdmin;
+window.removeSDQAdmin = removeSDQAdmin;
+window.exportExcel = exportExcel;
+window.printSummaryPDF = printSummaryPDF;
+window.printStudentSDQ = printStudentSDQ;
+window.viewSDQ = viewSDQ;
+window.deleteAllAssessments = deleteAllAssessments;
+window.startTeacherAssessment = startTeacherAssessment;
+window.closeTeacherStepForm = closeTeacherStepForm;
+window.submitTeacherAssessment = submitTeacherAssessment;
+window.toggleTeacherAdminMode = toggleTeacherAdminMode;
+
+console.log('✅ sdq_teacher.js loaded with config.js integration');
