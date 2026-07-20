@@ -31,7 +31,6 @@ async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
 
     try {
-        // ตรวจสอบว่า Swal โหลดแล้ว
         if (typeof Swal === 'undefined') {
             console.error('❌ SweetAlert2 (Swal) ไม่ถูกโหลด');
             alert('เกิดข้อผิดพลาด: SweetAlert2 ไม่ถูกโหลด กรุณาติดต่อผู้ดูแลระบบ');
@@ -39,13 +38,12 @@ async function checkAuth() {
             return;
         }
 
-        // ✅ ส่ง allowedRoles ที่ถูกต้องเข้าไปเลย — checkSessionAndRole จะ block teacher/staff เอง
-        //    ไม่ต้องเช็คซ้ำอีกรอบหลัง return
-        const allowedRolesForThisModule = ['super_admin', 'admin', 'director', 'deputy', 'office'];
-        const result = await window.checkSessionAndRole('ระบบงานทะเบียน', allowedRolesForThisModule);
+        // ✅ เรียก checkSessionAndRole โดยใช้ WRK_ROLES.ALLOWED เพื่อให้ผ่านทุก role
+        //    แล้วค่อยตรวจสอบสิทธิ์เพิ่มเติมในโค้ดนี้
+        const result = await window.checkSessionAndRole('ระบบงานทะเบียน', WRK_ROLES.ALLOWED);
         if (!result) {
-            // null = ไม่มี session (→ login.html) หรือ role ไม่ผ่าน (→ Swal + index.html)
-            // config.js จัดการทั้งหมดแล้ว หยุดทำงานได้เลย
+            // null = ไม่มี session (→ login.html) หรือ role ไม่ผ่าน
+            // แต่เราควบคุมแล้วว่า staff/office ผ่าน แต่เราจะ reject ทีหลัง
             return;
         }
 
@@ -56,10 +54,33 @@ async function checkAuth() {
 
         console.log('✅ User:', currentProfile.first_name, 'Role:', role);
 
-        // 2. ตรวจสอบ admin mode
-        isAdminMode = isAdminUser(role, false);
+        // ตรวจสอบ role ที่อนุญาตโดยตรง (super_admin, admin, director, deputy, office)
+        const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'office'];
+        const isDirectlyAllowed = allowedRoles.includes(role);
 
-        // 4. ใช้ applyVisibilityByRole (ป้องกัน error)
+        // ตรวจสอบ Module Admin (teacher/staff ที่ได้รับแต่งตั้ง)
+        isModuleAdmin = await hasModuleAccess(role, 'regis', user.id);
+
+        // ✅ ตรวจสอบว่าเป็น teacher หรือ staff ที่เป็น module admin หรือไม่
+        const isTeacherOrStaff = ['teacher', 'staff'].includes(role);
+        const canAccess = isDirectlyAllowed || (isTeacherOrStaff && isModuleAdmin);
+
+        if (!canAccess) {
+            // role ไม่อนุญาต และไม่ใช่ module admin
+            await Swal.fire({
+                icon: 'warning',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'คุณไม่ได้รับอนุญาตให้ใช้งานระบบงานทะเบียน กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'ตกลง'
+            });
+            window.location.replace('index.html');
+            return;
+        }
+
+        // ตรวจสอบ admin mode (สำหรับปุ่มตั้งค่าและอื่นๆ)
+        isAdminMode = isDirectlyAllowed || isModuleAdmin;
+
+        // ใช้ applyVisibilityByRole
         try {
             applyVisibilityByRole(role, isAdminMode, {
                 settingsBtn: 'btnSettings',
@@ -69,21 +90,21 @@ async function checkAuth() {
             console.warn('⚠️ applyVisibilityByRole error:', e);
         }
 
-        // 5. แสดงชื่อและสิทธิ์ (ป้องกัน error)
+        // แสดงชื่อและสิทธิ์
         try {
             updateUIRole();
         } catch (e) {
             console.warn('⚠️ updateUIRole error:', e);
         }
 
-        // 6. บันทึก Log
+        // บันทึก Log
         await logUserAction('เข้าสู่ระบบงานทะเบียน', 'regis');
 
-        // 7. แสดงเนื้อหา
+        // แสดงเนื้อหา
         const mainBody = document.getElementById('mainBody');
         if (mainBody) mainBody.classList.remove('hidden');
 
-        // 8. โหลดข้อมูล
+        // โหลดข้อมูล
         await loadSettings();
         await loadData();
 
@@ -111,15 +132,11 @@ function updateUIRole() {
         return;
     }
 
-    // แสดงชื่อ
     const nameEl = document.getElementById('display-name');
     if (nameEl) {
         nameEl.textContent = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
-    } else {
-        console.warn('⚠️ ไม่พบ element #display-name');
     }
 
-    // แสดงสิทธิ์
     const roleMap = {
         'super_admin': 'ผู้ดูแลระบบสูงสุด',
         'admin': 'ผู้ดูแลระบบ',
@@ -128,13 +145,16 @@ function updateUIRole() {
         'office': 'เจ้าหน้าที่สำนักงาน'
     };
 
+    let roleText = roleMap[currentUserRole] || currentUserRole || 'ไม่ระบุ';
+    // ✅ ถ้าเป็น teacher/staff แต่เป็น module admin ให้แสดง "แอดมินโมดูลงานทะเบียน"
+    if (['teacher', 'staff'].includes(currentUserRole) && isModuleAdmin) {
+        roleText = 'แอดมินโมดูลงานทะเบียน';
+    }
+
     const roleEl = document.getElementById('userRoleBadge');
     if (roleEl) {
-        const roleText = roleMap[currentUserRole] || currentUserRole || 'ไม่ระบุ';
         roleEl.textContent = roleText;
         roleEl.className = `text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700`;
-    } else {
-        console.warn('⚠️ ไม่พบ element #userRoleBadge');
     }
 }
 
@@ -334,6 +354,9 @@ function renderTable() {
         return;
     }
 
+    // ✅ ตรวจสอบว่าเป็น office หรือไม่ (office ห้ามลบ)
+    const isOffice = (currentUserRole === 'office');
+
     allRequests.forEach(req => {
         const std = req.core_students;
         let classStr = '-';
@@ -348,6 +371,31 @@ function renderTable() {
         const badgeColor = req.status === 'กำลังดำเนินการ' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
         const timestamp = dateObj.getTime();
 
+        // ✅ กำหนดปุ่มจัดการตามสิทธิ์
+        let actionButtons = `
+            <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียดคำขอ">
+                <i class="fa-solid fa-eye text-lg"></i>
+            </button>
+        `;
+
+        // ปุ่มอนุมัติ (เฉพาะสถานะกำลังดำเนินการ)
+        if (req.status === 'กำลังดำเนินการ') {
+            actionButtons += `
+                <button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="ปรับสถานะเรียบร้อย">
+                    <i class="fa-solid fa-circle-check text-lg"></i>
+                </button>
+            `;
+        }
+
+        // ✅ ปุ่มลบ (ซ่อนเฉพาะ office)
+        if (!isOffice) {
+            actionButtons += `
+                <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600 transition" title="ลบข้อมูล">
+                    <i class="fa-solid fa-trash text-lg"></i>
+                </button>
+            `;
+        }
+
         const tr = `
             <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-slate-700">
                 <td class="px-4 py-3 font-mono text-xs">${req.id.substring(0, 8).toUpperCase()}</td>
@@ -360,16 +408,7 @@ function renderTable() {
                 </td>
                 <td class="px-4 py-3 text-center">
                     <div class="flex items-center justify-center gap-3">
-                        <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียดคำขอ">
-                            <i class="fa-solid fa-eye text-lg"></i>
-                        </button>
-                        ${req.status === 'กำลังดำเนินการ' ?
-                          `<button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="ปรับสถานะเรียบร้อย">
-                              <i class="fa-solid fa-circle-check text-lg"></i>
-                          </button>` : ''}
-                        <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600 transition" title="ลบข้อมูล">
-                            <i class="fa-solid fa-trash text-lg"></i>
-                        </button>
+                        ${actionButtons}
                     </div>
                 </td>
             </tr>
@@ -513,9 +552,16 @@ async function approveRequest(id) {
 }
 
 async function deleteRequest(id) {
+    // ✅ ถ้าเป็น office ห้ามลบเด็ดขาด
+    if (currentUserRole === 'office') {
+        Swal.fire('ไม่มีสิทธิ์', 'เจ้าหน้าที่สำนักงานไม่สามารถลบคำขอได้', 'warning');
+        return;
+    }
+
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบคำขอได้')) {
         return;
     }
+
     const { isConfirmed } = await Swal.fire({
         title: 'คุณแน่ใจหรือไม่?',
         text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูล',
@@ -524,7 +570,9 @@ async function deleteRequest(id) {
         confirmButtonText: 'ยืนยันลบ',
         confirmButtonColor: '#dc2626'
     });
+
     if (!isConfirmed) return;
+
     const { error } = await db.from('regis_requests').delete().eq('id', id);
     if (!error) {
         await logUserAction(`ลบคำขอทะเบียน ID: ${id}`, 'regis');
@@ -706,7 +754,7 @@ function initTomSelect() {
         create: false,
         dropdownParent: 'body',
         render: {
-            option: function(data, escape) {
+            option: function (data, escape) {
                 return '<div class="py-1 px-2 hover:bg-indigo-50 cursor-pointer">' + escape(data.text) + '</div>';
             }
         }
