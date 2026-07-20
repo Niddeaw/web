@@ -437,8 +437,10 @@ function clearSelectedStudent() {
 // Modal บันทึกพฤติกรรม (รองรับหัวหน้างานปกครองและหัวหน้าระดับ)
 // ============================================================
 function openRecordModal(type = 'all') {
-    const isSpecial = isDisciplineHead || (managedGrades && managedGrades.length > 0);
-    if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ') && !isSpecial) {
+    // ✅ ตรวจสอบสิทธิ์โดยตรง (Admin, หัวหน้างานปกครอง, หัวหน้าระดับ)
+    const hasPermission = isAdminMode || isDisciplineHead || (managedGrades && managedGrades.length > 0);
+    if (!hasPermission) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้บันทึกคะแนน', 'warning');
         return;
     }
 
@@ -481,8 +483,10 @@ async function resizeImage(file, maxWidth = 1000) {
 function blobToBase64(blob) { return new Promise((resolve) => { const reader = new FileReader(); reader.onloadend = () => resolve(reader.result.split(',')[1]); reader.readAsDataURL(blob); }); }
 
 async function saveBehaviorRecord() {
-    const isSpecial = isDisciplineHead || (managedGrades && managedGrades.length > 0);
-    if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ') && !isSpecial) {
+    // ✅ ตรวจสอบสิทธิ์โดยตรง (Admin, หัวหน้างานปกครอง, หัวหน้าระดับ)
+    const hasPermission = isAdminMode || isDisciplineHead || (managedGrades && managedGrades.length > 0);
+    if (!hasPermission) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้บันทึกคะแนน', 'warning');
         return;
     }
 
@@ -824,8 +828,10 @@ async function loadStudentHistory(studentId) {
 }
 
 async function editLog(logId, studentId) {
-    const isSpecial = isDisciplineHead;
-    if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ') && !isSpecial) {
+    // ✅ ตรวจสอบสิทธิ์โดยตรง (Admin, หัวหน้างานปกครอง, หัวหน้าระดับ)
+    const hasPermission = isAdminMode || isDisciplineHead || (managedGrades && managedGrades.length > 0);
+    if (!hasPermission) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้แก้ไขรายการ', 'warning');
         return;
     }
     const { data: log, error } = await db.from('behavior_logs').select('id, criteria_id, score_change, description, evidence_url, behavior_criteria(id, title, category)').eq('id', logId).single();
@@ -849,8 +855,10 @@ async function editLog(logId, studentId) {
 }
 
 async function deleteLog(logId, studentId) {
-    const isSpecial = isDisciplineHead;
-    if (!requireAdmin(actualRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ') && !isSpecial) {
+    // ✅ ตรวจสอบสิทธิ์โดยตรง (Admin, หัวหน้างานปกครอง, หัวหน้าระดับ)
+    const hasPermission = isAdminMode || isDisciplineHead || (managedGrades && managedGrades.length > 0);
+    if (!hasPermission) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้ลบรายการ', 'warning');
         return;
     }
     const result = await Swal.fire({ title: 'ยืนยันการลบ', text: 'ลบรายการนี้? ไม่สามารถกู้คืนได้', icon: 'warning', showCancelButton: true, confirmButtonColor: '#ef4444', confirmButtonText: '<i class="fas fa-trash-alt mr-1"></i> ลบเลย', cancelButtonText: 'ยกเลิก' });
