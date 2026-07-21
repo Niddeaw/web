@@ -147,14 +147,16 @@ function applyAvatarToStep4(avatarUrl) {
     const cloudBtn = document.getElementById('cloud_btn1');
 
     if (avatarUrl) {
-        // แสดง banner "ดึงจากโปรไฟล์อัตโนมัติ"
         if (autoBanner) { autoBanner.classList.remove('hidden'); autoBanner.classList.add('flex'); }
         if (missingBanner) { missingBanner.classList.add('hidden'); missingBanner.classList.remove('flex'); }
         if (autoThumb) { autoThumb.src = avatarUrl; }
 
-        // set dataset + preview เหมือนกับที่ uploadสำเร็จแล้ว
         if (studentPicInput) { studentPicInput.dataset.uploadedUrl = avatarUrl; }
-        if (previewImg) { previewImg.src = avatarUrl; previewImg.classList.remove('hidden'); }
+        if (previewImg) {
+            previewImg.src = avatarUrl;
+            previewImg.classList.remove('hidden');
+            previewImg.dataset.url = avatarUrl; // ✅ ตั้งค่า dataset.url สำหรับเปิดลิงก์
+        }
         if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
         if (cloudBtn) {
             cloudBtn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> ใช้รูปโปรไฟล์เดิม';
@@ -163,9 +165,13 @@ function applyAvatarToStep4(avatarUrl) {
             cloudBtn.disabled = true;
         }
     } else {
-        // แสดง banner "ยังไม่มีรูปโปรไฟล์"
         if (autoBanner) { autoBanner.classList.add('hidden'); autoBanner.classList.remove('flex'); }
         if (missingBanner) { missingBanner.classList.remove('hidden'); missingBanner.classList.add('flex'); }
+        if (previewImg) {
+            previewImg.src = '';
+            previewImg.classList.add('hidden');
+            delete previewImg.dataset.url;
+        }
     }
 }
 
@@ -357,7 +363,11 @@ function populateFormWithData(data) {
         if (url && url !== 'null' && url !== '-') {
             input.dataset.uploadedUrl = url;
             const img = document.getElementById(previewId);
-            if (img) { img.src = url; img.classList.remove('hidden'); }
+            if (img) {
+                img.src = url;
+                img.classList.remove('hidden');
+                img.dataset.url = url; // ✅ เก็บ URL สำหรับเปิดลิงก์
+            }
             const delBtn = document.getElementById(delId);
             if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
             const cloudBtn = document.getElementById(btnId);
@@ -957,6 +967,18 @@ async function compressImage(file, maxSizeMB = 2) {
     });
 }
 
+// ==========================================
+// ✅ ฟังก์ชันเปิดรูปภาพหน้าต่างใหม่ (เพิ่ม)
+// ==========================================
+window.openImagePreview = function(imgElement) {
+    let url = imgElement.dataset.url || imgElement.src;
+    if (!url || url.startsWith('data:')) {
+        Swal.fire('ยังไม่มีรูป', 'กรุณาอัปโหลดรูปก่อน หรือรูปนี้เป็นรูปตัวอย่างที่ยังไม่ได้อัปโหลด', 'info');
+        return;
+    }
+    window.open(url, '_blank');
+};
+
 window.triggerSingleUpload = async function (event, inputId, type) {
     if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
     if (isVerified) return Swal.fire('ไม่สามารถอัปโหลดได้', 'ข้อมูลถูกล็อกโดยครูแล้ว', 'warning');
@@ -1003,6 +1025,20 @@ window.triggerSingleUpload = async function (event, inputId, type) {
 
         if (res.status === 'success' && res.url) {
             fileInput.dataset.uploadedUrl = res.url;
+
+            // ✅ เก็บ URL ลงใน img preview
+            const previewMap = {
+                'pic_student': 'preview1',
+                'pic_outside': 'preview2',
+                'pic_inside': 'preview3',
+                'pic_teacher': 'preview4'
+            };
+            const previewId = previewMap[inputId];
+            if (previewId) {
+                const img = document.getElementById(previewId);
+                if (img) img.dataset.url = res.url;
+            }
+
             if (type === 'student_pic') {
                 await db.from('core_students').update({ avatar_students_url: res.url }).eq('student_id_card', studentCode);
                 const avatarImg = document.getElementById('student-avatar-img');
@@ -1033,7 +1069,11 @@ window.previewSelectedImage = function (input, previewId, cloudBtnId, delBtnId) 
         const reader = new FileReader();
         reader.onload = function (e) {
             const img = document.getElementById(previewId);
-            if (img) { img.src = e.target.result; img.classList.remove('hidden'); }
+            if (img) {
+                img.src = e.target.result;
+                img.classList.remove('hidden');
+                delete img.dataset.url; // ✅ ล้าง URL เดิม (ยังไม่อัปโหลด)
+            }
             const delBtn = document.getElementById(delBtnId);
             if (delBtn) delBtn.classList.remove('hidden');
             const cloudBtn = document.getElementById(cloudBtnId);
@@ -1058,7 +1098,11 @@ window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
     }
 
     const img = document.getElementById(previewId);
-    if (img) { img.src = ''; img.classList.add('hidden'); }
+    if (img) {
+        img.src = '';
+        img.classList.add('hidden');
+        delete img.dataset.url; // ✅ ล้าง URL
+    }
     const cloudBtn = document.getElementById(cloudBtnId);
     if (cloudBtn) {
         cloudBtn.disabled = true;

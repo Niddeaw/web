@@ -796,9 +796,12 @@
                             class="w-10 h-10 rounded-lg object-cover border-2 border-emerald-300 shadow-sm flex-shrink-0"
                             src="" alt="รูปโปรไฟล์">
                         <div class="flex-1 min-w-0">
-                            <p class="text-[10px] font-black text-emerald-700 uppercase tracking-wider leading-none mb-0.5">
-                                <i class="fas fa-circle-check mr-0.5"></i> ดึงจากโปรไฟล์อัตโนมัติ</p>
-                            <p class="text-[10px] text-emerald-600 font-medium truncate">บันทึกใช้งานแล้ว — อัพโหลดใหม่เพื่อเปลี่ยน</p>
+                            <p
+                                class="text-[10px] font-black text-emerald-700 uppercase tracking-wider leading-none mb-0.5">
+                                <i class="fas fa-circle-check mr-0.5"></i> ดึงจากโปรไฟล์อัตโนมัติ
+                            </p>
+                            <p class="text-[10px] text-emerald-600 font-medium truncate">บันทึกใช้งานแล้ว —
+                                อัพโหลดใหม่เพื่อเปลี่ยน</p>
                         </div>
                     </div>
                     <!-- Banner เมื่อยังไม่มีรูปโปรไฟล์ -->
@@ -806,7 +809,8 @@
                         class="hidden mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-left">
                         <i class="fas fa-circle-exclamation text-amber-500 text-lg flex-shrink-0"></i>
                         <p class="text-[10px] text-amber-700 font-bold leading-tight">ยังไม่มีรูปโปรไฟล์<br>
-                            <span class="font-normal">กรุณาถ่ายหรือเลือกรูปนักเรียน</span></p>
+                            <span class="font-normal">กรุณาถ่ายหรือเลือกรูปนักเรียน</span>
+                        </p>
                     </div>
                     <div class="flex justify-center gap-2">
                         <label
@@ -821,9 +825,9 @@
                                 onchange="previewSelectedImage(this, 'preview1', 'cloud_btn1', 'del_btn1')"></label>
                     </div>
                 </div>
-                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview1"
-                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover"><button type="button"
-                        id="del_btn1"
+                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview1" onclick="openImagePreview(this)"
+                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover cursor-pointer"><button
+                        type="button" id="del_btn1"
                         onclick="clearSelectedImage(event, 'pic_student', 'preview1', 'cloud_btn1'); document.getElementById('pic_student_cam').value='';"
                         class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
                             class="fa-solid fa-xmark"></i></button></div>
@@ -849,9 +853,9 @@
                                 onchange="previewSelectedImage(this, 'preview2', 'cloud_btn2', 'del_btn2')"></label>
                     </div>
                 </div>
-                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview2"
-                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover"><button type="button"
-                        id="del_btn2"
+                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview2" onclick="openImagePreview(this)"
+                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover cursor-pointer"><button
+                        type="button" id="del_btn2"
                         onclick="clearSelectedImage(event, 'pic_outside', 'preview2', 'cloud_btn2'); document.getElementById('pic_outside_cam').value='';"
                         class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
                             class="fa-solid fa-xmark"></i></button></div>
@@ -877,9 +881,9 @@
                                 onchange="previewSelectedImage(this, 'preview3', 'cloud_btn3', 'del_btn3')"></label>
                     </div>
                 </div>
-                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview3"
-                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover"><button type="button"
-                        id="del_btn3"
+                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview3" onclick="openImagePreview(this)"
+                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover cursor-pointer"><button
+                        type="button" id="del_btn3"
                         onclick="clearSelectedImage(event, 'pic_inside', 'preview3', 'cloud_btn3'); document.getElementById('pic_inside_cam').value='';"
                         class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
                             class="fa-solid fa-xmark"></i></button></div>
@@ -906,9 +910,9 @@
                                 onchange="previewSelectedImage(this, 'preview4', 'cloud_btn4', 'del_btn4')"></label>
                     </div>
                 </div>
-                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview4"
-                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover"><button type="button"
-                        id="del_btn4"
+                <div class="mt-2 relative max-w-[180px] mx-auto"><img id="preview4" onclick="openImagePreview(this)"
+                        class="hidden rounded-xl max-h-28 mx-auto border shadow-sm object-cover cursor-pointer"><button
+                        type="button" id="del_btn4"
                         onclick="clearSelectedImage(event, 'pic_teacher', 'preview4', 'cloud_btn4'); document.getElementById('pic_teacher_cam').value='';"
                         class="absolute -top-2.5 -right-2.5 bg-rose-500 text-white rounded-full w-6 h-6 text-xs hidden items-center justify-center shadow hover:bg-rose-600 font-bold"><i
                             class="fa-solid fa-xmark"></i></button></div>
