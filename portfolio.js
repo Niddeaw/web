@@ -1,5 +1,5 @@
 // ==========================================
-// portfolio.js — ระบบแฟ้มสะสมผลงานครู (ฉบับสมบูรณ์)
+// portfolio.js — ระบบแฟ้มสะสมผลงานครู (ปรับปรุง: ใช้ SearchBuilder)
 // ==========================================
 
 let currentUser = null;
@@ -18,6 +18,9 @@ let tomSelectInstance = null;
 
 const MODULE_KEY = 'portfolio';
 let charts = {};
+let dtInstance = null;
+let dtInstanceType = null;
+let currentTableData = [];
 
 // ==========================================
 // 1. ระบบรักษาความปลอดภัย & ตั้งค่าเริ่มต้น
@@ -101,10 +104,10 @@ async function initPortfolio() {
 
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 
-    await loadInitialData();
+    applyRoleUI();
 
-    // โหลด dashboard เป็น tab เริ่มต้นและอัปเดต UI ตามสิทธิ์
-    switchTab('dashboard');
+    // โหลดข้อมูลเริ่มต้น
+    await loadInitialData();
 }
 
 // ==========================================
@@ -121,7 +124,7 @@ function canManagePortfolioSettings() {
     return window.canManageSettings ? window.canManageSettings(currentRole) : currentRole === 'super_admin';
 }
 
-function toggleRoleView() {
+async function toggleRoleView() {
     if (!actualIsAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
         return;
@@ -141,17 +144,23 @@ function toggleRoleView() {
 
     logUserAction(`สลับโหมดเป็น ${forceTeacherMode ? 'Teacher' : 'Admin'}`, 'portfolio');
     applyRoleUI();
-    loadInitialData();
+    renderSidebar();
+
+    await loadInitialData();
 
     Swal.fire({
         toast: true,
         position: 'bottom-end',
         icon: forceTeacherMode ? 'info' : 'success',
-        title: forceTeacherMode ? 'สลับเป็นมุมมองครู' : 'สลับเป็นมุมมอง Admin',
+        title: forceTeacherMode ? 'โหมดมุมมองครู' : 'มุมมอง Admin',
         showConfirmButton: false,
         timer: 1500
     });
 }
+
+// ==========================================
+// 3. UI & Navigation
+// ==========================================
 
 function applyRoleUI() {
     if (typeof applyVisibilityByRole === 'function') {
@@ -161,43 +170,18 @@ function applyRoleUI() {
         });
     }
 
-    const menuItems = document.querySelectorAll('#sidebarMenu button');
-    menuItems.forEach(btn => {
-        if (btn.textContent.includes('ตั้งค่าระบบ')) {
-            btn.style.display = canManagePortfolioSettings() ? '' : 'none';
-        }
-        if (btn.textContent.includes('นำเข้า Excel')) {
-            btn.style.display = canManagePortfolioSettings() ? '' : 'none';
-        }
-    });
-
-    // ปุ่มเพิ่มข้อมูล: แสดงเฉพาะโหมดครู (ไม่แสดงในโหมดแอดมิน)
-    // หา id ก่อน ถ้าไม่เจอให้หาจาก onclick attribute
     let addBtn = document.getElementById('btn-add-entry');
     if (!addBtn) {
         addBtn = document.querySelector('button[onclick="openEntryFormModal()"]');
-        if (addBtn) addBtn.id = 'btn-add-entry'; // ผูก id ไว้สำหรับครั้งต่อไป
+        if (addBtn) addBtn.id = 'btn-add-entry';
     }
-    if (addBtn) {
-        // แสดงเมื่อไม่ใช่โหมดแอดมิน (= โหมดครู)
-        const canAdd = !isAdminView();
-        addBtn.style.display = canAdd ? '' : 'none';
-    }
-
-    const filterDept = document.getElementById('filterDept');
-    if (filterDept) {
-        filterDept.classList.toggle('hidden', !isAdminView());
-    }
+    if (addBtn) addBtn.style.display = !isAdminView() ? '' : 'none';
 
     const chartsArea = document.getElementById('adminChartsArea');
-    if (chartsArea) {
-        chartsArea.classList.toggle('hidden', !isAdminView());
-    }
-}
+    if (chartsArea) chartsArea.classList.remove('hidden');
 
-// ==========================================
-// 3. UI & Navigation
-// ==========================================
+    // ใช้ SearchBuilder แทน filter dropdowns
+}
 
 function logout() {
     Swal.fire({
@@ -233,59 +217,47 @@ function renderSidebar() {
         </button>
     `;
 
-    // ปุ่มนำเข้า Excel: เฉพาะ super_admin เท่านั้น
     if (canManagePortfolioSettings()) {
         html += `
-        <button onclick="openImportModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-blue-700 hover:bg-blue-50 font-bold transition-all border border-blue-200 bg-blue-50/50">
-            <i class="fa-solid fa-file-import w-5 text-center text-lg"></i> <span class="sidebar-text">นำเข้า Excel</span>
-        </button>`;
+        <!-- hidden file input สำหรับ Excel import -->
+        <input type="file" id="hidden-import-file" accept=".xlsx,.xls" class="hidden" onchange="importFromExcel(event)">
+        <div class="space-y-1.5 mt-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1"><span class="sidebar-text">นำเข้าข้อมูล (Super Admin)</span></p>
+            <button onclick="triggerImportExcel()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-indigo-600 hover:bg-indigo-50 font-bold transition-all border border-indigo-200 bg-indigo-50/40">
+                <i class="fa-solid fa-file-import w-5 text-center text-lg"></i>
+                <span class="sidebar-text text-sm">นำเข้าจาก Excel</span>
+            </button>
+            <button onclick="downloadImportTemplate()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-medium transition-all">
+                <i class="fa-solid fa-download w-5 text-center"></i>
+                <span class="sidebar-text text-sm">ดาวน์โหลด Template</span>
+            </button>
+            <button onclick="importFromGoogleSheets()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-green-600 hover:bg-green-50 font-bold transition-all border border-green-200 bg-green-50/40">
+                <i class="fa-brands fa-google-drive w-5 text-center text-lg"></i>
+                <span class="sidebar-text text-sm">นำเข้าจาก Google Sheets</span>
+            </button>
+        </div>`;
     }
 
     if (canManagePortfolioSettings()) {
         html += `
-        <button onclick="openSettingsModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-amber-600 hover:bg-amber-50 font-bold transition-all mt-2 border border-amber-200 bg-amber-50/50">
+        <hr class="border-gray-200 my-2">
+        <button onclick="openSettingsModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-amber-600 hover:bg-amber-50 font-bold transition-all border border-amber-200 bg-amber-50/50">
             <i class="fa-solid fa-gear w-5 text-center text-lg"></i> <span class="sidebar-text">ตั้งค่าระบบ</span>
         </button>`;
     }
 
     menu.innerHTML = html;
-
-    if (isAdminView()) {
-        const depts = [
-            "ภาษาไทย",
-            "คณิตศาสตร์",
-            "วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)",
-            "วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)",
-            "สังคมศึกษา ศาสนาและวัฒนธรรม",
-            "สุขศึกษาและพลศึกษา",
-            "ศิลปะ",
-            "การงานอาชีพ",
-            "ภาษาต่างประเทศ (ภาษาอังกฤษ)",
-            "ภาษาต่างประเทศ (ภาษาจีน)",
-            "แนะแนว"];
-        const filterEl = document.getElementById('filterDept');
-        if (filterEl) {
-            filterEl.classList.remove('hidden');
-            filterEl.innerHTML = '<option value="">-- ทุกกลุ่มสาระฯ --</option>';
-            depts.forEach(d => {
-                filterEl.innerHTML += `<option value="${d}">${d}</option>`;
-            });
-        }
-    }
 }
 
 function switchTab(tab) {
     currentTab = tab;
+
     ['dashboard', 'work', 'training'].forEach(t => {
         const btn = document.getElementById(`btn-tab-${t}`);
-        if (btn) {
-            btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-all";
-        }
+        if (btn) btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-all";
     });
     const activeBtn = document.getElementById(`btn-tab-${tab}`);
-    if (activeBtn) {
-        activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
-    }
+    if (activeBtn) activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
 
     const dashboardSection = document.getElementById('section-dashboard');
     const datatableSection = document.getElementById('section-datatable');
@@ -295,17 +267,20 @@ function switchTab(tab) {
     if (tab === 'dashboard') {
         if (dashboardSection) dashboardSection.classList.remove('hidden');
         document.getElementById('pageTitle').innerText = 'ภาพรวมผลงาน (Dashboard)';
-        if (isAdminView()) renderAdminCharts();
+        const chartsArea = document.getElementById('adminChartsArea');
+        if (chartsArea) chartsArea.classList.remove('hidden');
+
+        updateDashboardStats();
+        renderAdminCharts();
     } else {
         currentEntryType = tab;
         if (datatableSection) datatableSection.classList.remove('hidden');
         document.getElementById('pageTitle').innerText = tab === 'work' ? 'จัดการผลงานและรางวัล' : 'จัดการประวัติการอบรม';
         document.getElementById('tableHeaderTitle').innerText = tab === 'work' ? 'รายการผลงาน/รางวัล' : 'รายการหลักสูตรที่อบรม';
+
+        applyRoleUI();
         loadTableData();
     }
-
-    // อัปเดต UI ปุ่มเพิ่มข้อมูลทุกครั้งที่สลับแท็บ
-    applyRoleUI();
 }
 
 let isSidebarCollapsed = false;
@@ -338,7 +313,7 @@ function toggleSidebar() {
 // ==========================================
 
 async function fetchPersonnelData(userIds) {
-    if (!userIds.length) return new Map();
+    if (!userIds || userIds.length === 0) return new Map();
     const cached = new Map();
     const missingIds = [];
     for (const id of userIds) {
@@ -353,7 +328,7 @@ async function fetchPersonnelData(userIds) {
             .select('id, first_name, last_name, department')
             .in('id', missingIds);
         if (error) {
-            console.error('Error fetching personnel:', error);
+            console.error('❌ Error fetching personnel:', error);
             return cached;
         }
         data.forEach(p => {
@@ -364,9 +339,36 @@ async function fetchPersonnelData(userIds) {
     return cached;
 }
 
+/**
+ * loadInitialData — โหลดข้อมูลเริ่มต้น (หน้าแรก)
+ */
 async function loadInitialData() {
     try {
-        let query = db.from('portfolio_entries').select('*');
+        console.log('🔍 loadInitialData เริ่มต้น');
+
+        // โหลดข้อมูลทั้งหมดตามสิทธิ์
+        await loadAllData();
+
+        // ถ้าอยู่ที่หน้า dashboard ให้แสดง
+        if (currentTab === 'dashboard') {
+            switchTab('dashboard');
+        }
+
+        Swal.close();
+    } catch (err) {
+        console.error('❌ loadInitialData error:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * loadAllData — โหลดข้อมูลทั้งหมดตามสิทธิ์ (ไม่กรองปี)
+ */
+async function loadAllData() {
+    try {
+        let query = db.from('portfolio_entries')
+            .select('*');
 
         if (!isAdminView() || forceTeacherMode) {
             query = query.eq('user_id', currentUser.id);
@@ -375,51 +377,204 @@ async function loadInitialData() {
         const { data: entries, error } = await query;
         if (error) throw error;
 
-        const userIds = [...new Set(entries.map(e => e.user_id))];
+        // ดึงข้อมูลบุคลากร
+        const userIds = [...new Set((entries || []).map(e => e.user_id))];
         const personnelMap = await fetchPersonnelData(userIds);
 
-        allEntries = entries.map(e => ({
+        let enrichedData = (entries || []).map(e => ({
             ...e,
             core_personnel: personnelMap.get(e.user_id) || null
         }));
 
-        updateDashboard();
-        if (currentTab === 'dashboard' && isAdminView()) {
-            renderAdminCharts();
-        }
+        console.log(`📊 ได้ข้อมูล ${enrichedData.length} รายการ`);
+
+        currentTableData = enrichedData;
+        allEntries = enrichedData;
+
+        // อัปเดต Dashboard
+        updateDashboardStats();
+        renderAdminCharts();
+
+        // ถ้าอยู่ในหน้า datatable → render DataTable
         if (currentTab !== 'dashboard') {
-            loadTableData();
+            renderDataTable(currentTableData);
         }
-        Swal.close();
     } catch (err) {
+        console.error('❌ loadAllData error:', err);
+        throw err;
+    }
+}
+
+/**
+ * loadTableData — โหลดข้อมูลสำหรับตารางตาม entry_type
+ */
+async function loadTableData() {
+    if (!currentUser) return;
+
+    try {
+        let query = db.from('portfolio_entries')
+            .select('*')
+            .eq('entry_type', currentEntryType)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: true });
+
+        if (!isAdminView() || forceTeacherMode) {
+            query = query.eq('user_id', currentUser.id);
+        }
+
+        const { data: entries, error } = await query;
+        if (error) throw error;
+
+        // ดึงข้อมูลบุคลากร
+        const userIds = [...new Set((entries || []).map(e => e.user_id))];
+        const personnelMap = await fetchPersonnelData(userIds);
+
+        let enrichedData = (entries || []).map(e => ({
+            ...e,
+            core_personnel: personnelMap.get(e.user_id) || null
+        }));
+
+        console.log(`📊 ได้ข้อมูล ${enrichedData.length} รายการ (ประเภท: ${currentEntryType})`);
+
+        currentTableData = enrichedData;
+        allEntries = enrichedData;
+
+        renderDataTable(enrichedData);
+
+    } catch (err) {
+        console.error('❌ loadTableData error:', err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
 
-function updateDashboard() {
-    const works = allEntries.filter(e => e.entry_type === 'work');
-    const trainings = allEntries.filter(e => e.entry_type === 'training');
-    const totalHours = trainings.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
-    const teachers = new Set(allEntries.map(e => e.user_id));
+/**
+ * renderDataTable — สร้าง DataTable พร้อม SearchBuilder
+ */
+function renderDataTable(data) {
+    const isWork = currentEntryType === 'work';
+    const colCount = isWork ? 8 : 9;
 
-    const countWorks = document.getElementById('count-works');
-    const countTrainings = document.getElementById('count-trainings');
-    const countHours = document.getElementById('count-hours');
-    const countTeachers = document.getElementById('count-teachers');
+    // ทำลาย instance เดิม
+    if (dtInstance) {
+        try { dtInstance.destroy(); } catch (_) { }
+        dtInstance = null;
+        dtInstanceType = null;
+    }
 
-    if (countWorks) countWorks.innerText = works.length;
-    if (countTrainings) countTrainings.innerText = trainings.length;
-    if (countHours) countHours.innerText = totalHours;
-    if (countTeachers) countTeachers.innerText = teachers.size;
+    const thead = document.querySelector('#dataTable thead tr');
+    if (thead) {
+        thead.innerHTML = isWork
+            ? `<th>ปีการศึกษา</th>
+               <th>ภาคเรียน</th>
+               <th>ชื่อครู / กลุ่มสาระ</th>
+               <th>ชื่อผลงาน / รางวัล</th>
+               <th>หน่วยงานที่มอบ</th>
+               <th class="text-center">วันที่</th>
+               <th class="text-center">ไฟล์</th>
+               <th class="text-center">จัดการ</th>`
+            : `<th>ปีการศึกษา</th>
+               <th>ภาคเรียน</th>
+               <th>ชื่อครู / กลุ่มสาระ</th>
+               <th>ชื่อหลักสูตรที่อบรม</th>
+               <th>จัดโดย</th>
+               <th class="text-center">วันที่</th>
+               <th class="text-center">ชม.</th>
+               <th class="text-center">ไฟล์</th>
+               <th class="text-center">จัดการ</th>`;
+    }
+
+    const tbody = document.getElementById('tb-data');
+    if (tbody) {
+        tbody.innerHTML = data.length === 0
+            ? `<tr><td colspan="${colCount}" class="text-center py-12 text-gray-400">
+                   <i class="fa-solid fa-inbox text-4xl mb-3 block opacity-30"></i>
+                   ไม่มีข้อมูล${isAdminView() ? '' : ' (ยังไม่ได้บันทึกรายการ)'}
+               </td></tr>`
+            : data.map(e => buildRowHtml(e, isWork)).join('');
+    }
+
+    // ถ้าไม่มีข้อมูล ไม่ต้อง init DataTable
+    if (data.length === 0) return;
+
+    // กำหนดประเภทคอลัมน์สำหรับ SearchBuilder
+    const columnDefs = [
+        { responsivePriority: 1, targets: -1 },
+        { responsivePriority: 2, targets: -2 },
+        { targets: colCount - 1, orderable: false, searchable: false }, // จัดการ
+        { targets: colCount - 2, orderable: false, searchable: false }, // ไฟล์
+    ];
+
+    // DataTable 2.x ใช้ layout แทน dom
+    dtInstance = $('#dataTable').DataTable({
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        pageLength: 25,
+        lengthMenu: [10, 25, 50, 100],
+        responsive: true,
+        ordering: true,
+        order: [[0, 'desc'], [1, 'asc']],
+        columnDefs: columnDefs,
+        // layout: {
+        //     top1: {
+        //         searchBuilder: {
+        //             columns: [0, 1, 2],
+        //             greyscale: false
+        //         }
+        //     },
+        //     topStart: 'pageLength',
+        //     topEnd: 'search',
+        //     bottomStart: 'info',
+        //     bottomEnd: 'paging'
+        // },
+        // ใช้ dom สำหรับ fallback (ถ้า layout ไม่ทำงานในบางเวอร์ชัน)
+        // dom: 'Qlfrtip'
+        layout: {
+            topStart: 'searchBuilder'
+        },
+    });
+
+    dtInstanceType = currentEntryType;
+}
+
+function buildRowHtml(e, isWork) {
+    const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
+    const dept = e.core_personnel?.department || '-';
+    const dateStr = e.entry_date ? dayjs(e.entry_date).locale('th').format('DD MMM YYYY') : '-';
+    const docLink = e.document_url
+        ? `<a href="${e.document_url}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:underline font-bold text-xs"><i class="fa-solid fa-file-pdf text-red-500"></i> เปิดดู</a>`
+        : '<span class="text-gray-300 text-xs">-</span>';
+
+    const canManage = e.user_id === currentUser.id || isAdminView();
+    const manageBtns = canManage ? `
+        <div class="flex items-center justify-center gap-1">
+            <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
+            <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
+        </div>` : '';
+
+    const titleText = e.title || '-';
+    const titleCell = `<td class="px-3 py-2.5 text-sm text-gray-800 max-w-xs truncate" title="${titleText}">${titleText}</td>`;
+
+    const extraCol = isWork ? '' : `<td class="px-3 py-2.5 text-center font-bold text-indigo-600">${e.hours || 0}</td>`;
+
+    return `<tr class="hover:bg-slate-50 transition-colors border-b border-gray-100">
+        <td class="px-3 py-2.5 font-bold text-gray-700">${e.academic_year || '-'}</td>
+        <td class="px-3 py-2.5 text-center text-gray-600">${e.semester || '-'}</td>
+        <td class="px-3 py-2.5"><div class="font-bold text-blue-700 text-sm">${name}</div><div class="text-[11px] text-gray-400">${dept}</div></td>
+        ${titleCell}
+        <td class="px-3 py-2.5 text-sm text-gray-500">${e.organizer || '-'}</td>
+        <td class="px-3 py-2.5 text-center text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
+        ${extraCol}
+        <td class="px-3 py-2.5 text-center">${docLink}</td>
+        <td class="px-3 py-2.5 text-center">${manageBtns}</td>
+    </tr>`;
 }
 
 // ==========================================
-// 5. Charts (Chart.js)
+// 5. Charts
 // ==========================================
 
 function renderAdminCharts() {
-    const works = allEntries.filter(e => e.entry_type === 'work');
-    const trainings = allEntries.filter(e => e.entry_type === 'training');
+    const works = currentTableData.filter(e => e.entry_type === 'work');
+    const trainings = currentTableData.filter(e => e.entry_type === 'training');
 
     const countBy = (arr, keyFn) => {
         return arr.reduce((acc, curr) => {
@@ -511,65 +666,54 @@ function renderAdminCharts() {
 }
 
 // ==========================================
-// 6. DataTables
+// 6. Dashboard Stats
 // ==========================================
 
-function loadTableData() {
-    if ($.fn.DataTable.isDataTable('#dataTable')) {
-        $('#dataTable').DataTable().destroy();
+async function updateDashboardStats() {
+    try {
+        let query = db.from('portfolio_entries')
+            .select('*', { count: 'exact', head: true });
+
+        if (!isAdminView() || forceTeacherMode) {
+            query = query.eq('user_id', currentUser.id);
+        }
+
+        const { count: totalWorks, error: errWorks } = await query
+            .eq('entry_type', 'work');
+
+        const { count: totalTrainings, error: errTrainings } = await query
+            .eq('entry_type', 'training');
+
+        let hoursQuery = db.from('portfolio_entries')
+            .select('hours')
+            .eq('entry_type', 'training');
+
+        if (!isAdminView() || forceTeacherMode) {
+            hoursQuery = hoursQuery.eq('user_id', currentUser.id);
+        }
+
+        const { data: hoursData, error: errHours } = await hoursQuery;
+        const totalHours = hoursData ? hoursData.reduce((sum, row) => sum + (Number(row.hours) || 0), 0) : 0;
+
+        let userQuery = db.from('portfolio_entries')
+            .select('user_id');
+
+        if (!isAdminView() || forceTeacherMode) {
+            userQuery = userQuery.eq('user_id', currentUser.id);
+        }
+
+        const { data: users, error: errUsers } = await userQuery;
+        const uniqueTeachers = users ? new Set(users.map(row => row.user_id)).size : 0;
+
+        if (!errWorks && !errTrainings && !errHours && !errUsers) {
+            document.getElementById('count-works').innerText = totalWorks || 0;
+            document.getElementById('count-trainings').innerText = totalTrainings || 0;
+            document.getElementById('count-hours').innerText = totalHours || 0;
+            document.getElementById('count-teachers').innerText = (!isAdminView() || forceTeacherMode) ? 1 : uniqueTeachers;
+        }
+    } catch (err) {
+        console.warn('⚠️ ไม่สามารถดึงสถิติ dashboard:', err);
     }
-
-    const filterDept = document.getElementById('filterDept');
-    const filterValue = filterDept ? filterDept.value : '';
-    const tbody = document.getElementById('tb-data');
-
-    let filteredData = allEntries.filter(e => e.entry_type === currentEntryType);
-    if (isAdminView() && filterValue) {
-        filteredData = filteredData.filter(e => e.core_personnel?.department === filterValue);
-    }
-
-    if (tbody) {
-        tbody.innerHTML = filteredData.map(e => {
-            const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
-            const dept = e.core_personnel?.department || '-';
-            const dateStr = dayjs(e.entry_date).locale('th').format('DD MMM YYYY');
-
-            let docLink = '-';
-            if (e.document_url) {
-                docLink = `<a href="${e.document_url}" target="_blank" class="text-blue-600 hover:underline font-bold"><i class="fa-solid fa-file-pdf text-red-500"></i> เปิดดู</a>`;
-            }
-
-            let manageBtns = '';
-            if (e.user_id === currentUser.id || isAdminView()) {
-                manageBtns = `
-                    <button onclick="deleteEntry('${e.id}')" class="text-red-600 hover:text-red-800 text-sm font-bold px-2 py-1 rounded hover:bg-red-100"><i class="fa-solid fa-trash-can"></i> ลบ</button>
-                `;
-            }
-
-            return `
-                <tr>
-                    <td class="py-3 px-4 font-bold text-gray-700">${e.semester}/${e.academic_year}</td>
-                    <td class="py-3 px-4">
-                        <div class="font-bold text-blue-700">${name}</div>
-                        <div class="text-[11px] text-gray-500">${dept}</div>
-                    </td>
-                    <td class="py-3 px-4 font-medium">${e.title}</td>
-                    <td class="py-3 px-4 text-gray-600">${e.organizer || '-'}</td>
-                    <td class="py-3 px-4 text-center text-sm">${dateStr}</td>
-                    <td class="py-3 px-4 text-center font-bold text-indigo-600">${e.hours}</td>
-                    <td class="py-3 px-4 text-center">${docLink}</td>
-                    <td class="py-3 px-4 text-center whitespace-nowrap">${manageBtns}</td>
-                </tr>
-            `;
-        }).join('');
-    }
-
-    $('#dataTable').DataTable({
-        scrollX: true,
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        pageLength: 10,
-        responsive: true
-    });
 }
 
 // ==========================================
@@ -602,9 +746,74 @@ function closeEntryModal() {
     document.getElementById('entryModal').classList.add('hidden');
 }
 
+function openEditEntryModal(entryId) {
+    const entry = allEntries.find(e => e.id === entryId || e.id === Number(entryId));
+    if (!entry) {
+        Swal.fire('ไม่พบข้อมูล', 'ไม่สามารถโหลดข้อมูลที่ต้องการแก้ไขได้', 'error');
+        return;
+    }
+
+    document.getElementById('entry_id').value = entry.id;
+    document.getElementById('entry_type_hidden').value = entry.entry_type;
+    document.getElementById('f_year').value = entry.academic_year || '';
+    document.getElementById('f_term').value = entry.semester || '';
+    document.getElementById('f_title').value = entry.title || '';
+    document.getElementById('f_organizer').value = entry.organizer || '';
+    document.getElementById('f_date').value = entry.entry_date || '';
+    document.getElementById('f_hours').value = entry.hours || 0;
+
+    const labelTitle = document.getElementById('label_title');
+    if (labelTitle) {
+        labelTitle.innerText = entry.entry_type === 'work' ? 'ชื่อผลงาน / รางวัล *' : 'ชื่อหลักสูตรที่อบรม *';
+    }
+    const modalTitle = document.getElementById('entryModalTitle');
+    if (modalTitle) modalTitle.innerText = entry.entry_type === 'work' ? 'แก้ไขผลงาน/รางวัล' : 'แก้ไขประวัติการอบรม';
+
+    const currentLinkContainer = document.getElementById('current-file-link-container');
+    const currentLinkInput = document.getElementById('current-file-link');
+    if (currentLinkContainer && currentLinkInput) {
+        if (entry.document_url) {
+            currentLinkInput.value = entry.document_url;
+            currentLinkContainer.style.display = 'block';
+        } else {
+            currentLinkContainer.style.display = 'none';
+            currentLinkInput.value = '';
+        }
+    }
+
+    document.getElementById('f_file').value = '';
+    if (typeof flatpickr !== 'undefined') {
+        flatpickr('#f_date', { locale: 'th', dateFormat: 'Y-m-d' });
+    }
+
+    document.getElementById('entryModal').classList.remove('hidden');
+}
+
+function copyCurrentFileLink() {
+    const linkInput = document.getElementById('current-file-link');
+    if (linkInput && linkInput.value) {
+        navigator.clipboard.writeText(linkInput.value).then(() => {
+            Swal.fire({ toast: true, icon: 'success', title: 'คัดลอกลิงก์แล้ว', timer: 1500, showConfirmButton: false });
+        }).catch(() => {
+            linkInput.select();
+            document.execCommand('copy');
+            Swal.fire({ toast: true, icon: 'success', title: 'คัดลอกลิงก์แล้ว', timer: 1500, showConfirmButton: false });
+        });
+    }
+}
+
+// ==========================================
+// ฟังก์ชันบันทึกข้อมูล (เพิ่ม/แก้ไข) — ฉบับเต็ม
+// ==========================================
+
 async function saveEntry(e) {
     e.preventDefault();
-    Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    Swal.fire({
+        title: 'กำลังบันทึก...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
     try {
         const title = document.getElementById('f_title').value.trim();
@@ -612,14 +821,17 @@ async function saveEntry(e) {
         const date = document.getElementById('f_date').value;
         const hours = document.getElementById('f_hours').value || 0;
         const fileInput = document.getElementById('f_file');
+        const entryId = document.getElementById('entry_id').value;
 
         let docUrl = null;
+        let updateDocUrl = false;
 
         if (fileInput && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             const fileName = `portfolio_${currentUser.id}_${Date.now()}_${file.name}`;
             try {
                 docUrl = await uploadFileToDrive(file, fileName);
+                updateDocUrl = true;
             } catch (uploadErr) {
                 Swal.fire('อัปโหลดไฟล์ล้มเหลว', uploadErr.message, 'error');
                 return;
@@ -635,22 +847,57 @@ async function saveEntry(e) {
             organizer: organizer,
             entry_date: date,
             hours: hours,
-            document_url: docUrl
         };
 
-        const { error } = await db.from('portfolio_entries').insert([payload]);
-        if (error) throw error;
+        if (updateDocUrl || !entryId) {
+            payload.document_url = docUrl;
+        }
 
-        await logUserAction(`เพิ่มข้อมูล portfolio (${payload.entry_type})`, 'portfolio');
+        let dbError;
+        if (entryId) {
+            const { error } = await db.from('portfolio_entries')
+                .update(payload)
+                .eq('id', entryId);
+            dbError = error;
+        } else {
+            if (!payload.document_url) payload.document_url = null;
+            const { error } = await db.from('portfolio_entries').insert([payload]);
+            dbError = error;
+        }
+
+        if (dbError) throw dbError;
+
+        await logUserAction(
+            `${entryId ? 'แก้ไข' : 'เพิ่ม'}ข้อมูล portfolio (${payload.entry_type})`,
+            'portfolio'
+        );
 
         closeEntryModal();
-        await loadInitialData();
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
+
+        // โหลดข้อมูลใหม่ทั้งหมด
+        await loadAllData();
+
+        // ถ้าอยู่ในหน้า datatable → re-render DataTable
+        if (currentTab !== 'dashboard') {
+            renderDataTable(currentTableData);
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกสำเร็จ!',
+            timer: 1500,
+            showConfirmButton: false
+        });
 
     } catch (err) {
+        console.error('❌ saveEntry error:', err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
+
+// ==========================================
+// ฟังก์ชันลบข้อมูล — ฉบับเต็ม
+// ==========================================
 
 async function deleteEntry(id) {
     const { isConfirmed } = await Swal.fire({
@@ -659,25 +906,50 @@ async function deleteEntry(id) {
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ลบข้อมูล'
+        confirmButtonText: 'ลบข้อมูล',
+        cancelButtonText: 'ยกเลิก'
     });
 
-    if (isConfirmed) {
-        Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
-        const { error } = await db.from('portfolio_entries').delete().eq('id', id);
-        if (error) {
-            Swal.fire('ผิดพลาด', error.message, 'error');
-        } else {
-            await logUserAction(`ลบข้อมูล portfolio ID=${id}`, 'portfolio');
-            await loadInitialData();
-            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
+    if (!isConfirmed) return;
+
+    Swal.fire({
+        title: 'กำลังลบ...',
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const { error } = await db.from('portfolio_entries')
+            .delete()
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await logUserAction(`ลบข้อมูล portfolio ID=${id}`, 'portfolio');
+
+        // โหลดข้อมูลใหม่ทั้งหมด
+        await loadAllData();
+
+        if (currentTab !== 'dashboard') {
+            renderDataTable(currentTableData);
         }
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ลบสำเร็จ',
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('❌ deleteEntry error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
 
 // ==========================================
 // 8. File Upload (GAS Integration)
 // ==========================================
+
 async function getPortfolioSettings() {
     try {
         const { data, error } = await db
@@ -790,18 +1062,13 @@ function openExportModal() {
         const selectDept = document.getElementById('exp_dept');
         if (selectDept) {
             selectDept.innerHTML = '<option value="all">ทั้งหมดทุกกลุ่มสาระ</option>';
-            const depts = [
-                "ภาษาไทย",
-                "คณิตศาสตร์",
-                "วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)",
-                "วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)",
-                "สังคมศึกษา ศาสนาและวัฒนธรรม",
-                "สุขศึกษาและพลศึกษา",
-                "ศิลปะ",
-                "การงานอาชีพ",
-                "ภาษาต่างประเทศ (ภาษาอังกฤษ)",
-                "ภาษาต่างประเทศ (ภาษาจีน)",
-                "แนะแนว"];
+            const depts = ['ภาษาไทย', 'คณิตศาสตร์',
+                'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)', 'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
+                'สังคมศึกษา ศาสนาและวัฒนธรรม', 'สุขศึกษาและพลศึกษา',
+                'ศิลปะ', 'การงานอาชีพ',
+                'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)',
+                'แนะแนว'
+            ];
             depts.forEach(d => {
                 selectDept.innerHTML += `<option value="${d}">${d}</option>`;
             });
@@ -816,18 +1083,50 @@ function closeExportModal() {
     document.getElementById('exportModal').classList.add('hidden');
 }
 
-function processExport() {
+async function processExport() {
     const type = document.getElementById('exp_type').value;
     const year = document.getElementById('exp_year').value.trim();
     const term = document.getElementById('exp_term').value;
     const dept = isAdminView() ? document.getElementById('exp_dept').value : null;
 
-    let exportData = allEntries;
+    let query = db.from('portfolio_entries').select('*');
 
-    if (type !== 'all') exportData = exportData.filter(e => e.entry_type === type);
-    if (year) exportData = exportData.filter(e => e.academic_year === year);
-    if (term !== 'all') exportData = exportData.filter(e => e.semester === term);
-    if (dept && dept !== 'all') exportData = exportData.filter(e => e.core_personnel?.department === dept);
+    if (!isAdminView() || forceTeacherMode) {
+        query = query.eq('user_id', currentUser.id);
+    }
+
+    if (type !== 'all') {
+        query = query.eq('entry_type', type);
+    }
+    if (year) {
+        query = query.eq('academic_year', year);
+    }
+    if (term !== 'all') {
+        query = query.eq('semester', term);
+    }
+
+    const { data: entries, error } = await query;
+    if (error) {
+        Swal.fire('ผิดพลาด', error.message, 'error');
+        return;
+    }
+
+    if (!entries || entries.length === 0) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลตามเงื่อนไขที่เลือก', 'info');
+        return;
+    }
+
+    const userIds = [...new Set(entries.map(e => e.user_id))];
+    const personnelMap = await fetchPersonnelData(userIds);
+
+    let exportData = entries.map(e => ({
+        ...e,
+        core_personnel: personnelMap.get(e.user_id) || null
+    }));
+
+    if (isAdminView() && dept && dept !== 'all') {
+        exportData = exportData.filter(e => e.core_personnel?.department === dept);
+    }
 
     if (exportData.length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'ไม่พบข้อมูลตามเงื่อนไขที่เลือก', 'info');
@@ -862,13 +1161,612 @@ function processExport() {
 }
 
 // ==========================================
-// 10. Settings & Module Admin Management
+// 10. Import Functions (Excel & Google Sheets)
 // ==========================================
 
-/**
- * ตรวจสอบและสร้างโมดูลใน core_system_modules ถ้ายังไม่มี
- * (ใช้ใน openSettingsModal และ addModuleAdmin)
- */
+async function processImportRows(rows, foundHeaders) {
+    const pad2 = n => String(n).padStart(2, '0');
+
+    function parseDate(val) {
+        if (!val || val === '' || val === '-' || val === 0) return null;
+        if (val instanceof Date) {
+            if (isNaN(val.getTime())) return null;
+            let y = val.getFullYear();
+            const m = pad2(val.getMonth() + 1);
+            const d = pad2(val.getDate());
+            if (y >= 2400) y = y - 543;
+            return `${y}-${m}-${d}`;
+        }
+        const s = String(val).trim();
+        if (!s || s === '-' || s === '0') return null;
+
+        const isoM = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoM) {
+            let y = parseInt(isoM[1]);
+            if (y < 2400) y = y + 543;
+            const ceY = y - 543;
+            return `${ceY}-${isoM[2]}-${isoM[3]}`;
+        }
+        const dmyM = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (dmyM) {
+            let y = parseInt(dmyM[3]);
+            if (y >= 2400) y = y - 543;
+            return `${y}-${pad2(parseInt(dmyM[2]))}-${pad2(parseInt(dmyM[1]))}`;
+        }
+        const num = Number(s);
+        if (!isNaN(num) && num > 20000 && num < 300000) {
+            try {
+                const dd = XLSX.SSF.parse_date_code(num);
+                if (dd && dd.y > 1900) {
+                    let y = dd.y;
+                    if (y < 2400) y = y + 543;
+                    return `${y - 543}-${pad2(dd.m)}-${pad2(dd.d)}`;
+                }
+            } catch (e) { /* ignore */ }
+        }
+        return null;
+    }
+
+    function splitFullName(full) {
+        if (!full) return { prefix: '', first_name: '', last_name: '' };
+        const pfx = ['นางสาว', 'นาย', 'นาง', 'ด.ช.', 'ด.ญ.', 'ว่าที่ร้อยตรี', 'ว่าที่ร้อยเอก'];
+        let prefix = '',
+            name = String(full).trim();
+        for (const p of pfx) {
+            if (name.startsWith(p)) {
+                prefix = p;
+                name = name.slice(p.length).trim();
+                break;
+            }
+        }
+        if (!prefix) {
+            const parts = name.split(/\s+/);
+            if (parts.length >= 2) {
+                return { prefix: '', first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '' };
+            }
+            return { prefix: '', first_name: name, last_name: '' };
+        }
+        const parts = name.split(/\s+/);
+        return { prefix, first_name: parts[0] || '', last_name: parts.slice(1).join(' ') || '' };
+    }
+
+    function getValue(row, ...keys) {
+        for (const k of keys) {
+            if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+                return row[k];
+            }
+            for (const [col, val] of Object.entries(row)) {
+                if (col.trim() === k.trim()) {
+                    return val;
+                }
+            }
+        }
+        return null;
+    }
+
+    const headerMap = {
+        'ชื่อ - สกุล': 'full_name',
+        'กลุ่มสาระ': 'department',
+        'ภาคเรียนที่': 'semester',
+        'ปีการศึกษา': 'academic_year',
+        'ประเภท': 'entry_type_raw',
+        'รายการ': 'title',
+        'เมื่อวันที่': 'start_date',
+        'ถึงวันที่': 'end_date',
+        'จัดโดย': 'organizer',
+        'ไฟล์': 'file_url'
+    };
+
+    const headerMapping = {};
+    foundHeaders.forEach(h => {
+        const trimmed = h.trim();
+        if (headerMap[trimmed]) {
+            headerMapping[h] = headerMap[trimmed];
+        } else {
+            for (const [key, value] of Object.entries(headerMap)) {
+                if (trimmed.includes(key) || key.includes(trimmed)) {
+                    headerMapping[h] = value;
+                    break;
+                }
+            }
+        }
+    });
+
+    const payloads = rows.map(row => {
+        const fullName = getValue(row, 'ชื่อ - สกุล', 'ชื่อ-สกุล', 'ชื่อ-นามสกุล', 'full_name');
+        const nameParts = splitFullName(fullName);
+
+        let entryType = 'work';
+        const typeRaw = getValue(row, 'ประเภท', 'entry_type_raw');
+        if (typeRaw) {
+            const typeStr = String(typeRaw).trim();
+            if (typeStr.includes('อบรม') || typeStr.includes('สัมมนา') || typeStr.includes('ประชุม')) {
+                entryType = 'training';
+            } else if (typeStr.includes('รางวัล') || typeStr.includes('เกียรติบัตร') || typeStr.includes('ชนะเลิศ')) {
+                entryType = 'work';
+            }
+        }
+
+        const startDate = getValue(row, 'เมื่อวันที่', 'start_date');
+        const endDate = getValue(row, 'ถึงวันที่', 'end_date');
+        const entryDate = parseDate(startDate) || parseDate(endDate) || null;
+
+        let semester = getValue(row, 'ภาคเรียนที่', 'semester');
+        if (semester) {
+            semester = String(semester).trim().replace(/[^0-9]/g, '');
+            if (semester === '') semester = '1';
+        } else {
+            semester = '1';
+        }
+
+        let academicYear = getValue(row, 'ปีการศึกษา', 'academic_year');
+        if (academicYear) {
+            academicYear = String(academicYear).trim().replace(/[^0-9]/g, '');
+            if (academicYear.length === 2) academicYear = '25' + academicYear;
+            if (academicYear === '') academicYear = (new Date().getFullYear() + 543).toString();
+        } else {
+            academicYear = (new Date().getFullYear() + 543).toString();
+        }
+
+        return {
+            first_name: nameParts.first_name,
+            last_name: nameParts.last_name,
+            prefix: nameParts.prefix,
+            department: getValue(row, 'กลุ่มสาระ', 'department') || '',
+            semester: semester,
+            academic_year: academicYear,
+            entry_type: entryType,
+            title: getValue(row, 'รายการ', 'title') || '',
+            organizer: getValue(row, 'จัดโดย', 'organizer') || '',
+            entry_date: entryDate,
+            document_url: getValue(row, 'ไฟล์', 'file_url') || null
+        };
+    }).filter(p => p.first_name || p.title);
+
+    if (!payloads.length) {
+        return Swal.fire({
+            title: 'ไม่พบข้อมูลที่ใช้ได้',
+            html: `<div class="text-left text-sm">
+                <p class="text-red-500 font-bold mb-2">ระบบไม่สามารถอ่านข้อมูลได้</p>
+                <p class="text-slate-500 text-xs mb-1">Header ที่พบ (${foundHeaders.length} คอลัมน์):</p>
+                <pre class="text-xs bg-slate-100 p-2 rounded-lg overflow-auto max-h-32 text-slate-600">${(foundHeaders || []).join('\n')}</pre>
+                <p class="text-indigo-500 text-xs mt-2">💡 ดาวน์โหลดไฟล์ต้นแบบเพื่อดูรูปแบบ header ที่ถูกต้อง</p>
+            </div>`,
+            icon: 'warning',
+            confirmButtonText: 'รับทราบ'
+        });
+    }
+
+    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+    const { data: existingList } = await db.from('core_personnel')
+        .select('id, first_name, last_name, prefix, department');
+    Swal.close();
+
+    const nameMap = {};
+    (existingList || []).forEach(p => {
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        const fullNameWithPrefix = `${p.prefix || ''}${p.first_name} ${p.last_name}`.toLowerCase();
+        nameMap[fullName] = p.id;
+        nameMap[fullNameWithPrefix] = p.id;
+        if (p.first_name && !p.last_name) {
+            nameMap[p.first_name.toLowerCase()] = p.id;
+        }
+    });
+
+    const matched = [],
+        unmatched = [];
+    payloads.forEach(p => {
+        const fullName = `${p.first_name} ${p.last_name}`.toLowerCase();
+        const id = nameMap[fullName] || nameMap[`${p.prefix}${p.first_name} ${p.last_name}`.toLowerCase()];
+        if (id) {
+            matched.push({ ...p, user_id: id });
+        } else {
+            unmatched.push(p);
+        }
+    });
+
+    const confirmRes = await Swal.fire({
+        title: `พบข้อมูล ${payloads.length} รายการ`,
+        html: `<div class="text-left text-sm space-y-2">
+            <div class="flex gap-3">
+                <div class="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                    <p class="text-2xl font-bold text-green-600">${matched.length}</p>
+                    <p class="text-xs text-green-700 font-bold">จับคู่ชื่อพบ → อัปเดต</p>
+                </div>
+                <div class="flex-1 bg-amber-50 border border-amber-200 rounded-xl p-3 text-center">
+                    <p class="text-2xl font-bold text-amber-600">${unmatched.length}</p>
+                    <p class="text-xs text-amber-700 font-bold">ไม่พบในระบบ → ข้ามไป</p>
+                </div>
+            </div>
+            ${unmatched.length > 0 ? `<p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg">⚠️ ไม่พบ: ${unmatched.slice(0, 5).map(p => `${p.prefix || ''}${p.first_name} ${p.last_name}`).join(', ')}${unmatched.length > 5 ? ` ...+${unmatched.length - 5}` : ''}</p>` : ''}
+            ${matched.length > 0 ? `<p class="text-xs text-slate-400">ตัวอย่าง: <b>${matched[0].prefix || ''}${matched[0].first_name} ${matched[0].last_name}</b> | ${matched[0].title || '-'} | ${matched[0].entry_date || '(ไม่มีวันที่)'}</p>` : ''}
+        </div>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#6366f1',
+        confirmButtonText: matched.length > 0 ? `นำเข้า ${matched.length} รายการ` : 'ไม่มีรายการที่จะนำเข้า',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!confirmRes.isConfirmed || matched.length === 0) return;
+
+    Swal.fire({ title: 'กำลังตรวจสอบข้อมูลซ้ำ...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+    const importUserIds = [...new Set(matched.map(m => m.user_id))];
+    const { data: existingRows } = await db
+        .from('portfolio_entries')
+        .select('user_id, academic_year, semester, title, document_url')
+        .in('user_id', importUserIds);
+
+    const makeKey = (r) =>
+        `${r.academic_year}|${r.semester}|${r.user_id}|${String(r.title || '').trim()}|${String(r.document_url || '').trim()}`;
+    const existingKeys = new Set((existingRows || []).map(makeKey));
+
+    const toInsert = [],
+        toSkip = [];
+    matched.forEach(m => {
+        const key = makeKey({ ...m, document_url: m.document_url || '' });
+        if (existingKeys.has(key)) {
+            toSkip.push(m);
+        } else {
+            toInsert.push(m);
+        }
+    });
+
+    Swal.close();
+
+    if (toInsert.length === 0) {
+        return Swal.fire({
+            icon: 'info',
+            title: 'ข้อมูลซ้ำทั้งหมด',
+            html: `<p class="text-sm text-slate-600">พบข้อมูลซ้ำ <b>${toSkip.length} รายการ</b> — ทุกรายการมีอยู่ในระบบแล้ว ไม่มีการนำเข้า</p>
+                   <p class="text-xs text-slate-400 mt-1">ตรวจจาก: ปีการศึกษา + ภาคเรียน + ชื่อครู + รายการ + ไฟล์</p>`,
+            confirmButtonText: 'รับทราบ'
+        });
+    }
+
+    if (toSkip.length > 0) {
+        const dupRes = await Swal.fire({
+            icon: 'warning',
+            title: `พบข้อมูลซ้ำ ${toSkip.length} รายการ`,
+            html: `<div class="text-sm space-y-2">
+                <div class="flex gap-3">
+                    <div class="flex-1 bg-green-50 border border-green-200 rounded-xl p-3 text-center">
+                        <p class="text-2xl font-bold text-green-600">${toInsert.length}</p>
+                        <p class="text-xs text-green-700 font-bold">รายการใหม่ → เพิ่ม</p>
+                    </div>
+                    <div class="flex-1 bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                        <p class="text-2xl font-bold text-slate-400">${toSkip.length}</p>
+                        <p class="text-xs text-slate-500 font-bold">ซ้ำทุกฟิลด์ → ข้ามไป</p>
+                    </div>
+                </div>
+                <p class="text-xs text-slate-400">ตรวจจาก: ปีการศึกษา + ภาคเรียน + ชื่อครู + รายการ + ไฟล์</p>
+            </div>`,
+            showCancelButton: true,
+            confirmButtonColor: '#6366f1',
+            confirmButtonText: `เพิ่ม ${toInsert.length} รายการใหม่`,
+            cancelButtonText: 'ยกเลิก'
+        });
+        if (!dupRes.isConfirmed) return;
+    }
+
+    Swal.fire({ title: `กำลังนำเข้า ${toInsert.length} รายการ...`, allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+
+    const insertPayloads = toInsert.map(({ user_id, semester, academic_year, entry_type, title, organizer, entry_date, document_url }) => ({
+        user_id,
+        academic_year,
+        semester,
+        entry_type,
+        title: title || 'ไม่ระบุรายละเอียด',
+        organizer: organizer || '',
+        entry_date: entry_date || new Date().toISOString().split('T')[0],
+        hours: 0,
+        document_url: document_url || null
+    }));
+
+    let success = 0,
+        failed = 0,
+        errors = [];
+    const BATCH = 200;
+    for (let i = 0; i < insertPayloads.length; i += BATCH) {
+        Swal.update({ title: `กำลังนำเข้า ${Math.min(i + BATCH, insertPayloads.length)}/${insertPayloads.length}...` });
+        const { data: inserted, error } = await db
+            .from('portfolio_entries')
+            .insert(insertPayloads.slice(i, i + BATCH))
+            .select('id');
+        if (error) {
+            failed += insertPayloads.slice(i, i + BATCH).length;
+            errors.push(error.message);
+        } else {
+            success += inserted?.length || 0;
+        }
+    }
+
+    Swal.close();
+    await logUserAction(`นำเข้าข้อมูล Portfolio (เพิ่ม ${success}, ซ้ำข้าม ${toSkip.length}, ล้มเหลว ${failed})`, 'portfolio');
+
+    await Swal.fire({
+        icon: failed === 0 ? 'success' : 'warning',
+        title: 'ผลการนำเข้า',
+        html: `<div class="text-left text-sm space-y-1">
+            <p class="text-green-600 font-bold">✅ เพิ่มสำเร็จ: ${success} รายการ</p>
+            ${toSkip.length > 0 ? `<p class="text-slate-400">⏭️ ซ้ำ ข้ามไป: ${toSkip.length} รายการ</p>` : ''}
+            ${failed > 0 ? `<p class="text-red-500 font-bold">❌ ล้มเหลว: ${failed} รายการ</p>
+            <details><summary class="text-xs cursor-pointer text-slate-400">ดูรายละเอียด</summary>
+            <pre class="text-xs text-red-400 mt-1 max-h-24 overflow-y-auto">${errors.slice(0, 10).join('\n')}</pre></details>` : ''}
+            ${unmatched.length > 0 ? `<p class="text-amber-600 text-xs mt-2">⚠️ ไม่พบในระบบ: ${unmatched.length} รายการ</p>` : ''}
+        </div>`
+    });
+
+    await loadAllData();
+}
+
+function triggerImportExcel() {
+    if (!canManagePortfolioSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'error');
+        return;
+    }
+    const input = document.getElementById('hidden-import-file');
+    if (input) input.click();
+}
+
+function downloadImportTemplate() {
+    if (!canManagePortfolioSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'error');
+        return;
+    }
+
+    const headers = [
+        'ชื่อ - สกุล',
+        'กลุ่มสาระ',
+        'ภาคเรียนที่',
+        'ปีการศึกษา',
+        'ประเภท',
+        'รายการ',
+        'เมื่อวันที่',
+        'ถึงวันที่',
+        'จัดโดย',
+        'ไฟล์'
+    ];
+
+    const exampleRows = [
+        [
+            'นางสาวสมใจ รักเรียน',
+            'ภาษาไทย',
+            1,
+            2568,
+            'รางวัลที่ได้รับ',
+            'ครูดีเด่นระดับจังหวัด ประจำปี 2568',
+            new Date(2025, 6, 23),
+            new Date(2025, 6, 23),
+            'สพม.เขต 9',
+            ''
+        ],
+        [
+            'นายสมชาย ใจดี',
+            'คณิตศาสตร์',
+            1,
+            2568,
+            'อบรม,ประชุม,สัมมนา',
+            'การพัฒนาทักษะ AI สำหรับครูยุคใหม่',
+            new Date(2025, 8, 15),
+            new Date(2025, 8, 16),
+            'สพฐ.',
+            ''
+        ],
+        [
+            'นางมาลี สุขสันต์',
+            'วิทยาศาสตร์และเทคโนโลยี',
+            2,
+            2568,
+            'รางวัลที่ได้รับ',
+            'ชนะเลิศการแข่งขันสื่อนวัตกรรมการสอนระดับเขต',
+            new Date(2025, 11, 10),
+            new Date(2025, 11, 10),
+            'สพม.เขต 9',
+            'https://drive.google.com/...'
+        ]
+    ];
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
+
+    ['G2', 'G3', 'G4', 'H2', 'H3', 'H4'].forEach(cell => {
+        if (ws[cell]) ws[cell].z = 'dd/mm/yyyy';
+    });
+
+    ws['!cols'] = [
+        { wch: 28 }, { wch: 30 }, { wch: 12 }, { wch: 12 },
+        { wch: 22 }, { wch: 55 }, { wch: 14 }, { wch: 14 },
+        { wch: 30 }, { wch: 45 }
+    ];
+
+    const infoHeaders = ['คอลัมน์', 'คำอธิบาย', 'ตัวอย่าง / ค่าที่รับได้'];
+    const infoRows = [
+        ['ชื่อ - สกุล', 'ชื่อ-นามสกุลพร้อมคำนำหน้า (ต้องตรงกับข้อมูลในระบบ)', 'นางสาวสมใจ รักเรียน'],
+        ['กลุ่มสาระ', 'กลุ่มสาระการเรียนรู้', 'ภาษาไทย, คณิตศาสตร์, ...'],
+        ['ภาคเรียนที่', 'เลขภาคเรียน', '1 หรือ 2'],
+        ['ปีการศึกษา', 'ปีการศึกษา (พ.ศ.)', '2568'],
+        ['ประเภท', 'ประเภทของผลงาน', '"รางวัลที่ได้รับ" → ผลงาน / "อบรม" → การอบรม'],
+        ['รายการ', 'ชื่อผลงาน / ชื่อหลักสูตรอบรม', 'รางวัลครูดีเด่นระดับจังหวัด'],
+        ['เมื่อวันที่', 'วันที่เริ่มต้น', '23/07/2568 หรือ 2025-07-23'],
+        ['ถึงวันที่', 'วันที่สิ้นสุด (ไม่บังคับ)', '24/07/2568'],
+        ['จัดโดย', 'หน่วยงานที่จัด / มอบรางวัล', 'สพม.เขต 9, สพฐ.'],
+        ['ไฟล์', 'URL ไฟล์เอกสาร (ไม่บังคับ)', 'https://lh5.googleusercontent.com/d/...'],
+    ];
+    const wsInfo = XLSX.utils.aoa_to_sheet([infoHeaders, ...infoRows]);
+    wsInfo['!cols'] = [{ wch: 16 }, { wch: 45 }, { wch: 80 }];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Portfolio_Data');
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'คำอธิบายคอลัมน์');
+
+    XLSX.writeFile(wb, 'Portfolio_Import_Template.xlsx');
+
+    Swal.fire({
+        icon: 'success',
+        title: 'ดาวน์โหลด Template สำเร็จ',
+        html: `<div class="text-sm text-left space-y-1 text-slate-600">
+            <p>ไฟล์ <b>Portfolio_Import_Template.xlsx</b> มี 2 sheets:</p>
+            <p>📋 <b>Portfolio_Data</b> — กรอกข้อมูลตามตัวอย่าง</p>
+            <p>ℹ️ <b>คำอธิบายคอลัมน์</b> — อ่านก่อนกรอกข้อมูล</p>
+            <p class="text-amber-600 text-xs mt-2">⚠️ ห้ามเปลี่ยนชื่อ header แถวที่ 1</p>
+        </div>`,
+        confirmButtonText: 'รับทราบ',
+        timer: 4000
+    });
+}
+
+async function importFromExcel(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    if (!requireAdmin(currentRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
+        event.target.value = '';
+        return;
+    }
+
+    event.target.value = '';
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+        try {
+            const wb = XLSX.read(e.target.result, { type: 'array' });
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(ws, { defval: '', cellDates: true, raw: true });
+            if (!rows.length) return Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลในชีตแรก', 'warning');
+            const headers = Object.keys(rows[0]);
+            await processImportRows(rows, headers);
+        } catch (err) {
+            Swal.close();
+            Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        }
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function convertSheetToCsvUrl(url) {
+    const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+    if (!m) return null;
+    const sheetId = m[1];
+    const gidMatch = url.match(/gid=(\d+)/);
+    const gid = gidMatch ? gidMatch[1] : '0';
+    return `https://docs.google.com/spreadsheets/d/${sheetId}/export?format=csv&gid=${gid}`;
+}
+
+function parseCsv(text) {
+    const rows = [];
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+        if (!line.trim()) continue;
+        const cols = [];
+        let cur = '',
+            inQ = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') {
+                if (inQ && line[i + 1] === '"') {
+                    cur += '"';
+                    i++;
+                } else { inQ = !inQ; }
+            } else if (ch === ',' && !inQ) {
+                cols.push(cur);
+                cur = '';
+            } else {
+                cur += ch;
+            }
+        }
+        cols.push(cur);
+        rows.push(cols);
+    }
+    return rows;
+}
+
+async function importFromGoogleSheets() {
+    if (!requireAdmin(currentRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
+        return;
+    }
+
+    const { value: sheetUrl } = await Swal.fire({
+        title: '<i class="fab fa-google-drive text-green-600 mr-2"></i>นำเข้าจาก Google Sheets',
+        html: `<div class="text-left text-sm space-y-3">
+            <p class="text-slate-600">วาง URL ของ Google Sheets ที่ต้องการนำเข้า</p>
+            <input id="swal-sheet-url" type="text"
+                placeholder="https://docs.google.com/spreadsheets/d/..."
+                class="w-full border border-slate-300 rounded-xl px-4 py-3 outline-none focus:border-green-500 text-sm">
+            <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-700 space-y-1">
+                <p class="font-bold">⚠️ ข้อกำหนด:</p>
+                <p>1. ต้องตั้งค่าการแชร์ชีตเป็น <b>"ทุกคนที่มีลิงก์"</b></p>
+                <p>2. ใช้โครงสร้างตามไฟล์ต้นแบบ</p>
+                <p>3. ชีตแรกเท่านั้นที่จะถูกนำเข้า</p>
+            </div>
+            <p class="text-[10px] text-slate-400">วันที่ใน Google Sheets จะถูกอ่านเป็น Text ตรงๆ</p>
+        </div>`,
+        showCancelButton: true,
+        confirmButtonText: 'นำเข้าข้อมูล',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#16a34a',
+        focusConfirm: false,
+        preConfirm: () => {
+            const v = document.getElementById('swal-sheet-url').value.trim();
+            if (!v) Swal.showValidationMessage('กรุณาวาง URL ของ Google Sheets');
+            return v;
+        }
+    });
+
+    if (!sheetUrl) return;
+
+    const csvUrl = convertSheetToCsvUrl(sheetUrl);
+    if (!csvUrl) {
+        return Swal.fire('URL ไม่ถูกต้อง',
+            'กรุณาใช้ URL จาก Google Sheets เช่น https://docs.google.com/spreadsheets/d/...',
+            'error');
+    }
+
+    Swal.fire({
+        title: 'กำลังดึงข้อมูลจาก Google Sheets...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const res = await fetch(csvUrl);
+        if (!res.ok) throw new Error(`HTTP ${res.status} — ตรวจสอบว่าได้แชร์ชีตเป็นสาธารณะแล้ว`);
+        const csvText = await res.text();
+        Swal.close();
+
+        const rows = parseCsv(csvText);
+        if (rows.length < 2) return Swal.fire('ไม่พบข้อมูล', 'ไม่พบแถวข้อมูลในชีต', 'warning');
+
+        const headers = rows[0];
+        const dataRows = rows.slice(1).filter(r => r.some(v => v.trim()));
+
+        const objRows = dataRows.map(row => {
+            const obj = {};
+            headers.forEach((h, i) => { obj[h] = row[i] || ''; });
+            return obj;
+        });
+
+        await processImportRows(objRows, headers);
+
+    } catch (err) {
+        Swal.close();
+        if (err.message === 'Failed to fetch') {
+            Swal.fire({
+                title: 'เข้าถึงไฟล์ไม่ได้!',
+                html: 'ระบบถูกบล็อกการดึงข้อมูล กรุณาตรวจสอบว่าไฟล์ Google Sheets ได้เปิดสิทธิ์การแชร์เป็น <br><b class="text-green-600">"ทุกคนที่มีลิงก์ (Anyone with the link)"</b> หรือยัง?',
+                icon: 'error'
+            });
+        } else {
+            Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        }
+    }
+}
+
+// ==========================================
+// 11. Settings & Module Admin Management
+// ==========================================
+
 async function ensureModuleExists() {
     try {
         const { data, error } = await db
@@ -908,30 +1806,23 @@ async function openSettingsModal() {
     Swal.fire({ title: 'กำลังโหลด...', didOpen: () => Swal.showLoading() });
 
     try {
-        // ตรวจสอบและสร้างโมดูลถ้ายังไม่มี (ป้องกัน foreign key)
         await ensureModuleExists();
 
-        // ✅ ใช้ getPortfolioSettings() ที่มีการจัดการ error
         const settings = await getPortfolioSettings();
         if (settings) {
             document.getElementById('set_gas_url').value = settings.gas_api_url || '';
             document.getElementById('set_folder_id').value = settings.drive_folder_id || '';
         } else {
-            // กรณียังไม่มีข้อมูล ให้เว้นว่าง
             document.getElementById('set_gas_url').value = '';
             document.getElementById('set_folder_id').value = '';
         }
 
-        // โหลดรายชื่อบุคลากรทั้งหมดสำหรับ dropdown
         const { data: personnelList } = await db
             .from('core_personnel')
             .select('id, first_name, last_name, prefix')
             .order('first_name');
 
-        // โหลดรายชื่อแอดมินโมดูลปัจจุบัน
         await loadModuleAdmins();
-
-        // ตั้งค่า TomSelect
         await initTomSelect(personnelList || []);
 
         Swal.close();
@@ -942,9 +1833,6 @@ async function openSettingsModal() {
     }
 }
 
-/**
- * โหลดรายชื่อแอดมินโมดูล (ปรับปรุงให้ใช้ query แยก)
- */
 async function loadModuleAdmins() {
     try {
         const { data: adminData, error: adminError } = await db
@@ -957,11 +1845,7 @@ async function loadModuleAdmins() {
 
         if (adminError) {
             console.error('loadModuleAdmins error:', adminError);
-            if (adminError.code === '42501') {
-                listEl.innerHTML = '<div class="text-sm text-red-500 text-center py-4">ไม่มีสิทธิ์เข้าถึงข้อมูลแอดมินโมดูล</div>';
-            } else {
-                listEl.innerHTML = `<div class="text-sm text-red-500 text-center py-4">เกิดข้อผิดพลาด: ${adminError.message}</div>`;
-            }
+            listEl.innerHTML = `<div class="text-sm text-red-500 text-center py-4">เกิดข้อผิดพลาด: ${adminError.message}</div>`;
             return;
         }
 
@@ -977,7 +1861,6 @@ async function loadModuleAdmins() {
             .in('id', userIds);
 
         if (personnelError) {
-            console.error('Error loading personnel:', personnelError);
             listEl.innerHTML = '<div class="text-sm text-red-500 text-center py-4">เกิดข้อผิดพลาดในการโหลดข้อมูลบุคลากร</div>';
             return;
         }
@@ -1009,11 +1892,7 @@ async function loadModuleAdmins() {
     }
 }
 
-/**
- * รีเฟรชรายการแอดมินโมดูล (ใช้หลังเพิ่ม/ลบ)
- */
 async function refreshModuleAdmins() {
-    // รอให้ database commit ก่อนโหลดใหม่
     await new Promise(resolve => setTimeout(resolve, 300));
     await loadModuleAdmins();
 }
@@ -1022,18 +1901,15 @@ async function initTomSelect(personnelList) {
     const selectEl = document.getElementById('sel-module-admin');
     if (!selectEl) return;
 
-    // ทำลาย instance เดิมถ้ามี
     if (tomSelectInstance) {
         tomSelectInstance.destroy();
         tomSelectInstance = null;
     }
 
-    // ตรวจสอบว่าไม่ได้ถูกใช้แล้ว
     if (selectEl.tomselect) {
         selectEl.tomselect.destroy();
     }
 
-    // สร้าง options
     const options = personnelList.map(p => ({
         value: p.id,
         text: `${p.prefix || ''}${p.first_name} ${p.last_name}`
@@ -1056,9 +1932,6 @@ async function initTomSelect(personnelList) {
     });
 }
 
-/**
- * เพิ่มแอดมินโมดูล (ตรวจสอบ duplicate ก่อน insert)
- */
 async function addModuleAdmin() {
     if (!tomSelectInstance) {
         Swal.fire('เกิดข้อผิดพลาด', 'กรุณาลองเปิดหน้าใหม่อีกครั้ง', 'error');
@@ -1072,7 +1945,6 @@ async function addModuleAdmin() {
     }
 
     try {
-        // ตรวจสอบว่ามีคู่นี้อยู่แล้วหรือไม่ (ป้องกัน duplicate key)
         const { data: existing, error: checkError } = await db
             .from('core_module_admins')
             .select('id')
@@ -1087,7 +1959,6 @@ async function addModuleAdmin() {
             return;
         }
 
-        // ตรวจสอบและสร้างโมดูลถ้ายังไม่มี (ป้องกัน foreign key)
         await ensureModuleExists();
 
         const { error } = await db.from('core_module_admins').insert({
@@ -1096,7 +1967,6 @@ async function addModuleAdmin() {
         });
 
         if (error) {
-            // ถ้า error เป็น duplicate key อีกครั้ง (ป้องกัน race condition)
             if (error.code === '23505') {
                 Swal.fire('มีอยู่แล้ว', 'บุคลากรนี้เป็นแอดมินโมดูลอยู่แล้ว', 'info');
                 return;
@@ -1105,8 +1975,6 @@ async function addModuleAdmin() {
         }
 
         await logUserAction(`เพิ่มแอดมินโมดูล Portfolio: ${userId}`, 'portfolio');
-
-        // ✅ รีเฟรชรายการ
         await refreshModuleAdmins();
 
         if (tomSelectInstance) {
@@ -1119,12 +1987,6 @@ async function addModuleAdmin() {
     }
 }
 
-/**
- * ลบแอดมินโมดูล (แก้ไขให้ทำงานได้จริง)
- */
-/**
- * ลบแอดมินโมดูล — ใช้ service-role RPC ถ้า regular delete ถูก RLS บล็อก
- */
 async function removeModuleAdmin(userId) {
     if (!userId) {
         Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลบุคลากร', 'error');
@@ -1143,12 +2005,7 @@ async function removeModuleAdmin(userId) {
 
     if (!isConfirmed) return;
 
-    Swal.fire({ title: 'กำลังดำเนินการ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
     try {
-        console.log('กำลังลบแอดมิน:', userId, 'โมดูล:', MODULE_KEY);
-
-        // วิธีที่ 1: ลบตรงผ่าน Supabase client (ต้องการ RLS policy ที่อนุญาต)
         const { data, error } = await db
             .from('core_module_admins')
             .delete()
@@ -1156,47 +2013,11 @@ async function removeModuleAdmin(userId) {
             .eq('user_id', userId)
             .select();
 
-        console.log('ผลลัพธ์การลบ:', data, error);
-
         if (error) {
-            console.error('Delete error:', error);
-
-            // วิธีที่ 2: ถ้า RLS บล็อก (42501) — ลอง RPC function ที่มี SECURITY DEFINER
             if (error.code === '42501') {
-                const { error: rpcError } = await db.rpc('delete_module_admin', {
-                    p_module_id: MODULE_KEY,
-                    p_user_id: userId
-                });
-                if (rpcError) {
-                    // แจ้ง super_admin ให้เพิ่ม RLS policy หรือ RPC function
-                    throw new Error(
-                        'ไม่มีสิทธิ์ลบผ่าน RLS โดยตรง\n\n' +
-                        'กรุณาเพิ่ม Supabase Policy:\n' +
-                        '"DELETE on core_module_admins FOR super_admin"\n' +
-                        'หรือสร้าง RPC function delete_module_admin()'
-                    );
-                }
-            } else if (error.code === '42P01') {
-                throw new Error('ไม่พบตาราง core_module_admins กรุณาติดต่อผู้ดูแลระบบ');
-            } else {
-                throw error;
+                throw new Error('ไม่มีสิทธิ์ลบแอดมินโมดูล กรุณาติดต่อผู้ดูแลระบบ');
             }
-        }
-
-        // ถ้า delete สำเร็จแต่ไม่มีแถวที่ถูกลบ — อาจ RLS silently block
-        if (data && data.length === 0) {
-            console.warn('RLS อาจบล็อก: ไม่มีแถวที่ถูกลบ — ตรวจสอบ Supabase RLS policy');
-            Swal.fire({
-                icon: 'warning',
-                title: 'ลบไม่สำเร็จ',
-                html: 'ระบบส่งคำสั่งลบแล้ว แต่ไม่มีข้อมูลถูกลบ<br>' +
-                    '<small class="text-gray-500">กรณีนี้มักเกิดจาก RLS Policy ใน Supabase<br>' +
-                    'กรุณาเพิ่ม Policy: <code>DELETE for super_admin/admin</code><br>' +
-                    'บนตาราง <code>core_module_admins</code></small>',
-                confirmButtonText: 'รับทราบ'
-            });
-            await refreshModuleAdmins();
-            return;
+            throw error;
         }
 
         await logUserAction(`ถอดถอนแอดมินโมดูล Portfolio: ${userId}`, 'portfolio');
@@ -1217,9 +2038,6 @@ function closeSettingsModal() {
     }
 }
 
-/**
- * บันทึกการตั้งค่าระบบ (ใช้ upsert และจัดการ error)
- */
 async function saveSettings(e) {
     e.preventDefault();
     if (!canManagePortfolioSettings()) {
@@ -1234,7 +2052,6 @@ async function saveSettings(e) {
     };
 
     try {
-        // ✅ ไม่ต้องส่ง updated_at ด้วย database จะจัดการผ่าน trigger
         const { error } = await db
             .from('portfolio_settings')
             .upsert({
@@ -1253,371 +2070,7 @@ async function saveSettings(e) {
 }
 
 // ==========================================
-// 11. นำเข้าข้อมูลจาก Excel (Super Admin เท่านั้น)
-// ==========================================
-
-/**
- * Inject Import Modal เข้า DOM ถ้ายังไม่มี
- */
-function ensureImportModalExists() {
-    if (document.getElementById('importModal')) return;
-
-    const modal = document.createElement('div');
-    modal.id = 'importModal';
-    modal.className = 'fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm p-4';
-    modal.innerHTML = `
-        <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden">
-            <div class="px-6 py-4 border-b border-gray-100 bg-blue-700 flex justify-between items-center">
-                <h3 class="text-lg font-bold text-white"><i class="fa-solid fa-file-import mr-2"></i>นำเข้าข้อมูลจาก Excel</h3>
-                <button onclick="closeImportModal()" class="text-blue-200 hover:text-white"><i class="fa-solid fa-xmark text-xl"></i></button>
-            </div>
-            <div class="p-6 space-y-5">
-
-                <!-- ดาวน์โหลด Template -->
-                <div class="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                    <p class="text-sm font-bold text-blue-800 mb-2"><i class="fa-solid fa-circle-info mr-1"></i> วิธีใช้งาน</p>
-                    <ol class="text-xs text-blue-700 space-y-1 list-decimal list-inside">
-                        <li>ดาวน์โหลดไฟล์ Template Excel ด้านล่าง</li>
-                        <li>กรอกข้อมูลตามรูปแบบที่กำหนด (ห้ามเปลี่ยนหัวคอลัมน์)</li>
-                        <li>คอลัมน์ <strong>entry_type</strong>: ใส่ <code>work</code> หรือ <code>training</code></li>
-                        <li>คอลัมน์ <strong>entry_date</strong>: รูปแบบ <code>YYYY-MM-DD</code> เช่น 2025-11-01</li>
-                        <li>คอลัมน์ <strong>user_id</strong>: UUID ของบุคลากรจาก Supabase Auth</li>
-                        <li>อัปโหลดไฟล์และกด "นำเข้าข้อมูล"</li>
-                    </ol>
-                    <button onclick="downloadImportTemplate()" class="mt-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition-colors">
-                        <i class="fa-solid fa-download mr-1"></i> ดาวน์โหลด Template
-                    </button>
-                </div>
-
-                <!-- อัปโหลดไฟล์ -->
-                <div>
-                    <label class="block text-sm font-bold text-gray-700 mb-2">เลือกไฟล์ Excel (.xlsx)</label>
-                    <input type="file" id="import_file" accept=".xlsx,.xls"
-                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all cursor-pointer border border-gray-300 rounded-lg p-1"
-                        onchange="previewImportData()">
-                </div>
-
-                <!-- Preview ข้อมูล -->
-                <div id="importPreviewArea" class="hidden">
-                    <div class="flex items-center justify-between mb-2">
-                        <p class="text-sm font-bold text-gray-700">ตัวอย่างข้อมูลที่จะนำเข้า (<span id="importRowCount">0</span> แถว)</p>
-                        <span id="importStatusBadge" class="text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700"></span>
-                    </div>
-                    <div class="overflow-x-auto max-h-64 border border-gray-200 rounded-lg">
-                        <table class="w-full text-xs text-left">
-                            <thead class="bg-gray-100 sticky top-0">
-                                <tr>
-                                    <th class="px-3 py-2 font-bold text-gray-600">#</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">ประเภท</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">ปีการศึกษา</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">ภาคเรียน</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">ชื่อผลงาน/หลักสูตร</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">หน่วยงาน</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">วันที่</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">ชั่วโมง</th>
-                                    <th class="px-3 py-2 font-bold text-gray-600">สถานะ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="importPreviewBody" class="divide-y divide-gray-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Error Summary -->
-                <div id="importErrorArea" class="hidden bg-red-50 border border-red-200 rounded-xl p-4">
-                    <p class="text-sm font-bold text-red-700 mb-2"><i class="fa-solid fa-triangle-exclamation mr-1"></i> พบข้อผิดพลาด</p>
-                    <ul id="importErrorList" class="text-xs text-red-600 space-y-1 list-disc list-inside"></ul>
-                </div>
-
-                <div class="flex justify-end gap-3 pt-2 border-t border-gray-100">
-                    <button onclick="closeImportModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
-                    <button id="btn-do-import" onclick="processImport()" disabled
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-xl font-bold shadow-md transition-colors">
-                        <i class="fa-solid fa-file-import mr-1"></i> นำเข้าข้อมูล
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-}
-
-let importRows = []; // เก็บข้อมูลที่อ่านจาก Excel ไว้ใช้ตอน processImport
-
-function openImportModal() {
-    if (!canManagePortfolioSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถนำเข้าข้อมูลได้', 'error');
-        return;
-    }
-    ensureImportModalExists();
-    importRows = [];
-    // Reset UI
-    const fileInput = document.getElementById('import_file');
-    if (fileInput) fileInput.value = '';
-    const previewArea = document.getElementById('importPreviewArea');
-    if (previewArea) previewArea.classList.add('hidden');
-    const errorArea = document.getElementById('importErrorArea');
-    if (errorArea) errorArea.classList.add('hidden');
-    const importBtn = document.getElementById('btn-do-import');
-    if (importBtn) importBtn.disabled = true;
-
-    document.getElementById('importModal').classList.remove('hidden');
-}
-
-function closeImportModal() {
-    const modal = document.getElementById('importModal');
-    if (modal) modal.classList.add('hidden');
-    importRows = [];
-}
-
-/**
- * ดาวน์โหลด Template Excel สำหรับนำเข้าข้อมูล
- */
-function downloadImportTemplate() {
-    const headers = ['user_id', 'entry_type', 'academic_year', 'semester', 'title', 'organizer', 'entry_date', 'hours'];
-    const exampleRows = [
-        ['xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', 'work', '2568', '1', 'รางวัลครูดีเด่น', 'สพม.เขต 9', '2025-11-01', '0'],
-        ['xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx', 'training', '2568', '1', 'การอบรม AI สำหรับครู', 'สพฐ.', '2025-10-15', '6'],
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
-
-    // ตั้งความกว้างคอลัมน์
-    ws['!cols'] = [
-        { wch: 40 }, { wch: 12 }, { wch: 12 }, { wch: 10 },
-        { wch: 40 }, { wch: 30 }, { wch: 14 }, { wch: 8 }
-    ];
-
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Portfolio_Import');
-    XLSX.writeFile(wb, 'Portfolio_Import_Template.xlsx');
-}
-
-/**
- * อ่าน Excel และแสดง Preview ก่อนนำเข้า
- */
-function previewImportData() {
-    const fileInput = document.getElementById('import_file');
-    const previewArea = document.getElementById('importPreviewArea');
-    const errorArea = document.getElementById('importErrorArea');
-    const importBtn = document.getElementById('btn-do-import');
-
-    // Reset
-    importRows = [];
-    if (previewArea) previewArea.classList.add('hidden');
-    if (errorArea) errorArea.classList.add('hidden');
-    if (importBtn) importBtn.disabled = true;
-
-    if (!fileInput || !fileInput.files.length) return;
-
-    const file = fileInput.files[0];
-    const reader = new FileReader();
-
-    reader.onload = (e) => {
-        try {
-            const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const rows = XLSX.utils.sheet_to_json(sheet, { defval: '' });
-
-            if (!rows.length) {
-                Swal.fire('ไฟล์ว่างเปล่า', 'ไม่พบข้อมูลในไฟล์ Excel', 'warning');
-                return;
-            }
-
-            const errors = [];
-            const validRows = [];
-
-            // Required columns
-            const requiredCols = ['user_id', 'entry_type', 'academic_year', 'semester', 'title', 'entry_date'];
-
-            rows.forEach((row, idx) => {
-                const rowNum = idx + 2; // +2 เพราะ row 1 คือ header
-                const rowErrors = [];
-
-                // ตรวจสอบ required fields
-                requiredCols.forEach(col => {
-                    if (!row[col] || String(row[col]).trim() === '') {
-                        rowErrors.push(`แถว ${rowNum}: คอลัมน์ "${col}" ต้องไม่ว่าง`);
-                    }
-                });
-
-                // ตรวจสอบ entry_type
-                if (row.entry_type && !['work', 'training'].includes(String(row.entry_type).trim())) {
-                    rowErrors.push(`แถว ${rowNum}: entry_type ต้องเป็น "work" หรือ "training" เท่านั้น`);
-                }
-
-                // ตรวจสอบ entry_date (YYYY-MM-DD)
-                if (row.entry_date) {
-                    const dateStr = String(row.entry_date).trim();
-                    // handle Excel numeric date
-                    let parsedDate;
-                    if (/^\d{5}$/.test(dateStr)) {
-                        // Excel serial date
-                        parsedDate = XLSX.SSF.parse_date_code(Number(dateStr));
-                        row.entry_date = `${parsedDate.y}-${String(parsedDate.m).padStart(2, '0')}-${String(parsedDate.d).padStart(2, '0')}`;
-                    } else if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                        rowErrors.push(`แถว ${rowNum}: entry_date ต้องเป็นรูปแบบ YYYY-MM-DD`);
-                    }
-                }
-
-                if (rowErrors.length > 0) {
-                    errors.push(...rowErrors);
-                } else {
-                    validRows.push({
-                        user_id: String(row.user_id).trim(),
-                        entry_type: String(row.entry_type).trim(),
-                        academic_year: String(row.academic_year).trim(),
-                        semester: String(row.semester).trim(),
-                        title: String(row.title).trim(),
-                        organizer: String(row.organizer || '').trim(),
-                        entry_date: String(row.entry_date).trim(),
-                        hours: Number(row.hours) || 0,
-                        document_url: null
-                    });
-                }
-            });
-
-            // แสดง Error
-            if (errors.length > 0) {
-                const errorList = document.getElementById('importErrorList');
-                if (errorList) {
-                    errorList.innerHTML = errors.slice(0, 20).map(e => `<li>${e}</li>`).join('');
-                    if (errors.length > 20) {
-                        errorList.innerHTML += `<li>...และอีก ${errors.length - 20} รายการ</li>`;
-                    }
-                }
-                if (errorArea) errorArea.classList.remove('hidden');
-            }
-
-            // แสดง Preview
-            if (validRows.length > 0) {
-                importRows = validRows;
-
-                const previewBody = document.getElementById('importPreviewBody');
-                const rowCount = document.getElementById('importRowCount');
-                const statusBadge = document.getElementById('importStatusBadge');
-
-                if (rowCount) rowCount.textContent = validRows.length;
-                if (statusBadge) {
-                    statusBadge.textContent = errors.length > 0
-                        ? `${errors.length} รายการมีข้อผิดพลาด (ไม่นำเข้า)`
-                        : 'ข้อมูลถูกต้องทั้งหมด';
-                    statusBadge.className = errors.length > 0
-                        ? 'text-xs font-bold px-2 py-1 rounded-full bg-yellow-100 text-yellow-700'
-                        : 'text-xs font-bold px-2 py-1 rounded-full bg-green-100 text-green-700';
-                }
-
-                if (previewBody) {
-                    previewBody.innerHTML = validRows.map((r, i) => `
-                        <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}">
-                            <td class="px-3 py-1.5 text-gray-500">${i + 1}</td>
-                            <td class="px-3 py-1.5">
-                                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${r.entry_type === 'work' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'}">
-                                    ${r.entry_type === 'work' ? 'ผลงาน/รางวัล' : 'การอบรม'}
-                                </span>
-                            </td>
-                            <td class="px-3 py-1.5">${r.academic_year}</td>
-                            <td class="px-3 py-1.5">${r.semester}</td>
-                            <td class="px-3 py-1.5 max-w-[180px] truncate" title="${r.title}">${r.title}</td>
-                            <td class="px-3 py-1.5 max-w-[120px] truncate" title="${r.organizer}">${r.organizer || '-'}</td>
-                            <td class="px-3 py-1.5">${r.entry_date}</td>
-                            <td class="px-3 py-1.5 text-center">${r.hours}</td>
-                            <td class="px-3 py-1.5"><span class="text-green-600 font-bold text-[10px]">✓ พร้อม</span></td>
-                        </tr>
-                    `).join('');
-                }
-
-                if (previewArea) previewArea.classList.remove('hidden');
-                if (importBtn) importBtn.disabled = false;
-            } else {
-                Swal.fire('ไม่มีข้อมูลที่ถูกต้อง', 'กรุณาตรวจสอบข้อผิดพลาดด้านล่างและแก้ไขไฟล์', 'warning');
-            }
-
-        } catch (err) {
-            console.error('previewImportData error:', err);
-            Swal.fire('อ่านไฟล์ล้มเหลว', 'ไฟล์อาจเสียหายหรือรูปแบบไม่ถูกต้อง: ' + err.message, 'error');
-        }
-    };
-
-    reader.readAsArrayBuffer(file);
-}
-
-/**
- * นำเข้าข้อมูลจาก importRows เข้า Supabase
- */
-async function processImport() {
-    if (!canManagePortfolioSettings()) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'error');
-        return;
-    }
-
-    if (!importRows.length) {
-        Swal.fire('ไม่มีข้อมูล', 'กรุณาเลือกไฟล์และตรวจสอบข้อมูลก่อน', 'warning');
-        return;
-    }
-
-    const { isConfirmed } = await Swal.fire({
-        title: `ยืนยันการนำเข้า ${importRows.length} แถว?`,
-        html: 'ข้อมูลจะถูกเพิ่มเข้าระบบทันที<br><small class="text-gray-500">ข้อมูลที่มีอยู่แล้วจะไม่ถูกลบ</small>',
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonColor: '#2563eb',
-        confirmButtonText: 'นำเข้าข้อมูล',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (!isConfirmed) return;
-
-    Swal.fire({ title: `กำลังนำเข้า ${importRows.length} รายการ...`, allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-
-    try {
-        // Insert เป็น batch สูงสุด 500 แถวต่อครั้ง เพื่อหลีกเลี่ยง payload limit
-        const BATCH_SIZE = 500;
-        let totalInserted = 0;
-        const insertErrors = [];
-
-        for (let i = 0; i < importRows.length; i += BATCH_SIZE) {
-            const batch = importRows.slice(i, i + BATCH_SIZE);
-            const { data, error } = await db
-                .from('portfolio_entries')
-                .insert(batch)
-                .select('id');
-
-            if (error) {
-                insertErrors.push(`Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${error.message}`);
-            } else {
-                totalInserted += data?.length || 0;
-            }
-        }
-
-        await logUserAction(`นำเข้าข้อมูล Portfolio ${totalInserted} รายการ`, 'portfolio');
-
-        closeImportModal();
-        await loadInitialData();
-
-        if (insertErrors.length > 0) {
-            Swal.fire({
-                icon: 'warning',
-                title: `นำเข้าสำเร็จ ${totalInserted} รายการ`,
-                html: `มีข้อผิดพลาด ${insertErrors.length} batch:<br><small>${insertErrors.join('<br>')}</small>`
-            });
-        } else {
-            Swal.fire({
-                icon: 'success',
-                title: `นำเข้าสำเร็จ ${totalInserted} รายการ`,
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }
-
-    } catch (err) {
-        console.error('processImport error:', err);
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-// ==========================================
-// 12. ประกาศฟังก์ชัน Global
+// 12. ประกาศฟังก์ชัน Global (ที่ใช้ใน HTML)
 // ==========================================
 
 window.logout = logout;
@@ -1631,11 +2084,6 @@ window.deleteEntry = deleteEntry;
 window.openExportModal = openExportModal;
 window.closeExportModal = closeExportModal;
 window.processExport = processExport;
-window.openImportModal = openImportModal;
-window.closeImportModal = closeImportModal;
-window.downloadImportTemplate = downloadImportTemplate;
-window.previewImportData = previewImportData;
-window.processImport = processImport;
 window.openSettingsModal = openSettingsModal;
 window.closeSettingsModal = closeSettingsModal;
 window.saveSettings = saveSettings;
@@ -1647,3 +2095,14 @@ window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.loadModuleAdmins = loadModuleAdmins;
 window.refreshModuleAdmins = refreshModuleAdmins;
+window.openEditEntryModal = openEditEntryModal;
+window.copyCurrentFileLink = copyCurrentFileLink;
+window.populateFilterOptions = function () { };
+window.importFromExcel = importFromExcel;
+window.triggerImportExcel = triggerImportExcel;
+window.downloadImportTemplate = downloadImportTemplate;
+window.importFromGoogleSheets = importFromGoogleSheets;
+window.processImportRows = processImportRows;
+window.convertSheetToCsvUrl = convertSheetToCsvUrl;
+window.parseCsv = parseCsv;
+window.loadAllData = loadAllData;
