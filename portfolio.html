@@ -366,13 +366,31 @@
                 </div>
 
                 <div class="md:col-span-2 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <label class="block text-sm font-bold text-blue-800 mb-2"><i
-                            class="fa-solid fa-file-arrow-up mr-1"></i> อัปโหลดเอกสารอ้างอิง/เกียรติบัตร (PDF หรือ
-                        รูปภาพ)</label>
+                    <label class="block text-sm font-bold text-blue-800 mb-2">
+                        <i class="fa-solid fa-file-arrow-up mr-1"></i> อัปโหลดเอกสารอ้างอิง/เกียรติบัตร (PDF หรือ
+                        รูปภาพ)
+                    </label>
                     <input type="file" id="f_file" accept=".pdf, image/png, image/jpeg"
-                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all cursor-pointer">
+                        class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 transition-all cursor-pointer"
+                        onchange="previewFile(this)">
+
+                    <!-- ✅ Preview Container -->
+                    <div id="file-preview-container" class="mt-3 hidden">
+                        <p class="text-sm font-medium text-gray-700 mb-1">📎 ไฟล์ที่เลือก:</p>
+                        <div class="flex items-center gap-3">
+                            <img id="file-preview"
+                                class="max-w-[200px] max-h-[150px] rounded-lg border border-gray-300 object-contain hidden">
+                            <span id="file-name-display" class="text-sm text-gray-600"></span>
+                        </div>
+                        <button type="button" onclick="removeFile()"
+                            class="text-xs text-red-500 hover:text-red-700 mt-1">
+                            <i class="fa-solid fa-times"></i> ลบไฟล์
+                        </button>
+                    </div>
+
                     <p class="text-[11px] text-gray-500 mt-2">* ระบบจะบันทึกไปที่ Google Drive อัตโนมัติ (ขนาดไม่เกิน
                         5MB)</p>
+
                     <div id="uploadProgress" class="hidden mt-2">
                         <div class="w-full bg-gray-200 rounded-full h-2">
                             <div id="progressBar" class="bg-blue-600 h-2 rounded-full transition-all" style="width:0%">
@@ -380,7 +398,7 @@
                         </div>
                     </div>
 
-                    <!-- ✅ เพิ่มส่วนแสดงลิงก์ไฟล์ปัจจุบัน (สำหรับโหมดแก้ไข) -->
+                    <!-- ✅ แสดงลิงก์ไฟล์ปัจจุบัน (เฉพาะกรณีแก้ไข) -->
                     <div class="mt-3 pt-3 border-t border-blue-200" id="current-file-link-container"
                         style="display:none;">
                         <label class="block text-sm font-bold text-gray-700 mb-1">📎 ลิงก์ไฟล์ปัจจุบัน</label>
