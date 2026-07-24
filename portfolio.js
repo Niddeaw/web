@@ -22,6 +22,8 @@ let dtInstance = null;
 let dtInstanceType = null;
 let currentTableData = [];
 
+// เพิ่มตัวแปร global สำหรับเก็บข้อมูลทั้งหมด (Dashboard)
+let globalEntries = [];
 // ==========================================
 // 1. ระบบรักษาความปลอดภัย & ตั้งค่าเริ่มต้น
 // ==========================================
@@ -257,6 +259,10 @@ function renderSidebar() {
  * switchTab — เปลี่ยนหน้า และโหลดข้อมูลตาม tab
  * แก้ไข: เมื่อไป Dashboard ให้โหลดข้อมูลทั้งหมดใหม่ (ไม่กรอง entry_type)
  */
+// ==========================================
+// แก้ไข switchTab — Dashboard ใช้ loadDashboardData เสมอ
+// ==========================================
+
 function switchTab(tab) {
     currentTab = tab;
 
@@ -278,28 +284,31 @@ function switchTab(tab) {
     if (datatableSection) datatableSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
+        // ✅ แสดง Dashboard
         if (dashboardSection) dashboardSection.classList.remove('hidden');
         document.getElementById('pageTitle').innerText = 'ภาพรวมผลงาน (Dashboard)';
         const chartsArea = document.getElementById('adminChartsArea');
         if (chartsArea) chartsArea.classList.remove('hidden');
 
-        // โหลดข้อมูลทั้งหมดและอัปเดต Dashboard
-        (async () => {
+        // ✅ โหลดข้อมูลทั้งหมด (ไม่กรอง) สำหรับ Dashboard เสมอ
+        // ใช้ setTimeout เพื่อไม่ให้ค้าง UI
+        setTimeout(async () => {
             try {
-                await loadAllData();
-                updateDashboardStats();
-                renderAdminCharts();
+                await loadDashboardData();
             } catch (err) {
                 console.error('❌ Dashboard load error:', err);
             }
-        })();
+        }, 50);
+
     } else {
+        // Tab: work หรือ training
         currentEntryType = tab;
         if (datatableSection) datatableSection.classList.remove('hidden');
         document.getElementById('pageTitle').innerText = tab === 'work' ? 'จัดการผลงานและรางวัล' : 'จัดการประวัติการอบรม';
         document.getElementById('tableHeaderTitle').innerText = tab === 'work' ? 'รายการผลงาน/รางวัล' : 'รายการหลักสูตรที่อบรม';
 
         applyRoleUI();
+        // โหลดข้อมูลเฉพาะ entry_type ที่เลือก (จะกรองตามสิทธิ์)
         loadTableData();
     }
 }
@@ -379,26 +388,27 @@ async function fetchPersonnelData(userIds) {
     return cached;
 }
 
-/**
- * loadInitialData — โหลดข้อมูลเริ่มต้น (หน้าแรก)
- * แก้ไข: เรียก switchTab(currentTab) เพื่อแสดง UI
- */
+// ==========================================
+// แก้ไข loadInitialData — โหลด Dashboard ครั้งแรก
+// ==========================================
+
 async function loadInitialData() {
     try {
         console.log('🔍 loadInitialData เริ่มต้น');
 
-        // โหลดข้อมูลทั้งหมด (ไม่กรองประเภท)
-        await loadAllData();
+        // ✅ โหลดข้อมูลทั้งหมด (ไม่กรอง) สำหรับ Dashboard ครั้งแรก
+        await loadDashboardData();
 
-        // ✅ แสดงหน้าตาม currentTab (เริ่มต้นคือ 'dashboard')
-        // switchTab จะจัดการแสดง section และอัปเดต UI ทั้งหมด
-        switchTab(currentTab);
+        // ✅ แสดงหน้า Dashboard
+        // ใช้ setTimeout ให้ UI พร้อมก่อน
+        setTimeout(() => {
+            switchTab('dashboard');
+        }, 50);
 
         Swal.close();
     } catch (err) {
         console.error('❌ loadInitialData error:', err);
         Swal.close();
-        // แสดงข้อความเฉพาะ error ร้ายแรง
         if (err.message) {
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
         }
@@ -416,17 +426,7 @@ async function loadAllData() {
         let query = db.from('portfolio_entries')
             .select('*');
 
-        // กรองตามสิทธิ์
-        if (!isAdminView() || forceTeacherMode) {
-            if (currentUser?.id) {
-                query = query.eq('user_id', currentUser.id);
-                console.log('🔍 กรอง user_id:', currentUser.id);
-            }
-        } else {
-            console.log('🔍 Admin — เห็นข้อมูลทั้งหมด');
-        }
-
-        // ✅ ไม่มี .eq('entry_type', ...) เพื่อให้ได้ทุกประเภท
+        // loadAllData ใช้โดย super_admin (toggleEntryType) — ดึงทั้งหมดเสมอ
 
         const { data: entries, error } = await query;
         if (error) {
@@ -474,6 +474,12 @@ async function loadAllData() {
 /**
  * loadTableData — โหลดข้อมูลสำหรับตารางตาม entry_type
  */
+/**
+ * loadTableData — โหลดข้อมูลตาราง
+ * สิทธิ์ DataTable:
+ *   admin roles → เห็นและจัดการได้ทั้งหมด
+ *   teacher/staff → เห็นเฉพาะของตนเอง
+ */
 async function loadTableData() {
     if (!currentUser) return;
 
@@ -484,26 +490,25 @@ async function loadTableData() {
             .order('academic_year', { ascending: false })
             .order('semester', { ascending: true });
 
-        if (!isAdminView() || forceTeacherMode) {
+        // teacher / staff (โหมดครู) เห็นเฉพาะของตนเอง
+        // admin roles และ forceTeacherMode=false เห็นทั้งหมด
+        const isTeacherMode = !isAdminView() || forceTeacherMode;
+        if (isTeacherMode) {
             query = query.eq('user_id', currentUser.id);
         }
 
         const { data: entries, error } = await query;
         if (error) throw error;
 
-        // ดึงข้อมูลบุคลากร
         const userIds = [...new Set((entries || []).map(e => e.user_id))];
         const personnelMap = await fetchPersonnelData(userIds);
-
-        let enrichedData = (entries || []).map(e => ({
+        const enrichedData = (entries || []).map(e => ({
             ...e,
             core_personnel: personnelMap.get(e.user_id) || null
         }));
 
-        console.log(`📊 ได้ข้อมูล ${enrichedData.length} รายการ (ประเภท: ${currentEntryType})`);
-
         currentTableData = enrichedData;
-        allEntries = enrichedData;
+        allEntries       = enrichedData;
 
         renderDataTable(enrichedData);
 
@@ -601,6 +606,47 @@ function renderDataTable(data) {
     dtInstanceType = currentEntryType;
 }
 
+// function buildRowHtml(e, isWork) {
+//     const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
+//     const dept = e.core_personnel?.department || '-';
+//     const dateStr = e.entry_date ? dayjs(e.entry_date).locale('th').format('DD MMM YYYY') : '-';
+//     const docLink = e.document_url
+//         ? `<a href="${e.document_url}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:underline font-bold text-xs"><i class="fa-solid fa-file-pdf text-red-500"></i> เปิดดู</a>`
+//         : '<span class="text-gray-300 text-xs">-</span>';
+
+//     const canManage = e.user_id === currentUser.id || isAdminView();
+//     const manageBtns = canManage ? `
+//         <div class="flex items-center justify-center gap-1">
+//             <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
+//             <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
+//         </div>` : '';
+
+//     const titleText = e.title || '-';
+//     const titleCell = `<td class="px-3 py-2.5 text-sm text-gray-800 max-w-xs truncate" title="${titleText}">${titleText}</td>`;
+
+//     const extraCol = isWork ? '' : `<td class="px-3 py-2.5 text-center font-bold text-indigo-600">${e.hours || 0}</td>`;
+
+//     return `<tr class="hover:bg-slate-50 transition-colors border-b border-gray-100">
+//         <td class="px-3 py-2.5 font-bold text-gray-700">${e.academic_year || '-'}</td>
+//         <td class="px-3 py-2.5 text-center text-gray-600">${e.semester || '-'}</td>
+//         <td class="px-3 py-2.5"><div class="font-bold text-blue-700 text-sm">${name}</div><div class="text-[11px] text-gray-400">${dept}</div></td>
+//         ${titleCell}
+//         <td class="px-3 py-2.5 text-sm text-gray-500">${e.organizer || '-'}</td>
+//         <td class="px-3 py-2.5 text-center text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
+//         ${extraCol}
+//         <td class="px-3 py-2.5 text-center">${docLink}</td>
+//         <td class="px-3 py-2.5 text-center">${manageBtns}</td>
+//     </tr>`;
+// }
+
+// ==========================================
+// 5. Charts
+// ==========================================
+
+// ==========================================
+// แก้ไข buildRowHtml — เพิ่มปุ่มสลับประเภท (เฉพาะ super_admin)
+// ==========================================
+
 function buildRowHtml(e, isWork) {
     const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
     const dept = e.core_personnel?.department || '-';
@@ -610,11 +656,23 @@ function buildRowHtml(e, isWork) {
         : '<span class="text-gray-300 text-xs">-</span>';
 
     const canManage = e.user_id === currentUser.id || isAdminView();
-    const manageBtns = canManage ? `
-        <div class="flex items-center justify-center gap-1">
-            <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
-            <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
-        </div>` : '';
+    
+    // ✅ ปุ่มจัดการพื้นฐาน
+    let manageBtns = '';
+    if (canManage) {
+        manageBtns = `
+            <div class="flex items-center justify-center gap-1 flex-wrap">
+                <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
+                <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
+    `;
+        // ✅ ปุ่มสลับประเภท (เฉพาะ super_admin)
+        if (currentRole === 'super_admin') {
+            manageBtns += `
+                <button type="button" onclick="toggleEntryType('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 whitespace-nowrap"><i class="fa-solid fa-arrows-rotate"></i> สลับประเภท</button>
+            `;
+        }
+        manageBtns += `</div>`;
+    }
 
     const titleText = e.title || '-';
     const titleCell = `<td class="px-3 py-2.5 text-sm text-gray-800 max-w-xs truncate" title="${titleText}">${titleText}</td>`;
@@ -635,15 +693,86 @@ function buildRowHtml(e, isWork) {
 }
 
 // ==========================================
-// 5. Charts
+// ฟังก์ชันสลับประเภท (เฉพาะ super_admin)
 // ==========================================
 
+async function toggleEntryType(id) {
+    // ตรวจสอบสิทธิ์ super_admin
+    if (currentRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สลับประเภทได้', 'error');
+        return;
+    }
+
+    const entry = allEntries.find(e => e.id === id || e.id === Number(id));
+    if (!entry) {
+        Swal.fire('ไม่พบข้อมูล', 'ไม่พบรายการที่ต้องการสลับ', 'error');
+        return;
+    }
+
+    const currentType = entry.entry_type;
+    const newType = currentType === 'work' ? 'training' : 'work';
+    const currentTypeName = currentType === 'work' ? 'ผลงาน/รางวัล' : 'การอบรม';
+    const newTypeName = newType === 'work' ? 'ผลงาน/รางวัล' : 'การอบรม';
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการสลับประเภท?',
+        html: `<div class="text-left">
+            <p><b>รายการ:</b> ${entry.title || '-'}</p>
+            <p><b>จาก:</b> ${currentTypeName}</p>
+            <p><b>เป็น:</b> ${newTypeName}</p>
+            <p class="text-xs text-gray-500 mt-2">⚠️ การดำเนินการนี้จะย้ายรายการไปยังอีกตารางหนึ่ง</p>
+        </div>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#7c3aed',
+        confirmButtonText: 'ใช่, สลับประเภท',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+        // อัปเดต entry_type
+        const { error } = await db.from('portfolio_entries')
+            .update({ entry_type: newType })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        // บันทึก Log
+        await logUserAction(
+            `สลับประเภทข้อมูล portfolio ID=${id} จาก ${currentType} เป็น ${newType}`,
+            'portfolio'
+        );
+
+        // โหลดข้อมูลใหม่ทั้งหมด
+        await loadAllData();
+
+        // ถ้าอยู่ในหน้า datatable → re-render DataTable ตามประเภทปัจจุบัน
+        if (currentTab !== 'dashboard') {
+            renderDataTable(currentTableData);
+        }
+
+        Swal.fire({
+            icon: 'success',
+            title: `สลับประเภทเป็น "${newTypeName}" สำเร็จ`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('❌ toggleEntryType error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
 /**
- * renderAdminCharts — แสดงกราฟตามข้อมูลใน currentTableData
+ * renderAdminCharts — แสดงกราฟ (ใช้ globalEntries)
  */
 function renderAdminCharts() {
-    const works = currentTableData.filter(e => e.entry_type === 'work');
-    const trainings = currentTableData.filter(e => e.entry_type === 'training');
+    // ✅ ใช้ globalEntries (ข้อมูลทั้งหมด)
+    const works = globalEntries.filter(e => e.entry_type === 'work');
+    const trainings = globalEntries.filter(e => e.entry_type === 'training');
 
     const countBy = (arr, keyFn) => {
         return arr.reduce((acc, curr) => {
@@ -653,7 +782,7 @@ function renderAdminCharts() {
         }, {});
     };
 
-    // ── 1. สัดส่วนประเภทผลงาน กับ การอบรม (Doughnut) ──
+    // ── 1. สัดส่วนประเภทผลงาน กับ การอบรม ──
     const ctxRatio = document.getElementById('chartRatio');
     if (ctxRatio) {
         const ctx = ctxRatio.getContext('2d');
@@ -687,7 +816,7 @@ function renderAdminCharts() {
         });
     }
 
-    // ── 2. กลุ่มสาระฯ ที่มีผลงาน/รางวัลสูงสุด (Bar) ──
+    // ── 2. กลุ่มสาระฯ ที่มีผลงาน/รางวัลสูงสุด ──
     const deptWorksCount = countBy(works, e => e.core_personnel?.department || 'ไม่ระบุ');
     const sortedDeptWorks = Object.entries(deptWorksCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
 
@@ -708,20 +837,13 @@ function renderAdminCharts() {
             },
             options: {
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
             }
         });
     }
 
-    // ── 3. ครูที่มีผลงาน/รางวัลสูงสุด (Bar) ──
+    // ── 3. ครูที่มีผลงาน/รางวัลสูงสุด ──
     const teacherWorksCount = countBy(
         works,
         e => `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ'
@@ -746,20 +868,13 @@ function renderAdminCharts() {
             options: {
                 maintainAspectRatio: false,
                 indexAxis: 'y',
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    x: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } } }
             }
         });
     }
 
-    // ── 4. กลุ่มสาระฯ ที่มีการอบรมสูงสุด (Bar) ──
+    // ── 4. กลุ่มสาระฯ ที่มีการอบรมสูงสุด ──
     const deptTrainCount = countBy(trainings, e => e.core_personnel?.department || 'ไม่ระบุ');
     const sortedDeptTrain = Object.entries(deptTrainCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
 
@@ -780,21 +895,13 @@ function renderAdminCharts() {
             },
             options: {
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: { stepSize: 1 }
-                    }
-                }
+                plugins: { legend: { display: false } },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
             }
         });
     }
 
-    // ── 5. 🔥 ลบกราฟ ครูที่มีชั่วโมงอบรมสูงสุด (ไม่ต้องแสดง) ──
-    // ซ่อน container ของกราฟนี้
+    // ── 5. ลบกราฟ ครูที่มีชั่วโมงอบรมสูงสุด ──
     const teacherTrainContainer = document.getElementById('chartTeacherTrainings')?.closest('.lg\\:col-span-2');
     if (teacherTrainContainer) {
         teacherTrainContainer.style.display = 'none';
@@ -804,22 +911,72 @@ function renderAdminCharts() {
 // ==========================================
 // 6. Dashboard Stats
 // ==========================================
+// ==========================================
+// portfolio.js — แก้ไขฟังก์ชัน switchTab, loadInitialData และ loadDashboardData เพื่อให้ Dashboard ครูเห็นสถิติรวม
 
 /**
- * อัปเดตสถิติ Dashboard — แสดงจำนวนตามข้อมูลที่โหลดใน currentTableData
+ * loadDashboardData — โหลดข้อมูลทั้งหมด (ไม่กรอง user_id / entry_type)
+ * ทุก role เห็นสถิติรวมทั้งโรงเรียน
+ * - super_admin / admin / director / deputy → เห็นทั้งหมด (isAdminView = true)
+ * - teacher / staff → เห็นสถิติรวมเหมือนกัน (Dashboard ดูภาพรวม ไม่ใช่ DataTable)
  */
-async function updateDashboardStats() {
+async function loadDashboardData() {
     try {
-        // ใช้ currentTableData (ซึ่งมีข้อมูลทั้งหมดตามสิทธิ์)
-        const works = currentTableData.filter(e => e.entry_type === 'work');
-        const trainings = currentTableData.filter(e => e.entry_type === 'training');
-        const totalHours = trainings.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
-        const teachers = new Set(currentTableData.map(e => e.user_id));
+        // ดึงข้อมูลทั้งหมด ไม่มีเงื่อนไข user_id ทุก role เห็นเหมือนกัน
+        const { data: entries, error } = await db
+            .from('portfolio_entries')
+            .select('*')
+            .order('academic_year', { ascending: false });
 
-        document.getElementById('count-works').innerText = works.length || 0;
-        document.getElementById('count-trainings').innerText = trainings.length || 0;
-        document.getElementById('count-hours').innerText = totalHours || 0;
-        document.getElementById('count-teachers').innerText = teachers.size || 0;
+        if (error) throw error;
+
+        // ดึงข้อมูลบุคลากรแยก (ไม่มี FK join)
+        const userIds = [...new Set((entries || []).map(e => e.user_id).filter(Boolean))];
+        const personnelMap = await fetchPersonnelData(userIds);
+
+        globalEntries = (entries || []).map(e => ({
+            ...e,
+            core_personnel: personnelMap.get(e.user_id) || null
+        }));
+
+        updateDashboardStats();
+        renderAdminCharts();
+
+    } catch (err) {
+        console.error('❌ loadDashboardData error:', err);
+    }
+}
+
+/**
+ * updateDashboardStats — อัปเดตการ์ดสถิติ (ใช้ globalEntries)
+ */
+/**
+ * updateDashboardStats — อัปเดตการ์ดสถิติ
+ * ใช้ globalEntries (ข้อมูลทั้งหมด ทุก role เห็นเหมือนกัน)
+ */
+function updateDashboardStats() {
+    try {
+        const works     = globalEntries.filter(e => e.entry_type === 'work');
+        const trainings = globalEntries.filter(e => e.entry_type === 'training');
+        const totalHours = trainings.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
+        const uniqueTeachers = new Set(globalEntries.map(e => e.user_id));
+
+        const setEl = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.innerText = val;
+        };
+
+        setEl('count-works',    works.length);
+        setEl('count-trainings', trainings.length);
+        setEl('count-hours',    totalHours);
+        setEl('count-teachers', uniqueTeachers.size);
+
+        // stat cards สำรอง (กรณี HTML ใช้ชื่อ id ต่างกัน)
+        setEl('stat-works',    works.length);
+        setEl('stat-trainings', trainings.length);
+        setEl('stat-total',    globalEntries.length);
+        setEl('stat-hours',    totalHours);
+
     } catch (err) {
         console.warn('⚠️ updateDashboardStats error:', err);
     }
@@ -2291,3 +2448,4 @@ window.processImportRows = processImportRows;
 window.convertSheetToCsvUrl = convertSheetToCsvUrl;
 window.parseCsv = parseCsv;
 window.loadAllData = loadAllData;
+window.toggleEntryType = toggleEntryType;
