@@ -508,7 +508,7 @@ async function loadTableData() {
         }));
 
         currentTableData = enrichedData;
-        allEntries       = enrichedData;
+        allEntries = enrichedData;
 
         renderDataTable(enrichedData);
 
@@ -523,7 +523,9 @@ async function loadTableData() {
  */
 function renderDataTable(data) {
     const isWork = currentEntryType === 'work';
-    const colCount = isWork ? 8 : 9;
+    // work: ปี | เทอม | ชื่อครู | กลุ่มสาระ | ชื่อผลงาน | หน่วยงาน | วันที่ | ไฟล์ | จัดการ = 9
+    // training: ปี | เทอม | ชื่อครู | กลุ่มสาระ | ชื่อหลักสูตร | จัดโดย | วันที่ | ชม. | ไฟล์ | จัดการ = 10
+    const colCount = isWork ? 9 : 10;
 
     // ทำลาย instance เดิม
     if (dtInstance) {
@@ -537,7 +539,8 @@ function renderDataTable(data) {
         thead.innerHTML = isWork
             ? `<th>ปีการศึกษา</th>
                <th>ภาคเรียน</th>
-               <th>ชื่อครู / กลุ่มสาระ</th>
+               <th>ชื่อครู</th>
+               <th>กลุ่มสาระฯ</th>
                <th>ชื่อผลงาน / รางวัล</th>
                <th>หน่วยงานที่มอบ</th>
                <th class="text-center">วันที่</th>
@@ -545,7 +548,8 @@ function renderDataTable(data) {
                <th class="text-center">จัดการ</th>`
             : `<th>ปีการศึกษา</th>
                <th>ภาคเรียน</th>
-               <th>ชื่อครู / กลุ่มสาระ</th>
+               <th>ชื่อครู</th>
+               <th>กลุ่มสาระฯ</th>
                <th>ชื่อหลักสูตรที่อบรม</th>
                <th>จัดโดย</th>
                <th class="text-center">วันที่</th>
@@ -584,20 +588,6 @@ function renderDataTable(data) {
         ordering: true,
         order: [[0, 'desc'], [1, 'asc']],
         columnDefs: columnDefs,
-        // layout: {
-        //     top1: {
-        //         searchBuilder: {
-        //             columns: [0, 1, 2],
-        //             greyscale: false
-        //         }
-        //     },
-        //     topStart: 'pageLength',
-        //     topEnd: 'search',
-        //     bottomStart: 'info',
-        //     bottomEnd: 'paging'
-        // },
-        // ใช้ dom สำหรับ fallback (ถ้า layout ไม่ทำงานในบางเวอร์ชัน)
-        // dom: 'Qlfrtip'
         layout: {
             topStart: 'searchBuilder'
         },
@@ -606,45 +596,12 @@ function renderDataTable(data) {
     dtInstanceType = currentEntryType;
 }
 
-// function buildRowHtml(e, isWork) {
-//     const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
-//     const dept = e.core_personnel?.department || '-';
-//     const dateStr = e.entry_date ? dayjs(e.entry_date).locale('th').format('DD MMM YYYY') : '-';
-//     const docLink = e.document_url
-//         ? `<a href="${e.document_url}" target="_blank" class="inline-flex items-center gap-1 text-blue-600 hover:underline font-bold text-xs"><i class="fa-solid fa-file-pdf text-red-500"></i> เปิดดู</a>`
-//         : '<span class="text-gray-300 text-xs">-</span>';
-
-//     const canManage = e.user_id === currentUser.id || isAdminView();
-//     const manageBtns = canManage ? `
-//         <div class="flex items-center justify-center gap-1">
-//             <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
-//             <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
-//         </div>` : '';
-
-//     const titleText = e.title || '-';
-//     const titleCell = `<td class="px-3 py-2.5 text-sm text-gray-800 max-w-xs truncate" title="${titleText}">${titleText}</td>`;
-
-//     const extraCol = isWork ? '' : `<td class="px-3 py-2.5 text-center font-bold text-indigo-600">${e.hours || 0}</td>`;
-
-//     return `<tr class="hover:bg-slate-50 transition-colors border-b border-gray-100">
-//         <td class="px-3 py-2.5 font-bold text-gray-700">${e.academic_year || '-'}</td>
-//         <td class="px-3 py-2.5 text-center text-gray-600">${e.semester || '-'}</td>
-//         <td class="px-3 py-2.5"><div class="font-bold text-blue-700 text-sm">${name}</div><div class="text-[11px] text-gray-400">${dept}</div></td>
-//         ${titleCell}
-//         <td class="px-3 py-2.5 text-sm text-gray-500">${e.organizer || '-'}</td>
-//         <td class="px-3 py-2.5 text-center text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
-//         ${extraCol}
-//         <td class="px-3 py-2.5 text-center">${docLink}</td>
-//         <td class="px-3 py-2.5 text-center">${manageBtns}</td>
-//     </tr>`;
-// }
-
 // ==========================================
 // 5. Charts
 // ==========================================
 
 // ==========================================
-// แก้ไข buildRowHtml — เพิ่มปุ่มสลับประเภท (เฉพาะ super_admin)
+// buildRowHtml — เพิ่มปุ่มสลับประเภท (เฉพาะ super_admin)
 // ==========================================
 
 function buildRowHtml(e, isWork) {
@@ -656,7 +613,7 @@ function buildRowHtml(e, isWork) {
         : '<span class="text-gray-300 text-xs">-</span>';
 
     const canManage = e.user_id === currentUser.id || isAdminView();
-    
+
     // ✅ ปุ่มจัดการพื้นฐาน
     let manageBtns = '';
     if (canManage) {
@@ -680,9 +637,10 @@ function buildRowHtml(e, isWork) {
     const extraCol = isWork ? '' : `<td class="px-3 py-2.5 text-center font-bold text-indigo-600">${e.hours || 0}</td>`;
 
     return `<tr class="hover:bg-slate-50 transition-colors border-b border-gray-100">
-        <td class="px-3 py-2.5 font-bold text-gray-700">${e.academic_year || '-'}</td>
+        <td class="px-3 py-2.5 font-bold text-gray-700 whitespace-nowrap">${e.academic_year || '-'}</td>
         <td class="px-3 py-2.5 text-center text-gray-600">${e.semester || '-'}</td>
-        <td class="px-3 py-2.5"><div class="font-bold text-blue-700 text-sm">${name}</div><div class="text-[11px] text-gray-400">${dept}</div></td>
+        <td class="px-3 py-2.5 font-bold text-blue-700 text-sm whitespace-nowrap">${name}</td>
+        <td class="px-3 py-2.5 text-xs text-gray-500">${dept}</td>
         ${titleCell}
         <td class="px-3 py-2.5 text-sm text-gray-500">${e.organizer || '-'}</td>
         <td class="px-3 py-2.5 text-center text-sm text-gray-600 whitespace-nowrap">${dateStr}</td>
@@ -802,7 +760,7 @@ function renderAdminCharts() {
                     legend: { position: 'bottom' },
                     tooltip: {
                         callbacks: {
-                            label: function(context) {
+                            label: function (context) {
                                 const label = context.label || '';
                                 const value = context.parsed || 0;
                                 const total = context.dataset.data.reduce((a, b) => a + b, 0);
@@ -818,7 +776,7 @@ function renderAdminCharts() {
 
     // ── 2. กลุ่มสาระฯ ที่มีผลงาน/รางวัลสูงสุด ──
     const deptWorksCount = countBy(works, e => e.core_personnel?.department || 'ไม่ระบุ');
-    const sortedDeptWorks = Object.entries(deptWorksCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
+    const sortedDeptWorks = Object.entries(deptWorksCount).sort((a, b) => b[1] - a[1]).slice(0, 13);
 
     const ctxDeptWorks = document.getElementById('chartDeptWorks');
     if (ctxDeptWorks) {
@@ -912,7 +870,6 @@ function renderAdminCharts() {
 // 6. Dashboard Stats
 // ==========================================
 // ==========================================
-// portfolio.js — แก้ไขฟังก์ชัน switchTab, loadInitialData และ loadDashboardData เพื่อให้ Dashboard ครูเห็นสถิติรวม
 
 /**
  * loadDashboardData — โหลดข้อมูลทั้งหมด (ไม่กรอง user_id / entry_type)
@@ -948,15 +905,12 @@ async function loadDashboardData() {
 }
 
 /**
- * updateDashboardStats — อัปเดตการ์ดสถิติ (ใช้ globalEntries)
- */
-/**
  * updateDashboardStats — อัปเดตการ์ดสถิติ
  * ใช้ globalEntries (ข้อมูลทั้งหมด ทุก role เห็นเหมือนกัน)
  */
 function updateDashboardStats() {
     try {
-        const works     = globalEntries.filter(e => e.entry_type === 'work');
+        const works = globalEntries.filter(e => e.entry_type === 'work');
         const trainings = globalEntries.filter(e => e.entry_type === 'training');
         const totalHours = trainings.reduce((sum, e) => sum + (Number(e.hours) || 0), 0);
         const uniqueTeachers = new Set(globalEntries.map(e => e.user_id));
@@ -966,16 +920,16 @@ function updateDashboardStats() {
             if (el) el.innerText = val;
         };
 
-        setEl('count-works',    works.length);
+        setEl('count-works', works.length);
         setEl('count-trainings', trainings.length);
-        setEl('count-hours',    totalHours);
+        setEl('count-hours', totalHours);
         setEl('count-teachers', uniqueTeachers.size);
 
         // stat cards สำรอง (กรณี HTML ใช้ชื่อ id ต่างกัน)
-        setEl('stat-works',    works.length);
+        setEl('stat-works', works.length);
         setEl('stat-trainings', trainings.length);
-        setEl('stat-total',    globalEntries.length);
-        setEl('stat-hours',    totalHours);
+        setEl('stat-total', globalEntries.length);
+        setEl('stat-hours', totalHours);
 
     } catch (err) {
         console.warn('⚠️ updateDashboardStats error:', err);
@@ -1100,7 +1054,7 @@ function previewFile(input) {
 
         if (fileType.startsWith('image/')) {
             const reader = new FileReader();
-            reader.onload = function(e) {
+            reader.onload = function (e) {
                 img.src = e.target.result;
                 img.classList.remove('hidden');
             };
