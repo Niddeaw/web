@@ -29,6 +29,7 @@ let _scholarshipTableWarningShown = false;
 let recordSearchCache = {};
 let isModuleAdmin = false;
 let selectedRecipientIds = new Set();
+let recordSearchTimeout = null;
 
 // ==========================================
 // AUTH & INIT — pattern เดียวกับ EQ
@@ -1767,94 +1768,181 @@ function initTomSelects() {
 async function searchStudentsForRecord(query) {
     if (!query || query.trim().length < 2) return [];
 
-    const like = `%${query.trim()}%`;
+    const searchTerm = query.trim();
+    const like = `%${searchTerm}%`;
+
     try {
-        const { data, error } = await db.from('student_enrollments')
-            .select(`
-                student_id,
-                classroom_id,
-                core_students!inner (id, student_id_card, prefix, first_name, last_name),
-                core_classrooms!inner (grade_level, room_number, academic_year, semester, adviser_id_1, adviser_id_2)
-            `)
-            .eq('core_classrooms.academic_year', currentYear)
-            .eq('core_classrooms.semester', currentTerm)
-            .or(`first_name.ilike.${like},last_name.ilike.${like},student_id_card.ilike.${like}`, { foreignTable: 'core_students' })
+        // 1. ค้นหานักเรียนจาก core_students
+        const { data: students, error: sErr } = await db
+            .from('core_students')
+            .select('id, student_id_card, prefix, first_name, last_name')
+            .or(`student_id_card.ilike.${like},first_name.ilike.${like},last_name.ilike.${like}`)
             .limit(20);
 
-        if (error) throw error;
+        if (sErr) throw sErr;
+        if (!students || students.length === 0) return [];
 
+        const studentIds = students.map(s => s.id);
+
+        // 2. ดึงข้อมูลการลงทะเบียนปัจจุบัน (เฉพาะปี/เทอมที่เลือก)
+        const { data: enrolls, error: eErr } = await db
+            .from('student_enrollments')
+            .select('student_id, classroom_id, core_classrooms!inner(grade_level, room_number)')
+            .in('student_id', studentIds)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm);
+
+        if (eErr) throw eErr;
+
+        // 3. สร้าง map สำหรับชั้นเรียน
+        const classMap = {};
+        const classroomIdMap = {};
+        (enrolls || []).forEach(en => {
+            if (en.core_classrooms) {
+                const c = en.core_classrooms;
+                classMap[en.student_id] = `ม.${c.grade_level}/${c.room_number}`;
+                classroomIdMap[en.student_id] = en.classroom_id;
+            }
+        });
+
+        // 4. เตรียม cache และผลลัพธ์
         recordSearchCache = {};
-        return (data || []).map(e => {
-            const s = e.core_students;
-            const c = e.core_classrooms;
-            recordSearchCache[s.id] = { student: s, classroom: c, classroomId: e.classroom_id };
+        const results = students.map(s => {
+            const grade = classMap[s.id] || 'ไม่พบชั้น';
+            // เก็บข้อมูลสำหรับ fillRecordStudentData
+            recordSearchCache[s.id] = {
+                student: s,
+                classroom: {
+                    grade_level: classMap[s.id] ? classMap[s.id].match(/ม\.(\d+)\/(\d+)/)?.[1] || '' : '',
+                    room_number: classMap[s.id] ? classMap[s.id].match(/ม\.\d+\/(\d+)/)?.[1] || '' : '',
+                    adviser_id_1: null, // จะค่อยๆ โหลดทีหลัง ถ้าจำเป็น
+                    adviser_id_2: null
+                },
+                classroomId: classroomIdMap[s.id] || null
+            };
             return {
                 id: s.id,
-                label: `${s.student_id_card} - ${s.prefix || ''}${s.first_name} ${s.last_name} (ม.${c.grade_level}/${c.room_number})`
+                label: `${s.student_id_card} - ${s.prefix || ''}${s.first_name} ${s.last_name} (${grade})`
             };
         });
+
+        console.log(`✅ พบนักเรียน ${results.length} ราย สำหรับคำว่า "${searchTerm}"`);
+        return results;
+
     } catch (err) {
-        console.error('Error searching students for record:', err);
+        console.error('❌ searchStudentsForRecord error:', err);
         return [];
     }
 }
 
 function initRecordStudentSearch() {
-    const el = document.getElementById('record_student_select');
-    if (recordStudentTomSelect) {
-        recordStudentTomSelect.destroy();
-    }
+    const searchInput = document.getElementById('record_student_search');
+    const resultsDiv = document.getElementById('record_student_results');
+    if (!searchInput || !resultsDiv) return;
 
-    el.innerHTML = '';
-    recordStudentTomSelect = new TomSelect("#record_student_select", {
-        valueField: 'id',
-        labelField: 'label',
-        searchField: ['label'],
-        create: false,
-        placeholder: 'พิมพ์ชื่อ นามสกุล หรือรหัสนักเรียน (อย่างน้อย 2 ตัวอักษร)',
-        maxOptions: 20,
-        dropdownParent: 'body',
-        shouldLoad: (query) => query.trim().length >= 2,
-        load: function (query, callback) {
-            searchStudentsForRecord(query)
-                .then(results => callback(results))
-                .catch(() => callback());
-        },
-        onChange: async (val) => {
-            if (val) await fillRecordStudentData(val);
-            else clearRecordFields();
+    // ล้าง event เก่า
+    searchInput.removeEventListener('input', handleRecordSearchInput);
+    searchInput.addEventListener('input', handleRecordSearchInput);
+
+    // Delegation สำหรับคลิกเลือกผลลัพธ์
+    resultsDiv.removeEventListener('click', handleResultClick);
+    resultsDiv.addEventListener('click', handleResultClick);
+
+    // เคลียร์ค่าเมื่อเปิด modal
+    searchInput.value = '';
+    resultsDiv.classList.add('hidden');
+    document.getElementById('record_student_id_selected').value = '';
+    clearRecordFields();
+}
+
+function handleRecordSearchInput(e) {
+    const val = e.target.value.trim();
+    const resultsDiv = document.getElementById('record_student_results');
+    if (val.length < 2) {
+        resultsDiv.classList.add('hidden');
+        return;
+    }
+    clearTimeout(recordSearchTimeout);
+    recordSearchTimeout = setTimeout(async () => {
+        const results = await searchStudentsForRecord(val);
+        if (!results || results.length === 0) {
+            resultsDiv.innerHTML = '<div class="p-3 text-sm text-slate-400">ไม่พบนักเรียน</div>';
+            resultsDiv.classList.remove('hidden');
+            return;
         }
-    });
+        let html = '';
+        results.forEach(r => {
+            html += `<div class="record-search-item p-3 hover:bg-blue-50 cursor-pointer border-b border-slate-100 text-sm" data-id="${r.id}">${r.label}</div>`;
+        });
+        resultsDiv.innerHTML = html;
+        resultsDiv.classList.remove('hidden');
+    }, 300);
+}
+
+function handleResultClick(e) {
+    const item = e.target.closest('.record-search-item');
+    if (!item) return;
+    const studentId = item.dataset.id;
+    if (!studentId) return;
+
+    // เก็บ ID และแสดงชื่อ
+    document.getElementById('record_student_id_selected').value = studentId;
+    document.getElementById('record_student_search').value = item.textContent.trim();
+    document.getElementById('record_student_results').classList.add('hidden');
+    fillRecordStudentData(studentId);
 }
 
 async function fillRecordStudentData(studentId) {
     const cached = recordSearchCache[studentId];
-    if (!cached) return;
+    if (!cached) {
+        console.warn('ไม่พบข้อมูลใน cache สำหรับ', studentId);
+        return;
+    }
 
-    const { student: s, classroom: c } = cached;
+    const { student: s, classroom: c, classroomId } = cached;
+
+    // ใส่ข้อมูลพื้นฐาน
     document.getElementById('record_student_id').value = s.student_id_card;
     document.getElementById('record_student_name').value = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
     document.getElementById('record_student_grade').value = `ม.${c.grade_level}/${c.room_number}`;
     document.getElementById('record_academic_year').value = currentYear || '';
     document.getElementById('record_semester').value = currentTerm || '';
 
-    let adv1 = '', adv2 = '';
-    if (c.adviser_id_1) {
-        const { data: t } = await db.from('core_personnel')
-            .select('first_name, last_name')
-            .eq('id', c.adviser_id_1)
-            .single();
-        if (t) adv1 = `ครู${t.first_name} ${t.last_name}`;
+    // ถ้ามี classroomId ให้ดึงครูที่ปรึกษา
+    if (classroomId) {
+        try {
+            const { data: classroom, error } = await db
+                .from('core_classrooms')
+                .select('adviser_id_1, adviser_id_2')
+                .eq('id', classroomId)
+                .single();
+
+            if (!error && classroom) {
+                let adv1 = '', adv2 = '';
+                if (classroom.adviser_id_1) {
+                    const { data: t } = await db.from('core_personnel')
+                        .select('first_name, last_name')
+                        .eq('id', classroom.adviser_id_1)
+                        .single();
+                    if (t) adv1 = `ครู${t.first_name} ${t.last_name}`;
+                }
+                if (classroom.adviser_id_2) {
+                    const { data: t } = await db.from('core_personnel')
+                        .select('first_name, last_name')
+                        .eq('id', classroom.adviser_id_2)
+                        .single();
+                    if (t) adv2 = `ครู${t.first_name} ${t.last_name}`;
+                }
+                document.getElementById('record_advisor_1').value = adv1;
+                document.getElementById('record_advisor_2').value = adv2;
+            }
+        } catch (e) {
+            console.warn('ไม่สามารถโหลดข้อมูลครูที่ปรึกษา:', e);
+        }
+    } else {
+        document.getElementById('record_advisor_1').value = '';
+        document.getElementById('record_advisor_2').value = '';
     }
-    if (c.adviser_id_2) {
-        const { data: t } = await db.from('core_personnel')
-            .select('first_name, last_name')
-            .eq('id', c.adviser_id_2)
-            .single();
-        if (t) adv2 = `ครู${t.first_name} ${t.last_name}`;
-    }
-    document.getElementById('record_advisor_1').value = adv1;
-    document.getElementById('record_advisor_2').value = adv2;
 }
 
 function clearRecordFields() {
@@ -1878,6 +1966,7 @@ window.openRecordScholarshipModal = async function () {
     document.getElementById('record_academic_year').value = currentYear || '';
     document.getElementById('record_semester').value = currentTerm || '';
     document.getElementById('record_note').value = '';
+    // เรียกใช้การค้นหาแบบใหม่
     initRecordStudentSearch();
     $('#recordScholarshipModal').removeClass('hidden').addClass('flex');
 };
@@ -1889,10 +1978,10 @@ window.closeRecordScholarshipModal = function () {
 window.saveScholarshipRecord = async function () {
     if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
-    const studentId = document.getElementById('record_student_select').value;
+    // ใช้ hidden field แทน TomSelect
+    const studentId = document.getElementById('record_student_id_selected').value;
     if (!studentId) {
-        closeRecordScholarshipModal();
-        return Swal.fire('กรุณาเลือกนักเรียน', '', 'error');
+        return Swal.fire('กรุณาเลือกนักเรียน', 'พิมพ์ชื่อหรือรหัสนักเรียนในช่องค้นหา แล้วคลิกเลือกรายการ', 'warning');
     }
 
     const scholarshipName = document.getElementById('record_scholarship_name').value.trim();
@@ -1906,6 +1995,7 @@ window.saveScholarshipRecord = async function () {
         return Swal.fire('กรุณากรอกข้อมูลให้ครบถ้วน', '', 'error');
     }
 
+    // ตรวจสอบข้อมูลซ้ำ (ส่วนนี้เหมือนเดิม)
     try {
         const { data: existing, error: checkErr } = await db.from('core_scholarships')
             .select('id, scholarship_name, amount, academic_year, semester')
@@ -1948,6 +2038,7 @@ window.saveScholarshipRecord = async function () {
         });
     }
 
+    // บันทึกข้อมูล
     try {
         const insertData = {
             student_id: studentId,

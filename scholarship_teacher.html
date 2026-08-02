@@ -1302,7 +1302,16 @@
                 <form id="recordScholarshipForm" onsubmit="event.preventDefault(); saveScholarshipRecord();">
                     <div class="form-group">
                         <label>เลือกนักเรียน <span class="text-rose-500">*</span></label>
-                        <select id="record_student_select" required></select>
+                        <!-- แทนที่ <select id="record_student_select"> ด้วยชุดนี้ -->
+                        <div class="relative">
+                            <input type="text" id="record_student_search"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-400"
+                                placeholder="พิมพ์ชื่อ นามสกุล หรือรหัสนักเรียน (อย่างน้อย 2 ตัวอักษร)">
+                            <div id="record_student_results"
+                                class="absolute z-50 bg-white shadow-lg rounded-xl w-full mt-1 max-h-60 overflow-y-auto hidden border border-slate-200">
+                            </div>
+                        </div>
+                        <input type="hidden" id="record_student_id_selected" value="">
                     </div>
 
                     <div class="form-row-3">
