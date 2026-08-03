@@ -11,6 +11,9 @@ let timerSeconds = RIASEC_DELAY_DEFAULT;
 let canProceed = false;
 let delaySeconds = RIASEC_DELAY_DEFAULT;
 
+const TOTAL_QUESTIONS = RIASEC_QUESTIONS.length;
+const TOTAL_MAX_SCORE = RIASEC_DIMENSIONS.reduce((sum, d) => sum + d.maxScore, 0);
+
 window.addEventListener('load', async () => {
     Swal.fire({ title: 'กำลังเตรียมระบบประเมิน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     try {
@@ -78,8 +81,8 @@ async function checkExistingResult() {
 function renderQuestion() {
     const q = RIASEC_QUESTIONS[currentQ - 1];
     const dim = RIASEC_DIMENSIONS.find(d => d.key === q.dim);
-    document.getElementById('q-counter').textContent = `${currentQ} / 30`;
-    document.getElementById('progress-bar').style.width = `${((currentQ - 1) / 30) * 100}%`;
+    document.getElementById('q-counter').textContent = `${currentQ} / ${TOTAL_QUESTIONS}`;
+    document.getElementById('progress-bar').style.width = `${((currentQ - 1) / TOTAL_QUESTIONS) * 100}%`;
     document.getElementById('q-dim-label').textContent = `ด้าน${dim?.label || ''}`;
     document.getElementById('q-text').textContent = q.text;
 
@@ -159,7 +162,7 @@ async function nextQuestion() {
         return Swal.fire({ toast: true, position: 'top', icon: 'warning', title: 'กรุณาเลือกคำตอบก่อน', timer: 2000, showConfirmButton: false });
     }
     clearInterval(timerInterval);
-    if (currentQ === 30) {
+    if (currentQ === TOTAL_QUESTIONS) {
         await submitAssessment();
         return;
     }
@@ -182,8 +185,8 @@ async function saveDraft() {
 
 async function submitAssessment() {
     const answered = Object.keys(answers).length;
-    if (answered < 30) {
-        return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/30 ข้อ`, 'warning');
+    if (answered < TOTAL_QUESTIONS) {
+        return Swal.fire('ยังไม่ครบ', `ตอบแล้ว ${answered}/${TOTAL_QUESTIONS} ข้อ`, 'warning');
     }
 
     let classroomId = currentClassroomId;
@@ -230,11 +233,19 @@ async function submitAssessment() {
 
         if (error) throw error;
 
-        await db.from('riasec_drafts')
+        // ✅ ลบ draft และตรวจสอบผลลัพธ์
+        const { error: deleteError, count } = await db.from('riasec_drafts')
             .delete()
             .eq('student_id', currentStudent.id)
             .eq('academic_year', String(schoolInfo.current_academic_year))
             .eq('semester', String(schoolInfo.current_semester));
+
+        if (deleteError) {
+            console.warn('⚠️ ลบ draft ไม่สำเร็จ:', deleteError);
+            // ไม่ต้องแจ้งผู้ใช้ เพราะบันทึก assessment สำเร็จแล้ว
+        } else {
+            console.log('✅ ลบ draft สำเร็จ');
+        }
 
         Swal.close();
         showResult(data);
@@ -253,15 +264,19 @@ function showResult(data) {
     const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
     document.getElementById('res-name').innerText = fullName;
 
+    // อัปเดตข้อความคะแนนรวมสูงสุด
+    const totalMaxLabel = document.querySelector('#res-total-badge span.text-sm.opacity-80');
+    if (totalMaxLabel) totalMaxLabel.textContent = `/ ${TOTAL_MAX_SCORE} คะแนน`;
+
     const getLevelStyle = (level) => {
         if (!level) {
             return { bg: 'bg-slate-500', text: 'text-white', badge: 'bg-slate-100 text-slate-700', bar: '#94a3b8' };
         }
-        if (level === 'โดดเด่น' || level === 'สูง' || level === 'สูงกว่าเกณฑ์') {
+        if (level === 'สูง') {
             return { bg: 'bg-green-500', text: 'text-white', badge: 'bg-green-100 text-green-700', bar: '#10b981' };
-        } else if (level === 'ปานกลาง' || level === 'เกณฑ์ปกติ') {
+        } else if (level === 'ปานกลาง') {
             return { bg: 'bg-blue-500', text: 'text-white', badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6' };
-        } else if (level === 'ควรพัฒนา' || level === 'ต่ำ' || level === 'ต่ำกว่าเกณฑ์') {
+        } else if (level === 'ต่ำ') {
             return { bg: 'bg-amber-500', text: 'text-white', badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b' };
         } else {
             return { bg: 'bg-slate-500', text: 'text-white', badge: 'bg-slate-100 text-slate-700', bar: '#94a3b8' };
@@ -381,39 +396,41 @@ async function printResult() {
 }
 
 function buildRIASECPdfHtml(opts) {
-    var assessment   = opts.assessment || {};
-    var schoolName   = opts.schoolName || '';
+    var assessment = opts.assessment || {};
+    var schoolName = opts.schoolName || '';
     var academicYear = opts.academicYear || '';
-    var semester     = opts.semester || '';
-    var adviser1     = opts.adviser1 || '';
-    var adviser2     = opts.adviser2 || '';
-    var logoUrl      = opts.logoUrl || '';
-    var fullName     = opts.fullName || '';
-    var avatarUrl    = opts.avatarUrl || '';
-    var dims         = opts.dims || [];
+    var semester = opts.semester || '';
+    var adviser1 = opts.adviser1 || '';
+    var adviser2 = opts.adviser2 || '';
+    var logoUrl = opts.logoUrl || '';
+    var fullName = opts.fullName || '';
+    var avatarUrl = opts.avatarUrl || '';
+    var dims = opts.dims || [];
     var studentIdCard = opts.studentIdCard || '-';
     var studentNumber = opts.studentNumber || '-';
-    var gradeLevel    = opts.gradeLevel || '-';
-    var roomNumber    = opts.roomNumber || '-';
-    var docTitle      = opts.docTitle || 'รายงานผลการประเมินบุคลิกภาพ RIASEC';
+    var gradeLevel = opts.gradeLevel || '-';
+    var roomNumber = opts.roomNumber || '-';
+    var docTitle = opts.docTitle || 'รายงานผลการประเมินบุคลิกภาพ RIASEC';
 
     var scoreTotal = (assessment.score_total !== undefined && assessment.score_total !== null) ? assessment.score_total : '-';
     var totalLevel = assessment.level_total || '-';
 
-    var isHigh = ['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(totalLevel) >= 0;
-    var isMid  = ['เกณฑ์ปกติ','ปานกลาง'].indexOf(totalLevel) >= 0;
-    var totalColor  = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
-    var totalBg     = isHigh ? '#dcfce7'  : (isMid ? '#dbeafe'  : '#fee2e2');
-    var totalBorder = isHigh ? '#16a34a'  : (isMid ? '#2563eb'  : '#dc2626');
+    // ✅ แก้ตรงนี้
+    var isHigh = (totalLevel === 'สูง');
+    var isMid = (totalLevel === 'ปานกลาง');
+    var totalColor = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
+    var totalBg = isHigh ? '#dcfce7' : (isMid ? '#dbeafe' : '#fee2e2');
+    var totalBorder = isHigh ? '#16a34a' : (isMid ? '#2563eb' : '#dc2626');
 
     function getLvlColor(lv) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return '#10b981';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return '#3b82f6';
+        if (lv === 'สูง') return '#10b981';
+        if (lv === 'ปานกลาง') return '#3b82f6';
         return '#ef4444';
     }
+
     function getLvlClass(lv) {
-        if (['สูงกว่าเกณฑ์','โดดเด่น','สูง'].indexOf(lv) >= 0) return 'lh';
-        if (['เกณฑ์ปกติ','ปานกลาง'].indexOf(lv) >= 0) return 'lm';
+        if (lv === 'สูง') return 'lh';
+        if (lv === 'ปานกลาง') return 'lm';
         return 'll';
     }
 
@@ -421,7 +438,7 @@ function buildRIASECPdfHtml(opts) {
         ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;display:block;" crossorigin="anonymous">'
         : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;">&#128100;</div>';
 
-    var DC = ['#ef4444','#3b82f6','#8b5cf6','#22c55e','#f59e0b','#14b8a6'];
+    var DC = ['#ef4444', '#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#14b8a6'];
 
     // ---- PIE SVG ----
     var pieTot = 0;
@@ -505,11 +522,11 @@ function buildRIASECPdfHtml(opts) {
             '<td class="' + getLvlClass(dims[i].level) + '" style="font-size:13px;">' + dims[i].level + '</td>' +
             '</tr>';
     }
-    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / 150 * 100) : '-';
+    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / TOTAL_MAX_SCORE * 100) : '-';
     trows += '<tr style="background:#f1f5f9;font-weight:700;">' +
         '<td style="text-align:left;font-size:13px;"><b>รวม</b></td>' +
         '<td style="font-size:11px;"><b>' + scoreTotal + '</b></td>' +
-        '<td style="font-size:13px;"><b>150</b></td>' +
+        '<td style="font-size:13px;"><b>' + TOTAL_MAX_SCORE + '</b></td>' +
         '<td style="font-size:11px;"><b>' + totPct + '%</b></td>' +
         '<td class="' + getLvlClass(totalLevel) + '" style="font-size:13px;"><b>' + totalLevel + '</b></td>' +
         '</tr>';
@@ -577,7 +594,7 @@ function buildRIASECPdfHtml(opts) {
         '<div class="box" style="text-align:center;">' +
         '<div class="stitle2">🏆 ผลการประเมินรวม</div>' +
         '<div style="background:' + totalBg + ';border:2px solid ' + totalBorder + ';border-radius:8px;padding:12px 8px;margin-top:4px;">' +
-        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / 150</span></div>' +
+        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / ' + TOTAL_MAX_SCORE + '</span></div>' +
         '<div style="font-size:13px;font-weight:700;color:' + totalColor + ';margin-top:6px;">ระดับ: ' + totalLevel + '</div>' +
         '</div>' +
         '</div>' +
@@ -626,22 +643,29 @@ function buildRIASECPdfHtml(opts) {
 }
 
 function generateFullPDFRIASEC(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
-    const _getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
+    // ✅ ใช้ฟังก์ชัน getLevel ที่ให้ 'ต่ำ', 'ปานกลาง', 'สูง'
+    const getLevel = (score, norm) => {
+        if (score < norm.min) return 'ต่ำ';
+        if (score <= norm.max) return 'ปานกลาง';
+        return 'สูง';
+    };
 
     const dims = RIASEC_DIMENSIONS.map(d => {
         const score = assessment['score_' + d.key] || 0;
         const levelFromDb = assessment['level_' + d.key];
         const norm = RIASEC_NORM[d.key] || { min: 10, max: 18 };
-        const level = levelFromDb || _getLevel(score, norm);
+        // ✅ ใช้ getLevel แทน _getLevel
+        const level = levelFromDb || getLevel(score, norm);
         return { key: d.key, label: d.label, score: score, max: d.maxScore, level: level };
     });
 
     if (assessment.score_total === undefined || assessment.score_total === null) {
-        assessment.score_total = dims.reduce(function(s, d) { return s + d.score; }, 0);
+        assessment.score_total = dims.reduce(function (s, d) { return s + d.score; }, 0);
     }
     if (!assessment.level_total) {
         const normTotal = RIASEC_NORM.total || { min: 60, max: 108 };
-        assessment.level_total = _getLevel(assessment.score_total, normTotal);
+        // ✅ ใช้ getLevel
+        assessment.level_total = getLevel(assessment.score_total, normTotal);
     }
 
     const studentIdCard = currentStudent ? (currentStudent.student_id_card || '') : '';
@@ -650,10 +674,20 @@ function generateFullPDFRIASEC(assessment, schoolName, academicYear, semester, a
     const studentNumber = assessment._studentNumber || '';
 
     const html = buildRIASECPdfHtml({
-        assessment: assessment, schoolName: schoolName, academicYear: academicYear, semester: semester,
-        adviser1: adviser1, adviser2: adviser2, logoUrl: logoUrl, fullName: fullName, avatarUrl: avatarUrl,
+        assessment: assessment,
+        schoolName: schoolName,
+        academicYear: academicYear,
+        semester: semester,
+        adviser1: adviser1,
+        adviser2: adviser2,
+        logoUrl: logoUrl,
+        fullName: fullName,
+        avatarUrl: avatarUrl,
         dims: dims,
-        studentIdCard: studentIdCard, studentNumber: studentNumber, gradeLevel: gradeLevel, roomNumber: roomNumber,
+        studentIdCard: studentIdCard,
+        studentNumber: studentNumber,
+        gradeLevel: gradeLevel,
+        roomNumber: roomNumber,
         docTitle: 'รายงานผลการประเมินบุคลิกภาพ RIASEC'
     });
 

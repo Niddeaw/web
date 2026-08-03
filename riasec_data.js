@@ -112,9 +112,9 @@ const RIASEC_NORM = {
 function interpretScoreRIASEC(score, dimKey) {
     const norm = RIASEC_NORM[dimKey];
     if (!norm) return 'ปานกลาง';
-    if (score < norm.min) return 'ควรพัฒนา';
+    if (score < norm.min) return 'ต่ำ';
     if (score <= norm.max) return 'ปานกลาง';
-    return 'โดดเด่น';
+    return 'สูง';
 }
 
 function calcScoreRIASEC(answers) {

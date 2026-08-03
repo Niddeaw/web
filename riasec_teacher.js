@@ -4,6 +4,8 @@
  */
 
 const MODULE_ID = 'riasec';
+const TOTAL_QUESTIONS = RIASEC_QUESTIONS.length;
+const TOTAL_MAX_SCORE = RIASEC_DIMENSIONS.reduce((sum, d) => sum + d.maxScore, 0);
 
 // ==========================================
 // ตัวแปร Global
@@ -529,10 +531,15 @@ function renderTable(rows) {
     const getLevelBadge = (level) => {
         if (!level) return '<span class="text-slate-300">-</span>';
         let cls = '';
-        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) cls = 'bg-green-100 text-green-700';
-        else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) cls = 'bg-blue-100 text-blue-700';
-        else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) cls = 'bg-amber-100 text-amber-700';
-        else cls = 'bg-slate-100 text-slate-600';
+        if (level === 'สูง') {
+            cls = 'bg-green-100 text-green-700';
+        } else if (level === 'ปานกลาง') {
+            cls = 'bg-blue-100 text-blue-700';
+        } else if (level === 'ต่ำ') {
+            cls = 'bg-amber-100 text-amber-700';
+        } else {
+            cls = 'bg-slate-100 text-slate-600';
+        }
         return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
     };
 
@@ -573,7 +580,7 @@ function renderTable(rows) {
             <td class="text-center font-bold text-slate-400">${r.student_number}</td>
             <td class="font-semibold text-slate-700">${fullName}</td>
             ${dimScores.map(s => `<td class="text-center">${s}/25</td>`).join('')}
-            <td class="text-center font-bold">${totalScore} / 150</td>
+            <td class="text-center font-bold">${totalScore} / ${TOTAL_MAX_SCORE}</td>
             <td class="text-center">${getLevelBadge(riasec.level_total)}</td>
             <td class="text-center">${actions}</td>
         </tr>`;
@@ -656,12 +663,14 @@ async function openViewResult(studentId) {
     const totalLvl = riasec.level_total || '';
 
     const getLevelStyle = (level) => {
-        if (!level) return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
-        if (['โดดเด่น', 'สูง', 'สูงกว่าเกณฑ์'].includes(level)) {
+        if (!level) {
+            return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
+        }
+        if (level === 'สูง') {
             return { badge: 'bg-green-100 text-green-700', bar: '#10b981', bg: 'bg-green-500' };
-        } else if (['ปานกลาง', 'เกณฑ์ปกติ'].includes(level)) {
+        } else if (level === 'ปานกลาง') {
             return { badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6', bg: 'bg-blue-500' };
-        } else if (['ควรพัฒนา', 'ต่ำ', 'ต่ำกว่าเกณฑ์'].includes(level)) {
+        } else if (level === 'ต่ำ') {
             return { badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b', bg: 'bg-amber-500' };
         } else {
             return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
@@ -695,7 +704,7 @@ async function openViewResult(studentId) {
             <div class="inline-flex items-center gap-2 px-5 py-3 rounded-2xl ${totalStyle.bg} text-white">
                 <i class="fas fa-star"></i>
                 <span class="font-black text-2xl">${totalScore}</span>
-                <span class="text-sm opacity-80">/ 150 คะแนน</span>
+                <span class="text-sm opacity-80">/ ${TOTAL_MAX_SCORE} คะแนน</span>
                 <span class="font-bold">&nbsp;·&nbsp;${totalLvl}</span>
             </div>
         </div>
@@ -766,9 +775,9 @@ async function saveEdit() {
     const total = Object.values(scores).reduce((a, b) => a + b, 0);
 
     const getLevel = (score, norm) => {
-        if (score < norm.min) return 'ควรพัฒนา';
+        if (score < norm.min) return 'ต่ำ';
         if (score <= norm.max) return 'ปานกลาง';
-        return 'โดดเด่น';
+        return 'สูง';
     };
 
     const payload = {
@@ -852,7 +861,7 @@ function exportExcel() {
             const dim = RIASEC_DIMENSIONS.find(d => d.key === key);
             row[dim.label] = riasec[`score_${key}`] || 0;
         });
-        row['รวม (150)'] = riasec.score_total;
+        row['รวม (' + TOTAL_MAX_SCORE + ')'] = riasec.score_total;
         row['ระดับรวม'] = riasec.level_total;
         return row;
     }).filter(r => r);
@@ -862,7 +871,6 @@ function exportExcel() {
     XLSX.utils.book_append_sheet(wb, ws, 'RIASEC_6dim');
     XLSX.writeFile(wb, `RIASEC_${isAdminMode ? 'admin' : 'teacher'}_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
 }
-
 // ==========================================
 // พิมพ์ PDF (คล้ายกันกับ MIT)
 // ==========================================
@@ -973,20 +981,22 @@ function buildRIASECPdfHtml(opts) {
     var scoreTotal = assessment.score_total ?? '-';
     var totalLevel = assessment.level_total || '-';
 
-    var isHigh = ['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(totalLevel) >= 0;
-    var isMid = ['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(totalLevel) >= 0;
+    // ✅ แก้ตรงนี้
+    var isHigh = (totalLevel === 'สูง');
+    var isMid = (totalLevel === 'ปานกลาง');
     var totalColor = isHigh ? '#15803d' : (isMid ? '#1d4ed8' : '#b91c1c');
     var totalBg = isHigh ? '#dcfce7' : (isMid ? '#dbeafe' : '#fee2e2');
     var totalBorder = isHigh ? '#16a34a' : (isMid ? '#2563eb' : '#dc2626');
 
     function getLvlColor(lv) {
-        if (['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(lv) >= 0) return '#10b981';
-        if (['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(lv) >= 0) return '#3b82f6';
+        if (lv === 'สูง') return '#10b981';
+        if (lv === 'ปานกลาง') return '#3b82f6';
         return '#ef4444';
     }
+
     function getLvlClass(lv) {
-        if (['สูงกว่าเกณฑ์', 'โดดเด่น', 'สูง'].indexOf(lv) >= 0) return 'lh';
-        if (['เกณฑ์ปกติ', 'ปานกลาง'].indexOf(lv) >= 0) return 'lm';
+        if (lv === 'สูง') return 'lh';
+        if (lv === 'ปานกลาง') return 'lm';
         return 'll';
     }
 
@@ -994,7 +1004,7 @@ function buildRIASECPdfHtml(opts) {
         ? '<img src="' + avatarUrl + '" width="70" height="90" style="object-fit:cover;display:block;" crossorigin="anonymous">'
         : '<div style="width:70px;height:90px;text-align:center;line-height:90px;font-size:30px;color:#94a3b8;">&#128100;</div>';
 
-    var DC = ['#ef4444','#3b82f6','#8b5cf6','#22c55e','#f59e0b','#14b8a6'];
+    var DC = ['#ef4444', '#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#14b8a6'];
 
     var pieTot = 0;
     for (var i = 0; i < dims.length; i++) pieTot += dims[i].score;
@@ -1073,11 +1083,11 @@ function buildRIASECPdfHtml(opts) {
             '<td class="' + getLvlClass(dims[i].level) + '" style="font-size:13px;">' + dims[i].level + '</td>' +
             '</tr>';
     }
-    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / 150 * 100) : '-';
+    var totPct = (scoreTotal !== '-') ? Math.round(scoreTotal / TOTAL_MAX_SCORE * 100) : '-';
     trows += '<tr style="background:#f1f5f9;font-weight:700;">' +
         '<td style="text-align:left;font-size:13px;"><b>รวม</b></td>' +
         '<td style="font-size:11px;"><b>' + scoreTotal + '</b></td>' +
-        '<td style="font-size:13px;"><b>150</b></td>' +
+        '<td style="font-size:13px;"><b>' + TOTAL_MAX_SCORE + '</b></td>' +
         '<td style="font-size:11px;"><b>' + totPct + '%</b></td>' +
         '<td class="' + getLvlClass(totalLevel) + '" style="font-size:13px;"><b>' + totalLevel + '</b></td>' +
         '</tr>';
@@ -1145,7 +1155,7 @@ function buildRIASECPdfHtml(opts) {
         '<div class="box" style="text-align:center;">' +
         '<div class="stitle2">🏆 ผลการประเมินรวม</div>' +
         '<div style="background:' + totalBg + ';border:2px solid ' + totalBorder + ';border-radius:8px;padding:12px 8px;margin-top:4px;">' +
-        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / 150</span></div>' +
+        '<div style="font-size:30px;font-weight:900;color:' + totalColor + ';line-height:1;">' + scoreTotal + '<span style="font-size:14px;font-weight:500;"> / ' + TOTAL_MAX_SCORE + '</span></div>' +
         '<div style="font-size:13px;font-weight:700;color:' + totalColor + ';margin-top:6px;">ระดับ: ' + totalLevel + '</div>' +
         '</div>' +
         '</div>' +
@@ -1194,22 +1204,27 @@ function buildRIASECPdfHtml(opts) {
 }
 
 function generateStudentPDFRIASEC(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
-    const _getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
+    // ✅ ใช้ getLevel แทน _getLevel
+    const getLevel = (score, norm) => {
+        if (score < norm.min) return 'ต่ำ';
+        if (score <= norm.max) return 'ปานกลาง';
+        return 'สูง';
+    };
 
     const dims = RIASEC_DIMENSIONS.map(d => {
         const score = assessment['score_' + d.key] || 0;
         const levelFromDb = assessment['level_' + d.key];
         const norm = RIASEC_NORM[d.key] || { min: 10, max: 18 };
-        const level = levelFromDb || _getLevel(score, norm);
+        const level = levelFromDb || getLevel(score, norm);
         return { key: d.key, label: d.label, score: score, max: d.maxScore, level: level };
     });
 
     if (assessment.score_total === undefined || assessment.score_total === null) {
-        assessment.score_total = dims.reduce(function(s, d) { return s + d.score; }, 0);
+        assessment.score_total = dims.reduce(function (s, d) { return s + d.score; }, 0);
     }
     if (!assessment.level_total) {
         const normTotal = RIASEC_NORM.total || { min: 60, max: 108 };
-        assessment.level_total = _getLevel(assessment.score_total, normTotal);
+        assessment.level_total = getLevel(assessment.score_total, normTotal);
     }
 
     const cls = assessment.core_classrooms;
@@ -1218,7 +1233,7 @@ function generateStudentPDFRIASEC(assessment, schoolName, academicYear, semester
     const gradeLevel = (cls && cls.grade_level) ? cls.grade_level : '';
     const roomNumber = (cls && cls.room_number) ? cls.room_number : '';
 
-    const resultRow = allResults.find(function(r) { return r.student_id === assessment.student_id; });
+    const resultRow = allResults.find(function (r) { return r.student_id === assessment.student_id; });
     const studentNumber = (resultRow && resultRow.student_number) ? resultRow.student_number : '';
 
     const html = buildRIASECPdfHtml({
@@ -1322,7 +1337,11 @@ async function processImportRows(rows) {
     const { data: stds } = await db.from('core_students').select('id, student_id_card, classroom_id');
     const stdMap = Object.fromEntries((stds || []).map(s => [String(s.student_id_card).trim(), s]));
 
-    const getLevel = (score, norm) => score < norm.min ? 'ต่ำกว่าเกณฑ์' : (score <= norm.max ? 'เกณฑ์ปกติ' : 'สูงกว่าเกณฑ์');
+    const getLevel = (score, norm) => {
+        if (score < norm.min) return 'ต่ำ';
+        if (score <= norm.max) return 'ปานกลาง';
+        return 'สูง';
+    };
     let success = 0, fail = 0;
     for (const row of dataRows) {
         const std = stdMap[String(row['รหัสนักเรียน']).trim()];
