@@ -671,6 +671,31 @@
                                 </select>
                             </div>
                         </div>
+                        <!-- ส่วนไฟล์แนบ -->
+                        <div class="mt-5 border-t border-slate-100 pt-4">
+                            <label class="block text-xs font-bold text-slate-600 mb-2">ไฟล์แนบ</label>
+                            <!-- แสดงไฟล์เดิม -->
+                            <div id="edit_current_file_wrap" class="hidden mb-3">
+                                <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+                                    <i class="fa-solid fa-paperclip text-slate-400 text-sm"></i>
+                                    <a id="edit_current_file_link" href="#" target="_blank"
+                                        class="text-blue-600 hover:underline text-sm font-medium flex-1 truncate">ดูไฟล์เดิม</a>
+                                    <button type="button" onclick="clearEditFile()"
+                                        class="text-xs text-rose-500 hover:text-rose-700 font-bold whitespace-nowrap transition">
+                                        <i class="fas fa-times mr-1"></i>ลบไฟล์
+                                    </button>
+                                </div>
+                                <p class="text-[11px] text-slate-400 mt-1">* หากต้องการเปลี่ยนไฟล์ ให้กดลบแล้วเลือกไฟล์ใหม่</p>
+                            </div>
+                            <!-- อัปโหลดใหม่ -->
+                            <div id="edit_new_file_wrap">
+                                <input type="file" id="edit_doc_file" accept=".pdf, image/*"
+                                    class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-amber-50 file:text-amber-700 cursor-pointer hover:file:bg-amber-100 transition">
+                                <p class="text-[11px] text-slate-400 mt-1.5">* รูปภาพจะถูกบีบอัดให้ไม่เกิน 2MB อัตโนมัติ</p>
+                            </div>
+                            <input type="hidden" id="edit_file_url_keep">
+                        </div>
+
                         <div class="mt-6 flex justify-end gap-3">
                             <button type="button" onclick="closeEditModal()"
                                 class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">ยกเลิก</button>

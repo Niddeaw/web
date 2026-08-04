@@ -277,17 +277,35 @@ async function compressImage(file, maxSizeMB = 2) {
         reader.onerror = error => reject(error);
     });
 }
-// ==========================================
-// 8. บันทึกข้อมูล (ใช้ logUserAction และ requireAdmin)
-// ==========================================
+
+// ============================================================
+// 8. ฟังก์ชัน submitDocument - บันทึกหนังสือใหม่ (ฟอร์มลงรับ)
+// ============================================================
 async function submitDocument(e) {
     e.preventDefault();
 
-    // ตรวจสอบว่ามีสิทธิ์ Admin หรือไม่ (ต้องเป็น Admin หรือ Sarabun Admin)
+    // ตรวจสอบสิทธิ์ Admin
     if (!isAdminMode) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถบันทึกหนังสือได้', 'warning');
         return;
     }
+
+    // ----------------------------------------------------------
+    // ✅ ตรวจสอบวันที่ (เพิ่มเติม)
+    // ----------------------------------------------------------
+    const receiveDate = document.getElementById('doc_receive_date').value;
+    const docDate = document.getElementById('doc_date').value;
+
+    if (!receiveDate || !docDate) {
+        Swal.fire('กรุณากรอกวันที่', 'ต้องระบุทั้ง "วันที่ลงรับ" และ "วันที่บนหนังสือ"', 'warning');
+        return;
+    }
+
+    if (isNaN(new Date(receiveDate).getTime()) || isNaN(new Date(docDate).getTime())) {
+        Swal.fire('รูปแบบวันที่ไม่ถูกต้อง', 'กรุณาเลือกวันที่ที่ถูกต้องจากปฎิทิน', 'warning');
+        return;
+    }
+    // ----------------------------------------------------------
 
     const fileInput = document.getElementById('doc_file');
     let fileUrl = null;
@@ -333,7 +351,7 @@ async function submitDocument(e) {
             return;
         }
 
-        // ✅ Log
+        // Log
         await logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
 
         // ส่ง Telegram
@@ -363,6 +381,7 @@ async function submitDocument(e) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
+
 
 async function uploadToGAS(file) {
     if (!systemSettings.gas_api_url) throw new Error('ยังไม่ได้ตั้งค่า GAS API URL');
@@ -747,6 +766,31 @@ async function editDoc(id) {
         document.getElementById('edit_speed_level').value = data.speed_level || 'ปกติ';
         document.getElementById('edit_secret_level').value = data.secret_level || 'ปกติ';
 
+        // ✅ ไฟล์แนบเดิม
+        const keepInput = document.getElementById('edit_file_url_keep');
+        const currentWrap = document.getElementById('edit_current_file_wrap');
+        const newWrap = document.getElementById('edit_new_file_wrap');
+        const fileLink = document.getElementById('edit_current_file_link');
+        const fileInput = document.getElementById('edit_doc_file');
+        if (fileInput) fileInput.value = '';
+        if (data.file_url) {
+            keepInput.value = data.file_url;
+            fileLink.href = data.file_url;
+            // ตัดชื่อไฟล์จาก URL มาแสดง
+            try {
+                const urlParts = data.file_url.split('/');
+                fileLink.textContent = decodeURIComponent(urlParts[urlParts.length - 1]) || 'ดูไฟล์เดิม';
+            } catch(e) {
+                fileLink.textContent = 'ดูไฟล์เดิม';
+            }
+            currentWrap.classList.remove('hidden');
+            newWrap.classList.add('hidden');
+        } else {
+            keepInput.value = '';
+            currentWrap.classList.add('hidden');
+            newWrap.classList.remove('hidden');
+        }
+
         // ✅ ตั้งค่าวันที่ใน input
         const receiveDateFormatted = formatDateForInput(data.receive_date);
         const docDateFormatted = formatDateForInput(data.doc_date);
@@ -939,6 +983,13 @@ async function editDoc(id) {
     }
 }
 
+function clearEditFile() {
+    document.getElementById('edit_file_url_keep').value = '';
+    document.getElementById('edit_current_file_wrap').classList.add('hidden');
+    document.getElementById('edit_new_file_wrap').classList.remove('hidden');
+    document.getElementById('edit_doc_file').value = '';
+}
+
 function closeEditModal() {
     const modal = document.getElementById('editDocModal');
     const content = document.getElementById('editModalContent');
@@ -947,6 +998,9 @@ function closeEditModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
+// ============================================================
+// ฟังก์ชัน saveEditDoc - บันทึกการแก้ไขหนังสือ (ฟอร์มแก้ไข)
+// ============================================================
 async function saveEditDoc(e) {
     e.preventDefault();
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหนังสือได้')) return;
@@ -954,11 +1008,25 @@ async function saveEditDoc(e) {
     const id = document.getElementById('edit_doc_id').value;
     if (!id) return Swal.fire('ผิดพลาด', 'ไม่พบ ID หนังสือ', 'error');
 
-    // ... (รวบรวมข้อมูล)
-    const receiveNumber = document.getElementById('edit_receive_number').value.trim();
+    // ----------------------------------------------------------
+    // ✅ ตรวจสอบวันที่ (เพิ่มเติม)
+    // ----------------------------------------------------------
     const receiveDate = document.getElementById('edit_receive_date').value;
-    const docNumber = document.getElementById('edit_doc_number').value.trim();
     const docDate = document.getElementById('edit_doc_date').value;
+
+    if (!receiveDate || !docDate) {
+        Swal.fire('กรุณากรอกวันที่', 'ต้องระบุทั้ง "วันที่ลงรับ" และ "วันที่บนหนังสือ"', 'warning');
+        return;
+    }
+
+    if (isNaN(new Date(receiveDate).getTime()) || isNaN(new Date(docDate).getTime())) {
+        Swal.fire('รูปแบบวันที่ไม่ถูกต้อง', 'กรุณาเลือกวันที่ที่ถูกต้องจากปฎิทิน', 'warning');
+        return;
+    }
+    // ----------------------------------------------------------
+
+    const receiveNumber = document.getElementById('edit_receive_number').value.trim();
+    const docNumber = document.getElementById('edit_doc_number').value.trim();
     const docFrom = document.getElementById('edit_doc_from').value.trim();
     const docSubject = document.getElementById('edit_doc_subject').value.trim();
     const speedLevel = document.getElementById('edit_speed_level').value;
@@ -1005,7 +1073,6 @@ async function saveEditDoc(e) {
     }
 }
 
-// ---- Delete ----
 async function deleteDoc(id) {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบหนังสือได้')) return;
 
@@ -1667,6 +1734,7 @@ window.toggleAdminPanel = toggleAdminPanel;
 window.viewDoc = viewDoc;
 window.closeModal = closeModal;
 window.editDoc = editDoc;
+window.clearEditFile = clearEditFile;
 window.closeEditModal = closeEditModal;
 window.saveEditDoc = saveEditDoc;
 window.deleteDoc = deleteDoc;
