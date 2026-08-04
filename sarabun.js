@@ -10,8 +10,6 @@ let isAdminMode = false;
 let systemSettings = {};
 let settingsCache = null;
 let appointTomSelect = null;
-let cropper = null;
-
 let teacherTable = null;
 let adminTable = null;
 
@@ -21,7 +19,6 @@ let adminTable = null;
 window.onload = async () => {
     await checkAuth();
     initUIComponents();
-    initCropperEvents();
     await loadSettings();
     await loadDashboardStats();
 };
@@ -236,161 +233,8 @@ function initUIComponents() {
 }
 
 // ==========================================
-// 5. Cropper Events (ไม่เปลี่ยนแปลง)
+// 5. ฟังก์ชันช่วยเหลือ HTML Escape
 // ==========================================
-function initCropperEvents() {
-    const fileInput = document.getElementById('ocrImageInput');
-    if (!fileInput) return;
-    fileInput.addEventListener('change', function (e) {
-        const file = e.target.files[0];
-        if (!file) return;
-        const img = document.getElementById('ocrPreviewImage');
-        const url = URL.createObjectURL(file);
-        img.src = url;
-        img.classList.remove('hidden');
-        document.getElementById('noImageMsg')?.classList.add('hidden');
-        if (cropper) cropper.destroy();
-        img.onload = () => {
-            cropper = new Cropper(img, {
-                aspectRatio: NaN,
-                viewMode: 1,
-                dragMode: 'crop',
-                autoCropArea: 0.8,
-                cropBoxMovable: true,
-                cropBoxResizable: true
-            });
-            const btn = document.getElementById('cropAndOCRBtn');
-            if (btn) btn.disabled = false;
-        };
-    });
-}
-
-// ==========================================
-// 6. OCR และฟอร์ม (ไม่เปลี่ยนแปลง)
-// ==========================================
-function nextStep(step) {
-    if (step === 1) {
-        document.getElementById('step1').classList.remove('hidden');
-        document.getElementById('step2').classList.add('hidden');
-    } else {
-        document.getElementById('step1').classList.add('hidden');
-        document.getElementById('step2').classList.remove('hidden');
-    }
-}
-
-async function cropAndOCR() {
-    if (!cropper) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรูปภาพและลากกรอบบริเวณข้อความ "จาก" และ "เรื่อง" ก่อน', 'warning');
-    }
-    const croppedCanvas = cropper.getCroppedCanvas();
-    if (!croppedCanvas) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาลากเมาส์เลือกพื้นที่ที่มีข้อความ', 'warning');
-    }
-
-    Swal.fire({
-        title: 'กำลังอ่านข้อความเฉพาะพื้นที่ที่เลือก...',
-        html: 'ใช้เวลาประมาณ 2-4 วินาที',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-    try {
-        const blob = await new Promise(resolve => croppedCanvas.toBlob(resolve, 'image/jpeg', 0.9));
-        const resizedBlob = await resizeImageBlob(blob, 1200);
-        const result = await Tesseract.recognize(
-            resizedBlob,
-            'tha+eng',
-            { logger: m => console.log('[OCR]', m.status, m.progress ? Math.round(m.progress * 100) + '%' : '') }
-        );
-        let rawText = result.data.text;
-        console.log('OCR Result (cropped):', rawText);
-
-        const normalized = normalizeThaiText(rawText);
-        const fromMatch = normalized.match(/(?:^|\n)[^\n]*จาก[\s:]*(\S[^\n]*)/m);
-        const subjectMatch = normalized.match(/(?:^|\n)[^\n]*เรื่อง[\s:]*(\S[^\n]*)/m);
-
-        if (fromMatch) document.getElementById('doc_from').value = fromMatch[1].trim();
-        if (subjectMatch) document.getElementById('doc_subject').value = subjectMatch[1].trim();
-
-        if (!fromMatch && !subjectMatch && normalized.trim().length > 0) {
-            const { value: selected } = await Swal.fire({
-                title: 'ไม่พบคำว่า "จาก" หรือ "เรื่อง" อัตโนมัติ',
-                html: `
-                    <p class="text-left text-sm mb-2">ข้อความที่อ่านได้ (ปรับแต่งให้ต่อเนื่องแล้ว):</p>
-                    <textarea id="ocrCleanText" rows="5" class="w-full border rounded p-2 text-sm font-mono">${escapeHtml(normalized.substring(0, 800))}</textarea>
-                    <p class="text-left text-sm mt-3">เลือกปลายทาง:</p>
-                    <select id="targetField" class="w-full border rounded p-2">
-                        <option value="from">นำไปใส่ช่อง "จาก"</option>
-                        <option value="subject">นำไปใส่ช่อง "เรื่อง"</option>
-                        <option value="both">ใส่ทั้งสองช่อง (ข้อความเดียวกัน)</option>
-                    </select>
-                `,
-                showCancelButton: true,
-                confirmButtonText: 'บันทึก',
-                cancelButtonText: 'ข้าม',
-                preConfirm: () => {
-                    const text = document.getElementById('ocrCleanText').value;
-                    const target = document.getElementById('targetField').value;
-                    return { text, target };
-                }
-            });
-            if (selected) {
-                if (selected.target === 'from') document.getElementById('doc_from').value = selected.text;
-                else if (selected.target === 'subject') document.getElementById('doc_subject').value = selected.text;
-                else if (selected.target === 'both') {
-                    document.getElementById('doc_from').value = selected.text;
-                    document.getElementById('doc_subject').value = selected.text;
-                }
-            }
-        } else if (fromMatch || subjectMatch) {
-            Swal.fire('สำเร็จ', 'ดึงข้อมูล "จาก" และ/หรือ "เรื่อง" สำเร็จ', 'success');
-        }
-        nextStep(2);
-    } catch (err) {
-        console.error(err);
-        Swal.fire('ข้อผิดพลาด', 'OCR ล้มเหลว กรุณากรอกข้อมูลด้วยตนเอง', 'error');
-        nextStep(2);
-    }
-}
-
-function skipOCR() {
-    nextStep(2);
-}
-
-function resizeImageBlob(blob, maxSize) {
-    return new Promise((resolve) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(blob);
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            let w = img.width, h = img.height;
-            if (w > maxSize) {
-                h = (h * maxSize) / w;
-                w = maxSize;
-            }
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, w, h);
-            canvas.toBlob(resolve, 'image/jpeg', 0.8);
-        };
-    });
-}
-
-function normalizeThaiText(text) {
-    let lines = text.split('\n');
-    lines = lines.map(line => {
-        let cleaned = line.replace(/[ \t]+/g, ' ');
-        let previous;
-        do {
-            previous = cleaned;
-            cleaned = cleaned.replace(/([ก-๙]) (?=[ก-๙])/g, '$1');
-        } while (cleaned !== previous);
-        return cleaned.trim();
-    });
-    return lines.filter(l => l.length > 0).join('\n');
-}
-
 function escapeHtml(str) {
     if (!str) return '';
     return str.replace(/[&<>]/g, function (m) {
@@ -511,7 +355,6 @@ async function submitDocument(e) {
             if (relatedSelect && relatedSelect.tomselect) {
                 relatedSelect.tomselect.clear();
             }
-            nextStep(1);
             toggleAdminPanel('table');
             if (teacherTable) teacherTable.ajax.reload(null, false);
             if (adminTable) adminTable.ajax.reload(null, false);
@@ -1833,9 +1676,6 @@ window.saveSettings = saveSettings;
 window.appointModuleAdmin = appointModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.submitDocument = submitDocument;
-window.cropAndOCR = cropAndOCR;
-window.skipOCR = skipOCR;
-window.nextStep = nextStep;
 window.exportToExcel = exportToExcel;
 window.importFromExcel = importFromExcel;
 window.loadDashboardStats = loadDashboardStats;

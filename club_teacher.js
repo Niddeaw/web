@@ -28,6 +28,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
+// Helper: ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็น Admin (หลัก หรือ โมดูล)
+// ==========================================
+function hasAdminAccess() {
+    return isAdminUser(userRole, isAdminMode) || isModuleAdmin;
+}
+
+// ==========================================
 // 1. Initialization & RBAC (ใช้ config.js)
 // ==========================================
 async function initSystem() {
@@ -47,21 +54,25 @@ async function initSystem() {
         // ✅ ตรวจสอบ Module Admin ด้วย hasModuleAccess
         isModuleAdmin = await hasModuleAccess(role, MODULE_ID, user.id);
 
-        // ✅ ใช้ applyVisibilityByRole จาก config.js
-        applyVisibilityByRole(role, isAdminMode, {
-            settingsBtn: 'admin-settings-btn',
-            toggleBtn: 'btnAdminMode',
-            adminManagerBtn: null
-        });
-
+        // ✅ Unhide ปุ่มก่อน เพื่อให้ updateToggleModeUI (config.js) ทำงานได้
+        //    (config.js จะ return กลางคันถ้าปุ่มยัง hidden อยู่)
         if (isAdminMode || isModuleAdmin) {
             document.getElementById('btnAdminMode')?.classList.remove('hidden');
+            document.getElementById('btnAdminMode')?.classList.add('flex');
             document.getElementById('admin-settings-btn')?.classList.remove('hidden');
             await loadAllTeachers();
         }
 
-        // ✅ อัปเดตปุ่มสลับโหมด
+        // ✅ อัปเดตปุ่มสลับโหมด (ต้องเรียกหลัง unhide เท่านั้น)
         updateToggleModeUI(role, isAdminMode, 'btnAdminMode');
+
+        // ✅ ใช้ applyVisibilityByRole จาก config.js (เรียกหลังสุด ห้ามซ่อนปุ่มที่เพิ่ง unhide)
+        //    ส่ง isAdminMode แทน role-based เพื่อให้ Module Admin ไม่ถูกซ่อนปุ่ม toggle
+        applyVisibilityByRole(role, isAdminMode || isModuleAdmin, {
+            settingsBtn: 'admin-settings-btn',
+            toggleBtn: 'btnAdminMode',
+            adminManagerBtn: null
+        });
 
         await fetchSchoolInfo();
         await loadCategories();
@@ -98,8 +109,8 @@ async function loadAllTeachers() {
 // 2. Role Switcher (ใช้ config.js)
 // ==========================================
 window.toggleRoleView = () => {
-    // ✅ ตรวจสอบสิทธิ์ Admin
-    if (!isAdminUser(userRole, isAdminMode)) {
+    // ✅ ตรวจสอบสิทธิ์: Admin หลัก หรือ Module Admin เท่านั้นที่สลับได้
+    if (!isAdminUser(userRole, isAdminMode) && !isModuleAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
         return;
     }
@@ -143,9 +154,12 @@ window.toggleRoleView = () => {
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 
-    // ✅ ใช้ฟังก์ชันกลางอัปเดตปุ่ม
+    // ✅ trueAdminAccess = สิทธิ์จริงของผู้ใช้ (ไม่ขึ้นกับโหมดที่กำลังดูอยู่)
+    //    ใช้ค่านี้แทน isAdminMode เพื่อไม่ให้ปุ่มหายหลังสลับกลับโหมดครู
+    const trueAdminAccess = WRK_ROLES.ADMIN.includes(userRole) || isModuleAdmin;
+
     updateToggleModeUI(userRole, isAdminMode, 'btnAdminMode');
-    applyVisibilityByRole(userRole, isAdminMode, {
+    applyVisibilityByRole(userRole, trueAdminAccess, {
         settingsBtn: 'admin-settings-btn',
         toggleBtn: 'btnAdminMode'
     });
