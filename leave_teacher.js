@@ -44,10 +44,9 @@ $(document).ready(async function () {
         await window.loadSystemSettings();
         window.initFlatpickr();
         await window.loadLeaveData();
-        window.applyVisibilityByRole(window.currentUserRole, window.isAdminMode, {
-            settingsBtn: null,
-            toggleBtn: 'btnAdminMode'
-        });
+        // หมายเหตุ: ไม่เรียก applyVisibilityByRole สำหรับปุ่มสลับโหมด
+        // เพราะ checkAuth() จัดการแสดง/ซ่อน #btnAdminMode ตาม isAdminMode || isModuleAdmin แล้ว
+        // การเรียก applyVisibilityByRole จะเช็คเฉพาะ role (ไม่รู้จัก isModuleAdmin) และซ่อนปุ่มทับ
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
