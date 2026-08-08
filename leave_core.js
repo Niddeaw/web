@@ -99,7 +99,7 @@ window.switchToAdminMode = function() {
 };
 
 // ==========================================
-// 7. สร้าง PDF ใบลา (ฟังก์ชันหลัก)
+// 7. สร้าง PDF ใบลา (ฟังก์ชันหลัก) พร้อมลายเซ็น
 // ==========================================
 window.generateLeavePDF = async function(id, systemSettings) {
     const db = window.db;
@@ -134,6 +134,7 @@ window.generateLeavePDF = async function(id, systemSettings) {
         const schoolName = school?.school_name || '........................';
         const deputyAcademicName = school?.deputy_academic || '...................................................';
 
+        // ---- คำนวณ commander (หัวหน้ากลุ่ม/รองวิชาการ) ----
         let commanderName = '', commanderPosition = '';
         const isDeputyDirector = p.position?.startsWith('รองผู้อำนวยการ');
         if (isDeputyDirector) {
@@ -163,6 +164,28 @@ window.generateLeavePDF = async function(id, systemSettings) {
             }
         }
 
+        // ---- 🔍 ดึง signature_file_id ของบุคลากรที่ลา ----
+        const personnelSignatureFileId = p.signature_file_id || null;
+
+        // ---- 🔍 ดึง signature_file_id ของ commander (ถ้ามี) ----
+        let commanderSignatureFileId = null;
+        if (commanderName && commanderName !== '...................................................') {
+            // ค้นหาจากชื่อ (ตัดคำนำหน้าออกเพื่อความแม่นยำ)
+            const cleanName = commanderName.replace(/^(นาย|นางสาว|นาง|ด.ต.|ร.ต.|ว่าที่ ร.ต.|พระ|สามเณร|หม่อมหลวง|หม่อมหลวงหญิง)\s*/, '');
+            const nameParts = cleanName.split(' ');
+            let query = db.from('core_personnel').select('id, signature_file_id');
+            if (nameParts.length >= 2) {
+                query = query.or(`first_name.ilike.%${nameParts[0]}%,last_name.ilike.%${nameParts[1]}%`);
+            } else {
+                query = query.ilike('first_name', `%${cleanName}%`);
+            }
+            const { data: commanderData } = await query.maybeSingle();
+            if (commanderData && commanderData.signature_file_id) {
+                commanderSignatureFileId = commanderData.signature_file_id;
+            }
+        }
+
+        // ---- คำนวณสถิติการลา (เหมือนเดิม) ----
         const { data: allLeavesStats, error: statsError } = await db.from('leave_requests')
             .select('type, total_days, id, created_at, start_date, end_date')
             .eq('personnel_id', leave.personnel_id)
@@ -198,6 +221,7 @@ window.generateLeavePDF = async function(id, systemSettings) {
             statsData[cat].total.days = statsData[cat].prior.days + statsData[cat].now.days;
         }
 
+        // ---- เตรียมข้อมูลสำหรับแทนที่ ----
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const position = p.position || 'ครู';
         const rank = p.rank || '';
@@ -228,6 +252,7 @@ window.generateLeavePDF = async function(id, systemSettings) {
         const leaveTypeForTitle = leaveType;
         const leaveTypeForOther = isOther ? leaveType : '';
 
+        // ---- ข้อมูลการลาครั้งก่อน ----
         const previousLeaves = allLeavesStats.filter(l => l.id !== leave.id);
         let lastLeave = null;
         if (previousLeaves.length > 0) {
@@ -259,6 +284,7 @@ window.generateLeavePDF = async function(id, systemSettings) {
             }
         }
 
+        // ---- เตรียม Replacements (รวมลายเซ็น) ----
         const replacements = {
             "{{W_DAY}}": wDateObj.getDate().toString(),
             "{{W_MONTH}}": thMonths[wDateObj.getMonth()],
@@ -339,7 +365,10 @@ window.generateLeavePDF = async function(id, systemSettings) {
             "{{A21}}": statsData.other.now.count,
             "{{A22}}": statsData.other.now.days,
             "{{A23}}": statsData.other.total.count,
-            "{{A24}}": statsData.other.total.days
+            "{{A24}}": statsData.other.total.days,
+            // 👇 เพิ่มคีย์สำหรับลายเซ็น (ใช้ _IMAGE เพื่อให้ GAS แทนที่ด้วยรูป)
+            "{{COMMANDER_SIGNATURE_IMAGE}}": commanderSignatureFileId ? `https://drive.google.com/uc?id=${commanderSignatureFileId}` : '',
+            "{{PERSONNEL_SIGNATURE_IMAGE}}": personnelSignatureFileId ? `https://drive.google.com/uc?id=${personnelSignatureFileId}` : ''
         };
 
         const payload = {
@@ -369,7 +398,6 @@ window.generateLeavePDF = async function(id, systemSettings) {
         }
         if (result && result.status === 'success' && result.url) {
             await db.from('leave_requests').update({ pdf_url: result.url }).eq('id', id);
-            // ✅ บันทึก Log
             await window.logUserAction?.(`สร้าง PDF ใบลา ID: ${id}`, 'leave');
             Swal.close();
             window.open(result.url, '_blank');
