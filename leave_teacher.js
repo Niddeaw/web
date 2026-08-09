@@ -183,21 +183,25 @@ window.loadLeaveData = async function() {
         .order('created_at', { ascending: false });
     if (error) { console.error(error); return; }
     window.allMyLeaves = data || [];
-    const validLeaves = window.allMyLeaves.filter(l => 
+
+    // กรองเฉพาะปีงบประมาณและรอบที่อนุมัติแล้วเท่านั้น
+    const approvedLeaves = window.allMyLeaves.filter(l => 
         l.fiscal_year === window.systemSettings.fiscal_year && 
         l.eval_round === window.systemSettings.eval_round && 
-        l.status !== 'ไม่อนุมัติ'
+        l.status === 'อนุมัติ'
     );
+
     let sickCount = 0, sickDays = 0;
     let personalCount = 0, personalDays = 0;
     let maternityCount = 0, maternityDays = 0;
-    validLeaves.forEach(l => {
+    approvedLeaves.forEach(l => {
         if (l.type === 'ลาป่วย') { sickCount++; sickDays += l.total_days; }
         else if (l.type === 'ลากิจส่วนตัว') { personalCount++; personalDays += l.total_days; }
         else if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') { maternityCount++; maternityDays += l.total_days; }
     });
     const totalCount = sickCount + personalCount + maternityCount;
     const totalDays = sickDays + personalDays + maternityDays;
+
     $('#stat-sick-count').text(sickCount);
     $('#stat-sick-days').text(sickDays);
     $('#stat-personal-count').text(personalCount);
@@ -206,6 +210,7 @@ window.loadLeaveData = async function() {
     $('#stat-maternity-days').text(maternityDays);
     $('#stat-total-count').text(totalCount);
     $('#stat-total-days').text(totalDays);
+
     window.renderTable();
 };
 

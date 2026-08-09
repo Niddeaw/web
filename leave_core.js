@@ -6,7 +6,7 @@
 // ==========================================
 // 1. ฟังก์ชันหาเพศจากคำนำหน้า
 // ==========================================
-window.getGenderFromPrefix = function(prefix) {
+window.getGenderFromPrefix = function (prefix) {
     if (!prefix) return 'unknown';
     const malePrefixes = ['นาย', 'ว่าที่ ร.ต.', 'ร.ต.', 'ด.ต.', 'ว่าที่', 'สามเณร', 'พระ', 'หม่อมหลวง'];
     const femalePrefixes = ['นางสาว', 'นาง', 'น.ส.', 'หม่อมหลวงหญิง'];
@@ -18,7 +18,7 @@ window.getGenderFromPrefix = function(prefix) {
 // ==========================================
 // 2. คำนวณวันลาตามประเภท
 // ==========================================
-window.calculateDaysByType = function(startIso, endIso, type) {
+window.calculateDaysByType = function (startIso, endIso, type) {
     if (!startIso || !endIso || !type) return 0;
     const startDate = new Date(startIso);
     const endDate = new Date(endIso);
@@ -40,7 +40,7 @@ window.calculateDaysByType = function(startIso, endIso, type) {
 // ==========================================
 // 3. แปลงวันที่เป็นภาษาไทย
 // ==========================================
-window.formatDateThai = function(isoString) {
+window.formatDateThai = function (isoString) {
     if (!isoString) return '-';
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return '-';
@@ -48,17 +48,26 @@ window.formatDateThai = function(isoString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 };
 
+// ฟังก์ชันแสดงวันที่แบบสั้น (ม.ค., ก.พ., ...)
+window.formatDateThaiShort = function (isoString) {
+    if (!isoString) return '-';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '-';
+    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+};
+
 // ==========================================
 // 4. รายชื่อเดือนภาษาไทย
 // ==========================================
-window.getThaiMonths = function() {
+window.getThaiMonths = function () {
     return ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 };
 
 // ==========================================
 // 5. สลับไปโหมดครู
 // ==========================================
-window.switchToTeacherMode = function() {
+window.switchToTeacherMode = function () {
     Swal.fire({
         toast: true,
         position: 'top-end',
@@ -76,7 +85,7 @@ window.switchToTeacherMode = function() {
 // ==========================================
 // 6. สลับไปโหมดแอดมิน (ตรวจสอบสิทธิ์)
 // ==========================================
-window.switchToAdminMode = function() {
+window.switchToAdminMode = function () {
     // ✅ ใช้ config.js ตรวจสอบสิทธิ์
     const isAdmin = window.isAdminUser?.(window.currentProfile?.role, false);
     const isModuleAdmin = window.isModuleAdmin || false;
@@ -101,7 +110,7 @@ window.switchToAdminMode = function() {
 // ==========================================
 // 7. สร้าง PDF ใบลา (ฟังก์ชันหลัก) พร้อมลายเซ็น
 // ==========================================
-window.generateLeavePDF = async function(id, systemSettings) {
+window.generateLeavePDF = async function (id, systemSettings) {
     const db = window.db;
     const Swal = window.Swal;
     if (!systemSettings.gas_url || !systemSettings.slide_template_id || !systemSettings.pdf_folder_id) {
@@ -284,6 +293,16 @@ window.generateLeavePDF = async function(id, systemSettings) {
             }
         }
 
+        // ---- ดึงวันที่รับทราบและอนุมัติ ----
+        const ackAdminAt = leave.ack_admin_at ? window.formatDateThai(leave.ack_admin_at) : '-';
+        const ackDeputyAt = leave.ack_deputy_at ? window.formatDateThai(leave.ack_deputy_at) : '-';
+        const ackDirectorAt = leave.ack_director_at ? window.formatDateThai(leave.ack_director_at) : '-';
+        const approvedAt = leave.approved_at ? window.formatDateThai(leave.approved_at) : '-';
+        // ---- ตรวจสอบสถานะอนุมัติ ----
+        const isApproved = leave.status === 'อนุมัติ';
+        const approvedCheck = isApproved ? '✓' : '';
+        const approvedDateDisplay = leave.approved_at ? window.formatDateThai(leave.approved_at) : '-';
+
         // ---- เตรียม Replacements (รวมลายเซ็น) ----
         const replacements = {
             "{{W_DAY}}": wDateObj.getDate().toString(),
@@ -366,6 +385,15 @@ window.generateLeavePDF = async function(id, systemSettings) {
             "{{A22}}": statsData.other.now.days,
             "{{A23}}": statsData.other.total.count,
             "{{A24}}": statsData.other.total.days,
+
+            // 👇 เพิ่มวันที่รับทราบ/อนุมัติ
+            "{{ACK_ADMIN_AT}}": ackAdminAt,
+            "{{ACK_DEPUTY_AT}}": ackDeputyAt,
+            "{{ACK_DIRECTOR_AT}}": ackDirectorAt,
+            "{{APPROVED_AT}}": approvedAt,
+            "{{APPROVED_CHECK}}": approvedCheck,
+            "{{APPROVED_DATE}}": approvedDateDisplay,
+
             // 👇 เพิ่มคีย์สำหรับลายเซ็น (ใช้ _IMAGE เพื่อให้ GAS แทนที่ด้วยรูป)
             "{{COMMANDER_SIGNATURE_IMAGE}}": commanderSignatureFileId ? `https://drive.google.com/uc?id=${commanderSignatureFileId}` : '',
             "{{PERSONNEL_SIGNATURE_IMAGE}}": personnelSignatureFileId ? `https://drive.google.com/uc?id=${personnelSignatureFileId}` : ''
