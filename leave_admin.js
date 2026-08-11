@@ -244,28 +244,58 @@ async function loadPersonnelSearch() {
         initTomSelect('#admin_personnel_id', { placeholder: '-- เลือกบุคลากร --' });
         initTomSelect('#att_personnel_id', { placeholder: '-- เลือกบุคลากร --' });
     }
-    if (currentUserRole === 'super_admin') loadAdminList();
+    if (currentUserRole === 'super_admin' || isModuleAdmin) loadAdminList();
 }
 
 // ==========================================
 // จัดการ Module Admin (ใช้ requireAdmin)
 // ==========================================
 async function loadAdminList() {
-    const { data, error } = await db.from('core_module_admins')
-        .select('id, core_personnel(prefix, first_name, last_name)')
-        .eq('module_id', 'leave');
     const tbody = document.getElementById('admin-list');
-    if (data && data.length > 0) {
-        tbody.innerHTML = data.map(admin => `
-            <tr class="hover:bg-slate-50 border-b border-slate-100">
-                <td class="p-3 font-bold text-slate-700">${admin.core_personnel?.prefix || ''}${admin.core_personnel?.first_name || ''} ${admin.core_personnel?.last_name || ''}</td>
-                <td class="p-3 text-center">
-                    <button onclick="removeModuleAdmin('${admin.id}')" class="text-rose-500 hover:text-white hover:bg-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg transition-colors"><i class="fas fa-trash"></i></button>
-                </td>
-            </tr>`).join('');
-    } else {
-        tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400">ยังไม่มีผู้ดูแลระบบ</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400">กำลังโหลด...</td></tr>';
+
+    // Step 1: ดึงรายการ module admins
+    const { data: admins, error } = await db.from('core_module_admins')
+        .select('id, user_id')
+        .eq('module_id', 'leave');
+
+    if (error) {
+        console.error('loadAdminList error:', error);
+        tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-red-400">เกิดข้อผิดพลาดในการโหลด</td></tr>';
+        return;
     }
+
+    if (!admins || admins.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400">ยังไม่มีผู้ดูแลระบบ</td></tr>';
+        return;
+    }
+
+    // Step 2: ดึงข้อมูลบุคลากรด้วย user_id ที่ได้มา
+    const userIds = admins.map(a => a.user_id);
+    const { data: personnel } = await db.from('core_personnel')
+        .select('id, prefix, first_name, last_name')
+        .in('id', userIds);
+
+    const personnelMap = {};
+    (personnel || []).forEach(p => { personnelMap[p.id] = p; });
+
+    // Step 3: render ตาราง
+    tbody.innerHTML = admins.map(admin => {
+        // หาจาก query ใหม่ก่อน แล้ว fallback ไป allPersonnelData
+        const p = personnelMap[admin.user_id]
+            || allPersonnelData.find(x => x.id === admin.user_id)
+            || null;
+        const name = p
+            ? `${p.prefix || ''}${p.first_name || ''} ${p.last_name || ''}`.trim()
+            : `(ID: ${admin.user_id})`;
+        return `
+        <tr class="hover:bg-slate-50 border-b border-slate-100">
+            <td class="p-3 font-bold text-slate-700">${name}</td>
+            <td class="p-3 text-center">
+                <button onclick="removeModuleAdmin('${admin.id}')" class="text-rose-500 hover:text-white hover:bg-rose-500 bg-rose-50 px-3 py-1.5 rounded-lg transition-colors"><i class="fas fa-trash"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
 }
 
 async function addModuleAdmin() {
