@@ -232,7 +232,23 @@ async function ensureSchoolStats(forceRefresh = false) {
             .order('room_number', { ascending: true })
             .order('student_number', { ascending: true });
         if (error) throw error;
-        schoolStatsCache = data || [];
+        // ✅ แก้ไข: Map raw data เป็น named fields เหมือน dashboard.js
+        // เพื่อให้ exportTable() / exportSummary() เข้าถึง s.sid, s.fullName ฯลฯ ได้ถูกต้อง
+        schoolStatsCache = (data || []).map(row => ({
+            id: row.student_id,
+            sid: row.student_id_card,
+            prefix: row.prefix || '',
+            firstName: row.first_name || '',
+            lastName: row.last_name || '',
+            fullName: row.full_name || '',
+            student_number: row.student_number || 0,
+            grade_level: row.grade_level || 0,
+            room_number: row.room_number || '',
+            roomDisplay: row.room_display || '-',
+            score: row.total_score || 100,
+            pos: row.pos_score || 0,
+            neg: row.neg_score || 0,
+        }));
         cacheTimestamp = Date.now();
         return schoolStatsCache;
     } catch (err) {
