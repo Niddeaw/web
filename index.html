@@ -278,29 +278,24 @@
         };
 
         async function checkAuth() {
-            const { data: { session }, error } = await db.auth.getSession();
-            if (error || !session) {
-                window.location.replace('login.html');
-                return;
-            }
+            // ✅ ใช้ checkSessionAndRole จาก config.js — มาตรฐานเดียวกับทุกโมดูล
+            const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
+            if (!result) return; // checkSessionAndRole จัดการ redirect ให้แล้ว
+
+            currentUser = result.personnel;
 
             document.getElementById('portalView').classList.remove('hidden');
 
-            const { data: profile, error: profileError } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
-            if (profileError || !profile) {
-                await db.auth.signOut();
-                Swal.fire('เซสชันไม่ถูกต้อง', 'ไม่พบข้อมูลบุคลากรในระบบ กรุณาล็อกอินใหม่อีกครั้ง', 'warning').then(() => {
-                    window.location.replace('login.html');
-                });
-                return;
-            }
-
-            currentUser = profile;
-
-            const { data: moduleAdmins } = await db.from('core_module_admins').select('module_id').eq('user_id', session.user.id);
+            // โหลด module admins ของ user นี้ (ใช้กับ app ที่ reqAdmin: true)
+            const { data: moduleAdmins } = await db
+                .from('core_module_admins')
+                .select('module_id')
+                .eq('user_id', result.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
-            const { data: allCustomModules } = await db.from('core_system_modules')
+            // โหลด core_system_modules สำหรับ override ไอคอน/ชื่อ/สถานะ
+            const { data: allCustomModules } = await db
+                .from('core_system_modules')
                 .select('*')
                 .order('display_order', { ascending: true });
 
@@ -309,17 +304,17 @@
             if (allCustomModules) {
                 allCustomModules.forEach(m => {
                     window.moduleOverrides[m.module_id] = m;
-                    if (m.is_active) {
-                        activeModules.push({
-                            module_id: m.module_id,
-                            is_active: m.is_active,
-                            target_blank: m.target_blank
-                        });
-                    }
+                    // activeModules ใช้อ้างอิงได้ แต่ไม่ใช้เป็น gate หลักแล้ว (แก้ bug แล้ว)
+                    activeModules.push({
+                        module_id: m.module_id,
+                        is_active: m.is_active,
+                        target_blank: m.target_blank
+                    });
                 });
             }
+
             updateUI();
-            await checkCalendarAdminAccess();   // ✅ ตรวจสอบสิทธิ์ปุ่มจัดการปฏิทิน
+            await checkCalendarAdminAccess();
             renderAppCards();
         }
 
@@ -337,32 +332,26 @@
         function updateUI() {
             if (!currentUser) return;
             document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-            let roleText = 'ครูผู้สอน (Teacher)';
+            // ✅ ใช้ WRK_ROLES จาก config.js แทนการ hardcode ทีละ role
+            const roleTextMap = {
+                super_admin: 'ผู้ดูแลสูงสุด (Super Admin)',
+                admin: 'ผู้ดูแลระบบย่อย (Admin)',
+                director: 'ผู้อำนวยการ',
+                deputy: 'รองผู้อำนวยการ',
+                teacher: 'ครูผู้สอน (Teacher)',
+                staff: 'เจ้าหน้าที่ (Staff)',
+                office: 'เจ้าหน้าที่สำนักงาน (Office)',
+            };
+            const roleText = roleTextMap[currentUser.role] || currentUser.role;
 
-            if (currentUser.role === 'super_admin') {
-                roleText = 'ผู้ดูแลสูงสุด (Super Admin)';
-                document.getElementById('btnSuperAdmin').classList.remove('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.remove('hidden');
-            } else if (currentUser.role === 'admin') {
-                roleText = 'ผู้ดูแลระบบย่อย (Module Admin)';
-                document.getElementById('btnSuperAdmin').classList.add('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.remove('hidden'); // ให้ admin เห็นปุ่มศูนย์ช่วยเหลือ
-            } else if (currentUser.role === 'director') {
-                roleText = 'ผู้อำนวยการ';
-                document.getElementById('btnSuperAdmin').classList.add('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
-            } else if (currentUser.role === 'deputy') {
-                roleText = 'รองผู้อำนวยการ';
-                document.getElementById('btnSuperAdmin').classList.add('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
-            } else if (currentUser.role === 'staff') {
-                roleText = 'เจ้าหน้าที่';
-                document.getElementById('btnSuperAdmin').classList.add('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
-            } else {
-                document.getElementById('btnSuperAdmin').classList.add('hidden');
-                document.getElementById('adminHelpdeskBtn').classList.add('hidden');
-            }
+            // ปุ่ม Super Admin — เฉพาะ super_admin เท่านั้น
+            const isSuperAdmin = currentUser.role === 'super_admin';
+            document.getElementById('btnSuperAdmin').classList.toggle('hidden', !isSuperAdmin);
+
+            // ปุ่ม Helpdesk Admin — admin และ super_admin เท่านั้น
+            const canSeeHelpdesk = WRK_ROLES.SETTINGS.includes(currentUser.role);
+            document.getElementById('adminHelpdeskBtn').classList.toggle('hidden', !canSeeHelpdesk);
+
             document.getElementById('userRole').innerText = roleText;
         }
 
@@ -413,7 +402,10 @@
                     finalApp.icon = modOverride.icon || app.icon;
                     finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0';
                     finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
-                    finalApp.isActive = modOverride.is_active !== false && activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+                    // ✅ แก้ Bug: ใช้ is_active จาก core_system_modules โดยตรง
+                    //    เดิมซ้ำกับ activeModules (ซึ่ง filter is_active=true มาแล้ว)
+                    //    ทำให้ค่าออกมาเป็น false เสมอแม้โมดูลจะเปิดอยู่
+                    finalApp.isActive = modOverride.is_active !== false;
                     finalApp.target_blank = modOverride.target_blank || false;
                     if (app.id === app.moduleId) {
                         finalApp.url = modOverride.url || app.url;
@@ -423,7 +415,9 @@
                 } else {
                     finalApp.iconBgColor = '#e2e8f0';
                     finalApp.iconTextColor = '#4a5568';
-                    finalApp.isActive = activeModules.some(m => m.module_id === app.moduleId && m.is_active);
+                    // ✅ แก้ Bug: ถ้าโมดูลไม่มีใน core_system_modules → เปิดใช้งาน default
+                    //    เดิม: .some(...) หา match ไม่เจอ → false → ล็อกทุกแอปของครู
+                    finalApp.isActive = true;
                     finalApp.target_blank = false;
                 }
                 appsToDisplay.push(finalApp);
