@@ -1628,6 +1628,10 @@ async function loadSignatureList() {
             </td>
             <td class="p-2 text-center">
                 <div class="flex items-center justify-center gap-2 flex-wrap">
+                    ${hasSig
+                ? `<button onclick="viewSignatureImage('${fileId}', \`${name}\`)" class="btn-icon bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white" title="ดูลายเซ็น"><i class="fas fa-eye"></i></button>`
+                : `<button class="btn-icon bg-slate-100 text-slate-300 cursor-not-allowed" title="ยังไม่มีลายเซ็น" disabled><i class="fas fa-eye"></i></button>`
+            }
                     <!-- ปุ่มอัปโหลด -->
                     <label class="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition flex items-center gap-1">
                         <i class="fas fa-upload"></i> อัปโหลด
@@ -1807,6 +1811,32 @@ async function refreshSignatureList() {
     await loadSignatureList();
 }
 
+function viewSignatureImage(fileId, name) {
+    if (!fileId) return;
+    const imgUrl = `https://lh5.googleusercontent.com/d/${fileId}`;
+    const modal = document.getElementById('viewSignatureImageModal');
+    document.getElementById('sig-view-name').textContent = name;
+    const img = document.getElementById('sig-view-img');
+    const errEl = document.getElementById('sig-view-error');
+    img.style.display = '';
+    errEl.classList.add('hidden');
+    img.src = imgUrl;
+    img.onerror = () => {
+        img.style.display = 'none';
+        errEl.classList.remove('hidden');
+    };
+    document.getElementById('sig-view-link').href = imgUrl;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeViewSignatureImageModal() {
+    const modal = document.getElementById('viewSignatureImageModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    document.getElementById('sig-view-img').src = '';
+}
+
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
@@ -1838,5 +1868,7 @@ window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.saveSystemSettings = saveSystemSettings;
 window.logout = logout;
+window.viewSignatureImage = viewSignatureImage;
+window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 
 console.log('✅ leave_admin.js loaded with config.js & leave_core.js integration');
