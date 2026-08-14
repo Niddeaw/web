@@ -62,6 +62,7 @@ async function logout() {
 
 /* ── Position Logic ─────────── */
 const posLogic = {
+    "ครูพี่เลี้ยงเด็กพิการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "ครูอัตราจ้าง": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "พนักงานราชการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "ครูผู้ช่วย": { academic: ["ไม่มีวิทยฐานะ"], rank: "ครูผู้ช่วย" },
@@ -76,7 +77,11 @@ const posLogic = {
     "ผู้อำนวยการสถานศึกษา": {
         academic: ["ผู้อำนวยการชำนาญการพิเศษ"],
         map: { "ผู้อำนวยการชำนาญการพิเศษ": "คศ.3" }
-    }
+    },
+        // ✅ เพิ่มใหม่
+    "เจ้าหน้าที่สำนักงาน": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
+    "พนักงานบริการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
+    "ลูกจ้าง": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
 };
 
 /* ── Avatar Helpers ─────────── */
@@ -928,6 +933,22 @@ function populateForm(p) {
 async function savePersonnel(e) {
     e.preventDefault();
 
+        // ✅ Validate ด้วยตัวเอง (แทน browser native เพื่อหลีกเลี่ยง hidden-tab error)
+    const userId = document.getElementById('inp-personnel-id').tomselect?.getValue()
+                   || document.getElementById('inp-personnel-id').value;
+    const posValue = document.getElementById('sel-pos').value;
+
+    if (!userId) {
+        Swal.fire('กรุณาเลือกบุคลากร', 'ช่อง "ชื่อ - สกุล" ยังไม่ได้เลือก', 'warning');
+        switchTab('tab-personal', document.querySelector('.tab-pill'));
+        return;
+    }
+    if (!posValue) {
+        Swal.fire('กรุณาเลือกตำแหน่ง', 'ช่อง "ตำแหน่ง" ยังไม่ได้เลือก', 'warning');
+        switchTab('tab-position', document.querySelectorAll('.tab-pill')[1]);
+        return;
+    }
+
     // ✅ ตรวจสอบสิทธิ์ด้วย requireAdmin
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่บันทึกข้อมูลบุคลากรได้')) {
         // แต่ถ้าเป็นเจ้าของข้อมูลตัวเอง ก็ให้บันทึกได้ (allow self-edit)
@@ -1190,7 +1211,7 @@ function updateDashboard(data) {
             const dl = dayjs(p.license_expiry).diff(today, 'day');
             if (dl <= 90) lic++;
         }
-        if (p.appointment_date && !['ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
+        if (p.appointment_date && !['ครูพี่เลี้ยงเด็กพิการ','ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
             if (today.diff(dayjs(p.appointment_date), 'year') >= 4) eligible++;
         }
     });
@@ -1296,7 +1317,7 @@ function renderInfoBlocks(data) {
 
     const eligList = data.filter(p => {
         if (!p.appointment_date) return false;
-        const posOk = !['ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position);
+        const posOk = !['ครูพี่เลี้ยงเด็กพิการ','ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position);
         const yearsIn = today.diff(dayjs(p.appointment_date), 'year');
         return posOk && yearsIn >= 4;
     }).sort((a, b) => dayjs(a.appointment_date).diff(dayjs(b.appointment_date), 'day'));
@@ -1508,7 +1529,7 @@ async function processImportRows(rows, foundHeaders) {
         let position = '', academic_standing = '', position_number = '', rank = '';
         const posRaw = gv(row, 'ตำแหน่งวิทยฐานะตำแหน่งเลขที่อันดับ', 'ตำแหน่ง/วิทยฐานะ');
         if (posRaw) {
-            const posMap = ['ผู้อำนวยการสถานศึกษา', 'รองผู้อำนวยการสถานศึกษา', 'ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ครูอัตราจ้าง'];
+            const posMap = ['ผู้อำนวยการสถานศึกษา', 'รองผู้อำนวยการสถานศึกษา', 'ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ครูอัตราจ้าง','ครูพี่เลี้ยงเด็กพิการ'];
             for (const p of posMap) { if (posRaw.includes(p)) { position = p; break; } }
             if (!position) position = posRaw;
             const acadMap = ['ครูชำนาญการพิเศษ', 'ครูชำนาญการ', 'ครูเชี่ยวชาญพิเศษ', 'ครูเชี่ยวชาญ', 'ผู้อำนวยการชำนาญการพิเศษ', 'รองผู้อำนวยการชำนาญการพิเศษ', 'รองผู้อำนวยการชำนาญการ'];
@@ -1781,7 +1802,7 @@ function openStatsModal() {
             <div class="grid grid-cols-2 gap-2">`;
     const acadOrder = ['ไม่มีวิทยฐานะ', 'ครูผู้ช่วย', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ครูเชี่ยวชาญ', 'ครูเชี่ยวชาญพิเศษ',
         'รองผู้อำนวยการชำนาญการ', 'รองผู้อำนวยการชำนาญการพิเศษ', 'ผู้อำนวยการชำนาญการพิเศษ'];
-    const sortedAcad = Object.keys(acadStats).sort((a,b) => acadOrder.indexOf(a) - acadOrder.indexOf(b));
+    const sortedAcad = Object.keys(acadStats).sort((a, b) => acadOrder.indexOf(a) - acadOrder.indexOf(b));
     sortedAcad.forEach(k => {
         html += `<div class="flex justify-between bg-slate-50 px-3 py-2 rounded-lg"><span class="text-sm">${k}</span><span class="font-bold text-indigo-600">${acadStats[k]}</span></div>`;
     });

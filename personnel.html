@@ -299,7 +299,7 @@
                         class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
             </div>
 
-            <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto">
+            <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto" novalidate>
                 <input type="hidden" id="edit-id">
                 <input type="hidden" id="inp-avatar-data">
                 <input type="hidden" id="inp-birth-iso">
@@ -422,12 +422,17 @@
                             <div class="field-group">
                                 <label class="field-label required">ตำแหน่ง</label>
                                 <select id="sel-pos" required onchange="updatePositionLogic()" class="field-input">
+                                    <option value="ครูพี่เลี้ยงเด็กพิการ">ครูพี่เลี้ยงเด็กพิการ</option>
                                     <option value="ครูอัตราจ้าง">ครูอัตราจ้าง</option>
                                     <option value="พนักงานราชการ">พนักงานราชการ</option>
                                     <option value="ครูผู้ช่วย">ครูผู้ช่วย</option>
                                     <option value="ครู" selected>ครู</option>
                                     <option value="รองผู้อำนวยการสถานศึกษา">รองผู้อำนวยการสถานศึกษา</option>
                                     <option value="ผู้อำนวยการสถานศึกษา">ผู้อำนวยการสถานศึกษา</option>
+                                    <!-- ✅ เพิ่มใหม่ -->
+                                    <option value="เจ้าหน้าที่สำนักงาน">เจ้าหน้าที่สำนักงาน</option>
+                                    <option value="พนักงานบริการ">พนักงานบริการ</option>
+                                    <option value="ลูกจ้าง">ลูกจ้าง</option>
                                 </select>
                             </div>
                             <div class="field-group">
