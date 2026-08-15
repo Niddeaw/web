@@ -1614,12 +1614,13 @@ async function loadSignatureList() {
     // สร้าง HTML rows
     tbody.innerHTML = personnel.map(p => {
         const name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-        const hasSig = p.signature_file_id ? true : false;
+        const hasSig = !!p.signature_file_id;
         const fileId = p.signature_file_id || '';
 
         return `<tr class="border-b border-slate-100">
             <td class="p-2 font-medium">${name}</td>
-            <td class="p-2 text-slate-600">${p.position || ''} ${p.department || ''}</td>
+            <td class="p-2 text-slate-600">${p.position || '-'}</td>
+            <td class="p-2 text-slate-600">${p.department || '-'}</td>
             <td class="p-2 text-center">
                 ${hasSig
                 ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-circle"></i> มีลายเซ็น</span>`
@@ -1632,7 +1633,6 @@ async function loadSignatureList() {
                 ? `<button onclick="viewSignatureImage('${fileId}', \`${name}\`)" class="btn-icon bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white" title="ดูลายเซ็น"><i class="fas fa-eye"></i></button>`
                 : `<button class="btn-icon bg-slate-100 text-slate-300 cursor-not-allowed" title="ยังไม่มีลายเซ็น" disabled><i class="fas fa-eye"></i></button>`
             }
-                    <!-- ปุ่มอัปโหลด -->
                     <label class="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition flex items-center gap-1">
                         <i class="fas fa-upload"></i> อัปโหลด
                         <input type="file" accept="image/*" class="hidden" onchange="uploadSignature('${p.id}', this)">
@@ -1656,9 +1656,9 @@ async function loadSignatureList() {
             url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json'
         },
         pageLength: 10,
-        order: [[0, 'asc']], // เรียงตามชื่อ
+        order: [[0, 'asc']],
         columnDefs: [
-            { orderable: false, targets: [2, 3] } // ไม่ให้เรียงคอลัมน์ลายเซ็นและจัดการ
+            { orderable: false, targets: [3, 4] } // ลายเซ็น และ จัดการ
         ]
     });
 }
@@ -1837,6 +1837,59 @@ function closeViewSignatureImageModal() {
     document.getElementById('sig-view-img').src = '';
 }
 
+async function exportSignatureExcel() {
+    const { data: personnel, error } = await db.from('core_personnel')
+        .select('prefix, first_name, last_name, position, department, signature_file_id')
+        .order('first_name');
+
+    if (error || !personnel || !personnel.length) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่สามารถดึงข้อมูลบุคลากรได้', 'warning');
+        return;
+    }
+
+    // โหลด SheetJS จาก CDN แบบ lazy
+    if (typeof XLSX === 'undefined') {
+        await new Promise((resolve, reject) => {
+            const s = document.createElement('script');
+            s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+            s.onload = resolve;
+            s.onerror = reject;
+            document.head.appendChild(s);
+        });
+    }
+
+    const rows = personnel.map(p => {
+        const hasSig = !!p.signature_file_id;
+        const sigUrl = p.signature_file_id
+            ? `https://lh5.googleusercontent.com/d/${p.signature_file_id}`
+            : '';
+        return {
+            'ชื่อ-สกุล': `${p.prefix || ''}${p.first_name} ${p.last_name}`,
+            'ตำแหน่ง': p.position || '-',
+            'กลุ่มงาน': p.department || '-',
+            'ลายเซ็น': hasSig ? 'มีลายเซ็น' : 'ไม่มี',
+            'URL รูปลายเซ็น': sigUrl
+        };
+    });
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [
+        { wch: 30 }, // ชื่อ-สกุล
+        { wch: 28 }, // ตำแหน่ง
+        { wch: 28 }, // กลุ่มงาน
+        { wch: 12 }, // ลายเซ็น
+        { wch: 60 }  // URL
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ลายเซ็นบุคลากร');
+
+    const today = new Date().toLocaleDateString('th-TH', {
+        year: 'numeric', month: '2-digit', day: '2-digit'
+    }).replace(/\//g, '-');
+    XLSX.writeFile(wb, `ลายเซ็นบุคลากร_${today}.xlsx`);
+}
+
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
@@ -1870,5 +1923,6 @@ window.saveSystemSettings = saveSystemSettings;
 window.logout = logout;
 window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
+window.exportSignatureExcel = exportSignatureExcel;
 
 console.log('✅ leave_admin.js loaded with config.js & leave_core.js integration');
