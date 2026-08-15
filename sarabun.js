@@ -456,7 +456,7 @@ function loadDocuments() {
         ],
         order: [
             [0, 'desc'],
-            [2, 'desc']
+            [1, 'desc']
         ],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
