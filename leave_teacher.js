@@ -416,4 +416,40 @@ window.toggleAdminMode = function() {
     window.switchToAdminMode();
 };
 
+// ==========================================
+// ดูลายเซ็น (read-only — ดึงจาก core_personnel.signature_file_id)
+// ==========================================
+window.viewSignature = async function() {
+    $('#signatureModal').removeClass('hidden').addClass('flex');
+    $('#sig-loading').removeClass('hidden').addClass('flex');
+    $('#sig-img').addClass('hidden');
+    $('#sig-empty').addClass('hidden').removeClass('flex');
+
+    try {
+        const userId = window.currentUser.id;
+        const { data, error } = await db
+            .from('core_personnel')
+            .select('signature_file_id')
+            .eq('id', userId)
+            .single();
+
+        $('#sig-loading').addClass('hidden').removeClass('flex');
+
+        if (!error && data?.signature_file_id) {
+            const sigUrl = `https://lh5.googleusercontent.com/d/${data.signature_file_id}`;
+            $('#sig-img').attr('src', sigUrl).removeClass('hidden');
+        } else {
+            $('#sig-empty').removeClass('hidden').addClass('flex');
+        }
+    } catch (err) {
+        $('#sig-loading').addClass('hidden').removeClass('flex');
+        $('#sig-empty').removeClass('hidden').addClass('flex');
+        console.error('Error loading signature:', err);
+    }
+};
+
+window.closeSignatureModal = function() {
+    $('#signatureModal').addClass('hidden').removeClass('flex');
+};
+
 console.log('✅ leave_teacher.js loaded (using window object, fixed flatpickr updateYear)');
