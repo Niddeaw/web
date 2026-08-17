@@ -522,6 +522,22 @@ function filterTableByPerson() {
     } else dataTable.search('').draw();
 }
 
+// ==========================================
+// ฟังก์ชันแปลงวันที่สำหรับแสดงผล (เพิ่มเข้ามา)
+// ==========================================
+function formatDateThai(isoString) {
+    if (!isoString) return '-';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return '-';
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear() + 543;
+    return `${day}/${month}/${year}`;
+}
+
+// ==========================================
+// renderTable() ฉบับเต็ม
+// ==========================================
 function renderTable() {
     // ถ้ามี DataTable อยู่แล้ว ให้ทำลายทิ้ง
     if ($.fn.DataTable.isDataTable('#adminLeaveTable')) {
@@ -591,13 +607,11 @@ function renderTable() {
             // ---- ปุ่ม PDF ----
             let pdfHtml = '';
             if (l.pdf_url) {
-                // มีไฟล์แล้ว → แสดงปุ่มเปิด PDF และปุ่มสร้างใหม่ (แทนที่)
                 pdfHtml = `
                 <a href="${l.pdf_url}" target="_blank" class="btn-icon bg-green-50 text-green-600 hover:bg-green-500 hover:text-white" title="เปิด PDF"><i class="fas fa-file-pdf"></i></a>
                 <button onclick="window.generateLeavePDF('${l.id}', systemSettings)" class="btn-icon bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" title="สร้างใหม่ (แทนที่ไฟล์เดิม)"><i class="fas fa-sync-alt"></i></button>
             `;
             } else {
-                // ยังไม่มีไฟล์ → แสดงปุ่มสร้าง PDF
                 pdfHtml = `<button onclick="window.generateLeavePDF('${l.id}', systemSettings)" class="btn-icon bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" title="สร้าง PDF"><i class="fas fa-print"></i></button>`;
             }
             
@@ -628,8 +642,14 @@ function renderTable() {
                 ? `<button onclick="deleteLeave('${l.id}', '${safeFullName}')" class="btn-icon text-slate-300 hover:bg-rose-50 hover:text-rose-600" title="ลบ"><i class="fas fa-trash-alt"></i></button>`
                 : '';
 
+            // ============================================================
+            // คอลัมน์แรก: เปลี่ยนจากรหัสเป็นวันที่ส่ง พร้อม data-order
+            // ============================================================
+            const dateDisplay = formatDateThai(l.created_at);
+            const dateOrder = l.created_at || '';
+
             return `<tr class="hover:bg-slate-50 transition-colors">
-                <td class="text-center text-slate-400 text-xs">${l.id.substring(0, 6)}</td>
+                <td class="text-center text-slate-600 text-sm font-medium" data-order="${dateOrder}">${dateDisplay}</td>
                 <td class="font-bold text-slate-700">${fullName}</td>
                 <td class="font-bold ${typeClass}">${l.type}</td>
                 <td class="text-slate-600">${fmt(l.start_date)} - ${fmt(l.end_date)}</td>
@@ -658,7 +678,7 @@ function renderTable() {
         responsive: true,
         scrollX: false,
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']],
+        order: [[0, 'desc']],  // เรียงตามคอลัมน์แรก (วันที่ส่ง) จากล่าสุดไปเก่าสุด
         columnDefs: [
             { responsivePriority: 1, targets: -1 },
             { orderable: false, targets: [8] } // คอลัมน์จัดการ (index 8)
