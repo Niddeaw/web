@@ -1,18 +1,25 @@
 /**
- * WRK System - Morning Attendance (ปรับปรุงแก้ไข ใช้ config.js ฉบับสมบูรณ์) 
- * แก้ไขปัญหา Tom Select เลือกห้องไม่ถูกต้องในโหมดครูที่ปรึกษา
- * แก้ไขปัญหาครูที่ปรึกษาไม่มีสิทธิ์เข้าใช้งาน
- * 
- * ฟังก์ชันหลัก:
- * - ใช้ checkSessionAndRole() แทน checkAuth() เดิม
- * - ใช้ requireAdmin() แทนการเช็ค isAdmin ซ้ำ ๆ
- * - ใช้ applyVisibilityByRole() และ updateToggleModeUI() จัดการ UI
- * - ใช้ hasModuleAccess() เฉพาะกรณีที่จำเป็น (staff/office ที่ไม่มีห้องที่ปรึกษา)
- * - ใช้ canManageSettings() สำหรับปุ่มตั้งค่าระบบ
- * - ใช้ logUserAction() บันทึกประวัติการใช้งาน
- * - เก็บ isAdminMode ไว้ใน localStorage เพื่อความคงอยู่ข้ามหน้า
- * - แก้ไข Tom Select เลือกห้องเรียนเริ่มต้นอย่างถูกต้อง
- * - อนุญาตให้ teacher และ staff ที่มีห้องที่ปรึกษาเข้าใช้งานได้โดยไม่ต้องมี permission
+ * WRK System - Morning Attendance (ปรับปรุงแก้ไข ใช้ config.js ฉบับสมบูรณ์)
+ *
+ * สิทธิ์การเข้าถึง:
+ * - super_admin                         : ดู + แก้ไขได้ทั้งหมด + ปุ่มรายงานสถิติ + ภาพรวมทุกระดับ
+ * - admin, director, deputy             : ดูได้ทั้งหมด (read-only) + รายงานสถิติ + ภาพรวมทุกระดับ
+ * - หัวหน้าปกครอง (discipline_head)    : ดูได้ทั้งหมด (read-only) + รายงานสถิติ + ภาพรวมทุกระดับ
+ * - หัวหน้าระดับ (grade_head)          : ดูเฉพาะระดับตน (read-only) + รายงานสถิติ + ภาพรวมเฉพาะระดับ
+ * - teacher (ครูที่ปรึกษา)             : ดู + แก้ไขเฉพาะห้องตน + รายงานสถิติห้องตน
+ * - staff, office                       : ไม่มีสิทธิ์ → SweetAlert แล้ว redirect index.html
+ *
+ * Bug fixes (เทียบกับเวอร์ชันก่อน):
+ * 1. แก้ "hasModuleAccess is not a function" — ตัวแปร let hasModuleAccess ชนกับ
+ *    ฟังก์ชัน hasModuleAccess() จาก config.js → เปลี่ยนชื่อตัวแปรเป็น moduleAllowed
+ * 2. แก้ isDisciplineHead / managedGrades ประกาศซ้ำด้วย let ใน scope ซ้อนกัน
+ *    → ใช้ชื่อ localDisciplineHead / localManagedGrades ภายใน loadClassroomDataWithPermission
+ *    แล้ว sync กลับ outer-scope
+ * 3. ย้าย isReadOnly / isHead มาตั้งค่าหลัง loadClassroomDataWithPermission เสร็จ
+ *    เพื่อให้ได้ค่าที่ sync แล้วเสมอ
+ * 4. เพิ่ม block staff/office ด้วย SweetAlert ก่อนทำอะไรต่อ
+ * 5. เพิ่ม role head_of_level, discipline_head ใน checkSessionAndRole
+ *    (เผื่อ config.js ใช้ชื่อ role เหล่านี้)
  */
 
 let currentUser = null;
@@ -65,21 +72,35 @@ $(document).ready(async () => {
         $('#check-date').val(new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
 
         // 1. ตรวจสอบเซสชันและสิทธิ์โดยใช้ config.js
-        // ✅ อนุญาตเฉพาะ role ที่กำหนด (ไม่รวม staff, office)
-        const session = await checkSessionAndRole('ระบบเช็คชื่อ', ['super_admin', 'admin', 'director', 'deputy', 'teacher']);
+        // ✅ อนุญาต role ทั้งหมดผ่านก่อน แล้วกรอง staff/office/office ด้วย SweetAlert ด้านล่าง
+        const session = await checkSessionAndRole('ระบบเช็คชื่อ', ['super_admin', 'admin', 'director', 'deputy', 'teacher', 'head_of_level', 'discipline_head', 'staff', 'office']);
         if (!session) return;
 
         const { user, personnel, role, isAdmin, isTeacher, isOffice, isAdminMode } = session;
         currentUser = personnel;
         actualUserRole = role;
 
+        // ✅ Block staff/office ทันที ด้วย SweetAlert แล้ว redirect ไป index.html
+        if (role === 'staff' || role === 'office') {
+            await Swal.fire({
+                icon: 'error',
+                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                text: 'บุคลากรสายสนับสนุน (staff/office) ไม่สามารถเข้าใช้ระบบเช็คชื่อได้ กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'OK',
+                confirmButtonColor: '#dc2626'
+            });
+            window.location.href = 'index.html';
+            return;
+        }
+
         // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ (สำหรับสิทธิ์อ่านอย่างเดียว)
         const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
         const currentYear = sInfo?.current_academic_year;
         const currentSemester = sInfo?.current_semester;
 
-        let isDisciplineHead = false;
-        let managedGrades = [];
+        // ใช้ตัวแปร outer-scope (ประกาศไว้ด้านบน) ไม่ประกาศซ้ำด้วย let
+        isDisciplineHead = false;
+        managedGrades = [];
 
         // ตรวจสอบหัวหน้างานปกครอง
         const { data: discHead } = await db.from('core_discipline_heads')
@@ -90,9 +111,10 @@ $(document).ready(async () => {
         if (discHead) isDisciplineHead = true;
 
         // ตรวจสอบหัวหน้าระดับ
-        const { data: gradeHeads } = await db.from('behavior_grade_heads')
+        const { data: gradeHeads } = await db.from('core_grade_heads')
             .select('grade_level')
-            .eq('teacher_id', user.id);
+            .eq('personnel_id', user.id)
+            .eq('academic_year', currentYear);
         managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
         // ✅ กำหนดค่าเริ่มต้น currentViewRole และ isReadOnly
@@ -103,15 +125,6 @@ $(document).ready(async () => {
         } else {
             currentViewRole = 'teacher';
             localStorage.removeItem('attendance_admin_mode');
-        }
-
-        // ✅ ตั้งค่า isReadOnly สำหรับหัวหน้างานปกครอง / หัวหน้าระดับ
-        if (!isAdmin && (isDisciplineHead || managedGrades.length > 0)) {
-            isReadOnly = true;
-            isHead = true;
-        } else {
-            isReadOnly = false;
-            isHead = false;
         }
 
         // 2. ตั้งค่า UI ด้วยฟังก์ชันกลาง
@@ -127,6 +140,16 @@ $(document).ready(async () => {
 
         // 4. โหลดข้อมูลห้องเรียนและสิทธิ์เพิ่มเติม
         const hasAccess = await loadClassroomDataWithPermission(user.id, isAdmin, role);
+
+        // ✅ ตั้งค่า isReadOnly/isHead หลัง loadClassroomDataWithPermission sync isDisciplineHead/managedGrades แล้ว
+        if (!isAdmin && (isDisciplineHead || managedGrades.length > 0)) {
+            isReadOnly = true;
+            isHead = true;
+        } else {
+            isReadOnly = false;
+            isHead = false;
+        }
+
         if (!hasAccess) {
             await Swal.fire({
                 icon: 'warning',
@@ -222,8 +245,9 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         );
 
         // ตรวจสอบหัวหน้าระดับและหัวหน้างานปกครอง
-        let managedGrades = [];
-        let isDisciplineHead = false;
+        // ใช้ชื่อ localManagedGrades / localDisciplineHead เพื่อไม่ชนกับ outer-scope
+        let localManagedGrades = [];
+        let localDisciplineHead = false;
 
         if (!isAdmin) {
             const { data: gradeHeads } = await db
@@ -232,7 +256,7 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
                 .eq('personnel_id', userId)
                 .eq('academic_year', currentSchoolInfo.current_academic_year);
             if (gradeHeads && gradeHeads.length > 0) {
-                managedGrades = gradeHeads.map(h => h.grade_level);
+                localManagedGrades = gradeHeads.map(h => h.grade_level);
             }
 
             const { data: discHead } = await db
@@ -241,39 +265,66 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
                 .eq('personnel_id', userId)
                 .eq('academic_year', currentSchoolInfo.current_academic_year)
                 .maybeSingle();
-            isDisciplineHead = !!discHead;
+            localDisciplineHead = !!discHead;
         }
 
+        // sync กลับไปยัง outer-scope เพื่อใช้ใน updateUIBasedOnRole / applyReadOnlyState
+        isDisciplineHead = localDisciplineHead;
+        managedGrades = localManagedGrades;
+
         // กำหนด currentManagedGrades
-        if (isAdmin || isDisciplineHead) {
+        // - admin / director / deputy / หัวหน้าปกครอง → ดูได้ทุกระดับ (1-6)
+        // - หัวหน้าระดับ → ดูได้เฉพาะระดับที่ดูแล
+        // - teacher ทั่วไป → ไม่มีสิทธิ์ภาพรวมระดับชั้น
+        if (isAdmin || localDisciplineHead) {
             currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
-        } else if (managedGrades.length > 0) {
-            currentManagedGrades = managedGrades;
+        } else if (localManagedGrades.length > 0) {
+            currentManagedGrades = localManagedGrades.map(g => String(g));
         } else {
             currentManagedGrades = [];
         }
-        $('#btn-grade-overview').toggleClass('hidden', currentManagedGrades.length === 0);
-
-        // ✅ ตรวจสอบสิทธิ์เข้าโมดูล attendance
-        let hasModuleAccess = true;
-        if (!isAdmin) {
-            // ถ้าเป็น teacher หรือ staff ที่มีห้องที่ปรึกษา → อนุญาตทันที
-            const isAdviser = window.adviserClassrooms.length > 0;
-            if ((role === 'teacher' || role === 'staff') && isAdviser) {
-                hasModuleAccess = true;
+        // แสดงปุ่มภาพรวมระดับชั้นเมื่อมี currentManagedGrades (ทุก role ที่มีสิทธิ์)
+        const btnGradeOverview = document.getElementById('btn-grade-overview');
+        if (btnGradeOverview) {
+            if (currentManagedGrades.length > 0) {
+                btnGradeOverview.classList.remove('hidden');
+                btnGradeOverview.classList.add('flex');
             } else {
-                // staff ที่ไม่มีห้องที่ปรึกษา หรือ office ต้องมี permission ใน core_module_admins
-                const accessResult = await hasModuleAccess(role, 'attendance', userId);
-                hasModuleAccess = accessResult;
+                btnGradeOverview.classList.add('hidden');
+                btnGradeOverview.classList.remove('flex');
             }
         }
 
-        // ✅ ถ้าเป็นหัวหน้างานปกครองหรือหัวหน้าระดับ (isHead) ให้ผ่าน แม้ไม่มี permission โดยตรง
-        if (!hasModuleAccess && (isDisciplineHead || managedGrades.length > 0)) {
-            hasModuleAccess = true;
+        // ✅ ตรวจสอบสิทธิ์เข้าโมดูล attendance
+        // ใช้ชื่อตัวแปร moduleAllowed เพื่อไม่ให้ชนกับฟังก์ชัน hasModuleAccess() จาก config.js
+        let moduleAllowed = false;
+
+        if (isAdmin) {
+            // super_admin, admin, director, deputy → ผ่านทันที
+            moduleAllowed = true;
+        } else {
+            const isAdviser = window.adviserClassrooms.length > 0;
+
+            if (role === 'teacher' && isAdviser) {
+                // ครูที่ปรึกษา → ผ่านทันที
+                moduleAllowed = true;
+            } else if (isDisciplineHead || managedGrades.length > 0) {
+                // หัวหน้างานปกครอง / หัวหน้าระดับ → ผ่าน (อ่านอย่างเดียว)
+                moduleAllowed = true;
+            } else if (role === 'teacher' && !isAdviser) {
+                // ครูที่ไม่มีห้องที่ปรึกษา → ตรวจสอบ permission พิเศษ
+                if (typeof hasModuleAccess === 'function') {
+                    moduleAllowed = await hasModuleAccess(role, 'attendance', userId);
+                } else {
+                    moduleAllowed = false;
+                }
+            } else {
+                // role อื่นๆ ที่ยังไม่ได้ถูก block ด้านบน
+                moduleAllowed = false;
+            }
         }
 
-        if (!hasModuleAccess) {
+        if (!moduleAllowed) {
             return false;
         }
 
@@ -281,23 +332,27 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${currentUser.first_name} ${currentUser.last_name}`;
         if (actualUserRole === 'super_admin') {
             userDisplayText += `<span class="block text-[10px] text-rose-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-crown mr-1"></i> ผู้ดูแลระบบสูงสุด</span>`;
-        } else if (isDisciplineHead) {
+        } else if (localDisciplineHead) {
             userDisplayText += `<span class="block text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-shield-alt mr-1"></i> หัวหน้างานปกครอง (ดูอย่างเดียว)</span>`;
-        } else if (managedGrades.length > 0) {
-            userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${managedGrades.join(', ')} (ดูอย่างเดียว)</span>`;
+        } else if (localManagedGrades.length > 0) {
+            userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${localManagedGrades.join(', ')} (ดูอย่างเดียว)</span>`;
         }
         $('#user-display').html(userDisplayText);
 
-        // เติม dropdown ห้องเรียน
-        await populateClassroomSelect(userId, isDisciplineHead);
+        // เติม dropdown ห้องเรียน (ส่ง localManagedGrades เพื่อให้ filter ห้องได้ถูกต้อง)
+        await populateClassroomSelect(userId, localDisciplineHead, localManagedGrades);
 
-        // แสดงปุ่มรายงานสถิติเฉพาะครูที่ปรึกษาหรือ admin
+        // แสดงปุ่มรายงานสถิติ:
+        // - admin / director / deputy / หัวหน้าปกครอง / หัวหน้าระดับ → เห็นเสมอ
+        // - teacher ที่เป็นครูที่ปรึกษา → เห็น
+        // - teacher ที่ไม่มีห้องที่ปรึกษา → ซ่อน
         const isAdviser = window.adviserClassrooms.length > 0;
+        const canSeeStats = isAdmin || localDisciplineHead || localManagedGrades.length > 0 || isAdviser;
         const btnStatsReport = document.getElementById('btn-stats-report');
-        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !isAdviser && !isAdmin);
+        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !canSeeStats);
 
         // ✅ เก็บสถานะหัวหน้าเพื่อใช้ใน applyReadOnlyState
-        window._isHead = isDisciplineHead || managedGrades.length > 0;
+        window._isHead = localDisciplineHead || localManagedGrades.length > 0;
 
         return true;
 
@@ -348,8 +403,10 @@ function applyReadOnlyState() {
     if (!isReadOnly) return;
 
     // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
-    $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
-        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
+    // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
+    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
+            && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
         }
     });
@@ -1500,7 +1557,11 @@ async function deleteHoliday(id) {
 // ==================== GRADE OVERVIEW (with filters) ====================
 function openGradeOverview() {
     if (!currentManagedGrades.length) return Swal.fire('ไม่พบสิทธิ์', 'คุณไม่มีสิทธิ์เข้าถึง', 'error');
-    $('#grade-overview-title').text(`(ม.${currentManagedGrades.join(', ม.')})`);
+
+    // Title: admin/หัวหน้าปกครอง → "ทุกระดับชั้น", หัวหน้าระดับ → "ม.X"
+    const isAdminRole = ['super_admin', 'admin', 'director', 'deputy'].includes(actualUserRole);
+    const isAllGrades = isAdminRole || isDisciplineHead;
+    $('#grade-overview-title').text(isAllGrades ? '(ทุกระดับชั้น)' : `(ม.${currentManagedGrades.join(', ม.')})`);
     $('#overview-date-select').val($('#check-date').val());
     $('#grade-overview-modal').removeClass('hidden');
 
@@ -1524,7 +1585,7 @@ function openGradeOverview() {
     const gradeSelect = $('#grade-filter');
     gradeSelect.empty().append('<option value="">ทั้งหมด</option>');
     currentManagedGrades.forEach(g => {
-        gradeSelect.append(`<option value="ม.${g}">ม.${g}</option>`);
+        gradeSelect.append(`<option value="${g}">${g}</option>`);
     });
 
     gradeSelect.off('change').on('change', applyGradeOverviewFilters);
@@ -1633,7 +1694,10 @@ function exportGradeOverviewPDF() {
     const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDate);
-    const gradeTitle = `ม.${currentManagedGrades.join(', ม.')}`;
+    const isAdminRoleForPDF = ['super_admin', 'admin', 'director', 'deputy'].includes(actualUserRole);
+    const gradeTitle = (isAdminRoleForPDF || isDisciplineHead)
+        ? 'ทุกระดับชั้น'
+        : `ม.${currentManagedGrades.join(', ม.')}`;
 
     const tableRows = [];
     rows.each(function () {
@@ -1734,38 +1798,196 @@ function closeGradeOverview() {
 }
 
 // ==================== STATS MODAL ====================
-function openStatsModal() {
+async function openStatsModal() {
+    // ----- 1. ตรวจสอบสิทธิ์ขั้นต้น -----
+    const isAdminRole = ['super_admin', 'admin', 'director', 'deputy'].includes(actualUserRole);
+    const canOpenStats = isAdminRole || isDisciplineHead || managedGrades.length > 0
+        || (window.adviserClassrooms && window.adviserClassrooms.length > 0);
+
+    if (!canOpenStats) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์เข้าถึงรายงานสถิติ', 'warning');
+        return;
+    }
+
+    // ----- 2. โหลดข้อมูลห้องเรียนทั้งหมดจากฐานข้อมูล -----
+    let allRooms = [];
+    try {
+        const { data, error } = await db
+            .from('core_classrooms')
+            .select('*')
+            .eq('academic_year', currentSchoolInfo?.current_academic_year)
+            .eq('semester', currentSchoolInfo?.current_semester)
+            .order('grade_level', { ascending: true })
+            .order('room_number', { ascending: true });
+        if (error) throw error;
+        allRooms = data || [];
+        window.globalClassroomsList = allRooms;
+    } catch (err) {
+        console.error('Error loading classrooms for stats:', err);
+        Swal.fire('ข้อผิดพลาด', 'ไม่สามารถโหลดข้อมูลห้องเรียนได้', 'error');
+        return;
+    }
+
+    // ----- 3. ตรวจสอบหัวหน้าระดับอีกครั้ง (เผื่อ currentManagedGrades ไม่ตรง) -----
+    let gradeLevelsManaged = [];
+    if (!isAdminRole && !isDisciplineHead && actualUserRole === 'head_of_level') {
+        try {
+            const { data: gradeHeads, error } = await db
+                .from('core_grade_heads')
+                .select('grade_level')
+                .eq('personnel_id', currentUser.id)
+                .eq('academic_year', currentSchoolInfo?.current_academic_year);
+            if (!error && gradeHeads) {
+                gradeLevelsManaged = gradeHeads.map(h => String(h.grade_level));
+                currentManagedGrades = gradeLevelsManaged;
+                managedGrades = gradeLevelsManaged;
+            }
+        } catch (e) {
+            console.warn('Cannot fetch grade heads again:', e);
+        }
+    } else {
+        gradeLevelsManaged = currentManagedGrades || [];
+    }
+
+    // ----- 4. แปลงระดับชั้นที่ดูแลให้เป็นตัวเลข (เช่น "ม.3" -> 3) -----
+    const managedLevelNumbers = gradeLevelsManaged
+        .map(g => parseInt(String(g).replace(/\D/g, ''), 10))
+        .filter(n => !isNaN(n));
+
+    // ----- 5. กรองห้องตามสิทธิ์โดยใช้ตัวเลข -----
+    let statClassrooms = [];
+    if (isAdminRole || isDisciplineHead) {
+        statClassrooms = allRooms;
+    } else if (managedLevelNumbers.length > 0) {
+        // หัวหน้าระดับ: กรองด้วย grade_level ที่แปลงเป็นตัวเลข
+        statClassrooms = allRooms.filter(c => {
+            const gradeNum = Number(c.grade_level);
+            return managedLevelNumbers.includes(gradeNum);
+        });
+    } else {
+        // ครูที่ปรึกษา: เฉพาะห้องของตัวเอง
+        statClassrooms = window.adviserClassrooms || [];
+    }
+
+    // ----- 6. เตรียม dropdown และแสดง Modal -----
+    const statSelect = $('#stat-classroom-select');
+    statSelect.empty();
+
+    if (statClassrooms.length === 0) {
+        statSelect.append('<option value="">-- ไม่มีห้องเรียนให้เลือก --</option>');
+        statSelect.prop('disabled', true);
+        let msg = 'ไม่พบห้องเรียนที่ท่านมีสิทธิ์เข้าถึง';
+        if (gradeLevelsManaged.length > 0) {
+            msg += ` (ระดับที่ดูแล: ${gradeLevelsManaged.join(', ')})`;
+        } else if (actualUserRole === 'head_of_level') {
+            msg += ' (กรุณาตรวจสอบว่าท่านได้รับมอบหมายระดับชั้นในระบบ)';
+        }
+        Swal.fire('แจ้งเตือน', msg, 'warning');
+    } else {
+        statSelect.prop('disabled', false);
+        statSelect.append('<option value="">-- เลือกห้องเรียน --</option>');
+        statClassrooms.forEach(cls => {
+            statSelect.append(`<option value="${cls.id}">ชั้น ม.${cls.grade_level}/${cls.room_number}</option>`);
+        });
+
+        const currentSelected = $('#classroom-select').val();
+        if (currentSelected && statClassrooms.some(c => c.id === currentSelected)) {
+            statSelect.val(currentSelected);
+        }
+    }
+
+    // ----- 7. ตั้งค่าวันที่เริ่มต้น-สิ้นสุด -----
+    if (!document.getElementById('stat-start-date').value) {
+        const today = new Date();
+        const past = new Date(today);
+        past.setDate(today.getDate() - 30);
+        $('#stat-start-date').val(past.toISOString().split('T')[0]);
+        $('#stat-end-date').val(today.toISOString().split('T')[0]);
+    }
+
+    // ----- 8. แสดง Modal -----
     const modal = document.getElementById('stats-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    setTimeout(() => { modal.classList.remove('opacity-0'); modal.querySelector('div').classList.remove('scale-95'); }, 10);
+    setTimeout(() => {
+        modal.classList.remove('opacity-0');
+        modal.querySelector('div').classList.remove('scale-95');
+    }, 10);
+
+    // ดีบัก
+    console.log('allRooms:', allRooms.length);
+    console.log('gradeLevelsManaged (raw):', gradeLevelsManaged);
+    console.log('managedLevelNumbers:', managedLevelNumbers);
+    console.log('statClassrooms:', statClassrooms.length);
 }
+
 function closeStatsModal() {
     const modal = document.getElementById('stats-modal');
     modal.classList.add('opacity-0');
     modal.querySelector('div').classList.add('scale-95');
     setTimeout(() => { modal.classList.add('hidden'); modal.classList.remove('flex'); }, 300);
 }
+
 async function generateStats() {
-    const classroomId = $('#classroom-select').val();
+    const classroomId = $('#stat-classroom-select').val();
     const startDate = $('#stat-start-date').val();
     const endDate = $('#stat-end-date').val();
-    const roomText = $('#classroom-select option:selected').text();
+    const roomText = $('#stat-classroom-select option:selected').text();
+
     if (!classroomId || !startDate || !endDate) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและช่วงวันที่ให้ครบถ้วน', 'warning');
     }
+
     Swal.fire({ title: 'กำลังประมวลผลข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
     try {
-        const { data: records, error } = await db.from('homeroom_attendance')
+        // =============================================
+        // 1. โหลดข้อมูลครูที่ปรึกษาของห้องที่เลือก
+        // =============================================
+        let adviser1 = '.......................................';
+        let adviser2 = '.......................................';
+
+        const { data: roomData } = await db
+            .from('core_classrooms')
+            .select('adviser_id_1, adviser_id_2')
+            .eq('id', classroomId)
+            .single();
+
+        if (roomData) {
+            const ids = [roomData.adviser_id_1, roomData.adviser_id_2].filter(id => id);
+            if (ids.length > 0) {
+                const { data: personnel } = await db
+                    .from('core_personnel')
+                    .select('id, prefix, first_name, last_name')
+                    .in('id', ids);
+                if (personnel) {
+                    personnel.forEach(p => {
+                        const name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+                        if (p.id === roomData.adviser_id_1) adviser1 = name;
+                        if (p.id === roomData.adviser_id_2) adviser2 = name;
+                    });
+                }
+            }
+        }
+
+        // =============================================
+        // 2. ดึงข้อมูลการเช็คชื่อตามช่วงวันที่
+        // =============================================
+        const { data: records, error } = await db
+            .from('homeroom_attendance')
             .select('student_id, status')
             .eq('classroom_id', classroomId)
             .gte('check_date', startDate)
             .lte('check_date', endDate);
+
         if (error) throw error;
-        const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
-        const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
-        let statsCount = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
-        let studentIssues = { 'ขาด': {}, 'สาย': {}, 'ลา': {}, 'ป่วย': {} };
+
+        // =============================================
+        // 3. คำนวณสถิติรวม
+        // =============================================
+        const statsCount = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
+        const studentIssues = { 'ขาด': {}, 'สาย': {}, 'ลา': {}, 'ป่วย': {} };
+
         records.forEach(r => {
             if (statsCount[r.status] !== undefined) {
                 statsCount[r.status]++;
@@ -1775,55 +1997,99 @@ async function generateStats() {
                 }
             }
         });
+
+        // =============================================
+        // 4. จับคู่ student_id กับชื่อ (ใช้ข้อมูลที่มีในหน้าหลักถ้าเป็นห้องเดียวกัน หรือดึงใหม่)
+        // =============================================
         const studentMap = {};
-        currentDashboardStudents.forEach(enroll => {
-            const s = enroll.core_students || enroll;
-            const sid = enroll.student_id || enroll.id;
-            studentMap[sid] = {
-                name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
-                no: enroll.student_number || '-'
-            };
-        });
+        const mainClassroomId = $('#classroom-select').val();
+
+        if (currentDashboardStudents.length > 0 && classroomId === mainClassroomId) {
+            currentDashboardStudents.forEach(enroll => {
+                const s = enroll.core_students || enroll;
+                const sid = enroll.student_id || enroll.id;
+                studentMap[sid] = {
+                    name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                    no: enroll.student_number || '-'
+                };
+            });
+        } else {
+            const { data: enrollExtra } = await db
+                .from('student_enrollments')
+                .select('student_id, student_number, core_students(prefix, first_name, last_name)')
+                .eq('classroom_id', classroomId)
+                .order('student_number', { ascending: true });
+
+            (enrollExtra || []).forEach(enroll => {
+                const s = enroll.core_students || {};
+                studentMap[enroll.student_id] = {
+                    name: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
+                    no: enroll.student_number || '-'
+                };
+            });
+        }
+
+        // =============================================
+        // 5. สร้าง HTML รายชื่อแยกตามสถานะ (ขาด, สาย, ลา, ป่วย)
+        // =============================================
         const generateStatsListHTML = (title, statusKey, icon, colorClass, bgClass) => {
             const issues = studentIssues[statusKey];
             const studentIds = Object.keys(issues);
             if (studentIds.length === 0) return '';
+
             const list = studentIds.map(sid => {
                 const info = studentMap[sid] || { name: 'ไม่พบข้อมูลชื่อ', no: 99 };
                 return { name: info.name, no: info.no, count: issues[sid] };
             }).sort((a, b) => a.no - b.no);
+
             const itemsHTML = list.map(s => `
                 <li class="flex justify-between items-center py-1.5 border-b border-slate-200/50 last:border-0" style="page-break-inside: avoid; break-inside: avoid;">
                     <div class="text-[12px] text-slate-700"><span class="font-bold text-slate-500 mr-1">${s.no}.</span> ${s.name}</div>
                     <div class="text-[11px] font-black px-2 py-0.5 rounded-lg bg-white text-slate-600 shadow-sm border border-slate-100">${s.count} ครั้ง</div>
                 </li>`).join('');
+
             return `<div class="${bgClass} p-5 rounded-2xl border border-slate-200 shadow-sm" style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 16px;">
                 <h4 class="font-black text-sm ${colorClass} mb-3 flex items-center border-b border-white pb-2"><i class="${icon} mr-2"></i> ${title} (${list.length} คน)</h4>
                 <ul class="space-y-1">${itemsHTML}</ul>
             </div>`;
         };
+
         const listsContainer = document.getElementById('stats-student-lists');
         if (listsContainer) {
-            listsContainer.innerHTML = generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2') +
+            listsContainer.innerHTML =
+                generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2') +
                 generateStatsListHTML('มาสาย', 'สาย', 'fas fa-clock', '#c2410c', '#fff7ed') +
                 generateStatsListHTML('ลากิจ', 'ลา', 'fas fa-envelope-open-text', '#a16207', '#fefce8') +
                 generateStatsListHTML('ลาป่วย', 'ป่วย', 'fas fa-procedures', '#1d4ed8', '#eff6ff');
             listsContainer.classList.remove('hidden');
         }
+
+        // =============================================
+        // 6. อัปเดต UI ด้วยข้อมูลที่คำนวณได้ (รวมชื่อครูที่ปรึกษา)
+        // =============================================
+        const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
+        const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
+
         document.getElementById('ui-stats-room-term').textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
-        document.getElementById('ui-stats-advisers').textContent = `ครูที่ปรึกษา: ${adviser1Name} และ ${adviser2Name}`;
+        document.getElementById('ui-stats-advisers').textContent = `ครูที่ปรึกษา: ${adviser1} และ ${adviser2}`;
         document.getElementById('stats-pdf-term').textContent = `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`;
         document.getElementById('stats-pdf-room').textContent = `ระดับชั้น: ${roomText}`;
-        document.getElementById('stats-pdf-adviser1').textContent = `ครูที่ปรึกษาคนที่ 1: ${adviser1Name}`;
-        document.getElementById('stats-pdf-adviser2').textContent = `ครูที่ปรึกษาคนที่ 2: ${adviser2Name}`;
+        document.getElementById('stats-pdf-adviser1').textContent = `ครูที่ปรึกษาคนที่ 1: ${adviser1}`;
+        document.getElementById('stats-pdf-adviser2').textContent = `ครูที่ปรึกษาคนที่ 2: ${adviser2}`;
         document.getElementById('stats-pdf-subtitle').textContent = `ช่วงวันที่: ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`;
+
+        // =============================================
+        // 7. วาดกราฟ
+        // =============================================
         renderAttendanceChart(statsCount);
+
         Swal.close();
     } catch (err) {
         console.error(err);
         Swal.fire('ข้อผิดพลาด', 'ไม่สามารถประมวลผลข้อมูลได้', 'error');
     }
 }
+
 function renderAttendanceChart(stats) {
     const ctx = document.getElementById('attendanceChart');
     if (!ctx) return;
