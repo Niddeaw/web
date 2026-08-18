@@ -9,19 +9,7 @@
  * - teacher (ครูที่ปรึกษา)             : ดู + แก้ไขเฉพาะห้องตน + รายงานสถิติห้องตน
  * - staff, office                       : ไม่มีสิทธิ์ → SweetAlert แล้ว redirect index.html
  *
- * Bug fixes (เทียบกับเวอร์ชันก่อน):
- * 1. แก้ "hasModuleAccess is not a function" — ตัวแปร let hasModuleAccess ชนกับ
- *    ฟังก์ชัน hasModuleAccess() จาก config.js → เปลี่ยนชื่อตัวแปรเป็น moduleAllowed
- * 2. แก้ isDisciplineHead / managedGrades ประกาศซ้ำด้วย let ใน scope ซ้อนกัน
- *    → ใช้ชื่อ localDisciplineHead / localManagedGrades ภายใน loadClassroomDataWithPermission
- *    แล้ว sync กลับ outer-scope
- * 3. ย้าย isReadOnly / isHead มาตั้งค่าหลัง loadClassroomDataWithPermission เสร็จ
- *    เพื่อให้ได้ค่าที่ sync แล้วเสมอ
- * 4. เพิ่ม block staff/office ด้วย SweetAlert ก่อนทำอะไรต่อ
- * 5. เพิ่ม role head_of_level, discipline_head ใน checkSessionAndRole
- *    (เผื่อ config.js ใช้ชื่อ role เหล่านี้)
- */
-
+*/
 let currentUser = null;
 let currentSchoolInfo = null;
 let actualUserRole = '';
@@ -72,7 +60,7 @@ $(document).ready(async () => {
         $('#check-date').val(new Date(today.getTime() - today.getTimezoneOffset() * 60000).toISOString().split('T')[0]);
 
         // 1. ตรวจสอบเซสชันและสิทธิ์โดยใช้ config.js
-        // ✅ อนุญาต role ทั้งหมดผ่านก่อน แล้วกรอง staff/office/office ด้วย SweetAlert ด้านล่าง
+        // ✅ เพิ่ม head_of_level ใน roles ที่อนุญาต
         const session = await checkSessionAndRole('ระบบเช็คชื่อ', ['super_admin', 'admin', 'director', 'deputy', 'teacher', 'head_of_level', 'discipline_head', 'staff', 'office']);
         if (!session) return;
 
@@ -80,7 +68,7 @@ $(document).ready(async () => {
         currentUser = personnel;
         actualUserRole = role;
 
-        // ✅ Block staff/office ทันที ด้วย SweetAlert แล้ว redirect ไป index.html
+        // ✅ Block staff/office ทันที
         if (role === 'staff' || role === 'office') {
             await Swal.fire({
                 icon: 'error',
@@ -93,29 +81,73 @@ $(document).ready(async () => {
             return;
         }
 
-        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ (สำหรับสิทธิ์อ่านอย่างเดียว)
+        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ
         const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
         const currentYear = sInfo?.current_academic_year;
         const currentSemester = sInfo?.current_semester;
 
-        // ใช้ตัวแปร outer-scope (ประกาศไว้ด้านบน) ไม่ประกาศซ้ำด้วย let
         isDisciplineHead = false;
         managedGrades = [];
+
+        const currentYearStr = String(currentYear);
 
         // ตรวจสอบหัวหน้างานปกครอง
         const { data: discHead } = await db.from('core_discipline_heads')
             .select('id')
             .eq('personnel_id', user.id)
-            .eq('academic_year', currentYear)
+            .eq('academic_year', currentYearStr)
             .maybeSingle();
         if (discHead) isDisciplineHead = true;
+
+        // ✅ BUGFIX: fallback integer
+        if (!isDisciplineHead) {
+            const currentYearNum = parseInt(currentYear, 10);
+            if (!isNaN(currentYearNum)) {
+                const { data: discHeadInt } = await db.from('core_discipline_heads')
+                    .select('id')
+                    .eq('personnel_id', user.id)
+                    .eq('academic_year', currentYearNum)
+                    .maybeSingle();
+                if (discHeadInt) {
+                    isDisciplineHead = true;
+                    console.log('✅ discipline_head (init) fallback (int) found');
+                }
+            }
+        }
 
         // ตรวจสอบหัวหน้าระดับ
         const { data: gradeHeads } = await db.from('core_grade_heads')
             .select('grade_level')
             .eq('personnel_id', user.id)
-            .eq('academic_year', currentYear);
+            .eq('academic_year', currentYearStr);
         managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
+
+        // ✅ BUGFIX: fallback integer
+        if (managedGrades.length === 0) {
+            const currentYearNum = parseInt(currentYear, 10);
+            if (!isNaN(currentYearNum)) {
+                const { data: gradeHeadsInt } = await db.from('core_grade_heads')
+                    .select('grade_level')
+                    .eq('personnel_id', user.id)
+                    .eq('academic_year', currentYearNum);
+                if (gradeHeadsInt && gradeHeadsInt.length > 0) {
+                    managedGrades = gradeHeadsInt.map(g => g.grade_level);
+                    console.log('✅ grade_heads (init) fallback (int) found:', managedGrades);
+                }
+            }
+        }
+
+        // ✅ ถ้า role เป็น head_of_level และยังไม่มี managedGrades ให้ลอง query อีกครั้งด้วยวิธีอื่น
+        if (role === 'head_of_level' && managedGrades.length === 0) {
+            // ลองใช้ behavior_grade_heads (เผื่อใช้ตารางนี้)
+            const { data: behaviorHeads } = await db.from('behavior_grade_heads')
+                .select('grade_level')
+                .eq('teacher_id', user.id);
+            if (behaviorHeads && behaviorHeads.length > 0) {
+                managedGrades = behaviorHeads.map(g => g.grade_level);
+                console.log('✅ grade_heads from behavior_grade_heads:', managedGrades);
+            }
+        }
 
         // ✅ กำหนดค่าเริ่มต้น currentViewRole และ isReadOnly
         if (isAdmin) {
@@ -127,7 +159,7 @@ $(document).ready(async () => {
             localStorage.removeItem('attendance_admin_mode');
         }
 
-        // 2. ตั้งค่า UI ด้วยฟังก์ชันกลาง
+        // 2. ตั้งค่า UI
         applyVisibilityByRole(role, currentViewRole === 'admin', {
             settingsBtn: 'admin-settings-btn',
             toggleBtn: 'btnAdminMode',
@@ -135,13 +167,13 @@ $(document).ready(async () => {
         });
         updateToggleModeUI(role, currentViewRole === 'admin', 'btnAdminMode');
 
-        // 3. โหลดข้อมูลโรงเรียนและตั้งค่า
+        // 3. โหลดข้อมูลโรงเรียน
         await loadSchoolInfo();
 
         // 4. โหลดข้อมูลห้องเรียนและสิทธิ์เพิ่มเติม
         const hasAccess = await loadClassroomDataWithPermission(user.id, isAdmin, role);
 
-        // ✅ ตั้งค่า isReadOnly/isHead หลัง loadClassroomDataWithPermission sync isDisciplineHead/managedGrades แล้ว
+        // ✅ ตั้งค่า isReadOnly/isHead
         if (!isAdmin && (isDisciplineHead || managedGrades.length > 0)) {
             isReadOnly = true;
             isHead = true;
@@ -161,27 +193,354 @@ $(document).ready(async () => {
             return;
         }
 
-        // 5. บันทึก Log การเข้าใช้งาน
+        // 5. บันทึก Log
         await logUserAction('เข้าสู่ระบบเช็คชื่อ', 'attendance');
 
         // 6. ตั้งค่า Date constraints
         applyDateConstraints();
 
-        // 7. ตั้งค่า event listeners
+        // 7. event listeners
         $('#check-date').on('change', () => loadStudentList($('#classroom-select').val()));
 
-        // 8. แสดงปุ่มต่างๆ ตามสิทธิ์ (เสริม)
+        // 8. แสดงปุ่มต่างๆ ตามสิทธิ์
         updateUIBasedOnRole();
 
         // ✅ 9. ใช้โหมดอ่านอย่างเดียว (ถ้าเป็นหัวหน้า)
         applyReadOnlyState();
 
         console.log('✅ Attendance system initialized successfully');
+        console.log('📌 isDisciplineHead:', isDisciplineHead);
+        console.log('📌 managedGrades:', managedGrades);
+        console.log('📌 isReadOnly:', isReadOnly);
+        console.log('📌 isHead:', isHead);
     } catch (err) {
         console.error('Initialization error:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถเริ่มระบบได้', 'error');
     }
 });
+
+/**
+ * โหลดข้อมูลห้องเรียนและตรวจสอบสิทธิ์เข้าโมดูล
+ */
+async function loadClassroomDataWithPermission(userId, isAdmin, role) {
+    try {
+        // ✅ กรองเฉพาะปีการศึกษาและภาคเรียนปัจจุบัน
+        const { data: allClassrooms, error: classError } = await db
+            .from('core_classrooms')
+            .select('*')
+            .eq('academic_year', currentSchoolInfo.current_academic_year)
+            .eq('semester', currentSchoolInfo.current_semester)
+            .order('grade_level', { ascending: true })
+            .order('room_number', { ascending: true });
+        if (classError) throw classError;
+        window.globalClassroomsList = allClassrooms;
+
+        // ห้องที่ user เป็นครูที่ปรึกษา
+        window.adviserClassrooms = allClassrooms.filter(cls =>
+            cls.adviser_id_1 === userId || cls.adviser_id_2 === userId
+        );
+
+        let localManagedGrades = [];
+        let localDisciplineHead = false;
+
+        if (!isAdmin) {
+            const academicYearStr = String(currentSchoolInfo.current_academic_year);
+
+            // ✅ ตรวจสอบหัวหน้าระดับจาก core_grade_heads
+            const { data: gradeHeads } = await db
+                .from('core_grade_heads')
+                .select('grade_level')
+                .eq('personnel_id', userId)
+                .eq('academic_year', academicYearStr);
+            if (gradeHeads && gradeHeads.length > 0) {
+                localManagedGrades = gradeHeads.map(h => h.grade_level);
+            }
+
+            // ✅ BUGFIX: fallback integer
+            if (localManagedGrades.length === 0) {
+                const academicYearNum = parseInt(currentSchoolInfo.current_academic_year, 10);
+                if (!isNaN(academicYearNum)) {
+                    const { data: gradeHeadsFallback } = await db
+                        .from('core_grade_heads')
+                        .select('grade_level')
+                        .eq('personnel_id', userId)
+                        .eq('academic_year', academicYearNum);
+                    if (gradeHeadsFallback && gradeHeadsFallback.length > 0) {
+                        localManagedGrades = gradeHeadsFallback.map(h => h.grade_level);
+                        console.log('✅ grade_heads fallback (int) found:', localManagedGrades);
+                    }
+                }
+            }
+
+            // ✅ ถ้ายังไม่มี ให้ลองจาก behavior_grade_heads (เผื่อใช้ตารางนี้)
+            if (localManagedGrades.length === 0) {
+                const { data: behaviorHeads } = await db
+                    .from('behavior_grade_heads')
+                    .select('grade_level')
+                    .eq('teacher_id', userId);
+                if (behaviorHeads && behaviorHeads.length > 0) {
+                    localManagedGrades = behaviorHeads.map(h => h.grade_level);
+                    console.log('✅ grade_heads from behavior_grade_heads:', localManagedGrades);
+                }
+            }
+
+            // ตรวจสอบหัวหน้างานปกครอง
+            const { data: discHead } = await db
+                .from('core_discipline_heads')
+                .select('id')
+                .eq('personnel_id', userId)
+                .eq('academic_year', academicYearStr)
+                .maybeSingle();
+            localDisciplineHead = !!discHead;
+
+            if (!localDisciplineHead) {
+                const academicYearNum = parseInt(currentSchoolInfo.current_academic_year, 10);
+                if (!isNaN(academicYearNum)) {
+                    const { data: discHeadFallback } = await db
+                        .from('core_discipline_heads')
+                        .select('id')
+                        .eq('personnel_id', userId)
+                        .eq('academic_year', academicYearNum)
+                        .maybeSingle();
+                    if (discHeadFallback) {
+                        localDisciplineHead = true;
+                        console.log('✅ discipline_head fallback (int) found');
+                    }
+                }
+            }
+        }
+
+        // sync กลับไปยัง outer-scope
+        isDisciplineHead = localDisciplineHead;
+        managedGrades = localManagedGrades;
+
+        // กำหนด currentManagedGrades
+        if (isAdmin || localDisciplineHead) {
+            currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
+        } else if (localManagedGrades.length > 0) {
+            currentManagedGrades = localManagedGrades.map(g => String(g));
+        } else {
+            currentManagedGrades = [];
+        }
+
+        // ✅ แสดงปุ่มภาพรวมระดับชั้น
+        const btnGradeOverview = document.getElementById('btn-grade-overview');
+        if (btnGradeOverview) {
+            if (currentManagedGrades.length > 0) {
+                btnGradeOverview.classList.remove('hidden');
+                btnGradeOverview.classList.add('flex');
+            } else {
+                btnGradeOverview.classList.add('hidden');
+                btnGradeOverview.classList.remove('flex');
+            }
+        }
+
+        // ✅ ตรวจสอบสิทธิ์เข้าโมดูล attendance
+        let moduleAllowed = false;
+
+        if (isAdmin) {
+            moduleAllowed = true;
+        } else {
+            const isAdviser = window.adviserClassrooms.length > 0;
+
+            if (role === 'teacher' && isAdviser) {
+                moduleAllowed = true;
+            } else if (role === 'head_of_level' && localManagedGrades.length > 0) {
+                // ✅ หัวหน้าระดับผ่านทันที
+                moduleAllowed = true;
+                console.log('✅ head_of_level moduleAllowed via localManagedGrades');
+            } else if (role === 'discipline_head' && localDisciplineHead) {
+                moduleAllowed = true;
+                console.log('✅ discipline_head moduleAllowed');
+            } else if (localDisciplineHead || localManagedGrades.length > 0) {
+                moduleAllowed = true;
+            } else if (isDisciplineHead || managedGrades.length > 0) {
+                moduleAllowed = true;
+                console.log('✅ moduleAllowed via outer-scope fallback');
+            } else if (role === 'teacher' && !isAdviser) {
+                if (typeof hasModuleAccess === 'function') {
+                    moduleAllowed = await hasModuleAccess(role, 'attendance', userId);
+                } else {
+                    moduleAllowed = false;
+                }
+            } else {
+                moduleAllowed = false;
+            }
+        }
+
+        if (!moduleAllowed) {
+            return false;
+        }
+
+        // ปรับปรุง UI แสดงชื่อและบทบาท
+        let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${currentUser.first_name} ${currentUser.last_name}`;
+        if (actualUserRole === 'super_admin') {
+            userDisplayText += `<span class="block text-[10px] text-rose-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-crown mr-1"></i> ผู้ดูแลระบบสูงสุด</span>`;
+        } else if (localDisciplineHead) {
+            userDisplayText += `<span class="block text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-shield-alt mr-1"></i> หัวหน้างานปกครอง (ดูอย่างเดียว)</span>`;
+        } else if (localManagedGrades.length > 0) {
+            userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${localManagedGrades.join(', ')} (ดูอย่างเดียว)</span>`;
+        }
+        $('#user-display').html(userDisplayText);
+
+        // เติม dropdown ห้องเรียน
+        await populateClassroomSelect(userId, localDisciplineHead, localManagedGrades);
+
+        // ✅ แสดงปุ่มรายงานสถิติ
+        const isAdviser = window.adviserClassrooms.length > 0;
+        const canSeeStats = isAdmin || localDisciplineHead || localManagedGrades.length > 0 || isAdviser;
+        const btnStatsReport = document.getElementById('btn-stats-report');
+        if (btnStatsReport) {
+            btnStatsReport.classList.toggle('hidden', !canSeeStats);
+            if (canSeeStats) {
+                btnStatsReport.classList.add('flex');
+                console.log('✅ ปุ่มรายงานสถิติแสดงแล้ว');
+            }
+        }
+
+        // ✅ เก็บสถานะหัวหน้า
+        window._isHead = localDisciplineHead || localManagedGrades.length > 0;
+        window._isGradeHead = localManagedGrades.length > 0;
+        window._managedGrades = localManagedGrades;
+
+        return true;
+
+    } catch (err) {
+        console.error('Error loading classroom data:', err);
+        throw err;
+    }
+}
+
+// ==========================================
+// ✅ ฟังก์ชันใช้โหมดอ่านอย่างเดียว (ปรับปรุงสำหรับหัวหน้าระดับ)
+// ==========================================
+function applyReadOnlyState() {
+    if (!isReadOnly) return;
+
+    // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
+    // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
+    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
+            && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
+            $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
+        }
+    });
+
+    // 2. ปิดการเลือกสถานะ (dropdown ในตาราง)
+    $('select.tiny-select').prop('disabled', true).addClass('opacity-60');
+
+    // 3. ปิดปุ่มเปิด modal
+    $('#openRecordModal, #btn-mark-all, #btn-clear-day, #btn-clear-all').prop('disabled', true).addClass('opacity-50');
+
+    // 4. ซ่อนปุ่มที่ใช้ในการแก้ไข
+    $('#action-bar .btn-primary, #action-bar .btn-danger, #action-bar .btn-warning').hide();
+
+    // 5. ✅ แสดงข้อความแจ้งเตือนว่าเป็นโหมดอ่านอย่างเดียว (ปรับข้อความตามบทบาท)
+    let roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)';
+    if (isHead && managedGrades.length > 0) {
+        roleText = `คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้าระดับ ม.${managedGrades.join(', ')}) ไม่สามารถแก้ไขข้อมูลได้`;
+    } else if (isHead && isDisciplineHead) {
+        roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
+    }
+    
+    const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
+        <i class="fas fa-eye text-amber-600"></i>
+        <span class="font-bold">${roleText}</span>
+    </div>`;
+    $('.glass-card:first').prepend(alertHtml);
+
+    console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
+}
+
+// ==================== POPULATE CLASSROOM SELECT ====================
+async function populateClassroomSelect(userId, isDisciplineHeadParam = false, managedGradesParam = []) {
+    const allClassrooms = window.globalClassroomsList || [];
+    const adviserClassrooms = window.adviserClassrooms || [];
+
+    const isDisciplineHead = isDisciplineHeadParam || window.isDisciplineHead || false;
+    const managedGrades = (managedGradesParam && managedGradesParam.length > 0) ? managedGradesParam : (window.managedGrades || []);
+
+    let classrooms = [];
+    const isAdminMode = (currentViewRole === 'admin');
+
+    if (isAdminMode) {
+        classrooms = allClassrooms;
+    } else {
+        // ✅ ถ้าเป็นหัวหน้างานปกครอง หรือหัวหน้าระดับ
+        if ((isDisciplineHead || managedGrades.length > 0) && adviserClassrooms.length === 0) {
+            if (managedGrades.length > 0) {
+                // หัวหน้าระดับ → แสดงเฉพาะห้องในระดับที่ดูแล
+                classrooms = allClassrooms.filter(c => managedGrades.includes(String(c.grade_level)));
+                console.log('📌 หัวหน้าระดับ: แสดงเฉพาะห้อง ม.' + managedGrades.join(', ') + ' (พบ ' + classrooms.length + ' ห้อง)');
+            } else {
+                // หัวหน้างานปกครอง → แสดงทุกห้อง
+                classrooms = allClassrooms;
+                console.log('📌 หัวหน้างานปกครอง: แสดงทุกห้อง (พบ ' + classrooms.length + ' ห้อง)');
+            }
+        } else {
+            // ครูที่ปรึกษาทั่วไป → แสดงเฉพาะห้องที่ตัวเองเป็นที่ปรึกษา
+            classrooms = adviserClassrooms;
+        }
+    }
+
+    const selectEl = document.getElementById('classroom-select');
+    if (window.classroomTomSelect) window.classroomTomSelect.destroy();
+    selectEl.innerHTML = '';
+
+    if (classrooms.length === 0) {
+        const msg = isAdminMode ? 'ไม่มีห้องเรียนในระบบ' : 'คุณยังไม่ได้รับมอบหมายห้องเรียน (ครูที่ปรึกษา)';
+        selectEl.innerHTML = `<option value="">${msg}</option>`;
+        $('#student-list').html(`<tr><td colspan="3" class="text-center py-16 text-slate-500 font-bold">${msg}</td></tr>`);
+        updateStatsClear();
+        currentDashboardStudents = [];
+        renderDashboardSummary();
+        return;
+    }
+
+    classrooms.forEach(cls => {
+        const option = document.createElement('option');
+        option.value = cls.id;
+        option.text = `ชั้น ${cls.grade_level}/${cls.room_number}`;
+        selectEl.appendChild(option);
+    });
+
+    window.classroomTomSelect = new TomSelect(selectEl, {
+        placeholder: '-- เลือกห้องเรียน --',
+        searchField: ['text'],
+        maxOptions: null,
+    });
+
+    let defaultVal = null;
+
+    if (lastSelectedClassroomId && classrooms.some(c => c.id === lastSelectedClassroomId)) {
+        defaultVal = lastSelectedClassroomId;
+    } else {
+        if (!isAdminMode) {
+            const myRoom = classrooms.find(c => c.adviser_id_1 === userId);
+            if (myRoom) {
+                defaultVal = myRoom.id;
+            }
+        }
+        if (!defaultVal && classrooms.length > 0) {
+            defaultVal = classrooms[0].id;
+        }
+    }
+
+    if (defaultVal) {
+        window.classroomTomSelect.setValue(defaultVal);
+        lastSelectedClassroomId = defaultVal;
+        loadStudentList(defaultVal);
+    } else {
+        window.classroomTomSelect.setValue('');
+    }
+
+    window.classroomTomSelect.on('change', val => {
+        if (val) {
+            lastSelectedClassroomId = val;
+            loadStudentList(val);
+        }
+    });
+}
 
 /**
  * โหลดข้อมูลโรงเรียนและตั้งค่าเริ่มต้น
@@ -244,38 +603,81 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
             cls.adviser_id_1 === userId || cls.adviser_id_2 === userId
         );
 
-        // ตรวจสอบหัวหน้าระดับและหัวหน้างานปกครอง
-        // ใช้ชื่อ localManagedGrades / localDisciplineHead เพื่อไม่ชนกับ outer-scope
         let localManagedGrades = [];
         let localDisciplineHead = false;
 
         if (!isAdmin) {
+            const academicYearStr = String(currentSchoolInfo.current_academic_year);
+
+            // ✅ ตรวจสอบหัวหน้าระดับจาก core_grade_heads
             const { data: gradeHeads } = await db
                 .from('core_grade_heads')
                 .select('grade_level')
                 .eq('personnel_id', userId)
-                .eq('academic_year', currentSchoolInfo.current_academic_year);
+                .eq('academic_year', academicYearStr);
             if (gradeHeads && gradeHeads.length > 0) {
                 localManagedGrades = gradeHeads.map(h => h.grade_level);
             }
 
+            // ✅ BUGFIX: fallback integer
+            if (localManagedGrades.length === 0) {
+                const academicYearNum = parseInt(currentSchoolInfo.current_academic_year, 10);
+                if (!isNaN(academicYearNum)) {
+                    const { data: gradeHeadsFallback } = await db
+                        .from('core_grade_heads')
+                        .select('grade_level')
+                        .eq('personnel_id', userId)
+                        .eq('academic_year', academicYearNum);
+                    if (gradeHeadsFallback && gradeHeadsFallback.length > 0) {
+                        localManagedGrades = gradeHeadsFallback.map(h => h.grade_level);
+                        console.log('✅ grade_heads fallback (int) found:', localManagedGrades);
+                    }
+                }
+            }
+
+            // ✅ ถ้ายังไม่มี ให้ลองจาก behavior_grade_heads (เผื่อใช้ตารางนี้)
+            if (localManagedGrades.length === 0) {
+                const { data: behaviorHeads } = await db
+                    .from('behavior_grade_heads')
+                    .select('grade_level')
+                    .eq('teacher_id', userId);
+                if (behaviorHeads && behaviorHeads.length > 0) {
+                    localManagedGrades = behaviorHeads.map(h => h.grade_level);
+                    console.log('✅ grade_heads from behavior_grade_heads:', localManagedGrades);
+                }
+            }
+
+            // ตรวจสอบหัวหน้างานปกครอง
             const { data: discHead } = await db
                 .from('core_discipline_heads')
                 .select('id')
                 .eq('personnel_id', userId)
-                .eq('academic_year', currentSchoolInfo.current_academic_year)
+                .eq('academic_year', academicYearStr)
                 .maybeSingle();
             localDisciplineHead = !!discHead;
+
+            if (!localDisciplineHead) {
+                const academicYearNum = parseInt(currentSchoolInfo.current_academic_year, 10);
+                if (!isNaN(academicYearNum)) {
+                    const { data: discHeadFallback } = await db
+                        .from('core_discipline_heads')
+                        .select('id')
+                        .eq('personnel_id', userId)
+                        .eq('academic_year', academicYearNum)
+                        .maybeSingle();
+                    if (discHeadFallback) {
+                        localDisciplineHead = true;
+                        console.log('✅ discipline_head fallback (int) found');
+                    }
+                }
+            }
         }
 
-        // sync กลับไปยัง outer-scope เพื่อใช้ใน updateUIBasedOnRole / applyReadOnlyState
+        // sync กลับไปยัง outer-scope
         isDisciplineHead = localDisciplineHead;
         managedGrades = localManagedGrades;
 
         // กำหนด currentManagedGrades
-        // - admin / director / deputy / หัวหน้าปกครอง → ดูได้ทุกระดับ (1-6)
-        // - หัวหน้าระดับ → ดูได้เฉพาะระดับที่ดูแล
-        // - teacher ทั่วไป → ไม่มีสิทธิ์ภาพรวมระดับชั้น
         if (isAdmin || localDisciplineHead) {
             currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
         } else if (localManagedGrades.length > 0) {
@@ -283,7 +685,8 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         } else {
             currentManagedGrades = [];
         }
-        // แสดงปุ่มภาพรวมระดับชั้นเมื่อมี currentManagedGrades (ทุก role ที่มีสิทธิ์)
+
+        // ✅ แสดงปุ่มภาพรวมระดับชั้น
         const btnGradeOverview = document.getElementById('btn-grade-overview');
         if (btnGradeOverview) {
             if (currentManagedGrades.length > 0) {
@@ -296,30 +699,34 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         }
 
         // ✅ ตรวจสอบสิทธิ์เข้าโมดูล attendance
-        // ใช้ชื่อตัวแปร moduleAllowed เพื่อไม่ให้ชนกับฟังก์ชัน hasModuleAccess() จาก config.js
         let moduleAllowed = false;
 
         if (isAdmin) {
-            // super_admin, admin, director, deputy → ผ่านทันที
             moduleAllowed = true;
         } else {
             const isAdviser = window.adviserClassrooms.length > 0;
 
             if (role === 'teacher' && isAdviser) {
-                // ครูที่ปรึกษา → ผ่านทันที
+                moduleAllowed = true;
+            } else if (role === 'head_of_level' && localManagedGrades.length > 0) {
+                // ✅ หัวหน้าระดับผ่านทันที
+                moduleAllowed = true;
+                console.log('✅ head_of_level moduleAllowed via localManagedGrades');
+            } else if (role === 'discipline_head' && localDisciplineHead) {
+                moduleAllowed = true;
+                console.log('✅ discipline_head moduleAllowed');
+            } else if (localDisciplineHead || localManagedGrades.length > 0) {
                 moduleAllowed = true;
             } else if (isDisciplineHead || managedGrades.length > 0) {
-                // หัวหน้างานปกครอง / หัวหน้าระดับ → ผ่าน (อ่านอย่างเดียว)
                 moduleAllowed = true;
+                console.log('✅ moduleAllowed via outer-scope fallback');
             } else if (role === 'teacher' && !isAdviser) {
-                // ครูที่ไม่มีห้องที่ปรึกษา → ตรวจสอบ permission พิเศษ
                 if (typeof hasModuleAccess === 'function') {
                     moduleAllowed = await hasModuleAccess(role, 'attendance', userId);
                 } else {
                     moduleAllowed = false;
                 }
             } else {
-                // role อื่นๆ ที่ยังไม่ได้ถูก block ด้านบน
                 moduleAllowed = false;
             }
         }
@@ -339,20 +746,25 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         }
         $('#user-display').html(userDisplayText);
 
-        // เติม dropdown ห้องเรียน (ส่ง localManagedGrades เพื่อให้ filter ห้องได้ถูกต้อง)
+        // เติม dropdown ห้องเรียน
         await populateClassroomSelect(userId, localDisciplineHead, localManagedGrades);
 
-        // แสดงปุ่มรายงานสถิติ:
-        // - admin / director / deputy / หัวหน้าปกครอง / หัวหน้าระดับ → เห็นเสมอ
-        // - teacher ที่เป็นครูที่ปรึกษา → เห็น
-        // - teacher ที่ไม่มีห้องที่ปรึกษา → ซ่อน
+        // ✅ แสดงปุ่มรายงานสถิติ
         const isAdviser = window.adviserClassrooms.length > 0;
         const canSeeStats = isAdmin || localDisciplineHead || localManagedGrades.length > 0 || isAdviser;
         const btnStatsReport = document.getElementById('btn-stats-report');
-        if (btnStatsReport) btnStatsReport.classList.toggle('hidden', !canSeeStats);
+        if (btnStatsReport) {
+            btnStatsReport.classList.toggle('hidden', !canSeeStats);
+            if (canSeeStats) {
+                btnStatsReport.classList.add('flex');
+                console.log('✅ ปุ่มรายงานสถิติแสดงแล้ว');
+            }
+        }
 
-        // ✅ เก็บสถานะหัวหน้าเพื่อใช้ใน applyReadOnlyState
+        // ✅ เก็บสถานะหัวหน้า
         window._isHead = localDisciplineHead || localManagedGrades.length > 0;
+        window._isGradeHead = localManagedGrades.length > 0;
+        window._managedGrades = localManagedGrades;
 
         return true;
 
@@ -397,7 +809,7 @@ function updateUIBasedOnRole() {
 }
 
 // ==========================================
-// ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
+// ✅ ฟังก์ชันใช้โหมดอ่านอย่างเดียว (ปรับปรุงสำหรับหัวหน้าระดับ)
 // ==========================================
 function applyReadOnlyState() {
     if (!isReadOnly) return;
@@ -414,16 +826,23 @@ function applyReadOnlyState() {
     // 2. ปิดการเลือกสถานะ (dropdown ในตาราง)
     $('select.tiny-select').prop('disabled', true).addClass('opacity-60');
 
-    // 3. ปิดปุ่มเปิด modal (เช่น เพิ่มคะแนน, ตัดคะแนน)
+    // 3. ปิดปุ่มเปิด modal
     $('#openRecordModal, #btn-mark-all, #btn-clear-day, #btn-clear-all').prop('disabled', true).addClass('opacity-50');
 
-    // 4. ซ่อนปุ่มที่ใช้ในการแก้ไข (เช่น ปุ่ม Bulk)
+    // 4. ซ่อนปุ่มที่ใช้ในการแก้ไข
     $('#action-bar .btn-primary, #action-bar .btn-danger, #action-bar .btn-warning').hide();
 
-    // 5. แสดงข้อความแจ้งเตือนว่าเป็นโหมดอ่านอย่างเดียว
+    // 5. ✅ แสดงข้อความแจ้งเตือนว่าเป็นโหมดอ่านอย่างเดียว (ปรับข้อความตามบทบาท)
+    let roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)';
+    if (isHead && managedGrades.length > 0) {
+        roleText = `คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้าระดับ ม.${managedGrades.join(', ')}) ไม่สามารถแก้ไขข้อมูลได้`;
+    } else if (isHead && isDisciplineHead) {
+        roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
+    }
+    
     const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
         <i class="fas fa-eye text-amber-600"></i>
-        <span class="font-bold">คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)</span>
+        <span class="font-bold">${roleText}</span>
     </div>`;
     $('.glass-card:first').prepend(alertHtml);
 
@@ -435,7 +854,6 @@ async function populateClassroomSelect(userId, isDisciplineHeadParam = false, ma
     const allClassrooms = window.globalClassroomsList || [];
     const adviserClassrooms = window.adviserClassrooms || [];
 
-    // ใช้ค่าจากพารามิเตอร์ หรือจาก global (เผื่อกรณีเรียกจากที่อื่น)
     const isDisciplineHead = isDisciplineHeadParam || window.isDisciplineHead || false;
     const managedGrades = (managedGradesParam && managedGradesParam.length > 0) ? managedGradesParam : (window.managedGrades || []);
 
@@ -445,14 +863,16 @@ async function populateClassroomSelect(userId, isDisciplineHeadParam = false, ma
     if (isAdminMode) {
         classrooms = allClassrooms;
     } else {
-        // ถ้าเป็นหัวหน้างานปกครอง หรือหัวหน้าระดับ และไม่มีห้องที่ปรึกษา
+        // ✅ ถ้าเป็นหัวหน้างานปกครอง หรือหัวหน้าระดับ
         if ((isDisciplineHead || managedGrades.length > 0) && adviserClassrooms.length === 0) {
             if (managedGrades.length > 0) {
                 // หัวหน้าระดับ → แสดงเฉพาะห้องในระดับที่ดูแล
                 classrooms = allClassrooms.filter(c => managedGrades.includes(String(c.grade_level)));
+                console.log('📌 หัวหน้าระดับ: แสดงเฉพาะห้อง ม.' + managedGrades.join(', ') + ' (พบ ' + classrooms.length + ' ห้อง)');
             } else {
                 // หัวหน้างานปกครอง → แสดงทุกห้อง
                 classrooms = allClassrooms;
+                console.log('📌 หัวหน้างานปกครอง: แสดงทุกห้อง (พบ ' + classrooms.length + ' ห้อง)');
             }
         } else {
             // ครูที่ปรึกษาทั่วไป → แสดงเฉพาะห้องที่ตัวเองเป็นที่ปรึกษา
@@ -474,7 +894,6 @@ async function populateClassroomSelect(userId, isDisciplineHeadParam = false, ma
         return;
     }
 
-    // เพิ่ม options
     classrooms.forEach(cls => {
         const option = document.createElement('option');
         option.value = cls.id;
@@ -488,27 +907,22 @@ async function populateClassroomSelect(userId, isDisciplineHeadParam = false, ma
         maxOptions: null,
     });
 
-    // กำหนดค่าเริ่มต้น
     let defaultVal = null;
 
-    // 1. ถ้ามี lastSelected และยังอยู่ในลิสต์ -> ใช้ค่านั้น
     if (lastSelectedClassroomId && classrooms.some(c => c.id === lastSelectedClassroomId)) {
         defaultVal = lastSelectedClassroomId;
     } else {
-        // 2. ถ้าเป็นโหมดครู และมีห้องที่ตัวเองเป็น adviser_id_1 ให้เลือกห้องนั้นก่อน
         if (!isAdminMode) {
             const myRoom = classrooms.find(c => c.adviser_id_1 === userId);
             if (myRoom) {
                 defaultVal = myRoom.id;
             }
         }
-        // 3. ถ้ายังไม่มี ให้เลือกห้องแรก
         if (!defaultVal && classrooms.length > 0) {
             defaultVal = classrooms[0].id;
         }
     }
 
-    // ตั้งค่าและโหลดข้อมูล
     if (defaultVal) {
         window.classroomTomSelect.setValue(defaultVal);
         lastSelectedClassroomId = defaultVal;
@@ -517,7 +931,6 @@ async function populateClassroomSelect(userId, isDisciplineHeadParam = false, ma
         window.classroomTomSelect.setValue('');
     }
 
-    // event เมื่อเปลี่ยน
     window.classroomTomSelect.on('change', val => {
         if (val) {
             lastSelectedClassroomId = val;
