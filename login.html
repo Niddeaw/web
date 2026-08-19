@@ -351,9 +351,6 @@
 
             if (!sid || !password) return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบ', 'warning');
             if (!/^\d{5}$/.test(sid)) return Swal.fire('แจ้งเตือน', 'เลขประจำตัวนักเรียนต้องเป็นตัวเลข 5 หลัก', 'warning');
-            // if (!/^\d{13}$/.test(password) && password !== '9999999999999') {
-            //     return Swal.fire('แจ้งเตือน', 'รหัสผ่านต้องเป็นเลขบัตรประชาชน 13 หลัก', 'warning');
-            // }
 
             // ล็อก UI
             isSubmitting = true;
@@ -381,12 +378,13 @@
                         if (fetchError || !student) {
                             Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'ไม่พบข้อมูลนักเรียนในระบบ', 'error');
                         } else {
-                            const expectedPassword = (student.national_id && student.national_id.trim() !== '')
-                                ? student.national_id.trim()
-                                : '9999999999999';
+                            // ใช้เฉพาะเลขบัตรประชาชนเท่านั้น ไม่มีรหัสผ่านสำรอง
+                            const nationalId = student.national_id ? student.national_id.trim() : '';
 
-                            if (password === expectedPassword) {
-                                const { error: signUpError } = await db.auth.signUp({ email, password: expectedPassword });
+                            if (!nationalId) {
+                                Swal.fire('เข้าสู่ระบบไม่สำเร็จ', 'ไม่พบข้อมูลรหัสผ่านของนักเรียนในระบบ กรุณาติดต่อครูผู้ดูแล', 'error');
+                            } else if (password === nationalId) {
+                                const { error: signUpError } = await db.auth.signUp({ email, password: nationalId });
 
                                 if (signUpError) {
                                     if (signUpError.status === 429) {
@@ -407,7 +405,6 @@
                     }
                 } else {
                     // Login สำเร็จ
-                    // ✅ เพิ่มบรรทัดนี้: บันทึก Log การเข้าสู่ระบบ
                     await logUserAction('LOGIN', 'AUTH');
                     Swal.fire({ icon: 'success', title: 'เข้าสู่ระบบสำเร็จ', timer: 1000, showConfirmButton: false });
                     setTimeout(() => { window.location.href = 'student_index.html'; }, 1000);
@@ -417,7 +414,7 @@
             } finally {
                 isSubmitting = false;
                 btn.disabled = false;
-                Swal.close(); // ปิด loading ถ้ายังค้างอยู่
+                // หมายเหตุ: ไม่ใส่ Swal.close() ที่นี่ เพราะจะปิด SweetAlert error ก่อนผู้ใช้อ่าน
             }
         }
 
@@ -457,7 +454,7 @@
             } finally {
                 isSubmitting = false;
                 btn.disabled = false;
-                Swal.close();
+                // หมายเหตุ: ไม่ใส่ Swal.close() ที่นี่ เพราะจะปิด SweetAlert error ก่อนผู้ใช้อ่าน
             }
         }
 
