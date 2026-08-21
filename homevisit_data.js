@@ -17,42 +17,6 @@ let isRenderingCharts = false;
 let renderTimeout = null;
 let chartRenderCount = 0;  // เพิ่มไว้ดีบัก (ไม่จำเป็น)
 
-window.goToStep = function (step) {
-    document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
-    const targetStep = document.getElementById(`step-${step}`);
-    if (targetStep) targetStep.classList.add('active');
-
-    const percentages = { 1: '0%', 2: '25%', 3: '50%', 4: '75%', 5: '100%' };
-    const progBar = document.getElementById('progressBar');
-    if (progBar) progBar.style.width = percentages[step];
-
-    for (let i = 1; i <= 5; i++) {
-        const circle = document.getElementById(`circle-${i}`);
-        const text = document.getElementById(`text-step-${i}`);
-        if (circle && text) {
-            const config = stepColorConfigs[i];
-            if (i <= step) {
-                circle.className = `w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md transition-all ${config.bg} ${config.shadow}`;
-                text.className = `text-xs font-black transition-colors ${config.text}`;
-            } else {
-                circle.className = 'w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all';
-                text.className = 'text-xs font-bold text-slate-400 transition-colors';
-            }
-        }
-    }
-    if (step === 2) setTimeout(initMap, 200);
-};
-
-window.nextStep = async function (step) {
-    if (step === 2 && !document.getElementById('hv_student')?.value) {
-        return Swal.fire('ผิดพลาด', 'กรุณาเลือกนักเรียนก่อนครับ', 'warning');
-    }
-    await autoSaveStep();
-    goToStep(step);
-};
-
-window.prevStep = function (step) { goToStep(step); };
-
 function initPlugins() {
     if (document.getElementById('hv_date')) {
         flatpickr("#hv_date", { locale: "th", dateFormat: "Y-m-d", defaultDate: "today" });

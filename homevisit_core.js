@@ -169,7 +169,7 @@ const fieldKeyMap = {
 };
 
 // ==========================================
-// 2. ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js มาตรฐานกลาง)
+// 2. ฟังก์ชันอัปเดต UI ตามสิทธิ์
 // ==========================================
 function applyAdminVisibility() {
     const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
@@ -181,7 +181,7 @@ function applyAdminVisibility() {
 }
 
 // ==========================================
-// 3. AUTHENTICATION & ROLE MANAGEMENT (ใช้ config.js)
+// 3. AUTHENTICATION & ROLE MANAGEMENT
 // ==========================================
 async function checkAuth() {
     try {
@@ -700,7 +700,6 @@ function clearStudentInfo() {
     const timesInput = document.getElementById('visit_times');
     if (timesInput) timesInput.value = '1';
 
-    // เรียกใช้ฟังก์ชันแผนที่จาก homevisit_map.js (ถ้ามี)
     if (typeof resetMap === 'function') resetMap();
     else if (window.map && window.marker) {
         window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
@@ -813,10 +812,18 @@ async function loadExistingHomeVisit(studentId) {
             if (el) el.checked = true;
         });
 
-        const risk = data.risk_factors || data.risk_data || {};
+        // ✅ ใช้ risk_data ก่อน แล้วค่อย risk_factors (แก้ไขโครงสร้าง)
+        const risk = data.risk_data || data.risk_factors || {};
+        console.log('✅ Loaded risk data:', risk);
+        
         const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
         riskGroups.forEach(group => {
             const values = risk[group] || [];
+            // ✅ ตรวจสอบว่าเป็น array
+            if (!Array.isArray(values)) {
+                console.warn(`⚠️ risk.${group} is not an array:`, values);
+                return;
+            }
             values.forEach(val => {
                 if (val.startsWith('อื่นๆ:')) {
                     const otherCheckbox = Array.from(document.querySelectorAll(`input[name="risk_${group}"]`)).find(cb => cb.value.includes('อื่นๆ'));
@@ -844,7 +851,6 @@ async function loadExistingHomeVisit(studentId) {
 
         if (data.informant_type) window.tomInformantType?.setValue(data.informant_type, true);
 
-        // อัปเดตแผนที่
         if (data.latitude && data.longitude && window.map && window.marker) {
             const lat = parseFloat(data.latitude);
             const lng = parseFloat(data.longitude);
@@ -911,15 +917,18 @@ function updateStatusBadge(status) {
 }
 
 // ==========================================
-// ✅ STEP NAVIGATION (เพิ่มเติม/แก้ไข)
+// ✅ STEP NAVIGATION (ใช้ window.stepColorConfigs)
 // ==========================================
-const stepColorConfigs = {
-    1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
-    2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
-    3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
-    4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
-    5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
-};
+// ✅ ใช้ window.stepColorConfigs เพื่อป้องกันการประกาศซ้ำ
+if (typeof window.stepColorConfigs === 'undefined') {
+    window.stepColorConfigs = {
+        1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
+        2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
+        3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
+        4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
+        5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
+    };
+}
 
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
@@ -934,7 +943,7 @@ window.goToStep = function (step) {
         const circle = document.getElementById(`circle-${i}`);
         const text = document.getElementById(`text-step-${i}`);
         if (circle && text) {
-            const config = stepColorConfigs[i];
+            const config = window.stepColorConfigs[i];
             if (i <= step) {
                 circle.className = `w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md transition-all ${config.bg} ${config.shadow}`;
                 text.className = `text-xs font-black transition-colors ${config.text}`;

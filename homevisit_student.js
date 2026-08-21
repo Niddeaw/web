@@ -689,14 +689,6 @@ function initDirtyTracking() {
 }
 
 // ---------- Step Navigation (เหมือนใน core.js) ----------
-const stepColorConfigs = {
-    1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
-    2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
-    3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
-    4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
-    5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
-};
-
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
     const targetStep = document.getElementById(`step-${step}`);
@@ -708,7 +700,8 @@ window.goToStep = function (step) {
         const circle = document.getElementById(`circle-${i}`);
         const text = document.getElementById(`text-step-${i}`);
         if (circle && text) {
-            const config = stepColorConfigs[i];
+            // ✅ ใช้ window.stepColorConfigs แทน stepColorConfigs
+            const config = window.stepColorConfigs[i];
             if (i <= step) {
                 circle.className = `w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md transition-all ${config.bg} ${config.shadow}`;
                 text.className = `text-xs font-black transition-colors ${config.text}`;
