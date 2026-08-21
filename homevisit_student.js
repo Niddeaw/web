@@ -10,7 +10,7 @@ let currentClassroomId = null;
 let currentYear = '';
 let currentTerm = '';
 let isReadOnly = false;
-let isVerified = false; // สถานะล็อก
+let isVerified = false;
 
 let map, marker, routeLayer = null;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_url: "", gd_pdf_folder_id: "", report_template_id: "" };
@@ -42,6 +42,7 @@ $(document).ready(async function () {
                 *,
                 student_enrollments (
                     academic_year,
+                    semester,
                     classroom_id,
                     core_classrooms ( grade_level, room_number )
                 )
@@ -52,43 +53,44 @@ $(document).ready(async function () {
         if (error || !student) throw new Error('ไม่พบข้อมูลนักเรียนในระบบ');
 
         currentStudentId = student.id;
-        currentClassroomId = student.classroom_id;
 
         const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
         document.getElementById('userNameDisplay').textContent = fullName;
         document.getElementById('student-fullname-display').textContent = fullName;
         document.getElementById('student-id-display').textContent = student.student_id_card;
 
-        let currentEnrollment = null;
-        const { data: sInfo } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        // ✅ ดึงปีการศึกษา/เทอมจาก core_school_info
+        const { data: sInfo } = await db.from('core_school_info')
+            .select('current_academic_year, current_semester')
+            .single();
         if (sInfo) {
             currentYear = sInfo.current_academic_year;
             currentTerm = sInfo.current_semester;
-            if (student.student_enrollments) {
-                currentEnrollment = student.student_enrollments.find(e => e.academic_year == currentYear);
-            }
         }
-        if (!currentEnrollment && student.student_enrollments && student.student_enrollments.length > 0) {
-            currentEnrollment = student.student_enrollments[0];
-            if (!currentYear || !currentTerm) {
-                currentYear = currentEnrollment.academic_year;
-                currentTerm = '1';
+
+        // ✅ หา enrollment ที่ตรงกับปีการศึกษา/เทอมปัจจุบัน
+        let currentEnrollment = null;
+        if (student.student_enrollments) {
+            currentEnrollment = student.student_enrollments.find(
+                e => e.academic_year == currentYear && e.semester == currentTerm
+            );
+            // ถ้าไม่เจอ ให้ใช้อันแรก
+            if (!currentEnrollment && student.student_enrollments.length > 0) {
+                currentEnrollment = student.student_enrollments[0];
+                if (!currentYear || !currentTerm) {
+                    currentYear = currentEnrollment.academic_year;
+                    currentTerm = currentEnrollment.semester || '1';
+                }
             }
         }
 
         if (currentEnrollment) {
+            currentClassroomId = currentEnrollment.classroom_id;
             const cls = currentEnrollment.core_classrooms;
             document.getElementById('student-class-display').textContent = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
-            currentClassroomId = currentEnrollment.classroom_id;
-        } else {
-            document.getElementById('student-class-display').textContent = '-';
-        }
+            document.getElementById('student_grade').value = cls?.grade_level || '';
 
-        document.getElementById('student_code').value = student.student_id_card || '';
-        document.getElementById('student_fullname').value = fullName;
-        document.getElementById('student_grade').value = currentEnrollment?.core_classrooms?.grade_level || '';
-
-        if (currentEnrollment && currentEnrollment.classroom_id) {
+            // ดึงเลขที่จาก student_enrollments
             const { data: enrollDetail } = await db
                 .from('student_enrollments')
                 .select('student_number')
@@ -96,11 +98,19 @@ $(document).ready(async function () {
                 .eq('classroom_id', currentEnrollment.classroom_id)
                 .maybeSingle();
             document.getElementById('student_number').value = enrollDetail?.student_number || '';
+        } else {
+            document.getElementById('student-class-display').textContent = '-';
+            document.getElementById('student_grade').value = '';
+            document.getElementById('student_number').value = '';
+            // ถ้าไม่มี enrollment ให้ไม่สามารถบันทึกได้ (จะเช็คตอน submit)
         }
+
+        document.getElementById('student_code').value = student.student_id_card || '';
+        document.getElementById('student_fullname').value = fullName;
 
         window._student = student;
 
-        // ✅ FIX Bug 1: แสดงรูปโปรไฟล์จาก core_students ทันที (เหมือนฝั่งครู)
+        // ✅ แสดงรูปโปรไฟล์จาก core_students
         const avatarUrl = student.avatar_students_url;
         const avatarImg = document.getElementById('student-avatar-img');
         const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
@@ -118,10 +128,9 @@ $(document).ready(async function () {
             if (avatarStatus) avatarStatus.textContent = 'ยังไม่มีรูปโปรไฟล์';
         }
 
-        // ✅ ดึงรูปโปรไฟล์ไปแสดงใน Step 4 Card 1 ด้วย
         applyAvatarToStep4(avatarUrl);
 
-        // โหลดข้อมูลเยี่ยมบ้าน
+        // โหลดข้อมูลเยี่ยมบ้าน (filter ปี/เทอม)
         await loadExistingHomeVisit(currentStudentId);
         initForm();
         document.getElementById('form-section').classList.remove('hidden');
@@ -155,7 +164,7 @@ function applyAvatarToStep4(avatarUrl) {
         if (previewImg) {
             previewImg.src = avatarUrl;
             previewImg.classList.remove('hidden');
-            previewImg.dataset.url = avatarUrl; // ✅ ตั้งค่า dataset.url สำหรับเปิดลิงก์
+            previewImg.dataset.url = avatarUrl;
         }
         if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
         if (cloudBtn) {
@@ -187,12 +196,10 @@ function initForm() {
 }
 
 // ==========================================
-// 3. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
+// 4. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
 // ==========================================
 async function loadExistingHomeVisit(studentId) {
     try {
-        // ✅ FIX Bug 2: filter academic_year + semester ให้ตรงกับ submit/autoSave
-        // เพื่อป้องกัน load ผิด row แล้วข้อมูลที่กรอกหาย
         let query = db.from('module_home_visits')
             .select('*')
             .eq('student_id', studentId);
@@ -220,7 +227,7 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// 4. ล็อกฟอร์ม (สำหรับนักเรียน)
+// 5. ล็อกฟอร์ม (สำหรับนักเรียน)
 // ==========================================
 function applyStudentLockState() {
     const form = document.getElementById('homeVisitForm');
@@ -229,15 +236,12 @@ function applyStudentLockState() {
 
     if (isVerified) {
         banner.classList.remove('hidden');
-        // disable input ทั้งหมด (ยกเว้น readonly fields ที่จำเป็น?)
         form.querySelectorAll('input, textarea, select, button').forEach(el => {
             if (el.type !== 'file') {
                 el.disabled = true;
                 el.classList.add('opacity-60', 'cursor-not-allowed');
             }
         });
-        // เปิดปุ่มย้อนกลับ/next ให้คลิกดูได้ (แต่ไม่ควรบันทึก)
-        // ระบบจะเช็คใน submitHomeVisit อีกที
         if (submitBtn) {
             submitBtn.disabled = true;
             submitBtn.classList.add('opacity-40', 'cursor-not-allowed');
@@ -254,12 +258,11 @@ function applyStudentLockState() {
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
         }
-        // ต้องเปิด file input ด้วย? แต่ file input ถูกจัดการโดย label
     }
 }
 
 // ==========================================
-// 5. populateFormWithData (เหมือนครู)
+// 6. populateFormWithData (เหมือนครู)
 // ==========================================
 function populateFormWithData(data) {
     suppressDirty = true;
@@ -366,7 +369,7 @@ function populateFormWithData(data) {
             if (img) {
                 img.src = url;
                 img.classList.remove('hidden');
-                img.dataset.url = url; // ✅ เก็บ URL สำหรับเปิดลิงก์
+                img.dataset.url = url;
             }
             const delBtn = document.getElementById(delId);
             if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
@@ -408,7 +411,7 @@ function populateFormWithData(data) {
 }
 
 // ==========================================
-// 6. buildFormData (เหมือนครู)
+// 7. buildFormData (เหมือนครู)
 // ==========================================
 function buildFormData(studentId, classroomId) {
     const getVal = (id) => document.getElementById(id)?.value || '';
@@ -508,7 +511,7 @@ function buildFormData(studentId, classroomId) {
 }
 
 // ==========================================
-// 7. submitHomeVisit (พร้อมเช็ค Lock)
+// 8. submitHomeVisit (พร้อมเช็ค Lock)
 // ==========================================
 let isSubmitting = false;
 
@@ -519,7 +522,6 @@ window.submitHomeVisit = async function () {
         return;
     }
 
-    // ⛔ เช็คสถานะล็อกก่อนบันทึก
     if (isVerified) {
         Swal.fire('ไม่สามารถแก้ไขได้', 'ข้อมูลนี้ถูกล็อกโดยครูแล้ว กรุณาติดต่อครูหากต้องการเปลี่ยนแปลง', 'warning');
         return;
@@ -586,7 +588,6 @@ window.submitHomeVisit = async function () {
 let isAutoSaving = false;
 
 async function autoSaveStep() {
-    // ถ้าไม่มีข้อมูลเปลี่ยนแปลง หรือไม่มี student/classroom หรือถูก lock
     if (!formIsDirty || !currentStudentId || !currentClassroomId || isVerified) {
         return true;
     }
@@ -663,10 +664,8 @@ async function autoSaveStep() {
 }
 
 // ==========================================
-// ฟังก์ชันเสริม (คัดลอกมาจาก homevisit.js ครู)
+// ฟังก์ชันเสริม (คงเดิม – copy จาก homevisit.js ครู)
 // ==========================================
-
-// ---------- Dirty Tracking ----------
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
     if (formIsDirty) return;
@@ -689,7 +688,7 @@ function initDirtyTracking() {
     });
 }
 
-// ---------- Step Navigation ----------
+// ---------- Step Navigation (เหมือนใน core.js) ----------
 const stepColorConfigs = {
     1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
     2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
@@ -722,9 +721,6 @@ window.goToStep = function (step) {
     if (step === 2) setTimeout(initMap, 200);
 };
 window.nextStep = async function (step) {
-    // ตรวจสอบเงื่อนไขเฉพาะ (ถ้ามี)
-    // สำหรับนักเรียนไม่มี step 2 เช็ค student เพราะเลือกแล้ว
-    // บันทึกอัตโนมัติก่อนเปลี่ยน step
     await autoSaveStep();
     goToStep(step);
 };
@@ -746,14 +742,15 @@ function initPlugins() {
 
 // ---------- Map ----------
 function initMap() {
+    // ใช้ implementation เดิมจาก homevisit_student.js (ไม่เปลี่ยนแปลง)
     const mapEl = document.getElementById('map');
     if (!mapEl) return;
-    if (map) { map.invalidateSize(); return; }
+    if (window.map) { window.map.invalidateSize(); return; }
 
-    map = L.map('map').setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+    window.map = L.map('map').setView([SCHOOL_LAT, SCHOOL_LNG], 10);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(map);
+    }).addTo(window.map);
 
     const schoolIcon = L.divIcon({
         html: `<div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:26px solid #dc2626;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));position:relative;"><div style="position:absolute;bottom:-24px;left:-6px;width:12px;height:12px;background:#fff;border-radius:50%;"></div></div>`,
@@ -766,7 +763,7 @@ function initMap() {
     });
 
     L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon, draggable: false })
-        .addTo(map)
+        .addTo(window.map)
         .bindTooltip(`🏫 ${SCHOOL_NAME}`, { permanent: false, direction: 'top' });
 
     const latInput = document.getElementById('lat');
@@ -775,12 +772,12 @@ function initMap() {
     const homeLat = hasCoords ? parseFloat(latInput.value) : SCHOOL_LAT;
     const homeLng = hasCoords ? parseFloat(lngInput.value) : SCHOOL_LNG;
 
-    marker = L.marker([homeLat, homeLng], { icon: homeIcon, draggable: true })
-        .addTo(map)
+    window.marker = L.marker([homeLat, homeLng], { icon: homeIcon, draggable: true })
+        .addTo(window.map)
         .bindTooltip('🏠 บ้านนักเรียน', { permanent: false, direction: 'top' });
 
-    marker.on('dragend', function () {
-        const pos = marker.getLatLng();
+    window.marker.on('dragend', function () {
+        const pos = window.marker.getLatLng();
         document.getElementById('lat').value = pos.lat.toFixed(7);
         document.getElementById('lng').value = pos.lng.toFixed(7);
         calculateRoute(SCHOOL_LAT, SCHOOL_LNG, pos.lat, pos.lng);
@@ -789,9 +786,9 @@ function initMap() {
     $('#lat, #lng').off('input').on('input', function () {
         const lat = parseFloat($('#lat').val());
         const lng = parseFloat($('#lng').val());
-        if (!isNaN(lat) && !isNaN(lng) && marker) {
-            marker.setLatLng([lat, lng]);
-            map.setView([lat, lng], map.getZoom());
+        if (!isNaN(lat) && !isNaN(lng) && window.marker) {
+            window.marker.setLatLng([lat, lng]);
+            window.map.setView([lat, lng], window.map.getZoom());
             calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
         }
     });
@@ -823,13 +820,13 @@ async function calculateRoute(fromLat, fromLng, toLat, toLng) {
         const distanceKm = (route.distance / 1000).toFixed(2);
         const durationMin = Math.round(route.duration / 60);
 
-        if (routeLayer) map.removeLayer(routeLayer);
-        routeLayer = L.geoJSON(route.geometry, {
+        if (window.routeLayer) window.map.removeLayer(window.routeLayer);
+        window.routeLayer = L.geoJSON(route.geometry, {
             style: { color: '#3b82f6', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
-        }).addTo(map);
+        }).addTo(window.map);
 
         const bounds = L.latLngBounds([fromLat, fromLng], [toLat, toLng]);
-        map.fitBounds(bounds, { padding: [50, 50] });
+        window.map.fitBounds(bounds, { padding: [50, 50] });
 
         document.getElementById('travel_distance').value = distanceKm;
         document.getElementById('travel_hour').value = Math.floor(durationMin / 60);
@@ -886,9 +883,9 @@ window.geocodeAddress = function () {
                 const lng = parseFloat(data[0].lon);
                 document.getElementById('lat').value = lat.toFixed(7);
                 document.getElementById('lng').value = lng.toFixed(7);
-                if (map && marker) {
-                    marker.setLatLng([lat, lng]);
-                    map.setView([lat, lng], 16);
+                if (window.map && window.marker) {
+                    window.marker.setLatLng([lat, lng]);
+                    window.map.setView([lat, lng], 16);
                     calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
                 }
             } else {
@@ -907,9 +904,9 @@ window.parseAndPinCoords = function () {
     if (isNaN(lat) || isNaN(lng)) return Swal.fire('รูปแบบไม่ถูกต้อง', 'พบตัวเลขพิกัดไม่สมบูรณ์', 'warning');
     document.getElementById('lat').value = lat.toFixed(7);
     document.getElementById('lng').value = lng.toFixed(7);
-    if (map && marker) {
-        marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], 13);
+    if (window.map && window.marker) {
+        window.marker.setLatLng([lat, lng]);
+        window.map.setView([lat, lng], 13);
         calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
     }
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ปักหมุดแล้ว: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, showConfirmButton: false, timer: 2500 });
@@ -934,193 +931,9 @@ window.openRouteInGoogleMaps = function () {
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${SCHOOL_LAT},${SCHOOL_LNG}&destination=${lat},${lng}&travelmode=driving`, '_blank');
 };
 
-// ---------- Upload ----------
-async function compressImage(file, maxSizeMB = 2) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(file);
-        reader.onload = (event) => {
-            const img = new Image();
-            img.src = event.target.result;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                let width = img.width;
-                let height = img.height;
-                const MAX_SIZE = 1920;
-                if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-                else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                ctx.drawImage(img, 0, 0, width, height);
-                let quality = 0.9;
-                let base64 = canvas.toDataURL('image/jpeg', quality);
-                while (Math.round((base64.length * 3) / 4) / (1024 * 1024) > maxSizeMB && quality > 0.1) {
-                    quality -= 0.1;
-                    base64 = canvas.toDataURL('image/jpeg', quality);
-                }
-                resolve(base64.split(',')[1]);
-            };
-            img.onerror = (err) => reject(err);
-        };
-        reader.onerror = (err) => reject(err);
-    });
-}
-
-// ==========================================
-// ✅ ฟังก์ชันเปิดรูปภาพหน้าต่างใหม่ (เพิ่ม)
-// ==========================================
-window.openImagePreview = function(imgElement) {
-    let url = imgElement.dataset.url || imgElement.src;
-    if (!url || url.startsWith('data:')) {
-        Swal.fire('ยังไม่มีรูป', 'กรุณาอัปโหลดรูปก่อน หรือรูปนี้เป็นรูปตัวอย่างที่ยังไม่ได้อัปโหลด', 'info');
-        return;
-    }
-    window.open(url, '_blank');
-};
-
-window.triggerSingleUpload = async function (event, inputId, type) {
-    if (isReadOnly) return Swal.fire('ไม่มีสิทธิ์', 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว', 'warning');
-    if (isVerified) return Swal.fire('ไม่สามารถอัปโหลดได้', 'ข้อมูลถูกล็อกโดยครูแล้ว', 'warning');
-
-    const fileInput = document.getElementById(inputId);
-    const file = fileInput?.files[0];
-    const studentId = currentStudentId;
-    const studentCode = document.getElementById('student_code')?.value;
-
-    if (!file || !studentId || !studentCode) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกนักเรียนและไฟล์รูปภาพก่อนทำการอัพโหลด', 'warning');
-    }
-
-    const btn = event.currentTarget;
-    const originalText = btn.innerHTML;
-    btn.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> กำลังอัพโหลด...`;
-    btn.disabled = true;
-
-    try {
-        const { data: moduleData } = await db.from('core_system_modules').select('settings').eq('module_id', 'homevisit').single();
-        const settings = moduleData?.settings || {};
-        const GAS_URL = settings.gas_url || '';
-        const FOLDER_HOMEVISIT = settings.drive_folder_id || '';
-        const FOLDER_PROFILE = '168WCLk-GfvyGZnlE5ywGOVx2Qz8QRvnN';
-
-        let targetFolderId = FOLDER_HOMEVISIT;
-        let targetFileName = `HV_${studentCode}_${type}.jpg`;
-
-        if (type === 'student_pic') {
-            targetFolderId = FOLDER_PROFILE;
-            targetFileName = `avatar_${studentCode}.jpg`;
-        }
-
-        if (!GAS_URL) {
-            throw new Error('ยังไม่ได้ตั้งค่า GAS URL สำหรับอัปโหลด กรุณาติดต่อผู้ดูแลระบบ');
-        }
-
-        const compressedBase64 = await compressImage(file, 2);
-        const response = await fetch(GAS_URL, {
-            method: "POST",
-            body: JSON.stringify({ action: 'upload', base64: compressedBase64, fileName: targetFileName, folderId: targetFolderId }),
-        });
-        const res = await response.json();
-
-        if (res.status === 'success' && res.url) {
-            fileInput.dataset.uploadedUrl = res.url;
-
-            // ✅ เก็บ URL ลงใน img preview
-            const previewMap = {
-                'pic_student': 'preview1',
-                'pic_outside': 'preview2',
-                'pic_inside': 'preview3',
-                'pic_teacher': 'preview4'
-            };
-            const previewId = previewMap[inputId];
-            if (previewId) {
-                const img = document.getElementById(previewId);
-                if (img) img.dataset.url = res.url;
-            }
-
-            if (type === 'student_pic') {
-                await db.from('core_students').update({ avatar_students_url: res.url }).eq('student_id_card', studentCode);
-                const avatarImg = document.getElementById('student-avatar-img');
-                if (avatarImg) {
-                    avatarImg.src = res.url;
-                    avatarImg.classList.remove('hidden');
-                    document.getElementById('student-avatar-placeholder')?.classList.add('hidden');
-                    document.getElementById('student-avatar-badge')?.classList.remove('hidden');
-                    document.getElementById('student-avatar-status').textContent = 'มีรูปโปรไฟล์แล้ว ✓';
-                }
-            }
-            btn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> อัพโหลดสำเร็จ`;
-            btn.classList.add('bg-slate-700', 'text-white');
-            btn.classList.remove('bg-green-600', 'opacity-40');
-        } else {
-            throw new Error(res.message || "ไม่สามารถอัพโหลดได้");
-        }
-    } catch (err) {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-        Swal.fire('Error', 'ไม่สามารถอัพโหลดได้: ' + err.message, 'error');
-    }
-};
-
-// ---------- Image Helpers ----------
-window.previewSelectedImage = function (input, previewId, cloudBtnId, delBtnId) {
-    if (input.files && input.files[0]) {
-        const reader = new FileReader();
-        reader.onload = function (e) {
-            const img = document.getElementById(previewId);
-            if (img) {
-                img.src = e.target.result;
-                img.classList.remove('hidden');
-                delete img.dataset.url; // ✅ ล้าง URL เดิม (ยังไม่อัปโหลด)
-            }
-            const delBtn = document.getElementById(delBtnId);
-            if (delBtn) delBtn.classList.remove('hidden');
-            const cloudBtn = document.getElementById(cloudBtnId);
-            if (cloudBtn) { cloudBtn.disabled = false; cloudBtn.classList.remove('opacity-40'); }
-        };
-        reader.readAsDataURL(input.files[0]);
-    }
-};
-
-window.clearSelectedImage = function (event, inputId, previewId, cloudBtnId) {
-    const fileInput = document.getElementById(inputId);
-    if (fileInput) fileInput.value = '';
-
-    const delBtn = event.currentTarget;
-    if (delBtn) delBtn.classList.add('hidden');
-
-    // ✅ ถ้าเป็น pic_student ให้ restore กลับเป็น avatar โปรไฟล์ แทนที่จะล้างทิ้ง
-    if (inputId === 'pic_student') {
-        const avatarUrl = window._student?.avatar_students_url || null;
-        applyAvatarToStep4(avatarUrl);
-        return;
-    }
-
-    const img = document.getElementById(previewId);
-    if (img) {
-        img.src = '';
-        img.classList.add('hidden');
-        delete img.dataset.url; // ✅ ล้าง URL
-    }
-    const cloudBtn = document.getElementById(cloudBtnId);
-    if (cloudBtn) {
-        cloudBtn.disabled = true;
-        cloudBtn.classList.add('opacity-40', 'bg-green-600', 'text-white');
-        cloudBtn.classList.remove('bg-slate-700');
-        cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
-    }
-    if (fileInput) delete fileInput.dataset.uploadedUrl;
-};
-
-function syncCamToMain(camInput, mainId, previewId, cloudBtnId, delBtnId) {
-    if (!camInput.files || !camInput.files[0]) return;
-    const file = camInput.files[0];
-    const dt = new DataTransfer(); dt.items.add(file);
-    const mainInput = document.getElementById(mainId);
-    mainInput.files = dt.files;
-    previewSelectedImage(mainInput, previewId, cloudBtnId, delBtnId);
-}
+// ---------- Upload (ใช้ฟังก์ชันจาก homevisit_upload.js) ----------
+// หมายเหตุ: ฟังก์ชัน compressImage, triggerSingleUpload, previewSelectedImage, clearSelectedImage, openImagePreview, syncCamToMain
+// ถูกนิยามไว้ใน homevisit_upload.js แล้ว ไม่ต้องประกาศซ้ำ
 
 // ---------- Other Helpers ----------
 window.syncGuardianData = function (role) {

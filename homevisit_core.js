@@ -12,7 +12,7 @@ let currentUserRole = 'teacher';
 let isAdminMode = false;
 let currentViewRole = 'teacher';
 let actualRole = '';
-let isReadOnly = false; // โหมดอ่านอย่างเดียวสำหรับหัวหน้าระดับ/ปกครอง
+let isReadOnly = false;
 let isHead = false;
 let isModuleAdmin = false;
 let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_url: "", gd_pdf_folder_id: "", report_template_id: "" };
@@ -173,14 +173,11 @@ const fieldKeyMap = {
 // ==========================================
 function applyAdminVisibility() {
     const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
-
     window.applyVisibilityByRole(currentUserRole, isAdminEffective, {
         settingsBtn: 'admin-settings-btn',
         toggleBtn: 'btnAdminMode',
         adminManagerBtn: 'adminManagerBtn'
     });
-
-    // ❌ ไม่ต้องเรียก updateToggleModeUI ที่นี่ เพื่อไม่ให้ไปทับข้อความปุ่มที่ตั้งเอง
 }
 
 // ==========================================
@@ -188,7 +185,6 @@ function applyAdminVisibility() {
 // ==========================================
 async function checkAuth() {
     try {
-        // ใช้ checkSessionAndRole จาก config.js
         const session = await window.checkSessionAndRole('ระบบเยี่ยมบ้าน', [
             'super_admin', 'admin', 'director', 'deputy', 'teacher'
         ]);
@@ -200,17 +196,14 @@ async function checkAuth() {
         currentUserRole = role;
         isAdminMode = isAdmin;
 
-        // ตรวจสอบ Module Admin
         isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
 
-        // ดึงปีการศึกษาและภาคเรียน
         const { data: sInfo } = await db.from('core_school_info')
             .select('current_academic_year, current_semester')
             .single();
         currentYear = sInfo?.current_academic_year;
         currentTerm = sInfo?.current_semester;
 
-        // ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับ
         let isDisciplineHead = false;
         let isGradeHead = false;
 
@@ -227,7 +220,6 @@ async function checkAuth() {
             .maybeSingle();
         if (gradeHead) isGradeHead = true;
 
-        // กำหนดบทบาทการแสดงผล
         if (role === 'super_admin') {
             currentViewRole = 'super_admin';
             isReadOnly = false;
@@ -242,14 +234,11 @@ async function checkAuth() {
             isReadOnly = false;
         }
 
-        // ใช้ฟังก์ชันกลางแสดง UI ตามสิทธิ์
         applyAdminVisibility();
 
-        // ✅ ตั้งค่าปุ่มโหมดเริ่มต้น (เฉพาะครั้งแรก)
         const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
         window.updateToggleModeUI(currentUserRole, isAdminEffective, 'btnAdminMode');
 
-        // แสดงปุ่มสลับโหมดเฉพาะ super_admin หรือ module_admin
         if (role === 'super_admin' || isModuleAdmin) {
             const toggleBtn = document.getElementById('btnAdminMode');
             if (toggleBtn) toggleBtn.classList.remove('hidden');
@@ -274,9 +263,6 @@ async function checkAuth() {
     }
 }
 
-// ==========================================
-// ฟังก์ชันใช้โหมดอ่านอย่างเดียว (สำหรับหัวหน้างานปกครอง/ระดับ)
-// ==========================================
 function applyReadOnlyState() {
     if (!isReadOnly) return;
 
@@ -335,7 +321,6 @@ window.toggleRoleView = function () {
         return;
     }
 
-    // สลับโหมด
     if (currentViewRole === 'teacher') {
         currentViewRole = isModuleAdmin ? 'module_admin' : (currentUserRole === 'super_admin' ? 'super_admin' : 'admin');
         isReadOnly = false;
@@ -344,7 +329,6 @@ window.toggleRoleView = function () {
         isReadOnly = false;
     }
 
-    // ✅ อัปเดตปุ่มด้วยตนเอง (ไม่ใช้ updateToggleModeUI)
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
         if (currentViewRole === 'teacher') {
@@ -356,15 +340,11 @@ window.toggleRoleView = function () {
         }
     }
 
-    // ✅ บันทึก Log
     window.logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'homevisit');
-
-    // ✅ อัปเดต UI และโหลดข้อมูลใหม่ (applyAdminVisibility จะไม่เปลี่ยนข้อความปุ่มแล้ว)
     applyAdminVisibility();
     updateUIByRole();
     loadClassrooms();
 
-    // ✅ แสดง Toast
     const modeName = currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแลระบบ';
     Swal.fire({
         toast: true,
@@ -376,9 +356,6 @@ window.toggleRoleView = function () {
     });
 };
 
-// ==========================================
-// LOGOUT (มาตรฐานกลาง)
-// ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
@@ -592,7 +569,7 @@ async function loadStudentInfo(studentId) {
         const cloudBtn = document.getElementById('cloud_btn1');
         if (avatarUrl) {
             studentPicInput.dataset.uploadedUrl = avatarUrl;
-            if (previewImg) { previewImg.src = avatarUrl; previewImg.classList.remove('hidden'); }
+            if (previewImg) { previewImg.src = avatarUrl; previewImg.classList.remove('hidden'); previewImg.dataset.url = avatarUrl; }
             if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
             if (cloudBtn) {
                 cloudBtn.innerHTML = `<i class="fa-solid fa-check text-green-400"></i> ใช้รูปโปรไฟล์เดิม`;
@@ -602,7 +579,7 @@ async function loadStudentInfo(studentId) {
             }
         } else {
             delete studentPicInput.dataset.uploadedUrl;
-            if (previewImg) { previewImg.src = ''; previewImg.classList.add('hidden'); }
+            if (previewImg) { previewImg.src = ''; previewImg.classList.add('hidden'); delete previewImg.dataset.url; }
             if (delBtn) { delBtn.classList.add('hidden'); delBtn.classList.remove('flex'); }
             if (cloudBtn) {
                 cloudBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้`;
@@ -686,6 +663,7 @@ function clearStudentInfo() {
         if (img) {
             img.src = '';
             img.classList.add('hidden');
+            delete img.dataset.url;
         }
         const delBtn = document.getElementById(p.delBtnId);
         if (delBtn) delBtn.classList.add('hidden');
@@ -722,11 +700,13 @@ function clearStudentInfo() {
     const timesInput = document.getElementById('visit_times');
     if (timesInput) timesInput.value = '1';
 
-    if (map && marker) {
-        marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
-        map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
-        if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
-        updateRouteInfoPanel(null);
+    // เรียกใช้ฟังก์ชันแผนที่จาก homevisit_map.js (ถ้ามี)
+    if (typeof resetMap === 'function') resetMap();
+    else if (window.map && window.marker) {
+        window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
+        window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+        if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
+        if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
     }
 
     suppressDirty = false;
@@ -864,12 +844,16 @@ async function loadExistingHomeVisit(studentId) {
 
         if (data.informant_type) window.tomInformantType?.setValue(data.informant_type, true);
 
-        if (data.latitude && data.longitude && map) {
+        // อัปเดตแผนที่
+        if (data.latitude && data.longitude && window.map && window.marker) {
             const lat = parseFloat(data.latitude);
             const lng = parseFloat(data.longitude);
             if (!isNaN(lat) && !isNaN(lng)) {
-                marker.setLatLng([lat, lng]);
-                map.setView([lat, lng], 16);
+                window.marker.setLatLng([lat, lng]);
+                window.map.setView([lat, lng], 16);
+                if (typeof calculateRoute === 'function') {
+                    calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
+                }
             }
         }
 
@@ -879,7 +863,7 @@ async function loadExistingHomeVisit(studentId) {
             if (url && url !== 'null' && url !== '-') {
                 input.dataset.uploadedUrl = url;
                 const img = document.getElementById(previewId);
-                if (img) { img.src = url; img.classList.remove('hidden'); }
+                if (img) { img.src = url; img.classList.remove('hidden'); img.dataset.url = url; }
                 const delBtn = document.getElementById(delId);
                 if (delBtn) { delBtn.classList.remove('hidden'); delBtn.classList.add('flex'); }
                 const cloudBtn = document.getElementById(btnId);
@@ -908,7 +892,7 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// ฟังก์ชันเสริม (updateStatusBadge, goToStep ฯลฯ)
+// ฟังก์ชันเสริม
 // ==========================================
 function updateStatusBadge(status) {
     const badge = document.getElementById('status-badge');
@@ -926,15 +910,58 @@ function updateStatusBadge(status) {
     }
 }
 
-function goToStep(step) {
-    // ฟังก์ชันนี้ควรมีอยู่แล้วในระบบ (สำหรับ UI tabs)
-    // ถ้าไม่มี ให้เพิ่มตามความเหมาะสม
-    console.log('Go to step:', step);
-}
+// ==========================================
+// ✅ STEP NAVIGATION (เพิ่มเติม/แก้ไข)
+// ==========================================
+const stepColorConfigs = {
+    1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
+    2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
+    3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
+    4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
+    5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
+};
 
-// ==========================================
-// จบ Part 1
-// ==========================================
+window.goToStep = function (step) {
+    document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
+    const targetStep = document.getElementById(`step-${step}`);
+    if (targetStep) targetStep.classList.add('active');
+
+    const percentages = { 1: '0%', 2: '25%', 3: '50%', 4: '75%', 5: '100%' };
+    const progBar = document.getElementById('progressBar');
+    if (progBar) progBar.style.width = percentages[step];
+
+    for (let i = 1; i <= 5; i++) {
+        const circle = document.getElementById(`circle-${i}`);
+        const text = document.getElementById(`text-step-${i}`);
+        if (circle && text) {
+            const config = stepColorConfigs[i];
+            if (i <= step) {
+                circle.className = `w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md transition-all ${config.bg} ${config.shadow}`;
+                text.className = `text-xs font-black transition-colors ${config.text}`;
+            } else {
+                circle.className = 'w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all';
+                text.className = 'text-xs font-bold text-slate-400 transition-colors';
+            }
+        }
+    }
+    if (step === 2) {
+        setTimeout(() => {
+            if (typeof initMap === 'function') initMap();
+            else if (window.map) window.map.invalidateSize();
+        }, 200);
+    }
+};
+
+window.nextStep = async function (step) {
+    if (step === 2 && !document.getElementById('hv_student')?.value) {
+        return Swal.fire('ผิดพลาด', 'กรุณาเลือกนักเรียนก่อนครับ', 'warning');
+    }
+    await autoSaveStep();
+    goToStep(step);
+};
+
+window.prevStep = function (step) { goToStep(step); };
+
 // ==========================================
 // 5. FORM HANDLING & AUTO-SAVE
 // ==========================================
@@ -1236,159 +1263,5 @@ window.submitHomeVisit = async function (isAutoSave = false) {
 };
 
 // ==========================================
-// 6. MAP & ROUTE FUNCTIONS (ตัวอย่าง)
-// ==========================================
-function initMap(lat = SCHOOL_LAT, lng = SCHOOL_LNG) {
-    if (typeof L === 'undefined') {
-        console.warn('Leaflet not loaded');
-        return;
-    }
-    map = L.map('map').setView([lat, lng], 16);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-    }).addTo(map);
-
-    const schoolIcon = L.icon({
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-red.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    });
-    schoolMarkerObj = L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon }).addTo(map)
-        .bindPopup('🏫 โรงเรียนวัดไร่ขิงวิทยา');
-
-    const homeIcon = L.icon({
-        iconUrl: 'https://cdn.rawgit.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-        iconSize: [25, 41],
-        iconAnchor: [12, 41],
-        popupAnchor: [1, -34],
-        shadowSize: [41, 41]
-    });
-    marker = L.marker([lat, lng], { icon: homeIcon, draggable: true }).addTo(map)
-        .bindPopup('📍 ที่อยู่บ้านนักเรียน');
-
-    marker.on('dragend', function (e) {
-        const pos = marker.getLatLng();
-        document.getElementById('lat').value = pos.lat.toFixed(6);
-        document.getElementById('lng').value = pos.lng.toFixed(6);
-        calculateDistanceAndRoute(pos.lat, pos.lng);
-        markDirty();
-    });
-
-    map.on('click', function (e) {
-        const lat = e.latlng.lat;
-        const lng = e.latlng.lng;
-        marker.setLatLng([lat, lng]);
-        document.getElementById('lat').value = lat.toFixed(6);
-        document.getElementById('lng').value = lng.toFixed(6);
-        calculateDistanceAndRoute(lat, lng);
-        markDirty();
-    });
-
-    // ถ้ามีพิกัดจากข้อมูลให้อัปเดต
-    const latInput = document.getElementById('lat');
-    const lngInput = document.getElementById('lng');
-    if (latInput && lngInput && latInput.value && lngInput.value) {
-        const latVal = parseFloat(latInput.value);
-        const lngVal = parseFloat(lngInput.value);
-        if (!isNaN(latVal) && !isNaN(lngVal)) {
-            marker.setLatLng([latVal, lngVal]);
-            map.setView([latVal, lngVal], 16);
-            calculateDistanceAndRoute(latVal, lngVal);
-        }
-    }
-}
-
-function calculateDistanceAndRoute(lat, lng) {
-    if (typeof L === 'undefined') return;
-    if (routeLayer) {
-        map.removeLayer(routeLayer);
-        routeLayer = null;
-    }
-
-    const start = [SCHOOL_LAT, SCHOOL_LNG];
-    const end = [lat, lng];
-
-    // ใช้ Leaflet Routing Machine ถ้ามี
-    if (typeof L.Routing !== 'undefined' && typeof L.Routing.control === 'function') {
-        routeLayer = L.Routing.control({
-            waypoints: [
-                L.latLng(start[0], start[1]),
-                L.latLng(end[0], end[1])
-            ],
-            routeWhileDragging: false,
-            showAlternatives: false,
-            lineOptions: {
-                styles: [{ color: '#0284c7', weight: 4 }]
-            },
-            createMarker: function () { return null; }
-        }).addTo(map);
-
-        routeLayer.on('routesfound', function (e) {
-            const routes = e.routes;
-            if (routes && routes.length > 0) {
-                const summary = routes[0].summary;
-                const distanceKm = (summary.totalDistance / 1000).toFixed(2);
-                document.getElementById('travel_distance').value = distanceKm;
-                updateRouteInfoPanel({ distance: distanceKm, time: summary.totalTime });
-            }
-        });
-    } else {
-        // ใช้การคำนวณระยะทางแบบเส้นตรง
-        const R = 6371;
-        const dLat = (lat - SCHOOL_LAT) * Math.PI / 180;
-        const dLng = (lng - SCHOOL_LNG) * Math.PI / 180;
-        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(SCHOOL_LAT * Math.PI / 180) * Math.cos(lat * Math.PI / 180) *
-            Math.sin(dLng / 2) * Math.sin(dLng / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-        const distance = (R * c).toFixed(2);
-        document.getElementById('travel_distance').value = distance;
-        updateRouteInfoPanel({ distance: distance, time: null });
-    }
-}
-
-function updateRouteInfoPanel(info) {
-    const panel = document.getElementById('route-info');
-    if (!panel) return;
-    if (info) {
-        let html = `<div class="bg-blue-50 p-3 rounded-lg text-sm"><i class="fas fa-route text-blue-600 mr-2"></i> ระยะทาง: <b>${info.distance}</b> กม.`;
-        if (info.time) {
-            const mins = Math.floor(info.time / 60);
-            const secs = info.time % 60;
-            html += ` | เวลาเดินทางโดยประมาณ: <b>${mins} นาที ${secs} วินาที</b>`;
-        }
-        html += '</div>';
-        panel.innerHTML = html;
-    } else {
-        panel.innerHTML = '';
-    }
-}
-
-// ==========================================
-// 7. OTHER UTILITY FUNCTIONS (ถ้ามี)
-// ==========================================
-// (ฟังก์ชันอื่น ๆ ที่ยังไม่ได้รวม เช่น การจัดการรูป, การส่งออกข้อมูล ฯลฯ
-// สามารถเพิ่มเติมตามความต้องการ โดยใช้หลักการเดียวกัน)
-
-// ==========================================
-// 8. INITIALIZATION
-// ==========================================
-$(document).ready(async function () {
-    try {
-        // ซ่อนเนื้อหาหลักไว้ก่อน
-        document.getElementById('mainBody').classList.add('opacity-0');
-        await checkAuth();
-        // เมื่อ checkAuth เสร็จจะแสดงเนื้อหา
-    } catch (err) {
-        console.error('Init error:', err);
-        Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถเริ่มระบบได้', 'error');
-    }
-});
-
-// ==========================================
-// จบ Part 2
+// จบส่วน core
 // ==========================================

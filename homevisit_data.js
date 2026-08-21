@@ -8,14 +8,6 @@
 // ==========================================
 // 1. STEP NAVIGATION & MAP HELPERS
 // ==========================================
-
-const stepColorConfigs = {
-    1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
-    2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
-    3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
-    4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
-    5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
-};
 // ==========================================
 // ตัวแปรป้องกันการเรียกซ้ำและสถานะแท็บ
 // ==========================================
@@ -510,28 +502,34 @@ window.exportTeacherClassroom = async function () {
             .eq('semester', currentTerm);
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        // ✅ เพิ่มหัวคอลัมน์รูปภาพ 4 คอลัมน์
+        const photoHeaders = ['URL รูปนักเรียน', 'URL รูปภายนอกบ้าน', 'URL รูปภายในบ้าน', 'URL รูปครู'];
+        const fullHeaders = templateHeadersThai.concat(photoHeaders);
+
         const rows = enrolls.map(e => {
             const s = e.core_students;
-            const v = visitMap[s.id];
+            const v = visitMap[s.id] || null;
             const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`.trim();
-            if (v) {
-                return buildTemplateRowFromVisit(v, s.student_id_card || '', fullName);
-            }
-            return [
-                s.student_id_card || '',
-                fullName,
-                '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-                '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-                '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '',
-                '', '', '', '', '', '',
-                '', '', '', '', '', '',
-                '', '', '', '', '', '', '', '', '', ''
-            ];
+
+            // ใช้ buildTemplateRowFromVisit เดิม โดยส่ง v หรือ {} ถ้าไม่มีข้อมูล
+            const baseRow = buildTemplateRowFromVisit(v || {}, s.student_id_card || '', fullName);
+
+            // ดึง URL รูปภาพจาก visit (ถ้ามี)
+            const photoUrls = v ? [
+                v.photo_student || '',
+                v.photo_outside || '',
+                v.photo_inside || '',
+                v.photo_teacher || ''
+            ] : ['', '', '', ''];
+
+            return baseRow.concat(photoUrls);
         });
-        const ws_data = [templateHeadersThai, ...rows];
+
+        const ws_data = [fullHeaders, ...rows];
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet(ws_data);
-        ws['!cols'] = templateHeadersThai.map(() => ({ wch: 22 }));
+        ws['!cols'] = fullHeaders.map(() => ({ wch: 22 }));
         XLSX.utils.book_append_sheet(wb, ws, 'ทั้งห้อง');
         const fileName = `เยี่ยมบ้าน_ชั้นม.${classroom.grade_level}/${classroom.room_number}_ภาคเรียนที่${currentTerm}_${currentYear}.xlsx`;
         XLSX.writeFile(wb, fileName);
@@ -1268,7 +1266,7 @@ window.showOverviewStudentList = function (type) {
 };
 
 // ==========================================
-// ฟังก์ชันส่งออก Excel (สำหรับหน้าแอดมินเท่านั้น)
+// ฟังก์ชันส่งออก Excel
 // ==========================================
 window.exportToExcel = async function () {
     Swal.fire({ title: 'กำลังเตรียมข้อมูลส่งออก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
