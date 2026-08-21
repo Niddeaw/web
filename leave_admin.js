@@ -554,11 +554,13 @@ function renderTable() {
     // กำหนดว่า role ไหนสามารถอนุมัติได้ (director + super_admin)
     const canApprove = isSuperAdmin || isDirector;
 
-    // กำหนด ackField สำหรับปุ่มรับทราบเฉพาะ role ของผู้ใช้ (ยกเว้น director/super_admin)
+    // กำหนด ackField สำหรับปุ่มรับทราบเฉพาะ role ของผู้ใช้
+    // super_admin: กดรับทราบแทนได้ทุกตำแหน่ง (แสดงปุ่มรับทราบรายตำแหน่งที่ยังไม่รับทราบ)
     let ackField = null;
     if (isAdmin) ackField = 'ack_admin';
     else if (isDeputy) ackField = 'ack_deputy';
-    // director และ super_admin ไม่มีปุ่มรับทราบ (ใช้ปุ่มอนุมัติแทน)
+    else if (isDirector) ackField = 'ack_director';
+    // super_admin จะจัดการ ackField แบบพิเศษด้านล่าง (per-row)
 
     if (allLeavesData.length > 0) {
         tbody.innerHTML = allLeavesData.map(l => {
@@ -618,9 +620,24 @@ function renderTable() {
             // ---- ปุ่มดูรายละเอียด ----
             const viewBtn = `<button onclick="viewLeave('${l.id}')" class="btn-icon bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
 
-            // ---- ปุ่มรับทราบ (เฉพาะ admin/deputy) ----
+            // ---- ปุ่มรับทราบ ----
+            // super_admin: แสดงปุ่มรับทราบแทนทุกตำแหน่งที่ยังไม่รับทราบ
+            // admin/deputy/director: แสดงปุ่มรับทราบเฉพาะตำแหน่งของตัวเอง
             let ackBtn = '';
-            if (ackField) {
+            if (isSuperAdmin) {
+                const superAckDefs = [
+                    { field: 'ack_admin',    label: 'รับทราบแทนแอดมิน' },
+                    { field: 'ack_deputy',   label: 'รับทราบแทนรองผู้อำนวยการ' },
+                    { field: 'ack_director', label: 'รับทราบแทนผู้อำนวยการ' }
+                ];
+                superAckDefs.forEach(def => {
+                    if (!l[def.field]) {
+                        ackBtn += `<button onclick="acknowledgeLeave('${l.id}', '${def.field}')" class="btn-icon bg-teal-50 text-teal-600 hover:bg-teal-500 hover:text-white" title="${def.label}"><i class="fas fa-check"></i></button>`;
+                    } else {
+                        ackBtn += `<button class="btn-icon bg-teal-100 text-teal-600 cursor-default" title="${def.label.replace('รับทราบแทน', '')} รับทราบแล้ว" disabled><i class="fas fa-check-double"></i></button>`;
+                    }
+                });
+            } else if (ackField) {
                 const alreadyAck = !!l[ackField];
                 ackBtn = alreadyAck
                     ? `<button class="btn-icon bg-teal-100 text-teal-600 cursor-default" title="รับทราบแล้ว" disabled><i class="fas fa-check-double"></i></button>`
@@ -637,7 +654,9 @@ function renderTable() {
             const editBtn = `<button onclick="editLeave('${l.id}')" class="btn-icon bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>`;
 
             // ---- ปุ่มลบ ----
-            const canDelete = isSuperAdmin || l.status !== 'อนุมัติ';
+            // Super admin: ลบได้ทุกสถานะ
+            // Module admin + admin ทั่วไป: ลบได้เฉพาะที่ยังไม่อนุมัติ
+            const canDelete = isSuperAdmin || (l.status !== 'อนุมัติ' && (isModuleAdmin || !isSuperAdmin));
             const deleteBtn = canDelete
                 ? `<button onclick="deleteLeave('${l.id}', '${safeFullName}')" class="btn-icon text-slate-300 hover:bg-rose-50 hover:text-rose-600" title="ลบ"><i class="fas fa-trash-alt"></i></button>`
                 : '';
@@ -870,7 +889,9 @@ function showRejectComment(comment) {
 
 // ----- ลบใบลา -----
 async function deleteLeave(id, name) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    // Module admin (แอดมินประจำโมดูล) สามารถลบใบลาได้ (เฉพาะที่ยังไม่อนุมัติ)
+    // Super admin สามารถลบได้ทุกสถานะ
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const { data: leave, error: fetchError } = await db.from('leave_requests').select('status').eq('id', id).single();
     if (fetchError) { Swal.fire('ผิดพลาด', fetchError.message, 'error'); return; }
@@ -919,18 +940,26 @@ function viewLeave(id) {
         effectiveRole = 'admin';
     }
 
+    const isSuperAdminView = effectiveRole === 'super_admin';
+
     let myAckField = null;
-    if (effectiveRole !== 'director' && effectiveRole !== 'super_admin') {
+    if (!isSuperAdminView && effectiveRole !== 'director') {
         const ackFieldMap = { admin: 'ack_admin', deputy: 'ack_deputy' };
         myAckField = ackFieldMap[effectiveRole] || null;
+    } else if (effectiveRole === 'director') {
+        myAckField = 'ack_director';
     }
+    // super_admin: แสดงปุ่มรับทราบแทนได้ทุกตำแหน่งที่ยังไม่รับทราบ (จัดการใน buildAckRow)
 
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
         const atValue = l[atField] ? fmtDateTime(l[atField]) : '';
         let buttonHtml = '';
-        if (myAckField === field && !done) {
+        // super_admin: แสดงปุ่มรับทราบแทนทุกตำแหน่งที่ยังไม่รับทราบ
+        if (isSuperAdminView && !done) {
+            buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบแทน</button>`;
+        } else if (myAckField === field && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         }
         return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
@@ -1008,7 +1037,10 @@ async function acknowledgeLeave(id, field) {
         return;
     }
 
-    if (field === 'ack_deputy' && !leave.ack_admin) {
+    // super_admin สามารถรับทราบแทนได้ทุกตำแหน่งโดยไม่ต้องรอลำดับ
+    const isSuperAdminAck = currentUserRole === 'super_admin';
+
+    if (!isSuperAdminAck && field === 'ack_deputy' && !leave.ack_admin) {
         Swal.fire({
             icon: 'warning',
             title: 'ไม่สามารถรับทราบได้',
@@ -1018,7 +1050,7 @@ async function acknowledgeLeave(id, field) {
         return;
     }
 
-    if (field === 'ack_director' && !leave.ack_admin) {
+    if (!isSuperAdminAck && field === 'ack_director' && !leave.ack_admin) {
         Swal.fire({
             icon: 'warning',
             title: 'ไม่สามารถรับทราบได้',
@@ -1542,7 +1574,8 @@ function adminUpdateLeaveGuide() {
 }
 
 async function openAdminLeaveModal() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    // Module admin (แอดมินประจำโมดูล) สามารถเขียนใบลาแทนบุคลากรได้
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const selectEl = document.getElementById('admin_personnel_id');
     if (selectEl.tomselect) selectEl.tomselect.destroy();
@@ -1566,7 +1599,8 @@ function closeAdminLeaveModal() {
 }
 async function saveLeaveForAdmin(e) {
     e.preventDefault();
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    // Module admin (แอดมินประจำโมดูล) สามารถบันทึกใบลาแทนบุคลากรทุกคนได้
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const personnelId = $('#admin_personnel_id').val();
     if (!personnelId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
