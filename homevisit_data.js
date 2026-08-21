@@ -352,7 +352,7 @@ function populateFormFromTemplate(headers, values) {
 function buildTemplateRowFromVisit(visit, studentIdCard = '', studentFullName = '') {
     const eco = visit.economic_data || {};
     const fam = visit.family_members || {};
-    const risk = visit.risk_data || {};
+    const risk = visit.risk_data || visit.risk_factors || {};
     const rels = visit.relations_data || [];
     const getRel = (name) => { const r = rels.find(x => x.relative === name); return r ? r.relation : ''; };
     const getRiskVal = (group) => (risk[group] || []).join(', ');
@@ -686,7 +686,7 @@ window.importFromExcel = function () {
                         zipcode: String(row['รหัสไปรษณีย์'] || ''),
                         latitude: parseFloat(row['ละติจูด'] || row['latitude']) || null,
                         longitude: parseFloat(row['ลองจิจูด'] || row['longitude']) || null,
-                        risk_factors: { health: [], drugs: [], violence: [], sex: [], gaming: [], responsibilities: [], hobbies: [] },
+                        risk_data: { health: [], drugs: [], violence: [], sex: [], gaming: [], responsibilities: [], hobbies: [] },
                         updated_at: new Date().toISOString()
                     };
                     formattedData.push(formData);
@@ -1351,7 +1351,7 @@ window.printPDF = async function (visitId) {
         const family = visit.family_members || {};
         const economic = visit.economic_data || {};
         const relations = visit.family_relations || {};
-        const risk = visit.risk_data || {};
+        const risk = visit.risk_data || visit.risk_factors || {};
         const relMap = {};
         if (visit.relations_data && Array.isArray(visit.relations_data)) {
             visit.relations_data.forEach(rel => {
@@ -1878,7 +1878,7 @@ window.loadReport = async function () {
                     window.reportIncompleteList.push(studentItem);
                 }
 
-                const risk = visit.risk_factors || visit.risk_data || {};
+                const risk = visit.risk_data || visit.risk_factors || {};
                 const eco = visit.economic_data || {};
                 const special = visit.special_help_details || '';
 

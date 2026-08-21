@@ -700,13 +700,12 @@ function clearStudentInfo() {
     const timesInput = document.getElementById('visit_times');
     if (timesInput) timesInput.value = '1';
 
-    if (typeof resetMap === 'function') resetMap();
-    else if (window.map && window.marker) {
-        window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
-        window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
-        if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
-        if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
-    }
+if (window.map && window.marker) {
+    window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
+    window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+    if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
+    if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
+}
 
     suppressDirty = false;
 }
@@ -815,7 +814,7 @@ async function loadExistingHomeVisit(studentId) {
         // ✅ ใช้ risk_data ก่อน แล้วค่อย risk_factors (แก้ไขโครงสร้าง)
         const risk = data.risk_data || data.risk_factors || {};
         console.log('✅ Loaded risk data:', risk);
-        
+
         const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
         riskGroups.forEach(group => {
             const values = risk[group] || [];
@@ -839,6 +838,12 @@ async function loadExistingHomeVisit(studentId) {
                 }
             });
         });
+
+        // ✅ เพิ่มส่วนนี้เข้าไป (ดึง internet_access)
+        if (risk.internet_access) {
+            const radio = document.querySelector(`input[name="internet_access"][value="${risk.internet_access}"]`);
+            if (radio) radio.checked = true;
+        }
 
         setVal('special_help_details', data.special_help_details);
         setVal('responsibilities_details', data.responsibilities_details);

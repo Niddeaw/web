@@ -349,6 +349,13 @@ function populateFormWithData(data) {
             if (el) { el.checked = true; if (pureVal === 'อื่นๆ ระบุ...') { const oi = document.getElementById(`risk_${group}_other_txt`); if (oi) { oi.value = otherText; oi.classList.remove('hidden'); } } }
         });
     });
+
+    // ✅ เพิ่มส่วนนี้เข้าไป (ดึง internet_access)
+    if (risk.internet_access) {
+        const radio = document.querySelector(`input[name="internet_access"][value="${risk.internet_access}"]`);
+        if (radio) radio.checked = true;
+    }
+    
     setRadio('internet_access', risk.internet_access);
 
     setVal('special_help_details', data.special_help_details);
