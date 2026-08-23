@@ -6,6 +6,7 @@
     <title>ประเมินผลการปฏิบัติงาน - WRK System</title>
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
     <style>
         /* ====== Custom Styles ====== */
         .wizard-step {
@@ -134,39 +135,6 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
-        }
-
-        .sub-items-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .sub-item-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
-            color: #334155;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.375rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .sub-item-label:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
-        }
-
-        .sub-item-label input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #8b5cf6;
-            flex-shrink: 0;
         }
 
         .select-all-btn {
@@ -345,14 +313,26 @@
                     </div>
                 </div>
 
-                <!-- การ์ด: ประเมินครู (กรรมการ) -->
+                <!-- การ์ดกรรมการประเมิน (แก้ไข) -->
                 <div id="committeeCard" class="hidden">
                     <div
                         class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
                         <h3 class="font-bold text-lg mb-4">
                             <i class="fa-solid fa-users text-blue-500 mr-2"></i>ประเมินครูในกลุ่มสาระ
                         </h3>
+
+                        <!-- ✅ เพิ่ม: เลือกชุดคณะกรรมการ -->
                         <div class="flex flex-wrap items-center gap-4 mb-4">
+                            <div class="w-full md:w-64">
+                                <label class="block text-sm font-bold text-gray-700 mb-1">
+                                    เลือกชุดคณะกรรมการ <span class="text-red-500">*</span>
+                                </label>
+                                <select id="sel_committee_group"
+                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
+                                    <option value="">-- เลือกชุด --</option>
+                                </select>
+                                <p class="text-xs text-gray-400 mt-1">เลือกชุดคณะกรรมการที่ต้องการประเมิน</p>
+                            </div>
                             <div class="w-full md:w-72">
                                 <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ</label>
                                 <select id="sel_department"
@@ -372,6 +352,24 @@
                                 </button>
                             </div>
                         </div>
+
+                        <!-- ✅ เพิ่ม: แสดงข้อมูลชุดที่เลือก -->
+                        <div id="selectedGroupInfo"
+                            class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                            <div class="flex flex-wrap justify-between items-center gap-2">
+                                <div>
+                                    <p class="text-sm font-bold text-blue-700">
+                                        <i class="fa-solid fa-info-circle mr-1"></i> ชุดที่เลือก:
+                                        <span id="selectedGroupName" class="font-bold">-</span>
+                                    </p>
+                                    <p class="text-xs text-blue-500 mt-0.5" id="selectedGroupSubItems">หัวข้อย่อย: -</p>
+                                </div>
+                                <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                                    กรรมการ <span id="selectedGroupMemberCount">0</span> คน
+                                </span>
+                            </div>
+                        </div>
+
                         <div class="overflow-x-auto">
                             <table id="teacherEvalTable" class="display w-full text-sm">
                                 <thead>
@@ -386,7 +384,7 @@
                                     <tr>
                                         <td colspan="4" class="text-center py-8 text-gray-400">
                                             <i class="fa-solid fa-info-circle mr-1"></i>
-                                            กรุณาเลือกกลุ่มสาระเพื่อโหลดรายชื่อ
+                                            กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อโหลดรายชื่อ
                                         </td>
                                     </tr>
                                 </tbody>

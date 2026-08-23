@@ -334,7 +334,7 @@ async function loadEvaluationRound() {
 }
 
 // ==========================================
-// โหลดงานที่ต้องประเมินของกรรมการ
+// โหลดงานที่ต้องประเมินของกรรมการ (รองรับหลายชุด)
 // ==========================================
 async function loadCommitteeEvaluationTasks() {
     try {
@@ -363,44 +363,103 @@ async function loadCommitteeEvaluationTasks() {
 
         if (!myGroups || myGroups.length === 0) {
             console.log('ℹ️ ไม่มีงานประเมินสำหรับผู้ใช้นี้');
+            document.getElementById('committeeCard').classList.add('hidden');
             return;
         }
 
         // ✅ แสดงการ์ดกรรมการ
         document.getElementById('committeeCard').classList.remove('hidden');
 
-        // ✅ สร้าง dropdown กลุ่มสาระจากข้อมูลที่ได้
-        const selDept = document.getElementById('sel_department');
-        selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        // ✅ สร้าง dropdown ชุดคณะกรรมการ
+        const groupSelect = document.getElementById('sel_committee_group');
+        groupSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
 
-        const allDepartments = new Set();
-        myGroups.forEach(group => {
-            if (group.target_departments) {
-                group.target_departments.forEach(dept => {
-                    allDepartments.add(dept);
-                });
-            }
-        });
-
-        allDepartments.forEach(dept => {
-            selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
+        myGroups.forEach((group, index) => {
+            const label = `${group.group_name} (${group.evaluator_ids?.length || 0} คน)`;
+            groupSelect.innerHTML += `<option value="${group.id}" data-index="${index}">${label}</option>`;
         });
 
         // ✅ เก็บข้อมูลชุดคณะกรรมการไว้ใช้งาน
         window._committeeGroups = myGroups;
 
-        // ✅ ถ้ามีกลุ่มสาระเดียว ให้เลือกอัตโนมัติและโหลดรายชื่อ
-        if (allDepartments.size === 1) {
-            const singleDept = allDepartments.values().next().value;
-            selDept.value = singleDept;
-            await loadTeachersForEval();
+        // ✅ ถ้ามีชุดเดียว ให้เลือกอัตโนมัติ
+        if (myGroups.length === 1) {
+            groupSelect.value = myGroups[0].id;
+            await onCommitteeGroupChange();
         }
+
+        // ✅ ผูก event เมื่อเลือกชุด
+        groupSelect.addEventListener('change', onCommitteeGroupChange);
+
+        // ✅ ผูก event เมื่อเลือกกลุ่มสาระ
+        document.getElementById('sel_department').addEventListener('change', function() {
+            if (this.value && document.getElementById('sel_committee_group').value) {
+                loadTeachersForEval();
+            }
+        });
 
         console.log('✅ โหลดงานประเมินกรรมการสำเร็จ:', myGroups.length, 'ชุด');
 
     } catch (err) {
         console.error('Error loading committee evaluation tasks:', err);
     }
+}
+
+// ==========================================
+// เมื่อเปลี่ยนชุดคณะกรรมการ
+// ==========================================
+async function onCommitteeGroupChange() {
+    const groupId = document.getElementById('sel_committee_group').value;
+    if (!groupId) {
+        document.getElementById('selectedGroupInfo').classList.add('hidden');
+        document.getElementById('sel_department').innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        document.getElementById('tb-teacher-eval').innerHTML = 
+            '<tr><td colspan="4" class="text-center py-8 text-gray-400">กรุณาเลือกชุดคณะกรรมการ</td></tr>';
+        if ($.fn.DataTable.isDataTable('#teacherEvalTable')) {
+            $('#teacherEvalTable').DataTable().destroy();
+        }
+        return;
+    }
+
+    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
+    if (!selectedGroup) return;
+
+    document.getElementById('selectedGroupInfo').classList.remove('hidden');
+    document.getElementById('selectedGroupName').innerText = selectedGroup.group_name;
+    document.getElementById('selectedGroupMemberCount').innerText = selectedGroup.evaluator_ids?.length || 0;
+
+    const subItems = selectedGroup.selected_sub_items || [];
+    const element1Items = subItems.filter(s => s.element === '1').map(s => s.value).join(', ');
+    const element2Items = subItems.filter(s => s.element === '2').map(s => s.value).join(', ');
+    const element3Items = subItems.filter(s => s.element === '3').map(s => s.value).join(', ');
+    
+    let subItemsText = [];
+    if (element1Items) subItemsText.push(`องค์ประกอบที่ 1: ${element1Items}`);
+    if (element2Items) subItemsText.push(`องค์ประกอบที่ 2: ${element2Items}`);
+    if (element3Items) subItemsText.push(`องค์ประกอบที่ 3: ${element3Items}`);
+    document.getElementById('selectedGroupSubItems').innerText = subItemsText.join(' | ') || 'ไม่มีหัวข้อย่อย';
+
+    const selDept = document.getElementById('sel_department');
+    selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+    const allDepartments = new Set();
+    if (selectedGroup.target_departments) {
+        selectedGroup.target_departments.forEach(dept => {
+            allDepartments.add(dept);
+        });
+    }
+
+    allDepartments.forEach(dept => {
+        selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
+    });
+
+    if (allDepartments.size === 1) {
+        const singleDept = allDepartments.values().next().value;
+        selDept.value = singleDept;
+        await loadTeachersForEval();
+    }
+
+    window._selectedCommitteeGroup = selectedGroup;
 }
 
 // ==========================================
@@ -510,16 +569,27 @@ async function startEditEvaluation(evalId) {
 }
 
 // ==========================================
-// โหลดครูสำหรับประเมิน (ใช้ currentEvalRound)
+// โหลดครูสำหรับประเมิน (ใช้ชุดคณะกรรมการที่เลือก)
 // ==========================================
 async function loadTeachersForEval() {
+    const groupId = document.getElementById('sel_committee_group').value;
     const dept = document.getElementById('sel_department').value;
+    
+    if (!groupId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชุดคณะกรรมการ', 'warning');
+    }
     if (!dept) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
     }
 
     if (!currentEvalRound) {
         return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่ active กรุณาติดต่อผู้ดูแลระบบ', 'warning');
+    }
+
+    // ✅ หาข้อมูลชุดที่เลือก
+    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
+    if (!selectedGroup) {
+        return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดคณะกรรมการ', 'warning');
     }
 
     Swal.fire({ title: 'โหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
@@ -542,48 +612,29 @@ async function loadTeachersForEval() {
     }
 
     const tbody = document.getElementById('tb-teacher-eval');
-
+    
     if (!teachers || teachers.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-400">ไม่พบครูในกลุ่มสาระนี้</td></tr>`;
         Swal.close();
         return;
     }
 
-    // ✅ แก้ไข: ใช้ academic_year และ semester แทน eval_round_id
+    // ✅ ตรวจสอบสถานะการประเมินของแต่ละคน (เฉพาะชุดนี้)
     const teacherIds = teachers.map(t => t.id);
-    let evalMap = {};
+    const { data: evalStatuses } = await db
+        .from('eval_results')
+        .select('evaluatee_id, status, total_score')
+        .in('evaluatee_id', teacherIds)
+        .eq('eval_round_id', currentEvalRound.id)
+        .eq('eval_type', 'committee')
+        .eq('evaluator_id', currentUser.id);
 
-    try {
-        const { data: evalStatuses, error: evalError } = await db
-            .from('eval_results')
-            .select('evaluatee_id, status, total_score')
-            .in('evaluatee_id', teacherIds)
-            .eq('academic_year', currentTermData.current_academic_year)  // ✅ ใช้ academic_year
-            .eq('semester', currentTermData.current_semester)            // ✅ ใช้ semester
-            .eq('eval_type', 'committee')
-            .eq('evaluator_id', currentUser.id);
+    const evalMap = {};
+    evalStatuses?.forEach(e => {
+        evalMap[e.evaluatee_id] = e;
+    });
 
-        if (evalError) {
-            console.error('Error loading eval statuses:', evalError);
-            // ✅ แสดงข้อความแจ้งเตือนแต่ยังแสดงรายชื่อครูได้
-            Swal.fire({
-                icon: 'warning',
-                title: 'ไม่สามารถโหลดสถานะการประเมิน',
-                text: 'กรุณาติดต่อผู้ดูแลระบบเพื่อตั้งค่าสิทธิ์การเข้าถึงข้อมูล',
-                confirmButtonText: 'ตกลง'
-            });
-            evalMap = {};
-        } else {
-            evalStatuses?.forEach(e => {
-                evalMap[e.evaluatee_id] = e;
-            });
-        }
-    } catch (err) {
-        console.error('Error fetching eval statuses:', err);
-        evalMap = {};
-    }
-
-    // ✅ สร้างแถวตาราง (ส่วนที่เหลือเหมือนเดิม)
+    // ✅ สร้างแถวตาราง
     tbody.innerHTML = teachers.map(t => {
         const evalData = evalMap[t.id];
         let badge = '';
@@ -665,43 +716,14 @@ async function startEvaluation(mode, targetData = null) {
     
     // ✅ หัวข้อย่อยที่ได้รับมอบหมาย (เฉพาะโหมด committee)
     let allowedSubItems = null;
-    if (mode === 'committee' && window._committeeGroups) {
-        // หาชุดคณะกรรมการที่ตรงกับผู้ถูกประเมิน
-        for (const group of window._committeeGroups) {
-            // ตรวจสอบว่าผู้ถูกประเมินอยู่ในกลุ่มสาระนี้หรือไม่
-            if (group.target_departments && group.target_departments.includes(evaluateeData.department)) {
-                allowedSubItems = group.selected_sub_items || [];
-                console.log('📋 หัวข้อย่อยที่ได้รับมอบหมาย:', allowedSubItems);
-                break;
-            }
+    if (mode === 'committee') {
+        // ✅ ใช้ชุดคณะกรรมการที่เลือก
+        const selectedGroup = window._selectedCommitteeGroup || 
+            (window._committeeGroups && window._committeeGroups[0]);
+        if (selectedGroup) {
+            allowedSubItems = selectedGroup.selected_sub_items || [];
+            console.log('📋 หัวข้อย่อยจากชุดที่เลือก:', allowedSubItems);
         }
-    }
-    
-    // ✅ ถ้าไม่มี allowedSubItems ในโหมด committee ให้ใช้ทั้งหมด (fallback)
-    if (mode === 'committee' && !allowedSubItems) {
-        console.log('⚠️ ไม่พบหัวข้อย่อยที่ได้รับมอบหมาย ใช้ทั้งหมด');
-        // ดึงหัวข้อย่อยทั้งหมดจาก evalCriteriaDB
-        const criteriaSet = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
-        allowedSubItems = [];
-        // เพิ่มหัวข้อย่อยทั้งหมดในองค์ประกอบที่ 1
-        criteriaSet.part1_sec1.forEach(group => {
-            group.items.forEach(item => {
-                allowedSubItems.push({ element: '1', part: '1', value: item.id });
-            });
-        });
-        criteriaSet.part1_sec2.forEach(item => {
-            const id = item.id === 's2_1' ? '1' : 
-                      item.id === 's2_2_1' ? '2.1' : 
-                      item.id === 's2_2_2' ? '2.2' : item.id;
-            allowedSubItems.push({ element: '1', part: '2', value: id });
-        });
-        // องค์ประกอบที่ 2
-        allowedSubItems.push({ element: '2', value: '1' });
-        // องค์ประกอบที่ 3 (ข้อ 1-10)
-        for (let i = 1; i <= 10; i++) {
-            allowedSubItems.push({ element: '3', value: String(i) });
-        }
-        console.log('📋 ใช้หัวข้อย่อยทั้งหมด:', allowedSubItems);
     }
     
     // ✅ สร้างฟอร์ม โดยส่ง allowedSubItems ไปด้วย
