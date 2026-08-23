@@ -16,7 +16,7 @@ window.getGenderFromPrefix = function (prefix) {
 };
 
 // ==========================================
-// 2. คำนวณวันลาตามประเภท
+// 2. คำนวณวันลาตามประเภท (ไม่รวมครึ่งวัน)
 // ==========================================
 window.calculateDaysByType = function (startIso, endIso, type) {
     if (!startIso || !endIso || !type) return 0;
@@ -38,7 +38,19 @@ window.calculateDaysByType = function (startIso, endIso, type) {
 };
 
 // ==========================================
-// 3. แปลงวันที่เป็นภาษาไทย
+// 3. คำนวณวันลารวมกับตัวเลือกครึ่งวัน
+// ==========================================
+window.calculateDaysWithHalfDay = function (startIso, endIso, type, isHalfDay) {
+    if (isHalfDay) {
+        // ครึ่งวัน ให้นับเป็น 0.5 วัน โดยไม่ต้องคำนวณตามช่วงวันที่
+        return 0.5;
+    }
+    // ใช้ฟังก์ชันเดิม
+    return window.calculateDaysByType(startIso, endIso, type);
+};
+
+// ==========================================
+// 4. แปลงวันที่เป็นภาษาไทย (แบบเต็ม)
 // ==========================================
 window.formatDateThai = function (isoString) {
     if (!isoString) return '-';
@@ -48,24 +60,23 @@ window.formatDateThai = function (isoString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 };
 
-// ฟังก์ชันแสดงวันที่แบบสั้น (ม.ค., ก.พ., ...)
-window.formatDateThaiShort = function (isoString) {
+window.formatDateThaiFull = function (isoString) {
     if (!isoString) return '-';
     const d = new Date(isoString);
     if (isNaN(d.getTime())) return '-';
-    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-    return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
+    const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    return `วันที่ ${d.getDate()} เดือน ${months[d.getMonth()]} พ.ศ. ${d.getFullYear() + 543}`;
 };
 
 // ==========================================
-// 4. รายชื่อเดือนภาษาไทย
+// 5. รายชื่อเดือนภาษาไทย
 // ==========================================
 window.getThaiMonths = function () {
     return ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 };
 
 // ==========================================
-// 5. สลับไปโหมดครู
+// 6. สลับไปโหมดครู
 // ==========================================
 window.switchToTeacherMode = function () {
     Swal.fire({
@@ -83,7 +94,7 @@ window.switchToTeacherMode = function () {
 };
 
 // ==========================================
-// 6. สลับไปโหมดแอดมิน (ตรวจสอบสิทธิ์)
+// 7. สลับไปโหมดแอดมิน (ตรวจสอบสิทธิ์)
 // ==========================================
 window.switchToAdminMode = function () {
     // ✅ ใช้ config.js ตรวจสอบสิทธิ์
@@ -108,7 +119,45 @@ window.switchToAdminMode = function () {
 };
 
 // ==========================================
-// 7. สร้าง PDF ใบลา (ฟังก์ชันหลัก) พร้อมลายเซ็น
+// 8. อัปโหลดไฟล์หลักฐาน (evidence) ผ่าน GAS
+// ==========================================
+window.uploadEvidenceFile = async function (file, folderId, gasUrl) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async function () {
+            const base64 = reader.result.split(',')[1];
+            const payload = {
+                action: 'upload',
+                folderId: folderId,
+                fileName: `evidence_${Date.now()}_${file.name}`,
+                base64: base64,
+                mimeType: file.type
+            };
+            try {
+                const response = await fetch(gasUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (result.status === 'success' && result.fileId) {
+                    resolve(result.fileId);
+                } else {
+                    reject(new Error(result.message || 'อัปโหลดไม่สำเร็จ'));
+                }
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = function () {
+            reject(new Error('ไม่สามารถอ่านไฟล์ได้'));
+        };
+    });
+};
+
+// ==========================================
+// 9. สร้าง PDF ใบลา (ฟังก์ชันหลัก) พร้อมลายเซ็น, ครึ่งวัน, วันที่ย้อนหลัง
 // ==========================================
 window.generateLeavePDF = async function (id, systemSettings) {
     const db = window.db;
@@ -173,13 +222,12 @@ window.generateLeavePDF = async function (id, systemSettings) {
             }
         }
 
-        // ---- 🔍 ดึง signature_file_id ของบุคลากรที่ลา ----
+        // ---- ดึง signature_file_id ของบุคลากรที่ลา ----
         const personnelSignatureFileId = p.signature_file_id || null;
 
-        // ---- 🔍 ดึง signature_file_id ของ commander (ถ้ามี) ----
+        // ---- ดึง signature_file_id ของ commander (ถ้ามี) ----
         let commanderSignatureFileId = null;
         if (commanderName && commanderName !== '...................................................') {
-            // ค้นหาจากชื่อ (ตัดคำนำหน้าออกเพื่อความแม่นยำ)
             const cleanName = commanderName.replace(/^(นาย|นางสาว|นาง|ด.ต.|ร.ต.|ว่าที่ ร.ต.|พระ|สามเณร|หม่อมหลวง|หม่อมหลวงหญิง)\s*/, '');
             const nameParts = cleanName.split(' ');
             let query = db.from('core_personnel').select('id, signature_file_id');
@@ -194,9 +242,9 @@ window.generateLeavePDF = async function (id, systemSettings) {
             }
         }
 
-        // ---- คำนวณสถิติการลา (เหมือนเดิม) ----
+        // ---- คำนวณสถิติการลา ----
         const { data: allLeavesStats, error: statsError } = await db.from('leave_requests')
-            .select('type, total_days, id, created_at, start_date, end_date')
+            .select('type, total_days, id, created_at, start_date, end_date, is_half_day')
             .eq('personnel_id', leave.personnel_id)
             .eq('fiscal_year', leave.fiscal_year)
             .neq('status', 'ไม่อนุมัติ')
@@ -217,12 +265,13 @@ window.generateLeavePDF = async function (id, systemSettings) {
             else if (l.type === 'ลาคลอดบุตร' || l.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') category = 'maternity';
             else category = 'other';
             if (!category) continue;
+            const dayCount = l.is_half_day ? 0.5 : l.total_days;
             if (isCurrent) {
                 statsData[category].now.count = 1;
-                statsData[category].now.days = l.total_days;
+                statsData[category].now.days = dayCount;
             } else {
                 statsData[category].prior.count += 1;
-                statsData[category].prior.days += l.total_days;
+                statsData[category].prior.days += dayCount;
             }
         }
         for (const cat of ['sick', 'personal', 'maternity', 'other']) {
@@ -238,10 +287,21 @@ window.generateLeavePDF = async function (id, systemSettings) {
         const fullPosition = `${position}${rank ? ' ' + rank : ''}${academicStanding ? ' ' + academicStanding : ''}`;
 
         const thMonths = window.getThaiMonths();
+
+        // วันที่ส่ง (ใช้ submitted_date ถ้ามี ถ้าไม่ใช้ created_at)
+        let writeDateObj;
+        if (leave.submitted_date) {
+            writeDateObj = new Date(leave.submitted_date);
+        } else {
+            writeDateObj = new Date(leave.created_at);
+        }
+        const strWriteDate = `วันที่ ${writeDateObj.getDate()} เดือน ${thMonths[writeDateObj.getMonth()]} พ.ศ. ${writeDateObj.getFullYear() + 543}`;
+
+        const approvedCheck = leave.status === 'อนุมัติ' ? '✓' : '';
+
+        // วันที่เริ่มต้นและสิ้นสุด
         const sDate = new Date(leave.start_date);
         const eDate = new Date(leave.end_date);
-        const wDateObj = new Date(leave.created_at);
-        const strWriteDate = `วันที่ ${wDateObj.getDate()} เดือน ${thMonths[wDateObj.getMonth()]} พ.ศ. ${wDateObj.getFullYear() + 543}`;
 
         const leaveType = leave.type;
         const isSick = leaveType === 'ลาป่วย';
@@ -279,7 +339,7 @@ window.generateLeavePDF = async function (id, systemSettings) {
             if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
                 lastStartDate = window.formatDateThai(lastLeave.start_date);
                 lastEndDate = window.formatDateThai(lastLeave.end_date);
-                lastTotalDays = lastLeave.total_days.toString();
+                lastTotalDays = (lastLeave.is_half_day ? 0.5 : lastLeave.total_days).toString();
                 if (lastLeave.type === 'ลาป่วย') lastCheckSick = '✓';
                 else if (lastLeave.type === 'ลากิจส่วนตัว') lastCheckPersonal = '✓';
                 else if (lastLeave.type === 'ลาคลอดบุตร' || lastLeave.type === 'ลาไปช่วยเหลือภริยาที่คลอดบุตร') lastCheckMaternity = '✓';
@@ -293,21 +353,27 @@ window.generateLeavePDF = async function (id, systemSettings) {
             }
         }
 
-        // ---- ดึงวันที่รับทราบและอนุมัติ ----
-        const ackAdminAt = leave.ack_admin_at ? window.formatDateThai(leave.ack_admin_at) : '-';
-        const ackDeputyAt = leave.ack_deputy_at ? window.formatDateThai(leave.ack_deputy_at) : '-';
-        const ackDirectorAt = leave.ack_director_at ? window.formatDateThai(leave.ack_director_at) : '-';
-        const approvedAt = leave.approved_at ? window.formatDateThai(leave.approved_at) : '-';
-        // ---- ตรวจสอบสถานะอนุมัติ ----
-        const isApproved = leave.status === 'อนุมัติ';
-        const approvedCheck = isApproved ? '✓' : '';
-        const approvedDateDisplay = leave.approved_at ? window.formatDateThai(leave.approved_at) : '-';
+        // ---- ดึงวันที่รับทราบ (แบบเต็ม) ----
+        const ackAdminAt = leave.ack_admin_at ? window.formatDateThaiFull(leave.ack_admin_at) : '-';
+        const ackDeputyAt = leave.ack_deputy_at ? window.formatDateThaiFull(leave.ack_deputy_at) : '-';
+        const ackDirectorAt = leave.ack_director_at ? window.formatDateThaiFull(leave.ack_director_at) : '-';
 
-        // ---- เตรียม Replacements (รวมลายเซ็น) ----
+        // วันที่อนุมัติ (แบบเต็ม)
+        const approvedDateDisplay = leave.approved_date
+            ? window.formatDateThaiFull(leave.approved_date)
+            : (leave.approved_at ? window.formatDateThaiFull(leave.approved_at) : '-');
+
+        // ---- ตัวแปรแสดงครึ่งวัน ----
+        const isHalfDay = leave.is_half_day || false;
+        const totalDaysDisplay = isHalfDay ? '0.5 (ครึ่งวัน)' : leave.total_days + ' วัน';
+        const halfDayCheck = isHalfDay ? '✓' : '';
+
+        // ---- เตรียม Replacements ----
         const replacements = {
-            "{{W_DAY}}": wDateObj.getDate().toString(),
-            "{{W_MONTH}}": thMonths[wDateObj.getMonth()],
-            "{{W_YEAR}}": (wDateObj.getFullYear() + 543).toString(),
+            // วันที่เขียน (ส่ง)
+            "{{W_DAY}}": writeDateObj.getDate().toString(),
+            "{{W_MONTH}}": thMonths[writeDateObj.getMonth()],
+            "{{W_YEAR}}": (writeDateObj.getFullYear() + 543).toString(),
             "{{START_D}}": sDate.getDate().toString(),
             "{{START_M}}": thMonths[sDate.getMonth()],
             "{{START_Y}}": (sDate.getFullYear() + 543).toString(),
@@ -327,7 +393,9 @@ window.generateLeavePDF = async function (id, systemSettings) {
             "{{REASON}}": leave.reason,
             "{{START_DATE}}": window.formatDateThai(leave.start_date),
             "{{END_DATE}}": window.formatDateThai(leave.end_date),
-            "{{TOTAL_DAYS}}": leave.total_days.toString(),
+            "{{TOTAL_DAYS}}": isHalfDay ? '0.5' : leave.total_days.toString(),
+            "{{TOTAL_DAYS_DISPLAY}}": totalDaysDisplay,
+            "{{IS_HALF_DAY}}": halfDayCheck,
             "{{CONTACT_ADDRESS}}": leave.contact_address || '-',
             "{{PHONE_NUMBER}}": leave.phone_number || '-',
             "{{COMMANDER_NAME}}": commanderName,
@@ -361,6 +429,7 @@ window.generateLeavePDF = async function (id, systemSettings) {
             "{{LAST_END_D}}": lastEndD,
             "{{LAST_END_M}}": lastEndM,
             "{{LAST_END_Y}}": lastEndY,
+            // สถิติ (ตัวเลข)
             "{{A1}}": statsData.sick.prior.count,
             "{{A2}}": statsData.sick.prior.days,
             "{{A3}}": statsData.sick.now.count,
@@ -385,16 +454,13 @@ window.generateLeavePDF = async function (id, systemSettings) {
             "{{A22}}": statsData.other.now.days,
             "{{A23}}": statsData.other.total.count,
             "{{A24}}": statsData.other.total.days,
-
-            // 👇 เพิ่มวันที่รับทราบ/อนุมัติ
+            // วันที่รับทราบและอนุมัติ
             "{{ACK_ADMIN_AT}}": ackAdminAt,
             "{{ACK_DEPUTY_AT}}": ackDeputyAt,
             "{{ACK_DIRECTOR_AT}}": ackDirectorAt,
-            "{{APPROVED_AT}}": approvedAt,
-            "{{APPROVED_CHECK}}": approvedCheck,
             "{{APPROVED_DATE}}": approvedDateDisplay,
-
-            // 👇 เพิ่มคีย์สำหรับลายเซ็น (ใช้ _IMAGE เพื่อให้ GAS แทนที่ด้วยรูป)
+            "{{APPROVED_CHECK}}": approvedCheck,
+            // ลายเซ็น (ใช้ _IMAGE เพื่อให้ GAS แทนที่ด้วยรูป)
             "{{COMMANDER_SIGNATURE_IMAGE}}": commanderSignatureFileId ? `https://drive.google.com/uc?id=${commanderSignatureFileId}` : '',
             "{{PERSONNEL_SIGNATURE_IMAGE}}": personnelSignatureFileId ? `https://drive.google.com/uc?id=${personnelSignatureFileId}` : ''
         };

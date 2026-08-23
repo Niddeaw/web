@@ -1,10 +1,8 @@
 // ============================================================
 // leave_admin.js — ระบบการลา (ฝ่ายบริหาร) ฉบับแก้ไขสมบูรณ์
-// - ใช้ checkSessionAndRole(), hasModuleAccess(), requireAdmin()
-// - ใช้ logUserAction() ทุกการกระทำสำคัญ
-// - ใช้ applyVisibilityByRole() และ canManageSettings()
-// - ใช้ logout() มาตรฐานกลาง
-// - เรียกใช้ฟังก์ชันจาก leave_core.js
+// - รองรับ submitted_date (วันที่ส่งใบลา) และ approved_date (วันที่อนุมัติ)
+// - viewLeave แสดงข้อมูลการลาทั้งหมด + สถานะรับทราบ
+// - การอัปโหลดหลักฐาน (evidence) สำหรับลา >= 3 วัน
 // ============================================================
 
 let currentUser = null;
@@ -41,7 +39,7 @@ async function logout() {
 }
 
 // ==========================================
-// INIT (ส่วนที่แก้ไข)
+// INIT
 // ==========================================
 $(document).ready(async function () {
     Swal.fire({ title: 'กำลังตรวจสอบสิทธิ์...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -70,13 +68,10 @@ $(document).ready(async function () {
             return;
         }
 
-        // ---- จัดการปุ่มตามบทบาท (ไม่รวม toggleBtn) ----
         applyVisibilityByRole(role, isAdminMode, {
             settingsBtn: 'btn-settings'
-            // ไม่ส่ง toggleBtn เพื่อให้เราจัดการเอง
         });
 
-        // ---- แสดงปุ่มสลับโหมดสำหรับ admin และ module admin ----
         if (isAdminMode || isModuleAdmin) {
             $('#btnToggleMode').removeClass('hidden').addClass('inline-flex');
         } else {
@@ -153,7 +148,8 @@ async function loadSystemSettings() {
         gas_url: '',
         slide_template_id: '',
         pdf_folder_id: '',
-        signature_folder_id: ''   // ✅ เพิ่ม default
+        signature_folder_id: '',
+        evidence_folder_id: ''
     };
     $('#fiscal_year').val(systemSettings.fiscal_year);
     $('#evaluation_round').val(systemSettings.eval_round);
@@ -162,8 +158,8 @@ async function loadSystemSettings() {
     $('#set_slide_template_id').val(systemSettings.slide_template_id || '');
     $('#set_pdf_folder_id').val(systemSettings.pdf_folder_id || '');
     $('#set_signature_folder_id').val(systemSettings.signature_folder_id || '');
+    $('#set_evidence_folder_id').val(systemSettings.evidence_folder_id || '');
 
-    // ✅ อัปเดต UI แสดงโฟลเดอร์ลายเซ็น (ถ้ามี element)
     const sigDisplay = document.getElementById('sig-folder-id-display');
     if (sigDisplay) {
         sigDisplay.textContent = systemSettings.signature_folder_id || 'ยังไม่ได้ตั้งค่า';
@@ -196,7 +192,8 @@ async function saveSystemSettings(e) {
         gas_url: $('#set_gas_url').val().trim(),
         slide_template_id: $('#set_slide_template_id').val().trim(),
         pdf_folder_id: $('#set_pdf_folder_id').val().trim(),
-        signature_folder_id: $('#set_signature_folder_id').val().trim()   // ✅ เพิ่มบรรทัดนี้
+        signature_folder_id: $('#set_signature_folder_id').val().trim(),
+        evidence_folder_id: $('#set_evidence_folder_id').val().trim()
     };
     const { error } = await db.from('core_system_modules').update({ settings: newSettings, updated_at: new Date().toISOString() }).eq('module_id', 'leave');
     if (error) {
@@ -205,7 +202,6 @@ async function saveSystemSettings(e) {
         systemSettings = newSettings;
         $('#dash-fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
 
-        // ✅ อัปเดต UI แสดงโฟลเดอร์ลายเซ็น
         const sigDisplay = document.getElementById('sig-folder-id-display');
         if (sigDisplay) {
             sigDisplay.textContent = systemSettings.signature_folder_id || 'ยังไม่ได้ตั้งค่า';
@@ -254,7 +250,6 @@ async function loadAdminList() {
     const tbody = document.getElementById('admin-list');
     tbody.innerHTML = '<tr><td colspan="2" class="p-4 text-center text-slate-400">กำลังโหลด...</td></tr>';
 
-    // Step 1: ดึงรายการ module admins
     const { data: admins, error } = await db.from('core_module_admins')
         .select('id, user_id')
         .eq('module_id', 'leave');
@@ -270,7 +265,6 @@ async function loadAdminList() {
         return;
     }
 
-    // Step 2: ดึงข้อมูลบุคลากรด้วย user_id ที่ได้มา
     const userIds = admins.map(a => a.user_id);
     const { data: personnel } = await db.from('core_personnel')
         .select('id, prefix, first_name, last_name')
@@ -279,9 +273,7 @@ async function loadAdminList() {
     const personnelMap = {};
     (personnel || []).forEach(p => { personnelMap[p.id] = p; });
 
-    // Step 3: render ตาราง
     tbody.innerHTML = admins.map(admin => {
-        // หาจาก query ใหม่ก่อน แล้ว fallback ไป allPersonnelData
         const p = personnelMap[admin.user_id]
             || allPersonnelData.find(x => x.id === admin.user_id)
             || null;
@@ -340,22 +332,18 @@ async function loadDashboardStats() {
     if (error) { console.error(error); return; }
     allLeavesData = leaves || [];
 
-    // แยกตามสถานะ
     const approvedLeaves = allLeavesData.filter(l => l.status === 'อนุมัติ');
     const pendingLeaves = allLeavesData.filter(l => l.status === 'รออนุมัติ');
 
-    // อนุมัติแล้ว
     const approvedSickDays = approvedLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
     const approvedPersonalDays = approvedLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
     const approvedPeople = [...new Set(approvedLeaves.map(l => l.personnel_id))].length;
 
-    // รออนุมัติ
     const pendingSickDays = pendingLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
     const pendingPersonalDays = pendingLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
     const pendingPeople = [...new Set(pendingLeaves.map(l => l.personnel_id))].length;
     const pendingCount = pendingLeaves.length;
 
-    // อัปเดต DOM
     $('#total-sick').html(`
         ${approvedSickDays} <span class="text-sm font-medium text-slate-500">วัน</span>
         <div class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ ${pendingSickDays} วัน</div>
@@ -372,7 +360,6 @@ async function loadDashboardStats() {
         <div class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ ${pendingPeople} คน</div>
     `);
 
-    // ส่งเฉพาะ approvedLeaves ไป checkLeaveLimits
     checkLeaveLimits(approvedLeaves);
     await loadPromotionWarnings();
     renderTable();
@@ -435,7 +422,7 @@ async function loadPromotionWarnings() {
             .select('personnel_id, type, total_days, status')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round)
-            .eq('status', 'อนุมัติ'); // 🔁 เปลี่ยนจาก .neq('status', 'ไม่อนุมัติ')
+            .eq('status', 'อนุมัติ');
         if (leavesErr) throw leavesErr;
 
         const { data: attendances, error: attErr } = await db.from('personnel_attendance')
@@ -523,7 +510,7 @@ function filterTableByPerson() {
 }
 
 // ==========================================
-// ฟังก์ชันแปลงวันที่สำหรับแสดงผล (เพิ่มเข้ามา)
+// ฟังก์ชันแปลงวันที่สำหรับแสดงผล
 // ==========================================
 function formatDateThai(isoString) {
     if (!isoString) return '-';
@@ -536,10 +523,9 @@ function formatDateThai(isoString) {
 }
 
 // ==========================================
-// renderTable() ฉบับเต็ม
+// renderTable()
 // ==========================================
 function renderTable() {
-    // ถ้ามี DataTable อยู่แล้ว ให้ทำลายทิ้ง
     if ($.fn.DataTable.isDataTable('#adminLeaveTable')) {
         $('#adminLeaveTable').DataTable().destroy();
     }
@@ -551,16 +537,12 @@ function renderTable() {
     const isDeputy = role === 'deputy';
     const isAdmin = role === 'admin';
 
-    // กำหนดว่า role ไหนสามารถอนุมัติได้ (director + super_admin)
     const canApprove = isSuperAdmin || isDirector;
 
-    // กำหนด ackField สำหรับปุ่มรับทราบเฉพาะ role ของผู้ใช้
-    // super_admin: กดรับทราบแทนได้ทุกตำแหน่ง (แสดงปุ่มรับทราบรายตำแหน่งที่ยังไม่รับทราบ)
     let ackField = null;
     if (isAdmin) ackField = 'ack_admin';
     else if (isDeputy) ackField = 'ack_deputy';
     else if (isDirector) ackField = 'ack_director';
-    // super_admin จะจัดการ ackField แบบพิเศษด้านล่าง (per-row)
 
     if (allLeavesData.length > 0) {
         tbody.innerHTML = allLeavesData.map(l => {
@@ -571,11 +553,11 @@ function renderTable() {
                 const p = iso.split('-');
                 return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
             };
+
             const isRejected = l.status === 'ไม่อนุมัติ';
-            const displayDays = isRejected ? 0 : l.total_days;
+            const displayDays = isRejected ? 0 : (l.is_half_day ? 0.5 : l.total_days);
             const displayTimes = isRejected ? 0 : 1;
 
-            // ---- สถานะใบลา ----
             let statusHtml = '';
             if (l.status === 'รออนุมัติ') {
                 statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200">รออนุมัติ</span>';
@@ -588,7 +570,6 @@ function renderTable() {
                 statusHtml = `<button onclick="showRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm"><i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ</button>`;
             }
 
-            // ---- สถานะรับทราบ (แสดงผลทุก role) ----
             const ackAdmin = l.ack_admin ? '✅' : '⏳';
             const ackDeputy = l.ack_deputy ? '✅' : '⏳';
             const ackDirector = l.ack_director ? '✅' : '⏳';
@@ -601,12 +582,10 @@ function renderTable() {
                 </div>
             `;
 
-            // ---- สีตามประเภทการลา ----
             let typeClass = l.type === 'ลาป่วย' ? 'text-blue-600'
                 : (l.type === 'ลากิจส่วนตัว' ? 'text-orange-600' : 'text-rose-600');
             if (isRejected) typeClass = 'text-slate-400 line-through';
 
-            // ---- ปุ่ม PDF ----
             let pdfHtml = '';
             if (l.pdf_url) {
                 pdfHtml = `
@@ -616,18 +595,14 @@ function renderTable() {
             } else {
                 pdfHtml = `<button onclick="window.generateLeavePDF('${l.id}', systemSettings)" class="btn-icon bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white" title="สร้าง PDF"><i class="fas fa-print"></i></button>`;
             }
-            
-            // ---- ปุ่มดูรายละเอียด ----
+
             const viewBtn = `<button onclick="viewLeave('${l.id}')" class="btn-icon bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
 
-            // ---- ปุ่มรับทราบ ----
-            // super_admin: แสดงปุ่มรับทราบแทนทุกตำแหน่งที่ยังไม่รับทราบ
-            // admin/deputy/director: แสดงปุ่มรับทราบเฉพาะตำแหน่งของตัวเอง
             let ackBtn = '';
             if (isSuperAdmin) {
                 const superAckDefs = [
-                    { field: 'ack_admin',    label: 'รับทราบแทนแอดมิน' },
-                    { field: 'ack_deputy',   label: 'รับทราบแทนรองผู้อำนวยการ' },
+                    { field: 'ack_admin', label: 'รับทราบแทนแอดมิน' },
+                    { field: 'ack_deputy', label: 'รับทราบแทนรองผู้อำนวยการ' },
                     { field: 'ack_director', label: 'รับทราบแทนผู้อำนวยการ' }
                 ];
                 superAckDefs.forEach(def => {
@@ -644,28 +619,25 @@ function renderTable() {
                     : `<button onclick="acknowledgeLeave('${l.id}', '${ackField}')" class="btn-icon bg-teal-50 text-teal-600 hover:bg-teal-500 hover:text-white" title="รับทราบ"><i class="fas fa-check"></i></button>`;
             }
 
-            // ---- ปุ่มอนุมัติ/ไม่อนุมัติ (เฉพาะ director/super_admin) ----
             const approveBtn = canApprove
                 ? `<button onclick="updateStatus('${l.id}', 'อนุมัติ')" class="btn-icon bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white" title="อนุมัติ"><i class="fas fa-thumbs-up"></i></button>
                    <button onclick="rejectLeave('${l.id}')" class="btn-icon bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white" title="ไม่อนุมัติ"><i class="fas fa-thumbs-down"></i></button>`
                 : '';
 
-            // ---- ปุ่มแก้ไข ----
             const editBtn = `<button onclick="editLeave('${l.id}')" class="btn-icon bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white" title="แก้ไขข้อมูล"><i class="fas fa-edit"></i></button>`;
 
-            // ---- ปุ่มลบ ----
-            // Super admin: ลบได้ทุกสถานะ
-            // Module admin + admin ทั่วไป: ลบได้เฉพาะที่ยังไม่อนุมัติ
             const canDelete = isSuperAdmin || (l.status !== 'อนุมัติ' && (isModuleAdmin || !isSuperAdmin));
             const deleteBtn = canDelete
                 ? `<button onclick="deleteLeave('${l.id}', '${safeFullName}')" class="btn-icon text-slate-300 hover:bg-rose-50 hover:text-rose-600" title="ลบ"><i class="fas fa-trash-alt"></i></button>`
                 : '';
 
-            // ============================================================
-            // คอลัมน์แรก: เปลี่ยนจากรหัสเป็นวันที่ส่ง พร้อม data-order
-            // ============================================================
             const dateDisplay = formatDateThai(l.created_at);
             const dateOrder = l.created_at || '';
+
+// ✅ ปุ่มยกเลิกรับทราบ (เฉพาะ Super Admin)
+            const resetAckBtn = isSuperAdmin 
+                ? `<button onclick="resetAllAcknowledge('${l.id}')" class="btn-icon text-amber-600 hover:bg-amber-100 hover:text-amber-700" title="ยกเลิกรับทราบทั้งหมด"><i class="fas fa-undo-alt"></i></button>`
+                : '';
 
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="text-center text-slate-600 text-sm font-medium" data-order="${dateOrder}">${dateDisplay}</td>
@@ -684,6 +656,7 @@ function renderTable() {
                         ${approveBtn}
                         ${editBtn}
                         ${deleteBtn}
+                        ${resetAckBtn}
                     </div>
                 </td>
             </tr>`;
@@ -692,45 +665,86 @@ function renderTable() {
         tbody.innerHTML = '';
     }
 
-    // สร้าง DataTable ใหม่
     dataTable = $('#adminLeaveTable').DataTable({
         responsive: true,
         scrollX: false,
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']],  // เรียงตามคอลัมน์แรก (วันที่ส่ง) จากล่าสุดไปเก่าสุด
+        order: [[0, 'desc']],
         columnDefs: [
             { responsivePriority: 1, targets: -1 },
-            { orderable: false, targets: [8] } // คอลัมน์จัดการ (index 8)
+            { orderable: false, targets: [8] }
         ],
         pageLength: 25
     });
 }
 
 // ==========================================
-// ฟังก์ชันจัดการใบลา (ใช้ requireAdmin)
+// ฟังก์ชันจัดการใบลา
 // ==========================================
 
-// ----- แก้ไขใบลา -----
+// ----- แก้ไขใบลา (พร้อม submitted_date) -----
 function initEditFlatpickr() {
-    flatpickr(".edit-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y", onChange: function () { calculateEditDays(); } });
+    flatpickr(".edit-datepicker", {
+        locale: "th",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "j F Y",
+        onChange: function () { calculateEditDays(); }
+    });
+    // เพิ่ม flatpickr สำหรับ edit_submitted_date
+    flatpickr("#edit_submitted_date", {
+        locale: "th",
+        dateFormat: "Y-m-d",
+        altInput: true,
+        altFormat: "j F Y"
+    });
 }
+
 function calculateEditDays() {
-    const start = $('#edit_start_date').val(), end = $('#edit_end_date').val(), type = $('#edit_leave_type').val();
-    if (!start || !end) return;
-    let startDate = new Date(start), endDate = new Date(end);
-    if (endDate < startDate) { Swal.fire('วันที่ไม่ถูกต้อง', 'วันสิ้นสุดต้องไม่มาก่อนวันเริ่มลา', 'warning'); $('#edit_end_date').val(''); return; }
-    let count = 0, curDate = new Date(startDate);
-    while (curDate <= endDate) {
-        const dayOfWeek = curDate.getDay();
-        if (type === 'ลาคลอดบุตร') count++;
-        else if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
-        curDate.setDate(curDate.getDate() + 1);
+    const start = $('#edit_start_date').val();
+    const end = $('#edit_end_date').val();
+    const type = $('#edit_leave_type').val();
+    const isHalfDay = $('#edit_is_half_day').is(':checked');
+    let days;
+    if (isHalfDay) {
+        days = 0.5;
+    } else {
+        if (!start || !end) return;
+        let startDate = new Date(start), endDate = new Date(end);
+        if (endDate < startDate) {
+            Swal.fire('วันที่ไม่ถูกต้อง', 'วันสิ้นสุดต้องไม่มาก่อนวันเริ่มลา', 'warning');
+            $('#edit_end_date').val('');
+            return;
+        }
+        let count = 0, curDate = new Date(startDate);
+        while (curDate <= endDate) {
+            const dayOfWeek = curDate.getDay();
+            if (type === 'ลาคลอดบุตร') count++;
+            else if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
+            curDate.setDate(curDate.getDate() + 1);
+        }
+        days = count;
     }
-    $('#edit_calc_days').text(count);
+    // ✅ ใช้ toFixed(1) เพื่อแสดง 0.5 หรือจำนวนเต็ม
+    $('#edit_calc_days').text(days % 1 === 0 ? days : days.toFixed(1));
+
+    // แสดง/ซ่อนช่องอัปโหลด
+    const wrapper = document.getElementById('edit_evidence_upload_wrapper');
+    const fileInput = document.getElementById('edit_evidence_file');
+    if (days >= 3) {
+        wrapper.classList.remove('hidden');
+        fileInput.setAttribute('required', 'required');
+    } else {
+        wrapper.classList.add('hidden');
+        fileInput.removeAttribute('required');
+        fileInput.value = '';
+    }
 }
+
 function editLeave(id) {
     const leave = allLeavesData.find(l => l.id === id);
     if (!leave) return Swal.fire('ข้อผิดพลาด', 'ไม่พบข้อมูลการลานี้', 'error');
+
     $('#edit_leave_id').val(leave.id);
     $('#edit_leave_type').val(leave.type);
     document.querySelector("#edit_start_date")._flatpickr.setDate(leave.start_date);
@@ -738,41 +752,125 @@ function editLeave(id) {
     $('#edit_contact_address').val(leave.contact_address || '');
     $('#edit_phone_number').val(leave.phone_number || '');
     $('#edit_reason').val(leave.reason);
-    $('#edit_calc_days').text(leave.total_days);
+    $('#edit_is_half_day').prop('checked', leave.is_half_day || false);
+    calculateEditDays(); // ✅ จะอัปเดตค่า days (รวมถึง 0.5)
+
+    // โหลด submitted_date
+    const submittedDateInput = document.querySelector("#edit_submitted_date");
+    if (submittedDateInput && submittedDateInput._flatpickr) {
+        if (leave.submitted_date) {
+            submittedDateInput._flatpickr.setDate(leave.submitted_date);
+        } else {
+            submittedDateInput._flatpickr.clear();
+        }
+    }
+
+    // จัดการไฟล์หลักฐาน
+    const wrapper = document.getElementById('edit_evidence_upload_wrapper');
+    const fileInput = document.getElementById('edit_evidence_file');
+    const existingDiv = document.getElementById('edit_existing_evidence');
+    const existingName = document.getElementById('edit_existing_evidence_name');
+
+    // ✅ ใช้ leave.total_days หรือ days ที่คำนวณใหม่ก็ได้
+    const days = parseFloat($('#edit_calc_days').text());
+    if (days >= 3) {
+        wrapper.classList.remove('hidden');
+        fileInput.setAttribute('required', 'required');
+        if (leave.attachment_file_id) {
+            existingDiv.classList.remove('hidden');
+            existingName.textContent = `ไฟล์หลักฐาน ID: ${leave.attachment_file_id}`;
+            existingDiv.dataset.fileId = leave.attachment_file_id;
+        } else {
+            existingDiv.classList.add('hidden');
+        }
+    } else {
+        wrapper.classList.add('hidden');
+        fileInput.removeAttribute('required');
+        fileInput.value = '';
+        existingDiv.classList.add('hidden');
+    }
+
     $('#editLeaveModal').removeClass('hidden');
 }
+
+function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLeaveForm')[0].reset(); }
+
+// ✅ เพิ่มฟังก์ชันนี้ตรงนี้ (ระหว่าง closeEditModal และ updateStatus)
 $('#editLeaveForm').on('submit', async function (e) {
     e.preventDefault();
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
+    // ✅ เพิ่มเงื่อนไข !isModuleAdmin เพื่อให้ Module Admin สามารถบันทึกได้
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const id = $('#edit_leave_id').val();
+    const days = parseFloat($('#edit_calc_days').text());
+    if (isNaN(days) || days <= 0) {
+        Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0', 'warning');
+        return;
+    }
+
+    let attachmentFileId = null;
+    const fileInput = document.getElementById('edit_evidence_file');
+    const existingDiv = document.getElementById('edit_existing_evidence');
+    const existingFileId = existingDiv.dataset.fileId || null;
+
+    // ถ้าจำนวนวัน >= 3 ต้องมีไฟล์
+    if (days >= 3) {
+        if (fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (file.size > 5 * 1024 * 1024) {
+                Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB', 'warning');
+                return;
+            }
+            try {
+                attachmentFileId = await window.uploadEvidenceFile(file, systemSettings.evidence_folder_id, systemSettings.gas_url);
+            } catch (err) {
+                Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
+                return;
+            }
+        } else if (existingFileId) {
+            attachmentFileId = existingFileId;
+        } else {
+            Swal.fire('แจ้งเตือน', 'กรุณาอัปโหลดไฟล์หลักฐาน (จำเป็นสำหรับการลา 3 วันขึ้นไป)', 'warning');
+            return;
+        }
+    }
+
+    const submittedDateIso = $('#edit_submitted_date').val() || null;
+    const isHalfDay = $('#edit_is_half_day').is(':checked');
+
     const updateData = {
         type: $('#edit_leave_type').val(),
         start_date: $('#edit_start_date').val(),
         end_date: $('#edit_end_date').val(),
-        total_days: parseInt($('#edit_calc_days').text()),
+        total_days: days,
         reason: $('#edit_reason').val(),
         contact_address: $('#edit_contact_address').val(),
         phone_number: $('#edit_phone_number').val(),
+        attachment_file_id: attachmentFileId,
+        submitted_date: submittedDateIso,
+        is_half_day: isHalfDay,
         pdf_url: null
     };
+
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
-    if (error) Swal.fire('ข้อผิดพลาด', error.message, 'error');
-    else {
+    if (error) {
+        Swal.fire('ข้อผิดพลาด', error.message, 'error');
+    } else {
         await logUserAction(`แก้ไขใบลา ID: ${id}`, 'leave');
         closeEditModal();
         Swal.fire({ title: 'บันทึกสำเร็จ', text: 'แก้ไขข้อมูลเรียบร้อย', icon: 'success', timer: 1500, showConfirmButton: false });
         await loadDashboardStats();
     }
 });
-function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLeaveForm')[0].reset(); }
 
-// ----- อนุมัติ/ไม่อนุมัติ -----
-// ======================== updateStatus ========================
+// ----- อนุมัติ/ไม่อนุมัติ (พร้อมระบุวันที่อนุมัติ) -----
 async function updateStatus(id, newStatus) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    // ตรวจสอบสิทธิ์ (Module Admin หรือ Admin)
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
+    // ดึงข้อมูลใบลาปัจจุบัน
     const { data: leave, error: fetchError } = await db.from('leave_requests')
         .select('ack_admin, ack_deputy, ack_director, status')
         .eq('id', id)
@@ -782,30 +880,73 @@ async function updateStatus(id, newStatus) {
         return;
     }
 
-    if (leave.status === 'รออนุมัติ') {
+    // ตรวจสอบลำดับการรับทราบ (เฉพาะกรณีที่ไม่ใช่ Super Admin)
+    if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
         if (!leave.ack_admin) {
-            Swal.fire({ icon: 'warning', title: 'ไม่สามารถอนุมัติได้', text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถอนุมัติได้' });
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
             return;
         }
         if (!leave.ack_deputy) {
-            Swal.fire({ icon: 'warning', title: 'ไม่สามารถอนุมัติได้', text: 'กรุณารอให้รองผู้อำนวยการรับทราบก่อน จึงจะสามารถอนุมัติได้' });
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้รองผู้อำนวยการรับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
             return;
         }
     }
 
     const now = new Date().toISOString();
+    const today = new Date().toLocaleDateString('sv-SE'); // วันที่ปัจจุบันตามเวลาไทย
+
+    // แสดง dialog ให้เลือกวันที่อนุมัติ (เริ่มต้นเป็นวันนี้)
+    const { value: customApprovedDate } = await Swal.fire({
+        title: 'วันที่อนุมัติ',
+        text: 'ระบุวันที่อนุมัติ (ถ้าต้องการย้อนหลัง) หรือกดตกลงเพื่อใช้วันนี้',
+        input: 'date',
+        inputValue: today,
+        showCancelButton: true,
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (customApprovedDate === undefined) return; // ผู้ใช้ยกเลิก
+
+    const finalApprovedDate = customApprovedDate || today;
+    // ใช้เวลาเที่ยงวันตามเวลาไทย เพื่อป้องกันวันเลื่อนเมื่อแปลงเป็น UTC
+    const finalApprovedDateTime = new Date(finalApprovedDate + 'T12:00:00+07:00').toISOString();
+
     let updateData = {
         status: newStatus,
         reject_comment: null,
         updated_at: now,
-        approved_at: now  // ✅ บันทึกเวลาอนุมัติ
+        approved_at: now,
+        approved_date: finalApprovedDate
     };
 
-    if (currentUserRole === 'director' || currentUserRole === 'super_admin') {
+    // --- กรณี Super Admin อนุมัติ ---
+    if (currentUserRole === 'super_admin' && newStatus === 'อนุมัติ') {
+        // รับทราบทุกตำแหน่งอัตโนมัติ ด้วยวันที่เดียวกัน
+        updateData.ack_admin = true;
+        updateData.ack_admin_at = finalApprovedDateTime;
+        updateData.ack_deputy = true;
+        updateData.ack_deputy_at = finalApprovedDateTime;
         updateData.ack_director = true;
-        updateData.ack_director_at = now;
+        updateData.ack_director_at = finalApprovedDateTime;
+    } else {
+        // --- กรณีผู้อำนวยการ หรือ Super Admin ไม่อนุมัติ (หรืออื่น ๆ) ---
+        // ถ้าเป็น Director หรือ Super Admin ให้รับทราบในตำแหน่งของตน
+        if (currentUserRole === 'director' || currentUserRole === 'super_admin') {
+            updateData.ack_director = true;
+            updateData.ack_director_at = finalApprovedDateTime;
+        }
+        // กรณีอื่น ๆ (เช่น admin, deputy) ไม่ต้องเพิ่ม ack เพราะต้องกดรับทราบเอง
     }
 
+    // อัปเดตข้อมูล
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
     if (error) {
@@ -818,7 +959,6 @@ async function updateStatus(id, newStatus) {
     }
 }
 
-// ======================== rejectLeave ========================
 async function rejectLeave(id) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -831,7 +971,8 @@ async function rejectLeave(id) {
         return;
     }
 
-    if (leave.status === 'รออนุมัติ') {
+    // ถ้าไม่ใช่ super_admin ให้ตรวจสอบลำดับการรับทราบ
+    if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
         if (!leave.ack_admin) {
             Swal.fire({ icon: 'warning', title: 'ไม่สามารถไม่อนุมัติได้', text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถไม่อนุมัติได้' });
             return;
@@ -855,31 +996,53 @@ async function rejectLeave(id) {
         inputValidator: (value) => { if (!value) return 'กรุณาระบุเหตุผลด้วยครับ!'; }
     });
 
-    if (comment) {
-        Swal.fire({ title: 'กำลังอัปเดตข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    if (!comment) return;
 
-        const now = new Date().toISOString();
-        let updateData = {
-            status: 'ไม่อนุมัติ',
-            reject_comment: comment.trim(),
-            updated_at: now,
-            approved_at: now  // ✅ บันทึกเวลา (กรณีไม่อนุมัติก็ใช้เป็น timestamp)
-        };
+    const today = new Date().toLocaleDateString('sv-SE');
+    const { value: customRejectDate } = await Swal.fire({
+        title: 'วันที่ไม่อนุมัติ',
+        text: 'ระบุวันที่ไม่อนุมัติ (ถ้าต้องการย้อนหลัง) หรือกดตกลงเพื่อใช้วันนี้',
+        input: 'date',
+        inputValue: today,
+        showCancelButton: true,
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (customRejectDate === undefined) return;
 
-        const effectiveRole = currentUserRole === 'teacher' && (isAdminMode || isModuleAdmin) ? 'admin' : currentUserRole;
-        if (effectiveRole === 'director' || effectiveRole === 'super_admin') {
-            updateData.ack_director = true;
-            updateData.ack_director_at = now;
-        }
+    const finalRejectDate = customRejectDate || today;
 
-        const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
-        if (error) {
-            Swal.fire('ผิดพลาด', error.message, 'error');
-        } else {
-            await logUserAction(`ไม่อนุมัติใบลา ID: ${id} (เหตุผล: ${comment})`, 'leave');
-            Swal.fire({ icon: 'success', title: 'ไม่อนุมัติเรียบร้อย', timer: 1500, showConfirmButton: false });
-            await loadDashboardStats();
-        }
+    Swal.fire({ title: 'กำลังอัปเดตข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const now = new Date().toISOString();
+    let updateData = {
+        status: 'ไม่อนุมัติ',
+        reject_comment: comment.trim(),
+        updated_at: now,
+        approved_at: now,
+        approved_date: finalRejectDate
+    };
+
+    // ถ้าเป็น super_admin ให้รับทราบทุกตำแหน่ง
+    if (currentUserRole === 'super_admin') {
+        updateData.ack_admin = true;
+        updateData.ack_deputy = true;
+        updateData.ack_director = true;
+        updateData.ack_admin_at = now;
+        updateData.ack_deputy_at = now;
+        updateData.ack_director_at = now;
+    } else if (currentUserRole === 'director') {
+        updateData.ack_director = true;
+        updateData.ack_director_at = now;
+    }
+
+    const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
+    if (error) {
+        Swal.fire('ผิดพลาด', error.message, 'error');
+    } else {
+        await logUserAction(`ไม่อนุมัติใบลา ID: ${id} (เหตุผล: ${comment})`, 'leave');
+        Swal.fire({ icon: 'success', title: 'ไม่อนุมัติเรียบร้อย', timer: 1500, showConfirmButton: false });
+        await loadDashboardStats();
     }
 }
 
@@ -889,8 +1052,6 @@ function showRejectComment(comment) {
 
 // ----- ลบใบลา -----
 async function deleteLeave(id, name) {
-    // Module admin (แอดมินประจำโมดูล) สามารถลบใบลาได้ (เฉพาะที่ยังไม่อนุมัติ)
-    // Super admin สามารถลบได้ทุกสถานะ
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const { data: leave, error: fetchError } = await db.from('leave_requests').select('status').eq('id', id).single();
@@ -913,53 +1074,147 @@ async function deleteLeave(id, name) {
 }
 
 // ==========================================
-// ดูรายละเอียดใบลา
+// ยกเลิกรับทราบทั้งหมด (เฉพาะ Super Admin)
+// ==========================================
+async function resetAllAcknowledge(id) {
+    // ตรวจสอบสิทธิ์ Super Admin เท่านั้น
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถดำเนินการนี้ได้', 'warning');
+        return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการยกเลิกรับทราบทั้งหมด',
+        html: 'คุณต้องการยกเลิกรับทราบทั้งหมด (แอดมิน, รองผู้อำนวยการ, ผู้อำนวยการ) และเปลี่ยนสถานะเป็น "รออนุมัติ" ใช่หรือไม่?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ใช่, ยกเลิกเลย',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({
+        title: 'กำลังดำเนินการ...',
+        didOpen: () => Swal.showLoading(),
+        allowOutsideClick: false,
+        showConfirmButton: false
+    });
+
+    try {
+        const updateData = {
+            ack_admin: false,
+            ack_admin_at: null,
+            ack_deputy: false,
+            ack_deputy_at: null,
+            ack_director: false,
+            ack_director_at: null,
+            status: 'รออนุมัติ',
+            reject_comment: null,
+            approved_at: null,
+            approved_date: null,
+            updated_at: new Date().toISOString()
+        };
+
+        const { error } = await db.from('leave_requests')
+            .update(updateData)
+            .eq('id', id);
+
+        if (error) throw error;
+
+        await logUserAction(`ยกเลิกรับทราบทั้งหมด ID: ${id} (Super Admin)`, 'leave');
+        Swal.fire({
+            icon: 'success',
+            title: 'ดำเนินการสำเร็จ',
+            text: 'ยกเลิกรับทราบทั้งหมดเรียบร้อย สถานะกลับเป็นรออนุมัติ',
+            timer: 1500,
+            showConfirmButton: false
+        });
+        await loadDashboardStats();
+
+    } catch (err) {
+        console.error('resetAllAcknowledge error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// ดูรายละเอียดใบลา (แสดงข้อมูลทั้งหมด + สถานะรับทราบ)
 // ==========================================
 function viewLeave(id) {
     const l = allLeavesData.find(x => x.id === id);
     if (!l) return;
-    const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
-    const fmtDateTime = (iso) => {
+
+    const effectiveRole = currentUserRole === 'teacher' && (isAdminMode || isModuleAdmin) ? 'admin' : currentUserRole;
+    const isSuperAdminView = effectiveRole === 'super_admin';
+
+    function fmt(iso) {
+        if (!iso) return '-';
+        const p = iso.split('-');
+        return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
+    }
+    function fmtDateTime(iso) {
         if (!iso) return '-';
         const d = new Date(iso);
         const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
         return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543} เวลา ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
-    };
-
-    const fullName = `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`;
-
-    const statusMap = {
-        'รออนุมัติ': '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200">รออนุมัติ</span>',
-        'อนุมัติ': '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200">อนุมัติ</span>',
-        'ไม่อนุมัติ': '<span class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-200">ไม่อนุมัติ</span>'
-    };
-    const statusBadge = statusMap[l.status] || statusMap['รออนุมัติ'];
-
-    let effectiveRole = currentUserRole;
-    if (effectiveRole === 'teacher' && (isAdminMode || isModuleAdmin)) {
-        effectiveRole = 'admin';
     }
 
-    const isSuperAdminView = effectiveRole === 'super_admin';
+    // ข้อมูลการลา
+    const leaveInfoHtml = `
+        <div class="border border-slate-200 rounded-xl p-3 space-y-2 mb-4">
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-slate-600">ประเภทการลา</span>
+                <span class="font-bold text-slate-800">${l.type}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-slate-600">ช่วงวันที่</span>
+                <span class="font-bold text-slate-800">${fmt(l.start_date)} - ${fmt(l.end_date)}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-slate-600">จำนวนวัน</span>
+                <span class="font-bold text-slate-800">${l.total_days} วัน</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-slate-600">สาเหตุ</span>
+                <span class="font-bold text-slate-800">${l.reason}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-sm font-bold text-slate-600">สถานะ</span>
+                <span>${l.status === 'รออนุมัติ' ? '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">รออนุมัติ</span>' :
+            l.status === 'อนุมัติ' ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">อนุมัติ</span>' :
+                '<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold">ไม่อนุมัติ</span>'}</span>
+            </div>
+            <div class="flex justify-between items-center">
+    <span class="text-sm font-bold text-slate-600">ครึ่งวัน</span>
+    <span class="font-bold text-slate-800">${l.is_half_day ? '✅ ใช่' : '❌ ไม่'}</span>
+</div>
+<div class="flex justify-between items-center">
+    <span class="text-sm font-bold text-slate-600">จำนวนวัน</span>
+    <span class="font-bold text-slate-800">${l.is_half_day ? '0.5 (ครึ่งวัน)' : l.total_days + ' วัน'}</span>
+</div>
+            ${l.reject_comment ? `<div class="flex justify-between items-start"><span class="text-sm font-bold text-slate-600">เหตุผลที่ไม่อนุมัติ</span><span class="text-rose-700 text-sm">${l.reject_comment}</span></div>` : ''}
+            ${l.approved_at ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${fmtDateTime(l.approved_at)}</span></div>` : ''}
+            ${l.submitted_date ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span><span class="text-slate-600 text-sm">${fmt(l.submitted_date)}</span></div>` : ''}
+            ${l.attachment_file_id ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span><a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
+        </div>
+    `;
 
-    let myAckField = null;
-    if (!isSuperAdminView && effectiveRole !== 'director') {
-        const ackFieldMap = { admin: 'ack_admin', deputy: 'ack_deputy' };
-        myAckField = ackFieldMap[effectiveRole] || null;
-    } else if (effectiveRole === 'director') {
-        myAckField = 'ack_director';
-    }
-    // super_admin: แสดงปุ่มรับทราบแทนได้ทุกตำแหน่งที่ยังไม่รับทราบ (จัดการใน buildAckRow)
-
+    // สถานะรับทราบ
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
         const atValue = l[atField] ? fmtDateTime(l[atField]) : '';
         let buttonHtml = '';
-        // super_admin: แสดงปุ่มรับทราบแทนทุกตำแหน่งที่ยังไม่รับทราบ
         if (isSuperAdminView && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบแทน</button>`;
-        } else if (myAckField === field && !done) {
+        } else if (effectiveRole === 'admin' && field === 'ack_admin' && !done) {
+            buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
+        } else if (effectiveRole === 'deputy' && field === 'ack_deputy' && !done) {
+            buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
+        } else if (effectiveRole === 'director' && field === 'ack_director' && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         }
         return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
@@ -974,44 +1229,38 @@ function viewLeave(id) {
         </div>`;
     }
 
-    const canApprove = effectiveRole === 'super_admin' || effectiveRole === 'director';
-    let actionButtons = '';
-    if (canApprove && l.status === 'รออนุมัติ') {
-        const canApproveAction = l.ack_admin && l.ack_deputy;
-        if (!canApproveAction) {
-            actionButtons = `<div class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg">
-                <i class="fas fa-info-circle mr-1"></i> 
-                ต้องรอให้ <b>แอดมิน</b> และ <b>รองผู้อำนวยการ</b> รับทราบก่อน จึงจะสามารถอนุมัติ/ไม่อนุมัติได้
-            </div>`;
+    const ackHtml = `
+        <div class="border border-slate-200 rounded-xl p-3">
+            <p class="text-xs font-bold text-slate-500 mb-2"><i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ</p>
+            ${buildAckRow('<i class="fas fa-user-tie text-slate-400 mr-1.5"></i>แอดมิน', 'ack_admin')}
+            ${buildAckRow('<i class="fas fa-user-shield text-slate-400 mr-1.5"></i>รองผู้อำนวยการ', 'ack_deputy')}
+            ${buildAckRow('<i class="fas fa-crown text-slate-400 mr-1.5"></i>ผู้อำนวยการ', 'ack_director')}
+        </div>
+    `;
+
+    let actionHtml = '';
+    if ((effectiveRole === 'super_admin' || effectiveRole === 'director') && l.status === 'รออนุมัติ') {
+        if (l.ack_admin && l.ack_deputy) {
+            actionHtml = `
+                <div class="flex flex-wrap gap-2 pt-2">
+                    <button onclick="updateStatus('${l.id}', 'อนุมัติ'); closeViewModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-up"></i> อนุมัติ</button>
+                    <button onclick="rejectLeave('${l.id}'); closeViewModal()" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-down"></i> ไม่อนุมัติ</button>
+                </div>
+            `;
         } else {
-            actionButtons = `<button onclick="updateStatus('${l.id}', 'อนุมัติ'); closeViewModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-up"></i> อนุมัติ</button>
-                         <button onclick="rejectLeave('${l.id}'); closeViewModal()" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-down"></i> ไม่อนุมัติ</button>`;
+            actionHtml = `<div class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg"><i class="fas fa-info-circle mr-1"></i> ต้องรอให้ <b>แอดมิน</b> และ <b>รองผู้อำนวยการ</b> รับทราบก่อน จึงจะสามารถอนุมัติ/ไม่อนุมัติได้</div>`;
         }
     }
 
-    // แสดงวันที่อนุมัติ (ถ้ามี)
-    const approvedAtHtml = l.approved_at ? `<div class="text-xs text-slate-500 mt-1">อนุมัติเมื่อ: ${fmtDateTime(l.approved_at)}</div>` : '';
-
-    document.getElementById('viewLeaveContent').innerHTML = `
+    const fullHtml = `
         <div class="space-y-4">
-            <div class="flex items-start justify-between gap-4 pb-4 border-b border-slate-100">
-                <div>
-                    <p class="text-lg font-black text-slate-800">${fullName}</p>
-                    <p class="text-sm text-slate-500">${l.core_personnel.department || ''} ${l.core_personnel.position || ''}</p>
-                    ${approvedAtHtml}
-                </div>
-                ${statusBadge}
-            </div>
-            <!-- ... (ส่วนอื่นๆ เหมือนเดิม) ... -->
-            <div class="border border-slate-200 rounded-xl p-3">
-                <p class="text-xs font-bold text-slate-500 mb-2"><i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ</p>
-                ${buildAckRow('<i class="fas fa-user-tie text-slate-400 mr-1.5"></i>แอดมิน', 'ack_admin')}
-                ${buildAckRow('<i class="fas fa-user-shield text-slate-400 mr-1.5"></i>รองผู้อำนวยการ', 'ack_deputy')}
-                ${buildAckRow('<i class="fas fa-crown text-slate-400 mr-1.5"></i>ผู้อำนวยการ', 'ack_director')}
-            </div>
-            ${actionButtons ? `<div class="flex flex-wrap gap-2 pt-2">${actionButtons}</div>` : ''}
+            ${leaveInfoHtml}
+            ${ackHtml}
+            ${actionHtml ? `<div class="pt-2">${actionHtml}</div>` : ''}
         </div>
     `;
+
+    document.getElementById('viewLeaveContent').innerHTML = fullHtml;
     document.getElementById('viewLeaveModal').classList.remove('hidden');
     document.getElementById('viewLeaveModal').classList.add('flex');
 }
@@ -1037,7 +1286,6 @@ async function acknowledgeLeave(id, field) {
         return;
     }
 
-    // super_admin สามารถรับทราบแทนได้ทุกตำแหน่งโดยไม่ต้องรอลำดับ
     const isSuperAdminAck = currentUserRole === 'super_admin';
 
     if (!isSuperAdminAck && field === 'ack_deputy' && !leave.ack_admin) {
@@ -1060,11 +1308,27 @@ async function acknowledgeLeave(id, field) {
         return;
     }
 
-    // ✅ บันทึกเวลาปัจจุบัน
+    // ✅ ใช้วันที่ปัจจุบันตามเวลาไทย
+    const today = new Date().toLocaleDateString('sv-SE');
+    const { value: customDate } = await Swal.fire({
+        title: 'วันที่รับทราบ',
+        text: 'ระบุวันที่รับทราบ (ถ้าต้องการย้อนหลัง) หรือกดตกลงเพื่อใช้วันนี้',
+        input: 'date',
+        inputValue: today,
+        showCancelButton: true,
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (customDate === undefined) return;
+
+    const finalDate = customDate || today;
+    // ✅ ใช้เที่ยงวันตามเวลาไทย เพื่อไม่ให้วันเปลี่ยน
+    const finalDateTime = new Date(finalDate + 'T12:00:00+07:00').toISOString();
+
     const now = new Date().toISOString();
     let updateData = { updated_at: now };
     updateData[field] = true;
-    updateData[field + '_at'] = now;
+    updateData[field + '_at'] = finalDateTime;
 
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests')
@@ -1083,7 +1347,7 @@ async function acknowledgeLeave(id, field) {
 }
 
 // ==========================================
-// ฟังก์ชันส่งออก Excel
+// ฟังก์ชันส่งออก Excel (คงเดิม)
 // ==========================================
 function exportLeaveReport() {
     if (allLeavesData.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
@@ -1120,7 +1384,7 @@ async function exportLeaveSummaryReport() {
             .select('personnel_id, type, total_days')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round)
-            .eq('status', 'อนุมัติ'); // 🔁 เปลี่ยนจาก .neq('status', 'ไม่อนุมัติ')
+            .eq('status', 'อนุมัติ');
         if (leavesErr) throw leavesErr;
 
         const { data: attendances, error: attErr } = await db.from('personnel_attendance')
@@ -1330,7 +1594,7 @@ async function importLeaveExcel(event) {
 }
 
 // ==========================================
-// ระบบบันทึกขาด/มาสาย (ใช้ requireAdmin)
+// ระบบบันทึกขาด/มาสาย
 // ==========================================
 function initAttendanceFlatpickr() {
     flatpickr(".att-datepicker", { locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "j F Y" });
@@ -1449,7 +1713,8 @@ $('#attendanceForm').on('submit', async function (e) {
         record_type: $('#att_record_type').val(),
         reason: $('#att_reason').val(),
         fiscal_year: systemSettings.fiscal_year,
-        eval_round: systemSettings.eval_round
+        eval_round: systemSettings.eval_round,
+        submitted_date: submittedDateIso,
     };
     if (!payload.personnel_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -1487,11 +1752,12 @@ async function deleteAttendance(id) {
 }
 
 // ==========================================
-// สร้างใบลา (Admin)
+// สร้างใบลา (Admin) พร้อม submitted_date และอัปโหลดหลักฐาน
 // ==========================================
 function initAdminFlatpickr() {
     const config = {
-        locale: 'th', dateFormat: 'd/m/Y',
+        locale: 'th',
+        dateFormat: 'd/m/Y',
         onChange: function (selectedDates, dateStr, instance) {
             if (selectedDates[0]) {
                 const id = instance.element.id;
@@ -1507,15 +1773,28 @@ function initAdminFlatpickr() {
     };
     flatpickr("#admin_start_date", config);
     flatpickr("#admin_end_date", config);
+    flatpickr("#admin_submitted_date", config);  // ✅ เพิ่มช่องวันที่ส่ง
 }
 
-function adminCalculateDays() {
+window.adminCalculateDays = function () {
     const startIso = $('#admin_start_date_iso').val();
     const endIso = $('#admin_end_date_iso').val();
     const type = $('#admin_leave_type').val();
-    const days = window.calculateDaysByType(startIso, endIso, type);
+    const isHalfDay = $('#admin_is_half_day').is(':checked');
+    const days = window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
     $('#admin_calc_days').text(days);
-}
+    // แสดง/ซ่อนช่องอัปโหลดหลักฐาน
+    const wrapper = document.getElementById('admin_evidence_upload_wrapper');
+    const fileInput = document.getElementById('admin_evidence_file');
+    if (days >= 3) {
+        wrapper.classList.remove('hidden');
+        fileInput.setAttribute('required', 'required');
+    } else {
+        wrapper.classList.add('hidden');
+        fileInput.removeAttribute('required');
+        fileInput.value = '';
+    }
+};
 
 function adminUpdateLeaveGuide() {
     const type = $('#admin_leave_type').val();
@@ -1574,7 +1853,6 @@ function adminUpdateLeaveGuide() {
 }
 
 async function openAdminLeaveModal() {
-    // Module admin (แอดมินประจำโมดูล) สามารถเขียนใบลาแทนบุคลากรได้
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const selectEl = document.getElementById('admin_personnel_id');
@@ -1585,11 +1863,16 @@ async function openAdminLeaveModal() {
     });
     selectEl.innerHTML = options;
     new TomSelect(selectEl, { create: false, placeholder: 'ค้นหาชื่อบุคลากร', dropdownParent: 'body' });
+
     $('#adminLeaveForm')[0].reset();
     $('#admin_leave_id').val('');
-    $('#admin_start_date_iso, #admin_end_date_iso').val('');
+    $('#admin_start_date_iso, #admin_end_date_iso, #admin_submitted_date_iso').val('');
     $('#admin_calc_days').text('0');
     $('#admin_leave_guide').addClass('hidden');
+    document.getElementById('admin_evidence_upload_wrapper').classList.add('hidden');
+    document.getElementById('admin_evidence_file').value = '';
+    document.getElementById('admin_existing_evidence').classList.add('hidden');
+
     if (typeof adminFlatpickrInstance !== 'undefined' && adminFlatpickrInstance) adminFlatpickrInstance.destroy();
     initAdminFlatpickr();
     $('#adminLeaveModal').removeClass('hidden').addClass('flex');
@@ -1597,9 +1880,9 @@ async function openAdminLeaveModal() {
 function closeAdminLeaveModal() {
     $('#adminLeaveModal').addClass('hidden').removeClass('flex');
 }
-async function saveLeaveForAdmin(e) {
+
+window.saveLeaveForAdmin = async function (e) {
     e.preventDefault();
-    // Module admin (แอดมินประจำโมดูล) สามารถบันทึกใบลาแทนบุคลากรทุกคนได้
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const personnelId = $('#admin_personnel_id').val();
@@ -1608,17 +1891,55 @@ async function saveLeaveForAdmin(e) {
     const reason = $('#admin_reason').val().trim();
     const startDate = $('#admin_start_date_iso').val();
     const endDate = $('#admin_end_date_iso').val();
-    const totalDays = parseInt($('#admin_calc_days').text());
+    const totalDays = parseFloat($('#admin_calc_days').text());
     const contactAddress = $('#admin_contact_address').val().trim();
     const phoneNumber = $('#admin_phone_number').val().trim();
+    const isHalfDay = $('#admin_is_half_day').is(':checked');
+    const submittedDateIso = $('#admin_submitted_date_iso').val() || null;  // ✅ มีการอ่านค่า
+
     if (!type) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกประเภทการลา', 'warning');
     if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
+
+    // อัปโหลดหลักฐาน (ถ้าจำนวนวัน >= 3)
+    let attachmentFileId = null;
+    const fileInput = document.getElementById('admin_evidence_file');
+    if (totalDays >= 3) {
+        if (fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (file.size > 5 * 1024 * 1024) {
+                Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB', 'warning');
+                return;
+            }
+            try {
+                attachmentFileId = await window.uploadEvidenceFile(file, systemSettings.evidence_folder_id, systemSettings.gas_url);
+            } catch (err) {
+                Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
+                return;
+            }
+        } else {
+            Swal.fire('แจ้งเตือน', 'กรุณาอัปโหลดไฟล์หลักฐาน (จำเป็นสำหรับการลา 3 วันขึ้นไป)', 'warning');
+            return;
+        }
+    }
+
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const payload = {
-        personnel_id: personnelId, type, reason, start_date: startDate, end_date: endDate, total_days: totalDays,
-        contact_address: contactAddress, phone_number: phoneNumber,
-        fiscal_year: systemSettings.fiscal_year, eval_round: systemSettings.eval_round,
-        status: 'รออนุมัติ', reject_comment: null
+        personnel_id: personnelId,
+        type,
+        reason,
+        start_date: startDate,
+        end_date: endDate,
+        total_days: totalDays,
+        contact_address: contactAddress,
+        phone_number: phoneNumber,
+        fiscal_year: systemSettings.fiscal_year,
+        eval_round: systemSettings.eval_round,
+        status: 'รออนุมัติ',
+        reject_comment: null,
+        attachment_file_id: attachmentFileId,
+        pdf_url: null,
+        is_half_day: isHalfDay,
+        submitted_date: submittedDateIso   // ✅ เพิ่มบรรทัดนี้
     };
     try {
         const { error } = await db.from('leave_requests').insert([payload]);
@@ -1628,10 +1949,11 @@ async function saveLeaveForAdmin(e) {
         Swal.fire({ icon: 'success', title: 'บันทึกใบลาเรียบร้อย', text: 'ใบลาอยู่ในสถานะรออนุมัติ', timer: 1500, showConfirmButton: false });
         await loadDashboardStats();
     } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
-}
+};
 
-// ======================== จัดการลายเซ็นบุคลากร (พร้อมอัปโหลดไฟล์) ========================
-
+// ==========================================
+// จัดการลายเซ็นบุคลากร (เหมือนเดิม)
+// ==========================================
 async function openSignatureModal() {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะ Super Admin เท่านั้น')) return;
     if (!systemSettings.signature_folder_id) {
@@ -1660,12 +1982,10 @@ async function loadSignatureList() {
     const tbody = document.getElementById('signature-tbody');
     if (!tbody) return;
 
-    // ถ้ามี DataTable อยู่แล้ว ให้ทำลายทิ้ง
     if ($.fn.DataTable.isDataTable('#signatureTable')) {
         $('#signatureTable').DataTable().destroy();
     }
 
-    // สร้าง HTML rows
     tbody.innerHTML = personnel.map(p => {
         const name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const hasSig = !!p.signature_file_id;
@@ -1702,7 +2022,6 @@ async function loadSignatureList() {
         </tr>`;
     }).join('');
 
-    // สร้าง DataTable ใหม่
     $('#signatureTable').DataTable({
         responsive: true,
         scrollX: false,
@@ -1712,7 +2031,7 @@ async function loadSignatureList() {
         pageLength: 10,
         order: [[0, 'asc']],
         columnDefs: [
-            { orderable: false, targets: [3, 4] } // ลายเซ็น และ จัดการ
+            { orderable: false, targets: [3, 4] }
         ]
     });
 }
@@ -1721,14 +2040,12 @@ async function uploadSignature(personnelId, fileInput) {
     const file = fileInput.files[0];
     if (!file) return;
 
-    // ตรวจสอบขนาดไฟล์ (ไม่เกิน 2MB)
     if (file.size > 2 * 1024 * 1024) {
         Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 2MB', 'warning');
         fileInput.value = '';
         return;
     }
 
-    // ตรวจสอบประเภทไฟล์
     const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg'];
     if (!allowedTypes.includes(file.type)) {
         Swal.fire('ไฟล์ไม่ถูกต้อง', 'กรุณาอัปโหลดไฟล์รูปภาพ .png, .jpg, .jpeg เท่านั้น', 'warning');
@@ -1745,13 +2062,11 @@ async function uploadSignature(personnelId, fileInput) {
     });
 
     try {
-        // อ่านไฟล์เป็น Base64
         const reader = new FileReader();
         reader.readAsDataURL(file);
         reader.onload = async function () {
-            const base64 = reader.result.split(',')[1]; // ตัด part "data:image/...;base64,"
+            const base64 = reader.result.split(',')[1];
 
-            // เรียก GAS เพื่ออัปโหลดไฟล์
             const payload = {
                 action: 'upload',
                 folderId: systemSettings.signature_folder_id,
@@ -1769,7 +2084,6 @@ async function uploadSignature(personnelId, fileInput) {
             const result = await response.json();
 
             if (result.status === 'success' && result.fileId) {
-                // บันทึก fileId ลงฐานข้อมูล
                 const { error } = await db.from('core_personnel')
                     .update({ signature_file_id: result.fileId })
                     .eq('id', personnelId);
@@ -1794,7 +2108,6 @@ async function uploadSignature(personnelId, fileInput) {
 }
 
 async function removeSignature(personnelId) {
-    // ดึงข้อมูลบุคลากรเพื่อทราบ fileId ที่จะลบ
     const { data: personnel, error } = await db.from('core_personnel')
         .select('signature_file_id')
         .eq('id', personnelId)
@@ -1828,7 +2141,6 @@ async function removeSignature(personnelId) {
     });
 
     try {
-        // ลบไฟล์ใน Drive ผ่าน GAS (สร้าง endpoint เพิ่ม)
         const payload = {
             action: 'delete_file',
             fileId: fileIdToDelete
@@ -1842,11 +2154,9 @@ async function removeSignature(personnelId) {
 
         const result = await response.json();
         if (result.status !== 'success') {
-            // ถ้าลบไฟล์ไม่สำเร็จ (ไฟล์ถูกลบไปแล้ว) ให้ทำต่อ
             console.warn('ไม่สามารถลบไฟล์ใน Drive ได้:', result.message);
         }
 
-        // ลบ record ในฐานข้อมูล
         const { error: dbError } = await db.from('core_personnel')
             .update({ signature_file_id: null })
             .eq('id', personnelId);
@@ -1901,7 +2211,6 @@ async function exportSignatureExcel() {
         return;
     }
 
-    // โหลด SheetJS จาก CDN แบบ lazy
     if (typeof XLSX === 'undefined') {
         await new Promise((resolve, reject) => {
             const s = document.createElement('script');
@@ -1928,11 +2237,11 @@ async function exportSignatureExcel() {
 
     const ws = XLSX.utils.json_to_sheet(rows);
     ws['!cols'] = [
-        { wch: 30 }, // ชื่อ-สกุล
-        { wch: 28 }, // ตำแหน่ง
-        { wch: 28 }, // กลุ่มงาน
-        { wch: 12 }, // ลายเซ็น
-        { wch: 60 }  // URL
+        { wch: 30 },
+        { wch: 28 },
+        { wch: 28 },
+        { wch: 12 },
+        { wch: 60 }
     ];
 
     const wb = XLSX.utils.book_new();
@@ -1979,4 +2288,4 @@ window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 window.exportSignatureExcel = exportSignatureExcel;
 
-console.log('✅ leave_admin.js loaded with config.js & leave_core.js integration');
+console.log('✅ leave_admin.js loaded with submitted_date, approved_date, evidence upload, and full viewLeave');

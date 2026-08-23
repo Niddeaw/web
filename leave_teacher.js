@@ -17,7 +17,7 @@ window.editingOriginalLeaveType = null;
 // ==========================================
 // LOGOUT
 // ==========================================
-window.logout = async function() {
+window.logout = async function () {
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         text: "คุณต้องการออกจากระบบใช่หรือไม่",
@@ -44,9 +44,6 @@ $(document).ready(async function () {
         await window.loadSystemSettings();
         window.initFlatpickr();
         await window.loadLeaveData();
-        // หมายเหตุ: ไม่เรียก applyVisibilityByRole สำหรับปุ่มสลับโหมด
-        // เพราะ checkAuth() จัดการแสดง/ซ่อน #btnAdminMode ตาม isAdminMode || isModuleAdmin แล้ว
-        // การเรียก applyVisibilityByRole จะเช็คเฉพาะ role (ไม่รู้จัก isModuleAdmin) และซ่อนปุ่มทับ
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
@@ -58,7 +55,7 @@ $(document).ready(async function () {
 // ==========================================
 // ตรวจสอบสิทธิ์ และประกาศ Global Variables
 // ==========================================
-window.checkAuth = async function() {
+window.checkAuth = async function () {
     const result = await window.checkSessionAndRole('leave_teacher');
     if (!result) return;
     const { user, personnel, role, isAdmin, isTeacher } = result;
@@ -68,7 +65,6 @@ window.checkAuth = async function() {
     window.currentUserRole = role;
     window.isAdminMode = isAdmin;
     window.isModuleAdmin = await window.hasModuleAccess(role, 'leave', user.id);
-    // ประกาศตัวแปรลง window เพื่อให้ leave_core.js ใช้ได้
     window.currentProfile = window.currentProfile;
     window.currentUserRole = window.currentUserRole;
     window.isModuleAdmin = window.isModuleAdmin;
@@ -86,7 +82,7 @@ window.checkAuth = async function() {
 // ==========================================
 // ระบบตั้งค่า
 // ==========================================
-window.loadSystemSettings = async function() {
+window.loadSystemSettings = async function () {
     const { data } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').single();
     window.systemSettings = data?.settings || {
         fiscal_year: (new Date().getFullYear() + 543).toString(),
@@ -97,10 +93,9 @@ window.loadSystemSettings = async function() {
 };
 
 // ==========================================
-// Flatpickr (แก้ไขแล้ว)
+// Flatpickr
 // ==========================================
-window.initFlatpickr = function() {
-    // ประกาศฟังก์ชัน updateYear ภายใน scope นี้
+window.initFlatpickr = function () {
     function updateYear(instance) {
         const yearEl = instance.calendarContainer?.querySelector('.cur-year');
         if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
@@ -112,8 +107,8 @@ window.initFlatpickr = function() {
             if (selectedDates[0]) {
                 const id = instance.element.id;
                 const d = selectedDates[0];
-                document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                instance.element.value = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()+543}`;
+                document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
             }
             window.calculateDays();
         },
@@ -123,23 +118,53 @@ window.initFlatpickr = function() {
     };
     flatpickr("#start_date", config);
     flatpickr("#end_date", config);
+    // เพิ่ม flatpickr สำหรับ submitted_date (ถ้ามี)
+    flatpickr("#submitted_date", {
+        locale: 'th',
+        dateFormat: 'd/m/Y',
+        onChange: function (selectedDates, dateStr, instance) {
+            if (selectedDates[0]) {
+                const d = selectedDates[0];
+                document.getElementById('submitted_date_iso').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+                instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+            }
+        },
+        onReady: function (selectedDates, dateStr, instance) { updateYear(instance); },
+        onMonthChange: function (selectedDates, dateStr, instance) { updateYear(instance); },
+        onYearChange: function (selectedDates, dateStr, instance) { updateYear(instance); }
+    });
 };
 
 // ==========================================
 // ฟังก์ชันคำนวณวันลา
 // ==========================================
-window.calculateDays = function() {
+window.calculateDays = function () {
     const startIso = $('#start_date_iso').val();
     const endIso = $('#end_date_iso').val();
     const type = $('#leave_type').val();
-    const days = window.calculateDaysByType(startIso, endIso, type);
+    const isHalfDay = $('#is_half_day').is(':checked');
+    const days = window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
     $('#calc_days').text(days);
+
+    // ✅ จัดการช่องอัปโหลดหลักฐาน (ถ้ามี)
+    const wrapper = $('#evidence_upload_wrapper');
+    if (wrapper.length) {
+        const fileInput = $('#evidence_file');
+        if (days >= 3) {
+            wrapper.removeClass('hidden');
+            fileInput.prop('required', true);
+        } else {
+            wrapper.addClass('hidden');
+            fileInput.prop('required', false);
+            fileInput.val('');
+        }
+    }
 };
 
 // ==========================================
 // อัปเดตคำแนะนำตามประเภทการลา
 // ==========================================
-window.updateLeaveGuide = function() {
+window.updateLeaveGuide = function () {
     const type = $('#leave_type').val();
     const prefix = window.currentProfile?.prefix || '';
     const gender = window.getGenderFromPrefix(prefix);
@@ -176,7 +201,7 @@ window.updateLeaveGuide = function() {
 // ==========================================
 // โหลดข้อมูลการลา
 // ==========================================
-window.loadLeaveData = async function() {
+window.loadLeaveData = async function () {
     const { data, error } = await db.from('leave_requests')
         .select('*')
         .eq('personnel_id', window.currentUser.id)
@@ -184,10 +209,9 @@ window.loadLeaveData = async function() {
     if (error) { console.error(error); return; }
     window.allMyLeaves = data || [];
 
-    // กรองเฉพาะปีงบประมาณและรอบที่อนุมัติแล้วเท่านั้น
-    const approvedLeaves = window.allMyLeaves.filter(l => 
-        l.fiscal_year === window.systemSettings.fiscal_year && 
-        l.eval_round === window.systemSettings.eval_round && 
+    const approvedLeaves = window.allMyLeaves.filter(l =>
+        l.fiscal_year === window.systemSettings.fiscal_year &&
+        l.eval_round === window.systemSettings.eval_round &&
         l.status === 'อนุมัติ'
     );
 
@@ -217,7 +241,7 @@ window.loadLeaveData = async function() {
 // ==========================================
 // แสดงตาราง
 // ==========================================
-window.renderTable = function() {
+window.renderTable = function () {
     if ($.fn.DataTable.isDataTable('#leaveTable')) $('#leaveTable').DataTable().destroy();
     const tbody = document.getElementById('tb-leave');
     if (window.allMyLeaves.length > 0) {
@@ -225,9 +249,9 @@ window.renderTable = function() {
             const createDate = new Date(l.created_at).toLocaleDateString('th-TH', {
                 year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             });
-            const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0])+543}`; };
+            const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
             const isRejected = l.status === 'ไม่อนุมัติ';
-            const displayDays = isRejected ? 0 : l.total_days;
+            const displayDays = isRejected ? 0 : (l.is_half_day ? 0.5 : l.total_days);
             const displayTimes = isRejected ? 0 : 1;
             let statusHtml = '';
             if (l.status === 'รออนุมัติ') {
@@ -251,6 +275,7 @@ window.renderTable = function() {
                 btnHtml += `<button onclick="window.editLeave('${l.id}')" class="text-yellow-600 hover:text-yellow-700 bg-yellow-50 px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไขใบลา"><i class="fas fa-pen text-xs"></i></button>
                             <button onclick="window.deleteLeave('${l.id}')" class="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg transition shadow-sm" title="ลบใบลา"><i class="fas fa-trash text-xs"></i></button>`;
             }
+            let halfDayIcon = l.is_half_day ? ' <i class="fas fa-clock text-amber-500" title="ลาครึ่งวัน"></i>' : '';
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-4 text-center text-slate-500 text-xs" data-order="${new Date(l.created_at).getTime()}">${createDate} น.</td>
                 <td class="py-3 px-4 font-bold ${typeClass}">${l.type}</td>
@@ -274,29 +299,43 @@ window.renderTable = function() {
 // ==========================================
 // เปิด Modal
 // ==========================================
-window.openLeaveModal = function() {
+window.openLeaveModal = function () {
     document.getElementById('leaveForm').reset();
     $('#leave_id').val('');
-    $('#start_date_iso, #end_date_iso').val('');
+    $('#start_date_iso, #end_date_iso, #submitted_date_iso').val('');
     $('#calc_days').text('0');
     $('#contact_address, #phone_number').val('');
+    $('#is_half_day').prop('checked', false);
     window.editingOriginalLeaveType = null;
-    if ($('#start_date')[0] && $('#start_date')[0]._flatpickr) $('#start_date')[0]._flatpickr.clear();
-    if ($('#end_date')[0] && $('#end_date')[0]._flatpickr) $('#end_date')[0]._flatpickr.clear();
-    $('#leave_guide').addClass('hidden');
+
+    // ✅ จัดการช่องอัปโหลด (ถ้ามี)
+    $('#evidence_upload_wrapper').addClass('hidden');
+    $('#evidence_file').val('');
+    $('#existing_evidence').addClass('hidden');
+
+    // ล้าง flatpickr
+    const fpSubmitted = $('#submitted_date')[0]?._flatpickr;
+    if (fpSubmitted) fpSubmitted.clear();
+
+    const fpStart = $('#start_date')[0]?._flatpickr;
+    const fpEnd = $('#end_date')[0]?._flatpickr;
+    if (fpStart) fpStart.clear();
+    if (fpEnd) fpEnd.clear();
+
     $('#leaveModal').removeClass('hidden').addClass('flex');
 };
 
-window.closeLeaveModal = function() {
+window.closeLeaveModal = function () {
     $('#leaveModal').addClass('hidden').removeClass('flex');
 };
 
 // ==========================================
 // แก้ไขใบลา
 // ==========================================
-window.editLeave = function(id) {
+window.editLeave = function (id) {
     const l = window.allMyLeaves.find(item => item.id === id);
     if (!l) return;
+
     $('#leave_id').val(l.id);
     $('#leave_type').val(l.type);
     $('#leave_reason').val(l.reason);
@@ -305,17 +344,56 @@ window.editLeave = function(id) {
     $('#calc_days').text(l.total_days);
     $('#contact_address').val(l.contact_address || '');
     $('#phone_number').val(l.phone_number || '');
+    $('#is_half_day').prop('checked', l.is_half_day || false);
     window.editingOriginalLeaveType = l.type;
+
     const setFp = (iso, idDisplay) => {
         if (!iso) return;
         const parts = iso.split('-');
         const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
         const fp = $(`#${idDisplay}`)[0]._flatpickr;
-        fp.setDate(new Date(y, m-1, d), false);
-        $(`#${idDisplay}`).val(`${String(d).padStart(2,'0')}/${String(m).padStart(2,'0')}/${y+543}`);
+        if (fp) {
+            fp.setDate(new Date(y, m - 1, d), false);
+            $(`#${idDisplay}`).val(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`);
+        }
     };
     setFp(l.start_date, 'start_date');
     setFp(l.end_date, 'end_date');
+
+    if (l.submitted_date) {
+        setFp(l.submitted_date, 'submitted_date');
+    } else {
+        const fp = $('#submitted_date')[0]?._flatpickr;
+        if (fp) fp.clear();
+        $('#submitted_date_iso').val('');
+    }
+
+    // ✅ จัดการช่องอัปโหลด (ถ้ามี)
+    const wrapper = $('#evidence_upload_wrapper');
+    const fileInput = $('#evidence_file');
+    const existingDiv = $('#existing_evidence');
+    const existingName = $('#existing_evidence_name');
+
+    if (wrapper.length) {
+        if (l.total_days >= 3) {
+            wrapper.removeClass('hidden');
+            fileInput.prop('required', true);
+            if (l.attachment_file_id) {
+                existingDiv.removeClass('hidden');
+                existingName.text(`ไฟล์หลักฐาน ID: ${l.attachment_file_id}`);
+                existingDiv.data('fileId', l.attachment_file_id);
+            } else {
+                existingDiv.addClass('hidden');
+            }
+        } else {
+            wrapper.addClass('hidden');
+            fileInput.prop('required', false);
+            fileInput.val('');
+            existingDiv.addClass('hidden');
+        }
+    }
+
+    window.calculateDays();
     window.updateLeaveGuide();
     $('#leaveModal').removeClass('hidden').addClass('flex');
 };
@@ -323,27 +401,72 @@ window.editLeave = function(id) {
 // ==========================================
 // บันทึกใบลา
 // ==========================================
-window.saveLeave = async function(e) {
+window.saveLeave = async function (e) {
     e.preventDefault();
     const id = $('#leave_id').val();
     const type = $('#leave_type').val();
     const reason = $('#leave_reason').val().trim();
     const startDate = $('#start_date_iso').val();
     const endDate = $('#end_date_iso').val();
-    const totalDays = parseInt($('#calc_days').text());
+    const totalDays = parseFloat($('#calc_days').text());
     const contactAddress = $('#contact_address').val().trim();
     const phoneNumber = $('#phone_number').val().trim();
+    const isHalfDay = $('#is_half_day').is(':checked');
+    const submittedDateIso = $('#submitted_date_iso').val() || null;
+
     if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
+
+    // ✅ จัดการไฟล์ (ถ้ามี)
+    let attachmentFileId = null;
+    const fileInput = $('#evidence_file')[0];
+    const existingDiv = $('#existing_evidence');
+    const existingFileId = existingDiv.data('fileId') || null;
+
+    if (totalDays >= 3) {
+        if (fileInput && fileInput.files && fileInput.files.length > 0) {
+            const file = fileInput.files[0];
+            if (file.size > 5 * 1024 * 1024) {
+                Swal.fire('ไฟล์ใหญ่เกินไป', 'กรุณาอัปโหลดไฟล์ขนาดไม่เกิน 5MB', 'warning');
+                return;
+            }
+            try {
+                attachmentFileId = await window.uploadEvidenceFile(file, systemSettings.evidence_folder_id, systemSettings.gas_url);
+            } catch (err) {
+                Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
+                return;
+            }
+        } else if (existingFileId) {
+            attachmentFileId = existingFileId;
+        } else {
+            Swal.fire('แจ้งเตือน', 'กรุณาอัปโหลดไฟล์หลักฐาน (จำเป็นสำหรับการลา 3 วันขึ้นไป)', 'warning');
+            return;
+        }
+    }
+
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     const payload = {
-        personnel_id: window.currentUser.id, type, reason, start_date: startDate, end_date: endDate, total_days: totalDays,
-        contact_address: contactAddress, phone_number: phoneNumber,
-        fiscal_year: window.systemSettings.fiscal_year, eval_round: window.systemSettings.eval_round,
-        status: 'รออนุมัติ', reject_comment: null
+        personnel_id: window.currentUser.id,
+        type,
+        reason,
+        start_date: startDate,
+        end_date: endDate,
+        total_days: totalDays,
+        contact_address: contactAddress,
+        phone_number: phoneNumber,
+        fiscal_year: window.systemSettings.fiscal_year,
+        eval_round: window.systemSettings.eval_round,
+        status: 'รออนุมัติ',
+        reject_comment: null,
+        attachment_file_id: attachmentFileId,
+        pdf_url: null,
+        is_half_day: isHalfDay,
+        submitted_date: submittedDateIso
     };
+
     try {
         if (id) {
-            const { error } = await db.from('leave_requests').update({ ...payload, pdf_url: null, updated_at: new Date().toISOString() }).eq('id', id);
+            const { error } = await db.from('leave_requests').update(payload).eq('id', id);
             if (error) throw error;
         } else {
             const { error } = await db.from('leave_requests').insert([payload]);
@@ -353,21 +476,23 @@ window.saveLeave = async function(e) {
         window.closeLeaveModal();
         await window.loadLeaveData();
         Swal.fire({ icon: 'success', title: id ? 'แก้ไขใบลาเรียบร้อยแล้ว' : 'ส่งใบลาเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+    } catch (err) {
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
 };
 
 // ==========================================
 // ลบใบลา
 // ==========================================
-window.deleteLeave = async function(id) {
+window.deleteLeave = async function (id) {
     const { isConfirmed } = await Swal.fire({ title: 'ยกเลิกใบลา?', text: "ต้องการยกเลิกและลบรายการลานี้ใช่หรือไม่?", icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ใช่, ลบเลย' });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
         const { error } = await db.from('leave_requests').delete().eq('id', id);
-        if (!error) { 
+        if (!error) {
             await window.logUserAction(`ลบใบลา ID: ${id}`, 'leave');
-            await window.loadLeaveData(); 
-            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); 
+            await window.loadLeaveData();
+            Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
         }
         else Swal.fire('ผิดพลาด', error.message, 'error');
     }
@@ -376,9 +501,9 @@ window.deleteLeave = async function(id) {
 // ==========================================
 // ส่งออก Excel
 // ==========================================
-window.exportExcel = function() {
+window.exportExcel = function () {
     if (window.allMyLeaves.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
-    const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0])+543}`; };
+    const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
     const exportData = window.allMyLeaves.map(l => ({
         'วันที่ส่งใบลา': new Date(l.created_at).toLocaleDateString('th-TH'),
         'ปีงบประมาณ': l.fiscal_year, 'รอบประเมิน': l.eval_round, 'ประเภทการลา': l.type,
@@ -389,7 +514,7 @@ window.exportExcel = function() {
         'สถานะ': l.status, 'เหตุผล (กรณีไม่อนุมัติ)': l.reject_comment || ''
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
-    ws['!cols'] = [{ wch:15 }, { wch:12 }, { wch:12 }, { wch:20 }, { wch:15 }, { wch:15 }, { wch:12 }, { wch:12 }, { wch:35 }, { wch:35 }, { wch:15 }, { wch:15 }, { wch:30 }];
+    ws['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ประวัติการลา");
     XLSX.writeFile(wb, `ประวัติการลา_${window.currentProfile.first_name}.xlsx`);
@@ -399,7 +524,7 @@ window.exportExcel = function() {
 // ==========================================
 // แสดงเหตุผลที่ไม่อนุมัติ
 // ==========================================
-window.showRejectComment = function(comment) {
+window.showRejectComment = function (comment) {
     Swal.fire({
         icon: 'info',
         title: 'เหตุผลที่ไม่อนุมัติ',
@@ -412,14 +537,14 @@ window.showRejectComment = function(comment) {
 // ==========================================
 // ฟังก์ชันสลับโหมด (เรียกโดยปุ่มใน HTML)
 // ==========================================
-window.toggleAdminMode = function() {
+window.toggleAdminMode = function () {
     window.switchToAdminMode();
 };
 
 // ==========================================
 // ดูลายเซ็น (read-only — ดึงจาก core_personnel.signature_file_id)
 // ==========================================
-window.viewSignature = async function() {
+window.viewSignature = async function () {
     $('#signatureModal').removeClass('hidden').addClass('flex');
     $('#sig-loading').removeClass('hidden').addClass('flex');
     $('#sig-img').addClass('hidden');
@@ -448,8 +573,8 @@ window.viewSignature = async function() {
     }
 };
 
-window.closeSignatureModal = function() {
+window.closeSignatureModal = function () {
     $('#signatureModal').addClass('hidden').removeClass('flex');
 };
 
-console.log('✅ leave_teacher.js loaded (using window object, fixed flatpickr updateYear)');
+console.log('✅ leave_teacher.js loaded (with jQuery safe element handling)');
