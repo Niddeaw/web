@@ -1,12 +1,11 @@
 /* =========================================================
    WRK System - Clean & Modern Theme
+   ใช้ร่วมกันทุกโมดูล (evaluation, finance, report, etc.)
 ========================================================= */
 
 :root {
     --color-bg-body: #f1f5f9;
-    /* พื้นหลังหลักสีเทาอ่อน */
     --color-surface: #ffffff;
-    /* พื้นหลังการ์ดสีขาว */
     --color-border: #e2e8f0;
     --color-text-main: #1e293b;
     --color-text-muted: #64748b;
@@ -14,6 +13,10 @@
     --color-primary-hover: #1C69A8;
     --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
 }
+
+/* =========================================================
+   Base
+========================================================= */
 
 body {
     background-color: var(--color-bg-body);
@@ -23,9 +26,143 @@ body {
 }
 
 /* =========================================================
+   Tom Select - Unified Styles (ใช้ร่วมกันทุกหน้า)
+========================================================= */
+
+.ts-wrapper {
+    position: relative !important;
+    z-index: 10 !important;
+    width: 100%;
+}
+
+.ts-wrapper .ts-control {
+    background-color: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    color: var(--color-text-main);
+    border-radius: 0.875rem;
+    min-height: 2.75rem;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-family: 'Anuphan', sans-serif;
+    z-index: 11 !important;
+    position: relative !important;
+}
+
+.ts-wrapper.focus .ts-control {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(33, 188, 255, 0.15);
+    outline: none;
+}
+
+.ts-dropdown {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    margin-top: 0.25rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    color: var(--color-text-main);
+    z-index: 9999 !important;
+    max-height: 260px;
+    overflow-y: auto;
+}
+
+.ts-dropdown .option {
+    color: var(--color-text-main);
+    padding: 0.55rem 1rem;
+    font-size: 0.9rem;
+}
+
+.ts-dropdown .option.active {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+.ts-dropdown .option.selected {
+    background-color: var(--color-bg-body);
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.ts-wrapper .ts-control>.item {
+    color: var(--color-text-muted);
+}
+
+.ts-wrapper .ts-control::after {
+    border-color: var(--color-text-muted) transparent transparent transparent;
+    border-width: 5px 5px 0 5px;
+}
+
+.ts-wrapper .ts-control .clear-button {
+    color: var(--color-text-muted);
+    transition: color 0.2s;
+}
+
+.ts-wrapper .ts-control .clear-button:hover {
+    color: #ef4444;
+}
+
+/* =========================================================
+   Tom Select - Modal Overrides (z-index สูงกว่า Modal)
+========================================================= */
+
+#recordScholarshipModal .ts-wrapper .ts-dropdown,
+#applicantListModal .ts-wrapper .ts-dropdown,
+#recipientListModal .ts-wrapper .ts-dropdown,
+#admin-modal .ts-wrapper .ts-dropdown,
+#evalDetailModal .ts-wrapper .ts-dropdown,
+#evaluationModal .ts-wrapper .ts-dropdown,
+.modal .ts-wrapper .ts-dropdown {
+    z-index: 99999 !important;
+}
+
+#recordScholarshipModal .ts-wrapper,
+#applicantListModal .ts-wrapper,
+#recipientListModal .ts-wrapper,
+#admin-modal .ts-wrapper,
+#evalDetailModal .ts-wrapper,
+#evaluationModal .ts-wrapper,
+.modal .ts-wrapper {
+    z-index: 50 !important;
+}
+
+/* =========================================================
+   Tom Select - หน้าเพิ่มแอดมิน (amber theme)
+========================================================= */
+
+#admin_user_select + .ts-wrapper .ts-control {
+    border-radius: 0.5rem !important;
+    border-color: #d1d5db !important;
+    padding: 0.625rem 1rem !important;
+    min-height: 44px !important;
+    background-color: white !important;
+}
+
+#admin_user_select + .ts-wrapper .ts-control:focus {
+    border-color: #f59e0b !important;
+    box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.1) !important;
+}
+
+#admin_user_select + .ts-wrapper .ts-dropdown {
+    border-radius: 0.5rem !important;
+    border-color: #d1d5db !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+}
+
+#admin_user_select + .ts-wrapper .ts-dropdown .option.active {
+    background-color: #fef3c7 !important;
+    color: #92400e !important;
+}
+
+#admin_user_select + .ts-wrapper .ts-dropdown .option:hover {
+    background-color: #fffbeb !important;
+}
+
+/* =========================================================
    UI Components
 ========================================================= */
-/* Glass / Card Components - ไม่ override .bg-white/.bg-slate-800 เพราะทำให้ปุ่มสีต่างๆ ถูกบังสี */
+
 .glass,
 .card {
     background-color: var(--color-surface) !important;
@@ -34,30 +171,21 @@ body {
     transition: background-color 0.3s, border-color 0.3s, box-shadow 0.3s;
 }
 
-/* ค้นหาและแก้ไขคลาส .glass-panel */
 .glass-panel {
-    /* เปลี่ยนจาก rgba แบบโปร่งใส เป็นสีทึบ */
     background-color: var(--color-surface) !important;
-
-    /* ยกเลิกเอฟเฟกต์เบลอที่ทำให้มองทะลุได้ */
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
-
-    /* เพิ่มเงาเล็กน้อยเพื่อให้เห็นขอบเขตชัดเจนเมื่อเลื่อนทับเนื้อหา */
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-
-    /* มั่นใจว่าอยู่ชั้นบนสุด */
     z-index: 50;
 }
 
-/* กรณีใช้ Navbar ที่เป็น sticky ให้พื้นหลังทึบด้วย */
 nav.sticky,
 header.sticky {
     background-color: var(--color-surface) !important;
     opacity: 1 !important;
 }
 
-/* Sidebar Styles */
+/* Sidebar */
 #sidebar {
     background-color: var(--color-surface);
     border-right: 1px solid var(--color-border);
@@ -71,7 +199,6 @@ header.sticky {
     color: var(--color-text-muted);
 }
 
-/* Navigation Buttons in Sidebar only */
 #sidebar nav button {
     color: var(--color-text-muted) !important;
     transition: all 0.2s ease;
@@ -83,7 +210,6 @@ header.sticky {
 }
 
 #sidebar nav button.bg-blue-600 {
-    /* Active state */
     background-color: var(--color-primary) !important;
     color: #ffffff !important;
     box-shadow: 0 4px 10px rgba(33, 188, 255, 0.2) !important;
@@ -145,7 +271,10 @@ table.dataTable.display>tbody>tr:hover>* {
     opacity: 0.5;
 }
 
-/* ── MODAL TABS ── */
+/* =========================================================
+   Modal & Tabs
+========================================================= */
+
 .tab-pill {
     padding: .5rem 1.25rem;
     border-radius: 9999px;
@@ -175,16 +304,379 @@ table.dataTable.display>tbody>tr:hover>* {
 @keyframes fadeUp {
     from {
         opacity: 0;
-        transform: translateY(6px)
+        transform: translateY(6px);
     }
-
     to {
         opacity: 1;
-        transform: translateY(0)
+        transform: translateY(0);
     }
 }
 
-/* ── FORM FIELD ── */
+/* =========================================================
+   Element Section (กรรมการตั้งค่า - ใช้ใน evaluation)
+========================================================= */
+
+.element-section {
+    background: #f8fafc;
+    border-radius: 0.75rem;
+    padding: 1rem;
+    border: 1px solid #e2e8f0;
+}
+
+.element-section-title {
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* =========================================================
+   Sub-items Grid (ใช้ใน evaluation)
+========================================================= */
+
+.sub-items-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+/* ข้อความยาวในองค์ประกอบที่ 2 และ 3 */
+#element2_subitems,
+#element3_subitems {
+    grid-template-columns: 1fr;
+}
+
+#element2_subitems .sub-item-label,
+#element3_subitems .sub-item-label {
+    grid-column: 1 / -1;
+    font-size: 0.85rem;
+    padding: 0.5rem 0.75rem;
+    align-items: flex-start;
+}
+
+#element2_subitems .sub-item-label span,
+#element3_subitems .sub-item-label span {
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+/* =========================================================
+   Sub-item Label (ใช้ใน evaluation)
+========================================================= */
+
+.sub-item-label {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    font-size: 0.8rem;
+    color: #334155;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.375rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    line-height: 1.4;
+}
+
+.sub-item-label:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.sub-item-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #8b5cf6;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.sub-item-label span {
+    word-break: break-word;
+}
+
+/* =========================================================
+   Select All Button (ใช้ใน evaluation)
+========================================================= */
+
+.select-all-btn {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.75rem;
+    border-radius: 0.375rem;
+    border: 1px solid #d1d5db;
+    background: white;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.select-all-btn:hover {
+    background: #f1f5f9;
+}
+
+.select-all-btn.active {
+    background: #8b5cf6;
+    color: white;
+    border-color: #8b5cf6;
+}
+
+/* =========================================================
+   Committee & Department Styles (ใช้ใน evaluation)
+========================================================= */
+
+.committee-group-card {
+    transition: all 0.2s ease;
+}
+
+.committee-group-card:hover {
+    border-color: #8b5cf6;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+.committee-member-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 0.375rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    margin: 0.15rem;
+}
+
+.committee-member-pill .remove-btn {
+    cursor: pointer;
+    color: #ef4444;
+    font-size: 0.75rem;
+    margin-left: 0.25rem;
+    transition: color 0.15s ease;
+}
+
+.committee-member-pill .remove-btn:hover {
+    color: #dc2626;
+}
+
+.selected-committee-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+}
+
+.selected-committee-display .pill {
+    background: #e0e7ff;
+    color: #4338ca;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+.dept-checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.6rem;
+    border-radius: 0.375rem;
+    background: white;
+    border: 1px solid #e2e8f0;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.dept-checkbox-label:hover {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+}
+
+.dept-checkbox-label input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #8b5cf6;
+    flex-shrink: 0;
+}
+
+.dept-group-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 0.05em;
+    padding: 0.25rem 0;
+    border-bottom: 1px dashed #e2e8f0;
+    margin-top: 0.25rem;
+}
+
+.dept-group-label:first-of-type {
+    margin-top: 0;
+}
+
+/* =========================================================
+   Edit Mode (ใช้ใน evaluation)
+========================================================= */
+
+.edit-mode-badge {
+    background: #fbbf24;
+    color: #92400e;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.btn-cancel-edit {
+    background: #f3f4f6;
+    color: #4b5563;
+    padding: 0.5rem 1rem;
+    border-radius: 0.75rem;
+    font-weight: 600;
+    font-size: 0.875rem;
+    border: 1px solid #d1d5db;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.btn-cancel-edit:hover {
+    background: #e5e7eb;
+}
+
+/* =========================================================
+   Modal Detail Styles (ใช้ใน evaluation)
+========================================================= */
+
+#evalDetailModal .detail-tab-content {
+    animation: fadeSlideIn 0.3s ease-out;
+}
+
+@keyframes fadeSlideIn {
+    0% {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#evalDetailModal .detail-tab-btn.active {
+    background: #2563eb !important;
+    color: white !important;
+}
+
+#evalDetailModal .detail-tab-btn:not(.active):hover {
+    background: #e5e7eb !important;
+}
+
+#evalDetailModal .overflow-y-auto::-webkit-scrollbar {
+    width: 6px;
+}
+
+#evalDetailModal .overflow-y-auto::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+#evalDetailModal .overflow-y-auto::-webkit-scrollbar-thumb {
+    background: #c1c7cd;
+    border-radius: 3px;
+}
+
+#evalDetailModal .overflow-y-auto::-webkit-scrollbar-thumb:hover {
+    background: #a0a7ae;
+}
+
+/* =========================================================
+   Status Badges (ใช้ใน evaluation)
+========================================================= */
+
+.status-badge-complete {
+    background: #d1fae5;
+    color: #065f46;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.status-badge-partial {
+    background: #fef3c7;
+    color: #92400e;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.status-badge-pending {
+    background: #f3f4f6;
+    color: #6b7280;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.status-badge-none {
+    background: #fef2f2;
+    color: #991b1b;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+/* =========================================================
+   Badges (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    padding: .25rem .7rem;
+    border-radius: 9999px;
+    font-size: .7rem;
+    font-weight: 700;
+}
+
+.badge-green {
+    background: #dcfce7;
+    color: #15803d;
+}
+
+.badge-orange {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.badge-red {
+    background: #fee2e2;
+    color: #b91c1c;
+}
+
+.badge-blue {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+.badge-gray {
+    background: #f1f5f9;
+    color: #64748b;
+}
+
+/* =========================================================
+   Field & Form (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
 .field-group {
     display: flex;
     flex-direction: column;
@@ -266,7 +758,10 @@ select.field-input {
     appearance: auto;
 }
 
-/* ── SECTION HEADER ── */
+/* =========================================================
+   Section Header (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
 .section-header {
     font-size: .75rem;
     font-weight: 700;
@@ -281,7 +776,10 @@ select.field-input {
     gap: .5rem;
 }
 
-/* Avatar ring */
+/* =========================================================
+   Avatar (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
 .avatar-ring {
     width: 120px;
     height: 120px;
@@ -306,191 +804,48 @@ select.field-input {
     object-fit: cover;
 }
 
-/* Badge */
-.badge {
-    display: inline-flex;
-    align-items: center;
-    gap: .3rem;
-    padding: .25rem .7rem;
-    border-radius: 9999px;
-    font-size: .7rem;
-    font-weight: 700;
-}
-
-.badge-green {
-    background: #dcfce7;
-    color: #15803d;
-}
-
-.badge-orange {
-    background: #fff7ed;
-    color: #c2410c;
-}
-
-.badge-red {
-    background: #fee2e2;
-    color: #b91c1c;
-}
-
-.badge-blue {
-    background: #eff6ff;
-    color: #1d4ed8;
-}
-
-.badge-gray {
-    background: #f1f5f9;
-    color: #64748b;
-}
-
-/* ──────────── TOM SELECT OVERRIDES ──────────── */
-/* กล่องควบคุม (ตัว input) */
-.ts-wrapper .ts-control {
-    background-color: var(--color-surface);
-    border: 1.5px solid var(--color-border);
-    color: var(--color-text-main);
-    border-radius: 0.875rem;
-    /* ให้มนเท่ากับ .field-input */
-    min-height: 2.75rem;
-    display: flex;
-    align-items: center;
-    padding: 0.5rem 0.75rem;
-    transition: border-color 0.2s, box-shadow 0.2s;
-    font-family: 'Anuphan', sans-serif;
-}
-
-/* ตอน focus */
-.ts-wrapper.focus .ts-control {
-    border-color: var(--color-primary);
-    box-shadow: 0 0 0 3px rgba(33, 188, 255, 0.15);
-    outline: none;
-}
-
-/* Dropdown list */
-.ts-dropdown {
-    background-color: var(--color-surface);
-    border: 1px solid var(--color-border);
-    border-radius: 0.75rem;
-    margin-top: 0.25rem;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-    color: var(--color-text-main);
-    /* ✅ แก้ไข: ลด z-index ไม่ให้บังเนื้อหา */
-    z-index: 100 !important;
-    max-height: 260px;
-    overflow-y: auto;
-}
-
-/* ✅ เพิ่ม: ควบคุม z-index ของ wrapper */
-.ts-wrapper {
-    position: relative !important;
-    z-index: 10 !important;
-}
-
-/* ✅ เพิ่ม: ควบคุม control */
-.ts-wrapper .ts-control {
-    z-index: 11 !important;
-    position: relative !important;
-}
-
-/* แต่ละตัวเลือก */
-.ts-dropdown .option {
-    color: var(--color-text-main);
-    padding: 0.55rem 1rem;
-    font-size: 0.9rem;
-}
-
-/* ตัวเลือกที่กำลัง hover */
-.ts-dropdown .option.active {
-    background-color: var(--color-primary);
-    color: white;
-}
-
-/* ตัวเลือกที่ถูกเลือกแล้ว */
-.ts-dropdown .option.selected {
-    background-color: var(--color-bg-body);
-    color: var(--color-primary);
-    font-weight: 600;
-}
-
-/* Placeholder */
-.ts-wrapper .ts-control>.item {
-    color: var(--color-text-muted);
-}
-
-/* ลูกศร dropdown */
-.ts-wrapper .ts-control::after {
-    border-color: var(--color-text-muted) transparent transparent transparent;
-    border-width: 5px 5px 0 5px;
-}
-
-/* ปุ่ม clear (X) */
-.ts-wrapper .ts-control .clear-button {
-    color: var(--color-text-muted);
-    transition: color 0.2s;
-}
-
-.ts-wrapper .ts-control .clear-button:hover {
-    color: #ef4444;
-}
-
-/* ✅ เพิ่ม: กรณี TomSelect อยู่ใน Modal ให้ z-index สูงกว่า Modal */
-#recordScholarshipModal .ts-wrapper .ts-dropdown,
-#applicantListModal .ts-wrapper .ts-dropdown,
-#recipientListModal .ts-wrapper .ts-dropdown,
-#admin-modal .ts-wrapper .ts-dropdown {
-    z-index: 99999 !important;
-}
-
-/* ✅ เพิ่ม: กรณี Modal ใช้ TomSelect ให้ wrapper อยู่ในระดับที่เหมาะสม */
-#recordScholarshipModal .ts-wrapper,
-#applicantListModal .ts-wrapper,
-#recipientListModal .ts-wrapper,
-#admin-modal .ts-wrapper {
-    z-index: 50 !important;
-}
-
-/* แก้ปัญหา Dropdown ของ Tom Select โดนการ์ดหรือส่วนประกอบอื่นบังบนหน้าหลัก */
-.ts-wrapper .ts-dropdown {
-    z-index: 9999 !important;
-}
-
-/* หากตัว Wrapper ของ Tom Select ถูกบีบจากคอนเทนเนอร์ ให้ยกตัวมันขึ้นมาด้วย */
-.ts-wrapper {
-    position: relative;
-    z-index: 50;
-}
+/* =========================================================
+   Canvas & Stepper (ใช้ร่วมกันทุกระบบ)
+========================================================= */
 
 canvas {
     max-width: 100%;
 }
 
-/* Stepper Colors - แตกต่างกันชัดเจน */
+/* Stepper Colors - ใช้ใน Wizard */
 .step-1.active {
     background-color: #2563EB !important;
     color: white !important;
 }
 
-/* Blue */
 .step-2.active {
     background-color: #059669 !important;
     color: white !important;
 }
 
-/* Emerald */
 .step-3.active {
     background-color: #D97706 !important;
     color: white !important;
 }
 
-/* Amber */
 .step-4.active {
     background-color: #7C3AED !important;
     color: white !important;
 }
 
-/* Violet */
 .step-5.active {
     background-color: #DB2777 !important;
     color: white !important;
+}
+
+/* =========================================================
+   Responsive (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
+@media (max-width: 640px) {
+    .sub-items-grid {
+        grid-template-columns: 1fr;
+    }
 }
 
 @media (max-width: 767px) {
@@ -505,8 +860,57 @@ canvas {
         transform: translateX(0);
     }
 
-    /* Desktop md:flex ไม่ทำงานบน mobile ให้ main content เต็มจอ */
     main {
         width: 100%;
     }
+}
+
+/* =========================================================
+   Utility - Extra (ใช้ร่วมกันทุกระบบ)
+========================================================= */
+
+/* ✅ ซ่อน scrollbar แต่ยังสามารถเลื่อนได้ */
+.scrollbar-hide::-webkit-scrollbar {
+    display: none;
+}
+.scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* ✅ Text truncate */
+.truncate-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.truncate-3 {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+/* ✅ Transition shortcuts */
+.transition-fast {
+    transition: all 0.15s ease;
+}
+.transition-smooth {
+    transition: all 0.3s ease;
+}
+.transition-slow {
+    transition: all 0.5s ease;
+}
+
+/* ✅ Shadow variants */
+.shadow-soft {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+.shadow-medium {
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+.shadow-strong {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }

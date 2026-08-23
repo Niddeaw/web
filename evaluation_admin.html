@@ -7,6 +7,11 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Tom Select CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+    <!-- Tom Select JS -->
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
 
 <body class="bg-slate-50 dark:bg-slate-900 text-slate-800 transition-colors h-screen overflow-hidden flex flex-col">
@@ -29,9 +34,15 @@
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition-colors shadow-md flex items-center gap-2">
                 <i class="fa-solid fa-arrow-left"></i> กลับหน้าประเมินตนเอง
             </button>
-            <button onclick="window.location.replace('index.html')"
-                class="text-sm font-bold text-gray-500 hover:text-red-600 transition-colors">
-                <i class="fa-solid fa-arrow-right-from-bracket mr-1"></i> กลับหน้าหลัก
+            <button onclick="window.location.href='index.html'"
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
+            </button>
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
+                title="ออกจากระบบ">
+                <i class="fas fa-sign-out-alt"></i>
             </button>
         </div>
     </header>
@@ -105,59 +116,380 @@
                     <h3 class="font-bold text-lg mb-4"><i
                             class="fa-solid fa-users-gear text-emerald-500 mr-2"></i>แต่งตั้งกรรมการประเมิน</h3>
 
+                    <!-- ฟอร์มสร้าง/แก้ไขชุดคณะกรรมการ -->
                     <form id="committeeForm" class="space-y-4">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">เลือกรอบการประเมิน</label>
-                                <select id="admin_eval_round" required
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                    <option value="">-- เลือกรอบ --</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกรรมการ (หลายคน)</label>
-                                <select id="admin_committee" multiple required
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500 h-32">
-                                    <option value="">-- เลือกกรรมการ --</option>
-                                </select>
-                                <p class="text-xs text-gray-400 mt-1">กด Ctrl + คลิก เพื่อเลือกหลายคน</p>
-                            </div>
+
+                        <!-- แสดงสถานะแก้ไข -->
+                        <div id="editModeIndicator" style="display:none;"
+                            class="mb-3 p-3 bg-amber-50 rounded-xl border border-amber-200 flex flex-wrap justify-between items-center gap-2">
+                            <span class="edit-mode-badge"><i class="fa-solid fa-pen"></i> กำลังแก้ไข</span>
+                            <span id="editGroupNameDisplay" class="text-sm font-medium text-amber-800"></span>
+                            <button type="button" onclick="cancelEdit()" class="btn-cancel-edit">
+                                <i class="fa-solid fa-times"></i> ยกเลิก
+                            </button>
                         </div>
+
+                        <!-- เลือกรอบการประเมิน -->
                         <div>
-                            <label
-                                class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระที่ถูกประเมิน</label>
-                            <select id="admin_department" required
+                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกรอบการประเมิน <span
+                                    class="text-red-500">*</span></label>
+                            <select id="admin_eval_round" required
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                <option value="">-- เลือกกลุ่มสาระ --</option>
-                                <option value="คณิตศาสตร์">คณิตศาสตร์</option>
-                                <option value="ภาษาไทย">ภาษาไทย</option>
-                                <option value="วิทยาศาสตร์">วิทยาศาสตร์</option>
-                                <option value="สังคมศึกษา">สังคมศึกษา</option>
-                                <option value="ภาษาอังกฤษ">ภาษาอังกฤษ</option>
-                                <option value="สุขศึกษา">สุขศึกษา</option>
-                                <option value="ศิลปะ">ศิลปะ</option>
-                                <option value="การงานอาชีพ">การงานอาชีพ</option>
-                                <option value="คอมพิวเตอร์">คอมพิวเตอร์</option>
+                                <option value="">-- เลือกรอบ --</option>
                             </select>
                         </div>
+
+                        <!-- ชื่อชุดคณะกรรมการ -->
                         <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">โหมดการให้คะแนน</label>
-                            <select id="admin_scoring_mode"
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                ชื่อชุดคณะกรรมการ <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" id="committee_group_name"
+                                placeholder="เช่น คณะกรรมการประเมินครั้งที่ 1/2569"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                <option value="average">เฉลี่ยคะแนนจากกรรมการทุกคน</option>
-                                <option value="max">ใช้คะแนนสูงสุด</option>
-                                <option value="min">ใช้คะแนนต่ำสุด</option>
-                            </select>
                         </div>
-                        <button type="submit"
-                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
-                            <i class="fa-solid fa-save mr-1"></i> บันทึกการแต่งตั้ง
-                        </button>
+
+                        <!-- เลือกกรรมการ (Tom Select) -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                เลือกกรรมการ <span class="text-red-500">*</span>
+                                <span class="text-xs text-gray-400 font-normal">(เฉพาะครู, รองผู้อำนวยการ,
+                                    ผู้อำนวยการ)</span>
+                            </label>
+                            <select id="admin_committee" multiple
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
+                            </select>
+                            <div id="selected_committee_display" class="selected-committee-display">
+                                <span class="text-sm text-gray-400">ยังไม่ได้เลือกกรรมการ</span>
+                            </div>
+                        </div>
+
+                        <!-- องค์ประกอบที่ 1 -->
+                        <div class="element-section">
+                            <div class="element-section-title">
+                                <span class="text-purple-600 font-bold">📋 องค์ประกอบที่ 1</span>
+                                <span class="text-sm text-gray-400 font-normal">(80 คะแนน)</span>
+                            </div>
+
+                            <div class="space-y-3">
+                                <!-- ตอนที่ 1 -->
+                                <div>
+                                    <div class="flex flex-wrap justify-between items-center gap-2">
+                                        <span class="font-medium text-sm text-gray-700">ตอนที่ 1 :
+                                            ระดับความสำเร็จในการพัฒนางานตามมาตรฐานตำแหน่ง (60 คะแนน)</span>
+                                        <button type="button" class="select-all-btn" data-element="1"
+                                            data-part="1">เลือกทั้งหมด</button>
+                                    </div>
+                                    <div class="sub-items-grid" id="element1_part1_subitems">
+                                        <!-- 1. ด้านการจัดการเรียนรู้ -->
+                                        <div class="w-full col-span-full">
+                                            <span class="text-xs font-semibold text-gray-500">1.
+                                                ด้านการจัดการเรียนรู้</span>
+                                            <div class="sub-items-grid">
+                                                <label class="sub-item-label" title="สร้างและหรือพัฒนาหลักสูตร">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.1">
+                                                    <span>1.1 สร้างและหรือพัฒนาหลักสูตร</span>
+                                                </label>
+                                                <label class="sub-item-label" title="ออกแบบการจัดการเรียนรู้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.2">
+                                                    <span>1.2 ออกแบบการจัดการเรียนรู้</span>
+                                                </label>
+                                                <label class="sub-item-label" title="จัดกิจกรรมการเรียนรู้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.3">
+                                                    <span>1.3 จัดกิจกรรมการเรียนรู้</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="สร้างและหรือพัฒนาสื่อ นวัตกรรม เทคโนโลยี และแหล่งเรียนรู้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.4">
+                                                    <span>1.4 สร้างและหรือพัฒนาสื่อ นวัตกรรม เทคโนโลยี
+                                                        และแหล่งเรียนรู้</span>
+                                                </label>
+                                                <label class="sub-item-label" title="วัดและประเมินผลการเรียนรู้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.5">
+                                                    <span>1.5 วัดและประเมินผลการเรียนรู้</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="ศึกษา วิเคราะห์ สังเคราะห์ เพื่อแก้ปัญหา หรือพัฒนาการเรียนรู้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.6">
+                                                    <span>1.6 ศึกษา วิเคราะห์ สังเคราะห์ เพื่อแก้ปัญหา
+                                                        หรือพัฒนาการเรียนรู้</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="จัดบรรยากาศที่ส่งเสริมและพัฒนาผู้เรียน">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.7">
+                                                    <span>1.7 จัดบรรยากาศที่ส่งเสริมและพัฒนาผู้เรียน</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="อบรมและพัฒนาคุณลักษณะที่ดีของผู้เรียน">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="1.8">
+                                                    <span>1.8 อบรมและพัฒนาคุณลักษณะที่ดีของผู้เรียน</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <!-- 2. ด้านการส่งเสริมและสนับสนุน -->
+                                        <div class="w-full col-span-full">
+                                            <span class="text-xs font-semibold text-gray-500">2.
+                                                ด้านการส่งเสริมและสนับสนุนการจัดการเรียนรู้</span>
+                                            <div class="sub-items-grid">
+                                                <label class="sub-item-label"
+                                                    title="จัดทำข้อมูลสารสนเทศของผู้เรียนและรายวิชา">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="2.1">
+                                                    <span>2.1 จัดทำข้อมูลสารสนเทศของผู้เรียนและรายวิชา</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="ดำเนินการตามระบบดูแลช่วยเหลือผู้เรียน">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="2.2">
+                                                    <span>2.2 ดำเนินการตามระบบดูแลช่วยเหลือผู้เรียน</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="ปฏิบัติงาน วิชาการและงานอื่น ๆ ของสถานศึกษา">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="2.3">
+                                                    <span>2.3 ปฏิบัติงาน วิชาการและงานอื่น ๆ ของสถานศึกษา</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="ประสานความร่วมมือกับผู้ปกครอง ภาคีเครือข่าย และหรือสถานประกอบการ">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="2.4">
+                                                    <span>2.4 ประสานความร่วมมือกับผู้ปกครอง ภาคีเครือข่าย
+                                                        และหรือสถานประกอบการ</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                        <!-- 3. ด้านการพัฒนาตนเอง -->
+                                        <div class="w-full col-span-full">
+                                            <span class="text-xs font-semibold text-gray-500">3. ด้านการพัฒนาตนเอง
+                                                และวิชาชีพ</span>
+                                            <div class="sub-items-grid">
+                                                <label class="sub-item-label"
+                                                    title="พัฒนาตนเอง อย่างเป็นระบบและต่อเนื่อง">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="3.1">
+                                                    <span>3.1 พัฒนาตนเอง อย่างเป็นระบบและต่อเนื่อง</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ทางวิชาชีพ">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="3.2">
+                                                    <span>3.2 มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ทางวิชาชีพ</span>
+                                                </label>
+                                                <label class="sub-item-label"
+                                                    title="นำความรู้ ความสามารถ ทักษะ ที่ได้จากการพัฒนา ตนเองและวิชาชีพมาใช้">
+                                                    <input type="checkbox" class="sub-item" data-element="1"
+                                                        data-part="1" value="3.3">
+                                                    <span>3.3 นำความรู้ ความสามารถ ทักษะ ที่ได้จากการพัฒนา
+                                                        ตนเองและวิชาชีพมาใช้</span>
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- ตอนที่ 2 -->
+                                <div>
+                                    <div class="flex flex-wrap justify-between items-center gap-2">
+                                        <span class="font-medium text-sm text-gray-700">ตอนที่ 2 :
+                                            ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)</span>
+                                        <button type="button" class="select-all-btn" data-element="1"
+                                            data-part="2">เลือกทั้งหมด</button>
+                                    </div>
+                                    <div class="sub-items-grid" id="element1_part2_subitems">
+                                        <label class="sub-item-label" title="วิธีดำเนินการ">
+                                            <input type="checkbox" class="sub-item" data-element="1" data-part="2"
+                                                value="1">
+                                            <span>1. วิธีดำเนินการ (20 คะแนน)</span>
+                                        </label>
+                                        <label class="sub-item-label" title="เชิงปริมาณ">
+                                            <input type="checkbox" class="sub-item" data-element="1" data-part="2"
+                                                value="2.1">
+                                            <span>2.1 เชิงปริมาณ (10 คะแนน)</span>
+                                        </label>
+                                        <label class="sub-item-label" title="เชิงคุณภาพ">
+                                            <input type="checkbox" class="sub-item" data-element="1" data-part="2"
+                                                value="2.2">
+                                            <span>2.2 เชิงคุณภาพ (10 คะแนน)</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- องค์ประกอบที่ 2 -->
+                        <div class="element-section">
+                            <div class="element-section-title">
+                                <span class="text-emerald-600 font-bold">📋 องค์ประกอบที่ 2</span>
+                                <span class="text-sm text-gray-400 font-normal">(10 คะแนน)</span>
+                            </div>
+                            <div>
+                                <div class="flex flex-wrap justify-between items-center gap-2">
+                                    <span
+                                        class="font-medium text-sm text-gray-700">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา
+                                        (ระดับคะแนน 1-5 × 2)</span>
+                                    <button type="button" class="select-all-btn active"
+                                        data-element="2">เลือกทั้งหมด</button>
+                                </div>
+                                <div class="sub-items-grid" id="element2_subitems">
+                                    <label class="sub-item-label">
+                                        <input type="checkbox" class="sub-item" data-element="2" value="1" checked>
+                                        <span>ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- องค์ประกอบที่ 3 -->
+                        <div class="element-section">
+                            <div class="element-section-title">
+                                <span class="text-amber-600 font-bold">📋 องค์ประกอบที่ 3</span>
+                                <span class="text-sm text-gray-400 font-normal">(10 คะแนน)</span>
+                            </div>
+                            <div>
+                                <div class="flex flex-wrap justify-between items-center gap-2">
+                                    <span class="font-medium text-sm text-gray-700">ข้อ 1-10 ระดับคะแนนข้อละ 1-4</span>
+                                    <button type="button" class="select-all-btn active"
+                                        data-element="3">เลือกทั้งหมด</button>
+                                </div>
+                                <div class="sub-items-grid" id="element3_subitems">
+                                    <label class="sub-item-label" title="ยึดมั่นในสถาบันหลักของประเทศ">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="1" checked>
+                                        <span>1. ยึดมั่นในสถาบันหลักของประเทศ อันได้แก่ ชาติ ศาสนา พระมหากษัตริย์
+                                            และการปกครอง ระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข</span>
+                                    </label>
+                                    <label class="sub-item-label" title="มีความซื่อสัตย์ สุจริต มีจิตสำนึกที่ดี">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="2" checked>
+                                        <span>2. มีความซื่อสัตย์ สุจริต มีจิตสำนึกที่ดี
+                                            มีความรับผิดชอบต่อหน้าที่และต่อผู้เกี่ยวข้อง
+                                            ในฐานะข้าราชการครูและบุคลากรทางการศึกษา</span>
+                                    </label>
+                                    <label class="sub-item-label" title="มีความกล้าคิด กล้าตัดสินใจ กล้าแสดงออก">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="3" checked>
+                                        <span>3. มีความกล้าคิด กล้าตัดสินใจ กล้าแสดงออก และกระทำในสิ่งที่ถูกต้อง
+                                            ชอบธรรม</span>
+                                    </label>
+                                    <label class="sub-item-label" title="มีจิตอาสา จิตสาธารณะ">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="4" checked>
+                                        <span>4. มีจิตอาสา จิตสาธารณะ มุ่งประโยชน์ส่วนรวม โดยไม่คำนึงถึงประโยชน์ส่วนตน
+                                            หรือพวกพ้อง</span>
+                                    </label>
+                                    <label class="sub-item-label" title="มุ่งผลสัมฤทธิ์ของงาน">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="5" checked>
+                                        <span>5. มุ่งผลสัมฤทธิ์ของงาน มุ่งมั่นในการปฏิบัติงานอย่างเต็มกำลังความสามารถ
+                                            โดยคำนึงถึงคุณภาพการศึกษาเป็นสำคัญ</span>
+                                    </label>
+                                    <label class="sub-item-label" title="ปฏิบัติหน้าที่อย่างเป็นธรรม">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="6" checked>
+                                        <span>6. ปฏิบัติหน้าที่อย่างเป็นธรรมและไม่เลือกปฏิบัติ</span>
+                                    </label>
+                                    <label class="sub-item-label" title="ดำรงตนเป็นแบบอย่างที่ดี">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="7" checked>
+                                        <span>7.
+                                            ดำรงตนเป็นแบบอย่างที่ดีและรักษาภาพลักษณ์ของข้าราชการครูและบุคลากรทางการศึกษา</span>
+                                    </label>
+                                    <label class="sub-item-label" title="เคารพศักดิ์ศรีความเป็นมนุษย์">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="8" checked>
+                                        <span>8. เคารพศักดิ์ศรีความเป็นมนุษย์ คำนึงถึงสิทธิเด็ก
+                                            และยอมรับความแตกต่างของบุคคล</span>
+                                    </label>
+                                    <label class="sub-item-label" title="ยึดถือและปฏิบัติตามจรรยาบรรณของวิชาชีพ">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="9" checked>
+                                        <span>9. ยึดถือและปฏิบัติตามจรรยาบรรณของวิชาชีพ</span>
+                                    </label>
+                                    <label class="sub-item-label" title="มีวินัยและการรักษาวินัย">
+                                        <input type="checkbox" class="sub-item" data-element="3" value="10" checked>
+                                        <span>10. มีวินัยและการรักษาวินัย</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- เลือกกลุ่มสาระ -->
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                เลือกกลุ่มสาระที่ถูกประเมิน <span class="text-red-500">*</span>
+                                <span class="text-xs text-gray-400 font-normal">(เลือกอย่างน้อย 1 กลุ่ม)</span>
+                            </label>
+                            <div class="flex flex-wrap gap-2 mb-2">
+                                <button type="button" class="select-all-btn active" id="dept_select_all">
+                                    <i class="fa-solid fa-check-double mr-1"></i> เลือกทั้งหมด
+                                </button>
+                                <button type="button" class="select-all-btn" id="dept_deselect_all">
+                                    <i class="fa-solid fa-times mr-1"></i> ยกเลิกทั้งหมด
+                                </button>
+                                <button type="button" class="select-all-btn" id="dept_select_science">
+                                    <i class="fa-solid fa-flask mr-1"></i> เลือกวิทย์ฯ
+                                </button>
+                                <button type="button" class="select-all-btn" id="dept_select_language">
+                                    <i class="fa-solid fa-language mr-1"></i> เลือกภาษา
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"
+                                id="department_checkboxes">
+                                <!-- กลุ่มภาษา -->
+                                <div class="col-span-full dept-group-label">📚 กลุ่มภาษา</div>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="ภาษาไทย"> ภาษาไทย</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="ภาษาต่างประเทศ (ภาษาอังกฤษ)"> ภาษาอังกฤษ</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="ภาษาต่างประเทศ (ภาษาจีน)"> ภาษาจีน</label>
+
+                                <!-- กลุ่มวิทยาศาสตร์ -->
+                                <div class="col-span-full dept-group-label">🔬 กลุ่มวิทยาศาสตร์</div>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="คณิตศาสตร์"> คณิตศาสตร์</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)"> วิทยาศาสตร์</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)"> เทคโนโลยี</label>
+
+                                <!-- กลุ่มสังคมฯ -->
+                                <div class="col-span-full dept-group-label">🏛️ กลุ่มสังคมศึกษา</div>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="สังคมศึกษา ศาสนาและวัฒนธรรม"> สังคมศึกษา</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="สุขศึกษาและพลศึกษา"> สุขศึกษาและพลศึกษา</label>
+
+                                <!-- กลุ่มศิลปะ-อาชีพ -->
+                                <div class="col-span-full dept-group-label">🎨 กลุ่มศิลปะ-อาชีพ</div>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="ศิลปะ"> ศิลปะ</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="การงานอาชีพ"> การงานอาชีพ</label>
+                                <label class="dept-checkbox-label"><input type="checkbox" class="dept-checkbox"
+                                        value="แนะแนว"> แนะแนว</label>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap gap-3">
+                            <button type="submit" id="committeeSubmitBtn"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
+                                <i class="fa-solid fa-save mr-1"></i> บันทึกชุดคณะกรรมการ
+                            </button>
+                            <button type="button" onclick="resetCommitteeForm()"
+                                class="bg-gray-300 hover:bg-gray-400 text-gray-700 px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
+                                <i class="fa-solid fa-rotate-right mr-1"></i> ล้างฟอร์ม
+                            </button>
+                        </div>
                     </form>
 
                     <hr class="my-6">
 
-                    <h4 class="font-bold text-md mb-3">รายชื่อกรรมการที่แต่งตั้งแล้ว</h4>
+                    <div class="flex flex-wrap justify-between items-center gap-2 mb-3">
+                        <h4 class="font-bold text-md">📋 ชุดคณะกรรมการที่สร้างแล้ว</h4>
+                        <button onclick="loadCommitteeGroups()" class="text-blue-500 hover:text-blue-700 text-sm">
+                            <i class="fa-solid fa-rotate"></i> โหลดใหม่
+                        </button>
+                    </div>
                     <div id="committeeList" class="text-gray-500">กำลังโหลด...</div>
                 </div>
             </div>
@@ -173,10 +505,6 @@
                                 class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2">
                                 <i class="fa-solid fa-file-excel"></i> Export Excel
                             </button>
-                            <button onclick="exportPDF()"
-                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2">
-                                <i class="fa-solid fa-file-pdf"></i> Export PDF
-                            </button>
                         </div>
                     </div>
                     <div class="overflow-x-auto">
@@ -190,14 +518,75 @@
                                     <th class="text-center">กรรมการ</th>
                                     <th class="text-center">คะแนนรวม</th>
                                     <th class="text-center">ระดับ</th>
+                                    <th class="text-center">รายละเอียด</th>
                                 </tr>
                             </thead>
                             <tbody id="summaryBody">
                                 <tr>
-                                    <td colspan="7" class="text-center py-4 text-gray-400">กำลังโหลดข้อมูล...</td>
+                                    <td colspan="8" class="text-center py-4 text-gray-400">กำลังโหลดข้อมูล...</td>
                                 </tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+            <!-- ========================================== -->
+            <!-- MODAL: รายละเอียดการประเมิน -->
+            <!-- ========================================== -->
+            <div id="evalDetailModal" class="fixed inset-0 z-[100] hidden overflow-y-auto bg-black/50 backdrop-blur-sm">
+                <div class="flex items-center justify-center min-h-screen p-4">
+                    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
+                        <!-- Header -->
+                        <div
+                            class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-800">
+                                    <i class="fa-solid fa-eye text-blue-500 mr-2"></i> รายละเอียดการประเมิน
+                                </h3>
+                                <p class="text-sm text-gray-500" id="modal_teacher_name">-</p>
+                            </div>
+                            <button onclick="closeEvalDetailModal()"
+                                class="text-gray-400 hover:text-gray-600 text-2xl transition-colors">
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+
+                        <!-- Body -->
+                        <div class="flex-1 overflow-y-auto p-4">
+                            <!-- แท็บข้อมูล -->
+                            <div class="flex flex-wrap gap-2 mb-4 border-b border-gray-200 pb-2">
+                                <button
+                                    class="detail-tab-btn active px-4 py-2 rounded-t-lg font-bold text-sm bg-blue-600 text-white"
+                                    data-tab="detail_tab1">
+                                    <i class="fa-solid fa-user-check mr-1"></i> ประเมินตนเอง
+                                </button>
+                                <button
+                                    class="detail-tab-btn px-4 py-2 rounded-t-lg font-bold text-sm bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                    data-tab="detail_tab2">
+                                    <i class="fa-solid fa-users mr-1"></i> การประเมินโดยกรรมการ
+                                </button>
+                                <button
+                                    class="detail-tab-btn px-4 py-2 rounded-t-lg font-bold text-sm bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                    data-tab="detail_tab3">
+                                    <i class="fa-solid fa-chart-pie mr-1"></i> สรุปคะแนน
+                                </button>
+                            </div>
+
+                            <!-- Tab 1: ประเมินตนเอง -->
+                            <div id="detail_tab1" class="detail-tab-content">
+                                <div id="detail_self_content" class="text-gray-500">กำลังโหลด...</div>
+                            </div>
+
+                            <!-- Tab 2: การประเมินโดยกรรมการ -->
+                            <div id="detail_tab2" class="detail-tab-content" style="display:none">
+                                <div id="detail_committee_content" class="text-gray-500">กำลังโหลด...</div>
+                            </div>
+
+                            <!-- Tab 3: สรุปคะแนน -->
+                            <div id="detail_tab3" class="detail-tab-content" style="display:none">
+                                <div id="detail_summary_content" class="text-gray-500">กำลังโหลด...</div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -208,13 +597,11 @@
                     <h3 class="font-bold text-lg mb-4"><i class="fa-solid fa-gear text-purple-500 mr-2"></i>ตั้งค่าระบบ
                     </h3>
 
-                    <!-- ========== รอบการประเมิน ========== -->
+                    <!-- รอบการประเมิน -->
                     <div class="mb-8 p-4 bg-blue-50 rounded-xl border border-blue-200">
-                        <h4 class="font-bold text-blue-800 mb-3">
-                            <i class="fa-solid fa-calendar-check mr-2"></i>ตั้งค่ารอบการประเมิน
-                        </h4>
+                        <h4 class="font-bold text-blue-800 mb-3"><i
+                                class="fa-solid fa-calendar-check mr-2"></i>ตั้งค่ารอบการประเมิน</h4>
 
-                        <!-- ✅ แสดงรอบ Active ปัจจุบัน -->
                         <div class="bg-white rounded-xl p-4 border border-blue-200 mb-4">
                             <div class="flex flex-wrap justify-between items-center">
                                 <div>
@@ -237,7 +624,6 @@
                             </div>
                         </div>
 
-                        <!-- ✅ ฟอร์มเพิ่มรอบใหม่ -->
                         <form id="evalRoundForm"
                             class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-white p-4 rounded-xl border border-blue-100 mb-4">
                             <div>
@@ -286,7 +672,6 @@
                             </div>
                         </form>
 
-                        <!-- ✅ ปุ่มสร้างรอบอัตโนมัติ -->
                         <div class="flex flex-wrap gap-2 mb-4">
                             <button onclick="generateDefaultRounds()"
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-md transition-colors flex items-center gap-2">
@@ -302,15 +687,13 @@
                             </button>
                         </div>
 
-                        <!-- ✅ แสดงรายการรอบที่มีอยู่ (JavaScript จะสร้างเนื้อหาที่นี่) -->
                         <div class="mt-4">
                             <h5 class="font-bold text-sm text-gray-600 mb-2">รอบการประเมินที่มีอยู่</h5>
                             <div id="roundList" class="text-sm">กำลังโหลด...</div>
                         </div>
-
                     </div>
 
-                    <!-- ========== GAS Config ========== -->
+                    <!-- GAS Config -->
                     <div class="p-4 bg-purple-50 rounded-xl border border-purple-200 mb-4">
                         <h4 class="font-bold text-purple-800 mb-3"><i class="fa-solid fa-print mr-2"></i>ตั้งค่า Google
                             Apps Script (PDF)</h4>
@@ -338,15 +721,18 @@
                         <h4 class="font-bold text-amber-800 mb-3"><i
                                 class="fa-solid fa-user-plus mr-2"></i>เพิ่มแอดมินระบบ</h4>
                         <div class="flex flex-wrap gap-4">
-                            <div class="flex-1 min-w-[200px]">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">เลือกผู้ใช้</label>
+                            <div class="flex-1 min-w-[250px]">
+                                <label class="block text-sm font-bold text-gray-700 mb-1">เลือกผู้ใช้ <span
+                                        class="text-red-500">*</span></label>
                                 <select id="admin_user_select"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-amber-500">
                                     <option value="">-- เลือกผู้ใช้ --</option>
                                 </select>
+                                <p class="text-xs text-gray-400 mt-1">เฉพาะครู, รองผู้อำนวยการ, ผู้อำนวยการ เท่านั้น</p>
                             </div>
                             <div class="flex-1 min-w-[150px]">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">บทบาท</label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">บทบาท <span
+                                        class="text-red-500">*</span></label>
                                 <select id="admin_role_select"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-amber-500">
                                     <option value="admin">Admin</option>
@@ -361,7 +747,7 @@
                             </div>
                         </div>
                         <div class="mt-4">
-                            <h5 class="font-bold text-sm text-gray-600 mb-2">รายชื่อแอดมินปัจจุบัน</h5>
+                            <h5 class="font-bold text-sm text-gray-600 mb-2">📋 รายชื่อแอดมินปัจจุบัน</h5>
                             <div id="adminList" class="text-sm">กำลังโหลด...</div>
                         </div>
                     </div>

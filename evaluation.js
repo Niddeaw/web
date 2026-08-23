@@ -5,8 +5,8 @@ let currentUser = null;
 let currentTermData = null;
 let currentEvalRound = null;
 let wizardCurrentStep = 1;
-let evaluationMode = 'self'; 
-let evaluateeData = null; 
+let evaluationMode = 'self';
+let evaluateeData = null;
 let isEditingMode = false;
 
 // ==========================================
@@ -220,7 +220,7 @@ const PART3_ITEMS = [
 // ฟังก์ชันเริ่มต้น
 // ==========================================
 window.onload = async () => {
-    await checkAuth(); 
+    await checkAuth();
 };
 
 // ==========================================
@@ -228,23 +228,23 @@ window.onload = async () => {
 // ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('index.html');
 
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
     currentUser = profile;
 
-    // ✅ เฉพาะข้าราชการครู (role = teacher และ academic_standing ถูกต้อง)
-    const teacherRoles = ['teacher'];
+    // ✅ แก้ไข: รวม role ที่เกี่ยวข้องทั้งหมด
+    const teacherRoles = ['teacher', 'admin', 'super_admin', 'deputy', 'director'];
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
-    
+
     const isTeacher = teacherRoles.includes(currentUser.role);
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
-    
+
     // ผู้อำนวยการ, รองผู้อำนวยการ, Admin เข้าได้แต่ไม่ต้องแสดงปุ่มประเมิน
     const isAdmin = ['director', 'deputy', 'admin', 'super_admin'].includes(currentUser.role);
-    
+
     // ❌ ครูอัตราจ้าง, พนักงานราชการ, staff, office ห้ามเข้า
     if (!isTeacher && !isAdmin) {
         await Swal.fire({
@@ -257,9 +257,9 @@ async function checkAuth() {
         return;
     }
 
-    // ✅ ปรับปรุง: แสดงปุ่มประเมินเฉพาะข้าราชการครูที่มีวิทยฐานะตรง
+    // ✅ แก้ไข: Super Admin และ Admin ที่มีวิทยฐานะครู สามารถประเมินตนเองได้
     const selfEvalCard = document.getElementById('selfEvalCard');
-    if (isTeacher && isAllowedAcademic) {
+    if ((isTeacher && isAllowedAcademic) || currentUser.role === 'super_admin') {
         selfEvalCard.classList.remove('hidden');
     } else {
         selfEvalCard.classList.add('hidden');
@@ -277,27 +277,21 @@ async function checkAuth() {
     const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
     currentTermData = schoolInfo;
     document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
+    document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('header_user_role').innerText = currentUser.role || '';
 
-    // ✅ ตรวจสอบสิทธิ์กรรมการประเมิน (ใช้ eval_round_id จาก currentEvalRound)
-    if (currentEvalRound) {
-        const { data: committeeRoles } = await db.from('eval_committee')
-            .select('target_departments')
-            .eq('evaluator_id', currentUser.id)
-            .eq('eval_round_id', currentEvalRound.id)
-            .eq('is_active', true)
-            .maybeSingle();
-            
-        if (committeeRoles && committeeRoles.target_departments && committeeRoles.target_departments.length > 0) {
-            document.getElementById('committeeCard').classList.remove('hidden');
-            const selDept = document.getElementById('sel_department');
-            committeeRoles.target_departments.forEach(dept => {
-                selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
-            });
-        }
-    }
+    // ✅ ตรวจสอบสิทธิ์กรรมการประเมิน (จาก eval_committee_groups)
+    await loadCommitteeEvaluationTasks();
 
     // ✅ โหลดสถานะการประเมินของฉัน
     await loadMyEvaluationStatus();
+
+    // ✅ แสดงรอบการประเมินบน Dashboard
+    if (currentEvalRound) {
+        document.getElementById('eval_round_display_big').innerText = currentEvalRound.round_name || '-';
+        document.getElementById('eval_period_display').innerText =
+            `${formatDate(currentEvalRound.start_date)} - ${formatDate(currentEvalRound.end_date)}`;
+    }
 
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     Swal.close();
@@ -317,19 +311,95 @@ async function loadEvaluationRound() {
             .single();
 
         if (error) throw error;
-        
+
         currentEvalRound = data;
-        
+
         // แสดงใน UI
-        document.getElementById('eval_round_display').innerText = 
+        document.getElementById('eval_round_display').innerText =
             `${data.round_name} (ครั้งที่ ${data.round_number})`;
-        document.getElementById('eval_period_display').innerText = 
+        document.getElementById('eval_round_display_big').innerText = data.round_name || '-';
+        document.getElementById('eval_period_display').innerText =
             `${formatDate(data.start_date)} - ${formatDate(data.end_date)}`;
-            
+
+        // แสดง badge
+        document.getElementById('eval_round_badge').classList.remove('hidden');
+
     } catch (err) {
         console.error('Error loading eval round:', err);
         document.getElementById('eval_round_display').innerText = 'ไม่พบรอบการประเมินที่ active';
+        document.getElementById('eval_round_display_big').innerText = '❌ ไม่พบรอบการประเมิน';
         document.getElementById('eval_period_display').innerText = 'กรุณาติดต่อผู้ดูแลระบบ';
+        document.getElementById('eval_round_badge').classList.add('hidden');
+    }
+}
+
+// ==========================================
+// โหลดงานที่ต้องประเมินของกรรมการ
+// ==========================================
+async function loadCommitteeEvaluationTasks() {
+    try {
+        if (!currentEvalRound) {
+            console.log('⚠️ ไม่มีรอบการประเมิน active');
+            return;
+        }
+
+        // ✅ ดึงข้อมูลชุดคณะกรรมการที่เกี่ยวข้องกับผู้ใช้คนนี้
+        const { data: committeeGroups, error } = await db
+            .from('eval_committee_groups')
+            .select('*')
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('is_active', true);
+
+        if (error) {
+            console.error('Error loading committee groups:', error);
+            return;
+        }
+
+        // ✅ กรองเฉพาะที่มี evaluator_ids ตรงกับ user นี้
+        const myGroups = (committeeGroups || []).filter(group => {
+            if (!group.evaluator_ids) return false;
+            return group.evaluator_ids.includes(currentUser.id);
+        });
+
+        if (!myGroups || myGroups.length === 0) {
+            console.log('ℹ️ ไม่มีงานประเมินสำหรับผู้ใช้นี้');
+            return;
+        }
+
+        // ✅ แสดงการ์ดกรรมการ
+        document.getElementById('committeeCard').classList.remove('hidden');
+
+        // ✅ สร้าง dropdown กลุ่มสาระจากข้อมูลที่ได้
+        const selDept = document.getElementById('sel_department');
+        selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+        const allDepartments = new Set();
+        myGroups.forEach(group => {
+            if (group.target_departments) {
+                group.target_departments.forEach(dept => {
+                    allDepartments.add(dept);
+                });
+            }
+        });
+
+        allDepartments.forEach(dept => {
+            selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
+        });
+
+        // ✅ เก็บข้อมูลชุดคณะกรรมการไว้ใช้งาน
+        window._committeeGroups = myGroups;
+
+        // ✅ ถ้ามีกลุ่มสาระเดียว ให้เลือกอัตโนมัติและโหลดรายชื่อ
+        if (allDepartments.size === 1) {
+            const singleDept = allDepartments.values().next().value;
+            selDept.value = singleDept;
+            await loadTeachersForEval();
+        }
+
+        console.log('✅ โหลดงานประเมินกรรมการสำเร็จ:', myGroups.length, 'ชุด');
+
+    } catch (err) {
+        console.error('Error loading committee evaluation tasks:', err);
     }
 }
 
@@ -370,7 +440,7 @@ async function loadMyEvaluationStatus() {
         } else {
             container.innerHTML = `
                 <div class="flex items-center gap-3">
-                    <span class="px-3 py-1 bg-gray-100 text-gray-500 rounded-full text-sm font-bold">⏳ ยังไม่ประเมิน</span>
+                    <span class="status-badge empty">⏳ ยังไม่ประเมิน</span>
                     <span class="text-sm text-gray-400">กรุณาทำการประเมินตนเอง</span>
                 </div>
             `;
@@ -414,10 +484,10 @@ async function startEditEvaluation(evalId) {
         document.getElementById('wizardTargetName').innerText = `ผู้รับการประเมิน: ${evaluatee.first_name} ${evaluatee.last_name}`;
 
         const academic = evaluatee.academic_standing || 'ไม่มีวิทยฐานะ';
-        
+
         // สร้างฟอร์ม
         generateDynamicForm(academic);
-        
+
         // โหลดข้อมูลเดิมใส่ฟอร์ม
         loadScoresToForm(existingEval);
 
@@ -444,41 +514,136 @@ async function startEditEvaluation(evalId) {
 // ==========================================
 async function loadTeachersForEval() {
     const dept = document.getElementById('sel_department').value;
-    if (!dept) return;
+    if (!dept) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
+    }
 
-    // ✅ ตรวจสอบว่ามีรอบการประเมินหรือไม่
     if (!currentEvalRound) {
         return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่ active กรุณาติดต่อผู้ดูแลระบบ', 'warning');
     }
 
     Swal.fire({ title: 'โหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
-    if ($.fn.DataTable.isDataTable('#teacherEvalTable')) $('#teacherEvalTable').DataTable().destroy();
 
-    const { data: teachers } = await db.from('core_personnel').select('*').eq('department', dept);
+    if ($.fn.DataTable.isDataTable('#teacherEvalTable')) {
+        $('#teacherEvalTable').DataTable().destroy();
+    }
+
+    const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+    const { data: teachers, error } = await db
+        .from('core_personnel')
+        .select('*')
+        .eq('department', dept)
+        .in('academic_standing', validStandings);
+
+    if (error) {
+        console.error('Error loading teachers:', error);
+        Swal.close();
+        return Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลครูได้', 'error');
+    }
+
     const tbody = document.getElementById('tb-teacher-eval');
-    
+
     if (!teachers || teachers.length === 0) {
         tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-400">ไม่พบครูในกลุ่มสาระนี้</td></tr>`;
         Swal.close();
         return;
     }
 
+    // ✅ แก้ไข: ใช้ academic_year และ semester แทน eval_round_id
+    const teacherIds = teachers.map(t => t.id);
+    let evalMap = {};
+
+    try {
+        const { data: evalStatuses, error: evalError } = await db
+            .from('eval_results')
+            .select('evaluatee_id, status, total_score')
+            .in('evaluatee_id', teacherIds)
+            .eq('academic_year', currentTermData.current_academic_year)  // ✅ ใช้ academic_year
+            .eq('semester', currentTermData.current_semester)            // ✅ ใช้ semester
+            .eq('eval_type', 'committee')
+            .eq('evaluator_id', currentUser.id);
+
+        if (evalError) {
+            console.error('Error loading eval statuses:', evalError);
+            // ✅ แสดงข้อความแจ้งเตือนแต่ยังแสดงรายชื่อครูได้
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถโหลดสถานะการประเมิน',
+                text: 'กรุณาติดต่อผู้ดูแลระบบเพื่อตั้งค่าสิทธิ์การเข้าถึงข้อมูล',
+                confirmButtonText: 'ตกลง'
+            });
+            evalMap = {};
+        } else {
+            evalStatuses?.forEach(e => {
+                evalMap[e.evaluatee_id] = e;
+            });
+        }
+    } catch (err) {
+        console.error('Error fetching eval statuses:', err);
+        evalMap = {};
+    }
+
+    // ✅ สร้างแถวตาราง (ส่วนที่เหลือเหมือนเดิม)
     tbody.innerHTML = teachers.map(t => {
-        let badge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-bold">รอประเมิน</span>`;
-        
+        const evalData = evalMap[t.id];
+        let badge = '';
+        let buttonHtml = '';
+
+        if (evalData) {
+            if (evalData.status === 'submitted') {
+                badge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">✅ ประเมินแล้ว (${evalData.total_score.toFixed(1)} คะแนน)</span>`;
+                buttonHtml = `
+                    <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
+                            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        <i class="fa-solid fa-pen-to-square"></i> แก้ไข
+                    </button>
+                `;
+            } else {
+                badge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">📝 ร่าง</span>`;
+                buttonHtml = `
+                    <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
+                            class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        <i class="fa-solid fa-pen-to-square"></i> ประเมินต่อ
+                    </button>
+                `;
+            }
+        } else {
+            badge = `<span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-bold">⏳ รอประเมิน</span>`;
+            buttonHtml = `
+                <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                    <i class="fa-solid fa-pen-to-square"></i> ประเมิน
+                </button>
+            `;
+        }
+
+        const fullName = t.prefix ? `${t.prefix}${t.first_name} ${t.last_name}` : `${t.first_name} ${t.last_name}`;
+
         return `
             <tr>
-                <td class="py-3 px-4 font-bold">${t.first_name} ${t.last_name}</td>
+                <td class="py-3 px-4 font-medium">${fullName}</td>
                 <td class="py-3 px-4 text-sm">${t.academic_standing || '-'}</td>
                 <td class="py-3 px-4 text-center">${badge}</td>
-                <td class="py-3 px-4 text-center">
-                    <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 shadow-sm"><i class="fa-solid fa-pen-to-square"></i> ประเมิน</button>
-                </td>
+                <td class="py-3 px-4 text-center">${buttonHtml}</td>
             </tr>
         `;
     }).join('');
 
-    $('#teacherEvalTable').DataTable({ scrollX: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' } });
+    // ✅ เริ่มต้น DataTable
+    $('#teacherEvalTable').DataTable({
+        scrollX: true,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        pageLength: 10,
+        lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
+        columnDefs: [
+            { targets: [0], width: '30%' },
+            { targets: [1], width: '20%' },
+            { targets: [2], width: '25%' },
+            { targets: [3], width: '25%' }
+        ],
+        dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>'
+    });
+
     Swal.close();
 }
 
@@ -498,8 +663,49 @@ async function startEvaluation(mode, targetData = null) {
     const display = document.getElementById('liveTotalScoreDisplay');
     if (display) display.innerHTML = `0.00 <span class="text-xs font-normal text-gray-500 ml-1">/ 100</span>`;
     
-    // สร้างฟอร์มก่อน
-    generateDynamicForm(academic);
+    // ✅ หัวข้อย่อยที่ได้รับมอบหมาย (เฉพาะโหมด committee)
+    let allowedSubItems = null;
+    if (mode === 'committee' && window._committeeGroups) {
+        // หาชุดคณะกรรมการที่ตรงกับผู้ถูกประเมิน
+        for (const group of window._committeeGroups) {
+            // ตรวจสอบว่าผู้ถูกประเมินอยู่ในกลุ่มสาระนี้หรือไม่
+            if (group.target_departments && group.target_departments.includes(evaluateeData.department)) {
+                allowedSubItems = group.selected_sub_items || [];
+                console.log('📋 หัวข้อย่อยที่ได้รับมอบหมาย:', allowedSubItems);
+                break;
+            }
+        }
+    }
+    
+    // ✅ ถ้าไม่มี allowedSubItems ในโหมด committee ให้ใช้ทั้งหมด (fallback)
+    if (mode === 'committee' && !allowedSubItems) {
+        console.log('⚠️ ไม่พบหัวข้อย่อยที่ได้รับมอบหมาย ใช้ทั้งหมด');
+        // ดึงหัวข้อย่อยทั้งหมดจาก evalCriteriaDB
+        const criteriaSet = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
+        allowedSubItems = [];
+        // เพิ่มหัวข้อย่อยทั้งหมดในองค์ประกอบที่ 1
+        criteriaSet.part1_sec1.forEach(group => {
+            group.items.forEach(item => {
+                allowedSubItems.push({ element: '1', part: '1', value: item.id });
+            });
+        });
+        criteriaSet.part1_sec2.forEach(item => {
+            const id = item.id === 's2_1' ? '1' : 
+                      item.id === 's2_2_1' ? '2.1' : 
+                      item.id === 's2_2_2' ? '2.2' : item.id;
+            allowedSubItems.push({ element: '1', part: '2', value: id });
+        });
+        // องค์ประกอบที่ 2
+        allowedSubItems.push({ element: '2', value: '1' });
+        // องค์ประกอบที่ 3 (ข้อ 1-10)
+        for (let i = 1; i <= 10; i++) {
+            allowedSubItems.push({ element: '3', value: String(i) });
+        }
+        console.log('📋 ใช้หัวข้อย่อยทั้งหมด:', allowedSubItems);
+    }
+    
+    // ✅ สร้างฟอร์ม โดยส่ง allowedSubItems ไปด้วย
+    generateDynamicForm(academic, allowedSubItems);
 
     wizardCurrentStep = 1;
     updateWizardUI();
@@ -534,7 +740,7 @@ async function loadExistingEvaluation() {
             const p1s2Values = existingEval.detailed_scores?.p1_s2 || [];
             const p2Value = existingEval.detailed_scores?.p2 || 0;
             const p3Values = existingEval.detailed_scores?.p3 || [];
-            
+
             let detailHtml = `
                 <div class="text-left text-sm mt-2">
                     <p class="font-bold text-blue-600">คะแนนเดิม:</p>
@@ -582,7 +788,7 @@ async function loadExistingEvaluation() {
                     .from('eval_results')
                     .delete()
                     .eq('id', existingEval.id);
-                
+
                 if (deleteError) {
                     console.error('Error deleting existing evaluation:', deleteError);
                     Swal.fire('ผิดพลาด', 'ไม่สามารถลบข้อมูลเดิมได้', 'error');
@@ -615,13 +821,13 @@ async function loadExistingEvaluation() {
 // ==========================================
 function loadScoresToForm(existingEval) {
     const detailedScores = existingEval.detailed_scores || {};
-    
+
     console.log('📥 โหลดข้อมูลเดิม:', detailedScores);
-    
+
     // ✅ โหลด p1s1 (องค์ประกอบที่ 1 ตอนที่ 1)
     if (detailedScores.p1_s1 && Array.isArray(detailedScores.p1_s1)) {
         const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
-        
+
         const groups = {};
         p1s1Inputs.forEach(input => {
             if (!groups[input.name]) {
@@ -629,9 +835,9 @@ function loadScoresToForm(existingEval) {
             }
             groups[input.name].push(input);
         });
-        
+
         const sortedNames = Object.keys(groups).sort();
-        
+
         sortedNames.forEach((name, index) => {
             if (index < detailedScores.p1_s1.length) {
                 const value = detailedScores.p1_s1[index];
@@ -645,11 +851,11 @@ function loadScoresToForm(existingEval) {
             }
         });
     }
-    
+
     // ✅ โหลด p1s2 (องค์ประกอบที่ 1 ตอนที่ 2)
     if (detailedScores.p1_s2 && Array.isArray(detailedScores.p1_s2)) {
         const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
-        
+
         const groups = {};
         p1s2Inputs.forEach(input => {
             if (!groups[input.name]) {
@@ -657,9 +863,9 @@ function loadScoresToForm(existingEval) {
             }
             groups[input.name].push(input);
         });
-        
+
         const sortedNames = Object.keys(groups).sort();
-        
+
         sortedNames.forEach((name, index) => {
             if (index < detailedScores.p1_s2.length) {
                 const value = detailedScores.p1_s2[index];
@@ -673,7 +879,7 @@ function loadScoresToForm(existingEval) {
             }
         });
     }
-    
+
     // ✅ โหลด p2 (องค์ประกอบที่ 2)
     if (detailedScores.p2) {
         const p2Value = detailedScores.p2;
@@ -683,11 +889,11 @@ function loadScoresToForm(existingEval) {
             console.log(`✅ p2: ระดับ ${p2Value}`);
         }
     }
-    
+
     // ✅ โหลด p3 (องค์ประกอบที่ 3)
     if (detailedScores.p3 && Array.isArray(detailedScores.p3)) {
         const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
-        
+
         const groups = {};
         p3Inputs.forEach(input => {
             if (!groups[input.name]) {
@@ -695,9 +901,9 @@ function loadScoresToForm(existingEval) {
             }
             groups[input.name].push(input);
         });
-        
+
         const sortedNames = Object.keys(groups).sort();
-        
+
         sortedNames.forEach((name, index) => {
             if (index < detailedScores.p3.length) {
                 const value = detailedScores.p3[index];
@@ -711,13 +917,13 @@ function loadScoresToForm(existingEval) {
             }
         });
     }
-    
+
     // ✅ อัปเดตคะแนน Live
     setTimeout(() => {
         calculateLiveTotal();
         console.log('📊 อัปเดตคะแนนเรียบร้อย');
     }, 100);
-    
+
     // ✅ เก็บ eval_id ไว้สำหรับอัปเดต
     window._existingEvalId = existingEval.id;
 }
@@ -729,198 +935,399 @@ function resetForm() {
     document.querySelectorAll('input[type="radio"]').forEach(el => {
         el.checked = false;
     });
-    
+
     const display = document.getElementById('liveTotalScoreDisplay');
     if (display) {
         display.innerHTML = `0.00 <span class="text-xs font-normal text-gray-500 ml-1">/ 100</span>`;
     }
-    
+
     window._existingEvalId = null;
 }
 
 // ==========================================
-// ฟังก์ชันสร้าง UI แบบ Dynamic
+// ฟังก์ชันสร้าง UI แบบ Dynamic (พร้อมแจ้งเตือนชัดเจน)
 // ==========================================
-function generateDynamicForm(academicLevel) {
+function generateDynamicForm(academicLevel, allowedSubItems = null) {
+    console.log('📋 generateDynamicForm - academicLevel:', academicLevel);
+    console.log('📋 generateDynamicForm - allowedSubItems:', allowedSubItems);
+    
     const criteriaSet = evalCriteriaDB[academicLevel] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
     const isAssistant = academicLevel === 'ครูผู้ช่วย';
 
-    // ----------------------------------------------------
-    // สร้าง Step 1: องค์ประกอบที่ 1
-    // ----------------------------------------------------
+    // ✅ สร้าง Set ของหัวข้อย่อยที่อนุญาต
+    const allowedSet = new Set();
+    const allowedPart2Set = new Set();
+    const allowedPart3Set = new Set();
+    let hasAnyElement1 = false;
+    let hasAnyElement2 = false;
+    let hasAnyElement3 = false;
+
+    if (allowedSubItems && Array.isArray(allowedSubItems)) {
+        allowedSubItems.forEach(item => {
+            if (item.element === '1') {
+                hasAnyElement1 = true;
+                let convertedValue = item.value;
+                if (convertedValue.includes('.')) {
+                    convertedValue = convertedValue.replace('.', '_');
+                }
+                if (item.part === '1') {
+                    allowedSet.add(convertedValue);
+                    allowedSet.add(item.value);
+                } else if (item.part === '2') {
+                    allowedPart2Set.add(item.value);
+                    if (item.value.includes('.')) {
+                        allowedPart2Set.add(item.value.replace('.', '_'));
+                    }
+                }
+            } else if (item.element === '2') {
+                hasAnyElement2 = true;
+            } else if (item.element === '3') {
+                hasAnyElement3 = true;
+                const idx = parseInt(item.value) - 1;
+                if (!isNaN(idx) && idx >= 0 && idx < PART3_ITEMS.length) {
+                    allowedPart3Set.add(idx);
+                }
+            }
+        });
+    }
+
+    const isRestricted = allowedSubItems !== null && allowedSubItems.length > 0;
+    
+    // ✅ เก็บสถานะการมีหัวข้อในแต่ละองค์ประกอบไว้ใช้ใน UI
+    window._hasElement1 = hasAnyElement1;
+    window._hasElement2 = hasAnyElement2;
+    window._hasElement3 = hasAnyElement3;
+
+    // ================================================================
+    // STEP 1: องค์ประกอบที่ 1
+    // ================================================================
     let step1HTML = `
         <h3 class="text-lg font-bold text-blue-800 mb-4 border-b pb-2">ส่วนที่ 1: การประเมินประสิทธิภาพและประสิทธิผล (80 คะแนน)</h3>
-        <p class="text-sm text-red-500 mb-4">* ระบบตรวจพบวิทยฐานะ: <span class="font-bold">${academicLevel}</span> ระบบได้ปรับฐานคะแนนให้อัตโนมัติ</p>
-        <div class="mb-4 bg-blue-100 p-3 rounded-xl border border-blue-200">
-            <h4 class="font-bold text-blue-800"><i class="fa-solid fa-book-open text-blue-600 mr-2"></i>ตอนที่ 1 : ระดับความสำเร็จในการพัฒนางานตามมาตรฐานตำแหน่ง (${criteriaSet.part1_sec1_base} คะแนน)</h4>
-            ${isAssistant ? `<p class="text-sm text-blue-600 mt-1">* ครูผู้ช่วย ใช้ฐานคะแนน 80 คะแนน (14 ข้อ)</p>` : `<p class="text-sm text-blue-600 mt-1">* ใช้ฐานคะแนน 60 คะแนน (15 ข้อ)</p>`}
-        </div>
+        <p class="text-sm text-blue-600 mb-4">* ระบบตรวจพบวิทยฐานะ: <span class="font-bold">${academicLevel}</span></p>
     `;
 
-    criteriaSet.part1_sec1.forEach((group) => {
-        step1HTML += `<div class="bg-blue-50/50 border border-blue-100 rounded-xl p-5 mb-6">`;
-        step1HTML += `<h4 class="font-bold text-blue-800 mb-4 border-b border-blue-200 pb-2">${group.group}</h4>`;
+    // ✅ ถ้าไม่มีองค์ประกอบที่ 1 เลย
+    if (!hasAnyElement1) {
+        step1HTML += `
+            <div class="bg-blue-50 p-6 rounded-xl text-center border border-blue-200">
+                <div class="flex items-center justify-center gap-3 mb-2">
+                    <i class="fa-solid fa-check-circle text-2xl text-blue-400"></i>
+                    <span class="text-lg font-bold text-blue-600">✅ ไม่มีการประเมินองค์ประกอบที่ 1</span>
+                </div>
+                <p class="text-sm text-blue-500">ชุดคณะกรรมการนี้ไม่ได้รับมอบหมายให้ประเมินองค์ประกอบที่ 1</p>
+                <p class="text-xs text-blue-400 mt-1">กรุณากดปุ่ม <span class="font-bold">"ถัดไป"</span> เพื่อข้ามขั้นตอนนี้</p>
+            </div>
+        `;
+    } else {
+        // ✅ มีองค์ประกอบที่ 1 ให้ประเมิน
+        step1HTML += `
+            <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-info-circle text-amber-500"></i>
+                    <span class="text-sm text-amber-700 font-medium">กรุณาประเมินเฉพาะหัวข้อย่อยที่ได้รับมอบหมาย</span>
+                </div>
+                <p class="text-xs text-amber-500 mt-1 ml-6">หัวข้อย่อยที่ต้องประเมิน: ${allowedSubItems.filter(s => s.element === '1').map(s => s.value).join(', ')}</p>
+            </div>
+            <div class="mb-4 bg-blue-100 p-3 rounded-xl border border-blue-200">
+                <h4 class="font-bold text-blue-800"><i class="fa-solid fa-book-open text-blue-600 mr-2"></i>ตอนที่ 1 : ระดับความสำเร็จในการพัฒนางานตามมาตรฐานตำแหน่ง (${criteriaSet.part1_sec1_base} คะแนน)</h4>
+                ${isAssistant ? `<p class="text-sm text-blue-600 mt-1">* ครูผู้ช่วย ใช้ฐานคะแนน 80 คะแนน (14 ข้อ)</p>` : `<p class="text-sm text-blue-600 mt-1">* ใช้ฐานคะแนน 60 คะแนน (15 ข้อ)</p>`}
+            </div>
+        `;
+
+        let hasAnyItem = false;
+        let totalItems = 0;
         
-        group.items.forEach((item) => {
+        criteriaSet.part1_sec1.forEach((group) => {
+            let filteredItems = group.items;
+            if (isRestricted) {
+                filteredItems = group.items.filter(item => {
+                    const dotVersion = item.id.replace('_', '.');
+                    return allowedSet.has(item.id) || allowedSet.has(dotVersion);
+                });
+            }
+            
+            if (filteredItems.length === 0) return;
+            hasAnyItem = true;
+            totalItems += filteredItems.length;
+            
+            step1HTML += `<div class="bg-blue-50/50 border border-blue-100 rounded-xl p-5 mb-6">`;
+            step1HTML += `<h4 class="font-bold text-blue-800 mb-4 border-b border-blue-200 pb-2">${group.group}</h4>`;
+            
+            filteredItems.forEach((item) => {
+                step1HTML += `
+                <div class="mb-5 bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition-all hover:shadow-md">
+                    <label class="block text-sm font-bold text-gray-800 mb-1">${item.label}</label>
+                    <p class="text-xs text-gray-500 mb-3 leading-relaxed">${item.desc}</p>
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <span class="text-xs font-bold text-gray-400">ให้คะแนน:</span>
+                        <div class="flex gap-2">
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
+                                <input type="radio" name="p1s1_${item.id}" value="1" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">1</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
+                                <input type="radio" name="p1s1_${item.id}" value="2" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">2</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
+                                <input type="radio" name="p1s1_${item.id}" value="3" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">3</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
+                                <input type="radio" name="p1s1_${item.id}" value="4" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
+                                <span class="text-sm font-medium text-gray-700">4</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            step1HTML += `</div>`;
+        });
+
+        if (!hasAnyItem) {
             step1HTML += `
-            <div class="mb-5 bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition-all hover:shadow-md">
-                <label class="block text-sm font-bold text-gray-800 mb-1">${item.label}</label>
-                <p class="text-xs text-gray-500 mb-3 leading-relaxed">${item.desc}</p>
-                <div class="flex items-center gap-4 flex-wrap">
-                    <span class="text-xs font-bold text-gray-400">ให้คะแนน:</span>
-                    <div class="flex gap-2">
-                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
-                            <input type="radio" name="p1s1_${item.id}" value="1" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
-                            <span class="text-sm font-medium text-gray-700">1</span>
+                <div class="bg-yellow-50 p-6 rounded-xl text-center border border-yellow-200">
+                    <i class="fa-solid fa-triangle-exclamation text-2xl text-yellow-400 mb-2"></i>
+                    <p class="text-yellow-700 font-medium">ไม่พบหัวข้อย่อยที่ตรงกับวิทยฐานะ ${academicLevel}</p>
+                    <p class="text-xs text-yellow-500 mt-1">หัวข้อย่อยที่ได้รับมอบหมาย: ${allowedSubItems ? allowedSubItems.filter(s => s.element === '1' && s.part === '1').map(s => s.value).join(', ') : 'ไม่มี'}</p>
+                    <p class="text-xs text-yellow-400 mt-2">กรุณาติดต่อผู้ดูแลระบบเพื่อตรวจสอบการตั้งค่า</p>
+                </div>
+            `;
+        } else {
+            // ✅ แสดงจำนวนข้อที่ต้องประเมิน
+            step1HTML += `
+                <div class="text-sm text-gray-400 text-center mt-2">
+                    <i class="fa-solid fa-list-check mr-1"></i> จำนวนข้อที่ต้องประเมิน: <span class="font-bold text-blue-600">${totalItems}</span> ข้อ
+                </div>
+            `;
+        }
+
+        // ✅ ตอนที่ 2
+        let hasPart2Items = false;
+        let part2Items = [];
+        if (isRestricted) {
+            const part2Allowed = allowedSubItems.filter(s => s.element === '1' && s.part === '2');
+            hasPart2Items = part2Allowed.length > 0;
+            if (hasPart2Items) {
+                const allowedIds = new Set();
+                part2Allowed.forEach(s => {
+                    allowedIds.add(s.value);
+                    if (s.value.includes('.')) {
+                        allowedIds.add(s.value.replace('.', '_'));
+                    }
+                });
+                part2Items = criteriaSet.part1_sec2.filter(item => {
+                    const mappedId = item.id === 's2_1' ? '1' : 
+                                    item.id === 's2_2_1' ? '2.1' : 
+                                    item.id === 's2_2_2' ? '2.2' : item.id;
+                    const mappedIdUnderscore = mappedId.replace('.', '_');
+                    return allowedIds.has(mappedId) || allowedIds.has(mappedIdUnderscore);
+                });
+                hasPart2Items = part2Items.length > 0;
+            }
+        } else {
+            hasPart2Items = criteriaSet.part1_sec2.length > 0;
+            part2Items = criteriaSet.part1_sec2;
+        }
+
+        if (hasPart2Items && part2Items.length > 0) {
+            step1HTML += `
+                <div class="mt-8 mb-4 bg-indigo-100 p-3 rounded-xl border border-indigo-200">
+                    <h4 class="font-bold text-indigo-800"><i class="fa-solid fa-bullseye text-indigo-600 mr-2"></i>ตอนที่ 2 : ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)</h4>
+                    <p class="text-xs text-indigo-500 mt-1">จำนวนข้อที่ต้องประเมิน: <span class="font-bold">${part2Items.length}</span> ข้อ</p>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-5 mb-6">
+            `;
+
+            part2Items.forEach((item) => {
+                step1HTML += `
+                <div class="mb-5 bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition-all hover:shadow-md">
+                    <label class="block text-sm font-bold text-gray-800 mb-1">${item.label} (เต็ม ${item.max_raw} คะแนน)</label>
+                    <p class="text-xs text-gray-500 mb-3 leading-relaxed">${item.desc}</p>
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <span class="text-xs font-bold text-gray-400">ระดับคุณภาพ:</span>
+                        <div class="flex gap-2">
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
+                                <input type="radio" name="p1s2_${item.id}" value="1" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm font-medium text-gray-700">ระดับ 1</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
+                                <input type="radio" name="p1s2_${item.id}" value="2" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm font-medium text-gray-700">ระดับ 2</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
+                                <input type="radio" name="p1s2_${item.id}" value="3" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm font-medium text-gray-700">ระดับ 3</span>
+                            </label>
+                            <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
+                                <input type="radio" name="p1s2_${item.id}" value="4" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm font-medium text-gray-700">ระดับ 4</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>`;
+            });
+            step1HTML += `</div>`;
+        } else if (isRestricted) {
+            step1HTML += `
+                <div class="mt-4 bg-gray-50 p-4 rounded-xl border border-gray-200 text-center">
+                    <i class="fa-solid fa-check-circle text-green-400 mr-2"></i>
+                    <span class="text-sm text-gray-500">ไม่มีการประเมินตอนที่ 2 ในชุดคณะกรรมการนี้</span>
+                    <span class="text-xs text-gray-400 block mt-1">✔ ข้ามขั้นตอนนี้ได้</span>
+                </div>
+            `;
+        }
+    }
+
+    document.getElementById('step1').innerHTML = step1HTML;
+
+    // ================================================================
+    // STEP 2: องค์ประกอบที่ 2
+    // ================================================================
+    if (hasAnyElement2) {
+        let step2HTML = `
+            <h3 class="text-lg font-bold text-emerald-800 mb-4 border-b pb-2">ส่วนที่ 2: การประเมินการมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)</h3>
+            <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
+                <div class="mb-3 bg-emerald-100 p-2 rounded-lg">
+                    <p class="text-sm text-emerald-700 font-medium"><i class="fa-solid fa-info-circle mr-2"></i>ท่านได้รับมอบหมายให้ประเมินองค์ประกอบที่ 2</p>
+                </div>
+                <label class="block text-sm font-bold text-gray-800 mb-3">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา</label>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-xs font-bold text-gray-400">ระดับความสำเร็จ:</span>
+                    <div class="flex flex-wrap gap-2">
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
+                            <input type="radio" name="sc_part2" value="1" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-sm font-medium text-gray-700">ระดับ 1</span>
                         </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
-                            <input type="radio" name="p1s1_${item.id}" value="2" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
-                            <span class="text-sm font-medium text-gray-700">2</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
+                            <input type="radio" name="sc_part2" value="2" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-sm font-medium text-gray-700">ระดับ 2</span>
                         </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
-                            <input type="radio" name="p1s1_${item.id}" value="3" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
-                            <span class="text-sm font-medium text-gray-700">3</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
+                            <input type="radio" name="sc_part2" value="3" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-sm font-medium text-gray-700">ระดับ 3</span>
                         </label>
-                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-blue-200">
-                            <input type="radio" name="p1s1_${item.id}" value="4" class="live-calc p1s1-input w-4 h-4 text-blue-600 focus:ring-blue-500">
-                            <span class="text-sm font-medium text-gray-700">4</span>
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
+                            <input type="radio" name="sc_part2" value="4" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-sm font-medium text-gray-700">ระดับ 4</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
+                            <input type="radio" name="sc_part2" value="5" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
+                            <span class="text-sm font-medium text-gray-700">ระดับ 5</span>
                         </label>
                     </div>
                 </div>
-            </div>`;
-        });
-        step1HTML += `</div>`;
-    });
-
-    step1HTML += `
-        <div class="mt-8 mb-4 bg-indigo-100 p-3 rounded-xl border border-indigo-200">
-            <h4 class="font-bold text-indigo-800"><i class="fa-solid fa-bullseye text-indigo-600 mr-2"></i>ตอนที่ 2 : ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)</h4>
-        </div>
-        <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-5 mb-6">
-    `;
-
-    criteriaSet.part1_sec2.forEach((item) => {
-        step1HTML += `
-        <div class="mb-5 bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition-all hover:shadow-md">
-            <label class="block text-sm font-bold text-gray-800 mb-1">${item.label} (เต็ม ${item.max_raw} คะแนน)</label>
-            <p class="text-xs text-gray-500 mb-3 leading-relaxed">${item.desc}</p>
-            <div class="flex items-center gap-4 flex-wrap">
-                <span class="text-xs font-bold text-gray-400">ระดับคุณภาพ:</span>
-                <div class="flex gap-2">
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
-                        <input type="radio" name="p1s2_${item.id}" value="1" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 1</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
-                        <input type="radio" name="p1s2_${item.id}" value="2" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 2</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
-                        <input type="radio" name="p1s2_${item.id}" value="3" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 3</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-indigo-200">
-                        <input type="radio" name="p1s2_${item.id}" value="4" data-max="${item.max_raw}" class="live-calc p1s2-input w-4 h-4 text-indigo-600 focus:ring-indigo-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 4</span>
-                    </label>
+                <div class="mt-3 text-xs text-gray-400 grid grid-cols-2 md:grid-cols-5 gap-1">
+                    <span>ระดับ 1: ต่ำกว่าร้อยละ 19.99</span>
+                    <span>ระดับ 2: ร้อยละ 20.00 - 39.99</span>
+                    <span>ระดับ 3: ร้อยละ 40.00 - 59.99</span>
+                    <span>ระดับ 4: ร้อยละ 60.00 - 79.99</span>
+                    <span>ระดับ 5: ร้อยละ 80.00 ขึ้นไป</span>
                 </div>
             </div>
-        </div>`;
-    });
-    step1HTML += `</div>`;
-    document.getElementById('step1').innerHTML = step1HTML;
-
-    // ----------------------------------------------------
-    // สร้าง Step 2: องค์ประกอบที่ 2
-    // ----------------------------------------------------
-    let step2HTML = `
-        <h3 class="text-lg font-bold text-emerald-800 mb-4 border-b pb-2">ส่วนที่ 2: การประเมินการมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)</h3>
-        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
-            <label class="block text-sm font-bold text-gray-800 mb-3">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา</label>
-            <div class="flex flex-wrap items-center gap-3">
-                <span class="text-xs font-bold text-gray-400">ระดับความสำเร็จ:</span>
-                <div class="flex flex-wrap gap-2">
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
-                        <input type="radio" name="sc_part2" value="1" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 1</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
-                        <input type="radio" name="sc_part2" value="2" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 2</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
-                        <input type="radio" name="sc_part2" value="3" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 3</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
-                        <input type="radio" name="sc_part2" value="4" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 4</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer hover:bg-emerald-50 px-3 py-1.5 rounded-lg transition-colors border border-transparent hover:border-emerald-200">
-                        <input type="radio" name="sc_part2" value="5" class="live-calc p2-input w-4 h-4 text-emerald-600 focus:ring-emerald-500">
-                        <span class="text-sm font-medium text-gray-700">ระดับ 5</span>
-                    </label>
+        `;
+        document.getElementById('step2').innerHTML = step2HTML;
+    } else {
+        document.getElementById('step2').innerHTML = `
+            <div class="bg-gray-50 p-8 rounded-xl text-center border border-gray-200">
+                <div class="flex items-center justify-center gap-3 mb-2">
+                    <i class="fa-solid fa-check-circle text-2xl text-gray-400"></i>
+                    <span class="text-lg font-bold text-gray-500">✅ ไม่มีการประเมินองค์ประกอบที่ 2</span>
+                </div>
+                <p class="text-sm text-gray-400">ชุดคณะกรรมการนี้ไม่ได้รับมอบหมายให้ประเมินองค์ประกอบที่ 2</p>
+                <div class="mt-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">
+                    <span class="text-sm text-blue-500">👉 กดปุ่ม <span class="font-bold">"ถัดไป"</span> เพื่อข้ามขั้นตอนนี้</span>
                 </div>
             </div>
-            <div class="mt-3 text-xs text-gray-400 grid grid-cols-2 md:grid-cols-5 gap-1">
-                <span>ระดับ 1: ต่ำกว่าร้อยละ 19.99</span>
-                <span>ระดับ 2: ร้อยละ 20.00 - 39.99</span>
-                <span>ระดับ 3: ร้อยละ 40.00 - 59.99</span>
-                <span>ระดับ 4: ร้อยละ 60.00 - 79.99</span>
-                <span>ระดับ 5: ร้อยละ 80.00 ขึ้นไป</span>
-            </div>
-        </div>
-    `;
-    document.getElementById('step2').innerHTML = step2HTML;
+        `;
+    }
 
-    // ----------------------------------------------------
-    // สร้าง Step 3: องค์ประกอบที่ 3
-    // ----------------------------------------------------
-    let step3HTML = `
-        <h3 class="text-lg font-bold text-purple-800 mb-4 border-b pb-2">ส่วนที่ 3: การประเมินการปฏิบัติตนในการรักษาวินัย คุณธรรม จริยธรรม (10 คะแนน)</h3>
-        <div class="bg-purple-50 border border-purple-100 rounded-xl p-5">
-    `;
-    PART3_ITEMS.forEach((text, index) => {
-        step3HTML += `
-        <div class="mb-4 bg-white p-3 rounded-lg shadow-sm border border-gray-100">
-            <label class="text-sm font-bold text-gray-800 flex-1 leading-relaxed block mb-2"><span class="text-purple-600 mr-1">${index + 1}.</span> ${text}</label>
-            <div class="flex items-center gap-4 flex-wrap">
-                <span class="text-xs font-bold text-gray-400">คะแนน:</span>
-                <div class="flex gap-2">
-                    <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
-                        <input type="radio" name="p3_${index}" value="1" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
-                        <span class="text-sm font-medium text-gray-700">1</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
-                        <input type="radio" name="p3_${index}" value="2" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
-                        <span class="text-sm font-medium text-gray-700">2</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
-                        <input type="radio" name="p3_${index}" value="3" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
-                        <span class="text-sm font-medium text-gray-700">3</span>
-                    </label>
-                    <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
-                        <input type="radio" name="p3_${index}" value="4" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
-                        <span class="text-sm font-medium text-gray-700">4</span>
-                    </label>
+    // ================================================================
+    // STEP 3: องค์ประกอบที่ 3
+    // ================================================================
+    if (hasAnyElement3) {
+        let part3Items = PART3_ITEMS;
+        if (isRestricted && allowedPart3Set.size > 0) {
+            part3Items = PART3_ITEMS.filter((_, index) => allowedPart3Set.has(index));
+        }
+
+        let step3HTML = `
+            <h3 class="text-lg font-bold text-purple-800 mb-4 border-b pb-2">ส่วนที่ 3: การประเมินการปฏิบัติตนในการรักษาวินัย คุณธรรม จริยธรรม (10 คะแนน)</h3>
+            <div class="bg-purple-50 border border-purple-100 rounded-xl p-5">
+                <div class="mb-3 bg-purple-100 p-2 rounded-lg">
+                    <p class="text-sm text-purple-700 font-medium"><i class="fa-solid fa-info-circle mr-2"></i>ท่านได้รับมอบหมายให้ประเมินองค์ประกอบที่ 3 จำนวน ${part3Items.length} ข้อ</p>
+                </div>
+        `;
+
+        if (part3Items.length === 0) {
+            step3HTML += `
+                <div class="text-center text-gray-400 py-4">
+                    <i class="fa-solid fa-info-circle mr-2"></i>ไม่มีการประเมินองค์ประกอบที่ 3 ในชุดคณะกรรมการนี้
+                </div>
+            `;
+        } else {
+            part3Items.forEach((text, index) => {
+                const realIndex = PART3_ITEMS.indexOf(text);
+                step3HTML += `
+                <div class="mb-4 bg-white p-3 rounded-lg shadow-sm border border-gray-100">
+                    <label class="text-sm font-bold text-gray-800 flex-1 leading-relaxed block mb-2"><span class="text-purple-600 mr-1">${realIndex + 1}.</span> ${text}</label>
+                    <div class="flex items-center gap-4 flex-wrap">
+                        <span class="text-xs font-bold text-gray-400">คะแนน:</span>
+                        <div class="flex gap-2">
+                            <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
+                                <input type="radio" name="p3_${realIndex}" value="1" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">1</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
+                                <input type="radio" name="p3_${realIndex}" value="2" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">2</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
+                                <input type="radio" name="p3_${realIndex}" value="3" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">3</span>
+                            </label>
+                            <label class="flex items-center gap-1 cursor-pointer hover:bg-purple-50 px-2.5 py-1 rounded-lg transition-colors border border-transparent hover:border-purple-200">
+                                <input type="radio" name="p3_${realIndex}" value="4" class="live-calc p3-input w-4 h-4 text-purple-600 focus:ring-purple-500">
+                                <span class="text-sm font-medium text-gray-700">4</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>`;
+            });
+        }
+        step3HTML += `</div>`;
+        document.getElementById('step3').innerHTML = step3HTML;
+    } else {
+        document.getElementById('step3').innerHTML = `
+            <div class="bg-gray-50 p-8 rounded-xl text-center border border-gray-200">
+                <div class="flex items-center justify-center gap-3 mb-2">
+                    <i class="fa-solid fa-check-circle text-2xl text-gray-400"></i>
+                    <span class="text-lg font-bold text-gray-500">✅ ไม่มีการประเมินองค์ประกอบที่ 3</span>
+                </div>
+                <p class="text-sm text-gray-400">ชุดคณะกรรมการนี้ไม่ได้รับมอบหมายให้ประเมินองค์ประกอบที่ 3</p>
+                <div class="mt-3 inline-block bg-blue-50 px-4 py-2 rounded-lg">
+                    <span class="text-sm text-blue-500">👉 กดปุ่ม <span class="font-bold">"ถัดไป"</span> เพื่อข้ามขั้นตอนนี้</span>
                 </div>
             </div>
-        </div>`;
-    });
-    step3HTML += `</div>`;
-    document.getElementById('step3').innerHTML = step3HTML;
+        `;
+    }
 
+    // ✅ ผูก event listener สำหรับคำนวณคะแนน
     document.querySelectorAll('.live-calc').forEach(el => {
         el.addEventListener('change', calculateLiveTotal);
     });
+    
+    // ✅ อัปเดต UI Wizard ให้แสดงสถานะ
+    updateWizardUI();
 }
 
 // ==========================================
-// ฟังก์ชันเปลี่ยนขั้นตอน
+// ฟังก์ชันเปลี่ยนขั้นตอน (ปรับปรุง)
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
         if (wizardCurrentStep === 1) {
+            // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 (ต้องกรอกให้ครบ)
             let missing = false;
             const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
             const groupNames = new Set();
@@ -946,26 +1353,35 @@ function changeStep(direction) {
         }
         
         if (wizardCurrentStep === 2) {
-            const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
-            if (!p2Checked) {
-                return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
+            // ✅ ตรวจสอบองค์ประกอบที่ 2 เฉพาะเมื่อมีให้เลือก
+            const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
+            if (p2Inputs.length > 0) {
+                const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
+                if (!p2Checked) {
+                    return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
+                }
             }
+            // ✅ ถ้าไม่มี p2 inputs (ซ่อนอยู่) ให้ข้ามไป
         }
         
         if (wizardCurrentStep === 3) {
+            // ✅ ตรวจสอบองค์ประกอบที่ 3 เฉพาะเมื่อมีให้เลือก
             const p3Groups = document.querySelectorAll('[name^="p3_"]');
-            const groupNames3 = new Set();
-            p3Groups.forEach(el => groupNames3.add(el.name));
-            
-            let missingP3 = false;
-            groupNames3.forEach(name => {
-                const checked = document.querySelector(`input[name="${name}"]:checked`);
-                if (!checked) missingP3 = true;
-            });
-            
-            if (missingP3) {
-                return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+            if (p3Groups.length > 0) {
+                const groupNames3 = new Set();
+                p3Groups.forEach(el => groupNames3.add(el.name));
+                
+                let missingP3 = false;
+                groupNames3.forEach(name => {
+                    const checked = document.querySelector(`input[name="${name}"]:checked`);
+                    if (!checked) missingP3 = true;
+                });
+                
+                if (missingP3) {
+                    return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+                }
             }
+            // ✅ ถ้าไม่มี p3 inputs (ซ่อนอยู่) ให้ข้ามไป
         }
     }
 
@@ -981,7 +1397,7 @@ function changeStep(direction) {
 }
 
 // ==========================================
-// อัปเดต UI Wizard
+// อัปเดต UI Wizard (พร้อมแสดงสถานะ)
 // ==========================================
 function updateWizardUI() {
     const totalSteps = 4;
@@ -990,6 +1406,32 @@ function updateWizardUI() {
 
     document.getElementById('btnPrev').classList.toggle('hidden', wizardCurrentStep === 1);
     document.getElementById('btnNext').classList.toggle('hidden', wizardCurrentStep === totalSteps);
+    
+    // ✅ เปลี่ยนข้อความปุ่ม Next ตามสถานะ
+    const nextBtn = document.getElementById('btnNext');
+    if (nextBtn && wizardCurrentStep < totalSteps) {
+        // ตรวจสอบว่าขั้นตอนปัจจุบันมีหัวข้อให้ประเมินหรือไม่
+        let hasItems = true;
+        if (wizardCurrentStep === 1) {
+            const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
+            const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
+            hasItems = p1s1Inputs.length > 0 || p1s2Inputs.length > 0;
+        } else if (wizardCurrentStep === 2) {
+            const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
+            hasItems = p2Inputs.length > 0;
+        } else if (wizardCurrentStep === 3) {
+            const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
+            hasItems = p3Inputs.length > 0;
+        }
+        
+        if (!hasItems) {
+            nextBtn.innerHTML = 'ข้าม <i class="fa-solid fa-forward-step ml-1"></i>';
+            nextBtn.className = 'bg-gray-400 hover:bg-gray-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+        } else {
+            nextBtn.innerHTML = 'ถัดไป <i class="fa-solid fa-chevron-right ml-1"></i>';
+            nextBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+        }
+    }
     
     const submitBtn = document.getElementById('btnSubmit');
     if (isEditingMode && submitBtn) {
@@ -1006,7 +1448,7 @@ function updateWizardUI() {
 }
 
 // ==========================================
-// ฟังก์ชันคำนวณคะแนนรวม (Real-time)
+// ฟังก์ชันคำนวณคะแนนรวม (Real-time) - ปรับปรุง
 // ==========================================
 function calculateLiveTotal() {
     if (!evaluateeData) return 0;
@@ -1014,39 +1456,56 @@ function calculateLiveTotal() {
     const academic = evaluateeData.academic_standing || 'ไม่มีวิทยฐานะ';
     const isAssistant = academic === 'ครูผู้ช่วย';
     
-    let p1s1Raw = 0;
-    document.querySelectorAll('input[name^="p1s1_"]:checked').forEach(el => {
-        p1s1Raw += parseInt(el.value) || 0;
-    });
+    let part1Total = 0;
+    let part2Total = 0;
+    let part3Total = 0;
     
-    let p1s1Final = 0;
-    if (isAssistant) {
-        p1s1Final = (p1s1Raw * 80) / 56;
-    } else {
-        p1s1Final = (p1s1Raw / 60) * 60;
+    // ✅ คำนวณองค์ประกอบที่ 1 (เฉพาะที่มีการเลือก)
+    let p1s1Raw = 0;
+    const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]:checked');
+    if (p1s1Inputs.length > 0) {
+        p1s1Inputs.forEach(el => {
+            p1s1Raw += parseInt(el.value) || 0;
+        });
+        if (isAssistant) {
+            part1Total += (p1s1Raw * 80) / 56;
+        } else {
+            part1Total += (p1s1Raw / 60) * 60;
+        }
     }
 
     let p1s2Raw = 0;
-    document.querySelectorAll('input[name^="p1s2_"]:checked').forEach(el => {
-        let val = parseInt(el.value) || 0;
-        let max = parseInt(el.getAttribute('data-max')) || 0;
-        p1s2Raw += (val * 0.25) * max;
-    });
-    let p1s2Final = (p1s2Raw * 20) / 40;
+    const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]:checked');
+    if (p1s2Inputs.length > 0) {
+        p1s2Inputs.forEach(el => {
+            let val = parseInt(el.value) || 0;
+            let max = parseInt(el.getAttribute('data-max')) || 0;
+            p1s2Raw += (val * 0.25) * max;
+        });
+        part1Total += (p1s2Raw * 20) / 40;
+    }
 
-    let part1Total = p1s1Final + p1s2Final;
+    // ✅ คำนวณองค์ประกอบที่ 2 (เฉพาะที่มี)
+    const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
+    if (p2Inputs.length > 0) {
+        const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
+        if (p2Checked) {
+            const p2Val = parseFloat(p2Checked.value) || 0;
+            part2Total = p2Val * 2;
+        }
+    }
 
-    const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
-    const p2Val = p2Checked ? parseFloat(p2Checked.value) : 0;
-    const part2Total = p2Val * 2;
-
+    // ✅ คำนวณองค์ประกอบที่ 3 (เฉพาะที่มี)
     let p3Raw = 0;
-    document.querySelectorAll('input[name^="p3_"]:checked').forEach(el => {
-        p3Raw += parseInt(el.value) || 0;
-    });
-    const part3Total = p3Raw / 4;
+    const p3Inputs = document.querySelectorAll('input[name^="p3_"]:checked');
+    if (p3Inputs.length > 0) {
+        p3Inputs.forEach(el => {
+            p3Raw += parseInt(el.value) || 0;
+        });
+        part3Total = p3Raw / 4;
+    }
 
-    let grandTotal = part1Total + part2Total + part3Total;
+    const grandTotal = part1Total + part2Total + part3Total;
 
     const display = document.getElementById('liveTotalScoreDisplay');
     if (display) {
@@ -1059,7 +1518,7 @@ function calculateLiveTotal() {
 }
 
 // ==========================================
-// ฟังก์ชันอัปเดตสรุปคะแนน (Step 4)
+// ฟังก์ชันอัปเดตสรุปคะแนน (Step 4) - ปรับปรุง
 // ==========================================
 function updateSummary() {
     if (!evaluateeData) return;
@@ -1089,17 +1548,24 @@ function updateSummary() {
     
     let part1Total = p1s1Final + p1s2Final;
     
+    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 2 หรือไม่
     const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
     const p2Val = p2Checked ? parseFloat(p2Checked.value) : 0;
-    const part2Total = p2Val * 2;
+    const hasPart2 = document.querySelectorAll('input[name="sc_part2"]').length > 0;
+    const part2Total = hasPart2 ? p2Val * 2 : 0;
     
+    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 3 หรือไม่
     let p3Raw = 0;
     document.querySelectorAll('input[name^="p3_"]:checked').forEach(el => {
         p3Raw += parseInt(el.value) || 0;
     });
-    const part3Total = p3Raw / 4;
+    const hasPart3 = document.querySelectorAll('input[name^="p3_"]').length > 0;
+    const part3Total = hasPart3 ? p3Raw / 4 : 0;
     
-    const grandTotal = part1Total + part2Total + part3Total;
+    // ✅ คำนวณคะแนนรวมตามองค์ประกอบที่มี
+    let grandTotal = part1Total;
+    if (hasPart2) grandTotal += part2Total;
+    if (hasPart3) grandTotal += part3Total;
     
     document.getElementById('summary_evaluatee_name').innerText = 
         `${evaluateeData.first_name} ${evaluateeData.last_name}`;
@@ -1111,19 +1577,37 @@ function updateSummary() {
     document.getElementById('summary_part1_sec1').innerText = p1s1Final.toFixed(2);
     document.getElementById('summary_part1_sec2').innerText = p1s2Final.toFixed(2);
     
-    document.getElementById('summary_part2_score').innerText = part2Total.toFixed(2);
-    const levelText = {
-        0: 'ยังไม่ประเมิน',
-        1: 'ระดับ 1 (ต่ำกว่าร้อยละ 19.99)',
-        2: 'ระดับ 2 (ร้อยละ 20.00 - 39.99)',
-        3: 'ระดับ 3 (ร้อยละ 40.00 - 59.99)',
-        4: 'ระดับ 4 (ร้อยละ 60.00 - 79.99)',
-        5: 'ระดับ 5 (ร้อยละ 80.00 ขึ้นไป)'
-    };
-    document.getElementById('summary_part2_level').innerText = levelText[p2Val] || '-';
+    // ✅ แสดง/ซ่อน องค์ประกอบที่ 2
+    const part2Section = document.getElementById('summary_part2_score')?.parentElement?.parentElement;
+    if (part2Section) {
+        if (hasPart2) {
+            part2Section.style.display = 'block';
+            document.getElementById('summary_part2_score').innerText = part2Total.toFixed(2);
+            const levelText = {
+                0: 'ยังไม่ประเมิน',
+                1: 'ระดับ 1 (ต่ำกว่าร้อยละ 19.99)',
+                2: 'ระดับ 2 (ร้อยละ 20.00 - 39.99)',
+                3: 'ระดับ 3 (ร้อยละ 40.00 - 59.99)',
+                4: 'ระดับ 4 (ร้อยละ 60.00 - 79.99)',
+                5: 'ระดับ 5 (ร้อยละ 80.00 ขึ้นไป)'
+            };
+            document.getElementById('summary_part2_level').innerText = levelText[p2Val] || '-';
+        } else {
+            part2Section.style.display = 'none';
+        }
+    }
     
-    document.getElementById('summary_part3_score').innerText = part3Total.toFixed(2);
-    document.getElementById('summary_part3_raw').innerText = p3Raw;
+    // ✅ แสดง/ซ่อน องค์ประกอบที่ 3
+    const part3Section = document.getElementById('summary_part3_score')?.parentElement?.parentElement;
+    if (part3Section) {
+        if (hasPart3) {
+            part3Section.style.display = 'block';
+            document.getElementById('summary_part3_score').innerText = part3Total.toFixed(2);
+            document.getElementById('summary_part3_raw').innerText = p3Raw;
+        } else {
+            part3Section.style.display = 'none';
+        }
+    }
     
     document.getElementById('summary_total_score').innerText = grandTotal.toFixed(2);
     
@@ -1138,19 +1622,22 @@ function updateSummary() {
     } else if (grandTotal >= 60) {
         grade = 'พอใช้';
         statusIcon = '<i class="fa-solid fa-circle-exclamation text-yellow-300"></i>';
-    } else {
+    } else if (grandTotal > 0) {
         grade = 'ควรปรับปรุง';
         statusIcon = '<i class="fa-solid fa-circle-xmark text-red-300"></i>';
+    } else {
+        grade = 'ยังไม่ประเมิน';
+        statusIcon = '<i class="fa-solid fa-clock text-gray-300"></i>';
     }
     document.getElementById('summary_grade').innerText = grade;
     document.getElementById('summary_status_icon').innerHTML = statusIcon;
 }
 
 // ==========================================
-// ฟังก์ชันบันทึกผลการประเมิน (รองรับการแก้ไข)
+// ฟังก์ชันบันทึกผลการประเมิน (ปรับปรุง)
 // ==========================================
 async function submitEvaluation() {
-    // ตรวจสอบองค์ประกอบที่ 1
+    // ✅ ตรวจสอบองค์ประกอบที่ 1 (ต้องมีเสมอ)
     let missingP1 = false;
     const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
     const groupNames = new Set();
@@ -1172,46 +1659,68 @@ async function submitEvaluation() {
     
     if (missingP1) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
     
-    const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
-    if (!p2Checked) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
+    // ✅ ตรวจสอบองค์ประกอบที่ 2 เฉพาะเมื่อมีให้เลือก
+    const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
+    if (p2Inputs.length > 0) {
+        const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
+        if (!p2Checked) {
+            return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
+        }
     }
     
+    // ✅ ตรวจสอบองค์ประกอบที่ 3 เฉพาะเมื่อมีให้เลือก
     const p3Groups = document.querySelectorAll('[name^="p3_"]');
-    const groupNames3 = new Set();
-    p3Groups.forEach(el => groupNames3.add(el.name));
-    
-    let missingP3 = false;
-    groupNames3.forEach(name => {
-        const checked = document.querySelector(`input[name="${name}"]:checked`);
-        if (!checked) missingP3 = true;
-    });
-    
-    if (missingP3) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+    if (p3Groups.length > 0) {
+        const groupNames3 = new Set();
+        p3Groups.forEach(el => groupNames3.add(el.name));
+        
+        let missingP3 = false;
+        groupNames3.forEach(name => {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            if (!checked) missingP3 = true;
+        });
+        
+        if (missingP3) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+    }
 
     updateSummary();
     const total = calculateLiveTotal();
     
+    // ✅ เก็บ rawScores เฉพาะที่มีอยู่
     const rawScores = {
         p1_s1: Array.from(document.querySelectorAll('input[name^="p1s1_"]:checked')).map(el => parseInt(el.value) || 0),
         p1_s2: Array.from(document.querySelectorAll('input[name^="p1s2_"]:checked')).map(el => parseInt(el.value) || 0),
-        p2: parseInt(document.querySelector('input[name="sc_part2"]:checked')?.value) || 0,
-        p3: Array.from(document.querySelectorAll('input[name^="p3_"]:checked')).map(el => parseInt(el.value) || 0)
     };
     
+    // ✅ เพิ่ม p2 เฉพาะเมื่อมี
+    const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
+    if (p2Checked) {
+        rawScores.p2 = parseInt(p2Checked.value) || 0;
+    }
+    
+    // ✅ เพิ่ม p3 เฉพาะเมื่อมี
+    const p3Checked = document.querySelectorAll('input[name^="p3_"]:checked');
+    if (p3Checked.length > 0) {
+        rawScores.p3 = Array.from(p3Checked).map(el => parseInt(el.value) || 0);
+    }
+    
+    // ✅ ตรวจสอบว่ามีการประเมินอย่างน้อย 1 องค์ประกอบ
+    const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0;
+    if (!hasScores) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
+    }
+
     Swal.fire({ title: 'กำลังบันทึกคะแนน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
         // ✅ ถ้ามี _existingEvalId (แก้ไขหรือโหลดข้อมูลเดิม)
         if (window._existingEvalId) {
-            // ✅ ตรวจสอบสถานะปัจจุบันก่อนอัปเดต
             const { data: currentEval } = await db
                 .from('eval_results')
                 .select('status')
                 .eq('id', window._existingEvalId)
                 .single();
 
-            // ✅ ถ้าสถานะเป็น submitted และไม่ได้อยู่ในโหมดแก้ไข ให้ถามก่อน
             if (currentEval?.status === 'submitted' && !isEditingMode) {
                 Swal.close();
                 const confirm = await Swal.fire({
@@ -1226,7 +1735,6 @@ async function submitEvaluation() {
                 Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
             }
 
-            // ✅ อัปเดตข้อมูล
             const { error: updateError } = await db
                 .from('eval_results')
                 .update({
@@ -1245,9 +1753,9 @@ async function submitEvaluation() {
                 title: '✅ แก้ไขผลสำเร็จ!',
                 html: `
                     <div class="text-left space-y-2">
-                        <p><b>องค์ประกอบที่ 1:</b> ${document.getElementById('summary_part1_score').innerText} / 80</p>
-                        <p><b>องค์ประกอบที่ 2:</b> ${document.getElementById('summary_part2_score').innerText} / 10</p>
-                        <p><b>องค์ประกอบที่ 3:</b> ${document.getElementById('summary_part3_score').innerText} / 10</p>
+                        <p><b>องค์ประกอบที่ 1:</b> ${document.getElementById('summary_part1_score').innerText || '0'} / ${document.querySelector('#summary_part1_score') ? '80' : '0'}</p>
+                        ${document.querySelector('#summary_part2_score') ? `<p><b>องค์ประกอบที่ 2:</b> ${document.getElementById('summary_part2_score').innerText} / 10</p>` : ''}
+                        ${document.querySelector('#summary_part3_score') ? `<p><b>องค์ประกอบที่ 3:</b> ${document.getElementById('summary_part3_score').innerText} / 10</p>` : ''}
                         <hr class="my-2">
                         <p class="text-lg font-bold text-blue-600">รวม: ${total.toFixed(2)} / 100</p>
                         <p class="text-sm text-gray-500">ระดับ: ${document.getElementById('summary_grade').innerText}</p>
@@ -1263,7 +1771,7 @@ async function submitEvaluation() {
             return;
         }
 
-        // ✅ ถ้าไม่มีการประเมินเดิม ให้ INSERT ใหม่ (กรณีแรก)
+        // ✅ ถ้าไม่มีการประเมินเดิม
         const { data: existingEval, error: checkError } = await db
             .from('eval_results')
             .select('id')
@@ -1317,8 +1825,9 @@ async function submitEvaluation() {
             return;
         }
 
-        // ✅ กรณีไม่มีการประเมินเดิม (INSERT ใหม่)
+        // ✅ INSERT ใหม่
         const payload = {
+            eval_round_id: currentEvalRound?.id || null,
             academic_year: currentTermData.current_academic_year,
             semester: currentTermData.current_semester,
             evaluatee_id: evaluateeData.id,
@@ -1338,9 +1847,9 @@ async function submitEvaluation() {
             title: 'บันทึกผลสำเร็จ!', 
             html: `
                 <div class="text-left space-y-2">
-                    <p><b>องค์ประกอบที่ 1:</b> ${document.getElementById('summary_part1_score').innerText} / 80</p>
-                    <p><b>องค์ประกอบที่ 2:</b> ${document.getElementById('summary_part2_score').innerText} / 10</p>
-                    <p><b>องค์ประกอบที่ 3:</b> ${document.getElementById('summary_part3_score').innerText} / 10</p>
+                    <p><b>องค์ประกอบที่ 1:</b> ${document.getElementById('summary_part1_score')?.innerText || '0'} / 80</p>
+                    ${document.querySelector('#summary_part2_score') ? `<p><b>องค์ประกอบที่ 2:</b> ${document.getElementById('summary_part2_score').innerText} / 10</p>` : ''}
+                    ${document.querySelector('#summary_part3_score') ? `<p><b>องค์ประกอบที่ 3:</b> ${document.getElementById('summary_part3_score').innerText} / 10</p>` : ''}
                     <hr class="my-2">
                     <p class="text-lg font-bold text-blue-600">รวม: ${total.toFixed(2)} / 100</p>
                     <p class="text-sm text-gray-500">ระดับ: ${document.getElementById('summary_grade').innerText}</p>
@@ -1348,7 +1857,15 @@ async function submitEvaluation() {
             `,
             confirmButtonText: 'กลับหน้าหลัก' 
         }).then(() => {
-            window.location.reload();
+            if (evaluationMode === 'committee') {
+                document.getElementById('dashboardView').classList.remove('hidden');
+                document.getElementById('wizardView').classList.add('hidden');
+                setTimeout(() => {
+                    loadTeachersForEval();
+                }, 500);
+            } else {
+                window.location.reload();
+            }
         });
     } catch (err) {
         console.error('Error:', err);
@@ -1364,4 +1881,22 @@ function formatDate(dateStr) {
     if (!dateStr) return '-';
     const d = new Date(dateStr);
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+// ==========================================
+// LOGOUT (มาตรฐานกลาง)
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
 }
