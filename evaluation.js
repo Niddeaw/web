@@ -12,6 +12,7 @@ let loadTeachersTimeout = null;
 let isLoadTeachersRunning = false;
 let _dataTableInstance = null;  // ✅ เพิ่มตัวแปรเก็บ instance DataTable
 let _isDestroying = false;      // ✅ ป้องกันการทำลายซ้ำ
+let finalScoresCache = {}; // cache สำหรับคะแนนสรุป
 
 // ==========================================
 // ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ ตามเอกสาร)
@@ -1159,7 +1160,17 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
     let hasAnyElement2 = false;
     let hasAnyElement3 = false;
 
-    if (allowedSubItems && Array.isArray(allowedSubItems)) {
+    // ✅ ตรวจสอบว่าเป็นโหมดประเมินตนเองหรือไม่ (allowedSubItems === null)
+    const isSelfMode = allowedSubItems === null;
+
+    if (isSelfMode) {
+        // ✅ โหมดประเมินตนเอง: แสดงทุกองค์ประกอบ
+        hasAnyElement1 = true;
+        hasAnyElement2 = true;
+        hasAnyElement3 = true;
+        console.log('📋 โหมดประเมินตนเอง: แสดงทุกองค์ประกอบ');
+    } else if (allowedSubItems && Array.isArray(allowedSubItems)) {
+        // ✅ โหมดกรรมการ: ใช้หัวข้อย่อยที่กำหนด
         allowedSubItems.forEach(item => {
             if (item.element === '1') {
                 hasAnyElement1 = true;
@@ -1188,6 +1199,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         });
     }
 
+    // ✅ isRestricted: เฉพาะโหมด committee ที่มี allowedSubItems
     const isRestricted = allowedSubItems !== null && allowedSubItems.length > 0;
 
     window._hasElement1 = hasAnyElement1;
@@ -1200,7 +1212,8 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         <p class="text-sm text-blue-600 mb-4">* ระบบตรวจพบวิทยฐานะ: <span class="font-bold">${academicLevel}</span></p>
     `;
 
-    if (!hasAnyElement1) {
+    // ✅ ตรวจสอบว่าไม่มีองค์ประกอบที่ 1 และไม่ใช่โหมด self
+    if (!hasAnyElement1 && !isSelfMode) {
         step1HTML += `
             <div class="bg-blue-50 p-6 rounded-xl text-center border border-blue-200">
                 <div class="flex items-center justify-center gap-3 mb-2">
@@ -1211,14 +1224,15 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                 <p class="text-xs text-blue-400 mt-1">กรุณากดปุ่ม <span class="font-bold">"ถัดไป"</span> เพื่อข้ามขั้นตอนนี้</p>
             </div>
         `;
-    } else {
+    } else if (hasAnyElement1) {
+        // ✅ มีองค์ประกอบที่ 1 - แสดงฟอร์ม
         step1HTML += `
             <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div class="flex items-center gap-2">
                     <i class="fa-solid fa-info-circle text-amber-500"></i>
-                    <span class="text-sm text-amber-700 font-medium">กรุณาประเมินเฉพาะหัวข้อย่อยที่ได้รับมอบหมาย</span>
+                    <span class="text-sm text-amber-700 font-medium">กรุณาประเมินตามหัวข้อย่อยที่ได้รับมอบหมาย</span>
                 </div>
-                <p class="text-xs text-amber-500 mt-1 ml-6">หัวข้อย่อยที่ต้องประเมิน: ${allowedSubItems.filter(s => s.element === '1').map(s => s.value).join(', ')}</p>
+                ${!isSelfMode ? `<p class="text-xs text-amber-500 mt-1 ml-6">หัวข้อย่อยที่ต้องประเมิน: ${allowedSubItems.filter(s => s.element === '1').map(s => s.value).join(', ')}</p>` : ''}
             </div>
             <div class="mb-4 bg-blue-100 p-3 rounded-xl border border-blue-200">
                 <h4 class="font-bold text-blue-800"><i class="fa-solid fa-book-open text-blue-600 mr-2"></i>ตอนที่ 1 : ระดับความสำเร็จในการพัฒนางานตามมาตรฐานตำแหน่ง (${criteriaSet.part1_sec1_base} คะแนน)</h4>
@@ -1293,6 +1307,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             `;
         }
 
+        // ✅ ตอนที่ 2
         let hasPart2Items = false;
         let part2Items = [];
         if (isRestricted) {
@@ -1315,7 +1330,8 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                 });
                 hasPart2Items = part2Items.length > 0;
             }
-        } else {
+        } else if (!isRestricted) {
+            // ✅ โหมด self หรือ unrestricted: แสดงทุกข้อ
             hasPart2Items = criteriaSet.part1_sec2.length > 0;
             part2Items = criteriaSet.part1_sec2;
         }
@@ -1367,18 +1383,35 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                 </div>
             `;
         }
+    } else {
+        // ✅ กรณีอื่น (ไม่น่าจะเกิด)
+        step1HTML += `
+            <div class="bg-yellow-50 p-6 rounded-xl text-center border border-yellow-200">
+                <i class="fa-solid fa-triangle-exclamation text-2xl text-yellow-400 mb-2"></i>
+                <p class="text-yellow-700 font-medium">ไม่พบข้อมูลการประเมิน</p>
+                <p class="text-xs text-yellow-500 mt-1">กรุณาติดต่อผู้ดูแลระบบ</p>
+            </div>
+        `;
     }
 
     document.getElementById('step1').innerHTML = step1HTML;
 
+    // ==========================================
     // STEP 2: องค์ประกอบที่ 2
+    // ==========================================
     if (hasAnyElement2) {
         let step2HTML = `
             <h3 class="text-lg font-bold text-emerald-800 mb-4 border-b pb-2">ส่วนที่ 2: การประเมินการมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)</h3>
             <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-5">
+                ${!isSelfMode ? `
                 <div class="mb-3 bg-emerald-100 p-2 rounded-lg">
                     <p class="text-sm text-emerald-700 font-medium"><i class="fa-solid fa-info-circle mr-2"></i>ท่านได้รับมอบหมายให้ประเมินองค์ประกอบที่ 2</p>
                 </div>
+                ` : `
+                <div class="mb-3 bg-emerald-100 p-2 rounded-lg">
+                    <p class="text-sm text-emerald-700 font-medium"><i class="fa-solid fa-info-circle mr-2"></i>ประเมินตนเอง องค์ประกอบที่ 2</p>
+                </div>
+                `}
                 <label class="block text-sm font-bold text-gray-800 mb-3">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา</label>
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="text-xs font-bold text-gray-400">ระดับความสำเร็จ:</span>
@@ -1430,7 +1463,9 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         `;
     }
 
+    // ==========================================
     // STEP 3: องค์ประกอบที่ 3
+    // ==========================================
     if (hasAnyElement3) {
         let part3Items = PART3_ITEMS;
         if (isRestricted && allowedPart3Set.size > 0) {
@@ -1506,32 +1541,30 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 }
 
 // ==========================================
-// ฟังก์ชันเปลี่ยนขั้นตอน
+// ฟังก์ชันเปลี่ยนขั้นตอน (ปรับปรุง)
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
         if (wizardCurrentStep === 1) {
-            let missing = false;
+            // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 ถ้ามีในฟอร์ม
             const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
-            const groupNames = new Set();
-            p1s1Groups.forEach(el => groupNames.add(el.name));
-
-            groupNames.forEach(name => {
-                const checked = document.querySelector(`input[name="${name}"]:checked`);
-                if (!checked) missing = true;
-            });
-
             const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
-            const groupNames2 = new Set();
-            p1s2Groups.forEach(el => groupNames2.add(el.name));
-
-            groupNames2.forEach(name => {
-                const checked = document.querySelector(`input[name="${name}"]:checked`);
-                if (!checked) missing = true;
-            });
-
-            if (missing) {
-                return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
+            const hasElement1 = p1s1Groups.length > 0 || p1s2Groups.length > 0;
+            
+            if (hasElement1) {
+                let missing = false;
+                const groupNames = new Set();
+                p1s1Groups.forEach(el => groupNames.add(el.name));
+                p1s2Groups.forEach(el => groupNames.add(el.name));
+                
+                groupNames.forEach(name => {
+                    const checked = document.querySelector(`input[name="${name}"]:checked`);
+                    if (!checked) missing = true;
+                });
+                
+                if (missing) {
+                    return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
+                }
             }
         }
 
@@ -1550,13 +1583,13 @@ function changeStep(direction) {
             if (p3Groups.length > 0) {
                 const groupNames3 = new Set();
                 p3Groups.forEach(el => groupNames3.add(el.name));
-
+                
                 let missingP3 = false;
                 groupNames3.forEach(name => {
                     const checked = document.querySelector(`input[name="${name}"]:checked`);
                     if (!checked) missingP3 = true;
                 });
-
+                
                 if (missingP3) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
                 }
@@ -1588,7 +1621,7 @@ function updateWizardUI() {
 
     const nextBtn = document.getElementById('btnNext');
     if (nextBtn && wizardCurrentStep < totalSteps) {
-        let hasItems = true;
+        let hasItems = false;
         if (wizardCurrentStep === 1) {
             const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
             const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
@@ -1806,47 +1839,68 @@ function updateSummary() {
 // ฟังก์ชันบันทึกผลการประเมิน (ปรับปรุง)
 // ==========================================
 async function submitEvaluation() {
+    // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 ถ้ามีการแสดงผลในฟอร์ม
     let missingP1 = false;
     const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
-    const groupNames = new Set();
-    p1s1Groups.forEach(el => groupNames.add(el.name));
-
-    groupNames.forEach(name => {
-        const checked = document.querySelector(`input[name="${name}"]:checked`);
-        if (!checked) missingP1 = true;
-    });
-
     const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
-    const groupNames2 = new Set();
-    p1s2Groups.forEach(el => groupNames2.add(el.name));
+    
+    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 1 ในฟอร์มหรือไม่
+    const hasElement1 = p1s1Groups.length > 0 || p1s2Groups.length > 0;
+    
+    if (hasElement1) {
+        // ✅ ตรวจสอบว่าทุกข้อในองค์ประกอบที่ 1 ได้รับการประเมิน
+        const groupNames = new Set();
+        p1s1Groups.forEach(el => groupNames.add(el.name));
+        p1s2Groups.forEach(el => groupNames.add(el.name));
+        
+        groupNames.forEach(name => {
+            const checked = document.querySelector(`input[name="${name}"]:checked`);
+            if (!checked) missingP1 = true;
+        });
+        
+        if (missingP1) {
+            return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
+        }
+    } else {
+        console.log('ℹ️ ไม่มีองค์ประกอบที่ 1 ในฟอร์ม ข้ามการตรวจสอบ');
+    }
 
-    groupNames2.forEach(name => {
-        const checked = document.querySelector(`input[name="${name}"]:checked`);
-        if (!checked) missingP1 = true;
-    });
-
-    if (missingP1) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
-
+    // ✅ ตรวจสอบองค์ประกอบที่ 2 (ถ้ามี)
     const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
     if (p2Inputs.length > 0) {
         const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
         if (!p2Checked) {
             return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
         }
+    } else {
+        console.log('ℹ️ ไม่มีองค์ประกอบที่ 2 ในฟอร์ม ข้ามการตรวจสอบ');
     }
 
+    // ✅ ตรวจสอบองค์ประกอบที่ 3 (ถ้ามี)
     const p3Groups = document.querySelectorAll('[name^="p3_"]');
     if (p3Groups.length > 0) {
         const groupNames3 = new Set();
         p3Groups.forEach(el => groupNames3.add(el.name));
-
+        
         let missingP3 = false;
         groupNames3.forEach(name => {
             const checked = document.querySelector(`input[name="${name}"]:checked`);
             if (!checked) missingP3 = true;
         });
+        
+        if (missingP3) {
+            return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+        }
+    } else {
+        console.log('ℹ️ ไม่มีองค์ประกอบที่ 3 ในฟอร์ม ข้ามการตรวจสอบ');
+    }
 
-        if (missingP3) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+    // ✅ ตรวจสอบว่ามีการประเมินอย่างน้อย 1 องค์ประกอบ
+    const hasAnyScore = p1s1Groups.length > 0 || p1s2Groups.length > 0 || 
+                        p2Inputs.length > 0 || p3Groups.length > 0;
+    
+    if (!hasAnyScore) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
     }
 
     updateSummary();
@@ -1867,7 +1921,10 @@ async function submitEvaluation() {
         rawScores.p3 = Array.from(p3Checked).map(el => parseInt(el.value) || 0);
     }
 
-    const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0;
+    // ✅ ตรวจสอบว่ามีคะแนนอย่างน้อย 1 องค์ประกอบ
+    const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0 || 
+                      rawScores.p2 !== undefined || (rawScores.p3 && rawScores.p3.length > 0);
+    
     if (!hasScores) {
         return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
     }
@@ -2265,6 +2322,416 @@ async function loadTeachersForEval() {
         console.log('✅ loadTeachersForEval completed');
     }
 }
+
+// ==========================================
+// คำนวณคะแนนเฉลี่ยของแต่ละชุดคณะกรรมการ
+// ==========================================
+async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, groupId) {
+    try {
+        // ดึงข้อมูลการประเมินของกรรมการในชุดนี้
+        const { data: evalResults, error } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', evalRoundId)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        if (error) throw error;
+
+        if (!evalResults || evalResults.length === 0) {
+            return null;
+        }
+
+        // ✅ ดึงรายชื่อกรรมการในชุดนี้
+        const group = window._committeeGroups?.find(g => g.id === groupId);
+        if (!group) return null;
+
+        const evaluatorIds = group.evaluator_ids || [];
+        const groupResults = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+
+        if (groupResults.length === 0) {
+            return null;
+        }
+
+        // ✅ คำนวณค่าเฉลี่ยของชุดนี้
+        const totalScores = groupResults.map(r => r.total_score);
+        const averageScore = totalScores.reduce((a, b) => a + b, 0) / totalScores.length;
+
+        // ✅ คำนวณค่าเฉลี่ย detailed scores รายข้อ
+        const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
+        const averagedDetails = {};
+
+        detailedKeys.forEach(key => {
+            const values = groupResults
+                .filter(r => r.detailed_scores && r.detailed_scores[key])
+                .map(r => {
+                    if (Array.isArray(r.detailed_scores[key])) {
+                        return r.detailed_scores[key];
+                    }
+                    return [r.detailed_scores[key]];
+                });
+
+            if (values.length > 0) {
+                const maxLength = Math.max(...values.map(v => v.length));
+                const avgValues = [];
+                for (let i = 0; i < maxLength; i++) {
+                    const validValues = values.filter(v => v[i] !== undefined);
+                    if (validValues.length === 0) continue;
+                    const sum = validValues.map(v => v[i]).reduce((a, b) => a + b, 0);
+                    avgValues.push(sum / validValues.length);
+                }
+                averagedDetails[key] = avgValues;
+            }
+        });
+
+        return {
+            group_id: groupId,
+            group_name: group.group_name,
+            evaluator_count: groupResults.length,
+            average_score: averageScore,
+            detailed_scores: averagedDetails,
+            all_scores: totalScores,
+            evaluators: groupResults.map(r => r.evaluator_id)
+        };
+
+    } catch (err) {
+        console.error('Error calculating committee group average:', err);
+        return null;
+    }
+}
+
+// ==========================================
+// คำนวณคะแนนเฉลี่ยรวมจากทุกชุดคณะกรรมการ
+// ==========================================
+async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
+    try {
+        // ✅ ดึงข้อมูลการประเมินทั้งหมด
+        const { data: evalResults, error } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', evalRoundId)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        if (error) throw error;
+
+        if (!evalResults || evalResults.length === 0) {
+            return null;
+        }
+
+        // ✅ จัดกลุ่มตามชุดกรรมการ
+        const groups = window._committeeGroups || [];
+        const groupResults = [];
+
+        for (const group of groups) {
+            const evaluatorIds = group.evaluator_ids || [];
+            const groupEvals = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+            
+            if (groupEvals.length > 0) {
+                const scores = groupEvals.map(r => r.total_score);
+                const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+                
+                groupResults.push({
+                    group_id: group.id,
+                    group_name: group.group_name,
+                    evaluator_count: groupEvals.length,
+                    average_score: avg,
+                    all_scores: scores,
+                    evaluators: groupEvals.map(r => r.evaluator_id)
+                });
+            }
+        }
+
+        if (groupResults.length === 0) {
+            return null;
+        }
+
+        // ✅ คำนวณคะแนนเฉลี่ยรวมทุกชุด (ชุดละ 1 คะแนน)
+        const groupAverages = groupResults.map(g => g.average_score);
+        const finalAverage = groupAverages.reduce((a, b) => a + b, 0) / groupAverages.length;
+
+        // ✅ คำนวณ detailed scores เฉลี่ยรวม
+        const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
+        const finalDetailed = {};
+
+        detailedKeys.forEach(key => {
+            const allValues = [];
+            
+            for (const group of groupResults) {
+                // ดึง detailed scores ของกลุ่มนี้
+                const groupEvals = evalResults.filter(r => 
+                    group.evaluators.includes(r.evaluator_id) && 
+                    r.detailed_scores && 
+                    r.detailed_scores[key]
+                );
+                
+                if (groupEvals.length > 0) {
+                    // เฉลี่ย detailed scores ภายในกลุ่มก่อน
+                    const values = groupEvals.map(r => {
+                        if (Array.isArray(r.detailed_scores[key])) {
+                            return r.detailed_scores[key];
+                        }
+                        return [r.detailed_scores[key]];
+                    });
+                    
+                    const maxLen = Math.max(...values.map(v => v.length));
+                    const avgValues = [];
+                    for (let i = 0; i < maxLen; i++) {
+                        const valid = values.filter(v => v[i] !== undefined);
+                        if (valid.length > 0) {
+                            const sum = valid.map(v => v[i]).reduce((a, b) => a + b, 0);
+                            avgValues.push(sum / valid.length);
+                        }
+                    }
+                    allValues.push(avgValues);
+                }
+            }
+
+            if (allValues.length > 0) {
+                // เฉลี่ยระหว่างกลุ่ม
+                const maxLen = Math.max(...allValues.map(v => v.length));
+                const finalValues = [];
+                for (let i = 0; i < maxLen; i++) {
+                    const valid = allValues.filter(v => v[i] !== undefined);
+                    if (valid.length > 0) {
+                        const sum = valid.map(v => v[i]).reduce((a, b) => a + b, 0);
+                        finalValues.push(sum / valid.length);
+                    }
+                }
+                finalDetailed[key] = finalValues;
+            }
+        });
+
+        return {
+            total_evaluators: evalResults.length,
+            committee_groups: groupResults.length,
+            final_average: finalAverage,
+            group_averages: groupResults,
+            detailed_scores: finalDetailed,
+            status: 'finalized'
+        };
+
+    } catch (err) {
+        console.error('Error calculating final average:', err);
+        return null;
+    }
+}
+
+// ==========================================
+// บันทึกคะแนนสรุป final
+// ==========================================
+async function saveFinalScore(evaluateeId, evalRoundId) {
+    Swal.fire({
+        title: 'กำลังคำนวณคะแนนสรุป...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ✅ คำนวณคะแนนเฉลี่ยจากทุกชุด
+        const finalResult = await calculateFinalAverageScore(evaluateeId, evalRoundId);
+
+        if (!finalResult) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ยังไม่มีข้อมูลการประเมินจากกรรมการ', 'warning');
+        }
+
+        // ✅ เตรียมข้อมูลสำหรับบันทึก
+        const payload = {
+            evaluatee_id: evaluateeId,
+            eval_round_id: evalRoundId,
+            evaluator_count: finalResult.total_evaluators,
+            committee_group_count: finalResult.committee_groups,
+            average_score: finalResult.final_average,
+            detailed_scores: finalResult.detailed_scores,
+            all_committee_scores: finalResult.group_averages.map(g => ({
+                group_name: g.group_name,
+                average: g.average_score,
+                evaluator_count: g.evaluator_count
+            })),
+            all_detailed_scores: finalResult.group_averages.map(g => ({
+                group_name: g.group_name,
+                details: g.detailed_scores
+            })),
+            status: 'finalized',
+            updated_at: new Date().toISOString()
+        };
+
+        // ✅ ตรวจสอบว่ามีข้อมูลเดิมหรือไม่
+        const { data: existing, error: checkError } = await db
+            .from('eval_final_results')
+            .select('id')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', evalRoundId)
+            .maybeSingle();
+
+        if (checkError) throw checkError;
+
+        let result;
+        if (existing) {
+            // ✅ อัปเดต
+            const { data, error: updateError } = await db
+                .from('eval_final_results')
+                .update(payload)
+                .eq('id', existing.id)
+                .select();
+
+            if (updateError) throw updateError;
+            result = data;
+        } else {
+            // ✅ สร้างใหม่
+            const { data, error: insertError } = await db
+                .from('eval_final_results')
+                .insert([payload])
+                .select();
+
+            if (insertError) throw insertError;
+            result = data;
+        }
+
+        Swal.close();
+
+        // ✅ แสดงผลสรุป
+        const groupDetails = finalResult.group_averages.map(g =>
+            `📌 ${g.group_name}: ${g.average_score.toFixed(2)} (${g.evaluator_count} ท่าน)`
+        ).join('\n');
+
+        await Swal.fire({
+            icon: 'success',
+            title: '✅ บันทึกผลสรุปสำเร็จ!',
+            html: `
+                <div class="text-left space-y-3">
+                    <div class="bg-blue-50 p-4 rounded-xl">
+                        <p class="text-sm text-gray-500">คะแนนเฉลี่ยรวมทุกชุด</p>
+                        <p class="text-3xl font-bold text-blue-600">${finalResult.final_average.toFixed(2)}</p>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-xl">
+                        <p class="text-sm text-gray-500">รายละเอียดแต่ละชุด</p>
+                        <div class="mt-2 space-y-1">
+                            ${finalResult.group_averages.map(g => `
+                                <div class="flex justify-between text-sm">
+                                    <span>${g.group_name}</span>
+                                    <span class="font-bold">${g.average_score.toFixed(2)}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-400">จำนวนกรรมการทั้งหมด: ${finalResult.total_evaluators} ท่าน | ${finalResult.committee_groups} ชุด</p>
+                </div>
+            `,
+            confirmButtonText: 'ตกลง'
+        });
+
+        return result;
+
+    } catch (err) {
+        console.error('Error saving final score:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+        return null;
+    }
+}
+
+// ==========================================
+// แสดงผลสรุปคะแนนของผู้ถูกประเมิน
+// ==========================================
+async function displayFinalScoreSummary(evaluateeId, evalRoundId) {
+    try {
+        // ✅ ดึงข้อมูลจาก eval_final_results
+        const { data: finalResult, error } = await db
+            .from('eval_final_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', evalRoundId)
+            .maybeSingle();
+
+        if (error) throw error;
+
+        if (!finalResult) {
+            return {
+                html: `
+                    <div class="text-center py-4 text-gray-400">
+                        <i class="fa-solid fa-clock text-2xl mb-2"></i>
+                        <p>ยังไม่มีการสรุปผล</p>
+                        <button onclick="saveFinalScore('${evaluateeId}', '${evalRoundId}')"
+                                class="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            <i class="fa-solid fa-calculator mr-1"></i> สรุปผล
+                        </button>
+                    </div>
+                `,
+                data: null
+            };
+        }
+
+        const levelText = (score) => {
+            if (score >= 80) return { text: 'ดีมาก', color: 'emerald' };
+            if (score >= 70) return { text: 'ดี', color: 'blue' };
+            if (score >= 60) return { text: 'พอใช้', color: 'yellow' };
+            return { text: 'ควรปรับปรุง', color: 'red' };
+        };
+
+        const level = levelText(finalResult.average_score);
+
+        let groupDetailsHtml = '';
+        if (finalResult.all_committee_scores) {
+            finalResult.all_committee_scores.forEach(g => {
+                groupDetailsHtml += `
+                    <div class="flex justify-between items-center text-sm border-b border-gray-100 py-2">
+                        <span class="text-gray-600">${g.group_name}</span>
+                        <span class="font-bold">${g.average.toFixed(2)}</span>
+                    </div>
+                `;
+            });
+        }
+
+        return {
+            html: `
+                <div class="bg-white rounded-xl border border-gray-200 p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-gray-700">📊 ผลสรุปการประเมิน</h4>
+                        <span class="text-xs text-gray-400">${finalResult.committee_group_count} ชุด · ${finalResult.evaluator_count} ท่าน</span>
+                    </div>
+                    
+                    <div class="grid grid-cols-3 gap-3 mb-4">
+                        <div class="bg-${level.color}-50 p-3 rounded-lg text-center">
+                            <p class="text-xs text-gray-500">คะแนนเฉลี่ย</p>
+                            <p class="text-2xl font-bold text-${level.color}-600">${finalResult.average_score.toFixed(2)}</p>
+                        </div>
+                        <div class="bg-${level.color}-50 p-3 rounded-lg text-center">
+                            <p class="text-xs text-gray-500">ระดับคุณภาพ</p>
+                            <p class="text-xl font-bold text-${level.color}-600">${level.text}</p>
+                        </div>
+                        <div class="bg-${level.color}-50 p-3 rounded-lg text-center">
+                            <p class="text-xs text-gray-500">จำนวนชุด</p>
+                            <p class="text-2xl font-bold text-${level.color}-600">${finalResult.committee_group_count}</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-50 rounded-lg p-3">
+                        <p class="text-sm font-medium text-gray-600 mb-2">คะแนนแยกตามชุด:</p>
+                        ${groupDetailsHtml}
+                    </div>
+
+                    <button onclick="saveFinalScore('${evaluateeId}', '${evalRoundId}')"
+                            class="mt-4 w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <i class="fa-solid fa-rotate mr-1"></i> คำนวณใหม่
+                    </button>
+                </div>
+            `,
+            data: finalResult
+        };
+
+    } catch (err) {
+        console.error('Error displaying final summary:', err);
+        return {
+            html: `<p class="text-red-400">ไม่สามารถโหลดข้อมูลสรุปได้</p>`,
+            data: null
+        };
+    }
+}
+
 // ==========================================
 // LOGOUT (มาตรฐานกลาง)
 // ==========================================
@@ -2284,6 +2751,206 @@ async function logout() {
 }
 
 // ==========================================
+// เปิด Modal แสดงรายละเอียด
+// ==========================================
+async function openEvalDetailModal(evaluateeId, evalRoundId) {
+    try {
+        const modal = document.getElementById('evalDetailModal');
+        modal.classList.remove('hidden');
+        
+        // โหลดข้อมูลผู้ถูกประเมิน
+        const { data: user } = await db
+            .from('core_personnel')
+            .select('*')
+            .eq('id', evaluateeId)
+            .single();
+            
+        if (user) {
+            document.getElementById('evalDetailUserInitial').innerText = user.first_name?.charAt(0) || '-';
+            document.getElementById('evalDetailUserName').innerText = `${user.first_name} ${user.last_name}`;
+            document.getElementById('evalDetailUserStanding').innerText = user.academic_standing || 'ไม่มีวิทยฐานะ';
+        }
+        
+        // โหลดข้อมูลสรุป
+        const result = await displayFinalScoreSummary(evaluateeId, evalRoundId);
+        document.getElementById('evalDetailFinalScore').innerHTML = result.html;
+        
+        // เก็บค่าไว้ใช้กับปุ่มคำนวณใหม่
+        window._modalEvaluateeId = evaluateeId;
+        window._modalEvalRoundId = evalRoundId;
+        
+    } catch (err) {
+        console.error('Error opening modal:', err);
+        document.getElementById('evalDetailFinalScore').innerHTML = 
+            '<p class="text-red-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
+    }
+}
+
+// ==========================================
+// ปิด Modal
+// ==========================================
+function closeEvalDetailModal() {
+    document.getElementById('evalDetailModal').classList.add('hidden');
+}
+
+// ==========================================
+// บันทึกคะแนนจาก Modal
+// ==========================================
+async function saveFinalScoreFromModal() {
+    const evaluateeId = window._modalEvaluateeId;
+    const evalRoundId = window._modalEvalRoundId;
+    if (evaluateeId && evalRoundId) {
+        await saveFinalScore(evaluateeId, evalRoundId);
+        // โหลดข้อมูลใหม่
+        await openEvalDetailModal(evaluateeId, evalRoundId);
+    }
+}
+
+// ==========================================
+// พิมพ์ผลสรุป
+// ==========================================
+function printFinalScore() {
+    window.print();
+}
+
+// ==========================================
+// ส่งออก Excel (ต้องใช้ XLSX library)
+// ==========================================
+async function exportFinalScores() {
+    try {
+        const { data: results, error } = await db
+            .from('eval_final_results')
+            .select('*, core_personnel(first_name, last_name, academic_standing)')
+            .eq('eval_round_id', currentEvalRound?.id)
+            .eq('status', 'finalized');
+
+        if (error) throw error;
+
+        if (!results || results.length === 0) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลที่สรุปผลแล้ว', 'warning');
+        }
+
+        // เตรียมข้อมูลสำหรับ Excel
+        const excelData = results.map(r => ({
+            'ชื่อ-สกุล': `${r.core_personnel?.first_name || ''} ${r.core_personnel?.last_name || ''}`,
+            'วิทยฐานะ': r.core_personnel?.academic_standing || '-',
+            'คะแนนเฉลี่ย': r.average_score?.toFixed(2) || '0.00',
+            'จำนวนกรรมการ': r.evaluator_count || 0,
+            'จำนวนชุด': r.committee_group_count || 0,
+            'ระดับคุณภาพ': getLevelText(r.average_score),
+            'สถานะ': r.status === 'finalized' ? '✅ สรุปแล้ว' : '⏳ รอสรุป'
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        XLSX.utils.book_append_sheet(wb, ws, 'ผลสรุปการประเมิน');
+        XLSX.writeFile(wb, `ผลสรุปการประเมิน_${new Date().toLocaleDateString('th-TH')}.xlsx`);
+
+    } catch (err) {
+        console.error('Error exporting:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+function getLevelText(score) {
+    if (score >= 80) return 'ดีมาก';
+    if (score >= 70) return 'ดี';
+    if (score >= 60) return 'พอใช้';
+    return 'ควรปรับปรุง';
+}
+
+// ==========================================
+// สรุปผลคะแนนทั้งหมดสำหรับ Admin
+// ==========================================
+async function generateAllFinalScores(evalRoundId) {
+    if (!evalRoundId) {
+        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
+    }
+
+    Swal.fire({
+        title: 'กำลังสรุปผลคะแนนทั้งหมด...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ✅ ดึงรายชื่อผู้ถูกประเมินทั้งหมดในรอบนี้
+        const { data: evalResults, error } = await db
+            .from('eval_results')
+            .select('evaluatee_id')
+            .eq('eval_round_id', evalRoundId)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        if (error) throw error;
+
+        if (!evalResults || evalResults.length === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลการประเมินในรอบนี้', 'warning');
+        }
+
+        const uniqueEvaluatees = [...new Set(evalResults.map(r => r.evaluatee_id))];
+        let successCount = 0;
+        let failCount = 0;
+        let failedList = [];
+
+        for (const evaluateeId of uniqueEvaluatees) {
+            try {
+                const result = await saveFinalScore(evaluateeId, evalRoundId);
+                if (result) {
+                    successCount++;
+                } else {
+                    failCount++;
+                    // ดึงชื่อผู้ถูกประเมิน
+                    const { data: user } = await db
+                        .from('core_personnel')
+                        .select('first_name, last_name')
+                        .eq('id', evaluateeId)
+                        .single();
+                    failedList.push(user ? `${user.first_name} ${user.last_name}` : evaluateeId);
+                }
+            } catch (err) {
+                console.error(`Error saving for ${evaluateeId}:`, err);
+                failCount++;
+                const { data: user } = await db
+                    .from('core_personnel')
+                    .select('first_name, last_name')
+                    .eq('id', evaluateeId)
+                    .single();
+                failedList.push(user ? `${user.first_name} ${user.last_name}` : evaluateeId);
+            }
+        }
+
+        Swal.close();
+
+        let message = `
+            <div class="text-left space-y-2">
+                <p>ผู้ถูกประเมินทั้งหมด: <b>${uniqueEvaluatees.length}</b> คน</p>
+                <p>✅ สำเร็จ: <span class="text-green-600">${successCount}</span> คน</p>
+                <p>❌ ล้มเหลว: <span class="text-red-600">${failCount}</span> คน</p>
+        `;
+
+        if (failedList.length > 0) {
+            message += `<div class="mt-3 text-sm text-red-500">รายชื่อที่ล้มเหลว:<br>${failedList.join('<br>')}</div>`;
+        }
+
+        message += `</div>`;
+
+        await Swal.fire({
+            icon: successCount === uniqueEvaluatees.length ? 'success' : 'warning',
+            title: successCount === uniqueEvaluatees.length ? '✅ สรุปผลเรียบร้อย!' : '⚠️ สรุปผลบางส่วน',
+            html: message,
+            confirmButtonText: 'ตกลง'
+        });
+
+    } catch (err) {
+        console.error('Error generating all final scores:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
 // EXPOSE GLOBAL FUNCTIONS
 // ==========================================
 
@@ -2298,5 +2965,26 @@ window.destroyDataTableSafely = destroyDataTableSafely;
 window.initializeDataTableSafely = initializeDataTableSafely;
 window.calculateLiveTotal = calculateLiveTotal;
 window.updateSummary = updateSummary;
+
+// ==========================================
+// EXPOSE FINAL SCORE FUNCTIONS
+// ==========================================
+
+window.calculateCommitteeGroupAverage = calculateCommitteeGroupAverage;
+window.calculateFinalAverageScore = calculateFinalAverageScore;
+window.saveFinalScore = saveFinalScore;
+window.displayFinalScoreSummary = displayFinalScoreSummary;
+window.generateAllFinalScores = generateAllFinalScores;
+
+// ==========================================
+// EXPOSE ADDITIONAL FUNCTIONS
+// ==========================================
+
+window.openEvalDetailModal = openEvalDetailModal;
+window.closeEvalDetailModal = closeEvalDetailModal;
+window.saveFinalScoreFromModal = saveFinalScoreFromModal;
+window.printFinalScore = printFinalScore;
+window.exportFinalScores = exportFinalScores;
+window.getLevelText = getLevelText;
 
 console.log('✅ All evaluation functions exposed to window');
