@@ -23,7 +23,6 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
-
             100% {
                 opacity: 1;
                 transform: translateY(0);
@@ -215,35 +214,115 @@
             box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
         }
 
-        /* =========================================================
-   DataTable Fix - การแสดงผล
-========================================================= */
-
-        #teacherEvalTable {
-            width: 100% !important;
+        /* ====== Final Score Summary Styles ====== */
+        .final-score-card {
+            transition: all 0.3s ease;
         }
 
-        #teacherEvalTable tbody tr {
-            background-color: white !important;
+        .final-score-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.08);
         }
 
-        #teacherEvalTable tbody tr:hover {
-            background-color: #f8fafc !important;
+        .final-score-badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 700;
         }
 
-        #teacherEvalTable td,
-        #teacherEvalTable th {
-            padding: 0.75rem 1rem !important;
-            vertical-align: middle !important;
+        .final-score-badge.excellent {
+            background: #d1fae5;
+            color: #065f46;
         }
 
-        /* ✅ บังคับให้ DataTable แสดง */
-        .dataTables_wrapper {
-            overflow-x: auto !important;
+        .final-score-badge.good {
+            background: #dbeafe;
+            color: #1e40af;
         }
 
-        .dataTables_wrapper .dt-container {
-            width: 100% !important;
+        .final-score-badge.fair {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .final-score-badge.poor {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .final-score-badge.pending {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        /* Modal Styles */
+        #evalDetailModal {
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+        }
+
+        #evalDetailModal .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.95);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* Scrollable modal body */
+        .modal-body-scroll {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar-thumb {
+            background: #c1c7cd;
+            border-radius: 3px;
+        }
+
+        .modal-body-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a0a7ae;
+        }
+
+        /* Responsive */
+        @media (max-width: 640px) {
+            .final-score-grid {
+                grid-template-columns: 1fr !important;
+            }
+        }
+
+        /* Print Styles */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            #evalDetailModal {
+                position: static !important;
+                background: white !important;
+                backdrop-filter: none !important;
+            }
+            #evalDetailModal .modal-content {
+                box-shadow: none !important;
+                border: 1px solid #e2e8f0 !important;
+            }
         }
     </style>
 </head>
@@ -344,7 +423,7 @@
                     </div>
                 </div>
 
-                <!-- การ์ดกรรมการประเมิน (แก้ไข) -->
+                <!-- การ์ดกรรมการประเมิน -->
                 <div id="committeeCard" class="hidden">
                     <div
                         class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
@@ -352,7 +431,7 @@
                             <i class="fa-solid fa-users text-blue-500 mr-2"></i>ประเมินครูในกลุ่มสาระ
                         </h3>
 
-                        <!-- ✅ เพิ่ม: เลือกชุดคณะกรรมการ -->
+                        <!-- เลือกชุดคณะกรรมการ -->
                         <div class="flex flex-wrap items-center gap-4 mb-4">
                             <div class="w-full md:w-64">
                                 <label class="block text-sm font-bold text-gray-700 mb-1">
@@ -372,7 +451,7 @@
                                 </select>
                             </div>
                             <div class="flex items-end gap-2">
-                                <button onclick="loadTeachersForEval()"
+                                <button onclick="window.loadTeachersForEval()"
                                     class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
                                     <i class="fa-solid fa-search mr-1"></i> แสดงรายชื่อ
                                 </button>
@@ -384,7 +463,7 @@
                             </div>
                         </div>
 
-                        <!-- ✅ เพิ่ม: แสดงข้อมูลชุดที่เลือก -->
+                        <!-- แสดงข้อมูลชุดที่เลือก -->
                         <div id="selectedGroupInfo"
                             class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
                             <div class="flex flex-wrap justify-between items-center gap-2">
@@ -401,19 +480,32 @@
                             </div>
                         </div>
 
+                        <!-- ✅ ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
+                        <div id="finalSummaryActions" class="hidden mb-4">
+                            <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
+                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                <i class="fa-solid fa-calculator mr-1"></i> สรุปผลคะแนนทั้งหมด
+                            </button>
+                            <button onclick="window.exportFinalScores()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
+                                <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
+                            </button>
+                        </div>
+
                         <div class="overflow-x-auto">
                             <table id="teacherEvalTable" class="display w-full text-sm">
                                 <thead>
                                     <tr>
                                         <th class="text-left">ชื่อ-สกุล</th>
                                         <th class="text-left">วิทยฐานะ</th>
-                                        <th class="text-center">สถานะ</th>
+                                        <th class="text-center">สถานะการประเมิน</th>
+                                        <th class="text-center">ผลสรุป</th>
                                         <th class="text-center">ดำเนินการ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tb-teacher-eval">
                                     <tr>
-                                        <td colspan="4" class="text-center py-8 text-gray-400">
+                                        <td colspan="5" class="text-center py-8 text-gray-400">
                                             <i class="fa-solid fa-info-circle mr-1"></i>
                                             กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อโหลดรายชื่อ
                                         </td>
@@ -578,6 +670,66 @@
     </main>
 
     <!-- ========================================== -->
+    <!-- MODAL: แสดงรายละเอียดการประเมิน -->
+    <!-- ========================================== -->
+    <div id="evalDetailModal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] shadow-2xl modal-content">
+                <!-- Header -->
+                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                    <h3 class="text-xl font-bold text-gray-800">
+                        <i class="fa-solid fa-file-pen text-blue-500 mr-2"></i>รายละเอียดผลการประเมิน
+                    </h3>
+                    <button onclick="closeEvalDetailModal()" 
+                            class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                        <i class="fa-solid fa-xmark text-2xl"></i>
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="p-6 modal-body-scroll">
+                    <!-- ข้อมูลผู้ถูกประเมิน -->
+                    <div id="evalDetailUserInfo" class="mb-4 bg-gray-50 p-4 rounded-xl">
+                        <div class="flex items-center gap-4">
+                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
+                                <span id="evalDetailUserInitial">-</span>
+                            </div>
+                            <div>
+                                <p class="font-bold text-gray-800" id="evalDetailUserName">-</p>
+                                <p class="text-sm text-gray-500" id="evalDetailUserStanding">-</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- แสดงคะแนนสรุป -->
+                    <div id="evalDetailFinalScore" class="mb-4">
+                        <div class="text-center py-8 text-gray-400">
+                            <i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>กำลังโหลดข้อมูล...</p>
+                        </div>
+                    </div>
+
+                    <!-- ปุ่มดำเนินการ -->
+                    <div class="flex flex-wrap gap-3 mt-4 no-print">
+                        <button onclick="window.saveFinalScoreFromModal()" 
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            <i class="fa-solid fa-rotate mr-1"></i> คำนวณใหม่
+                        </button>
+                        <button onclick="window.printFinalScore()" 
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                            <i class="fa-solid fa-print mr-1"></i> พิมพ์
+                        </button>
+                        <button onclick="closeEvalDetailModal()" 
+                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors ml-auto">
+                            ปิด
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
     <!-- SCRIPTS -->
     <!-- ========================================== -->
     <script src="evaluation.js"></script>
@@ -591,9 +743,15 @@
             if (deptSelect) {
                 deptSelect.addEventListener('change', function () {
                     if (this.value) {
-                        loadTeachersForEval();
+                        window.loadTeachersForEval();
                     }
                 });
+            }
+
+            // ✅ แสดงปุ่มสรุปผลสำหรับ Admin
+            const currentUserRole = document.getElementById('header_user_role')?.innerText || '';
+            if (['admin', 'super_admin'].includes(currentUserRole)) {
+                document.getElementById('finalSummaryActions')?.classList.remove('hidden');
             }
         });
     </script>
