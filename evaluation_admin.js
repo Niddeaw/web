@@ -457,9 +457,14 @@ async function saveCommitteeGroup() {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระที่ถูกประเมินอย่างน้อย 1 กลุ่ม', 'warning');
     }
 
+    // ✅ แทนที่ด้วย:
     const element1Items = selectedSubItems.filter(s => s.element === '1');
-    if (element1Items.length === 0) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกหัวข้อย่อยในองค์ประกอบที่ 1 อย่างน้อย 1 รายการ', 'warning');
+    const element2Items = selectedSubItems.filter(s => s.element === '2');
+    const element3Items = selectedSubItems.filter(s => s.element === '3');
+
+    // ✅ ตรวจสอบว่ามีการเลือกอย่างน้อย 1 องค์ประกอบ
+    if (element1Items.length === 0 && element2Items.length === 0 && element3Items.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกหัวข้อย่อยอย่างน้อย 1 รายการจากองค์ประกอบใดก็ได้', 'warning');
     }
 
     const isEdit = isEditMode;
@@ -718,12 +723,9 @@ function resetCommitteeForm() {
     document.getElementById('committee_group_name').value = '';
     if (tomSelectInstance) tomSelectInstance.clear();
     document.querySelectorAll('.dept-checkbox').forEach(cb => cb.checked = false);
+    // ✅ แทนที่ด้วย:
     document.querySelectorAll('.sub-item').forEach(cb => {
-        if (cb.dataset.element === '2' || cb.dataset.element === '3') {
-            cb.checked = true;
-        } else {
-            cb.checked = false;
-        }
+        cb.checked = false;  // ✅ ยกเลิกทั้งหมด
     });
     updateSelectedDisplay();
     updateDeptButtons();
@@ -874,7 +876,15 @@ async function loadSummary() {
             const committee = latestCommittee[teacher.id];
             const selfScore = self?.total_score || 0;
             const committeeScore = committee?.total_score || 0;
-            const total = Math.max(selfScore, committeeScore);
+            // ✅ แทนที่ด้วย (ใช้ค่าเฉลี่ยถ่วงน้ำหนัก):
+            const total = (selfScore + committeeScore) / 2;
+
+            // หรือใช้แบบเฉลี่ยเฉพาะที่มีค่า:
+            // let total = 0;
+            // let count = 0;
+            // if (selfScore > 0) { total += selfScore; count++; }
+            // if (committeeScore > 0) { total += committeeScore; count++; }
+            // const finalTotal = count > 0 ? total / count : 0;
 
             let grade = '-', gradeColor = 'bg-gray-100 text-gray-500';
             if (total >= 80) { grade = 'ดีมาก'; gradeColor = 'bg-emerald-100 text-emerald-700'; }
