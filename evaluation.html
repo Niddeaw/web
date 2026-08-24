@@ -214,6 +214,37 @@
             border-color: #8b5cf6 !important;
             box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
         }
+
+        /* =========================================================
+   DataTable Fix - การแสดงผล
+========================================================= */
+
+        #teacherEvalTable {
+            width: 100% !important;
+        }
+
+        #teacherEvalTable tbody tr {
+            background-color: white !important;
+        }
+
+        #teacherEvalTable tbody tr:hover {
+            background-color: #f8fafc !important;
+        }
+
+        #teacherEvalTable td,
+        #teacherEvalTable th {
+            padding: 0.75rem 1rem !important;
+            vertical-align: middle !important;
+        }
+
+        /* ✅ บังคับให้ DataTable แสดง */
+        .dataTables_wrapper {
+            overflow-x: auto !important;
+        }
+
+        .dataTables_wrapper .dt-container {
+            width: 100% !important;
+        }
     </style>
 </head>
 

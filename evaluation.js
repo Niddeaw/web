@@ -8,6 +8,10 @@ let wizardCurrentStep = 1;
 let evaluationMode = 'self';
 let evaluateeData = null;
 let isEditingMode = false;
+let loadTeachersTimeout = null;
+let isLoadTeachersRunning = false;
+let _dataTableInstance = null;  // ✅ เพิ่มตัวแปรเก็บ instance DataTable
+let _isDestroying = false;      // ✅ ป้องกันการทำลายซ้ำ
 
 // ==========================================
 // ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ ตามเอกสาร)
@@ -343,7 +347,6 @@ async function loadCommitteeEvaluationTasks() {
             return;
         }
 
-        // ✅ ดึงข้อมูลชุดคณะกรรมการที่เกี่ยวข้องกับผู้ใช้คนนี้
         const { data: committeeGroups, error } = await db
             .from('eval_committee_groups')
             .select('*')
@@ -355,7 +358,6 @@ async function loadCommitteeEvaluationTasks() {
             return;
         }
 
-        // ✅ กรองเฉพาะที่มี evaluator_ids ตรงกับ user นี้
         const myGroups = (committeeGroups || []).filter(group => {
             if (!group.evaluator_ids) return false;
             return group.evaluator_ids.includes(currentUser.id);
@@ -367,10 +369,8 @@ async function loadCommitteeEvaluationTasks() {
             return;
         }
 
-        // ✅ แสดงการ์ดกรรมการ
         document.getElementById('committeeCard').classList.remove('hidden');
 
-        // ✅ สร้าง dropdown ชุดคณะกรรมการ
         const groupSelect = document.getElementById('sel_committee_group');
         groupSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
 
@@ -379,7 +379,6 @@ async function loadCommitteeEvaluationTasks() {
             groupSelect.innerHTML += `<option value="${group.id}" data-index="${index}">${label}</option>`;
         });
 
-        // ✅ เก็บข้อมูลชุดคณะกรรมการไว้ใช้งาน
         window._committeeGroups = myGroups;
 
         // ✅ ถ้ามีชุดเดียว ให้เลือกอัตโนมัติ
@@ -388,15 +387,51 @@ async function loadCommitteeEvaluationTasks() {
             await onCommitteeGroupChange();
         }
 
-        // ✅ ผูก event เมื่อเลือกชุด
-        groupSelect.addEventListener('change', onCommitteeGroupChange);
-
-        // ✅ ผูก event เมื่อเลือกกลุ่มสาระ
-        document.getElementById('sel_department').addEventListener('change', function() {
-            if (this.value && document.getElementById('sel_committee_group').value) {
-                loadTeachersForEval();
-            }
+        // ✅ ผูก event เมื่อเลือกชุด (ใช้ debounce)
+        groupSelect.addEventListener('change', function () {
+            clearTimeout(window._groupChangeTimeout);
+            window._groupChangeTimeout = setTimeout(() => {
+                // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
+                if (isLoadTeachersRunning) {
+                    console.log('⏳ Load in progress, waiting...');
+                    const waitForLoad = setInterval(() => {
+                        if (!isLoadTeachersRunning) {
+                            clearInterval(waitForLoad);
+                            onCommitteeGroupChange();
+                        }
+                    }, 200);
+                    return;
+                }
+                onCommitteeGroupChange();
+            }, 300);
         });
+
+        // ✅ ผูก event เมื่อเลือกกลุ่มสาระ (ใช้ debounce)
+        const deptSelect = document.getElementById('sel_department');
+
+        // ✅ กำหนด handler เป็นตัวแปรเพื่อให้ remove ได้
+        window._deptChangeHandler = function () {
+            if (window._suppressDeptChange) return;
+            if (this.value && document.getElementById('sel_committee_group').value) {
+                clearTimeout(window._deptChangeTimeout);
+                window._deptChangeTimeout = setTimeout(() => {
+                    // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
+                    if (isLoadTeachersRunning) {
+                        console.log('⏳ Load in progress, waiting...');
+                        const waitForLoad = setInterval(() => {
+                            if (!isLoadTeachersRunning) {
+                                clearInterval(waitForLoad);
+                                loadTeachersForEval();
+                            }
+                        }, 200);
+                        return;
+                    }
+                    loadTeachersForEval();
+                }, 300);
+            }
+        };
+
+        deptSelect.addEventListener('change', window._deptChangeHandler);
 
         console.log('✅ โหลดงานประเมินกรรมการสำเร็จ:', myGroups.length, 'ชุด');
 
@@ -409,14 +444,30 @@ async function loadCommitteeEvaluationTasks() {
 // เมื่อเปลี่ยนชุดคณะกรรมการ
 // ==========================================
 async function onCommitteeGroupChange() {
+    // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
+    if (isLoadTeachersRunning) {
+        console.log('⏳ onCommitteeGroupChange: load in progress, waiting...');
+        await new Promise((resolve) => {
+            const checkInterval = setInterval(() => {
+                if (!isLoadTeachersRunning) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 200);
+        });
+    }
+
     const groupId = document.getElementById('sel_committee_group').value;
+
+    // ✅ ทำลาย DataTable ก่อน
+    await destroyDataTableSafely();
+
     if (!groupId) {
         document.getElementById('selectedGroupInfo').classList.add('hidden');
         document.getElementById('sel_department').innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
-        document.getElementById('tb-teacher-eval').innerHTML = 
-            '<tr><td colspan="4" class="text-center py-8 text-gray-400">กรุณาเลือกชุดคณะกรรมการ</td></tr>';
-        if ($.fn.DataTable.isDataTable('#teacherEvalTable')) {
-            $('#teacherEvalTable').DataTable().destroy();
+        const tbody = document.getElementById('tb-teacher-eval');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400">กรุณาเลือกชุดคณะกรรมการ</td></tr>';
         }
         return;
     }
@@ -432,7 +483,7 @@ async function onCommitteeGroupChange() {
     const element1Items = subItems.filter(s => s.element === '1').map(s => s.value).join(', ');
     const element2Items = subItems.filter(s => s.element === '2').map(s => s.value).join(', ');
     const element3Items = subItems.filter(s => s.element === '3').map(s => s.value).join(', ');
-    
+
     let subItemsText = [];
     if (element1Items) subItemsText.push(`องค์ประกอบที่ 1: ${element1Items}`);
     if (element2Items) subItemsText.push(`องค์ประกอบที่ 2: ${element2Items}`);
@@ -440,6 +491,10 @@ async function onCommitteeGroupChange() {
     document.getElementById('selectedGroupSubItems').innerText = subItemsText.join(' | ') || 'ไม่มีหัวข้อย่อย';
 
     const selDept = document.getElementById('sel_department');
+
+    // ✅ ปิด Event listener ชั่วคราว เพื่อป้องกันการเรียกซ้ำ
+    selDept.removeEventListener('change', window._deptChangeHandler);
+
     selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
 
     const allDepartments = new Set();
@@ -453,13 +508,189 @@ async function onCommitteeGroupChange() {
         selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
     });
 
+    window._selectedCommitteeGroup = selectedGroup;
+
+    // ✅ ถ้ามีกลุ่มสาระเดียว ให้โหลดอัตโนมัติ (แต่ไม่ซ้ำ)
     if (allDepartments.size === 1) {
         const singleDept = allDepartments.values().next().value;
+        window._suppressDeptChange = true;
         selDept.value = singleDept;
+        window._suppressDeptChange = false;
+
+        // ✅ เรียก loadTeachersForEval โดยตรง (ไม่ผ่าน event)
         await loadTeachersForEval();
     }
 
-    window._selectedCommitteeGroup = selectedGroup;
+    // ✅ ผูก Event listener กลับ
+    selDept.addEventListener('change', window._deptChangeHandler);
+}
+
+// ==========================================
+// ฟังก์ชันทำลาย DataTable อย่างปลอดภัย (แบบ Promise)
+// ==========================================
+function destroyDataTableSafely() {
+    return new Promise((resolve) => {
+        // ✅ ป้องกันการทำลายซ้ำ
+        if (_isDestroying) {
+            console.log('⏳ Destroy already in progress, skipping...');
+            resolve();
+            return;
+        }
+
+        _isDestroying = true;
+
+        try {
+            const tableId = '#teacherEvalTable';
+            const tableEl = document.getElementById('teacherEvalTable');
+
+            if (!tableEl) {
+                console.log('ℹ️ Table element not found, skip destroy');
+                _isDestroying = false;
+                resolve();
+                return;
+            }
+
+            // ✅ ใช้ instance ที่เก็บไว้
+            if (_dataTableInstance) {
+                try {
+                    _dataTableInstance.destroy(true);
+                    _dataTableInstance = null;
+                    console.log('✅ DataTable destroyed via instance');
+                } catch (e) {
+                    console.warn('Destroy via instance error:', e.message);
+                }
+            }
+
+            // ✅ สำรอง: ใช้ jQuery ตรวจสอบอีกครั้ง
+            try {
+                if ($.fn.DataTable.isDataTable(tableId)) {
+                    try {
+                        $(tableId).DataTable().destroy(true);
+                        console.log('✅ DataTable destroyed via jQuery');
+                    } catch (e) {
+                        console.warn('Destroy via jQuery error:', e.message);
+                    }
+                }
+            } catch (e) {
+                console.warn('isDataTable check error:', e.message);
+            }
+
+            // ✅ ล้างเฉพาะ thead และ tfoot
+            try {
+                $(tableId).find('thead, tfoot').empty();
+            } catch (e) {
+                console.warn('Empty thead/tfoot error:', e.message);
+            }
+
+            setTimeout(() => {
+                _isDestroying = false;
+                resolve();
+            }, 150);
+
+        } catch (e) {
+            console.error('destroyDataTableSafely error:', e);
+            _isDestroying = false;
+            resolve();
+        }
+    });
+}
+
+// ==========================================
+// ฟังก์ชันสร้าง DataTable อย่างปลอดภัย (แบบ Promise)
+// ==========================================
+function initializeDataTableSafely() {
+    return new Promise((resolve) => {
+        if (_isDestroying) {
+            setTimeout(() => {
+                initializeDataTableSafely().then(resolve);
+            }, 300);
+            return;
+        }
+
+        setTimeout(() => {
+            try {
+                const tableId = '#teacherEvalTable';
+                const tableEl = document.getElementById('teacherEvalTable');
+
+                if (!tableEl) {
+                    console.warn('❌ Table element not found');
+                    resolve();
+                    return;
+                }
+
+                const tbody = tableEl.querySelector('tbody');
+                if (!tbody) {
+                    console.log('ℹ️ No tbody found');
+                    resolve();
+                    return;
+                }
+
+                const rows = tbody.querySelectorAll('tr');
+                let hasRealData = false;
+
+                for (let row of rows) {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length > 1) {
+                        const text = row.textContent.trim();
+                        if (!text.includes('ไม่พบบุคลากร') &&
+                            !text.includes('โหลดข้อมูลล้มเหลว') &&
+                            !text.includes('กรุณาเลือก')) {
+                            hasRealData = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasRealData || rows.length === 0 || rows[0].cells.length === 0) {
+                    console.log('ℹ️ No data rows, skipping DataTable init');
+                    resolve();
+                    return;
+                }
+
+                // ทำลาย DataTable เก่า
+                if (_dataTableInstance) {
+                    try {
+                        _dataTableInstance.destroy(true);
+                        _dataTableInstance = null;
+                    } catch (e) { }
+                }
+
+                try {
+                    if ($.fn.DataTable.isDataTable(tableId)) {
+                        $(tableId).DataTable().destroy(true);
+                    }
+                } catch (e) { }
+
+                if (tbody.children.length === 0) {
+                    resolve();
+                    return;
+                }
+
+                // สร้าง DataTable ใหม่
+                _dataTableInstance = $(tableId).DataTable({
+                    scrollX: true,
+                    language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
+                    columnDefs: [
+                        { targets: [0], width: '30%' },
+                        { targets: [1], width: '20%' },
+                        { targets: [2], width: '25%', orderable: false },
+                        { targets: [3], width: '25%', orderable: false }
+                    ],
+                    dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>',
+                    initComplete: function () {
+                        console.log('✅ DataTable initialized');
+                    }
+                });
+
+                resolve();
+            } catch (err) {
+                console.error('Error initializing DataTable:', err);
+                resolve();
+            }
+        }, 300);
+    });
 }
 
 // ==========================================
@@ -479,6 +710,8 @@ async function loadMyEvaluationStatus() {
         if (error) throw error;
 
         const container = document.getElementById('myEvalStatus');
+        if (!container) return;
+
         if (data) {
             const isSubmitted = data.status === 'submitted';
             container.innerHTML = `
@@ -506,6 +739,12 @@ async function loadMyEvaluationStatus() {
         }
     } catch (err) {
         console.error('Error loading eval status:', err);
+        const container = document.getElementById('myEvalStatus');
+        if (container) {
+            container.innerHTML = `
+                <span class="status-badge empty">⏳ ไม่สามารถโหลดสถานะได้</span>
+            `;
+        }
     }
 }
 
@@ -569,133 +808,84 @@ async function startEditEvaluation(evalId) {
 }
 
 // ==========================================
-// โหลดครูสำหรับประเมิน (ใช้ชุดคณะกรรมการที่เลือก)
+// ฟังก์ชันทำลาย DataTable อย่างปลอดภัย
 // ==========================================
-async function loadTeachersForEval() {
-    const groupId = document.getElementById('sel_committee_group').value;
-    const dept = document.getElementById('sel_department').value;
-    
-    if (!groupId) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชุดคณะกรรมการ', 'warning');
-    }
-    if (!dept) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
-    }
-
-    if (!currentEvalRound) {
-        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่ active กรุณาติดต่อผู้ดูแลระบบ', 'warning');
-    }
-
-    // ✅ หาข้อมูลชุดที่เลือก
-    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
-    if (!selectedGroup) {
-        return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดคณะกรรมการ', 'warning');
-    }
-
-    Swal.fire({ title: 'โหลดรายชื่อ...', didOpen: () => Swal.showLoading() });
-
-    if ($.fn.DataTable.isDataTable('#teacherEvalTable')) {
-        $('#teacherEvalTable').DataTable().destroy();
-    }
-
-    const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
-    const { data: teachers, error } = await db
-        .from('core_personnel')
-        .select('*')
-        .eq('department', dept)
-        .in('academic_standing', validStandings);
-
-    if (error) {
-        console.error('Error loading teachers:', error);
-        Swal.close();
-        return Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลครูได้', 'error');
-    }
-
-    const tbody = document.getElementById('tb-teacher-eval');
-    
-    if (!teachers || teachers.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-gray-400">ไม่พบครูในกลุ่มสาระนี้</td></tr>`;
-        Swal.close();
-        return;
-    }
-
-    // ✅ ตรวจสอบสถานะการประเมินของแต่ละคน (เฉพาะชุดนี้)
-    const teacherIds = teachers.map(t => t.id);
-    const { data: evalStatuses } = await db
-        .from('eval_results')
-        .select('evaluatee_id, status, total_score')
-        .in('evaluatee_id', teacherIds)
-        .eq('eval_round_id', currentEvalRound.id)
-        .eq('eval_type', 'committee')
-        .eq('evaluator_id', currentUser.id);
-
-    const evalMap = {};
-    evalStatuses?.forEach(e => {
-        evalMap[e.evaluatee_id] = e;
-    });
-
-    // ✅ สร้างแถวตาราง
-    tbody.innerHTML = teachers.map(t => {
-        const evalData = evalMap[t.id];
-        let badge = '';
-        let buttonHtml = '';
-
-        if (evalData) {
-            if (evalData.status === 'submitted') {
-                badge = `<span class="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">✅ ประเมินแล้ว (${evalData.total_score.toFixed(1)} คะแนน)</span>`;
-                buttonHtml = `
-                    <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
-                            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                        <i class="fa-solid fa-pen-to-square"></i> แก้ไข
-                    </button>
-                `;
-            } else {
-                badge = `<span class="px-2 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">📝 ร่าง</span>`;
-                buttonHtml = `
-                    <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
-                            class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                        <i class="fa-solid fa-pen-to-square"></i> ประเมินต่อ
-                    </button>
-                `;
-            }
-        } else {
-            badge = `<span class="px-2 py-1 bg-gray-100 text-gray-500 rounded-full text-xs font-bold">⏳ รอประเมิน</span>`;
-            buttonHtml = `
-                <button onclick='startEvaluation("committee", ${JSON.stringify(t).replace(/'/g, "&apos;")})' 
-                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                    <i class="fa-solid fa-pen-to-square"></i> ประเมิน
-                </button>
-            `;
+function destroyDataTableSafely() {
+    return new Promise((resolve) => {
+        if (_isDestroying) {
+            console.log('⏳ Destroy already in progress');
+            resolve();
+            return;
         }
 
-        const fullName = t.prefix ? `${t.prefix}${t.first_name} ${t.last_name}` : `${t.first_name} ${t.last_name}`;
+        _isDestroying = true;
 
-        return `
-            <tr>
-                <td class="py-3 px-4 font-medium">${fullName}</td>
-                <td class="py-3 px-4 text-sm">${t.academic_standing || '-'}</td>
-                <td class="py-3 px-4 text-center">${badge}</td>
-                <td class="py-3 px-4 text-center">${buttonHtml}</td>
-            </tr>
-        `;
-    }).join('');
+        try {
+            const tableId = '#teacherEvalTable';
+            const tableEl = document.getElementById('teacherEvalTable');
 
-    // ✅ เริ่มต้น DataTable
-    $('#teacherEvalTable').DataTable({
-        scrollX: true,
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        pageLength: 10,
-        lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
-        columnDefs: [
-            { targets: [0], width: '30%' },
-            { targets: [1], width: '20%' },
-            { targets: [2], width: '25%' },
-            { targets: [3], width: '25%' }
-        ],
-        dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>'
+            if (!tableEl) {
+                console.log('ℹ️ Table element not found, skip destroy');
+                _isDestroying = false;
+                resolve();
+                return;
+            }
+
+            if (_dataTableInstance) {
+                try {
+                    _dataTableInstance.destroy(true);
+                    _dataTableInstance = null;
+                    console.log('✅ DataTable destroyed via instance');
+                } catch (e) {
+                    console.warn('Destroy via instance error:', e.message);
+                }
+            }
+
+            try {
+                if ($.fn.DataTable.isDataTable(tableId)) {
+                    try {
+                        $(tableId).DataTable().destroy(true);
+                        console.log('✅ DataTable destroyed via jQuery');
+                    } catch (e) {
+                        console.warn('Destroy via jQuery error:', e.message);
+                    }
+                }
+            } catch (e) {
+                console.warn('isDataTable check error:', e.message);
+            }
+
+            // ✅ ล้าง thead แต่รักษาโครงสร้างตาราง
+            try {
+                const table = document.getElementById('teacherEvalTable');
+                if (table) {
+                    const thead = table.querySelector('thead');
+                    if (thead) {
+                        thead.innerHTML = `
+                            <tr>
+                                <th class="text-left">ชื่อ-สกุล</th>
+                                <th class="text-left">วิทยฐานะ</th>
+                                <th class="text-center">สถานะ</th>
+                                <th class="text-center">ดำเนินการ</th>
+                            </tr>
+                        `;
+                    }
+                    // ✅ เก็บ tbody ไว้
+                }
+            } catch (e) {
+                console.warn('Reset thead error:', e.message);
+            }
+
+            setTimeout(() => {
+                _isDestroying = false;
+                resolve();
+            }, 150);
+
+        } catch (e) {
+            console.error('destroyDataTableSafely error:', e);
+            _isDestroying = false;
+            resolve();
+        }
     });
-
-    Swal.close();
 }
 
 // ==========================================
@@ -704,35 +894,33 @@ async function loadTeachersForEval() {
 async function startEvaluation(mode, targetData = null) {
     evaluationMode = mode;
     evaluateeData = mode === 'self' ? currentUser : targetData;
-    
+
     document.getElementById('dashboardView').classList.add('hidden');
     document.getElementById('wizardView').classList.remove('hidden');
     document.getElementById('wizardTargetName').innerText = `ผู้รับการประเมิน: ${evaluateeData.first_name} ${evaluateeData.last_name}`;
-    
+
     const academic = evaluateeData.academic_standing || 'ไม่มีวิทยฐานะ';
-    
+
     const display = document.getElementById('liveTotalScoreDisplay');
     if (display) display.innerHTML = `0.00 <span class="text-xs font-normal text-gray-500 ml-1">/ 100</span>`;
-    
+
     // ✅ หัวข้อย่อยที่ได้รับมอบหมาย (เฉพาะโหมด committee)
     let allowedSubItems = null;
     if (mode === 'committee') {
-        // ✅ ใช้ชุดคณะกรรมการที่เลือก
-        const selectedGroup = window._selectedCommitteeGroup || 
+        const selectedGroup = window._selectedCommitteeGroup ||
             (window._committeeGroups && window._committeeGroups[0]);
         if (selectedGroup) {
             allowedSubItems = selectedGroup.selected_sub_items || [];
             console.log('📋 หัวข้อย่อยจากชุดที่เลือก:', allowedSubItems);
         }
     }
-    
+
     // ✅ สร้างฟอร์ม โดยส่ง allowedSubItems ไปด้วย
     generateDynamicForm(academic, allowedSubItems);
 
     wizardCurrentStep = 1;
     updateWizardUI();
-    
-    // ตรวจสอบว่ามีการประเมินเดิมหรือไม่
+
     await loadExistingEvaluation();
 }
 
@@ -757,7 +945,6 @@ async function loadExistingEvaluation() {
         }
 
         if (existingEval) {
-            // ✅ แสดงข้อมูลคะแนนเดิมให้ชัดเจน
             const p1s1Values = existingEval.detailed_scores?.p1_s1 || [];
             const p1s2Values = existingEval.detailed_scores?.p1_s2 || [];
             const p2Value = existingEval.detailed_scores?.p2 || 0;
@@ -775,7 +962,6 @@ async function loadExistingEvaluation() {
                 </div>
             `;
 
-            // พบการประเมินเดิม แสดง SweetAlert
             const result = await Swal.fire({
                 icon: 'info',
                 title: 'พบการประเมินเดิม',
@@ -795,7 +981,6 @@ async function loadExistingEvaluation() {
             });
 
             if (result.isConfirmed) {
-                // ✅ แก้ไขต่อ - โหลดข้อมูลเดิมใส่ฟอร์ม
                 loadScoresToForm(existingEval);
                 Swal.fire({
                     icon: 'success',
@@ -805,7 +990,6 @@ async function loadExistingEvaluation() {
                     showConfirmButton: true
                 });
             } else if (result.isDenied) {
-                // ✅ เริ่มใหม่ - ลบข้อมูลเดิม
                 const { error: deleteError } = await db
                     .from('eval_results')
                     .delete()
@@ -816,7 +1000,6 @@ async function loadExistingEvaluation() {
                     Swal.fire('ผิดพลาด', 'ไม่สามารถลบข้อมูลเดิมได้', 'error');
                 } else {
                     window._existingEvalId = null;
-                    // ✅ รีเซ็ตฟอร์มให้ว่าง
                     resetForm();
                     Swal.fire({
                         icon: 'success',
@@ -827,7 +1010,6 @@ async function loadExistingEvaluation() {
                     });
                 }
             } else {
-                // ✅ ยกเลิก - กลับไปหน้า Dashboard
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
                 Swal.fire('ยกเลิก', 'ไม่ได้ทำการเปลี่ยนแปลง', 'info');
@@ -846,7 +1028,6 @@ function loadScoresToForm(existingEval) {
 
     console.log('📥 โหลดข้อมูลเดิม:', detailedScores);
 
-    // ✅ โหลด p1s1 (องค์ประกอบที่ 1 ตอนที่ 1)
     if (detailedScores.p1_s1 && Array.isArray(detailedScores.p1_s1)) {
         const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
 
@@ -874,7 +1055,6 @@ function loadScoresToForm(existingEval) {
         });
     }
 
-    // ✅ โหลด p1s2 (องค์ประกอบที่ 1 ตอนที่ 2)
     if (detailedScores.p1_s2 && Array.isArray(detailedScores.p1_s2)) {
         const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
 
@@ -902,7 +1082,6 @@ function loadScoresToForm(existingEval) {
         });
     }
 
-    // ✅ โหลด p2 (องค์ประกอบที่ 2)
     if (detailedScores.p2) {
         const p2Value = detailedScores.p2;
         const p2Input = document.querySelector(`input[name="sc_part2"][value="${p2Value}"]`);
@@ -912,7 +1091,6 @@ function loadScoresToForm(existingEval) {
         }
     }
 
-    // ✅ โหลด p3 (องค์ประกอบที่ 3)
     if (detailedScores.p3 && Array.isArray(detailedScores.p3)) {
         const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
 
@@ -940,13 +1118,11 @@ function loadScoresToForm(existingEval) {
         });
     }
 
-    // ✅ อัปเดตคะแนน Live
     setTimeout(() => {
         calculateLiveTotal();
         console.log('📊 อัปเดตคะแนนเรียบร้อย');
     }, 100);
 
-    // ✅ เก็บ eval_id ไว้สำหรับอัปเดต
     window._existingEvalId = existingEval.id;
 }
 
@@ -972,11 +1148,10 @@ function resetForm() {
 function generateDynamicForm(academicLevel, allowedSubItems = null) {
     console.log('📋 generateDynamicForm - academicLevel:', academicLevel);
     console.log('📋 generateDynamicForm - allowedSubItems:', allowedSubItems);
-    
+
     const criteriaSet = evalCriteriaDB[academicLevel] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
     const isAssistant = academicLevel === 'ครูผู้ช่วย';
 
-    // ✅ สร้าง Set ของหัวข้อย่อยที่อนุญาต
     const allowedSet = new Set();
     const allowedPart2Set = new Set();
     const allowedPart3Set = new Set();
@@ -1014,21 +1189,17 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
     }
 
     const isRestricted = allowedSubItems !== null && allowedSubItems.length > 0;
-    
-    // ✅ เก็บสถานะการมีหัวข้อในแต่ละองค์ประกอบไว้ใช้ใน UI
+
     window._hasElement1 = hasAnyElement1;
     window._hasElement2 = hasAnyElement2;
     window._hasElement3 = hasAnyElement3;
 
-    // ================================================================
     // STEP 1: องค์ประกอบที่ 1
-    // ================================================================
     let step1HTML = `
         <h3 class="text-lg font-bold text-blue-800 mb-4 border-b pb-2">ส่วนที่ 1: การประเมินประสิทธิภาพและประสิทธิผล (80 คะแนน)</h3>
         <p class="text-sm text-blue-600 mb-4">* ระบบตรวจพบวิทยฐานะ: <span class="font-bold">${academicLevel}</span></p>
     `;
 
-    // ✅ ถ้าไม่มีองค์ประกอบที่ 1 เลย
     if (!hasAnyElement1) {
         step1HTML += `
             <div class="bg-blue-50 p-6 rounded-xl text-center border border-blue-200">
@@ -1041,7 +1212,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             </div>
         `;
     } else {
-        // ✅ มีองค์ประกอบที่ 1 ให้ประเมิน
         step1HTML += `
             <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div class="flex items-center gap-2">
@@ -1058,7 +1228,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 
         let hasAnyItem = false;
         let totalItems = 0;
-        
+
         criteriaSet.part1_sec1.forEach((group) => {
             let filteredItems = group.items;
             if (isRestricted) {
@@ -1067,14 +1237,14 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                     return allowedSet.has(item.id) || allowedSet.has(dotVersion);
                 });
             }
-            
+
             if (filteredItems.length === 0) return;
             hasAnyItem = true;
             totalItems += filteredItems.length;
-            
+
             step1HTML += `<div class="bg-blue-50/50 border border-blue-100 rounded-xl p-5 mb-6">`;
             step1HTML += `<h4 class="font-bold text-blue-800 mb-4 border-b border-blue-200 pb-2">${group.group}</h4>`;
-            
+
             filteredItems.forEach((item) => {
                 step1HTML += `
                 <div class="mb-5 bg-white p-4 rounded-lg shadow-sm border border-gray-100 transition-all hover:shadow-md">
@@ -1116,7 +1286,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                 </div>
             `;
         } else {
-            // ✅ แสดงจำนวนข้อที่ต้องประเมิน
             step1HTML += `
                 <div class="text-sm text-gray-400 text-center mt-2">
                     <i class="fa-solid fa-list-check mr-1"></i> จำนวนข้อที่ต้องประเมิน: <span class="font-bold text-blue-600">${totalItems}</span> ข้อ
@@ -1124,7 +1293,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             `;
         }
 
-        // ✅ ตอนที่ 2
         let hasPart2Items = false;
         let part2Items = [];
         if (isRestricted) {
@@ -1139,9 +1307,9 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                     }
                 });
                 part2Items = criteriaSet.part1_sec2.filter(item => {
-                    const mappedId = item.id === 's2_1' ? '1' : 
-                                    item.id === 's2_2_1' ? '2.1' : 
-                                    item.id === 's2_2_2' ? '2.2' : item.id;
+                    const mappedId = item.id === 's2_1' ? '1' :
+                        item.id === 's2_2_1' ? '2.1' :
+                            item.id === 's2_2_2' ? '2.2' : item.id;
                     const mappedIdUnderscore = mappedId.replace('.', '_');
                     return allowedIds.has(mappedId) || allowedIds.has(mappedIdUnderscore);
                 });
@@ -1203,9 +1371,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 
     document.getElementById('step1').innerHTML = step1HTML;
 
-    // ================================================================
     // STEP 2: องค์ประกอบที่ 2
-    // ================================================================
     if (hasAnyElement2) {
         let step2HTML = `
             <h3 class="text-lg font-bold text-emerald-800 mb-4 border-b pb-2">ส่วนที่ 2: การประเมินการมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)</h3>
@@ -1264,9 +1430,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         `;
     }
 
-    // ================================================================
     // STEP 3: องค์ประกอบที่ 3
-    // ================================================================
     if (hasAnyElement3) {
         let part3Items = PART3_ITEMS;
         if (isRestricted && allowedPart3Set.size > 0) {
@@ -1334,48 +1498,44 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         `;
     }
 
-    // ✅ ผูก event listener สำหรับคำนวณคะแนน
     document.querySelectorAll('.live-calc').forEach(el => {
         el.addEventListener('change', calculateLiveTotal);
     });
-    
-    // ✅ อัปเดต UI Wizard ให้แสดงสถานะ
+
     updateWizardUI();
 }
 
 // ==========================================
-// ฟังก์ชันเปลี่ยนขั้นตอน (ปรับปรุง)
+// ฟังก์ชันเปลี่ยนขั้นตอน
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
         if (wizardCurrentStep === 1) {
-            // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 (ต้องกรอกให้ครบ)
             let missing = false;
             const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
             const groupNames = new Set();
             p1s1Groups.forEach(el => groupNames.add(el.name));
-            
+
             groupNames.forEach(name => {
                 const checked = document.querySelector(`input[name="${name}"]:checked`);
                 if (!checked) missing = true;
             });
-            
+
             const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
             const groupNames2 = new Set();
             p1s2Groups.forEach(el => groupNames2.add(el.name));
-            
+
             groupNames2.forEach(name => {
                 const checked = document.querySelector(`input[name="${name}"]:checked`);
                 if (!checked) missing = true;
             });
-            
+
             if (missing) {
                 return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
             }
         }
-        
+
         if (wizardCurrentStep === 2) {
-            // ✅ ตรวจสอบองค์ประกอบที่ 2 เฉพาะเมื่อมีให้เลือก
             const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
             if (p2Inputs.length > 0) {
                 const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
@@ -1383,38 +1543,35 @@ function changeStep(direction) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
                 }
             }
-            // ✅ ถ้าไม่มี p2 inputs (ซ่อนอยู่) ให้ข้ามไป
         }
-        
+
         if (wizardCurrentStep === 3) {
-            // ✅ ตรวจสอบองค์ประกอบที่ 3 เฉพาะเมื่อมีให้เลือก
             const p3Groups = document.querySelectorAll('[name^="p3_"]');
             if (p3Groups.length > 0) {
                 const groupNames3 = new Set();
                 p3Groups.forEach(el => groupNames3.add(el.name));
-                
+
                 let missingP3 = false;
                 groupNames3.forEach(name => {
                     const checked = document.querySelector(`input[name="${name}"]:checked`);
                     if (!checked) missingP3 = true;
                 });
-                
+
                 if (missingP3) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
                 }
             }
-            // ✅ ถ้าไม่มี p3 inputs (ซ่อนอยู่) ให้ข้ามไป
         }
     }
 
     document.getElementById(`step${wizardCurrentStep}`).classList.add('hidden');
     wizardCurrentStep += direction;
     document.getElementById(`step${wizardCurrentStep}`).classList.remove('hidden');
-    
+
     if (wizardCurrentStep === 4) {
         updateSummary();
     }
-    
+
     updateWizardUI();
 }
 
@@ -1428,11 +1585,9 @@ function updateWizardUI() {
 
     document.getElementById('btnPrev').classList.toggle('hidden', wizardCurrentStep === 1);
     document.getElementById('btnNext').classList.toggle('hidden', wizardCurrentStep === totalSteps);
-    
-    // ✅ เปลี่ยนข้อความปุ่ม Next ตามสถานะ
+
     const nextBtn = document.getElementById('btnNext');
     if (nextBtn && wizardCurrentStep < totalSteps) {
-        // ตรวจสอบว่าขั้นตอนปัจจุบันมีหัวข้อให้ประเมินหรือไม่
         let hasItems = true;
         if (wizardCurrentStep === 1) {
             const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
@@ -1445,7 +1600,7 @@ function updateWizardUI() {
             const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
             hasItems = p3Inputs.length > 0;
         }
-        
+
         if (!hasItems) {
             nextBtn.innerHTML = 'ข้าม <i class="fa-solid fa-forward-step ml-1"></i>';
             nextBtn.className = 'bg-gray-400 hover:bg-gray-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
@@ -1454,7 +1609,7 @@ function updateWizardUI() {
             nextBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
         }
     }
-    
+
     const submitBtn = document.getElementById('btnSubmit');
     if (isEditingMode && submitBtn) {
         submitBtn.innerHTML = '<i class="fa-solid fa-pen-to-square mr-1"></i> บันทึกการแก้ไข';
@@ -1470,19 +1625,18 @@ function updateWizardUI() {
 }
 
 // ==========================================
-// ฟังก์ชันคำนวณคะแนนรวม (Real-time) - ปรับปรุง
+// ฟังก์ชันคำนวณคะแนนรวม (Real-time)
 // ==========================================
 function calculateLiveTotal() {
     if (!evaluateeData) return 0;
 
     const academic = evaluateeData.academic_standing || 'ไม่มีวิทยฐานะ';
     const isAssistant = academic === 'ครูผู้ช่วย';
-    
+
     let part1Total = 0;
     let part2Total = 0;
     let part3Total = 0;
-    
-    // ✅ คำนวณองค์ประกอบที่ 1 (เฉพาะที่มีการเลือก)
+
     let p1s1Raw = 0;
     const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]:checked');
     if (p1s1Inputs.length > 0) {
@@ -1507,7 +1661,6 @@ function calculateLiveTotal() {
         part1Total += (p1s2Raw * 20) / 40;
     }
 
-    // ✅ คำนวณองค์ประกอบที่ 2 (เฉพาะที่มี)
     const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
     if (p2Inputs.length > 0) {
         const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
@@ -1517,7 +1670,6 @@ function calculateLiveTotal() {
         }
     }
 
-    // ✅ คำนวณองค์ประกอบที่ 3 (เฉพาะที่มี)
     let p3Raw = 0;
     const p3Inputs = document.querySelectorAll('input[name^="p3_"]:checked');
     if (p3Inputs.length > 0) {
@@ -1540,26 +1692,26 @@ function calculateLiveTotal() {
 }
 
 // ==========================================
-// ฟังก์ชันอัปเดตสรุปคะแนน (Step 4) - ปรับปรุง
+// ฟังก์ชันอัปเดตสรุปคะแนน (Step 4)
 // ==========================================
 function updateSummary() {
     if (!evaluateeData) return;
-    
+
     const academic = evaluateeData.academic_standing || 'ไม่มีวิทยฐานะ';
     const isAssistant = academic === 'ครูผู้ช่วย';
-    
+
     let p1s1Raw = 0;
     document.querySelectorAll('input[name^="p1s1_"]:checked').forEach(el => {
         p1s1Raw += parseInt(el.value) || 0;
     });
-    
+
     let p1s1Final = 0;
     if (isAssistant) {
         p1s1Final = (p1s1Raw * 80) / 56;
     } else {
         p1s1Final = (p1s1Raw / 60) * 60;
     }
-    
+
     let p1s2Raw = 0;
     document.querySelectorAll('input[name^="p1s2_"]:checked').forEach(el => {
         let val = parseInt(el.value) || 0;
@@ -1567,39 +1719,35 @@ function updateSummary() {
         p1s2Raw += (val * 0.25) * max;
     });
     let p1s2Final = (p1s2Raw * 20) / 40;
-    
+
     let part1Total = p1s1Final + p1s2Final;
-    
-    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 2 หรือไม่
+
     const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
     const p2Val = p2Checked ? parseFloat(p2Checked.value) : 0;
     const hasPart2 = document.querySelectorAll('input[name="sc_part2"]').length > 0;
     const part2Total = hasPart2 ? p2Val * 2 : 0;
-    
-    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 3 หรือไม่
+
     let p3Raw = 0;
     document.querySelectorAll('input[name^="p3_"]:checked').forEach(el => {
         p3Raw += parseInt(el.value) || 0;
     });
     const hasPart3 = document.querySelectorAll('input[name^="p3_"]').length > 0;
     const part3Total = hasPart3 ? p3Raw / 4 : 0;
-    
-    // ✅ คำนวณคะแนนรวมตามองค์ประกอบที่มี
+
     let grandTotal = part1Total;
     if (hasPart2) grandTotal += part2Total;
     if (hasPart3) grandTotal += part3Total;
-    
-    document.getElementById('summary_evaluatee_name').innerText = 
+
+    document.getElementById('summary_evaluatee_name').innerText =
         `${evaluateeData.first_name} ${evaluateeData.last_name}`;
     document.getElementById('summary_academic_standing').innerText = academic;
-    document.getElementById('summary_term').innerText = 
+    document.getElementById('summary_term').innerText =
         `ภาคเรียนที่ ${currentTermData.current_semester} / ${currentTermData.current_academic_year}`;
-    
+
     document.getElementById('summary_part1_score').innerText = part1Total.toFixed(2);
     document.getElementById('summary_part1_sec1').innerText = p1s1Final.toFixed(2);
     document.getElementById('summary_part1_sec2').innerText = p1s2Final.toFixed(2);
-    
-    // ✅ แสดง/ซ่อน องค์ประกอบที่ 2
+
     const part2Section = document.getElementById('summary_part2_score')?.parentElement?.parentElement;
     if (part2Section) {
         if (hasPart2) {
@@ -1618,8 +1766,7 @@ function updateSummary() {
             part2Section.style.display = 'none';
         }
     }
-    
-    // ✅ แสดง/ซ่อน องค์ประกอบที่ 3
+
     const part3Section = document.getElementById('summary_part3_score')?.parentElement?.parentElement;
     if (part3Section) {
         if (hasPart3) {
@@ -1630,9 +1777,9 @@ function updateSummary() {
             part3Section.style.display = 'none';
         }
     }
-    
+
     document.getElementById('summary_total_score').innerText = grandTotal.toFixed(2);
-    
+
     let grade = '';
     let statusIcon = '';
     if (grandTotal >= 80) {
@@ -1659,29 +1806,27 @@ function updateSummary() {
 // ฟังก์ชันบันทึกผลการประเมิน (ปรับปรุง)
 // ==========================================
 async function submitEvaluation() {
-    // ✅ ตรวจสอบองค์ประกอบที่ 1 (ต้องมีเสมอ)
     let missingP1 = false;
     const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
     const groupNames = new Set();
     p1s1Groups.forEach(el => groupNames.add(el.name));
-    
+
     groupNames.forEach(name => {
         const checked = document.querySelector(`input[name="${name}"]:checked`);
         if (!checked) missingP1 = true;
     });
-    
+
     const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
     const groupNames2 = new Set();
     p1s2Groups.forEach(el => groupNames2.add(el.name));
-    
+
     groupNames2.forEach(name => {
         const checked = document.querySelector(`input[name="${name}"]:checked`);
         if (!checked) missingP1 = true;
     });
-    
+
     if (missingP1) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
-    
-    // ✅ ตรวจสอบองค์ประกอบที่ 2 เฉพาะเมื่อมีให้เลือก
+
     const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
     if (p2Inputs.length > 0) {
         const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
@@ -1689,44 +1834,39 @@ async function submitEvaluation() {
             return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
         }
     }
-    
-    // ✅ ตรวจสอบองค์ประกอบที่ 3 เฉพาะเมื่อมีให้เลือก
+
     const p3Groups = document.querySelectorAll('[name^="p3_"]');
     if (p3Groups.length > 0) {
         const groupNames3 = new Set();
         p3Groups.forEach(el => groupNames3.add(el.name));
-        
+
         let missingP3 = false;
         groupNames3.forEach(name => {
             const checked = document.querySelector(`input[name="${name}"]:checked`);
             if (!checked) missingP3 = true;
         });
-        
+
         if (missingP3) return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
     }
 
     updateSummary();
     const total = calculateLiveTotal();
-    
-    // ✅ เก็บ rawScores เฉพาะที่มีอยู่
+
     const rawScores = {
         p1_s1: Array.from(document.querySelectorAll('input[name^="p1s1_"]:checked')).map(el => parseInt(el.value) || 0),
         p1_s2: Array.from(document.querySelectorAll('input[name^="p1s2_"]:checked')).map(el => parseInt(el.value) || 0),
     };
-    
-    // ✅ เพิ่ม p2 เฉพาะเมื่อมี
+
     const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
     if (p2Checked) {
         rawScores.p2 = parseInt(p2Checked.value) || 0;
     }
-    
-    // ✅ เพิ่ม p3 เฉพาะเมื่อมี
+
     const p3Checked = document.querySelectorAll('input[name^="p3_"]:checked');
     if (p3Checked.length > 0) {
         rawScores.p3 = Array.from(p3Checked).map(el => parseInt(el.value) || 0);
     }
-    
-    // ✅ ตรวจสอบว่ามีการประเมินอย่างน้อย 1 องค์ประกอบ
+
     const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0;
     if (!hasScores) {
         return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
@@ -1735,7 +1875,6 @@ async function submitEvaluation() {
     Swal.fire({ title: 'กำลังบันทึกคะแนน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        // ✅ ถ้ามี _existingEvalId (แก้ไขหรือโหลดข้อมูลเดิม)
         if (window._existingEvalId) {
             const { data: currentEval } = await db
                 .from('eval_results')
@@ -1793,7 +1932,6 @@ async function submitEvaluation() {
             return;
         }
 
-        // ✅ ถ้าไม่มีการประเมินเดิม
         const { data: existingEval, error: checkError } = await db
             .from('eval_results')
             .select('id')
@@ -1847,7 +1985,6 @@ async function submitEvaluation() {
             return;
         }
 
-        // ✅ INSERT ใหม่
         const payload = {
             eval_round_id: currentEvalRound?.id || null,
             academic_year: currentTermData.current_academic_year,
@@ -1862,11 +1999,11 @@ async function submitEvaluation() {
 
         const { error: insertError } = await db.from('eval_results').insert([payload]);
         if (insertError) throw insertError;
-        
+
         Swal.close();
-        Swal.fire({ 
-            icon: 'success', 
-            title: 'บันทึกผลสำเร็จ!', 
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกผลสำเร็จ!',
             html: `
                 <div class="text-left space-y-2">
                     <p><b>องค์ประกอบที่ 1:</b> ${document.getElementById('summary_part1_score')?.innerText || '0'} / 80</p>
@@ -1877,7 +2014,7 @@ async function submitEvaluation() {
                     <p class="text-sm text-gray-500">ระดับ: ${document.getElementById('summary_grade').innerText}</p>
                 </div>
             `,
-            confirmButtonText: 'กลับหน้าหลัก' 
+            confirmButtonText: 'กลับหน้าหลัก'
         }).then(() => {
             if (evaluationMode === 'committee') {
                 document.getElementById('dashboardView').classList.remove('hidden');
@@ -1906,6 +2043,229 @@ function formatDate(dateStr) {
 }
 
 // ==========================================
+// โหลดครูสำหรับประเมิน (ป้องกันการเรียกซ้ำ)
+// ==========================================
+async function loadTeachersForEval() {
+    // ✅ ป้องกันการเรียกซ้ำ
+    if (isLoadTeachersRunning) {
+        console.log('⏳ loadTeachersForEval is already running, waiting...');
+        
+        await new Promise((resolve) => {
+            let attempts = 0;
+            const maxAttempts = 50;
+            
+            const checkInterval = setInterval(() => {
+                attempts++;
+                if (!isLoadTeachersRunning || attempts >= maxAttempts) {
+                    clearInterval(checkInterval);
+                    resolve();
+                }
+            }, 100);
+        });
+        
+        if (isLoadTeachersRunning) {
+            console.log('⚠️ Still running, skipping...');
+            return;
+        }
+        
+        console.log('🔄 Retrying loadTeachersForEval...');
+        return loadTeachersForEval();
+    }
+
+    // ✅ ตรวจสอบว่ามีการเลือกข้อมูลครบหรือไม่
+    const groupId = document.getElementById('sel_committee_group').value;
+    const dept = document.getElementById('sel_department').value;
+
+    if (!groupId || !dept) {
+        console.log('ℹ️ Missing group or department, skipping load');
+        return;
+    }
+
+    // ✅ ตรวจสอบว่า dept เป็นค่าเดียวกันกับที่เลือกอยู่หรือไม่ (ป้องกันการโหลดซ้ำ)
+    const currentDept = document.getElementById('sel_department').value;
+    if (window._lastLoadedDept === currentDept && window._lastLoadedGroup === groupId) {
+        console.log('ℹ️ Same department and group, skipping duplicate load');
+        return;
+    }
+
+    // ✅ เก็บค่า last loaded
+    window._lastLoadedDept = currentDept;
+    window._lastLoadedGroup = groupId;
+
+    if (loadTeachersTimeout) {
+        clearTimeout(loadTeachersTimeout);
+        loadTeachersTimeout = null;
+    }
+
+    if (!currentEvalRound) {
+        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่ active', 'warning');
+    }
+
+    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
+    if (!selectedGroup) {
+        return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดคณะกรรมการ', 'warning');
+    }
+
+    isLoadTeachersRunning = true;
+
+    try {
+        // ✅ ทำลาย DataTable เก่า
+        await destroyDataTableSafely();
+
+        // ✅ ตรวจสอบว่าตารางมีอยู่จริง
+        let tableEl = document.getElementById('teacherEvalTable');
+        if (!tableEl) {
+            console.warn('❌ Table element not found, recreating...');
+            const wrapper = document.querySelector('.overflow-x-auto');
+            if (wrapper) {
+                wrapper.innerHTML = `
+                    <table id="teacherEvalTable" class="display w-full text-sm">
+                        <thead>
+                            <tr>
+                                <th class="text-left">ชื่อ-สกุล</th>
+                                <th class="text-left">วิทยฐานะ</th>
+                                <th class="text-center">สถานะ</th>
+                                <th class="text-center">ดำเนินการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tb-teacher-eval"></tbody>
+                    </table>
+                `;
+                tableEl = document.getElementById('teacherEvalTable');
+                console.log('✅ Recreated table');
+            }
+        }
+
+        const tbody = document.getElementById('tb-teacher-eval');
+        if (!tbody) {
+            console.error('❌ tbody not found');
+            return;
+        }
+
+        // ✅ แสดง loading
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center py-8">
+                    <div class="flex items-center justify-center gap-3">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="text-gray-500">กำลังโหลดรายชื่อ...</span>
+                    </div>
+                </td>
+            </tr>`;
+
+        await new Promise(r => setTimeout(r, 300));
+
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const { data: teachers, error: tErr } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .eq('department', dept)
+            .in('academic_standing', validStandings)
+            .order('first_name', { ascending: true });
+
+        if (tErr) throw tErr;
+
+        if (!teachers || teachers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-user-slash mr-2"></i>
+                        ไม่พบบุคลากรในกลุ่มสาระ "${dept}"
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        const teacherIds = teachers.map(t => t.id);
+        const { data: evalResults, error: eErr } = await db
+            .from('eval_results')
+            .select('evaluatee_id, total_score, status, updated_at')
+            .in('evaluatee_id', teacherIds)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('evaluator_id', currentUser.id)
+            .eq('eval_type', 'committee');
+
+        if (eErr) throw eErr;
+
+        const evalMap = {};
+        (evalResults || []).forEach(r => { evalMap[r.evaluatee_id] = r; });
+
+        let html = '';
+        teachers.forEach(teacher => {
+            const fullName = teacher.prefix
+                ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}`
+                : `${teacher.first_name} ${teacher.last_name}`;
+            const standing = teacher.academic_standing || '-';
+            const evalResult = evalMap[teacher.id];
+
+            let statusBadge, actionBtn;
+
+            if (evalResult) {
+                const score = evalResult.total_score?.toFixed(2) || '0.00';
+                const dateStr = evalResult.updated_at
+                    ? new Date(evalResult.updated_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : '';
+                if (evalResult.status === 'submitted') {
+                    statusBadge = `
+                        <span class="status-badge done">✅ ประเมินแล้ว</span>
+                        <div class="text-xs text-gray-400 mt-1">${score} คะแนน · ${dateStr}</div>`;
+                    actionBtn = `
+                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-pen-to-square mr-1"></i>แก้ไข
+                        </button>`;
+                } else {
+                    statusBadge = `<span class="status-badge draft">📝 ร่าง</span>`;
+                    actionBtn = `
+                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-play mr-1"></i>ประเมินต่อ
+                        </button>`;
+                }
+            } else {
+                statusBadge = `<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>`;
+                actionBtn = `
+                    <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        <i class="fa-solid fa-clipboard-check mr-1"></i>ประเมิน
+                    </button>`;
+            }
+
+            html += `
+                <tr>
+                    <td class="font-medium">${fullName}</td>
+                    <td>${standing}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">${actionBtn}</td>
+                </tr>`;
+        });
+
+        tbody.innerHTML = html;
+
+        // ✅ รอให้ DOM อัปเดต
+        await new Promise(r => setTimeout(r, 300));
+
+        // ✅ สร้าง DataTable
+        await initializeDataTableSafely();
+
+    } catch (err) {
+        console.error('Error in loadTeachersForEval:', err);
+        const tbody = document.getElementById('tb-teacher-eval');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center py-8 text-red-400">
+                        <i class="fa-solid fa-circle-exclamation mr-2"></i>โหลดข้อมูลล้มเหลว: ${err.message}
+                    </td>
+                </tr>`;
+        }
+        Swal.fire('ผิดพลาด', `โหลดรายชื่อไม่สำเร็จ: ${err.message}`, 'error');
+    } finally {
+        isLoadTeachersRunning = false;
+        console.log('✅ loadTeachersForEval completed');
+    }
+}
+// ==========================================
 // LOGOUT (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
@@ -1922,3 +2282,21 @@ async function logout() {
         window.location.replace('login.html');
     }
 }
+
+// ==========================================
+// EXPOSE GLOBAL FUNCTIONS
+// ==========================================
+
+window.loadTeachersForEval = loadTeachersForEval;
+window.startEvaluation = startEvaluation;
+window.changeStep = changeStep;
+window.submitEvaluation = submitEvaluation;
+window.startEditEvaluation = startEditEvaluation;
+window.logout = logout;
+window.onCommitteeGroupChange = onCommitteeGroupChange;
+window.destroyDataTableSafely = destroyDataTableSafely;
+window.initializeDataTableSafely = initializeDataTableSafely;
+window.calculateLiveTotal = calculateLiveTotal;
+window.updateSummary = updateSummary;
+
+console.log('✅ All evaluation functions exposed to window');
