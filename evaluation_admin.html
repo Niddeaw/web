@@ -23,6 +23,7 @@
                 opacity: 0;
                 transform: translateY(10px);
             }
+
             100% {
                 opacity: 1;
                 transform: translateY(0);
@@ -267,7 +268,12 @@
             </div>
             <button onclick="window.location.href='evaluation.html'"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าแรก
+                <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าประเมินตนเอง
+            </button>
+            <button onclick="window.location.href='index.html'"
+                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
+                title="กลับหน้าหลัก">
+                <i class="fas fa-house text-sm"></i>
             </button>
             <button onclick="logout()"
                 class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
@@ -289,16 +295,13 @@
             <!-- ========================================== -->
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6">
                 <div class="flex flex-wrap gap-2">
-                    <button onclick="switchTab('rounds')" id="tab-rounds"
-                        class="tab-btn active">
+                    <button onclick="switchTab('rounds')" id="tab-rounds" class="tab-btn active">
                         <i class="fa-solid fa-calendar-check mr-2"></i>รอบการประเมิน
                     </button>
-                    <button onclick="switchTab('groups')" id="tab-groups"
-                        class="tab-btn">
+                    <button onclick="switchTab('groups')" id="tab-groups" class="tab-btn">
                         <i class="fa-solid fa-users mr-2"></i>คณะกรรมการ
                     </button>
-                    <button onclick="switchTab('results')" id="tab-results"
-                        class="tab-btn">
+                    <button onclick="switchTab('results')" id="tab-results" class="tab-btn">
                         <i class="fa-solid fa-chart-bar mr-2"></i>ผลการประเมิน
                     </button>
                 </div>
@@ -464,14 +467,16 @@
                         <input type="hidden" id="round_edit_id" value="">
 
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อรอบ <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อรอบ <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="round_name"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500"
                                 placeholder="เช่น รอบประเมินภาคเรียนที่ 1/2569">
                         </div>
 
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ครั้งที่ <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ครั้งที่ <span
+                                    class="text-red-500">*</span></label>
                             <input type="number" id="round_number"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500"
                                 placeholder="1">
@@ -479,12 +484,14 @@
 
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่เริ่ม <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่เริ่ม <span
+                                        class="text-red-500">*</span></label>
                                 <input type="date" id="round_start_date"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่สิ้นสุด <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่สิ้นสุด <span
+                                        class="text-red-500">*</span></label>
                                 <input type="date" id="round_end_date"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
                             </div>
@@ -492,8 +499,7 @@
 
                         <div class="mb-4">
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="round_is_active" checked
-                                    class="w-4 h-4 accent-blue-600">
+                                <input type="checkbox" id="round_is_active" checked class="w-4 h-4 accent-blue-600">
                                 <span class="text-sm font-medium text-gray-700">เปิดใช้งานทันที</span>
                             </label>
                         </div>
@@ -535,7 +541,8 @@
 
                         <!-- เลือกรอบการประเมิน -->
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">รอบการประเมิน <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">รอบการประเมิน <span
+                                    class="text-red-500">*</span></label>
                             <select id="group_round_id"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
                                 <option value="">-- เลือกรอบ --</option>
@@ -545,14 +552,16 @@
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <!-- ชื่อชุด -->
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อชุด <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อชุด <span
+                                        class="text-red-500">*</span></label>
                                 <input type="text" id="group_name"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500"
                                     placeholder="เช่น ชุดที่ 1">
                             </div>
                             <!-- ประเภท -->
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ประเภท <span class="text-red-500">*</span></label>
+                                <label class="block text-sm font-bold text-gray-700 mb-1">ประเภท <span
+                                        class="text-red-500">*</span></label>
                                 <select id="group_type"
                                     class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
                                     <option value="main">ชุดหลัก</option>
@@ -563,7 +572,8 @@
 
                         <!-- ชุดหลัก (เฉพาะชุดย่อย) -->
                         <div class="mb-4" id="parent_group_container">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ชุดหลัก <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ชุดหลัก <span
+                                    class="text-red-500">*</span></label>
                             <select id="group_parent_id"
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
                                 <option value="">-- เลือกชุดหลัก --</option>
@@ -582,7 +592,8 @@
 
                         <!-- สมาชิก -->
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">สมาชิกคณะกรรมการ <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">สมาชิกคณะกรรมการ <span
+                                    class="text-red-500">*</span></label>
                             <select id="group_members" multiple
                                 class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500"
                                 style="min-height: 120px;">
@@ -593,7 +604,8 @@
 
                         <!-- กลุ่มเป้าหมาย -->
                         <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มเป้าหมาย <span class="text-red-500">*</span></label>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มเป้าหมาย <span
+                                    class="text-red-500">*</span></label>
                             <div id="target_departments_container">
                                 <!-- จะถูกสร้างโดย JavaScript -->
                             </div>
@@ -603,8 +615,7 @@
                         <!-- สถานะ -->
                         <div class="mb-4">
                             <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="group_is_active" checked
-                                    class="w-4 h-4 accent-purple-600">
+                                <input type="checkbox" id="group_is_active" checked class="w-4 h-4 accent-purple-600">
                                 <span class="text-sm font-medium text-gray-700">เปิดใช้งาน</span>
                             </label>
                         </div>

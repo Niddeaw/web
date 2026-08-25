@@ -911,6 +911,117 @@ async function loadMyEvaluationStatus() {
 }
 
 // ==========================================
+// ฟังก์ชันเริ่มการประเมิน
+// ==========================================
+async function startEvaluation(type, teacherData = null) {
+    try {
+        // 1. ตรวจสอบรอบการประเมิน
+        if (!currentEvalRound) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่เปิดใช้งาน', 'warning');
+        }
+
+        // 2. กำหนดโหมดและผู้ถูกประเมิน
+        evaluationMode = type;
+        
+        if (type === 'self') {
+            // โหมดประเมินตนเอง
+            evaluateeData = currentUser;
+            document.getElementById('wizardTargetName').innerText = 
+                `ผู้รับการประเมิน: ${currentUser.first_name} ${currentUser.last_name}`;
+        } else if (type === 'committee' && teacherData) {
+            // โหมดประเมินคณะกรรมการ
+            evaluateeData = teacherData;
+            document.getElementById('wizardTargetName').innerText = 
+                `ผู้รับการประเมิน: ${teacherData.prefix || ''}${teacherData.first_name} ${teacherData.last_name}`;
+        } else {
+            return Swal.fire('แจ้งเตือน', 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่', 'warning');
+        }
+
+        // 3. ตรวจสอบว่ามีการประเมินเดิมหรือไม่ (เฉพาะกรณีไม่ใช่โหมดแก้ไข)
+        if (!window._existingEvalId && !isEditingMode) {
+            await loadExistingEvaluation();
+        }
+
+        // 4. สร้างฟอร์มตามวิทยฐานะ
+        const academic = evaluateeData.academic_standing || 'ครู';
+        
+        // ตรวจสอบหัวข้อย่อยที่ต้องประเมิน (เฉพาะกรณี committee)
+        let allowedSubItems = null;
+        if (type === 'committee') {
+            // ใช้หัวข้อย่อยที่เลือกไว้จากชุดคณะกรรมการ
+            allowedSubItems = window._currentSelectedItems || [];
+        }
+
+        generateDynamicForm(academic, allowedSubItems);
+
+        // 5. เปลี่ยนหน้าจอ
+        document.getElementById('dashboardView').classList.add('hidden');
+        document.getElementById('wizardView').classList.remove('hidden');
+
+        // 6. ตั้งค่าเริ่มต้น
+        wizardCurrentStep = 1;
+        updateWizardUI();
+
+        // 7. โหลดคะแนนเดิม (ถ้ามี)
+        if (window._existingEvalId) {
+            // ถ้ามีการแก้ไข จะโหลดจาก startEditEvaluation แล้ว
+        } else {
+            // ตรวจสอบว่ามีการประเมินที่ส่งแล้วหรือไม่
+            const { data: existingSubmitted, error } = await db
+                .from('eval_results')
+                .select('id, total_score, detailed_scores, status')
+                .eq('evaluatee_id', evaluateeData.id)
+                .eq('eval_round_id', currentEvalRound.id)
+                .eq('evaluator_id', currentUser.id)
+                .eq('eval_type', type)
+                .eq('status', 'submitted')
+                .maybeSingle();
+
+            if (existingSubmitted && !window._existingEvalId) {
+                // พบการประเมินที่ส่งแล้ว ให้ถามผู้ใช้ว่าจะแก้ไขหรือเริ่มใหม่
+                const result = await Swal.fire({
+                    icon: 'info',
+                    title: 'พบการประเมินที่ส่งแล้ว',
+                    html: `
+                        <p>คุณได้ส่งการประเมินนี้แล้ว</p>
+                        <p class="text-sm text-gray-500">คะแนน: <b>${existingSubmitted.total_score.toFixed(2)}</b> / 100</p>
+                        <p class="text-sm text-gray-500 mt-2">ต้องการดำเนินการอย่างไร?</p>
+                    `,
+                    showDenyButton: true,
+                    confirmButtonText: '📝 แก้ไข',
+                    denyButtonText: '🗑️ เริ่มใหม่',
+                    cancelButtonText: '❌ ยกเลิก'
+                });
+
+                if (result.isConfirmed) {
+                    // แก้ไข - โหลดข้อมูลเดิม
+                    window._existingEvalId = existingSubmitted.id;
+                    loadScoresToForm(existingSubmitted);
+                    Swal.fire('โหลดข้อมูลสำเร็จ', 'คุณสามารถแก้ไขคะแนนได้', 'success');
+                } else if (result.isDenied) {
+                    // เริ่มใหม่ - ลบข้อมูลเดิม
+                    await db.from('eval_results').delete().eq('id', existingSubmitted.id);
+                    window._existingEvalId = null;
+                    resetForm();
+                    Swal.fire('เริ่มใหม่', 'ลบข้อมูลเดิมเรียบร้อย', 'success');
+                } else {
+                    // ยกเลิก - กลับหน้า dashboard
+                    document.getElementById('dashboardView').classList.remove('hidden');
+                    document.getElementById('wizardView').classList.add('hidden');
+                    return;
+                }
+            }
+        }
+
+        console.log('✅ เริ่มการประเมิน:', type, evaluateeData.id);
+
+    } catch (err) {
+        console.error('Error starting evaluation:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
 // ฟังก์ชันเริ่มแก้ไขการประเมิน
 // ==========================================
 async function startEditEvaluation(evalId) {
