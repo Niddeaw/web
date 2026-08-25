@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+    <meta charset="UTF-8">
+    <title>ตั้งค่าระบบประเมินผล - WRK System</title>
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .setting-card {
+            transition: all 0.2s ease;
+            border: 1px solid #e2e8f0;
+        }
+
+        .setting-card:hover {
+            border-color: #8b5cf6;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+        }
+
+        .setting-card .icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .save-btn {
+            background: #8b5cf6;
+            color: white;
+            padding: 0.5rem 1.5rem;
+            border-radius: 0.75rem;
+            font-weight: 600;
+            transition: all 0.15s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .save-btn:hover {
+            background: #7c3aed;
+            transform: translateY(-1px);
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.625rem 1rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            outline: none;
+            transition: border-color 0.15s ease;
+            font-size: 0.875rem;
+        }
+
+        .form-input:focus {
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+
+        .form-label {
+            display: block;
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 0.25rem;
+        }
+
+        .form-hint {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-top: 0.25rem;
+        }
+
+        .toggle-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .toggle-option {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: white;
+        }
+
+        .toggle-option:hover {
+            border-color: #8b5cf6;
+            background: #f5f3ff;
+        }
+
+        .toggle-option.active {
+            border-color: #8b5cf6;
+            background: #ede9fe;
+        }
+
+        .toggle-option input[type="radio"] {
+            width: 16px;
+            height: 16px;
+            accent-color: #8b5cf6;
+        }
+
+        .toggle-option .label-text {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .toggle-option .label-desc {
+            font-size: 0.7rem;
+            color: #9ca3af;
+        }
+
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+
+        .status-badge.saved {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.unsaved {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge.error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .section-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .slide-templates-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .super-admin-badge {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .permission-denied {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 60vh;
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .permission-denied .lock-icon {
+            font-size: 4rem;
+            color: #d1d5db;
+            margin-bottom: 1rem;
+        }
+
+        .permission-denied h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #4b5563;
+        }
+
+        .permission-denied p {
+            color: #9ca3af;
+            margin-top: 0.5rem;
+        }
+
+        /* Admin List Display */
+        #admin_list_items .admin-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.25rem;
+            background: #ede9fe;
+            color: #5b21b6;
+            padding: 0.15rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            margin: 0.1rem;
+        }
+
+        #admin_list_items .admin-pill.super {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        #admin_list_items .admin-pill .badge {
+            font-size: 0.55rem;
+            background: rgba(0, 0, 0, 0.1);
+            padding: 0.05rem 0.3rem;
+            border-radius: 9999px;
+        }
+
+        #admin_list_items .admin-pill .remove-btn {
+            cursor: pointer;
+            color: #ef4444;
+            font-size: 0.65rem;
+            padding: 0 0.15rem;
+            transition: color 0.15s ease;
+        }
+
+        #admin_list_items .admin-pill .remove-btn:hover {
+            color: #dc2626;
+        }
+
+        /* Tom Select Custom Style */
+        .ts-wrapper .ts-control {
+            min-height: 60px;
+            border-radius: 0.5rem;
+            border-color: #d1d5db;
+            padding: 0.5rem;
+        }
+
+        .ts-wrapper .ts-control .item {
+            background: #ede9fe;
+            color: #5b21b6;
+            border-radius: 0.375rem;
+            padding: 0.25rem 0.75rem;
+            margin: 0.15rem;
+            font-size: 0.8rem;
+        }
+
+        .ts-wrapper .ts-control .item .remove {
+            color: #5b21b6;
+            opacity: 0.6;
+        }
+
+        .ts-wrapper .ts-control .item .remove:hover {
+            opacity: 1;
+        }
+
+        .ts-wrapper .ts-dropdown .option {
+            padding: 0.5rem 1rem;
+            font-size: 0.875rem;
+        }
+
+        .ts-wrapper .ts-dropdown .option.active {
+            background: #ede9fe;
+        }
+
+        .ts-wrapper .ts-dropdown .option.selected {
+            background: #8b5cf6;
+            color: white;
+        }
+
+        @media (max-width: 640px) {
+            .slide-templates-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .toggle-group {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 transition-colors h-screen overflow-hidden flex flex-col">
+
+    <!-- ========================================== -->
+    <!-- NAVBAR -->
+    <!-- ========================================== -->
+    <header
+        class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 p-4 flex flex-wrap justify-between items-center sticky top-0 z-50 gap-2">
+        <div class="flex items-center gap-3">
+            <div
+                class="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-600/20">
+                <i class="fa-solid fa-gear text-xl"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight">ตั้งค่าระบบประเมินผล</h1>
+                <p class="text-[11px] text-gray-500" id="header_school_term">ภาคเรียนที่ 1 / 2569</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 flex-wrap">
+            <span class="super-admin-badge">
+                <i class="fa-solid fa-crown"></i> super_admin เท่านั้น
+            </span>
+            <div class="text-right hidden sm:block">
+                <p class="text-sm font-medium text-gray-700" id="header_user_name">-</p>
+                <p class="text-xs text-gray-400" id="header_user_role">-</p>
+            </div>
+            <button onclick="window.location.href='evaluation_admin.html'"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+                <i class="fa-solid fa-arrow-left mr-1"></i> ตั้งค่ากรรมการ
+            </button>
+            <button onclick="window.location.href='evaluation.html'"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+                <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าประเมินตนเอง
+            </button>
+            <button onclick="logout()"
+                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm">
+                <i class="fas fa-sign-out-alt"></i>
+            </button>
+        </div>
+    </header>
+
+    <!-- ========================================== -->
+    <!-- MAIN CONTENT -->
+    <!-- ========================================== -->
+    <main class="flex-1 overflow-y-auto p-4 md:p-6 pb-20" id="mainBody">
+
+        <!-- ตรวจสอบสิทธิ์ super_admin -->
+        <div id="permissionDenied" class="permission-denied hidden">
+            <div class="lock-icon"><i class="fa-solid fa-lock"></i></div>
+            <h2>🚫 ไม่มีสิทธิ์เข้าใช้งาน</h2>
+            <p>หน้านี้สำหรับ <strong>super_admin</strong> เท่านั้น</p>
+            <button onclick="window.location.href='evaluation_admin.html'"
+                class="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold transition-colors">
+                <i class="fa-solid fa-arrow-left mr-1"></i> ตั้งค่ากรรมการ
+            </button>
+            <button onclick="window.location.href='evaluation.html'"
+                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+                <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าประเมินตนเอง
+            </button>
+        </div>
+
+        <!-- เนื้อหาหลัก (แสดงเฉพาะ super_admin) -->
+        <div id="settingsContent" class="max-w-6xl mx-auto hidden">
+
+            <!-- ส่วนหัว -->
+            <div class="mb-6">
+                <div class="flex items-center gap-3 flex-wrap">
+                    <h2 class="text-2xl font-bold text-gray-800">⚙️ ตั้งค่าระบบประเมินผล</h2>
+                    <span class="super-admin-badge">
+                        <i class="fa-solid fa-crown"></i> super_admin
+                    </span>
+                </div>
+                <p class="text-sm text-gray-500 mt-1">จัดการการตั้งค่าต่างๆ ของระบบประเมินผลการปฏิบัติงาน</p>
+                <div id="saveStatus" class="mt-2"></div>
+            </div>
+
+            <!-- Grid การ์ด -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+                <!-- ========================================== -->
+                <!-- การ์ด 1: Admin ประจำระบบ -->
+                <!-- ========================================== -->
+                <div class="setting-card bg-white rounded-2xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon bg-purple-100 text-purple-600">
+                            <i class="fa-solid fa-user-shield"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">Admin ประจำระบบ</h3>
+                            <p class="text-xs text-gray-500">เลือกผู้ใช้ที่มีสิทธิ์เป็น Admin</p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">เลือกผู้ดูแลระบบ</label>
+                        <div id="admin_select_container">
+                            <select id="admin_user_select" multiple placeholder="ค้นหาชื่อผู้ใช้...">
+                                <!-- จะถูกสร้างโดย JavaScript -->
+                            </select>
+                        </div>
+                        <p class="form-hint">พิมพ์เพื่อค้นหา เลือกผู้ใช้ที่มีสิทธิ์เป็น Admin (กด Enter เพื่อเลือก)</p>
+                    </div>
+
+                    <!-- แสดงรายชื่อ Admin ปัจจุบัน -->
+                    <div id="admin_list_display" class="mb-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <p class="text-xs font-medium text-gray-500">👥 รายชื่อ Admin ปัจจุบัน:</p>
+                            <span class="text-xs text-gray-400" id="admin_count">0 คน</span>
+                        </div>
+                        <div id="admin_list_items" class="flex flex-wrap gap-1">
+                            <span class="text-xs text-gray-400">กำลังโหลด...</span>
+                        </div>
+                        <p class="text-xs text-gray-400 mt-2">🔄 คลิก <i class="fa-solid fa-xmark text-red-400"></i>
+                            เพื่อถอดถอนออกจาก Admin</p>
+                    </div>
+
+                    <button onclick="saveAdmins()" class="save-btn w-full">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึก Admin
+                    </button>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- การ์ด 2: GAS API -->
+                <!-- ========================================== -->
+                <div class="setting-card bg-white rounded-2xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon bg-emerald-100 text-emerald-600">
+                            <i class="fa-brands fa-google"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">GAS API</h3>
+                            <p class="text-xs text-gray-500">เชื่อมต่อกับ Google Apps Script</p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">GAS API URL</label>
+                        <input type="text" id="gas_api_url" class="form-input"
+                            placeholder="https://script.google.com/macros/s/.../exec">
+                        <p class="form-hint">URL ของ Google Apps Script Web App</p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">API Key (ถ้ามี)</label>
+                        <input type="password" id="gas_api_key" class="form-input"
+                            placeholder="API Key สำหรับยืนยันตัวตน">
+                    </div>
+                    <button onclick="saveGASConfig()" class="save-btn w-full">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึก GAS API
+                    </button>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- การ์ด 3: Google Drive Folder ID -->
+                <!-- ========================================== -->
+                <div class="setting-card bg-white rounded-2xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon bg-blue-100 text-blue-600">
+                            <i class="fa-brands fa-google-drive"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">Google Drive</h3>
+                            <p class="text-xs text-gray-500">Folder ID สำหรับจัดเก็บไฟล์ PDF</p>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">ID Folder (เก็บไฟล์ PDF)</label>
+                        <input type="text" id="drive_folder_id" class="form-input" placeholder="1ABC123...">
+                        <p class="form-hint">Folder ID สำหรับเก็บไฟล์ PDF ที่สร้างจากระบบ</p>
+                    </div>
+                    <button onclick="saveDriveConfig()" class="save-btn w-full">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึก Drive Config
+                    </button>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- การ์ด 4: Slide Templates -->
+                <!-- ========================================== -->
+                <div class="setting-card bg-white rounded-2xl p-6">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon bg-amber-100 text-amber-600">
+                            <i class="fa-solid fa-file-powerpoint"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">Slide Templates</h3>
+                            <p class="text-xs text-gray-500">เทมเพลตสำหรับสร้าง PDF</p>
+                        </div>
+                    </div>
+                    <div class="slide-templates-grid">
+                        <div>
+                            <label class="form-label text-sm">ครูผู้ช่วย</label>
+                            <input type="text" id="slide_template_1" class="form-input" placeholder="1XYZ789..."
+                                style="font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label class="form-label text-sm">ครู (ไม่มีวิทยฐานะ)</label>
+                            <input type="text" id="slide_template_2" class="form-input" placeholder="1XYZ789..."
+                                style="font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label class="form-label text-sm">ครูชำนาญการ</label>
+                            <input type="text" id="slide_template_3" class="form-input" placeholder="1XYZ789..."
+                                style="font-size:0.8rem;">
+                        </div>
+                        <div>
+                            <label class="form-label text-sm">ครูชำนาญการพิเศษ</label>
+                            <input type="text" id="slide_template_4" class="form-input" placeholder="1XYZ789..."
+                                style="font-size:0.8rem;">
+                        </div>
+                    </div>
+                    <p class="form-hint mt-2">ID ของ Google Slide Template สำหรับแต่ละวิทยฐานะ</p>
+                    <button onclick="saveSlideTemplates()" class="save-btn w-full mt-3">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึก Slide Templates
+                    </button>
+                </div>
+
+                <!-- ========================================== -->
+                <!-- การ์ด 5: ตั้งค่าทั่วไป (การแก้ไข) -->
+                <!-- ========================================== -->
+                <div class="setting-card bg-white rounded-2xl p-6 lg:col-span-2">
+                    <div class="flex items-center gap-3 mb-4">
+                        <div class="icon bg-indigo-100 text-indigo-600">
+                            <i class="fa-solid fa-sliders"></i>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-lg">ตั้งค่าทั่วไป</h3>
+                            <p class="text-xs text-gray-500">เปิด/ปิดการแก้ไขการประเมิน</p>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">สถานะการแก้ไขการประเมิน</label>
+                        <div class="toggle-group" id="editModeGroup">
+                            <label class="toggle-option active" data-value="all">
+                                <input type="radio" name="edit_mode" value="all" checked>
+                                <div>
+                                    <div class="label-text">🔓 เปิดทั้งหมด</div>
+                                    <div class="label-desc">แก้ไขได้ทั้งประเมินตนเองและกรรมการ</div>
+                                </div>
+                            </label>
+                            <label class="toggle-option" data-value="self_only">
+                                <input type="radio" name="edit_mode" value="self_only">
+                                <div>
+                                    <div class="label-text">👤 เฉพาะประเมินตนเอง</div>
+                                    <div class="label-desc">แก้ไขได้เฉพาะประเมินตนเองเท่านั้น</div>
+                                </div>
+                            </label>
+                            <label class="toggle-option" data-value="committee_only">
+                                <input type="radio" name="edit_mode" value="committee_only">
+                                <div>
+                                    <div class="label-text">👥 เฉพาะกรรมการ</div>
+                                    <div class="label-desc">แก้ไขได้เฉพาะประเมินของกรรมการเท่านั้น</div>
+                                </div>
+                            </label>
+                            <label class="toggle-option" data-value="none">
+                                <input type="radio" name="edit_mode" value="none">
+                                <div>
+                                    <div class="label-text">🔒 ปิดทั้งหมด</div>
+                                    <div class="label-desc">ไม่สามารถแก้ไขการประเมินใดๆ ได้</div>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- รายละเอียดการตั้งค่าเพิ่มเติม -->
+                    <div class="grid grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="allow_self_edit" checked class="w-4 h-4 accent-purple-600">
+                                <span class="text-sm text-gray-700">อนุญาตให้แก้ไขการประเมินตนเอง</span>
+                            </label>
+                        </div>
+                        <div>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="allow_committee_edit" checked
+                                    class="w-4 h-4 accent-purple-600">
+                                <span class="text-sm text-gray-700">อนุญาตให้แก้ไขการประเมินของกรรมการ</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <button onclick="saveGeneralSettings()" class="save-btn w-full mt-4">
+                        <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึกตั้งค่าทั่วไป
+                    </button>
+                </div>
+
+            </div>
+
+            <!-- ปุ่มกลับ -->
+            <div class="mt-6 text-center">
+                <button onclick="window.location.href='evaluation_admin.html'"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">
+                    <i class="fa-solid fa-arrow-left mr-2"></i> กลับไปหน้าก่อนหน้า
+                </button>
+                <button onclick="debugAdmins()"
+                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors ml-2">
+                    <i class="fa-solid fa-bug mr-2"></i> Debug Admin
+                </button>
+                <button onclick="forceReloadAdmins()"
+                    class="bg-amber-500 hover:bg-amber-600 text-white px-6 py-2.5 rounded-xl font-bold transition-colors ml-2">
+                    <i class="fa-solid fa-rotate mr-2"></i> โหลดใหม่
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- ========================================== -->
+    <!-- SCRIPTS -->
+    <!-- ========================================== -->
+    <script>
+        // ==========================================
+        // ตัวแปรระบบ
+        // ==========================================
+        let currentUser = null;
+        let allPersonnel = [];
+        let isSuperAdmin = false;
+
+        // ==========================================
+        // ฟังก์ชันเริ่มต้น
+        // ==========================================
+        window.onload = async function () {
+            await checkAuth();
+            if (isSuperAdmin) {
+                await loadUserInfo();
+                await loadAdmins();
+                await loadConfigs();
+                document.getElementById('settingsContent').classList.remove('hidden');
+            } else {
+                document.getElementById('permissionDenied').classList.remove('hidden');
+            }
+        };
+
+        // ==========================================
+        // ตรวจสอบสิทธิ์ (เฉพาะ super_admin)
+        // ==========================================
+        async function checkAuth() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) return window.location.replace('index.html');
+
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+            currentUser = profile;
+
+            if (profile.role === 'super_admin') {
+                isSuperAdmin = true;
+            } else {
+                isSuperAdmin = false;
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                    text: 'หน้านี้สำหรับ super_admin เท่านั้น',
+                    confirmButtonText: 'ตกลง'
+                });
+            }
+        }
+
+        // ==========================================
+        // โหลดข้อมูลผู้ใช้
+        // ==========================================
+        async function loadUserInfo() {
+            const { data: { session } } = await db.auth.getSession();
+            if (!session) return;
+
+            const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+            document.getElementById('header_user_name').innerText = `${profile.first_name} ${profile.last_name}`;
+            document.getElementById('header_user_role').innerText = profile.role || '';
+
+            const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
+            if (schoolInfo) {
+                document.getElementById('header_school_term').innerText =
+                    `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
+            }
+        }
+
+        // ==========================================
+        // แสดงรายชื่อ Admin ปัจจุบัน
+        // ==========================================
+        // ==========================================
+        // แสดงรายชื่อ Admin ปัจจุบัน (พร้อมปุ่มลบ)
+        // ==========================================
+        function displayAdminList() {
+            const container = document.getElementById('admin_list_items');
+            const countEl = document.getElementById('admin_count');
+            if (!container) return;
+
+            const admins = allPersonnel.filter(p => ['admin', 'super_admin'].includes(p.role));
+
+            if (admins.length === 0) {
+                container.innerHTML = `<span class="text-xs text-gray-400">ยังไม่มี Admin</span>`;
+                if (countEl) countEl.textContent = '0 คน';
+                return;
+            }
+
+            if (countEl) countEl.textContent = `${admins.length} คน`;
+
+            let html = '';
+            admins.forEach(p => {
+                const isSuper = p.role === 'super_admin';
+                const isCurrentUser = currentUser && p.id === currentUser.id;
+                const name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+
+                // ปุ่มลบ (ยกเว้น super_admin คนปัจจุบัน)
+                const removeBtn = (!isSuper || !isCurrentUser) ? `
+            <button onclick="removeAdmin('${p.id}', '${p.first_name} ${p.last_name}', ${isSuper})" 
+                    class="remove-btn" 
+                    title="${isSuper ? 'ถอดถอน super_admin' : 'ลบ Admin'}">
+                <i class="fa-solid fa-xmark"></i>
+            </button>
+        ` : '';
+
+                // แสดงปุ่ม "คุณ" ถ้าเป็นผู้ใช้ปัจจุบัน
+                const youBadge = isCurrentUser ? '<span class="text-xs text-gray-400 ml-0.5">(คุณ)</span>' : '';
+
+                html += `
+            <span class="admin-pill ${isSuper ? 'super' : ''}">
+                ${isSuper ? '👑' : '🛡️'} ${name}
+                <span class="badge">${p.role}</span>
+                ${removeBtn}
+                ${youBadge}
+            </span>
+        `;
+            });
+
+            container.innerHTML = html;
+        }
+
+        // ==========================================
+        // ลบ/ถอดถอน Admin
+        // ==========================================
+        async function removeAdmin(userId, userName, isSuper) {
+            // ตรวจสอบว่าไม่ใช่ super_admin คนสุดท้าย
+            if (isSuper) {
+                const superAdmins = allPersonnel.filter(p => p.role === 'super_admin');
+                if (superAdmins.length <= 1) {
+                    return Swal.fire({
+                        icon: 'error',
+                        title: '⚠️ ไม่สามารถถอดถอนได้',
+                        text: 'ต้องมี super_admin อย่างน้อย 1 คนในระบบ',
+                        confirmButtonText: 'ตกลง'
+                    });
+                }
+            }
+
+            // ตรวจสอบว่าไม่ใช่ตัวเอง (เผื่อไว้)
+            if (currentUser && userId === currentUser.id) {
+                return Swal.fire({
+                    icon: 'warning',
+                    title: '⚠️ ไม่สามารถถอดถอนตัวเองได้',
+                    text: 'คุณไม่สามารถถอดถอนตัวเองออกจาก Admin ได้',
+                    confirmButtonText: 'ตกลง'
+                });
+            }
+
+            const result = await Swal.fire({
+                icon: 'warning',
+                title: `ยืนยันการ${isSuper ? 'ถอดถอน' : 'ลบ'} Admin`,
+                html: `
+            <p>คุณต้องการ${isSuper ? 'ถอดถอน' : 'ลบ'} <strong>${userName}</strong> 
+            ${isSuper ? '(super_admin)' : '(admin)'} ออกจากระบบใช่หรือไม่?</p>
+            <p class="text-sm text-red-500 mt-2">⚠️ ผู้ใช้รายนี้จะเปลี่ยนเป็น <strong>teacher</strong></p>
+        `,
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: `ใช่, ${isSuper ? 'ถอดถอน' : 'ลบ'}`,
+                cancelButtonText: 'ยกเลิก'
+            });
+
+            if (!result.isConfirmed) return;
+
+            Swal.fire({
+                title: 'กำลังดำเนินการ...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            try {
+                // เปลี่ยน role เป็น teacher
+                await db.from('core_personnel').update({ role: 'teacher' }).eq('id', userId);
+
+                Swal.close();
+                showSaveStatus('saved', `✅ ถอดถอน ${userName} สำเร็จ`);
+
+                // โหลดข้อมูลใหม่
+                await loadAdmins();
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: '✅ ถอดถอนสำเร็จ!',
+                    text: `${userName} ถูกเปลี่ยนเป็น teacher แล้ว`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+            } catch (err) {
+                console.error('Error removing admin:', err);
+                Swal.close();
+                showSaveStatus('error', '❌ ' + err.message);
+                Swal.fire('ผิดพลาด', err.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // โหลดรายชื่อ Admin (ใช้ Tom Select)
+        // ==========================================
+        async function loadAdmins() {
+            try {
+                const { data, error } = await db
+                    .from('core_personnel')
+                    .select('id, prefix, first_name, last_name, role')
+                    .in('role', ['super_admin', 'admin', 'director', 'deputy', 'teacher'])
+                    .order('first_name', { ascending: true });
+
+                if (error) {
+                    console.error('Error loading personnel:', error);
+                    return;
+                }
+
+                allPersonnel = data || [];
+                const select = document.getElementById('admin_user_select');
+
+                // กำหนดค่าเริ่มต้น (คนที่ role เป็น admin หรือ super_admin)
+                const selectedValues = allPersonnel
+                    .filter(p => ['admin', 'super_admin'].includes(p.role))
+                    .map(p => p.id);
+
+                console.log('✅ Admin ที่เลือก:', selectedValues);
+                console.log('✅ จำนวน Admin:', selectedValues.length);
+
+                // สร้าง options
+                select.innerHTML = '';
+                allPersonnel.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    const prefix = p.prefix || '';
+                    const name = `${prefix}${p.first_name} ${p.last_name}`;
+                    const roleMap = {
+                        'super_admin': '👑 super_admin',
+                        'admin': '🛡️ admin',
+                        'director': '📋 director',
+                        'deputy': '📋 deputy',
+                        'teacher': '👨‍🏫 teacher'
+                    };
+                    const roleDisplay = roleMap[p.role] || p.role;
+                    opt.textContent = `${name} (${roleDisplay})`;
+                    if (selectedValues.includes(p.id)) {
+                        opt.selected = true;
+                    }
+                    select.appendChild(opt);
+                });
+
+                // ถ้ามี Tom Select อยู่แล้วให้ destroy ทิ้ง
+                if (select.tomselect) {
+                    select.tomselect.destroy();
+                    select.tomselect = null;
+                }
+
+                // สร้าง Tom Select ใหม่
+                setTimeout(() => {
+                    try {
+                        const ts = new TomSelect(select, {
+                            plugins: ['remove_button', 'dropdown_input'],
+                            maxItems: null,
+                            placeholder: 'พิมพ์ค้นหาชื่อผู้ใช้...',
+                            create: false,
+                            sortField: 'text',
+                            searchField: ['text'],
+                            render: {
+                                option: function (data, escape) {
+                                    return `<div class="option" data-value="${data.value}">${escape(data.text)}</div>`;
+                                }
+                            },
+                            onChange: function (values) {
+                                showSaveStatus('unsaved', '⏳ ยังไม่ได้บันทึกการเปลี่ยนแปลง');
+                            }
+                        });
+                        select.tomselect = ts;
+                        console.log('✅ Tom Select ถูกสร้างใหม่');
+
+                    } catch (err) {
+                        console.error('Error creating Tom Select:', err);
+                    }
+                }, 100);
+
+                // แสดงรายชื่อ Admin
+                displayAdminList();
+
+                console.log('✅ โหลด Admin สำเร็จ:', selectedValues.length, 'คน');
+
+            } catch (err) {
+                console.error('Error in loadAdmins:', err);
+            }
+        }
+
+        // ==========================================
+        // บันทึก Admin
+        // ==========================================
+        async function saveAdmins() {
+            const select = document.getElementById('admin_user_select');
+
+            // ดึงค่าที่เลือกจาก Tom Select
+            let selectedValues = [];
+            if (select.tomselect) {
+                const values = select.tomselect.getValue();
+                if (Array.isArray(values)) {
+                    selectedValues = values.map(id => String(id));
+                } else if (typeof values === 'string' && values) {
+                    selectedValues = values.split(',').filter(id => id.trim() !== '');
+                }
+            } else {
+                // Fallback: ดึงจาก selected options
+                selectedValues = Array.from(select.selectedOptions).map(opt => opt.value);
+            }
+
+            console.log('✅ ค่าที่เลือก:', selectedValues);
+
+            if (selectedValues.length === 0) {
+                return Swal.fire({
+                    icon: 'warning',
+                    title: '⚠️ ต้องมี Admin อย่างน้อย 1 คน',
+                    text: 'กรุณาเลือกผู้ใช้เป็น Admin อย่างน้อย 1 คน',
+                    confirmButtonText: 'ตกลง'
+                });
+            }
+
+            Swal.fire({
+                title: 'กำลังบันทึก...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            try {
+                // ตรวจสอบว่ามี super_admin อย่างน้อย 1 คน
+                const superAdmins = allPersonnel.filter(p => p.role === 'super_admin');
+                const superAdminIds = superAdmins.map(p => p.id);
+                const remainingSuperAdmins = superAdminIds.filter(id => selectedValues.includes(id));
+
+                if (remainingSuperAdmins.length === 0 && superAdmins.length > 0) {
+                    Swal.close();
+                    await Swal.fire({
+                        icon: 'warning',
+                        title: '⚠️ ต้องมี super_admin อย่างน้อย 1 คน',
+                        text: 'คุณกำลังจะลบ super_admin ทั้งหมด กรุณาเลือก super_admin ไว้อย่างน้อย 1 คน',
+                        confirmButtonText: 'ตกลง'
+                    });
+                    return;
+                }
+
+                // อัปเดต role ของผู้ใช้ที่เลือก (ยกเว้น super_admin)
+                for (const id of selectedValues) {
+                    const user = allPersonnel.find(p => p.id === id);
+                    if (user && user.role !== 'super_admin') {
+                        await db.from('core_personnel').update({ role: 'admin' }).eq('id', id);
+                        console.log(`✅ อัปเดต ${user.first_name} ${user.last_name} เป็น admin`);
+                    }
+                }
+
+                // ผู้ใช้ที่ไม่ได้เลือกให้เปลี่ยนเป็น teacher (ยกเว้น super_admin)
+                const allAdminIds = allPersonnel
+                    .filter(p => ['admin', 'super_admin'].includes(p.role))
+                    .map(p => p.id);
+
+                for (const id of allAdminIds) {
+                    if (!selectedValues.includes(id)) {
+                        const user = allPersonnel.find(p => p.id === id);
+                        if (user && user.role !== 'super_admin') {
+                            await db.from('core_personnel').update({ role: 'teacher' }).eq('id', id);
+                            console.log(`✅ อัปเดต ${user.first_name} ${user.last_name} เป็น teacher`);
+                        }
+                    }
+                }
+
+                Swal.close();
+                showSaveStatus('saved', `✅ เลือก Admin ${selectedValues.length} คน`);
+
+                // โหลดข้อมูลใหม่
+                await loadAdmins();
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: 'บันทึกสำเร็จ!',
+                    text: `เลือก Admin จำนวน ${selectedValues.length} คน`,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+            } catch (err) {
+                console.error('Error saving admins:', err);
+                Swal.close();
+                showSaveStatus('error', '❌ ' + err.message);
+                Swal.fire('ผิดพลาด', err.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // Debug: ตรวจสอบ Admin
+        // ==========================================
+        async function debugAdmins() {
+            const { data, error } = await db
+                .from('core_personnel')
+                .select('id, first_name, last_name, role')
+                .in('role', ['admin', 'super_admin']);
+
+            if (error) {
+                console.error('Debug error:', error);
+                Swal.fire('ผิดพลาด', error.message, 'error');
+                return;
+            }
+
+            console.log('📊 Admin ในระบบ:', data);
+
+            let msg = '📊 Admin ในระบบ:\n';
+            if (data.length === 0) {
+                msg += 'ไม่มี Admin ในระบบ';
+            } else {
+                data.forEach(p => {
+                    msg += `- ${p.first_name} ${p.last_name} (${p.role})\n`;
+                });
+            }
+
+            Swal.fire({
+                title: '📊 Admin ในระบบ',
+                text: msg,
+                confirmButtonText: 'ตกลง'
+            });
+        }
+
+        // ==========================================
+        // บังคับโหลด Admin ใหม่
+        // ==========================================
+        async function forceReloadAdmins() {
+            Swal.fire({
+                title: 'กำลังโหลดใหม่...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            await loadAdmins();
+
+            Swal.close();
+            Swal.fire({
+                icon: 'success',
+                title: 'โหลดใหม่สำเร็จ!',
+                timer: 1000,
+                showConfirmButton: false
+            });
+        }
+
+        // ==========================================
+        // โหลดการตั้งค่าต่างๆ
+        // ==========================================
+        async function loadConfigs() {
+            try {
+                const { data, error } = await db
+                    .from('system_configs')
+                    .select('*')
+                    .eq('category', 'evaluation')
+                    .maybeSingle();
+
+                if (error) {
+                    console.warn('system_configs table may not exist yet:', error);
+                    return;
+                }
+
+                if (data) {
+                    const config = data.config || {};
+
+                    document.getElementById('gas_api_url').value = config.gas_api_url || '';
+                    document.getElementById('gas_api_key').value = config.gas_api_key || '';
+                    document.getElementById('drive_folder_id').value = config.drive_folder_id || '';
+                    document.getElementById('slide_template_1').value = config.slide_template_1 || '';
+                    document.getElementById('slide_template_2').value = config.slide_template_2 || '';
+                    document.getElementById('slide_template_3').value = config.slide_template_3 || '';
+                    document.getElementById('slide_template_4').value = config.slide_template_4 || '';
+
+                    document.getElementById('allow_self_edit').checked = config.allow_self_edit !== false;
+                    document.getElementById('allow_committee_edit').checked = config.allow_committee_edit !== false;
+
+                    const editMode = config.edit_mode || 'all';
+                    document.querySelectorAll('input[name="edit_mode"]').forEach(input => {
+                        input.checked = input.value === editMode;
+                    });
+                    updateToggleUI(editMode);
+                }
+
+                showSaveStatus('saved', '✅ โหลดข้อมูลสำเร็จ');
+
+            } catch (err) {
+                console.error('Error loading configs:', err);
+                showSaveStatus('error', '❌ โหลดข้อมูลล้มเหลว');
+            }
+        }
+
+        // ==========================================
+        // อัปเดต UI ของ Toggle
+        // ==========================================
+        function updateToggleUI(value) {
+            document.querySelectorAll('.toggle-option').forEach(el => {
+                el.classList.toggle('active', el.dataset.value === value);
+            });
+        }
+
+        // ==========================================
+        // Event: เปลี่ยนโหมดแก้ไข
+        // ==========================================
+        document.querySelectorAll('input[name="edit_mode"]').forEach(input => {
+            input.addEventListener('change', function () {
+                updateToggleUI(this.value);
+            });
+        });
+
+        // ==========================================
+        // แสดงสถานะการบันทึก
+        // ==========================================
+        function showSaveStatus(type, message) {
+            const el = document.getElementById('saveStatus');
+            const badges = {
+                saved: '<span class="status-badge saved">✅ บันทึกแล้ว</span>',
+                unsaved: '<span class="status-badge unsaved">⏳ ยังไม่บันทึก</span>',
+                error: '<span class="status-badge error">❌ ผิดพลาด</span>'
+            };
+            el.innerHTML = `${badges[type] || ''} <span class="text-sm text-gray-500 ml-2">${message || ''}</span>`;
+            if (type === 'saved') {
+                setTimeout(() => {
+                    el.innerHTML = '';
+                }, 3000);
+            }
+        }
+
+        // ==========================================
+        // บันทึก GAS API
+        // ==========================================
+        async function saveGASConfig() {
+            const url = document.getElementById('gas_api_url').value.trim();
+            const key = document.getElementById('gas_api_key').value.trim();
+
+            await saveSystemConfig({
+                gas_api_url: url,
+                gas_api_key: key
+            }, 'บันทึก GAS API สำเร็จ');
+        }
+
+        // ==========================================
+        // บันทึก Drive Config
+        // ==========================================
+        async function saveDriveConfig() {
+            const folderId = document.getElementById('drive_folder_id').value.trim();
+
+            await saveSystemConfig({
+                drive_folder_id: folderId
+            }, 'บันทึก Drive Config สำเร็จ');
+        }
+
+        // ==========================================
+        // บันทึก Slide Templates
+        // ==========================================
+        async function saveSlideTemplates() {
+            const template1 = document.getElementById('slide_template_1').value.trim();
+            const template2 = document.getElementById('slide_template_2').value.trim();
+            const template3 = document.getElementById('slide_template_3').value.trim();
+            const template4 = document.getElementById('slide_template_4').value.trim();
+
+            await saveSystemConfig({
+                slide_template_1: template1,
+                slide_template_2: template2,
+                slide_template_3: template3,
+                slide_template_4: template4
+            }, 'บันทึก Slide Templates สำเร็จ');
+        }
+
+        // ==========================================
+        // บันทึกตั้งค่าทั่วไป
+        // ==========================================
+        async function saveGeneralSettings() {
+            const allowSelfEdit = document.getElementById('allow_self_edit').checked;
+            const allowCommitteeEdit = document.getElementById('allow_committee_edit').checked;
+            const editMode = document.querySelector('input[name="edit_mode"]:checked')?.value || 'all';
+
+            await saveSystemConfig({
+                allow_self_edit: allowSelfEdit,
+                allow_committee_edit: allowCommitteeEdit,
+                edit_mode: editMode
+            }, 'บันทึกตั้งค่าทั่วไปสำเร็จ');
+        }
+
+        // ==========================================
+        // บันทึก System Config (ฟังก์ชันกลาง)
+        // ==========================================
+        async function saveSystemConfig(newConfig, successMessage = 'บันทึกสำเร็จ!') {
+            Swal.fire({
+                title: 'กำลังบันทึก...',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+
+            try {
+                const { data: existing, error: loadError } = await db
+                    .from('system_configs')
+                    .select('*')
+                    .eq('category', 'evaluation')
+                    .maybeSingle();
+
+                if (loadError && loadError.code !== 'PGRST116') {
+                    throw loadError;
+                }
+
+                const config = existing?.config || {};
+                Object.assign(config, newConfig);
+
+                let result;
+                if (existing) {
+                    const { data, error } = await db
+                        .from('system_configs')
+                        .update({
+                            config: config,
+                            updated_at: new Date().toISOString()
+                        })
+                        .eq('id', existing.id)
+                        .select();
+                    if (error) throw error;
+                    result = data;
+                } else {
+                    const { data, error } = await db
+                        .from('system_configs')
+                        .insert([{
+                            category: 'evaluation',
+                            config: config,
+                            created_at: new Date().toISOString(),
+                            updated_at: new Date().toISOString()
+                        }])
+                        .select();
+                    if (error) throw error;
+                    result = data;
+                }
+
+                Swal.close();
+                showSaveStatus('saved', `✅ ${successMessage}`);
+                await loadConfigs();
+
+                await Swal.fire({
+                    icon: 'success',
+                    title: '✅ ' + successMessage,
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+
+            } catch (err) {
+                console.error('Error saving config:', err);
+                Swal.close();
+
+                if (err.message?.includes('relation "system_configs" does not exist')) {
+                    const confirm = await Swal.fire({
+                        icon: 'info',
+                        title: 'ต้องสร้างตาราง system_configs',
+                        text: 'ระบบตรวจพบว่ายังไม่มีตาราง system_configs ต้องการสร้างหรือไม่?',
+                        showCancelButton: true,
+                        confirmButtonText: 'สร้างเลย',
+                        cancelButtonText: 'ยกเลิก'
+                    });
+
+                    if (confirm.isConfirmed) {
+                        await createSystemConfigsTable();
+                        await saveSystemConfig(newConfig, successMessage);
+                    }
+                } else {
+                    showSaveStatus('error', '❌ ' + err.message);
+                    Swal.fire('ผิดพลาด', err.message, 'error');
+                }
+            }
+        }
+
+        // ==========================================
+        // สร้างตาราง system_configs
+        // ==========================================
+        async function createSystemConfigsTable() {
+            const sql = `
+                DROP TABLE IF EXISTS system_configs CASCADE;
+                
+                CREATE TABLE system_configs (
+                    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+                    category TEXT NOT NULL,
+                    config JSONB DEFAULT '{}'::jsonb,
+                    created_at TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at TIMESTAMPTZ DEFAULT NOW()
+                );
+                
+                CREATE INDEX idx_system_configs_category ON system_configs(category);
+                ALTER TABLE system_configs ENABLE ROW LEVEL SECURITY;
+
+                DROP POLICY IF EXISTS "Allow admins full access to system_configs" ON system_configs;
+                CREATE POLICY "Allow admins full access to system_configs"
+                ON system_configs
+                FOR ALL
+                USING (
+                    EXISTS (
+                        SELECT 1 FROM core_personnel
+                        WHERE core_personnel.id = auth.uid()
+                        AND core_personnel.role IN ('admin', 'super_admin')
+                    )
+                );
+
+                DROP POLICY IF EXISTS "Allow users to view system_configs" ON system_configs;
+                CREATE POLICY "Allow users to view system_configs"
+                ON system_configs
+                FOR SELECT
+                USING (true);
+
+                INSERT INTO system_configs (category, config, created_at, updated_at)
+                VALUES (
+                    'evaluation',
+                    '{
+                        "gas_api_url": "",
+                        "gas_api_key": "",
+                        "drive_folder_id": "",
+                        "slide_template_1": "",
+                        "slide_template_2": "",
+                        "slide_template_3": "",
+                        "slide_template_4": "",
+                        "allow_self_edit": true,
+                        "allow_committee_edit": true,
+                        "edit_mode": "all"
+                    }'::jsonb,
+                    NOW(),
+                    NOW()
+                );
+            `;
+
+            try {
+                const { error } = await db.rpc('exec_sql', { query: sql });
+                if (error) throw error;
+                Swal.fire('สำเร็จ', 'สร้างตาราง system_configs เรียบร้อย', 'success');
+            } catch (err) {
+                console.error('Error creating table:', err);
+                Swal.fire(
+                    'ผิดพลาด',
+                    'กรุณาสร้างตาราง system_configs ด้วย SQL ใน Supabase Dashboard',
+                    'error'
+                );
+            }
+        }
+
+        // ==========================================
+        // Logout
+        // ==========================================
+        async function logout() {
+            const { isConfirmed } = await Swal.fire({
+                title: 'ออกจากระบบ?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'ใช่, ออกจากระบบ',
+                cancelButtonText: 'ยกเลิก'
+            });
+            if (isConfirmed) {
+                await db.auth.signOut();
+                window.location.replace('login.html');
+            }
+        }
+
+        // ==========================================
+        // EXPOSE GLOBAL FUNCTIONS
+        // ==========================================
+        window.saveAdmins = saveAdmins;
+        window.saveGASConfig = saveGASConfig;
+        window.saveDriveConfig = saveDriveConfig;
+        window.saveSlideTemplates = saveSlideTemplates;
+        window.saveGeneralSettings = saveGeneralSettings;
+        window.debugAdmins = debugAdmins;
+        window.forceReloadAdmins = forceReloadAdmins;
+        window.logout = logout;
+    </script>
+
+</body>
+
+</html>

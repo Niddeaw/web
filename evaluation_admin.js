@@ -771,7 +771,7 @@ async function openGroupModal() {
 
     await populateRoundDropdowns();
     await populatePersonnelSelect();
-    await populateDepartmentCheckboxes();
+    await populateDepartmentCheckboxes();  // ✅ มีปุ่มเลือกทั้งหมดแล้ว
     await renderSubItems();
 
     document.getElementById('groupModal').classList.remove('hidden');
@@ -798,7 +798,7 @@ async function editGroup(groupId) {
 
     await populateRoundDropdowns();
     await populatePersonnelSelect();
-    await populateDepartmentCheckboxes();
+    await populateDepartmentCheckboxes();  // ✅ มีปุ่มเลือกทั้งหมดแล้ว
     await renderSubItems();
 
     // ✅ เติมข้อมูล
@@ -899,6 +899,9 @@ async function populatePersonnelSelect() {
 // ==========================================
 // Populate Department Checkboxes
 // ==========================================
+// ==========================================
+// Populate Department Checkboxes (พร้อมปุ่มเลือกทั้งหมด)
+// ==========================================
 function populateDepartmentCheckboxes() {
     const container = document.getElementById('target_departments_container');
     if (!container) return;
@@ -915,6 +918,17 @@ function populateDepartmentCheckboxes() {
         return;
     }
 
+    // ✅ เพิ่มปุ่มเลือกทั้งหมด
+    const headerDiv = document.createElement('div');
+    headerDiv.className = 'flex justify-between items-center mb-2';
+    headerDiv.innerHTML = `
+        <span class="text-xs font-bold text-gray-400">เลือกกลุ่มเป้าหมาย</span>
+        <button type="button" onclick="toggleAllDepartments()" class="select-all-btn text-xs">
+            <i class="fa-solid fa-check-double mr-1"></i>เลือกทั้งหมด
+        </button>
+    `;
+    container.appendChild(headerDiv);
+
     // ✅ แสดงเป็น checkbox grid
     const grid = document.createElement('div');
     grid.className = 'grid grid-cols-2 md:grid-cols-3 gap-2';
@@ -930,6 +944,18 @@ function populateDepartmentCheckboxes() {
     });
 
     container.appendChild(grid);
+}
+
+// ==========================================
+// เลือก/ยกเลิกทั้งหมด (กลุ่มเป้าหมาย)
+// ==========================================
+function toggleAllDepartments() {
+    const container = document.getElementById('target_departments_container');
+    if (!container) return;
+
+    const checkboxes = container.querySelectorAll('input[type="checkbox"]');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    checkboxes.forEach(cb => cb.checked = !allChecked);
 }
 
 // ==========================================
@@ -1561,6 +1587,7 @@ window.editGroup = editGroup;
 window.toggleGroupStatus = toggleGroupStatus;
 window.deleteGroup = deleteGroup;
 window.toggleAllSubItems = toggleAllSubItems;
+window.toggleAllDepartments = toggleAllDepartments;  // ✅ เพิ่มบรรทัดนี้
 window.viewResultDetail = viewResultDetail;
 window.recalculateResult = recalculateResult;
 window.exportAllResults = exportAllResults;

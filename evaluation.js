@@ -13,6 +13,7 @@ let isLoadTeachersRunning = false;
 let _dataTableInstance = null;
 let _isDestroying = false;
 let finalScoresCache = {};
+let systemConfigs = null;
 
 // ==========================================
 // ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ)
@@ -211,6 +212,82 @@ window.onload = async () => {
 };
 
 // ==========================================
+// โหลดการตั้งค่าระบบ
+// ==========================================
+async function loadSystemConfigs() {
+    try {
+        const { data, error } = await db
+            .from('system_configs')
+            .select('config')
+            .eq('category', 'evaluation')
+            .maybeSingle();
+
+        if (error) {
+            console.warn('Error loading system configs:', error);
+            return;
+        }
+
+        if (data) {
+            systemConfigs = data.config || {};
+            console.log('✅ โหลดการตั้งค่าระบบ:', systemConfigs);
+        } else {
+            // ใช้ค่า default
+            systemConfigs = {
+                allow_self_edit: true,
+                allow_committee_edit: true,
+                edit_mode: 'all'
+            };
+        }
+    } catch (err) {
+        console.error('Error in loadSystemConfigs:', err);
+        systemConfigs = {
+            allow_self_edit: true,
+            allow_committee_edit: true,
+            edit_mode: 'all'
+        };
+    }
+}
+
+// ==========================================
+// ตรวจสอบว่าสามารถประเมินได้หรือไม่
+// ==========================================
+function canEvaluate(type) {
+    if (!systemConfigs) {
+        // ถ้ายังไม่ได้โหลด ให้ถือว่าประเมินได้
+        return { allowed: true, message: '' };
+    }
+
+    const editMode = systemConfigs.edit_mode || 'all';
+    const allowSelf = systemConfigs.allow_self_edit !== false;
+    const allowCommittee = systemConfigs.allow_committee_edit !== false;
+
+    // ตรวจสอบตามโหมด
+    if (editMode === 'none') {
+        return { allowed: false, message: '🔒 ระบบปิดการแก้ไขการประเมินทั้งหมด กรุณาติดต่อผู้ดูแลระบบ' };
+    }
+
+    if (type === 'self') {
+        if (editMode === 'committee_only') {
+            return { allowed: false, message: '🔒 ปิดการประเมินตนเอง เปิดเฉพาะการประเมินของกรรมการ' };
+        }
+        if (!allowSelf) {
+            return { allowed: false, message: '🔒 ปิดการแก้ไขการประเมินตนเอง' };
+        }
+    }
+
+    if (type === 'committee') {
+        if (editMode === 'self_only') {
+            return { allowed: false, message: '🔒 ปิดการประเมินของกรรมการ เปิดเฉพาะการประเมินตนเอง' };
+        }
+        if (!allowCommittee) {
+            return { allowed: false, message: '🔒 ปิดการแก้ไขการประเมินของกรรมการ' };
+        }
+    }
+
+    return { allowed: true, message: '' };
+}
+
+// ==========================================
 // 1. ตรวจสอบสิทธิ์และการโหลดข้อมูลเริ่มต้น
 // ==========================================
 async function checkAuth() {
@@ -248,6 +325,9 @@ async function checkAuth() {
     }
 
     await loadEvaluationRound();
+
+    // ✅ โหลดการตั้งค่าระบบ
+    await loadSystemConfigs();
 
     const btnGoToAdmin = document.getElementById('btnGoToAdmin');
     if (['admin', 'super_admin'].includes(currentUser.role)) {
@@ -911,7 +991,7 @@ async function loadMyEvaluationStatus() {
 }
 
 // ==========================================
-// ฟังก์ชันเริ่มการประเมิน
+// ฟังก์ชันเริ่มการประเมิน (แก้ไข)
 // ==========================================
 async function startEvaluation(type, teacherData = null) {
     try {
@@ -920,7 +1000,22 @@ async function startEvaluation(type, teacherData = null) {
             return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่เปิดใช้งาน', 'warning');
         }
 
-        // 2. กำหนดโหมดและผู้ถูกประเมิน
+        // ✅ 2. ตรวจสอบการตั้งค่าระบบ
+        if (!systemConfigs) {
+            await loadSystemConfigs();
+        }
+
+        const evalCheck = canEvaluate(type);
+        if (!evalCheck.allowed) {
+            return Swal.fire({
+                icon: 'warning',
+                title: '⚠️ ไม่สามารถประเมินได้',
+                text: evalCheck.message,
+                confirmButtonText: 'ตกลง'
+            });
+        }
+
+        // 3. กำหนดโหมดและผู้ถูกประเมิน
         evaluationMode = type;
         
         if (type === 'self') {
@@ -937,12 +1032,12 @@ async function startEvaluation(type, teacherData = null) {
             return Swal.fire('แจ้งเตือน', 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่', 'warning');
         }
 
-        // 3. ตรวจสอบว่ามีการประเมินเดิมหรือไม่ (เฉพาะกรณีไม่ใช่โหมดแก้ไข)
+        // 4. ตรวจสอบว่ามีการประเมินเดิมหรือไม่ (เฉพาะกรณีไม่ใช่โหมดแก้ไข)
         if (!window._existingEvalId && !isEditingMode) {
             await loadExistingEvaluation();
         }
 
-        // 4. สร้างฟอร์มตามวิทยฐานะ
+        // 5. สร้างฟอร์มตามวิทยฐานะ
         const academic = evaluateeData.academic_standing || 'ครู';
         
         // ตรวจสอบหัวข้อย่อยที่ต้องประเมิน (เฉพาะกรณี committee)
@@ -954,15 +1049,15 @@ async function startEvaluation(type, teacherData = null) {
 
         generateDynamicForm(academic, allowedSubItems);
 
-        // 5. เปลี่ยนหน้าจอ
+        // 6. เปลี่ยนหน้าจอ
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('wizardView').classList.remove('hidden');
 
-        // 6. ตั้งค่าเริ่มต้น
+        // 7. ตั้งค่าเริ่มต้น
         wizardCurrentStep = 1;
         updateWizardUI();
 
-        // 7. โหลดคะแนนเดิม (ถ้ามี)
+        // 8. โหลดคะแนนเดิม (ถ้ามี)
         if (window._existingEvalId) {
             // ถ้ามีการแก้ไข จะโหลดจาก startEditEvaluation แล้ว
         } else {

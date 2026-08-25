@@ -266,6 +266,11 @@
                 <p class="text-sm font-medium text-gray-700" id="header_user_name">-</p>
                 <p class="text-xs text-gray-400" id="header_user_role">-</p>
             </div>
+            <!-- ใน Navbar หรือ Tab -->
+            <button onclick="window.location.href='evaluation_settings.html'"
+                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+                <i class="fa-solid fa-gear mr-1"></i> ตั้งค่าระบบ
+            </button>
             <button onclick="window.location.href='evaluation.html'"
                 class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
                 <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าประเมินตนเอง
@@ -345,7 +350,6 @@
                     </div>
                 </div>
             </div>
-
             <!-- ========================================== -->
             <!-- TAB 2: คณะกรรมการ -->
             <!-- ========================================== -->
@@ -367,28 +371,40 @@
                         </div>
                     </div>
 
-                    <div class="overflow-x-auto">
-                        <table id="groupsTable" class="display w-full text-sm">
-                            <thead>
-                                <tr>
-                                    <th>ชื่อชุด</th>
-                                    <th>ประเภท</th>
-                                    <th>ชุดหลัก</th>
-                                    <th>หัวข้อย่อย</th>
-                                    <th>สมาชิก</th>
-                                    <th>กลุ่มเป้าหมาย</th>
-                                    <th>สถานะ</th>
-                                    <th>ดำเนินการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-groups">
-                                <tr>
-                                    <td colspan="8" class="text-center py-8 text-gray-400">
-                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
+                    <!-- ✅ Responsive Table Container -->
+                    <div class="w-full">
+                        <!-- Desktop Table (ซ่อนในมือถือ) -->
+                        <div class="hidden md:block overflow-x-auto">
+                            <table id="groupsTable" class="display w-full text-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ชื่อชุด</th>
+                                        <th>ประเภท</th>
+                                        <th>ชุดหลัก</th>
+                                        <th>หัวข้อย่อย</th>
+                                        <th>สมาชิก</th>
+                                        <th>กลุ่มเป้าหมาย</th>
+                                        <th>สถานะ</th>
+                                        <th>ดำเนินการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-groups">
+                                    <tr>
+                                        <td colspan="8" class="text-center py-8 text-gray-400">
+                                            <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Mobile Card View (แสดงเฉพาะมือถือ) -->
+                        <div id="groupsMobileContainer" class="md:hidden space-y-4">
+                            <!-- จะถูกสร้างโดย JavaScript -->
+                            <div class="text-center py-8 text-gray-400">
+                                <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

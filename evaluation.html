@@ -23,6 +23,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             100% {
                 opacity: 1;
                 transform: translateY(0);
@@ -272,6 +273,7 @@
                 opacity: 0;
                 transform: translateY(-30px) scale(0.95);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0) scale(1);
@@ -313,11 +315,13 @@
             .no-print {
                 display: none !important;
             }
+
             #evalDetailModal {
                 position: static !important;
                 background: white !important;
                 backdrop-filter: none !important;
             }
+
             #evalDetailModal .modal-content {
                 box-shadow: none !important;
                 border: 1px solid #e2e8f0 !important;
@@ -486,11 +490,11 @@
                         <!-- ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
                         <div id="finalSummaryActions" class="hidden mb-4">
                             <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
-                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-calculator mr-1"></i> สรุปผลคะแนนทั้งหมด
                             </button>
                             <button onclick="window.exportFinalScores()"
-                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
                                 <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
                             </button>
                         </div>
@@ -679,12 +683,13 @@
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] shadow-2xl modal-content">
                 <!-- Header -->
-                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                <div
+                    class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-file-pen text-blue-500 mr-2"></i>รายละเอียดผลการประเมิน
                     </h3>
-                    <button onclick="closeEvalDetailModal()" 
-                            class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeEvalDetailModal()"
+                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
@@ -694,7 +699,8 @@
                     <!-- ข้อมูลผู้ถูกประเมิน -->
                     <div id="evalDetailUserInfo" class="mb-4 bg-gray-50 p-4 rounded-xl">
                         <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
+                            <div
+                                class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
                                 <span id="evalDetailUserInitial">-</span>
                             </div>
                             <div>
@@ -714,16 +720,16 @@
 
                     <!-- ปุ่มดำเนินการ -->
                     <div class="flex flex-wrap gap-3 mt-4 no-print">
-                        <button onclick="window.saveFinalScoreFromModal()" 
-                                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <button onclick="window.saveFinalScoreFromModal()"
+                            class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                             <i class="fa-solid fa-rotate mr-1"></i> คำนวณใหม่
                         </button>
-                        <button onclick="window.printFinalScore()" 
-                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <button onclick="window.printFinalScore()"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                             <i class="fa-solid fa-print mr-1"></i> พิมพ์
                         </button>
-                        <button onclick="closeEvalDetailModal()" 
-                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors ml-auto">
+                        <button onclick="closeEvalDetailModal()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors ml-auto">
                             ปิด
                         </button>
                     </div>
