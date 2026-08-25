@@ -3,6 +3,7 @@
 // - รองรับ submitted_date (วันที่ส่งใบลา) และ approved_date (วันที่อนุมัติ)
 // - viewLeave แสดงข้อมูลการลาทั้งหมด + สถานะรับทราบ
 // - การอัปโหลดหลักฐาน (evidence) สำหรับลา >= 3 วัน
+// - เพิ่มระบบจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin)
 // ============================================================
 
 let currentUser = null;
@@ -53,6 +54,7 @@ $(document).ready(async function () {
         currentProfile = personnel;
         currentUserId = user.id;
         currentUserRole = role;
+        window.currentUserRole = role;   // ✅ เพิ่มบรรทัดนี้
         isAdminMode = isAdmin;
 
         isModuleAdmin = await hasModuleAccess(role, 'leave', user.id);
@@ -118,7 +120,7 @@ function updateUI() {
 }
 
 // ==========================================
-// สลับแท็บ
+// สลับแท็บ (ปรับปรุงให้โหลดวันหยุดเมื่อเปิด Settings)
 // ==========================================
 function switchTab(tabId) {
     $('.tab-content').addClass('hidden');
@@ -134,6 +136,10 @@ function switchTab(tabId) {
     $('#page-title').text(titles[tabId] || 'แดชบอร์ดสรุปผล');
     if (tabId === 'manage-leave' && dataTable) dataTable.columns.adjust().draw();
     if (tabId === 'attendance' && attendanceDataTable) attendanceDataTable.columns.adjust().draw();
+    // ✅ โหลดส่วนตั้งค่าวันหยุดเมื่อเปิดแท็บ Settings
+    if (tabId === 'settings') {
+        showHolidaySettingsAdmin();
+    }
 }
 
 // ==========================================
@@ -634,7 +640,6 @@ function renderTable() {
             const dateDisplay = formatDateThai(l.created_at);
             const dateOrder = l.created_at || '';
 
-// ✅ ปุ่มยกเลิกรับทราบ (เฉพาะ Super Admin)
             const resetAckBtn = isSuperAdmin 
                 ? `<button onclick="resetAllAcknowledge('${l.id}')" class="btn-icon text-amber-600 hover:bg-amber-100 hover:text-amber-700" title="ยกเลิกรับทราบทั้งหมด"><i class="fas fa-undo-alt"></i></button>`
                 : '';
@@ -691,7 +696,6 @@ function initEditFlatpickr() {
         altFormat: "j F Y",
         onChange: function () { calculateEditDays(); }
     });
-    // เพิ่ม flatpickr สำหรับ edit_submitted_date
     flatpickr("#edit_submitted_date", {
         locale: "th",
         dateFormat: "Y-m-d",
@@ -700,7 +704,8 @@ function initEditFlatpickr() {
     });
 }
 
-function calculateEditDays() {
+// แทนที่ calculateEditDays
+async function calculateEditDays() {
     const start = $('#edit_start_date').val();
     const end = $('#edit_end_date').val();
     const type = $('#edit_leave_type').val();
@@ -716,19 +721,10 @@ function calculateEditDays() {
             $('#edit_end_date').val('');
             return;
         }
-        let count = 0, curDate = new Date(startDate);
-        while (curDate <= endDate) {
-            const dayOfWeek = curDate.getDay();
-            if (type === 'ลาคลอดบุตร') count++;
-            else if (dayOfWeek !== 0 && dayOfWeek !== 6) count++;
-            curDate.setDate(curDate.getDate() + 1);
-        }
-        days = count;
+        days = await window.calculateDaysByTypeWithHoliday(start, end, type);
     }
-    // ✅ ใช้ toFixed(1) เพื่อแสดง 0.5 หรือจำนวนเต็ม
     $('#edit_calc_days').text(days % 1 === 0 ? days : days.toFixed(1));
 
-    // แสดง/ซ่อนช่องอัปโหลด
     const wrapper = document.getElementById('edit_evidence_upload_wrapper');
     const fileInput = document.getElementById('edit_evidence_file');
     if (days >= 3) {
@@ -753,9 +749,8 @@ function editLeave(id) {
     $('#edit_phone_number').val(leave.phone_number || '');
     $('#edit_reason').val(leave.reason);
     $('#edit_is_half_day').prop('checked', leave.is_half_day || false);
-    calculateEditDays(); // ✅ จะอัปเดตค่า days (รวมถึง 0.5)
+    calculateEditDays();
 
-    // โหลด submitted_date
     const submittedDateInput = document.querySelector("#edit_submitted_date");
     if (submittedDateInput && submittedDateInput._flatpickr) {
         if (leave.submitted_date) {
@@ -765,13 +760,11 @@ function editLeave(id) {
         }
     }
 
-    // จัดการไฟล์หลักฐาน
     const wrapper = document.getElementById('edit_evidence_upload_wrapper');
     const fileInput = document.getElementById('edit_evidence_file');
     const existingDiv = document.getElementById('edit_existing_evidence');
     const existingName = document.getElementById('edit_existing_evidence_name');
 
-    // ✅ ใช้ leave.total_days หรือ days ที่คำนวณใหม่ก็ได้
     const days = parseFloat($('#edit_calc_days').text());
     if (days >= 3) {
         wrapper.classList.remove('hidden');
@@ -795,11 +788,9 @@ function editLeave(id) {
 
 function closeEditModal() { $('#editLeaveModal').addClass('hidden'); $('#editLeaveForm')[0].reset(); }
 
-// ✅ เพิ่มฟังก์ชันนี้ตรงนี้ (ระหว่าง closeEditModal และ updateStatus)
 $('#editLeaveForm').on('submit', async function (e) {
     e.preventDefault();
 
-    // ✅ เพิ่มเงื่อนไข !isModuleAdmin เพื่อให้ Module Admin สามารถบันทึกได้
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const id = $('#edit_leave_id').val();
@@ -814,7 +805,6 @@ $('#editLeaveForm').on('submit', async function (e) {
     const existingDiv = document.getElementById('edit_existing_evidence');
     const existingFileId = existingDiv.dataset.fileId || null;
 
-    // ถ้าจำนวนวัน >= 3 ต้องมีไฟล์
     if (days >= 3) {
         if (fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
@@ -867,10 +857,8 @@ $('#editLeaveForm').on('submit', async function (e) {
 
 // ----- อนุมัติ/ไม่อนุมัติ (พร้อมระบุวันที่อนุมัติ) -----
 async function updateStatus(id, newStatus) {
-    // ตรวจสอบสิทธิ์ (Module Admin หรือ Admin)
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
-    // ดึงข้อมูลใบลาปัจจุบัน
     const { data: leave, error: fetchError } = await db.from('leave_requests')
         .select('ack_admin, ack_deputy, ack_director, status')
         .eq('id', id)
@@ -880,7 +868,6 @@ async function updateStatus(id, newStatus) {
         return;
     }
 
-    // ตรวจสอบลำดับการรับทราบ (เฉพาะกรณีที่ไม่ใช่ Super Admin)
     if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
         if (!leave.ack_admin) {
             Swal.fire({
@@ -901,9 +888,8 @@ async function updateStatus(id, newStatus) {
     }
 
     const now = new Date().toISOString();
-    const today = new Date().toLocaleDateString('sv-SE'); // วันที่ปัจจุบันตามเวลาไทย
+    const today = new Date().toLocaleDateString('sv-SE');
 
-    // แสดง dialog ให้เลือกวันที่อนุมัติ (เริ่มต้นเป็นวันนี้)
     const { value: customApprovedDate } = await Swal.fire({
         title: 'วันที่อนุมัติ',
         text: 'ระบุวันที่อนุมัติ (ถ้าต้องการย้อนหลัง) หรือกดตกลงเพื่อใช้วันนี้',
@@ -913,10 +899,9 @@ async function updateStatus(id, newStatus) {
         confirmButtonText: 'ตกลง',
         cancelButtonText: 'ยกเลิก'
     });
-    if (customApprovedDate === undefined) return; // ผู้ใช้ยกเลิก
+    if (customApprovedDate === undefined) return;
 
     const finalApprovedDate = customApprovedDate || today;
-    // ใช้เวลาเที่ยงวันตามเวลาไทย เพื่อป้องกันวันเลื่อนเมื่อแปลงเป็น UTC
     const finalApprovedDateTime = new Date(finalApprovedDate + 'T12:00:00+07:00').toISOString();
 
     let updateData = {
@@ -927,9 +912,7 @@ async function updateStatus(id, newStatus) {
         approved_date: finalApprovedDate
     };
 
-    // --- กรณี Super Admin อนุมัติ ---
     if (currentUserRole === 'super_admin' && newStatus === 'อนุมัติ') {
-        // รับทราบทุกตำแหน่งอัตโนมัติ ด้วยวันที่เดียวกัน
         updateData.ack_admin = true;
         updateData.ack_admin_at = finalApprovedDateTime;
         updateData.ack_deputy = true;
@@ -937,16 +920,12 @@ async function updateStatus(id, newStatus) {
         updateData.ack_director = true;
         updateData.ack_director_at = finalApprovedDateTime;
     } else {
-        // --- กรณีผู้อำนวยการ หรือ Super Admin ไม่อนุมัติ (หรืออื่น ๆ) ---
-        // ถ้าเป็น Director หรือ Super Admin ให้รับทราบในตำแหน่งของตน
         if (currentUserRole === 'director' || currentUserRole === 'super_admin') {
             updateData.ack_director = true;
             updateData.ack_director_at = finalApprovedDateTime;
         }
-        // กรณีอื่น ๆ (เช่น admin, deputy) ไม่ต้องเพิ่ม ack เพราะต้องกดรับทราบเอง
     }
 
-    // อัปเดตข้อมูล
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
     if (error) {
@@ -971,7 +950,6 @@ async function rejectLeave(id) {
         return;
     }
 
-    // ถ้าไม่ใช่ super_admin ให้ตรวจสอบลำดับการรับทราบ
     if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
         if (!leave.ack_admin) {
             Swal.fire({ icon: 'warning', title: 'ไม่สามารถไม่อนุมัติได้', text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถไม่อนุมัติได้' });
@@ -1023,7 +1001,6 @@ async function rejectLeave(id) {
         approved_date: finalRejectDate
     };
 
-    // ถ้าเป็น super_admin ให้รับทราบทุกตำแหน่ง
     if (currentUserRole === 'super_admin') {
         updateData.ack_admin = true;
         updateData.ack_deputy = true;
@@ -1077,9 +1054,8 @@ async function deleteLeave(id, name) {
 // ยกเลิกรับทราบทั้งหมด (เฉพาะ Super Admin)
 // ==========================================
 async function resetAllAcknowledge(id) {
-    // ตรวจสอบสิทธิ์ Super Admin เท่านั้น
     if (currentUserRole !== 'super_admin') {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สามารถดำเนินการนี้ได้', 'warning');
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่ดำเนินการนี้ได้', 'warning');
         return;
     }
 
@@ -1162,7 +1138,6 @@ function viewLeave(id) {
         return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543} เวลา ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
     }
 
-    // ข้อมูลการลา
     const leaveInfoHtml = `
         <div class="border border-slate-200 rounded-xl p-3 space-y-2 mb-4">
             <div class="flex justify-between items-center">
@@ -1202,7 +1177,6 @@ function viewLeave(id) {
         </div>
     `;
 
-    // สถานะรับทราบ
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
@@ -1308,7 +1282,6 @@ async function acknowledgeLeave(id, field) {
         return;
     }
 
-    // ✅ ใช้วันที่ปัจจุบันตามเวลาไทย
     const today = new Date().toLocaleDateString('sv-SE');
     const { value: customDate } = await Swal.fire({
         title: 'วันที่รับทราบ',
@@ -1322,7 +1295,6 @@ async function acknowledgeLeave(id, field) {
     if (customDate === undefined) return;
 
     const finalDate = customDate || today;
-    // ✅ ใช้เที่ยงวันตามเวลาไทย เพื่อไม่ให้วันเปลี่ยน
     const finalDateTime = new Date(finalDate + 'T12:00:00+07:00').toISOString();
 
     const now = new Date().toISOString();
@@ -1773,17 +1745,18 @@ function initAdminFlatpickr() {
     };
     flatpickr("#admin_start_date", config);
     flatpickr("#admin_end_date", config);
-    flatpickr("#admin_submitted_date", config);  // ✅ เพิ่มช่องวันที่ส่ง
+    flatpickr("#admin_submitted_date", config);
 }
 
-window.adminCalculateDays = function () {
+// แทนที่ adminCalculateDays
+window.adminCalculateDays = async function () {
     const startIso = $('#admin_start_date_iso').val();
     const endIso = $('#admin_end_date_iso').val();
     const type = $('#admin_leave_type').val();
     const isHalfDay = $('#admin_is_half_day').is(':checked');
-    const days = window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
+    const days = await window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
     $('#admin_calc_days').text(days);
-    // แสดง/ซ่อนช่องอัปโหลดหลักฐาน
+
     const wrapper = document.getElementById('admin_evidence_upload_wrapper');
     const fileInput = document.getElementById('admin_evidence_file');
     if (days >= 3) {
@@ -1895,12 +1868,11 @@ window.saveLeaveForAdmin = async function (e) {
     const contactAddress = $('#admin_contact_address').val().trim();
     const phoneNumber = $('#admin_phone_number').val().trim();
     const isHalfDay = $('#admin_is_half_day').is(':checked');
-    const submittedDateIso = $('#admin_submitted_date_iso').val() || null;  // ✅ มีการอ่านค่า
+    const submittedDateIso = $('#admin_submitted_date_iso').val() || null;
 
     if (!type) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกประเภทการลา', 'warning');
     if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
 
-    // อัปโหลดหลักฐาน (ถ้าจำนวนวัน >= 3)
     let attachmentFileId = null;
     const fileInput = document.getElementById('admin_evidence_file');
     if (totalDays >= 3) {
@@ -1939,7 +1911,7 @@ window.saveLeaveForAdmin = async function (e) {
         attachment_file_id: attachmentFileId,
         pdf_url: null,
         is_half_day: isHalfDay,
-        submitted_date: submittedDateIso   // ✅ เพิ่มบรรทัดนี้
+        submitted_date: submittedDateIso
     };
     try {
         const { error } = await db.from('leave_requests').insert([payload]);
@@ -1952,7 +1924,7 @@ window.saveLeaveForAdmin = async function (e) {
 };
 
 // ==========================================
-// จัดการลายเซ็นบุคลากร (เหมือนเดิม)
+// จัดการลายเซ็นบุคลากร
 // ==========================================
 async function openSignatureModal() {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะ Super Admin เท่านั้น')) return;
@@ -2253,6 +2225,164 @@ async function exportSignatureExcel() {
     XLSX.writeFile(wb, `ลายเซ็นบุคลากร_${today}.xlsx`);
 }
 
+// ============================================================
+// ฟังก์ชันจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin) — สำหรับหน้า Admin
+// ============================================================
+
+// โหลดรายการวันหยุด
+window.loadHolidaysAdmin = async function () {
+    // ตรวจสอบสิทธิ์ Super Admin
+    if (window.currentUserRole !== 'super_admin') {
+        const container = document.getElementById('holidayListContainerAdmin');
+        if (container) container.innerHTML = '<span class="text-rose-500 text-sm">เฉพาะ Super Admin เท่านั้น</span>';
+        return;
+    }
+
+    try {
+        const { data: holidays, error } = await window.db
+            .from('school_holidays')
+            .select('*')
+            .order('start_date', { ascending: true });
+
+        if (error) throw error;
+
+        const container = document.getElementById('holidayListContainerAdmin');
+        if (!container) return;
+
+        if (!holidays || holidays.length === 0) {
+            container.innerHTML = `<span class="text-slate-400 text-sm">ยังไม่มีวันหยุดที่กำหนด</span>`;
+            return;
+        }
+
+        // Super Admin จะเห็นปุ่มลบ
+        const isSuperAdmin = window.currentUserRole === 'super_admin';
+        container.innerHTML = holidays.map(h => {
+            const start = new Date(h.start_date).toLocaleDateString('th-TH');
+            const end = new Date(h.end_date).toLocaleDateString('th-TH');
+            const desc = h.description ? `: ${h.description}` : '';
+            const deleteBtn = isSuperAdmin ?
+                `<span class="remove-holiday" onclick="window.deleteHolidayAdmin('${h.id}')" title="ลบวันหยุดนี้"><i class="fas fa-times-circle"></i></span>` :
+                '';
+            return `<span class="holiday-tag">${start} - ${end} ${desc} ${deleteBtn}</span>`;
+        }).join('');
+    } catch (err) {
+        console.error('loadHolidaysAdmin error:', err);
+        const container = document.getElementById('holidayListContainerAdmin');
+        if (container) container.innerHTML = '<span class="text-rose-500 text-sm">เกิดข้อผิดพลาดในการโหลด</span>';
+    }
+};
+
+// แสดงฟอร์มเพิ่มวันหยุด
+window.addHolidayAdmin = function () {
+    if (window.currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่เพิ่มวันหยุดได้', 'error');
+        return;
+    }
+    const form = document.getElementById('addHolidayFormAdmin');
+    if (!form) return;
+    form.classList.toggle('hidden');
+    if (!form.classList.contains('hidden')) {
+        document.getElementById('holidayStartDateAdmin').value = new Date().toISOString().split('T')[0];
+        document.getElementById('holidayEndDateAdmin').value = new Date().toISOString().split('T')[0];
+        document.getElementById('holidayDescriptionAdmin').value = '';
+    }
+};
+
+window.cancelAddHolidayAdmin = function () {
+    const form = document.getElementById('addHolidayFormAdmin');
+    if (form) form.classList.add('hidden');
+};
+
+// บันทึกวันหยุดใหม่
+window.saveHolidayAdmin = async function () {
+    if (window.currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่เพิ่มวันหยุดได้', 'error');
+        return;
+    }
+
+    const startDate = document.getElementById('holidayStartDateAdmin').value;
+    const endDate = document.getElementById('holidayEndDateAdmin').value;
+    const description = document.getElementById('holidayDescriptionAdmin').value.trim();
+
+    if (!startDate || !endDate) {
+        Swal.fire('กรุณากรอกข้อมูล', 'ต้องระบุวันที่เริ่มต้นและสิ้นสุด', 'warning');
+        return;
+    }
+
+    if (new Date(startDate) > new Date(endDate)) {
+        Swal.fire('วันที่ไม่ถูกต้อง', 'วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด', 'warning');
+        return;
+    }
+
+    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { error } = await window.db.from('school_holidays').insert({
+            start_date: startDate,
+            end_date: endDate,
+            description: description || null,
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        });
+
+        if (error) throw error;
+
+        await window.logUserAction(`เพิ่มวันหยุด (Admin): ${startDate} - ${endDate}`, 'leave');
+        Swal.fire({ icon: 'success', title: 'เพิ่มวันหยุดเรียบร้อย', timer: 1500, showConfirmButton: false });
+        document.getElementById('addHolidayFormAdmin').classList.add('hidden');
+        await window.loadHolidaysAdmin();
+    } catch (err) {
+        console.error('saveHolidayAdmin error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ลบวันหยุด
+window.deleteHolidayAdmin = async function (holidayId) {
+    if (window.currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่ลบวันหยุดได้', 'error');
+        return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'ลบวันหยุดนี้?',
+        text: 'คุณต้องการลบวันหยุดนี้ใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ลบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { error } = await window.db.from('school_holidays').delete().eq('id', holidayId);
+        if (error) throw error;
+
+        await window.logUserAction(`ลบวันหยุด (Admin) ID: ${holidayId}`, 'leave');
+        Swal.fire({ icon: 'success', title: 'ลบวันหยุดเรียบร้อย', timer: 1500, showConfirmButton: false });
+        await window.loadHolidaysAdmin();
+    } catch (err) {
+        console.error('deleteHolidayAdmin error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// แสดงส่วนตั้งค่าวันหยุดเฉพาะ Super Admin (เรียกเมื่อเปิดแท็บ Settings)
+window.showHolidaySettingsAdmin = function () {
+    const section = document.getElementById('holidaySettingsSectionAdmin');
+    if (!section) return;
+    if (window.currentUserRole === 'super_admin') {
+        section.classList.remove('hidden');
+        window.loadHolidaysAdmin();
+    } else {
+        section.classList.add('hidden');
+    }
+};
+
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
@@ -2288,4 +2418,4 @@ window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 window.exportSignatureExcel = exportSignatureExcel;
 
-console.log('✅ leave_admin.js loaded with submitted_date, approved_date, evidence upload, and full viewLeave');
+console.log('✅ leave_admin.js loaded with submitted_date, approved_date, evidence upload, full viewLeave, and holiday management (Super Admin only)');

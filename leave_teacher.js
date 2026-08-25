@@ -1,6 +1,7 @@
 // ============================================================
 // leave_teacher.js — ระบบการลา (ฝ่ายผู้ใช้งาน/ครู)
 // ใช้ window object ทั้งหมด เพื่อป้องกัน Identifier conflict
+// ปรับปรุงให้รองรับการคำนวณวันลาตามวันหยุดของโรงเรียน (ผ่าน leave_core.js)
 // ============================================================
 
 window.currentUser = null;
@@ -87,13 +88,13 @@ window.loadSystemSettings = async function () {
     window.systemSettings = data?.settings || {
         fiscal_year: (new Date().getFullYear() + 543).toString(),
         eval_round: '1',
-        gas_url: '', slide_template_id: '', pdf_folder_id: ''
+        gas_url: '', slide_template_id: '', pdf_folder_id: '', evidence_folder_id: ''
     };
     $('#fiscal-badge').text(`ปีงบประมาณ ${window.systemSettings.fiscal_year} (รอบที่ ${window.systemSettings.eval_round})`);
 };
 
 // ==========================================
-// Flatpickr
+// Flatpickr (ปรับ onChange ให้เรียก calculateDays() โดยไม่ต้อง await)
 // ==========================================
 window.initFlatpickr = function () {
     function updateYear(instance) {
@@ -101,24 +102,29 @@ window.initFlatpickr = function () {
         if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
     }
 
+    // ฟังก์ชัน helper สำหรับ onChange ที่เรียก calculateDays() 
+    // และไม่ต้องรอผล (fire-and-forget) เพื่อไม่ให้ UI ค้าง
+    const handleDateChange = function (selectedDates, dateStr, instance) {
+        if (selectedDates[0]) {
+            const id = instance.element.id;
+            const d = selectedDates[0];
+            document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+        }
+        // เรียก calculateDays() โดยไม่ต้อง await (async function แต่ไม่ต้องรอ)
+        window.calculateDays();
+    };
+
     const config = {
         locale: 'th', dateFormat: 'd/m/Y',
-        onChange: function (selectedDates, dateStr, instance) {
-            if (selectedDates[0]) {
-                const id = instance.element.id;
-                const d = selectedDates[0];
-                document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-                instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
-            }
-            window.calculateDays();
-        },
+        onChange: handleDateChange,
         onReady: function (selectedDates, dateStr, instance) { updateYear(instance); },
         onMonthChange: function (selectedDates, dateStr, instance) { updateYear(instance); },
         onYearChange: function (selectedDates, dateStr, instance) { updateYear(instance); }
     };
     flatpickr("#start_date", config);
     flatpickr("#end_date", config);
-    // เพิ่ม flatpickr สำหรับ submitted_date (ถ้ามี)
+    // flatpickr สำหรับ submitted_date
     flatpickr("#submitted_date", {
         locale: 'th',
         dateFormat: 'd/m/Y',
@@ -136,17 +142,17 @@ window.initFlatpickr = function () {
 };
 
 // ==========================================
-// ฟังก์ชันคำนวณวันลา
+// ฟังก์ชันคำนวณวันลา (เวอร์ชัน async รองรับวันหยุด)
 // ==========================================
-window.calculateDays = function () {
+window.calculateDays = async function () {
     const startIso = $('#start_date_iso').val();
     const endIso = $('#end_date_iso').val();
     const type = $('#leave_type').val();
     const isHalfDay = $('#is_half_day').is(':checked');
-    const days = window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
-    $('#calc_days').text(days);
+    const days = await window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
+    $('#calc_days').text(days % 1 === 0 ? days : days.toFixed(1));
 
-    // ✅ จัดการช่องอัปโหลดหลักฐาน (ถ้ามี)
+    // จัดการช่องอัปโหลดหลักฐาน (ถ้ามี)
     const wrapper = $('#evidence_upload_wrapper');
     if (wrapper.length) {
         const fileInput = $('#evidence_file');
@@ -173,7 +179,7 @@ window.updateLeaveGuide = function () {
         if (isEditMode && originalType) $('#leave_type').val(originalType);
         else $('#leave_type').val('');
         $('#leave_guide').addClass('hidden');
-        window.calculateDays();
+        window.calculateDays(); // ไม่ต้อง await
     };
     if (type === 'ลาคลอดบุตร' && gender !== 'หญิง') {
         Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาคลอดบุตรได้', text: 'ท่านเป็นเพศชาย ไม่มีสิทธิ์ลาคลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
@@ -195,7 +201,7 @@ window.updateLeaveGuide = function () {
     };
     if (guides[type]) $('#leave_guide').html(guides[type]).removeClass('hidden');
     else $('#leave_guide').addClass('hidden');
-    window.calculateDays();
+    window.calculateDays(); // ไม่ต้อง await
 };
 
 // ==========================================
@@ -275,7 +281,6 @@ window.renderTable = function () {
                 btnHtml += `<button onclick="window.editLeave('${l.id}')" class="text-yellow-600 hover:text-yellow-700 bg-yellow-50 px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไขใบลา"><i class="fas fa-pen text-xs"></i></button>
                             <button onclick="window.deleteLeave('${l.id}')" class="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg transition shadow-sm" title="ลบใบลา"><i class="fas fa-trash text-xs"></i></button>`;
             }
-            let halfDayIcon = l.is_half_day ? ' <i class="fas fa-clock text-amber-500" title="ลาครึ่งวัน"></i>' : '';
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-4 text-center text-slate-500 text-xs" data-order="${new Date(l.created_at).getTime()}">${createDate} น.</td>
                 <td class="py-3 px-4 font-bold ${typeClass}">${l.type}</td>
@@ -308,12 +313,10 @@ window.openLeaveModal = function () {
     $('#is_half_day').prop('checked', false);
     window.editingOriginalLeaveType = null;
 
-    // ✅ จัดการช่องอัปโหลด (ถ้ามี)
     $('#evidence_upload_wrapper').addClass('hidden');
     $('#evidence_file').val('');
     $('#existing_evidence').addClass('hidden');
 
-    // ล้าง flatpickr
     const fpSubmitted = $('#submitted_date')[0]?._flatpickr;
     if (fpSubmitted) fpSubmitted.clear();
 
@@ -368,7 +371,6 @@ window.editLeave = function (id) {
         $('#submitted_date_iso').val('');
     }
 
-    // ✅ จัดการช่องอัปโหลด (ถ้ามี)
     const wrapper = $('#evidence_upload_wrapper');
     const fileInput = $('#evidence_file');
     const existingDiv = $('#existing_evidence');
@@ -393,7 +395,7 @@ window.editLeave = function (id) {
         }
     }
 
-    window.calculateDays();
+    window.calculateDays(); // ไม่ต้อง await
     window.updateLeaveGuide();
     $('#leaveModal').removeClass('hidden').addClass('flex');
 };
@@ -416,7 +418,6 @@ window.saveLeave = async function (e) {
 
     if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0 วัน', 'warning');
 
-    // ✅ จัดการไฟล์ (ถ้ามี)
     let attachmentFileId = null;
     const fileInput = $('#evidence_file')[0];
     const existingDiv = $('#existing_evidence');
@@ -430,7 +431,7 @@ window.saveLeave = async function (e) {
                 return;
             }
             try {
-                attachmentFileId = await window.uploadEvidenceFile(file, systemSettings.evidence_folder_id, systemSettings.gas_url);
+                attachmentFileId = await window.uploadEvidenceFile(file, window.systemSettings.evidence_folder_id, window.systemSettings.gas_url);
             } catch (err) {
                 Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
                 return;
@@ -577,4 +578,4 @@ window.closeSignatureModal = function () {
     $('#signatureModal').addClass('hidden').removeClass('flex');
 };
 
-console.log('✅ leave_teacher.js loaded (with jQuery safe element handling)');
+console.log('✅ leave_teacher.js loaded (with holiday-aware calculation)');

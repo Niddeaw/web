@@ -34,6 +34,29 @@
             cursor: default;
             transform: none;
         }
+        /* ----- วันหยุด ----- */
+        .holiday-tag {
+            display: inline-block;
+            background-color: #e0f2fe;
+            color: #0369a1;
+            padding: 0.2rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            border: 1px solid #bae6fd;
+            margin: 0.15rem 0.2rem;
+        }
+        .holiday-tag .remove-holiday {
+            margin-left: 0.3rem;
+            cursor: pointer;
+            color: #ef4444;
+            font-weight: 700;
+            opacity: 0.7;
+            transition: opacity 0.15s;
+        }
+        .holiday-tag .remove-holiday:hover {
+            opacity: 1;
+        }
     </style>
 </head>
 
@@ -193,29 +216,53 @@
                 </div>
             </div>
 
-            <!-- Signature Modal -->
-            <div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-                <div class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
-                    <div class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-t-3xl">
-                        <h3 class="text-lg font-bold"><i class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
-                        <button onclick="closeSignatureModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><i class="fas fa-times"></i></button>
-                    </div>
-                    <div class="flex-1 overflow-y-auto p-6">
-                        <div class="mb-4 flex flex-wrap justify-between items-center gap-2">
-                            <span class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display-modal" class="font-mono text-xs"></span></span>
-                            <div class="flex items-center gap-2">
-                                <button onclick="exportSignatureExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
-                                <button onclick="refreshSignatureList()" class="text-sm bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-medium"><i class="fas fa-sync"></i> รีเฟรช</button>
-                            </div>
+            <!-- ============================================================ -->
+            <!--  ส่วนตั้งค่าวันหยุดของโรงเรียน (เฉพาะ Super Admin)             -->
+            <!-- ============================================================ -->
+            <div id="holidaySettingsSectionAdmin" class="glass-panel p-6 rounded-2xl shadow-sm mt-6 hidden">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
+                    <h3 class="font-bold text-blue-800 flex items-center gap-2">
+                        <i class="fas fa-calendar-times text-blue-600"></i> ตั้งค่าวันหยุดของโรงเรียน
+                        <span class="text-[10px] font-bold bg-rose-100 text-rose-700 px-3 py-1 rounded-full border border-rose-200">เฉพาะ Super Admin</span>
+                    </h3>
+                    <button onclick="addHolidayAdmin()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2">
+                        <i class="fas fa-plus"></i> เพิ่มวันหยุด
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap gap-2 mb-4" id="holidayListContainerAdmin">
+                    <span class="text-slate-400 text-sm">กำลังโหลดรายการวันหยุด...</span>
+                </div>
+
+                <div id="addHolidayFormAdmin" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่เริ่มต้น *</label>
+                            <input type="date" id="holidayStartDateAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                         </div>
-                        <table id="signatureTable" class="w-full text-sm">
-                            <thead class="bg-slate-50"><tr><th class="p-2 text-left">ชื่อ-สกุล</th><th class="p-2 text-left">ตำแหน่ง</th><th class="p-2 text-left">กลุ่มงาน</th><th class="p-2 text-center">ลายเซ็น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
-                            <tbody id="signature-tbody"></tbody>
-                        </table>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่สิ้นสุด *</label>
+                            <input type="date" id="holidayEndDateAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">คำอธิบาย</label>
+                            <input type="text" id="holidayDescriptionAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ปิดเทอมภาคเรียน...">
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="saveHolidayAdmin()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex-1">บันทึก</button>
+                            <button onclick="cancelAddHolidayAdmin()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition">ยกเลิก</button>
+                        </div>
                     </div>
-                    <div class="px-6 py-3 border-t flex justify-end"><button onclick="closeSignatureModal()" class="px-5 py-2 bg-slate-200 rounded-xl hover:bg-slate-300">ปิด</button></div>
+                </div>
+
+                <div class="flex justify-end">
+                    <button onclick="loadHolidaysAdmin()" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                        <i class="fas fa-sync-alt"></i> รีเฟรชรายการ
+                    </button>
                 </div>
             </div>
+            <!-- ============================================================ -->
+
         </section>
     </main>
 

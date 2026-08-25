@@ -16,7 +16,7 @@ window.getGenderFromPrefix = function (prefix) {
 };
 
 // ==========================================
-// 2. คำนวณวันลาตามประเภท (ไม่รวมครึ่งวัน)
+// 2. คำนวณวันลาตามประเภท (แบบเดิม ใช้เป็นฟอลแบ็ก)
 // ==========================================
 window.calculateDaysByType = function (startIso, endIso, type) {
     if (!startIso || !endIso || !type) return 0;
@@ -38,19 +38,41 @@ window.calculateDaysByType = function (startIso, endIso, type) {
 };
 
 // ==========================================
-// 3. คำนวณวันลารวมกับตัวเลือกครึ่งวัน
+// 2.1 คำนวณวันลาตามประเภท (รองรับวันหยุดของโรงเรียน) — ผ่าน RPC
 // ==========================================
-window.calculateDaysWithHalfDay = function (startIso, endIso, type, isHalfDay) {
-    if (isHalfDay) {
-        // ครึ่งวัน ให้นับเป็น 0.5 วัน โดยไม่ต้องคำนวณตามช่วงวันที่
-        return 0.5;
+window.calculateDaysByTypeWithHoliday = async function (startIso, endIso, type) {
+    if (!startIso || !endIso || !type) return 0;
+
+    try {
+        // เรียกใช้ RPC function ที่สร้างใน Supabase
+        const { data, error } = await window.db.rpc('calculate_leave_days', {
+            p_start_date: startIso,
+            p_end_date: endIso,
+            p_leave_type: type
+        });
+
+        if (error) throw error;
+        return data || 0;
+    } catch (err) {
+        console.warn('RPC คำนวณวันลาล้มเหลว ใช้ฟังก์ชันสำรอง (ไม่นับวันหยุด):', err);
+        // Fallback ไปใช้ฟังก์ชันเดิมที่ไม่นับวันหยุด
+        return window.calculateDaysByType(startIso, endIso, type);
     }
-    // ใช้ฟังก์ชันเดิม
-    return window.calculateDaysByType(startIso, endIso, type);
 };
 
 // ==========================================
-// 4. แปลงวันที่เป็นภาษาไทย (แบบเต็ม)
+// 3. คำนวณวันลารวมกับตัวเลือกครึ่งวัน (เวอร์ชันใหม่ รองรับวันหยุด)
+// ==========================================
+window.calculateDaysWithHalfDay = async function (startIso, endIso, type, isHalfDay) {
+    if (isHalfDay) {
+        return 0.5;
+    }
+    // เรียกใช้ฟังก์ชันที่รองรับวันหยุด
+    return await window.calculateDaysByTypeWithHoliday(startIso, endIso, type);
+};
+
+// ==========================================
+// 4. แปลงวันที่เป็นภาษาไทย (แบบสั้น)
 // ==========================================
 window.formatDateThai = function (isoString) {
     if (!isoString) return '-';
@@ -97,7 +119,6 @@ window.switchToTeacherMode = function () {
 // 7. สลับไปโหมดแอดมิน (ตรวจสอบสิทธิ์)
 // ==========================================
 window.switchToAdminMode = function () {
-    // ✅ ใช้ config.js ตรวจสอบสิทธิ์
     const isAdmin = window.isAdminUser?.(window.currentProfile?.role, false);
     const isModuleAdmin = window.isModuleAdmin || false;
     if (!isAdmin && !isModuleAdmin) {
@@ -508,4 +529,4 @@ window.generateLeavePDF = async function (id, systemSettings) {
     }
 };
 
-console.log('✅ leave_core.js loaded (all functions registered globally)');
+console.log('✅ leave_core.js loaded (all functions registered globally) — using RPC for holiday calculation');
