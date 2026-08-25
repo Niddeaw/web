@@ -46,7 +46,7 @@ $(document).ready(async function () {
             adminManagerBtn: null
         });
 
-        // 3. ตรวจสอบสิทธิ์เพิ่มเติม: หัวหน้างานปกครอง, หัวหน้าระดับ
+        // 3. ตรวจสอบสิทธิ์เพิ่มเติม: หัวหน้างานปกครอง, หัวหน้าระดับ, ครูที่ปรึกษา
         const { data: sInfo } = await db.from('core_school_info')
             .select('current_academic_year')
             .single();
@@ -63,10 +63,18 @@ $(document).ready(async function () {
             .eq('teacher_id', user.id);
         managedGrades = gradeHeads ? gradeHeads.map(g => g.grade_level) : [];
 
+        // ✅ ตรวจสอบว่าเป็นครูที่ปรึกษา (มีห้องใน core_classrooms)
+        const { data: adviserRoom } = await db.from('core_classrooms')
+            .select('id')
+            .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
+            .maybeSingle();
+        const hasClassroom = !!adviserRoom;
+
         // 4. ตรวจสอบสิทธิ์เข้าโมดูล (ถ้าไม่ใช่ admin)
         if (!isAdmin) {
             const hasAccess = await hasModuleAccess(role, 'behavior', user.id);
-            const hasSpecialAccess = isDisciplineHead || managedGrades.length > 0;
+            // ✅ เพิ่ม hasClassroom — ครูที่ปรึกษาเข้าได้โดยไม่ต้องอยู่ใน core_module_admins
+            const hasSpecialAccess = isDisciplineHead || managedGrades.length > 0 || hasClassroom;
             if (!hasAccess && !hasSpecialAccess) {
                 await Swal.fire({
                     icon: 'warning',
