@@ -278,7 +278,6 @@
             }
         }
 
-        /* Scrollable modal body */
         .modal-body-scroll {
             max-height: 70vh;
             overflow-y: auto;
@@ -451,7 +450,11 @@
                                 </select>
                             </div>
                             <div class="flex items-end gap-2">
-                                <button onclick="window.loadTeachersForEval()"
+                                <button onclick="window.loadTeachersForEvalBySubGroup(
+                                    window._currentSubGroupId, 
+                                    document.getElementById('sel_department').value,
+                                    window._currentSelectedItems
+                                )"
                                     class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
                                     <i class="fa-solid fa-search mr-1"></i> แสดงรายชื่อ
                                 </button>
@@ -480,7 +483,7 @@
                             </div>
                         </div>
 
-                        <!-- ✅ ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
+                        <!-- ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
                         <div id="finalSummaryActions" class="hidden mb-4">
                             <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
                                     class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
@@ -742,8 +745,12 @@
             const deptSelect = document.getElementById('sel_department');
             if (deptSelect) {
                 deptSelect.addEventListener('change', function () {
-                    if (this.value) {
-                        window.loadTeachersForEval();
+                    if (this.value && window._currentSubGroupId) {
+                        window.loadTeachersForEvalBySubGroup(
+                            window._currentSubGroupId,
+                            this.value,
+                            window._currentSelectedItems
+                        );
                     }
                 });
             }

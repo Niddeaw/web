@@ -10,17 +10,14 @@ let evaluateeData = null;
 let isEditingMode = false;
 let loadTeachersTimeout = null;
 let isLoadTeachersRunning = false;
-let _dataTableInstance = null;  // ✅ เพิ่มตัวแปรเก็บ instance DataTable
-let _isDestroying = false;      // ✅ ป้องกันการทำลายซ้ำ
-let finalScoresCache = {}; // cache สำหรับคะแนนสรุป
+let _dataTableInstance = null;
+let _isDestroying = false;
+let finalScoresCache = {};
 
 // ==========================================
-// ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ ตามเอกสาร)
+// ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ)
 // ==========================================
 const evalCriteriaDB = {
-    // ========================================
-    // 1. ครูผู้ช่วย - 14 ข้อ ฐาน 80
-    // ========================================
     'ครูผู้ช่วย': {
         part1_sec1: [
             {
@@ -61,10 +58,6 @@ const evalCriteriaDB = {
         part1_sec1_base: 80,
         part1_sec1_max: 56
     },
-
-    // ========================================
-    // 2. ครู (ไม่มีวิทยฐานะ) - 15 ข้อ ฐาน 60
-    // ========================================
     'ครู': {
         part1_sec1: [
             {
@@ -106,10 +99,6 @@ const evalCriteriaDB = {
         part1_sec1_base: 60,
         part1_sec1_max: 60
     },
-
-    // ========================================
-    // 3. ครูชำนาญการ - 15 ข้อ ฐาน 60
-    // ========================================
     'ครูชำนาญการ': {
         part1_sec1: [
             {
@@ -151,10 +140,6 @@ const evalCriteriaDB = {
         part1_sec1_base: 60,
         part1_sec1_max: 60
     },
-
-    // ========================================
-    // 4. ครูชำนาญการพิเศษ - 15 ข้อ ฐาน 60
-    // ========================================
     'ครูชำนาญการพิเศษ': {
         part1_sec1: [
             {
@@ -199,15 +184,12 @@ const evalCriteriaDB = {
 };
 
 // ==========================================
-// ส่วนกลาง: องค์ประกอบที่ 2 และ 3 (เหมือนกันทุกตำแหน่ง)
+// ส่วนกลาง: องค์ประกอบที่ 2 และ 3
 // ==========================================
-
-// องค์ประกอบที่ 2: การมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)
 const PART2_ITEMS = [
     { id: 'p2_1', label: 'ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา', desc: 'ประเมินจากผลสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา' }
 ];
 
-// องค์ประกอบที่ 3: วินัย คุณธรรม จริยธรรม (10 คะแนน)
 const PART3_ITEMS = [
     "ยึดมั่นในสถาบันหลักของประเทศ อันได้แก่ ชาติ ศาสนา พระมหากษัตริย์ และการปกครอง ระบอบประชาธิปไตยอันมีพระมหากษัตริย์ทรงเป็นประมุข",
     "มีความซื่อสัตย์ สุจริต มีจิตสำนึกที่ดี มีความรับผิดชอบต่อหน้าที่และต่อผู้เกี่ยวข้อง ในฐานะข้าราชการครูและบุคลากรทางการศึกษา",
@@ -240,17 +222,13 @@ async function checkAuth() {
     const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
     currentUser = profile;
 
-    // ✅ แก้ไข: รวม role ที่เกี่ยวข้องทั้งหมด
     const teacherRoles = ['teacher', 'admin', 'super_admin', 'deputy', 'director'];
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
 
     const isTeacher = teacherRoles.includes(currentUser.role);
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
-
-    // ผู้อำนวยการ, รองผู้อำนวยการ, Admin เข้าได้แต่ไม่ต้องแสดงปุ่มประเมิน
     const isAdmin = ['director', 'deputy', 'admin', 'super_admin'].includes(currentUser.role);
 
-    // ❌ ครูอัตราจ้าง, พนักงานราชการ, staff, office ห้ามเข้า
     if (!isTeacher && !isAdmin) {
         await Swal.fire({
             icon: 'error',
@@ -262,7 +240,6 @@ async function checkAuth() {
         return;
     }
 
-    // ✅ แก้ไข: Super Admin และ Admin ที่มีวิทยฐานะครู สามารถประเมินตนเองได้
     const selfEvalCard = document.getElementById('selfEvalCard');
     if ((isTeacher && isAllowedAcademic) || currentUser.role === 'super_admin') {
         selfEvalCard.classList.remove('hidden');
@@ -270,10 +247,8 @@ async function checkAuth() {
         selfEvalCard.classList.add('hidden');
     }
 
-    // ✅ โหลดรอบการประเมินที่ Active
     await loadEvaluationRound();
 
-    // ✅ แสดงปุ่มไปหน้า Admin (เฉพาะ admin, super_admin)
     const btnGoToAdmin = document.getElementById('btnGoToAdmin');
     if (['admin', 'super_admin'].includes(currentUser.role)) {
         btnGoToAdmin.classList.remove('hidden');
@@ -285,13 +260,9 @@ async function checkAuth() {
     document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('header_user_role').innerText = currentUser.role || '';
 
-    // ✅ ตรวจสอบสิทธิ์กรรมการประเมิน (จาก eval_committee_groups)
     await loadCommitteeEvaluationTasks();
-
-    // ✅ โหลดสถานะการประเมินของฉัน
     await loadMyEvaluationStatus();
 
-    // ✅ แสดงรอบการประเมินบน Dashboard
     if (currentEvalRound) {
         document.getElementById('eval_round_display_big').innerText = currentEvalRound.round_name || '-';
         document.getElementById('eval_period_display').innerText =
@@ -303,7 +274,7 @@ async function checkAuth() {
 }
 
 // ==========================================
-// โหลดรอบการประเมินที่ Active (อัตโนมัติ)
+// โหลดรอบการประเมินที่ Active
 // ==========================================
 async function loadEvaluationRound() {
     try {
@@ -319,14 +290,12 @@ async function loadEvaluationRound() {
 
         currentEvalRound = data;
 
-        // แสดงใน UI
         document.getElementById('eval_round_display').innerText =
             `${data.round_name} (ครั้งที่ ${data.round_number})`;
         document.getElementById('eval_round_display_big').innerText = data.round_name || '-';
         document.getElementById('eval_period_display').innerText =
             `${formatDate(data.start_date)} - ${formatDate(data.end_date)}`;
 
-        // แสดง badge
         document.getElementById('eval_round_badge').classList.remove('hidden');
 
     } catch (err) {
@@ -339,7 +308,107 @@ async function loadEvaluationRound() {
 }
 
 // ==========================================
-// โหลดงานที่ต้องประเมินของกรรมการ (รองรับหลายชุด)
+// โหลดโครงสร้างคณะกรรมการแบบหลายชุดย่อย
+// ==========================================
+async function loadCommitteeStructure(evalRoundId) {
+    try {
+        const { data: mainGroups, error: mainError } = await db
+            .from('eval_committee_groups')
+            .select('*')
+            .eq('eval_round_id', evalRoundId)
+            .eq('group_type', 'main')
+            .eq('is_active', true);
+
+        if (mainError) throw mainError;
+
+        const result = [];
+
+        for (const mainGroup of mainGroups || []) {
+            const { data: subGroups, error: subError } = await db
+                .from('eval_committee_groups')
+                .select('*')
+                .eq('parent_group_id', mainGroup.id)
+                .eq('is_active', true);
+
+            if (subError) throw subError;
+
+            const subGroupData = [];
+
+            for (const subGroup of subGroups || []) {
+                const { data: members, error: memError } = await db
+                    .from('eval_committee_members')
+                    .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
+                    .eq('committee_group_id', subGroup.id)
+                    .eq('is_active', true);
+
+                if (memError) throw memError;
+
+                const { data: targets, error: tarError } = await db
+                    .from('eval_committee_targets')
+                    .select('*')
+                    .eq('committee_group_id', subGroup.id)
+                    .eq('is_active', true);
+
+                if (tarError) throw tarError;
+
+                subGroupData.push({
+                    ...subGroup,
+                    members: members || [],
+                    targets: targets || [],
+                    selected_sub_items: subGroup.selected_sub_items || []
+                });
+            }
+
+            result.push({
+                ...mainGroup,
+                sub_groups: subGroupData,
+                selected_sub_items: mainGroup.selected_sub_items || []
+            });
+        }
+
+        return result;
+
+    } catch (err) {
+        console.error('Error loading committee structure:', err);
+        return [];
+    }
+}
+
+// ==========================================
+// ตรวจสอบว่าผู้ใช้เป็นกรรมการในชุดย่อยใดบ้าง
+// ==========================================
+async function getUserCommitteeSubGroups(userId, evalRoundId) {
+    try {
+        const { data: memberships, error } = await db
+            .from('eval_committee_members')
+            .select('committee_group_id')
+            .eq('user_id', userId)
+            .eq('is_active', true);
+
+        if (error) throw error;
+
+        const subGroupIds = memberships.map(m => m.committee_group_id);
+
+        if (subGroupIds.length === 0) return [];
+
+        const { data: subGroups, error: subError } = await db
+            .from('eval_committee_groups')
+            .select('*, eval_committee_targets(*)')
+            .in('id', subGroupIds)
+            .eq('is_active', true);
+
+        if (subError) throw subError;
+
+        return subGroups || [];
+
+    } catch (err) {
+        console.error('Error getting user committee sub groups:', err);
+        return [];
+    }
+}
+
+// ==========================================
+// โหลดงานที่ต้องประเมินของกรรมการ (แบบหลายชุดย่อย)
 // ==========================================
 async function loadCommitteeEvaluationTasks() {
     try {
@@ -348,23 +417,12 @@ async function loadCommitteeEvaluationTasks() {
             return;
         }
 
-        const { data: committeeGroups, error } = await db
-            .from('eval_committee_groups')
-            .select('*')
-            .eq('eval_round_id', currentEvalRound.id)
-            .eq('is_active', true);
+        const structure = await loadCommitteeStructure(currentEvalRound.id);
+        window._committeeStructure = structure;
 
-        if (error) {
-            console.error('Error loading committee groups:', error);
-            return;
-        }
+        const mySubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
 
-        const myGroups = (committeeGroups || []).filter(group => {
-            if (!group.evaluator_ids) return false;
-            return group.evaluator_ids.includes(currentUser.id);
-        });
-
-        if (!myGroups || myGroups.length === 0) {
+        if (!mySubGroups || mySubGroups.length === 0) {
             console.log('ℹ️ ไม่มีงานประเมินสำหรับผู้ใช้นี้');
             document.getElementById('committeeCard').classList.add('hidden');
             return;
@@ -373,68 +431,51 @@ async function loadCommitteeEvaluationTasks() {
         document.getElementById('committeeCard').classList.remove('hidden');
 
         const groupSelect = document.getElementById('sel_committee_group');
-        groupSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
+        groupSelect.innerHTML = '<option value="">-- เลือกชุดคณะกรรมการ --</option>';
 
-        myGroups.forEach((group, index) => {
-            const label = `${group.group_name} (${group.evaluator_ids?.length || 0} คน)`;
-            groupSelect.innerHTML += `<option value="${group.id}" data-index="${index}">${label}</option>`;
-        });
+        const mainGroups = structure.filter(g => g.group_type === 'main');
 
-        window._committeeGroups = myGroups;
+        for (const mainGroup of mainGroups) {
+            const subGroups = mySubGroups.filter(sg => sg.parent_group_id === mainGroup.id);
 
-        // ✅ ถ้ามีชุดเดียว ให้เลือกอัตโนมัติ
-        if (myGroups.length === 1) {
-            groupSelect.value = myGroups[0].id;
-            await onCommitteeGroupChange();
+            if (subGroups.length === 0) continue;
+
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = mainGroup.group_name;
+
+            subGroups.forEach(sub => {
+                const option = document.createElement('option');
+                option.value = sub.id;
+                option.textContent = `${sub.group_name} (${sub.members?.length || 0} คน)`;
+                option.dataset.mainGroupId = mainGroup.id;
+                option.dataset.targets = JSON.stringify(sub.targets || []);
+                option.dataset.selectedSubItems = JSON.stringify(sub.selected_sub_items || []);
+                optgroup.appendChild(option);
+            });
+
+            groupSelect.appendChild(optgroup);
         }
 
-        // ✅ ผูก event เมื่อเลือกชุด (ใช้ debounce)
-        groupSelect.addEventListener('change', function () {
-            clearTimeout(window._groupChangeTimeout);
-            window._groupChangeTimeout = setTimeout(() => {
-                // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
-                if (isLoadTeachersRunning) {
-                    console.log('⏳ Load in progress, waiting...');
-                    const waitForLoad = setInterval(() => {
-                        if (!isLoadTeachersRunning) {
-                            clearInterval(waitForLoad);
-                            onCommitteeGroupChange();
-                        }
-                    }, 200);
-                    return;
-                }
-                onCommitteeGroupChange();
-            }, 300);
+        groupSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset) {
+                window._selectedSubGroupId = this.value;
+                window._selectedSubGroupTargets = JSON.parse(selectedOption.dataset.targets || '[]');
+                window._selectedSubGroupItems = JSON.parse(selectedOption.dataset.selectedSubItems || '[]');
+                onSubCommitteeGroupChange();
+            }
         });
 
-        // ✅ ผูก event เมื่อเลือกกลุ่มสาระ (ใช้ debounce)
-        const deptSelect = document.getElementById('sel_department');
+        if (mySubGroups.length === 1) {
+            const firstSub = mySubGroups[0];
+            groupSelect.value = firstSub.id;
+            window._selectedSubGroupId = firstSub.id;
+            window._selectedSubGroupTargets = firstSub.targets || [];
+            window._selectedSubGroupItems = firstSub.selected_sub_items || [];
+            await onSubCommitteeGroupChange();
+        }
 
-        // ✅ กำหนด handler เป็นตัวแปรเพื่อให้ remove ได้
-        window._deptChangeHandler = function () {
-            if (window._suppressDeptChange) return;
-            if (this.value && document.getElementById('sel_committee_group').value) {
-                clearTimeout(window._deptChangeTimeout);
-                window._deptChangeTimeout = setTimeout(() => {
-                    // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
-                    if (isLoadTeachersRunning) {
-                        console.log('⏳ Load in progress, waiting...');
-                        const waitForLoad = setInterval(() => {
-                            if (!isLoadTeachersRunning) {
-                                clearInterval(waitForLoad);
-                                loadTeachersForEval();
-                            }
-                        }, 200);
-                        return;
-                    }
-                    loadTeachersForEval();
-                }, 300);
-            }
-        };
-
-        deptSelect.addEventListener('change', window._deptChangeHandler);
-
-        console.log('✅ โหลดงานประเมินกรรมการสำเร็จ:', myGroups.length, 'ชุด');
+        console.log('✅ โหลดงานประเมินกรรมการสำเร็จ:', mySubGroups.length, 'ชุดย่อย');
 
     } catch (err) {
         console.error('Error loading committee evaluation tasks:', err);
@@ -442,12 +483,72 @@ async function loadCommitteeEvaluationTasks() {
 }
 
 // ==========================================
-// เมื่อเปลี่ยนชุดคณะกรรมการ
+// เมื่อเปลี่ยนชุดย่อยคณะกรรมการ
 // ==========================================
-async function onCommitteeGroupChange() {
-    // ✅ ถ้ากำลังทำงานอยู่ ให้รอ
+async function onSubCommitteeGroupChange() {
+    const subGroupId = window._selectedSubGroupId;
+    const targets = window._selectedSubGroupTargets || [];
+    const selectedItems = window._selectedSubGroupItems || [];
+
+    await destroyDataTableSafely();
+
+    if (!subGroupId) {
+        document.getElementById('selectedGroupInfo').classList.add('hidden');
+        document.getElementById('sel_department').innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        const tbody = document.getElementById('tb-teacher-eval');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-8 text-gray-400">กรุณาเลือกชุดคณะกรรมการ</td></tr>';
+        }
+        return;
+    }
+
+    document.getElementById('selectedGroupInfo').classList.remove('hidden');
+    document.getElementById('selectedGroupName').innerText =
+        document.getElementById('sel_committee_group').selectedOptions[0]?.text || '-';
+    document.getElementById('selectedGroupMemberCount').innerText =
+        document.getElementById('sel_committee_group').selectedOptions[0]?.text.match(/\((\d+)/)?.[1] || '0';
+
+    const subItemsText = selectedItems.map(item =>
+        `องค์ประกอบที่ ${item.element}: ${item.value}`
+    ).join(' | ') || 'ไม่มีหัวข้อย่อย';
+    document.getElementById('selectedGroupSubItems').innerText = subItemsText;
+
+    const selDept = document.getElementById('sel_department');
+    selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+    const departmentTargets = targets.filter(t => t.target_type === 'department');
+
+    if (departmentTargets.length > 1) {
+        departmentTargets.forEach(t => {
+            selDept.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
+        });
+    } else if (departmentTargets.length === 1) {
+        const singleDept = departmentTargets[0].target_value;
+        window._suppressDeptChange = true;
+        selDept.value = singleDept;
+        window._suppressDeptChange = false;
+        await loadTeachersForEvalBySubGroup(subGroupId, singleDept, selectedItems);
+    }
+
+    window._currentSubGroupId = subGroupId;
+    window._currentSelectedItems = selectedItems;
+}
+
+// ==========================================
+// โหลดครูสำหรับประเมินตามชุดย่อย
+// ==========================================
+async function loadTeachersForEvalBySubGroup(subGroupId, department, selectedItems) {
+    if (!department) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
+    }
+
+    if (!currentEvalRound) {
+        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
+    }
+
+    // ✅ ป้องกันการเรียกซ้ำ
     if (isLoadTeachersRunning) {
-        console.log('⏳ onCommitteeGroupChange: load in progress, waiting...');
+        console.log('⏳ Already running, waiting...');
         await new Promise((resolve) => {
             const checkInterval = setInterval(() => {
                 if (!isLoadTeachersRunning) {
@@ -458,80 +559,144 @@ async function onCommitteeGroupChange() {
         });
     }
 
-    const groupId = document.getElementById('sel_committee_group').value;
+    isLoadTeachersRunning = true;
 
-    // ✅ ทำลาย DataTable ก่อน
-    await destroyDataTableSafely();
+    try {
+        await destroyDataTableSafely();
 
-    if (!groupId) {
-        document.getElementById('selectedGroupInfo').classList.add('hidden');
-        document.getElementById('sel_department').innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        const tbody = document.getElementById('tb-teacher-eval');
+        if (!tbody) return;
+
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center py-8">
+                    <div class="flex items-center justify-center gap-3">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                        <span class="text-gray-500">กำลังโหลดรายชื่อ...</span>
+                    </div>
+                </td>
+            </tr>`;
+
+        await new Promise(r => setTimeout(r, 300));
+
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const { data: teachers, error: tErr } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .eq('department', department)
+            .in('academic_standing', validStandings)
+            .order('first_name', { ascending: true });
+
+        if (tErr) throw tErr;
+
+        if (!teachers || teachers.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-user-slash mr-2"></i>
+                        ไม่พบบุคลากรในกลุ่มสาระ "${department}"
+                    </td>
+                </tr>`;
+            return;
+        }
+
+        const teacherIds = teachers.map(t => t.id);
+        const { data: evalResults, error: eErr } = await db
+            .from('eval_results')
+            .select('evaluatee_id, total_score, status, updated_at')
+            .in('evaluatee_id', teacherIds)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('evaluator_id', currentUser.id)
+            .eq('eval_type', 'committee');
+
+        if (eErr) throw eErr;
+
+        const evalMap = {};
+        (evalResults || []).forEach(r => { evalMap[r.evaluatee_id] = r; });
+
+        let html = '';
+        teachers.forEach(teacher => {
+            const fullName = teacher.prefix
+                ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}`
+                : `${teacher.first_name} ${teacher.last_name}`;
+            const standing = teacher.academic_standing || '-';
+            const evalResult = evalMap[teacher.id];
+
+            let statusBadge, actionBtn;
+
+            if (evalResult) {
+                const score = evalResult.total_score?.toFixed(2) || '0.00';
+                const dateStr = evalResult.updated_at
+                    ? new Date(evalResult.updated_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+                    : '';
+                if (evalResult.status === 'submitted') {
+                    statusBadge = `
+                        <span class="status-badge done">✅ ประเมินแล้ว</span>
+                        <div class="text-xs text-gray-400 mt-1">${score} คะแนน · ${dateStr}</div>`;
+                    actionBtn = `
+                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-pen-to-square mr-1"></i>แก้ไข
+                        </button>`;
+                } else {
+                    statusBadge = `<span class="status-badge draft">📝 ร่าง</span>`;
+                    actionBtn = `
+                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-play mr-1"></i>ประเมินต่อ
+                        </button>`;
+                }
+            } else {
+                statusBadge = `<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>`;
+                actionBtn = `
+                    <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
+                        <i class="fa-solid fa-clipboard-check mr-1"></i>ประเมิน
+                    </button>`;
+            }
+
+            html += `
+                <tr>
+                    <td class="font-medium">${fullName}</td>
+                    <td>${standing}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">
+                        <button onclick="window.openEvalDetailModal('${teacher.id}', '${currentEvalRound.id}')"
+                                class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-eye mr-1"></i>ดูสรุป
+                        </button>
+                    </td>
+                    <td class="text-center">${actionBtn}</td>
+                </tr>`;
+        });
+
+        tbody.innerHTML = html;
+
+        await new Promise(r => setTimeout(r, 300));
+        await initializeDataTableSafely();
+
+    } catch (err) {
+        console.error('Error loading teachers:', err);
         const tbody = document.getElementById('tb-teacher-eval');
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400">กรุณาเลือกชุดคณะกรรมการ</td></tr>';
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center py-8 text-red-400">
+                        <i class="fa-solid fa-circle-exclamation mr-2"></i>โหลดข้อมูลล้มเหลว: ${err.message}
+                    </td>
+                </tr>`;
         }
-        return;
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    } finally {
+        isLoadTeachersRunning = false;
     }
-
-    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
-    if (!selectedGroup) return;
-
-    document.getElementById('selectedGroupInfo').classList.remove('hidden');
-    document.getElementById('selectedGroupName').innerText = selectedGroup.group_name;
-    document.getElementById('selectedGroupMemberCount').innerText = selectedGroup.evaluator_ids?.length || 0;
-
-    const subItems = selectedGroup.selected_sub_items || [];
-    const element1Items = subItems.filter(s => s.element === '1').map(s => s.value).join(', ');
-    const element2Items = subItems.filter(s => s.element === '2').map(s => s.value).join(', ');
-    const element3Items = subItems.filter(s => s.element === '3').map(s => s.value).join(', ');
-
-    let subItemsText = [];
-    if (element1Items) subItemsText.push(`องค์ประกอบที่ 1: ${element1Items}`);
-    if (element2Items) subItemsText.push(`องค์ประกอบที่ 2: ${element2Items}`);
-    if (element3Items) subItemsText.push(`องค์ประกอบที่ 3: ${element3Items}`);
-    document.getElementById('selectedGroupSubItems').innerText = subItemsText.join(' | ') || 'ไม่มีหัวข้อย่อย';
-
-    const selDept = document.getElementById('sel_department');
-
-    // ✅ ปิด Event listener ชั่วคราว เพื่อป้องกันการเรียกซ้ำ
-    selDept.removeEventListener('change', window._deptChangeHandler);
-
-    selDept.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
-
-    const allDepartments = new Set();
-    if (selectedGroup.target_departments) {
-        selectedGroup.target_departments.forEach(dept => {
-            allDepartments.add(dept);
-        });
-    }
-
-    allDepartments.forEach(dept => {
-        selDept.innerHTML += `<option value="${dept}">${dept}</option>`;
-    });
-
-    window._selectedCommitteeGroup = selectedGroup;
-
-    // ✅ ถ้ามีกลุ่มสาระเดียว ให้โหลดอัตโนมัติ (แต่ไม่ซ้ำ)
-    if (allDepartments.size === 1) {
-        const singleDept = allDepartments.values().next().value;
-        window._suppressDeptChange = true;
-        selDept.value = singleDept;
-        window._suppressDeptChange = false;
-
-        // ✅ เรียก loadTeachersForEval โดยตรง (ไม่ผ่าน event)
-        await loadTeachersForEval();
-    }
-
-    // ✅ ผูก Event listener กลับ
-    selDept.addEventListener('change', window._deptChangeHandler);
 }
 
 // ==========================================
-// ฟังก์ชันทำลาย DataTable อย่างปลอดภัย (แบบ Promise)
+// ฟังก์ชันทำลาย DataTable อย่างปลอดภัย
 // ==========================================
 function destroyDataTableSafely() {
     return new Promise((resolve) => {
-        // ✅ ป้องกันการทำลายซ้ำ
         if (_isDestroying) {
             console.log('⏳ Destroy already in progress, skipping...');
             resolve();
@@ -551,7 +716,6 @@ function destroyDataTableSafely() {
                 return;
             }
 
-            // ✅ ใช้ instance ที่เก็บไว้
             if (_dataTableInstance) {
                 try {
                     _dataTableInstance.destroy(true);
@@ -562,7 +726,6 @@ function destroyDataTableSafely() {
                 }
             }
 
-            // ✅ สำรอง: ใช้ jQuery ตรวจสอบอีกครั้ง
             try {
                 if ($.fn.DataTable.isDataTable(tableId)) {
                     try {
@@ -576,7 +739,6 @@ function destroyDataTableSafely() {
                 console.warn('isDataTable check error:', e.message);
             }
 
-            // ✅ ล้างเฉพาะ thead และ tfoot
             try {
                 $(tableId).find('thead, tfoot').empty();
             } catch (e) {
@@ -597,7 +759,7 @@ function destroyDataTableSafely() {
 }
 
 // ==========================================
-// ฟังก์ชันสร้าง DataTable อย่างปลอดภัย (แบบ Promise)
+// ฟังก์ชันสร้าง DataTable
 // ==========================================
 function initializeDataTableSafely() {
     return new Promise((resolve) => {
@@ -648,7 +810,6 @@ function initializeDataTableSafely() {
                     return;
                 }
 
-                // ทำลาย DataTable เก่า
                 if (_dataTableInstance) {
                     try {
                         _dataTableInstance.destroy(true);
@@ -667,7 +828,6 @@ function initializeDataTableSafely() {
                     return;
                 }
 
-                // สร้าง DataTable ใหม่
                 _dataTableInstance = $(tableId).DataTable({
                     scrollX: true,
                     language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
@@ -675,12 +835,13 @@ function initializeDataTableSafely() {
                     lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
                     columnDefs: [
                         { targets: [0], width: '30%' },
-                        { targets: [1], width: '20%' },
-                        { targets: [2], width: '25%', orderable: false },
-                        { targets: [3], width: '25%', orderable: false }
+                        { targets: [1], width: '15%' },
+                        { targets: [2], width: '20%', orderable: false },
+                        { targets: [3], width: '15%', orderable: false },
+                        { targets: [4], width: '20%', orderable: false }
                     ],
                     dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>',
-                    initComplete: function () {
+                    initComplete: function() {
                         console.log('✅ DataTable initialized');
                     }
                 });
@@ -695,7 +856,7 @@ function initializeDataTableSafely() {
 }
 
 // ==========================================
-// โหลดสถานะการประเมินของฉัน (พร้อมปุ่มแก้ไข)
+// โหลดสถานะการประเมินของฉัน
 // ==========================================
 async function loadMyEvaluationStatus() {
     try {
@@ -754,7 +915,6 @@ async function loadMyEvaluationStatus() {
 // ==========================================
 async function startEditEvaluation(evalId) {
     try {
-        // ดึงข้อมูลการประเมินเดิม
         const { data: existingEval, error } = await db
             .from('eval_results')
             .select('*')
@@ -763,11 +923,9 @@ async function startEditEvaluation(evalId) {
 
         if (error) throw error;
 
-        // ตั้งค่าโหมดแก้ไข
         isEditingMode = true;
         window._existingEvalId = evalId;
 
-        // ตั้งค่า evaluateeData
         const { data: evaluatee } = await db
             .from('core_personnel')
             .select('*')
@@ -777,23 +935,18 @@ async function startEditEvaluation(evalId) {
         evaluateeData = evaluatee;
         evaluationMode = existingEval.eval_type;
 
-        // เปิด Wizard และโหลดข้อมูล
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('wizardView').classList.remove('hidden');
         document.getElementById('wizardTargetName').innerText = `ผู้รับการประเมิน: ${evaluatee.first_name} ${evaluatee.last_name}`;
 
         const academic = evaluatee.academic_standing || 'ไม่มีวิทยฐานะ';
 
-        // สร้างฟอร์ม
         generateDynamicForm(academic);
-
-        // โหลดข้อมูลเดิมใส่ฟอร์ม
         loadScoresToForm(existingEval);
 
         wizardCurrentStep = 1;
         updateWizardUI();
 
-        // แสดงข้อความแจ้งเตือน
         Swal.fire({
             icon: 'info',
             title: 'โหมดแก้ไข',
@@ -806,123 +959,6 @@ async function startEditEvaluation(evalId) {
         console.error('Error starting edit:', err);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลสำหรับแก้ไขได้', 'error');
     }
-}
-
-// ==========================================
-// ฟังก์ชันทำลาย DataTable อย่างปลอดภัย
-// ==========================================
-function destroyDataTableSafely() {
-    return new Promise((resolve) => {
-        if (_isDestroying) {
-            console.log('⏳ Destroy already in progress');
-            resolve();
-            return;
-        }
-
-        _isDestroying = true;
-
-        try {
-            const tableId = '#teacherEvalTable';
-            const tableEl = document.getElementById('teacherEvalTable');
-
-            if (!tableEl) {
-                console.log('ℹ️ Table element not found, skip destroy');
-                _isDestroying = false;
-                resolve();
-                return;
-            }
-
-            if (_dataTableInstance) {
-                try {
-                    _dataTableInstance.destroy(true);
-                    _dataTableInstance = null;
-                    console.log('✅ DataTable destroyed via instance');
-                } catch (e) {
-                    console.warn('Destroy via instance error:', e.message);
-                }
-            }
-
-            try {
-                if ($.fn.DataTable.isDataTable(tableId)) {
-                    try {
-                        $(tableId).DataTable().destroy(true);
-                        console.log('✅ DataTable destroyed via jQuery');
-                    } catch (e) {
-                        console.warn('Destroy via jQuery error:', e.message);
-                    }
-                }
-            } catch (e) {
-                console.warn('isDataTable check error:', e.message);
-            }
-
-            // ✅ ล้าง thead แต่รักษาโครงสร้างตาราง
-            try {
-                const table = document.getElementById('teacherEvalTable');
-                if (table) {
-                    const thead = table.querySelector('thead');
-                    if (thead) {
-                        thead.innerHTML = `
-                            <tr>
-                                <th class="text-left">ชื่อ-สกุล</th>
-                                <th class="text-left">วิทยฐานะ</th>
-                                <th class="text-center">สถานะ</th>
-                                <th class="text-center">ดำเนินการ</th>
-                            </tr>
-                        `;
-                    }
-                    // ✅ เก็บ tbody ไว้
-                }
-            } catch (e) {
-                console.warn('Reset thead error:', e.message);
-            }
-
-            setTimeout(() => {
-                _isDestroying = false;
-                resolve();
-            }, 150);
-
-        } catch (e) {
-            console.error('destroyDataTableSafely error:', e);
-            _isDestroying = false;
-            resolve();
-        }
-    });
-}
-
-// ==========================================
-// 2. ควบคุม Wizard & Render ฟอร์มตามวิทยฐานะ
-// ==========================================
-async function startEvaluation(mode, targetData = null) {
-    evaluationMode = mode;
-    evaluateeData = mode === 'self' ? currentUser : targetData;
-
-    document.getElementById('dashboardView').classList.add('hidden');
-    document.getElementById('wizardView').classList.remove('hidden');
-    document.getElementById('wizardTargetName').innerText = `ผู้รับการประเมิน: ${evaluateeData.first_name} ${evaluateeData.last_name}`;
-
-    const academic = evaluateeData.academic_standing || 'ไม่มีวิทยฐานะ';
-
-    const display = document.getElementById('liveTotalScoreDisplay');
-    if (display) display.innerHTML = `0.00 <span class="text-xs font-normal text-gray-500 ml-1">/ 100</span>`;
-
-    // ✅ หัวข้อย่อยที่ได้รับมอบหมาย (เฉพาะโหมด committee)
-    let allowedSubItems = null;
-    if (mode === 'committee') {
-        const selectedGroup = window._selectedCommitteeGroup ||
-            (window._committeeGroups && window._committeeGroups[0]);
-        if (selectedGroup) {
-            allowedSubItems = selectedGroup.selected_sub_items || [];
-            console.log('📋 หัวข้อย่อยจากชุดที่เลือก:', allowedSubItems);
-        }
-    }
-
-    // ✅ สร้างฟอร์ม โดยส่ง allowedSubItems ไปด้วย
-    generateDynamicForm(academic, allowedSubItems);
-
-    wizardCurrentStep = 1;
-    updateWizardUI();
-
-    await loadExistingEvaluation();
 }
 
 // ==========================================
@@ -1128,7 +1164,7 @@ function loadScoresToForm(existingEval) {
 }
 
 // ==========================================
-// ฟังก์ชันรีเซ็ตฟอร์มให้ว่าง
+// ฟังก์ชันรีเซ็ตฟอร์ม
 // ==========================================
 function resetForm() {
     document.querySelectorAll('input[type="radio"]').forEach(el => {
@@ -1144,7 +1180,7 @@ function resetForm() {
 }
 
 // ==========================================
-// ฟังก์ชันสร้าง UI แบบ Dynamic (พร้อมแจ้งเตือนชัดเจน)
+// ฟังก์ชันสร้าง UI แบบ Dynamic
 // ==========================================
 function generateDynamicForm(academicLevel, allowedSubItems = null) {
     console.log('📋 generateDynamicForm - academicLevel:', academicLevel);
@@ -1160,7 +1196,7 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
     let hasAnyElement2 = false;
     let hasAnyElement3 = false;
 
-    // ✅ ตรวจสอบว่าเป็นโหมดประเมินตนเองหรือไม่ (allowedSubItems === null)
+    // ✅ ตรวจสอบว่าเป็นโหมดประเมินตนเองหรือไม่
     const isSelfMode = allowedSubItems === null;
 
     if (isSelfMode) {
@@ -1170,7 +1206,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         hasAnyElement3 = true;
         console.log('📋 โหมดประเมินตนเอง: แสดงทุกองค์ประกอบ');
     } else if (allowedSubItems && Array.isArray(allowedSubItems)) {
-        // ✅ โหมดกรรมการ: ใช้หัวข้อย่อยที่กำหนด
         allowedSubItems.forEach(item => {
             if (item.element === '1') {
                 hasAnyElement1 = true;
@@ -1199,20 +1234,20 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
         });
     }
 
-    // ✅ isRestricted: เฉพาะโหมด committee ที่มี allowedSubItems
     const isRestricted = allowedSubItems !== null && allowedSubItems.length > 0;
 
     window._hasElement1 = hasAnyElement1;
     window._hasElement2 = hasAnyElement2;
     window._hasElement3 = hasAnyElement3;
 
+    // ==========================================
     // STEP 1: องค์ประกอบที่ 1
+    // ==========================================
     let step1HTML = `
         <h3 class="text-lg font-bold text-blue-800 mb-4 border-b pb-2">ส่วนที่ 1: การประเมินประสิทธิภาพและประสิทธิผล (80 คะแนน)</h3>
         <p class="text-sm text-blue-600 mb-4">* ระบบตรวจพบวิทยฐานะ: <span class="font-bold">${academicLevel}</span></p>
     `;
 
-    // ✅ ตรวจสอบว่าไม่มีองค์ประกอบที่ 1 และไม่ใช่โหมด self
     if (!hasAnyElement1 && !isSelfMode) {
         step1HTML += `
             <div class="bg-blue-50 p-6 rounded-xl text-center border border-blue-200">
@@ -1225,7 +1260,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             </div>
         `;
     } else if (hasAnyElement1) {
-        // ✅ มีองค์ประกอบที่ 1 - แสดงฟอร์ม
         step1HTML += `
             <div class="mb-4 bg-amber-50 p-3 rounded-xl border border-amber-200">
                 <div class="flex items-center gap-2">
@@ -1307,7 +1341,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             `;
         }
 
-        // ✅ ตอนที่ 2
         let hasPart2Items = false;
         let part2Items = [];
         if (isRestricted) {
@@ -1331,7 +1364,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
                 hasPart2Items = part2Items.length > 0;
             }
         } else if (!isRestricted) {
-            // ✅ โหมด self หรือ unrestricted: แสดงทุกข้อ
             hasPart2Items = criteriaSet.part1_sec2.length > 0;
             part2Items = criteriaSet.part1_sec2;
         }
@@ -1384,7 +1416,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
             `;
         }
     } else {
-        // ✅ กรณีอื่น (ไม่น่าจะเกิด)
         step1HTML += `
             <div class="bg-yellow-50 p-6 rounded-xl text-center border border-yellow-200">
                 <i class="fa-solid fa-triangle-exclamation text-2xl text-yellow-400 mb-2"></i>
@@ -1541,27 +1572,26 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 }
 
 // ==========================================
-// ฟังก์ชันเปลี่ยนขั้นตอน (ปรับปรุง)
+// ฟังก์ชันเปลี่ยนขั้นตอน
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
         if (wizardCurrentStep === 1) {
-            // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 ถ้ามีในฟอร์ม
             const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
             const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
             const hasElement1 = p1s1Groups.length > 0 || p1s2Groups.length > 0;
-            
+
             if (hasElement1) {
                 let missing = false;
                 const groupNames = new Set();
                 p1s1Groups.forEach(el => groupNames.add(el.name));
                 p1s2Groups.forEach(el => groupNames.add(el.name));
-                
+
                 groupNames.forEach(name => {
                     const checked = document.querySelector(`input[name="${name}"]:checked`);
                     if (!checked) missing = true;
                 });
-                
+
                 if (missing) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
                 }
@@ -1583,13 +1613,13 @@ function changeStep(direction) {
             if (p3Groups.length > 0) {
                 const groupNames3 = new Set();
                 p3Groups.forEach(el => groupNames3.add(el.name));
-                
+
                 let missingP3 = false;
                 groupNames3.forEach(name => {
                     const checked = document.querySelector(`input[name="${name}"]:checked`);
                     if (!checked) missingP3 = true;
                 });
-                
+
                 if (missingP3) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
                 }
@@ -1609,7 +1639,7 @@ function changeStep(direction) {
 }
 
 // ==========================================
-// อัปเดต UI Wizard (พร้อมแสดงสถานะ)
+// อัปเดต UI Wizard
 // ==========================================
 function updateWizardUI() {
     const totalSteps = 4;
@@ -1836,28 +1866,25 @@ function updateSummary() {
 }
 
 // ==========================================
-// ฟังก์ชันบันทึกผลการประเมิน (ปรับปรุง)
+// ฟังก์ชันบันทึกผลการประเมิน
 // ==========================================
 async function submitEvaluation() {
-    // ✅ ตรวจสอบเฉพาะองค์ประกอบที่ 1 ถ้ามีการแสดงผลในฟอร์ม
     let missingP1 = false;
     const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
     const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
-    
-    // ✅ ตรวจสอบว่ามีองค์ประกอบที่ 1 ในฟอร์มหรือไม่
+
     const hasElement1 = p1s1Groups.length > 0 || p1s2Groups.length > 0;
-    
+
     if (hasElement1) {
-        // ✅ ตรวจสอบว่าทุกข้อในองค์ประกอบที่ 1 ได้รับการประเมิน
         const groupNames = new Set();
         p1s1Groups.forEach(el => groupNames.add(el.name));
         p1s2Groups.forEach(el => groupNames.add(el.name));
-        
+
         groupNames.forEach(name => {
             const checked = document.querySelector(`input[name="${name}"]:checked`);
             if (!checked) missingP1 = true;
         });
-        
+
         if (missingP1) {
             return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
         }
@@ -1865,7 +1892,6 @@ async function submitEvaluation() {
         console.log('ℹ️ ไม่มีองค์ประกอบที่ 1 ในฟอร์ม ข้ามการตรวจสอบ');
     }
 
-    // ✅ ตรวจสอบองค์ประกอบที่ 2 (ถ้ามี)
     const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
     if (p2Inputs.length > 0) {
         const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
@@ -1876,18 +1902,17 @@ async function submitEvaluation() {
         console.log('ℹ️ ไม่มีองค์ประกอบที่ 2 ในฟอร์ม ข้ามการตรวจสอบ');
     }
 
-    // ✅ ตรวจสอบองค์ประกอบที่ 3 (ถ้ามี)
     const p3Groups = document.querySelectorAll('[name^="p3_"]');
     if (p3Groups.length > 0) {
         const groupNames3 = new Set();
         p3Groups.forEach(el => groupNames3.add(el.name));
-        
+
         let missingP3 = false;
         groupNames3.forEach(name => {
             const checked = document.querySelector(`input[name="${name}"]:checked`);
             if (!checked) missingP3 = true;
         });
-        
+
         if (missingP3) {
             return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
         }
@@ -1895,10 +1920,9 @@ async function submitEvaluation() {
         console.log('ℹ️ ไม่มีองค์ประกอบที่ 3 ในฟอร์ม ข้ามการตรวจสอบ');
     }
 
-    // ✅ ตรวจสอบว่ามีการประเมินอย่างน้อย 1 องค์ประกอบ
-    const hasAnyScore = p1s1Groups.length > 0 || p1s2Groups.length > 0 || 
-                        p2Inputs.length > 0 || p3Groups.length > 0;
-    
+    const hasAnyScore = p1s1Groups.length > 0 || p1s2Groups.length > 0 ||
+        p2Inputs.length > 0 || p3Groups.length > 0;
+
     if (!hasAnyScore) {
         return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
     }
@@ -1921,10 +1945,9 @@ async function submitEvaluation() {
         rawScores.p3 = Array.from(p3Checked).map(el => parseInt(el.value) || 0);
     }
 
-    // ✅ ตรวจสอบว่ามีคะแนนอย่างน้อย 1 องค์ประกอบ
-    const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0 || 
-                      rawScores.p2 !== undefined || (rawScores.p3 && rawScores.p3.length > 0);
-    
+    const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0 ||
+        rawScores.p2 !== undefined || (rawScores.p3 && rawScores.p3.length > 0);
+
     if (!hasScores) {
         return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
     }
@@ -2077,7 +2100,9 @@ async function submitEvaluation() {
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
                 setTimeout(() => {
-                    loadTeachersForEval();
+                    loadTeachersForEvalBySubGroup(window._currentSubGroupId,
+                        document.getElementById('sel_department').value,
+                        window._currentSelectedItems);
                 }, 500);
             } else {
                 window.location.reload();
@@ -2099,236 +2124,28 @@ function formatDate(dateStr) {
     return d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-// ==========================================
-// โหลดครูสำหรับประเมิน (ป้องกันการเรียกซ้ำ)
-// ==========================================
-async function loadTeachersForEval() {
-    // ✅ ป้องกันการเรียกซ้ำ
-    if (isLoadTeachersRunning) {
-        console.log('⏳ loadTeachersForEval is already running, waiting...');
-        
-        await new Promise((resolve) => {
-            let attempts = 0;
-            const maxAttempts = 50;
-            
-            const checkInterval = setInterval(() => {
-                attempts++;
-                if (!isLoadTeachersRunning || attempts >= maxAttempts) {
-                    clearInterval(checkInterval);
-                    resolve();
-                }
-            }, 100);
-        });
-        
-        if (isLoadTeachersRunning) {
-            console.log('⚠️ Still running, skipping...');
-            return;
+// ✅ เพิ่มฟังก์ชันนี้ต่อจาก formatDate
+function findMode(arr) {
+    if (!arr || arr.length === 0) return null;
+    const frequency = {};
+    let maxFreq = 0;
+    let mode = arr[0];
+    for (const value of arr) {
+        if (typeof value !== 'number' || isNaN(value)) continue;
+        frequency[value] = (frequency[value] || 0) + 1;
+        if (frequency[value] > maxFreq) {
+            maxFreq = frequency[value];
+            mode = value;
         }
-        
-        console.log('🔄 Retrying loadTeachersForEval...');
-        return loadTeachersForEval();
     }
-
-    // ✅ ตรวจสอบว่ามีการเลือกข้อมูลครบหรือไม่
-    const groupId = document.getElementById('sel_committee_group').value;
-    const dept = document.getElementById('sel_department').value;
-
-    if (!groupId || !dept) {
-        console.log('ℹ️ Missing group or department, skipping load');
-        return;
-    }
-
-    // ✅ ตรวจสอบว่า dept เป็นค่าเดียวกันกับที่เลือกอยู่หรือไม่ (ป้องกันการโหลดซ้ำ)
-    const currentDept = document.getElementById('sel_department').value;
-    if (window._lastLoadedDept === currentDept && window._lastLoadedGroup === groupId) {
-        console.log('ℹ️ Same department and group, skipping duplicate load');
-        return;
-    }
-
-    // ✅ เก็บค่า last loaded
-    window._lastLoadedDept = currentDept;
-    window._lastLoadedGroup = groupId;
-
-    if (loadTeachersTimeout) {
-        clearTimeout(loadTeachersTimeout);
-        loadTeachersTimeout = null;
-    }
-
-    if (!currentEvalRound) {
-        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่ active', 'warning');
-    }
-
-    const selectedGroup = window._committeeGroups.find(g => g.id === groupId);
-    if (!selectedGroup) {
-        return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดคณะกรรมการ', 'warning');
-    }
-
-    isLoadTeachersRunning = true;
-
-    try {
-        // ✅ ทำลาย DataTable เก่า
-        await destroyDataTableSafely();
-
-        // ✅ ตรวจสอบว่าตารางมีอยู่จริง
-        let tableEl = document.getElementById('teacherEvalTable');
-        if (!tableEl) {
-            console.warn('❌ Table element not found, recreating...');
-            const wrapper = document.querySelector('.overflow-x-auto');
-            if (wrapper) {
-                wrapper.innerHTML = `
-                    <table id="teacherEvalTable" class="display w-full text-sm">
-                        <thead>
-                            <tr>
-                                <th class="text-left">ชื่อ-สกุล</th>
-                                <th class="text-left">วิทยฐานะ</th>
-                                <th class="text-center">สถานะ</th>
-                                <th class="text-center">ดำเนินการ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tb-teacher-eval"></tbody>
-                    </table>
-                `;
-                tableEl = document.getElementById('teacherEvalTable');
-                console.log('✅ Recreated table');
-            }
-        }
-
-        const tbody = document.getElementById('tb-teacher-eval');
-        if (!tbody) {
-            console.error('❌ tbody not found');
-            return;
-        }
-
-        // ✅ แสดง loading
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="4" class="text-center py-8">
-                    <div class="flex items-center justify-center gap-3">
-                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                        <span class="text-gray-500">กำลังโหลดรายชื่อ...</span>
-                    </div>
-                </td>
-            </tr>`;
-
-        await new Promise(r => setTimeout(r, 300));
-
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
-        const { data: teachers, error: tErr } = await db
-            .from('core_personnel')
-            .select('id, prefix, first_name, last_name, academic_standing, department')
-            .eq('department', dept)
-            .in('academic_standing', validStandings)
-            .order('first_name', { ascending: true });
-
-        if (tErr) throw tErr;
-
-        if (!teachers || teachers.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center py-8 text-gray-400">
-                        <i class="fa-solid fa-user-slash mr-2"></i>
-                        ไม่พบบุคลากรในกลุ่มสาระ "${dept}"
-                    </td>
-                </tr>`;
-            return;
-        }
-
-        const teacherIds = teachers.map(t => t.id);
-        const { data: evalResults, error: eErr } = await db
-            .from('eval_results')
-            .select('evaluatee_id, total_score, status, updated_at')
-            .in('evaluatee_id', teacherIds)
-            .eq('eval_round_id', currentEvalRound.id)
-            .eq('evaluator_id', currentUser.id)
-            .eq('eval_type', 'committee');
-
-        if (eErr) throw eErr;
-
-        const evalMap = {};
-        (evalResults || []).forEach(r => { evalMap[r.evaluatee_id] = r; });
-
-        let html = '';
-        teachers.forEach(teacher => {
-            const fullName = teacher.prefix
-                ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}`
-                : `${teacher.first_name} ${teacher.last_name}`;
-            const standing = teacher.academic_standing || '-';
-            const evalResult = evalMap[teacher.id];
-
-            let statusBadge, actionBtn;
-
-            if (evalResult) {
-                const score = evalResult.total_score?.toFixed(2) || '0.00';
-                const dateStr = evalResult.updated_at
-                    ? new Date(evalResult.updated_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
-                    : '';
-                if (evalResult.status === 'submitted') {
-                    statusBadge = `
-                        <span class="status-badge done">✅ ประเมินแล้ว</span>
-                        <div class="text-xs text-gray-400 mt-1">${score} คะแนน · ${dateStr}</div>`;
-                    actionBtn = `
-                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
-                                class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                            <i class="fa-solid fa-pen-to-square mr-1"></i>แก้ไข
-                        </button>`;
-                } else {
-                    statusBadge = `<span class="status-badge draft">📝 ร่าง</span>`;
-                    actionBtn = `
-                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
-                                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                            <i class="fa-solid fa-play mr-1"></i>ประเมินต่อ
-                        </button>`;
-                }
-            } else {
-                statusBadge = `<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>`;
-                actionBtn = `
-                    <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
-                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
-                        <i class="fa-solid fa-clipboard-check mr-1"></i>ประเมิน
-                    </button>`;
-            }
-
-            html += `
-                <tr>
-                    <td class="font-medium">${fullName}</td>
-                    <td>${standing}</td>
-                    <td class="text-center">${statusBadge}</td>
-                    <td class="text-center">${actionBtn}</td>
-                </tr>`;
-        });
-
-        tbody.innerHTML = html;
-
-        // ✅ รอให้ DOM อัปเดต
-        await new Promise(r => setTimeout(r, 300));
-
-        // ✅ สร้าง DataTable
-        await initializeDataTableSafely();
-
-    } catch (err) {
-        console.error('Error in loadTeachersForEval:', err);
-        const tbody = document.getElementById('tb-teacher-eval');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="4" class="text-center py-8 text-red-400">
-                        <i class="fa-solid fa-circle-exclamation mr-2"></i>โหลดข้อมูลล้มเหลว: ${err.message}
-                    </td>
-                </tr>`;
-        }
-        Swal.fire('ผิดพลาด', `โหลดรายชื่อไม่สำเร็จ: ${err.message}`, 'error');
-    } finally {
-        isLoadTeachersRunning = false;
-        console.log('✅ loadTeachersForEval completed');
-    }
+    return mode;
 }
 
 // ==========================================
-// คำนวณคะแนนเฉลี่ยของแต่ละชุดคณะกรรมการ
+// คำนวณคะแนนเฉลี่ยของแต่ละชุดย่อย
 // ==========================================
-async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, groupId) {
+async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroupId) {
     try {
-        // ดึงข้อมูลการประเมินของกรรมการในชุดนี้
         const { data: evalResults, error } = await db
             .from('eval_results')
             .select('*')
@@ -2338,75 +2155,121 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, groupId)
             .eq('status', 'submitted');
 
         if (error) throw error;
+        if (!evalResults || evalResults.length === 0) return null;
 
-        if (!evalResults || evalResults.length === 0) {
-            return null;
-        }
+        const { data: members, error: memError } = await db
+            .from('eval_committee_members')
+            .select('user_id')
+            .eq('committee_group_id', subGroupId)
+            .eq('is_active', true);
 
-        // ✅ ดึงรายชื่อกรรมการในชุดนี้
-        const group = window._committeeGroups?.find(g => g.id === groupId);
-        if (!group) return null;
+        if (memError) throw memError;
 
-        const evaluatorIds = group.evaluator_ids || [];
+        const evaluatorIds = members.map(m => m.user_id);
         const groupResults = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
 
-        if (groupResults.length === 0) {
-            return null;
-        }
+        if (groupResults.length === 0) return null;
 
-        // ✅ คำนวณค่าเฉลี่ยของชุดนี้
-        const totalScores = groupResults.map(r => r.total_score);
-        const averageScore = totalScores.reduce((a, b) => a + b, 0) / totalScores.length;
-
-        // ✅ คำนวณค่าเฉลี่ย detailed scores รายข้อ
+        // ✅ ใช้ MODE แทนค่าเฉลี่ย
         const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
-        const averagedDetails = {};
+        const modeDetails = {};
 
         detailedKeys.forEach(key => {
-            const values = groupResults
-                .filter(r => r.detailed_scores && r.detailed_scores[key])
-                .map(r => {
-                    if (Array.isArray(r.detailed_scores[key])) {
-                        return r.detailed_scores[key];
+            const allScores = [];
+            groupResults.forEach(result => {
+                if (result.detailed_scores && result.detailed_scores[key]) {
+                    const scores = result.detailed_scores[key];
+                    if (Array.isArray(scores)) {
+                        scores.forEach(score => {
+                            if (typeof score === 'number' && !isNaN(score)) {
+                                allScores.push(score);
+                            }
+                        });
+                    } else if (typeof scores === 'number' && !isNaN(scores)) {
+                        allScores.push(scores);
                     }
-                    return [r.detailed_scores[key]];
-                });
-
-            if (values.length > 0) {
-                const maxLength = Math.max(...values.map(v => v.length));
-                const avgValues = [];
-                for (let i = 0; i < maxLength; i++) {
-                    const validValues = values.filter(v => v[i] !== undefined);
-                    if (validValues.length === 0) continue;
-                    const sum = validValues.map(v => v[i]).reduce((a, b) => a + b, 0);
-                    avgValues.push(sum / validValues.length);
                 }
-                averagedDetails[key] = avgValues;
+            });
+            if (allScores.length > 0) {
+                const modeScore = findMode(allScores);
+                if (modeScore !== null) {
+                    modeDetails[key] = modeScore;
+                }
             }
         });
 
+        // คำนวณคะแนนรวมจาก Mode
+        const totalScore = calculateTotalScoreFromModeDetails(modeDetails);
+
         return {
-            group_id: groupId,
-            group_name: group.group_name,
+            sub_group_id: subGroupId,
             evaluator_count: groupResults.length,
-            average_score: averageScore,
-            detailed_scores: averagedDetails,
-            all_scores: totalScores,
+            mode_score: totalScore,
+            detailed_scores: modeDetails,
+            all_scores: groupResults.map(r => r.total_score),
             evaluators: groupResults.map(r => r.evaluator_id)
         };
 
     } catch (err) {
-        console.error('Error calculating committee group average:', err);
+        console.error('Error calculating committee group average (Mode):', err);
         return null;
     }
 }
 
 // ==========================================
-// คำนวณคะแนนเฉลี่ยรวมจากทุกชุดคณะกรรมการ
+// คำนวณคะแนนรวมจาก Mode Details
+// ==========================================
+function calculateTotalScoreFromModeDetails(modeDetails) {
+    // ต้องใช้ evaluateeData ที่โหลดไว้แล้ว
+    const academic = evaluateeData?.academic_standing || 'ครู';
+    const isAssistant = academic === 'ครูผู้ช่วย';
+
+    let part1Total = 0;
+    let part2Total = 0;
+    let part3Total = 0;
+
+    // องค์ประกอบที่ 1
+    if (modeDetails.p1_s1 !== undefined) {
+        const p1s1Mode = modeDetails.p1_s1;
+        if (isAssistant) {
+            part1Total += (p1s1Mode * 80) / 56;
+        } else {
+            part1Total += (p1s1Mode / 60) * 60;
+        }
+    }
+
+    if (modeDetails.p1_s2 !== undefined) {
+        const p1s2Mode = modeDetails.p1_s2;
+        part1Total += (p1s2Mode * 20) / 40;
+    }
+
+    // องค์ประกอบที่ 2
+    if (modeDetails.p2 !== undefined) {
+        part2Total = modeDetails.p2 * 2;
+    }
+
+    // องค์ประกอบที่ 3
+    if (modeDetails.p3 !== undefined) {
+        if (Array.isArray(modeDetails.p3)) {
+            const sumP3 = modeDetails.p3.reduce((a, b) => a + b, 0);
+            part3Total = sumP3 / 4;
+        } else {
+            part3Total = modeDetails.p3 / 4;
+        }
+    }
+
+    return part1Total + part2Total + part3Total;
+}
+
+// ==========================================
+// คำนวณคะแนนเฉลี่ยรวมจากทุกชุดย่อย
+// ==========================================
+// ==========================================
+// คำนวณคะแนนสรุปจากทุกชุดย่อย (ใช้ Mode)
 // ==========================================
 async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
     try {
-        // ✅ ดึงข้อมูลการประเมินทั้งหมด
+        // 1. ดึงผลการประเมินทั้งหมดของผู้ถูกประเมินในรอบนี้
         const { data: evalResults, error } = await db
             .from('eval_results')
             .select('*')
@@ -2421,116 +2284,155 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             return null;
         }
 
-        // ✅ จัดกลุ่มตามชุดกรรมการ
-        const groups = window._committeeGroups || [];
+        // 2. ดึงชุดย่อยทั้งหมดในรอบนี้
+        const { data: subGroups, error: sgError } = await db
+            .from('eval_committee_groups')
+            .select('id, group_name, selected_sub_items')
+            .eq('eval_round_id', evalRoundId)
+            .eq('group_type', 'sub')
+            .eq('is_active', true);
+
+        if (sgError) throw sgError;
+
+        if (!subGroups || subGroups.length === 0) {
+            return null;
+        }
+
+        // 3. คำนวณคะแนน Mode ของแต่ละชุดย่อย
         const groupResults = [];
 
-        for (const group of groups) {
-            const evaluatorIds = group.evaluator_ids || [];
-            const groupEvals = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+        for (const subGroup of subGroups) {
+            // หาสมาชิกในชุดย่อยนี้
+            const { data: members, error: memError } = await db
+                .from('eval_committee_members')
+                .select('user_id')
+                .eq('committee_group_id', subGroup.id)
+                .eq('is_active', true);
+
+            if (memError) throw memError;
+
+            const evaluatorIds = members.map(m => m.user_id);
             
-            if (groupEvals.length > 0) {
-                const scores = groupEvals.map(r => r.total_score);
-                const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-                
-                groupResults.push({
-                    group_id: group.id,
-                    group_name: group.group_name,
-                    evaluator_count: groupEvals.length,
-                    average_score: avg,
-                    all_scores: scores,
-                    evaluators: groupEvals.map(r => r.evaluator_id)
-                });
+            // กรองผลการประเมินของกรรมการในชุดนี้
+            const groupEvals = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+
+            if (groupEvals.length === 0) {
+                // ถ้าไม่มีกรรมการในชุดนี้ประเมิน ให้ข้ามไป
+                continue;
             }
+
+            // ----- คำนวณ Mode ของแต่ละข้อในชุดนี้ -----
+            const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
+            const modeDetails = {};
+
+            detailedKeys.forEach(key => {
+                const allScores = [];
+                
+                groupEvals.forEach(result => {
+                    if (result.detailed_scores && result.detailed_scores[key] !== undefined) {
+                        const scores = result.detailed_scores[key];
+                        if (Array.isArray(scores)) {
+                            // แต่ละคนอาจมีหลายข้อ (เช่น p1_s1 มี 8 ข้อ)
+                            scores.forEach(score => {
+                                if (typeof score === 'number' && !isNaN(score)) {
+                                    allScores.push(score);
+                                }
+                            });
+                        } else if (typeof scores === 'number' && !isNaN(scores)) {
+                            allScores.push(scores);
+                        }
+                    }
+                });
+
+                if (allScores.length > 0) {
+                    const modeScore = findMode(allScores);
+                    if (modeScore !== null) {
+                        modeDetails[key] = modeScore;
+                    }
+                }
+            });
+
+            // คำนวณคะแนนรวมของชุดนี้จาก Mode Details
+            const totalScore = calculateTotalScoreFromModeDetails(modeDetails);
+
+            groupResults.push({
+                sub_group_id: subGroup.id,
+                group_name: subGroup.group_name,
+                evaluator_count: groupEvals.length,
+                mode_score: totalScore,
+                detailed_scores: modeDetails,
+                all_scores: groupEvals.map(r => r.total_score),
+                evaluators: groupEvals.map(r => r.evaluator_id)
+            });
         }
 
         if (groupResults.length === 0) {
             return null;
         }
 
-        // ✅ คำนวณคะแนนเฉลี่ยรวมทุกชุด (ชุดละ 1 คะแนน)
-        const groupAverages = groupResults.map(g => g.average_score);
-        const finalAverage = groupAverages.reduce((a, b) => a + b, 0) / groupAverages.length;
-
-        // ✅ คำนวณ detailed scores เฉลี่ยรวม
+        // 4. รวมคะแนน Mode จากทุกชุดย่อย เพื่อหาคะแนนสรุป final
+        const finalModeDetails = {};
         const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
-        const finalDetailed = {};
 
         detailedKeys.forEach(key => {
-            const allValues = [];
+            const allModes = [];
             
-            for (const group of groupResults) {
-                // ดึง detailed scores ของกลุ่มนี้
-                const groupEvals = evalResults.filter(r => 
-                    group.evaluators.includes(r.evaluator_id) && 
-                    r.detailed_scores && 
-                    r.detailed_scores[key]
-                );
-                
-                if (groupEvals.length > 0) {
-                    // เฉลี่ย detailed scores ภายในกลุ่มก่อน
-                    const values = groupEvals.map(r => {
-                        if (Array.isArray(r.detailed_scores[key])) {
-                            return r.detailed_scores[key];
-                        }
-                        return [r.detailed_scores[key]];
-                    });
-                    
-                    const maxLen = Math.max(...values.map(v => v.length));
-                    const avgValues = [];
-                    for (let i = 0; i < maxLen; i++) {
-                        const valid = values.filter(v => v[i] !== undefined);
-                        if (valid.length > 0) {
-                            const sum = valid.map(v => v[i]).reduce((a, b) => a + b, 0);
-                            avgValues.push(sum / valid.length);
-                        }
-                    }
-                    allValues.push(avgValues);
+            groupResults.forEach(g => {
+                if (g.detailed_scores && g.detailed_scores[key] !== undefined) {
+                    allModes.push(g.detailed_scores[key]);
                 }
-            }
+            });
 
-            if (allValues.length > 0) {
-                // เฉลี่ยระหว่างกลุ่ม
-                const maxLen = Math.max(...allValues.map(v => v.length));
-                const finalValues = [];
-                for (let i = 0; i < maxLen; i++) {
-                    const valid = allValues.filter(v => v[i] !== undefined);
-                    if (valid.length > 0) {
-                        const sum = valid.map(v => v[i]).reduce((a, b) => a + b, 0);
-                        finalValues.push(sum / valid.length);
-                    }
+            if (allModes.length > 0) {
+                // หา Mode ของ Mode ที่ได้จากทุกชุด
+                const finalMode = findMode(allModes);
+                if (finalMode !== null) {
+                    finalModeDetails[key] = finalMode;
                 }
-                finalDetailed[key] = finalValues;
             }
         });
 
+        // คำนวณคะแนนรวมสุดท้ายจาก finalModeDetails
+        const finalTotal = calculateTotalScoreFromModeDetails(finalModeDetails);
+
+        // 5. สรุปผลลัพธ์
         return {
             total_evaluators: evalResults.length,
             committee_groups: groupResults.length,
-            final_average: finalAverage,
-            group_averages: groupResults,
-            detailed_scores: finalDetailed,
+            final_score: finalTotal,
+            group_averages: groupResults.map(g => ({
+                group_name: g.group_name,
+                mode_score: g.mode_score,
+                evaluator_count: g.evaluator_count,
+                detailed_scores: g.detailed_scores
+            })),
+            detailed_scores: finalModeDetails,
+            all_evaluator_scores: evalResults.map(r => ({
+                evaluator_id: r.evaluator_id,
+                total_score: r.total_score,
+                detailed_scores: r.detailed_scores
+            })),
             status: 'finalized'
         };
 
     } catch (err) {
-        console.error('Error calculating final average:', err);
+        console.error('Error calculating final average (Mode):', err);
         return null;
     }
 }
 
 // ==========================================
-// บันทึกคะแนนสรุป final
+// บันทึกคะแนนสรุป final (ใช้ Mode)
 // ==========================================
 async function saveFinalScore(evaluateeId, evalRoundId) {
     Swal.fire({
-        title: 'กำลังคำนวณคะแนนสรุป...',
+        title: 'กำลังคำนวณคะแนนสรุป (โหมดคะแนน)...',
         allowOutsideClick: false,
         didOpen: () => Swal.showLoading()
     });
 
     try {
-        // ✅ คำนวณคะแนนเฉลี่ยจากทุกชุด
+        // 1. คำนวณคะแนนแบบ Mode
         const finalResult = await calculateFinalAverageScore(evaluateeId, evalRoundId);
 
         if (!finalResult) {
@@ -2538,28 +2440,32 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
             return Swal.fire('แจ้งเตือน', 'ยังไม่มีข้อมูลการประเมินจากกรรมการ', 'warning');
         }
 
-        // ✅ เตรียมข้อมูลสำหรับบันทึก
+        // 2. ตรวจสอบว่ามีคะแนนอย่างน้อย 1 ชุด
+        if (finalResult.committee_groups === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลการประเมินจากกรรมการในชุดใดเลย', 'warning');
+        }
+
+        // 3. เตรียมข้อมูลสำหรับบันทึก
         const payload = {
             evaluatee_id: evaluateeId,
             eval_round_id: evalRoundId,
             evaluator_count: finalResult.total_evaluators,
             committee_group_count: finalResult.committee_groups,
-            average_score: finalResult.final_average,
+            average_score: finalResult.final_score,  // คะแนนสรุปแบบ Mode
             detailed_scores: finalResult.detailed_scores,
             all_committee_scores: finalResult.group_averages.map(g => ({
                 group_name: g.group_name,
-                average: g.average_score,
-                evaluator_count: g.evaluator_count
+                mode_score: g.mode_score,
+                evaluator_count: g.evaluator_count,
+                detailed_scores: g.detailed_scores
             })),
-            all_detailed_scores: finalResult.group_averages.map(g => ({
-                group_name: g.group_name,
-                details: g.detailed_scores
-            })),
+            all_evaluator_scores: finalResult.all_evaluator_scores || [],
             status: 'finalized',
             updated_at: new Date().toISOString()
         };
 
-        // ✅ ตรวจสอบว่ามีข้อมูลเดิมหรือไม่
+        // 4. ตรวจสอบว่ามีข้อมูลเดิมหรือไม่
         const { data: existing, error: checkError } = await db
             .from('eval_final_results')
             .select('id')
@@ -2569,9 +2475,10 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
 
         if (checkError) throw checkError;
 
+        // 5. บันทึกหรืออัปเดตข้อมูล
         let result;
         if (existing) {
-            // ✅ อัปเดต
+            // อัปเดตข้อมูลเดิม
             const { data, error: updateError } = await db
                 .from('eval_final_results')
                 .update(payload)
@@ -2581,7 +2488,7 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
             if (updateError) throw updateError;
             result = data;
         } else {
-            // ✅ สร้างใหม่
+            // สร้างข้อมูลใหม่
             const { data, error: insertError } = await db
                 .from('eval_final_results')
                 .insert([payload])
@@ -2593,35 +2500,74 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
 
         Swal.close();
 
-        // ✅ แสดงผลสรุป
-        const groupDetails = finalResult.group_averages.map(g =>
-            `📌 ${g.group_name}: ${g.average_score.toFixed(2)} (${g.evaluator_count} ท่าน)`
-        ).join('\n');
+        // 6. แสดงผลลัพธ์ให้ผู้ใช้เห็น
+        const levelText = getLevelText(finalResult.final_score);
+        
+        // สร้างรายละเอียดแต่ละชุด
+        let groupDetailsHtml = '';
+        finalResult.group_averages.forEach(g => {
+            groupDetailsHtml += `
+                <div class="flex justify-between items-center text-sm border-b border-gray-100 py-2">
+                    <span class="text-gray-600">${g.group_name}</span>
+                    <span class="font-bold text-blue-600">${g.mode_score.toFixed(2)}</span>
+                    <span class="text-xs text-gray-400">(${g.evaluator_count} ท่าน)</span>
+                </div>
+            `;
+        });
+
+        // แสดงรายละเอียดแต่ละองค์ประกอบ
+        let detailScoresHtml = '';
+        if (finalResult.detailed_scores) {
+            const details = finalResult.detailed_scores;
+            if (details.p1_s1 !== undefined) {
+                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 1 (ตอนที่ 1):</span><span class="font-bold">${details.p1_s1}</span></div>`;
+            }
+            if (details.p1_s2 !== undefined) {
+                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 1 (ตอนที่ 2):</span><span class="font-bold">${details.p1_s2}</span></div>`;
+            }
+            if (details.p2 !== undefined) {
+                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 2:</span><span class="font-bold">${details.p2}</span></div>`;
+            }
+            if (details.p3 !== undefined) {
+                const p3Display = Array.isArray(details.p3) ? details.p3.join(', ') : details.p3;
+                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 3:</span><span class="font-bold">${p3Display}</span></div>`;
+            }
+        }
 
         await Swal.fire({
             icon: 'success',
             title: '✅ บันทึกผลสรุปสำเร็จ!',
             html: `
                 <div class="text-left space-y-3">
-                    <div class="bg-blue-50 p-4 rounded-xl">
-                        <p class="text-sm text-gray-500">คะแนนเฉลี่ยรวมทุกชุด</p>
-                        <p class="text-3xl font-bold text-blue-600">${finalResult.final_average.toFixed(2)}</p>
+                    <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                        <p class="text-sm text-gray-500">คะแนนสรุป (โหมดคะแนน)</p>
+                        <p class="text-3xl font-bold text-blue-600">${finalResult.final_score.toFixed(2)}</p>
+                        <p class="text-sm mt-1">
+                            <span class="px-2 py-1 rounded-full text-xs font-bold ${levelText.color}">
+                                ${levelText.text}
+                            </span>
+                        </p>
                     </div>
-                    <div class="bg-gray-50 p-4 rounded-xl">
-                        <p class="text-sm text-gray-500">รายละเอียดแต่ละชุด</p>
-                        <div class="mt-2 space-y-1">
-                            ${finalResult.group_averages.map(g => `
-                                <div class="flex justify-between text-sm">
-                                    <span>${g.group_name}</span>
-                                    <span class="font-bold">${g.average_score.toFixed(2)}</span>
-                                </div>
-                            `).join('')}
-                        </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <p class="text-sm font-medium text-gray-600 mb-2">📊 รายละเอียดแต่ละชุด:</p>
+                        ${groupDetailsHtml}
                     </div>
-                    <p class="text-xs text-gray-400">จำนวนกรรมการทั้งหมด: ${finalResult.total_evaluators} ท่าน | ${finalResult.committee_groups} ชุด</p>
+
+                    <div class="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        <p class="text-sm font-medium text-gray-600 mb-2">📋 คะแนน Mode แต่ละองค์ประกอบ:</p>
+                        ${detailScoresHtml || '<p class="text-xs text-gray-400">ไม่มีข้อมูล</p>'}
+                    </div>
+
+                    <div class="flex justify-between text-xs text-gray-400 border-t border-gray-100 pt-2">
+                        <span>👥 กรรมการทั้งหมด: ${finalResult.total_evaluators} ท่าน</span>
+                        <span>📦 จำนวนชุด: ${finalResult.committee_groups} ชุด</span>
+                    </div>
                 </div>
             `,
-            confirmButtonText: 'ตกลง'
+            confirmButtonText: '✅ ตกลง',
+            confirmButtonColor: '#3b82f6',
+            width: '600px'
         });
 
         return result;
@@ -2629,7 +2575,19 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
     } catch (err) {
         console.error('Error saving final score:', err);
         Swal.close();
-        Swal.fire('ผิดพลาด', err.message, 'error');
+        
+        let errorMessage = err.message || 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ';
+        if (errorMessage.includes('duplicate key')) {
+            errorMessage = 'พบข้อมูลซ้ำ กรุณาลองใหม่อีกครั้ง';
+        }
+        
+        await Swal.fire({
+            icon: 'error',
+            title: '❌ ผิดพลาด',
+            text: errorMessage,
+            confirmButtonText: 'ตกลง'
+        });
+        
         return null;
     }
 }
@@ -2639,7 +2597,6 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
 // ==========================================
 async function displayFinalScoreSummary(evaluateeId, evalRoundId) {
     try {
-        // ✅ ดึงข้อมูลจาก eval_final_results
         const { data: finalResult, error } = await db
             .from('eval_final_results')
             .select('*')
@@ -2733,133 +2690,6 @@ async function displayFinalScoreSummary(evaluateeId, evalRoundId) {
 }
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
-// ==========================================
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ใช่, ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace('login.html');
-    }
-}
-
-// ==========================================
-// เปิด Modal แสดงรายละเอียด
-// ==========================================
-async function openEvalDetailModal(evaluateeId, evalRoundId) {
-    try {
-        const modal = document.getElementById('evalDetailModal');
-        modal.classList.remove('hidden');
-        
-        // โหลดข้อมูลผู้ถูกประเมิน
-        const { data: user } = await db
-            .from('core_personnel')
-            .select('*')
-            .eq('id', evaluateeId)
-            .single();
-            
-        if (user) {
-            document.getElementById('evalDetailUserInitial').innerText = user.first_name?.charAt(0) || '-';
-            document.getElementById('evalDetailUserName').innerText = `${user.first_name} ${user.last_name}`;
-            document.getElementById('evalDetailUserStanding').innerText = user.academic_standing || 'ไม่มีวิทยฐานะ';
-        }
-        
-        // โหลดข้อมูลสรุป
-        const result = await displayFinalScoreSummary(evaluateeId, evalRoundId);
-        document.getElementById('evalDetailFinalScore').innerHTML = result.html;
-        
-        // เก็บค่าไว้ใช้กับปุ่มคำนวณใหม่
-        window._modalEvaluateeId = evaluateeId;
-        window._modalEvalRoundId = evalRoundId;
-        
-    } catch (err) {
-        console.error('Error opening modal:', err);
-        document.getElementById('evalDetailFinalScore').innerHTML = 
-            '<p class="text-red-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
-    }
-}
-
-// ==========================================
-// ปิด Modal
-// ==========================================
-function closeEvalDetailModal() {
-    document.getElementById('evalDetailModal').classList.add('hidden');
-}
-
-// ==========================================
-// บันทึกคะแนนจาก Modal
-// ==========================================
-async function saveFinalScoreFromModal() {
-    const evaluateeId = window._modalEvaluateeId;
-    const evalRoundId = window._modalEvalRoundId;
-    if (evaluateeId && evalRoundId) {
-        await saveFinalScore(evaluateeId, evalRoundId);
-        // โหลดข้อมูลใหม่
-        await openEvalDetailModal(evaluateeId, evalRoundId);
-    }
-}
-
-// ==========================================
-// พิมพ์ผลสรุป
-// ==========================================
-function printFinalScore() {
-    window.print();
-}
-
-// ==========================================
-// ส่งออก Excel (ต้องใช้ XLSX library)
-// ==========================================
-async function exportFinalScores() {
-    try {
-        const { data: results, error } = await db
-            .from('eval_final_results')
-            .select('*, core_personnel(first_name, last_name, academic_standing)')
-            .eq('eval_round_id', currentEvalRound?.id)
-            .eq('status', 'finalized');
-
-        if (error) throw error;
-
-        if (!results || results.length === 0) {
-            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลที่สรุปผลแล้ว', 'warning');
-        }
-
-        // เตรียมข้อมูลสำหรับ Excel
-        const excelData = results.map(r => ({
-            'ชื่อ-สกุล': `${r.core_personnel?.first_name || ''} ${r.core_personnel?.last_name || ''}`,
-            'วิทยฐานะ': r.core_personnel?.academic_standing || '-',
-            'คะแนนเฉลี่ย': r.average_score?.toFixed(2) || '0.00',
-            'จำนวนกรรมการ': r.evaluator_count || 0,
-            'จำนวนชุด': r.committee_group_count || 0,
-            'ระดับคุณภาพ': getLevelText(r.average_score),
-            'สถานะ': r.status === 'finalized' ? '✅ สรุปแล้ว' : '⏳ รอสรุป'
-        }));
-
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.json_to_sheet(excelData);
-        XLSX.utils.book_append_sheet(wb, ws, 'ผลสรุปการประเมิน');
-        XLSX.writeFile(wb, `ผลสรุปการประเมิน_${new Date().toLocaleDateString('th-TH')}.xlsx`);
-
-    } catch (err) {
-        console.error('Error exporting:', err);
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-function getLevelText(score) {
-    if (score >= 80) return 'ดีมาก';
-    if (score >= 70) return 'ดี';
-    if (score >= 60) return 'พอใช้';
-    return 'ควรปรับปรุง';
-}
-
-// ==========================================
 // สรุปผลคะแนนทั้งหมดสำหรับ Admin
 // ==========================================
 async function generateAllFinalScores(evalRoundId) {
@@ -2874,7 +2704,6 @@ async function generateAllFinalScores(evalRoundId) {
     });
 
     try {
-        // ✅ ดึงรายชื่อผู้ถูกประเมินทั้งหมดในรอบนี้
         const { data: evalResults, error } = await db
             .from('eval_results')
             .select('evaluatee_id')
@@ -2901,7 +2730,6 @@ async function generateAllFinalScores(evalRoundId) {
                     successCount++;
                 } else {
                     failCount++;
-                    // ดึงชื่อผู้ถูกประเมิน
                     const { data: user } = await db
                         .from('core_personnel')
                         .select('first_name, last_name')
@@ -2951,34 +2779,168 @@ async function generateAllFinalScores(evalRoundId) {
 }
 
 // ==========================================
+// เปิด Modal แสดงรายละเอียด
+// ==========================================
+async function openEvalDetailModal(evaluateeId, evalRoundId) {
+    try {
+        const modal = document.getElementById('evalDetailModal');
+        modal.classList.remove('hidden');
+
+        const { data: user } = await db
+            .from('core_personnel')
+            .select('*')
+            .eq('id', evaluateeId)
+            .single();
+
+        if (user) {
+            document.getElementById('evalDetailUserInitial').innerText = user.first_name?.charAt(0) || '-';
+            document.getElementById('evalDetailUserName').innerText = `${user.first_name} ${user.last_name}`;
+            document.getElementById('evalDetailUserStanding').innerText = user.academic_standing || 'ไม่มีวิทยฐานะ';
+        }
+
+        const result = await displayFinalScoreSummary(evaluateeId, evalRoundId);
+        document.getElementById('evalDetailFinalScore').innerHTML = result.html;
+
+        window._modalEvaluateeId = evaluateeId;
+        window._modalEvalRoundId = evalRoundId;
+
+    } catch (err) {
+        console.error('Error opening modal:', err);
+        document.getElementById('evalDetailFinalScore').innerHTML =
+            '<p class="text-red-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
+    }
+}
+
+// ==========================================
+// ปิด Modal
+// ==========================================
+function closeEvalDetailModal() {
+    document.getElementById('evalDetailModal').classList.add('hidden');
+}
+
+// ==========================================
+// บันทึกคะแนนจาก Modal
+// ==========================================
+async function saveFinalScoreFromModal() {
+    const evaluateeId = window._modalEvaluateeId;
+    const evalRoundId = window._modalEvalRoundId;
+    if (evaluateeId && evalRoundId) {
+        await saveFinalScore(evaluateeId, evalRoundId);
+        await openEvalDetailModal(evaluateeId, evalRoundId);
+    }
+}
+
+// ==========================================
+// พิมพ์ผลสรุป
+// ==========================================
+function printFinalScore() {
+    window.print();
+}
+
+// ==========================================
+// ส่งออก Excel
+// ==========================================
+async function exportFinalScores() {
+    try {
+        const { data: results, error } = await db
+            .from('eval_final_results')
+            .select('*, core_personnel(first_name, last_name, academic_standing)')
+            .eq('eval_round_id', currentEvalRound?.id)
+            .eq('status', 'finalized');
+
+        if (error) throw error;
+
+        if (!results || results.length === 0) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลที่สรุปผลแล้ว', 'warning');
+        }
+
+        const excelData = results.map(r => ({
+            'ชื่อ-สกุล': `${r.core_personnel?.first_name || ''} ${r.core_personnel?.last_name || ''}`,
+            'วิทยฐานะ': r.core_personnel?.academic_standing || '-',
+            'คะแนนเฉลี่ย': r.average_score?.toFixed(2) || '0.00',
+            'จำนวนกรรมการ': r.evaluator_count || 0,
+            'จำนวนชุด': r.committee_group_count || 0,
+            'ระดับคุณภาพ': getLevelText(r.average_score),
+            'สถานะ': r.status === 'finalized' ? '✅ สรุปแล้ว' : '⏳ รอสรุป'
+        }));
+
+        const wb = XLSX.utils.book_new();
+        const ws = XLSX.utils.json_to_sheet(excelData);
+        XLSX.utils.book_append_sheet(wb, ws, 'ผลสรุปการประเมิน');
+        XLSX.writeFile(wb, `ผลสรุปการประเมิน_${new Date().toLocaleDateString('th-TH')}.xlsx`);
+
+    } catch (err) {
+        console.error('Error exporting:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// ฟังก์ชันแสดงระดับคุณภาพ
+// ==========================================
+function getLevelText(score) {
+    if (score >= 80) {
+        return { 
+            text: 'ดีมาก', 
+            color: 'bg-emerald-100 text-emerald-700 border-emerald-200' 
+        };
+    }
+    if (score >= 70) {
+        return { 
+            text: 'ดี', 
+            color: 'bg-blue-100 text-blue-700 border-blue-200' 
+        };
+    }
+    if (score >= 60) {
+        return { 
+            text: 'พอใช้', 
+            color: 'bg-yellow-100 text-yellow-700 border-yellow-200' 
+        };
+    }
+    return { 
+        text: 'ควรปรับปรุง', 
+        color: 'bg-red-100 text-red-700 border-red-200' 
+    };
+}
+
+// ==========================================
+// LOGOUT
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+}
+
+// ==========================================
 // EXPOSE GLOBAL FUNCTIONS
 // ==========================================
 
-window.loadTeachersForEval = loadTeachersForEval;
+window.loadTeachersForEvalBySubGroup = loadTeachersForEvalBySubGroup;
 window.startEvaluation = startEvaluation;
 window.changeStep = changeStep;
 window.submitEvaluation = submitEvaluation;
 window.startEditEvaluation = startEditEvaluation;
 window.logout = logout;
-window.onCommitteeGroupChange = onCommitteeGroupChange;
 window.destroyDataTableSafely = destroyDataTableSafely;
 window.initializeDataTableSafely = initializeDataTableSafely;
 window.calculateLiveTotal = calculateLiveTotal;
 window.updateSummary = updateSummary;
-
-// ==========================================
-// EXPOSE FINAL SCORE FUNCTIONS
-// ==========================================
 
 window.calculateCommitteeGroupAverage = calculateCommitteeGroupAverage;
 window.calculateFinalAverageScore = calculateFinalAverageScore;
 window.saveFinalScore = saveFinalScore;
 window.displayFinalScoreSummary = displayFinalScoreSummary;
 window.generateAllFinalScores = generateAllFinalScores;
-
-// ==========================================
-// EXPOSE ADDITIONAL FUNCTIONS
-// ==========================================
 
 window.openEvalDetailModal = openEvalDetailModal;
 window.closeEvalDetailModal = closeEvalDetailModal;
