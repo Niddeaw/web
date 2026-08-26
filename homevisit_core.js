@@ -452,8 +452,9 @@ async function onClassroomSelected(classroomId) {
     window.currentClassroomId = classroomId;
     document.getElementById('no-classroom-selected')?.classList.add('hidden');
     document.getElementById('homeVisitForm')?.classList.remove('hidden');
-    await loadStudentsForClassroom(classroomId);
+    // ✅ Bug #3 Fix: reset badge ก่อน loadStudents เพื่อไม่ให้ทับ badge ที่ loadExistingHomeVisit ตั้งไว้
     updateStatusBadge('empty');
+    await loadStudentsForClassroom(classroomId);
     goToStep(1);
 }
 
@@ -700,12 +701,13 @@ function clearStudentInfo() {
     const timesInput = document.getElementById('visit_times');
     if (timesInput) timesInput.value = '1';
 
-if (window.map && window.marker) {
-    window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
-    window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
-    if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
-    if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
-}
+    // ✅ Bug #5 Fix: แก้ indentation ให้อยู่ภายใน clearStudentInfo อย่างถูกต้อง
+    if (window.map && window.marker) {
+        window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
+        window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+        if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
+        if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
+    }
 
     suppressDirty = false;
 }
@@ -1084,6 +1086,9 @@ function buildFormData(studentId, classroomId) {
 
 async function autoSaveIfDirty() {
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return false;
+    // ✅ Bug #4 Fix: ป้องกัน race condition กับ autoSaveStep
+    if (isAutoSaving) return false;
+    isAutoSaving = true;
     try {
         const formData = buildFormData(currentStudentId, window.currentClassroomId);
         const { data: existingRecords } = await db
@@ -1110,6 +1115,9 @@ async function autoSaveIfDirty() {
     } catch (err) {
         console.warn('Auto-save failed:', err);
         return false;
+    } finally {
+        // ✅ Bug #4 Fix: คืนค่า flag เสมอ ไม่ว่าจะสำเร็จหรือไม่
+        isAutoSaving = false;
     }
 }
 

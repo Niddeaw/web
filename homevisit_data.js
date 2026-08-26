@@ -59,7 +59,9 @@ async function getPersonnelMap() {
     return personnelCache;
 }
 
-async function updateStatusBadge(status) {
+// ⚠️ ชื่อเดิมคือ updateStatusBadge — เปลี่ยนเพื่อไม่ทับฟังก์ชันใน homevisit_core.js
+// ฟังก์ชันนี้จะแสดงสถานะ + ชื่อครูที่ปรึกษา (ใช้เฉพาะใน homevisit_student.html)
+async function _updateStatusBadgeWithTeachers(status) {
     const badge = document.getElementById('status-badge');
     const text = document.getElementById('status-text');
     if (!badge || !text) return;
@@ -2888,12 +2890,23 @@ function getCompletenessStatus(visit) {
 
     const missing = [];
 
+    // ✅ Bug #2 Fix: helper แปลง string/number/null → number หรือ undefined
+    // buildFormData เก็บ family_members เป็น string จาก getVal() เสมอ
+    // ดังนั้นต้องใช้ toNum() เพื่อแปลงก่อนเปรียบเทียบ
+    const toNum = (v) => {
+        if (v === undefined || v === null || v === '') return undefined;
+        const n = parseFloat(v);
+        return isNaN(n) ? undefined : n;
+    };
+    // helper ตรวจว่าค่าตัวเลขถูกกรอกหรือไม่ (รวม 0 ถือว่ากรอกแล้ว)
+    const hasNum = (v) => toNum(v) !== undefined;
+
     // Step 1
     if (!visit.visit_date) missing.push('วันที่เยี่ยมบ้าน');
     if (!visit.visit_times) missing.push('ครั้งที่');
     if (!visit.student_nickname?.trim()) missing.push('ชื่อเล่น');
     if (!visit.student_phone?.trim()) missing.push('เบอร์โทรศัพท์นักเรียน');
-    if (!visit.student_line?.trim()) missing.push('ID Line');
+    // ✅ ลบ student_line — ID Line เป็น optional ไม่ใช่ทุกคนมี Line
 
     if (!visit.father_name?.trim()) missing.push('ชื่อบิดา');
     if (!visit.father_job?.trim()) missing.push('อาชีพบิดา');
@@ -2919,7 +2932,8 @@ function getCompletenessStatus(visit) {
     if (!visit.zipcode?.trim()) missing.push('รหัสไปรษณีย์');
     if (!visit.latitude || !visit.longitude) missing.push('พิกัด GPS');
     if (!visit.house_type?.trim()) missing.push('ประเภทบ้าน');
-    if (visit.travel_hour === undefined || visit.travel_minute === undefined) missing.push('เวลาเดินทาง');
+    // ✅ Bug #2 Fix: travel_hour=0 ถือว่ากรอกแล้ว (ต้องใช้ hasNum ไม่ใช่ === undefined)
+    if (!hasNum(visit.travel_hour) || !hasNum(visit.travel_minute)) missing.push('เวลาเดินทาง');
     if (!visit.travel_method?.trim()) missing.push('วิธีการเดินทาง');
     if (!visit.env_house_status?.trim()) missing.push('สภาพตัวบ้าน');
     if (!visit.env_clean_status?.trim()) missing.push('ความสะอาด');
@@ -2929,27 +2943,32 @@ function getCompletenessStatus(visit) {
     if (!visit.utility_toilet) missing.push('ห้องสุขา');
 
     // Step 3
+    // ✅ Bug #2 Fix: ใช้ toNum/hasNum เพราะ buildFormData เก็บค่าเป็น string จาก getVal()
+    // "0" (string) != 0 (number) ทำให้ตรวจสอบผิดพลาดเมื่อค่าเป็น 0
     const fm = visit.family_members || {};
-    if (!fm.total) missing.push('สมาชิกในครอบครัว (รวม)');
-    if (fm.male === undefined || fm.male === null) missing.push('สมาชิกชาย');
-    if (fm.female === undefined || fm.female === null) missing.push('สมาชิกหญิง');
-    if (!fm.sib_same_total && fm.sib_same_total !== 0) missing.push('พี่น้องร่วมบิดามารดา (รวม)');
-    if (fm.sib_same_male === undefined) missing.push('พี่น้องร่วมฯ ชาย');
-    if (fm.sib_same_female === undefined) missing.push('พี่น้องร่วมฯ หญิง');
-    if (!fm.sib_diff_total && fm.sib_diff_total !== 0) missing.push('พี่น้องต่างบิดามารดา (รวม)');
-    if (fm.sib_diff_male === undefined) missing.push('พี่น้องต่างฯ ชาย');
-    if (fm.sib_diff_female === undefined) missing.push('พี่น้องต่างฯ หญิง');
+    if (!hasNum(fm.total))         missing.push('สมาชิกในครอบครัว (รวม)');
+    if (!hasNum(fm.male))          missing.push('สมาชิกชาย');
+    if (!hasNum(fm.female))        missing.push('สมาชิกหญิง');
+    if (!hasNum(fm.sib_same_total)) missing.push('พี่น้องร่วมบิดามารดา (รวม)');
+    if (!hasNum(fm.sib_same_male)) missing.push('พี่น้องร่วมฯ ชาย');
+    if (!hasNum(fm.sib_same_female)) missing.push('พี่น้องร่วมฯ หญิง');
+    if (!hasNum(fm.sib_diff_total)) missing.push('พี่น้องต่างบิดามารดา (รวม)');
+    if (!hasNum(fm.sib_diff_male)) missing.push('พี่น้องต่างฯ ชาย');
+    if (!hasNum(fm.sib_diff_female)) missing.push('พี่น้องต่างฯ หญิง');
 
     const eco = visit.economic_data || {};
-    if (!eco.income && eco.income !== 0) missing.push('รายได้ครอบครัวต่อเดือน');
+    // ✅ Bug #2 Fix: eco.income อาจเป็น string "15000" จาก getVal() ต้องใช้ hasNum
+    if (!hasNum(eco.income)) missing.push('รายได้ครอบครัวต่อเดือน');
     if (!eco.allowance_source?.trim()) missing.push('นักเรียนได้รับค่าใช้จ่ายจาก');
-    if (!eco.student_job_name?.trim()) missing.push('อาชีพนักเรียน (ถ้ามี)');
-    if (!eco.student_job_income && eco.student_job_income !== 0) missing.push('รายได้นักเรียนต่อวัน');
-    if (!eco.money_to_school && eco.money_to_school !== 0) missing.push('เงินไปโรงเรียนต่อวัน');
+    // ✅ ลบ student_job_name — optional (ไม่ใช่ทุกคนมีอาชีพเสริม)
+    // ✅ Bug #2 Fix: eco.student_job_income และ money_to_school ใช้ hasNum
+    if (!hasNum(eco.student_job_income)) missing.push('รายได้นักเรียนต่อวัน');
+    if (!hasNum(eco.money_to_school)) missing.push('เงินไปโรงเรียนต่อวัน');
 
     const fRel = visit.family_relations || {};
     if (!fRel.status?.trim()) missing.push('ความสัมพันธ์ในครอบครัว');
-    if (!fRel.time_together && fRel.time_together !== 0) missing.push('เวลาอยู่ร่วมกันต่อวัน');
+    // ✅ Bug #2 Fix: time_together อาจเป็น string "3" ต้องใช้ hasNum
+    if (!hasNum(fRel.time_together)) missing.push('เวลาอยู่ร่วมกันต่อวัน');
 
     if (!visit.special_help_details?.trim()) missing.push('กรณีต้องการการช่วยเหลือพิเศษ');
     if (!visit.responsibilities_details?.trim()) missing.push('ภาระงานรับผิดชอบ');
