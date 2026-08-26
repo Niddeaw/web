@@ -606,10 +606,11 @@ async function deleteRound(roundId) {
 }
 
 // ==========================================
-// TAB 2: คณะกรรมการ
+// TAB 2: คณะกรรมการ (Responsive)
 // ==========================================
 async function loadGroupsTable() {
     const tbody = document.getElementById('tb-groups');
+    const mobileContainer = document.getElementById('groupsMobileContainer');
     if (!tbody) return;
 
     // ทำลาย DataTable เก่า
@@ -629,17 +630,28 @@ async function loadGroupsTable() {
     await loadGroups(roundId);
 
     if (filteredGroups.length === 0) {
-        tbody.innerHTML = `
+        const emptyMsg = `
             <tr>
                 <td colspan="8" class="text-center py-8 text-gray-400">
                     <i class="fa-solid fa-info-circle mr-2"></i>ยังไม่มีคณะกรรมการ${roundId ? ' ในรอบนี้' : ''}
                 </td>
             </tr>
         `;
+        tbody.innerHTML = emptyMsg;
+        if (mobileContainer) {
+            mobileContainer.innerHTML = `
+                <div class="text-center py-8 text-gray-400 bg-white rounded-xl border border-gray-200 p-6">
+                    <i class="fa-solid fa-info-circle text-2xl mb-2"></i>
+                    <p>ยังไม่มีคณะกรรมการ${roundId ? ' ในรอบนี้' : ''}</p>
+                </div>
+            `;
+        }
         return;
     }
 
     let html = '';
+    let mobileHtml = '';
+
     for (const group of filteredGroups) {
         const isActive = group.is_active !== false;
         const statusBadge = isActive
@@ -677,20 +689,34 @@ async function loadGroupsTable() {
             if (parent) parentName = parent.group_name;
         }
 
+        // ✅ ฟังก์ชันตัดข้อความ
+        function truncateText(text, maxLength = 40) {
+            if (!text || text === '-') return text;
+            return text.length > maxLength ? text.substring(0, maxLength) + '...' : text;
+        }
+
+        // ✅ ข้อความที่ตัดแล้ว + เตรียม tooltip
+        const subItemsDisplay = truncateText(subItemsText, 35);
+        const membersDisplay = truncateText(memberNames.join(', '), 35);
+        const targetsDisplay = truncateText(targetNames, 35);
+        const groupNameDisplay = truncateText(group.group_name || '-', 25);
+        const parentNameDisplay = truncateText(parentName, 20);
+
+        // ✅ Desktop Table Row
         html += `
             <tr>
-                <td class="font-medium">${group.group_name || '-'}</td>
+                <td class="font-medium" title="${group.group_name || '-'}">${groupNameDisplay}</td>
                 <td class="text-center">
                     <span class="px-2 py-1 rounded-full text-xs font-bold ${group.group_type === 'main' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}">
                         ${group.group_type === 'main' ? 'ชุดหลัก' : 'ชุดย่อย'}
                     </span>
                 </td>
-                <td>${parentName}</td>
-                <td class="text-sm">${subItemsText}</td>
-                <td class="text-sm">${memberNames.join(', ') || '-'}</td>
-                <td class="text-sm">${targetNames}</td>
+                <td title="${parentName}">${parentNameDisplay}</td>
+                <td class="text-sm" title="${subItemsText}">${subItemsDisplay}</td>
+                <td class="text-sm" title="${memberNames.join(', ')}">${membersDisplay || '-'}</td>
+                <td class="text-sm" title="${targetNames}">${targetsDisplay}</td>
                 <td class="text-center">${statusBadge}</td>
-                <td class="text-center">
+                <td class="text-center whitespace-nowrap">
                     <button onclick="editGroup('${group.id}')" 
                             class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
                         <i class="fa-solid fa-pen-to-square mr-1"></i>แก้ไข
@@ -706,33 +732,108 @@ async function loadGroupsTable() {
                 </td>
             </tr>
         `;
+
+        // ✅ Mobile Card View
+        const typeLabel = group.group_type === 'main' ? 'ชุดหลัก' : 'ชุดย่อย';
+        const typeColor = group.group_type === 'main' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700';
+        const statusColor = isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+        const statusText = isActive ? '✅ เปิดใช้งาน' : '❌ ปิดใช้งาน';
+
+        // ตัดข้อความสำหรับมือถือให้สั้นลง
+        const shortSubItems = truncateText(subItemsText, 25);
+        const shortMembers = truncateText(memberNames.join(', '), 25);
+        const shortTargets = truncateText(targetNames, 25);
+
+        mobileHtml += `
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:shadow-md transition-shadow">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2 flex-wrap">
+                            <h4 class="font-bold text-gray-800" title="${group.group_name || '-'}">${groupNameDisplay}</h4>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-bold ${typeColor}">${typeLabel}</span>
+                            <span class="px-2 py-0.5 rounded-full text-xs font-bold ${statusColor}">${statusText}</span>
+                        </div>
+                        ${group.group_type === 'sub' ? `<p class="text-xs text-gray-400 mt-1" title="${parentName}">ชุดหลัก: ${parentNameDisplay}</p>` : ''}
+                    </div>
+                    <div class="flex gap-1 flex-shrink-0">
+                        <button onclick="editGroup('${group.id}')" 
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button onclick="toggleGroupStatus('${group.id}')" 
+                                class="${isActive ? 'bg-red-500 hover:bg-red-600' : 'bg-emerald-500 hover:bg-emerald-600'} text-white px-2 py-1 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid ${isActive ? 'fa-pause' : 'fa-play'}"></i>
+                        </button>
+                        <button onclick="deleteGroup('${group.id}')" 
+                                class="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded-lg text-xs font-bold transition-colors">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-3 text-xs">
+                    <div>
+                        <span class="text-gray-400">หัวข้อย่อย</span>
+                        <p class="font-medium text-gray-700 truncate" title="${subItemsText}">${shortSubItems}</p>
+                    </div>
+                    <div>
+                        <span class="text-gray-400">กลุ่มเป้าหมาย</span>
+                        <p class="font-medium text-gray-700 truncate" title="${targetNames}">${shortTargets}</p>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-gray-400">สมาชิก</span>
+                        <p class="font-medium text-gray-700 truncate" title="${memberNames.join(', ')}">${shortMembers || '-'}</p>
+                    </div>
+                </div>
+            </div>
+        `;
     }
 
+    // ✅ อัปเดต Desktop Table
     tbody.innerHTML = html;
 
-    // ✅ สร้าง DataTable
+    // ✅ อัปเดต Mobile View
+    if (mobileContainer) {
+        mobileContainer.innerHTML = mobileHtml || `
+            <div class="text-center py-8 text-gray-400 bg-white rounded-xl border border-gray-200 p-6">
+                <i class="fa-solid fa-info-circle text-2xl mb-2"></i>
+                <p>ไม่มีข้อมูล</p>
+            </div>
+        `;
+    }
+
+    // ✅ สร้าง DataTable (เฉพาะ Desktop)
     setTimeout(() => {
         try {
-            if ($.fn.DataTable.isDataTable('#groupsTable')) {
-                $('#groupsTable').DataTable().destroy();
+            if (window.innerWidth >= 768) {
+                if ($.fn.DataTable.isDataTable('#groupsTable')) {
+                    $('#groupsTable').DataTable().destroy();
+                }
+                groupsDataTable = $('#groupsTable').DataTable({
+                    scrollX: true,
+                    responsive: true,
+                    language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
+                    columnDefs: [
+                        { targets: [0], width: '12%' },
+                        { targets: [1], width: '8%' },
+                        { targets: [2], width: '10%' },
+                        { targets: [3], width: '20%' },
+                        { targets: [4], width: '20%' },
+                        { targets: [5], width: '14%' },
+                        { targets: [6], width: '8%' },
+                        { targets: [7], width: '8%', orderable: false }
+                    ],
+                    dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>',
+                    drawCallback: function() {
+                        if (window.innerWidth < 768) {
+                            $('.dataTables_filter, .dataTables_length').hide();
+                        } else {
+                            $('.dataTables_filter, .dataTables_length').show();
+                        }
+                    }
+                });
             }
-            groupsDataTable = $('#groupsTable').DataTable({
-                scrollX: true,
-                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-                pageLength: 10,
-                lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
-                columnDefs: [
-                    { targets: [0], width: '15%' },
-                    { targets: [1], width: '10%' },
-                    { targets: [2], width: '12%' },
-                    { targets: [3], width: '18%' },
-                    { targets: [4], width: '18%' },
-                    { targets: [5], width: '12%' },
-                    { targets: [6], width: '10%' },
-                    { targets: [7], width: '15%', orderable: false }
-                ],
-                dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>'
-            });
         } catch (e) {
             console.warn('DataTable init error:', e);
         }
@@ -1400,32 +1501,44 @@ async function loadResultsTable() {
 
     tbody.innerHTML = html;
 
-    setTimeout(() => {
-        try {
-            if ($.fn.DataTable.isDataTable('#resultsTable')) {
-                $('#resultsTable').DataTable().destroy();
+// ✅ สร้าง DataTable (ปรับ columnDefs ให้เล็กลง)
+setTimeout(() => {
+    try {
+        if (window.innerWidth >= 768) {
+            if ($.fn.DataTable.isDataTable('#groupsTable')) {
+                $('#groupsTable').DataTable().destroy();
             }
-            resultsDataTable = $('#resultsTable').DataTable({
-                scrollX: true,
+            groupsDataTable = $('#groupsTable').DataTable({
+                scrollX: false,  // ✅ ปิด scroll แนวนอน
+                responsive: false, // ✅ ปิด responsive (ใช้ CSS จัดการ)
+                autoWidth: false,  // ✅ ปิด auto width
                 language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
                 pageLength: 10,
                 lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
                 columnDefs: [
-                    { targets: [0], width: '20%' },
-                    { targets: [1], width: '12%' },
-                    { targets: [2], width: '12%' },
-                    { targets: [3], width: '10%' },
-                    { targets: [4], width: '10%' },
-                    { targets: [5], width: '12%' },
-                    { targets: [6], width: '12%' },
-                    { targets: [7], width: '12%', orderable: false }
+                    { targets: [0], width: '12%' },  // ชื่อชุด
+                    { targets: [1], width: '8%' },   // ประเภท
+                    { targets: [2], width: '10%' },  // ชุดหลัก
+                    { targets: [3], width: '18%' },  // หัวข้อย่อย
+                    { targets: [4], width: '18%' },  // สมาชิก
+                    { targets: [5], width: '14%' },  // กลุ่มเป้าหมาย
+                    { targets: [6], width: '8%' },   // สถานะ
+                    { targets: [7], width: '12%', orderable: false } // ดำเนินการ
                 ],
-                dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>'
+                dom: '<"flex flex-wrap justify-between items-center gap-2 mb-2"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-2"ip>',
+                drawCallback: function() {
+                    if (window.innerWidth < 768) {
+                        $('.dataTables_filter, .dataTables_length').hide();
+                    } else {
+                        $('.dataTables_filter, .dataTables_length').show();
+                    }
+                }
             });
-        } catch (e) {
-            console.warn('DataTable init error:', e);
         }
-    }, 200);
+    } catch (e) {
+        console.warn('DataTable init error:', e);
+    }
+}, 200);
 }
 
 // ==========================================
