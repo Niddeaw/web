@@ -226,7 +226,6 @@
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
-            /* ✅ ตัดคำด้วย ellipsis */
             vertical-align: middle !important;
         }
 
@@ -263,7 +262,7 @@
             max-width: 140px !important;
         }
 
-        /* คอลัมน์ที่ 5: สมาชิก */
+        /* คอลัมน์ที่ 5: กรรมการ */
         #groupsTable th:nth-child(5),
         #groupsTable td:nth-child(5) {
             width: 18% !important;
@@ -271,7 +270,7 @@
             max-width: 140px !important;
         }
 
-        /* คอลัมน์ที่ 6: กลุ่มเป้าหมาย */
+        /* คอลัมน์ที่ 6: กลุ่มสาระฯ */
         #groupsTable th:nth-child(6),
         #groupsTable td:nth-child(6) {
             width: 14% !important;
@@ -430,6 +429,113 @@
                 display: none !important;
             }
         }
+
+        /* ========================================== */
+        /* ✅ ผลการตรวจสอบความครบถ้วน */
+        /* ========================================== */
+        #completenessResult {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        #completenessResult::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #completenessResult::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        #completenessResult::-webkit-scrollbar-thumb {
+            background: #c1c7cd;
+            border-radius: 3px;
+        }
+
+        #completenessResult table td,
+        #completenessResult table th {
+            padding: 4px 8px !important;
+            font-size: 0.75rem !important;
+        }
+
+        /* ========================================== */
+        /* ✅ การ์ดมือถือ */
+        /* ========================================== */
+        #groupsMobileContainer .group-card {
+            transition: all 0.2s ease;
+        }
+
+        #groupsMobileContainer .group-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        #groupsMobileContainer .group-card:active {
+            transform: scale(0.98);
+        }
+
+        /* ========================================== */
+        /* Modal ตรวจสอบความครบถ้วน */
+        /* ========================================== */
+        #completenessModal .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        #completenessModal .modal-body-scroll {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        #completenessModal .modal-body-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #completenessModal .modal-body-scroll::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        #completenessModal .modal-body-scroll::-webkit-scrollbar-thumb {
+            background: #c1c7cd;
+            border-radius: 3px;
+        }
+
+        #completenessModal .modal-body-scroll::-webkit-scrollbar-thumb:hover {
+            background: #a0a7ae;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-30px) scale(0.95);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+        }
+
+        /* ✅ ตารางใน Modal */
+        #completenessTable td,
+        #completenessTable th {
+            padding: 6px 8px !important;
+            font-size: 0.75rem !important;
+        }
+
+        #completenessTable td:nth-child(2) {
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        #completenessTable td:nth-child(3) {
+            max-width: 140px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
     </style>
 </head>
 
@@ -455,7 +561,6 @@
                 <p class="text-sm font-medium text-gray-700" id="header_user_name">-</p>
                 <p class="text-xs text-gray-400" id="header_user_role">-</p>
             </div>
-            <!-- ใน Navbar หรือ Tab -->
             <button onclick="window.location.href='evaluation_settings.html'"
                 class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
                 <i class="fa-solid fa-gear mr-1"></i> ตั้งค่าระบบ
@@ -539,6 +644,7 @@
                     </div>
                 </div>
             </div>
+
             <!-- ========================================== -->
             <!-- TAB 2: คณะกรรมการ -->
             <!-- ========================================== -->
@@ -553,6 +659,17 @@
                                 class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-purple-500 text-sm">
                                 <option value="">-- เลือกรอบการประเมิน --</option>
                             </select>
+                            
+                            <!-- ✅ ปุ่มคัดลอกหัวข้อชุดหลักให้ชุดย่อย -->
+                            <button onclick="copySubItemsToAllSubGroups()"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                <i class="fa-solid fa-copy mr-1"></i> คัดลอกหัวข้อชุดหลักให้ชุดย่อย
+                            </button>
+
+                            <button onclick="checkEvaluationCompleteness()"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                <i class="fa-solid fa-check-double mr-1"></i> ตรวจสอบความครบถ้วน
+                            </button>
                             <button onclick="openGroupModal()"
                                 class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-plus mr-1"></i> สร้างชุดใหม่
@@ -560,10 +677,14 @@
                         </div>
                     </div>
 
+                    <!-- ✅ ส่วนแสดงผลการตรวจสอบ -->
+                    <div id="completenessResult" class="hidden mb-4 p-4 rounded-xl border bg-white shadow-sm">
+                        <!-- จะถูกสร้างโดย JavaScript -->
+                    </div>
+
                     <!-- ✅ Responsive Table Container -->
                     <div class="w-full">
-                        <!-- Desktop Table (ซ่อนในมือถือ) -->
-                        <!-- ✅ ลบ class "overflow-x-auto" ออก -->
+                        <!-- Desktop Table -->
                         <div class="hidden md:block">
                             <table id="groupsTable" class="display w-full text-sm">
                                 <thead>
@@ -588,9 +709,8 @@
                             </table>
                         </div>
 
-                        <!-- Mobile Card View (แสดงเฉพาะมือถือ) -->
+                        <!-- Mobile Card View -->
                         <div id="groupsMobileContainer" class="md:hidden space-y-4">
-                            <!-- จะถูกสร้างโดย JavaScript -->
                             <div class="text-center py-8 text-gray-400">
                                 <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
                             </div>
@@ -613,6 +733,13 @@
                                 class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-emerald-500 text-sm">
                                 <option value="">-- เลือกรอบการประเมิน --</option>
                             </select>
+
+                            <!-- ✅ ปุ่มตรวจสอบการให้คะแนนกรรมการ -->
+                            <button onclick="checkEvaluatorAssignments()"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                <i class="fa-solid fa-user-check mr-1"></i> ตรวจสอบการให้คะแนนกรรมการ
+                            </button>
+
                             <button onclick="exportAllResults()"
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
@@ -845,7 +972,46 @@
     <!-- ========================================== -->
     <!-- SCRIPTS -->
     <!-- ========================================== -->
+    <script src="evaluation_admin_groups.js"></script>
+    <script src="evaluation_admin_results.js"></script>
     <script src="evaluation_admin.js"></script>
+
+    <script>
+        // ==========================================
+        // Event Listeners
+        // ==========================================
+
+        // ✅ กรองคณะกรรมการตามรอบ
+        document.getElementById('filter_round_for_groups')?.addEventListener('change', function () {
+            // ซ่อนผลการตรวจสอบเก่า
+            const resultContainer = document.getElementById('completenessResult');
+            if (resultContainer) {
+                resultContainer.classList.add('hidden');
+                resultContainer.innerHTML = '';
+            }
+            loadGroupsTable();
+        });
+
+        // ✅ กรองผลการประเมินตามรอบ
+        document.getElementById('filter_round_for_results')?.addEventListener('change', function () {
+            loadResultsTable();
+        });
+
+        // ✅ เมื่อเลือกรอบใน Modal ให้โหลด Parent Groups
+        document.getElementById('group_round_id')?.addEventListener('change', function () {
+            populateParentGroupDropdown();
+        });
+
+        // ✅ ตรวจสอบว่าเป็น super_admin หรือ admin
+        document.addEventListener('DOMContentLoaded', function () {
+            const userRole = document.getElementById('header_user_role')?.innerText || '';
+            if (['super_admin', 'admin'].includes(userRole)) {
+                // แสดงปุ่มตรวจสอบความครบถ้วน
+                const checkBtn = document.querySelector('[onclick="checkEvaluationCompleteness()"]');
+                if (checkBtn) checkBtn.style.display = '';
+            }
+        });
+    </script>
 
 </body>
 
