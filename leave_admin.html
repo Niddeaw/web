@@ -408,7 +408,29 @@
             <div class="px-5 py-3 border-t bg-white flex items-center justify-between gap-3"><a id="sig-view-link" href="#" target="_blank" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition font-medium"><i class="fas fa-external-link-alt"></i> เปิดในแท็บใหม่</a><button onclick="closeViewSignatureImageModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button></div>
         </div>
     </div>
-
+<!-- ========== Signature Management Modal ========== -->
+<div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+    <div class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
+        <div class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-t-3xl">
+            <h3 class="text-lg font-bold"><i class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
+            <button onclick="closeSignatureModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><i class="fas fa-times"></i></button>
+        </div>
+        <div class="flex-1 overflow-y-auto p-6">
+            <div class="mb-4 flex flex-wrap justify-between items-center gap-2">
+                <span class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display-modal" class="font-mono text-xs"></span></span>
+                <div class="flex items-center gap-2">
+                    <button onclick="exportSignatureExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                    <button onclick="refreshSignatureList()" class="text-sm bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-medium"><i class="fas fa-sync"></i> รีเฟรช</button>
+                </div>
+            </div>
+            <table id="signatureTable" class="w-full text-sm">
+                <thead class="bg-slate-50"><tr><th class="p-2 text-left">ชื่อ-สกุล</th><th class="p-2 text-left">ตำแหน่ง</th><th class="p-2 text-left">กลุ่มงาน</th><th class="p-2 text-center">ลายเซ็น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
+                <tbody id="signature-tbody"></tbody>
+            </table>
+        </div>
+        <div class="px-6 py-3 border-t flex justify-end"><button onclick="closeSignatureModal()" class="px-5 py-2 bg-slate-200 rounded-xl hover:bg-slate-300">ปิด</button></div>
+    </div>
+</div>
     <script src="leave_admin.js"></script>
 </body>
 
