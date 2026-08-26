@@ -37,6 +37,7 @@ const ALLOWED_DEPARTMENTS = [
 // ==========================================
 const EVAL_SUB_ITEMS = {
     element1: {
+        // ตอนที่ 1: ด้านการจัดการเรียนรู้ (1.1-1.8)
         part1: [
             { id: '1_1', label: '1.1 นำผลการวิเคราะห์หลักสูตร มาจัดทำรายวิชาและหน่วยการเรียนรู้' },
             { id: '1_2', label: '1.2 ปฏิบัติการสอน โดยออกแบบการจัดการเรียนรู้' },
@@ -47,26 +48,40 @@ const EVAL_SUB_ITEMS = {
             { id: '1_7', label: '1.7 อบรมบ่มนิสัยให้ผู้เรียนมีคุณธรรม จริยธรรม' },
             { id: '1_8', label: '1.8 อบรมและพัฒนาคุณลักษณะที่ดีของผู้เรียน' }
         ],
+        // ตอนที่ 1: ด้านการส่งเสริมและสนับสนุนการจัดการเรียนรู้ (2.1-2.4)
+        part1_2: [
+            { id: '2_1', label: '2.1 จัดทำข้อมูลสารสนเทศ' },
+            { id: '2_2', label: '2.2 ดำเนินการตามระบบดูแลช่วยเหลือผู้เรียน' },
+            { id: '2_3', label: '2.3 ร่วมปฏิบัติงานทางวิชาการและงานอื่น ๆ ของสถานศึกษา' },
+            { id: '2_4', label: '2.4 ประสานความร่วมมือกับผู้ปกครอง หรือผู้เกี่ยวข้อง' }
+        ],
+        // ตอนที่ 1: ด้านการพัฒนาตนเอง และวิชาชีพ (3.1-3.3)
+        part1_3: [
+            { id: '3_1', label: '3.1 พัฒนาตนเองอย่างเป็นระบบและต่อเนื่อง' },
+            { id: '3_2', label: '3.2 มีส่วนร่วมในการแลกเปลี่ยนเรียนรู้ทางวิชาชีพ' },
+            { id: '3_3', label: '3.3 นำความรู้ ความสามารถ ทักษะ ที่ได้จากการพัฒนาตนเองและวิชาชีพมาใช้' }
+        ],
+        // ตอนที่ 2
         part2: [
-            { id: '1', label: '1. วิธีการดำเนินการ' },
-            { id: '2.1', label: '2.1 ผลลัพธ์การเรียนรู้เชิงปริมาณ' },
-            { id: '2.2', label: '2.2 ผลลัพธ์การเรียนรู้เชิงคุณภาพ' }
+            { id: '1', label: '1. วิธีการดำเนินการ (20 คะแนน)' },
+            { id: '2.1', label: '2.1 ผลลัพธ์การเรียนรู้เชิงปริมาณ (10 คะแนน)' },
+            { id: '2.2', label: '2.2 ผลลัพธ์การเรียนรู้เชิงคุณภาพ (10 คะแนน)' }
         ]
     },
     element2: [
-        { id: '1', label: 'ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา' }
+        { id: '1', label: 'ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา (ระดับ 1-5 คูณ 2)' }
     ],
     element3: [
-        { id: '1', label: 'ยึดมั่นในสถาบันหลักของประเทศ' },
-        { id: '2', label: 'มีความซื่อสัตย์ สุจริต มีจิตสำนึกที่ดี' },
-        { id: '3', label: 'มีความกล้าคิด กล้าตัดสินใจ กล้าแสดงออก' },
-        { id: '4', label: 'มีจิตอาสา จิตสาธารณะ มุ่งประโยชน์ส่วนรวม' },
-        { id: '5', label: 'มุ่งผลสัมฤทธิ์ของงาน มุ่งมั่นในการปฏิบัติงาน' },
-        { id: '6', label: 'ปฏิบัติหน้าที่อย่างเป็นธรรมและไม่เลือกปฏิบัติ' },
-        { id: '7', label: 'ดำรงตนเป็นแบบอย่างที่ดีและรักษาภาพลักษณ์' },
-        { id: '8', label: 'เคารพศักดิ์ศรีความเป็นมนุษย์' },
-        { id: '9', label: 'ยึดถือและปฏิบัติตามจรรยาบรรณของวิชาชีพ' },
-        { id: '10', label: 'มีวินัยและการรักษาวินัย' }
+        { id: '1', label: '1. ยึดมั่นในสถาบันหลักของประเทศ' },
+        { id: '2', label: '2. มีความซื่อสัตย์ สุจริต มีจิตสำนึกที่ดี' },
+        { id: '3', label: '3. มีความกล้าคิด กล้าตัดสินใจ กล้าแสดงออก' },
+        { id: '4', label: '4. มีจิตอาสา จิตสาธารณะ มุ่งประโยชน์ส่วนรวม' },
+        { id: '5', label: '5. มุ่งผลสัมฤทธิ์ของงาน มุ่งมั่นในการปฏิบัติงาน' },
+        { id: '6', label: '6. ปฏิบัติหน้าที่อย่างเป็นธรรมและไม่เลือกปฏิบัติ' },
+        { id: '7', label: '7. ดำรงตนเป็นแบบอย่างที่ดีและรักษาภาพลักษณ์' },
+        { id: '8', label: '8. เคารพศักดิ์ศรีความเป็นมนุษย์' },
+        { id: '9', label: '9. ยึดถือและปฏิบัติตามจรรยาบรรณของวิชาชีพ' },
+        { id: '10', label: '10. มีวินัยและการรักษาวินัย' }
     ]
 };
 
@@ -871,8 +886,8 @@ async function openGroupModal() {
     document.getElementById('parent_group_container').style.display = 'none';
 
     await populateRoundDropdowns();
-    await populatePersonnelSelect();
-    await populateDepartmentCheckboxes();  // ✅ มีปุ่มเลือกทั้งหมดแล้ว
+    await populatePersonnelSelect([]);  // ✅ ส่ง array ว่าง (ไม่มีข้อมูลเดิม)
+    await populateDepartmentCheckboxes();
     await renderSubItems();
 
     document.getElementById('groupModal').classList.remove('hidden');
@@ -886,7 +901,7 @@ function closeGroupModal() {
 }
 
 // ==========================================
-// แก้ไขคณะกรรมการ
+// แก้ไขคณะกรรมการ (ปรับปรุง)
 // ==========================================
 async function editGroup(groupId) {
     const group = allGroups.find(g => g.id === groupId);
@@ -898,11 +913,10 @@ async function editGroup(groupId) {
     document.getElementById('group_edit_id').value = group.id;
 
     await populateRoundDropdowns();
-    await populatePersonnelSelect();
-    await populateDepartmentCheckboxes();  // ✅ มีปุ่มเลือกทั้งหมดแล้ว
+    await populateDepartmentCheckboxes();
     await renderSubItems();
 
-    // ✅ เติมข้อมูล
+    // ✅ เติมข้อมูลทั่วไป
     document.getElementById('group_round_id').value = group.eval_round_id || '';
     document.getElementById('group_name').value = group.group_name || '';
     document.getElementById('group_type').value = group.group_type || 'main';
@@ -927,18 +941,22 @@ async function editGroup(groupId) {
         cb.checked = found;
     });
 
-    // ✅ เลือกสมาชิก
-    const { data: members } = await db
+    // ✅ โหลดสมาชิกที่บันทึกไว้
+    const { data: members, error: memError } = await db
         .from('eval_committee_members')
         .select('user_id')
         .eq('committee_group_id', group.id)
         .eq('is_active', true);
 
-    if (members) {
-        document.querySelectorAll('#group_members option').forEach(opt => {
-            opt.selected = members.some(m => m.user_id === opt.value);
-        });
+    if (memError) {
+        console.error('Error loading members:', memError);
     }
+
+    const memberIds = members ? members.map(m => m.user_id) : [];
+    console.log('✅ สมาชิกที่บันทึกไว้:', memberIds);
+
+    // ✅ โหลด Personnel Select พร้อมส่ง memberIds
+    await populatePersonnelSelect(memberIds);
 
     // ✅ เลือกกลุ่มเป้าหมาย
     const { data: targets } = await db
@@ -959,18 +977,12 @@ async function editGroup(groupId) {
 }
 
 // ==========================================
-// Populate Personnel Select (Tom Select)
+// Populate Personnel Select (Tom Select) - รองรับการโหลดข้อมูลเดิม
 // ==========================================
-async function populatePersonnelSelect() {
+async function populatePersonnelSelect(selectedIds = []) {
     const el = document.getElementById('group_members');
     if (!el) return;
 
-    const currentValues = [];
-    for (const opt of el.options) {
-        if (opt.selected) currentValues.push(opt.value);
-    }
-
-    // กรองเฉพาะบุคลากรที่มีสิทธิ์เป็นกรรมการ (teacher, admin, super_admin)
     const eligiblePersonnel = allPersonnel.filter(p => 
         ['teacher', 'admin', 'super_admin', 'deputy', 'director'].includes(p.role)
     );
@@ -982,24 +994,47 @@ async function populatePersonnelSelect() {
         const name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const standing = p.academic_standing || '-';
         opt.textContent = `${name} (${standing})`;
-        if (currentValues.includes(p.id)) opt.selected = true;
+        if (selectedIds.includes(p.id)) {
+            opt.selected = true;
+        }
         el.appendChild(opt);
     });
 
-    // ✅ ใช้ Tom Select
     if (el.tomselect) {
         el.tomselect.destroy();
+        el.tomselect = null;
     }
-    new TomSelect(el, {
-        plugins: ['remove_button'],
-        maxItems: null,
-        placeholder: 'เลือกสมาชิกคณะกรรมการ...'
-    });
+
+    setTimeout(() => {
+        try {
+            const ts = new TomSelect(el, {
+                plugins: ['remove_button', 'dropdown_input'],
+                maxItems: null,
+                placeholder: 'เลือกสมาชิกคณะกรรมการ...',
+                create: false,
+                sortField: 'text',
+                searchField: ['text'],
+                render: {
+                    option: function(data, escape) {
+                        return `<div class="option" data-value="${data.value}">${escape(data.text)}</div>`;
+                    }
+                }
+            });
+            el.tomselect = ts;
+            
+            // ✅ บังคับเลือกค่าที่ส่งมา
+            if (selectedIds && selectedIds.length > 0) {
+                setTimeout(() => {
+                    ts.setValue(selectedIds);
+                    console.log('✅ ตั้งค่า Tom Select เป็น:', selectedIds);
+                }, 150);
+            }
+        } catch (err) {
+            console.error('Error creating Tom Select:', err);
+        }
+    }, 100);
 }
 
-// ==========================================
-// Populate Department Checkboxes
-// ==========================================
 // ==========================================
 // Populate Department Checkboxes (พร้อมปุ่มเลือกทั้งหมด)
 // ==========================================
@@ -1060,7 +1095,7 @@ function toggleAllDepartments() {
 }
 
 // ==========================================
-// Render หัวข้อย่อย
+// Render หัวข้อย่อย (แก้ไขให้ครบถ้วน)
 // ==========================================
 function renderSubItems() {
     const container = document.getElementById('sub_items_container');
@@ -1078,53 +1113,89 @@ function renderSubItems() {
 
     let html = '';
 
-    // ✅ องค์ประกอบที่ 1
+    // ==========================================
+    // ✅ องค์ประกอบที่ 1: ประสิทธิภาพและประสิทธิผล
+    // ==========================================
     html += `
         <div class="element-section mb-4">
             <div class="element-section-title">
                 <i class="fa-solid fa-list text-blue-500"></i>
-                องค์ประกอบที่ 1: ประสิทธิภาพและประสิทธิผล
+                องค์ประกอบที่ 1: การประเมินประสิทธิภาพและประสิทธิผล (80 คะแนน)
                 <button type="button" onclick="toggleAllSubItems('element1')" class="select-all-btn text-xs">
                     <i class="fa-solid fa-check-double mr-1"></i>เลือกทั้งหมด
                 </button>
             </div>
-            <div class="mb-2">
-                <span class="text-xs font-bold text-gray-400">ตอนที่ 1</span>
+            
+            <!-- ตอนที่ 1 -->
+            <div class="mb-3">
+                <div class="text-xs font-bold text-blue-600 mb-2">ตอนที่ 1 : ระดับความสำเร็จในการพัฒนางานตามมาตรฐานตำแหน่ง (60 คะแนน)</div>
+                
+                <!-- 1. ด้านการจัดการเรียนรู้ -->
+                <div class="text-xs font-semibold text-gray-600 mt-2 mb-1">1. ด้านการจัดการเรียนรู้</div>
+                <div class="sub-items-grid" id="element1_part1_1">
+                    ${EVAL_SUB_ITEMS.element1.part1.map(item => `
+                        <label class="sub-item-label">
+                            <input type="checkbox" data-element="1" data-part="1" data-value="${item.id}"
+                                ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '1') ? 'checked' : ''}>
+                            <span>${item.label}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                
+                <!-- 2. ด้านการส่งเสริมและสนับสนุนการจัดการเรียนรู้ -->
+                <div class="text-xs font-semibold text-gray-600 mt-3 mb-1">2. ด้านการส่งเสริมและสนับสนุนการจัดการเรียนรู้</div>
+                <div class="sub-items-grid" id="element1_part1_2">
+                    ${EVAL_SUB_ITEMS.element1.part1_2.map(item => `
+                        <label class="sub-item-label">
+                            <input type="checkbox" data-element="1" data-part="1" data-value="${item.id}"
+                                ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '1') ? 'checked' : ''}>
+                            <span>${item.label}</span>
+                        </label>
+                    `).join('')}
+                </div>
+                
+                <!-- 3. ด้านการพัฒนาตนเอง และวิชาชีพ -->
+                <div class="text-xs font-semibold text-gray-600 mt-3 mb-1">3. ด้านการพัฒนาตนเอง และวิชาชีพ</div>
+                <div class="sub-items-grid" id="element1_part1_3">
+                    ${EVAL_SUB_ITEMS.element1.part1_3.map(item => `
+                        <label class="sub-item-label">
+                            <input type="checkbox" data-element="1" data-part="1" data-value="${item.id}"
+                                ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '1') ? 'checked' : ''}>
+                            <span>${item.label}</span>
+                        </label>
+                    `).join('')}
+                </div>
             </div>
-            <div class="sub-items-grid" id="element1_part1">
-                ${EVAL_SUB_ITEMS.element1.part1.map(item => `
-                    <label class="sub-item-label">
-                        <input type="checkbox" data-element="1" data-part="1" data-value="${item.id}"
-                            ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '1') ? 'checked' : ''}>
-                        <span>${item.label}</span>
-                    </label>
-                `).join('')}
-            </div>
-            <div class="mb-2 mt-3">
-                <span class="text-xs font-bold text-gray-400">ตอนที่ 2</span>
-            </div>
-            <div class="sub-items-grid" id="element1_part2">
-                ${EVAL_SUB_ITEMS.element1.part2.map(item => `
-                    <label class="sub-item-label">
-                        <input type="checkbox" data-element="1" data-part="2" data-value="${item.id}"
-                            ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '2') ? 'checked' : ''}>
-                        <span>${item.label}</span>
-                    </label>
-                `).join('')}
+            
+            <!-- ตอนที่ 2 -->
+            <div class="mt-3">
+                <div class="text-xs font-bold text-blue-600 mb-2">ตอนที่ 2 : ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)</div>
+                <div class="sub-items-grid" id="element1_part2">
+                    ${EVAL_SUB_ITEMS.element1.part2.map(item => `
+                        <label class="sub-item-label">
+                            <input type="checkbox" data-element="1" data-part="2" data-value="${item.id}"
+                                ${checkedValues.some(c => c.element === '1' && c.value === item.id && c.part === '2') ? 'checked' : ''}>
+                            <span>${item.label}</span>
+                        </label>
+                    `).join('')}
+                </div>
             </div>
         </div>
     `;
 
+    // ==========================================
     // ✅ องค์ประกอบที่ 2
+    // ==========================================
     html += `
         <div class="element-section mb-4">
             <div class="element-section-title">
                 <i class="fa-solid fa-handshake text-emerald-500"></i>
-                องค์ประกอบที่ 2: การมีส่วนร่วมในการพัฒนาการศึกษา
+                องค์ประกอบที่ 2: การมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)
                 <button type="button" onclick="toggleAllSubItems('element2')" class="select-all-btn text-xs">
                     <i class="fa-solid fa-check-double mr-1"></i>เลือกทั้งหมด
                 </button>
             </div>
+            <div class="text-xs text-gray-500 mb-2">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา (ระดับ 1-5 คูณ 2)</div>
             <div class="sub-items-grid">
                 ${EVAL_SUB_ITEMS.element2.map(item => `
                     <label class="sub-item-label">
@@ -1137,16 +1208,19 @@ function renderSubItems() {
         </div>
     `;
 
+    // ==========================================
     // ✅ องค์ประกอบที่ 3
+    // ==========================================
     html += `
         <div class="element-section">
             <div class="element-section-title">
                 <i class="fa-solid fa-scale-balanced text-purple-500"></i>
-                องค์ประกอบที่ 3: วินัย คุณธรรม จริยธรรม
+                องค์ประกอบที่ 3: วินัย คุณธรรม จริยธรรม (10 คะแนน)
                 <button type="button" onclick="toggleAllSubItems('element3')" class="select-all-btn text-xs">
                     <i class="fa-solid fa-check-double mr-1"></i>เลือกทั้งหมด
                 </button>
             </div>
+            <div class="text-xs text-gray-500 mb-2">ข้อ 1-10 ระดับคะแนนข้อละ 1-4 (เต็ม 40 คะแนน คิดเป็น 10 คะแนน)</div>
             <div class="sub-items-grid">
                 ${EVAL_SUB_ITEMS.element3.map(item => `
                     <label class="sub-item-label">

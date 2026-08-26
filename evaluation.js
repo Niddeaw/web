@@ -2426,7 +2426,6 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
 // คำนวณคะแนนรวมจาก Mode Details
 // ==========================================
 function calculateTotalScoreFromModeDetails(modeDetails) {
-    // ต้องใช้ evaluateeData ที่โหลดไว้แล้ว
     const academic = evaluateeData?.academic_standing || 'ครู';
     const isAssistant = academic === 'ครูผู้ช่วย';
 
@@ -2434,42 +2433,60 @@ function calculateTotalScoreFromModeDetails(modeDetails) {
     let part2Total = 0;
     let part3Total = 0;
 
-    // องค์ประกอบที่ 1
+    // ==========================================
+    // องค์ประกอบที่ 1: ประสิทธิภาพและประสิทธิผล (80 คะแนน)
+    // ==========================================
+
+    // ตอนที่ 1: ระดับความสำเร็จตามมาตรฐานตำแหน่ง (60 คะแนน)
     if (modeDetails.p1_s1 !== undefined) {
         const p1s1Mode = modeDetails.p1_s1;
         if (isAssistant) {
-            part1Total += (p1s1Mode * 80) / 56;
+            // ครูผู้ช่วย: 14 ข้อ (1.1-1.7 + 2.1-2.4 + 3.1-3.3) 
+            // คะแนนเต็ม 14x4 = 56
+            part1Total += (p1s1Mode * 60) / 56;
         } else {
+            // ครู, ชำนาญการ, ชำนาญการพิเศษ: 15 ข้อ (1.1-1.8 + 2.1-2.4 + 3.1-3.3)
+            // คะแนนเต็ม 15x4 = 60
             part1Total += (p1s1Mode / 60) * 60;
         }
     }
 
+    // ตอนที่ 2: ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)
     if (modeDetails.p1_s2 !== undefined) {
         const p1s2Mode = modeDetails.p1_s2;
-        part1Total += (p1s2Mode * 20) / 40;
+        // p1_s2 มี 3 ข้อ (วิธีดำเนินการ 20, เชิงปริมาณ 10, เชิงคุณภาพ 10)
+        // คะแนนเต็ม 3x4 = 12 ระดับ → คิดเป็น 20 คะแนน
+        part1Total += (p1s2Mode * 20) / 12;
     }
 
-    // องค์ประกอบที่ 2
+    // ==========================================
+    // องค์ประกอบที่ 2: การมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)
+    // ==========================================
     if (modeDetails.p2 !== undefined) {
-        part2Total = modeDetails.p2 * 2;
+        const p2Mode = modeDetails.p2;
+        // ระดับ 1-5 → คะแนน = ระดับ × 2
+        part2Total = p2Mode * 2;
     }
 
-    // องค์ประกอบที่ 3
+    // ==========================================
+    // องค์ประกอบที่ 3: วินัย คุณธรรม จริยธรรม (10 คะแนน)
+    // ==========================================
     if (modeDetails.p3 !== undefined) {
         if (Array.isArray(modeDetails.p3)) {
+            // ถ้าเป็น array (10 ข้อ) ให้รวมแล้วหาร 4
             const sumP3 = modeDetails.p3.reduce((a, b) => a + b, 0);
             part3Total = sumP3 / 4;
         } else {
+            // ถ้าเป็นตัวเลขเดียว
             part3Total = modeDetails.p3 / 4;
         }
     }
 
-    return part1Total + part2Total + part3Total;
+    // คะแนนรวมทั้งหมด (จำกัดไม่เกิน 100)
+    const total = part1Total + part2Total + part3Total;
+    return Math.min(Math.max(total, 0), 100);
 }
 
-// ==========================================
-// คำนวณคะแนนเฉลี่ยรวมจากทุกชุดย่อย
-// ==========================================
 // ==========================================
 // คำนวณคะแนนสรุปจากทุกชุดย่อย (ใช้ Mode)
 // ==========================================
@@ -3110,6 +3127,439 @@ function getLevelText(score) {
 }
 
 // ==========================================
+// ตรวจสอบการประเมินของคณะกรรมการ
+// ==========================================
+
+// ตัวแปรเก็บข้อมูล
+let reviewDataTable = null;
+let reviewTeachers = [];
+
+// ==========================================
+// เปิด Modal ตรวจสอบการประเมิน
+// ==========================================
+async function openCommitteeReviewModal() {
+    const modal = document.getElementById('committeeReviewModal');
+    modal.classList.remove('hidden');
+
+    // โหลดข้อมูลชุดคณะกรรมการ
+    await loadReviewCommitteeGroups();
+}
+
+// ==========================================
+// ปิด Modal ตรวจสอบการประเมิน
+// ==========================================
+function closeCommitteeReviewModal() {
+    const modal = document.getElementById('committeeReviewModal');
+    modal.classList.add('hidden');
+    
+    // ทำลาย DataTable
+    if (reviewDataTable) {
+        reviewDataTable.destroy();
+        reviewDataTable = null;
+    }
+}
+
+// ==========================================
+// โหลดชุดคณะกรรมการสำหรับ Modal ตรวจสอบ
+// ==========================================
+async function loadReviewCommitteeGroups() {
+    try {
+        if (!currentEvalRound) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
+        }
+
+        const select = document.getElementById('review_committee_group');
+        const deptSelect = document.getElementById('review_department');
+        
+        // รีเซ็ต dropdown
+        select.innerHTML = '<option value="">-- เลือกชุด --</option>';
+        deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+        // โหลดชุดคณะกรรมการที่ผู้ใช้เป็นสมาชิก
+        const mySubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
+
+        if (!mySubGroups || mySubGroups.length === 0) {
+            select.innerHTML = '<option value="">ไม่มีชุดคณะกรรมการ</option>';
+            return;
+        }
+
+        const structure = await loadCommitteeStructure(currentEvalRound.id);
+        const mainGroups = structure.filter(g => g.group_type === 'main');
+
+        for (const mainGroup of mainGroups) {
+            const subGroups = mySubGroups.filter(sg => sg.parent_group_id === mainGroup.id);
+            if (subGroups.length === 0) continue;
+
+            const optgroup = document.createElement('optgroup');
+            optgroup.label = mainGroup.group_name;
+
+            subGroups.forEach(sub => {
+                const option = document.createElement('option');
+                option.value = sub.id;
+                option.textContent = `${sub.group_name} (${sub.members?.length || 0} คน)`;
+                option.dataset.targets = JSON.stringify(sub.targets || []);
+                option.dataset.selectedSubItems = JSON.stringify(sub.selected_sub_items || []);
+                optgroup.appendChild(option);
+            });
+
+            select.appendChild(optgroup);
+        }
+
+        // เมื่อเลือกชุดคณะกรรมการ
+        select.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption && selectedOption.dataset) {
+                const targets = JSON.parse(selectedOption.dataset.targets || '[]');
+                const deptSelect = document.getElementById('review_department');
+                deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+                
+                const departmentTargets = targets.filter(t => t.target_type === 'department');
+                departmentTargets.forEach(t => {
+                    deptSelect.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
+                });
+
+                // ถ้ามีกลุ่มสาระเดียว ให้เลือกอัตโนมัติ
+                if (departmentTargets.length === 1) {
+                    deptSelect.value = departmentTargets[0].target_value;
+                }
+            }
+        });
+
+    } catch (err) {
+        console.error('Error loading review committee groups:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// โหลดข้อมูลสำหรับตรวจสอบ
+// ==========================================
+async function loadReviewData() {
+    const subGroupId = document.getElementById('review_committee_group').value;
+    const department = document.getElementById('review_department').value;
+
+    if (!subGroupId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชุดคณะกรรมการ', 'warning');
+    }
+    if (!department) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
+    }
+
+    Swal.fire({
+        title: 'กำลังโหลดข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ทำลาย DataTable เก่า
+        if (reviewDataTable) {
+            reviewDataTable.destroy();
+            reviewDataTable = null;
+        }
+
+        // โหลดรายชื่อครูในกลุ่มสาระ
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const { data: teachers, error: tErr } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .eq('department', department)
+            .in('academic_standing', validStandings)
+            .order('first_name', { ascending: true });
+
+        if (tErr) throw tErr;
+
+        if (!teachers || teachers.length === 0) {
+            Swal.close();
+            document.getElementById('tb-review').innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-user-slash mr-2"></i>
+                        ไม่พบบุคลากรในกลุ่มสาระ "${department}"
+                    </td>
+                </tr>
+            `;
+            document.getElementById('reviewSummary').classList.add('hidden');
+            return;
+        }
+
+        // ดึงข้อมูลการประเมินของครูแต่ละคน
+        const teacherIds = teachers.map(t => t.id);
+        const { data: evalResults, error: eErr } = await db
+            .from('eval_results')
+            .select('*')
+            .in('evaluatee_id', teacherIds)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        if (eErr) throw eErr;
+
+        // สร้าง Map สำหรับผลการประเมิน
+        const evalMap = {};
+        (evalResults || []).forEach(r => {
+            if (!evalMap[r.evaluatee_id]) {
+                evalMap[r.evaluatee_id] = [];
+            }
+            evalMap[r.evaluatee_id].push(r);
+        });
+
+        // สร้างข้อมูลสำหรับแสดง
+        let html = '';
+        let totalEvaluated = 0;
+        let totalScore = 0;
+
+        teachers.forEach((teacher, index) => {
+            const fullName = teacher.prefix 
+                ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}` 
+                : `${teacher.first_name} ${teacher.last_name}`;
+            const standing = teacher.academic_standing || '-';
+            
+            const evals = evalMap[teacher.id] || [];
+            const isEvaluated = evals.length > 0;
+            
+            // คำนวณคะแนนเฉลี่ยของแต่ละองค์ประกอบ
+            let p1Scores = [];
+            let p2Scores = [];
+            let p3Scores = [];
+            let totalScores = [];
+
+            evals.forEach(e => {
+                if (e.detailed_scores) {
+                    // องค์ประกอบที่ 1 (p1_s1 + p1_s2)
+                    const p1s1 = e.detailed_scores.p1_s1 || [];
+                    const p1s2 = e.detailed_scores.p1_s2 || [];
+                    const p1Total = [...p1s1, ...p1s2].filter(s => typeof s === 'number' && !isNaN(s));
+                    if (p1Total.length > 0) {
+                        p1Scores.push(p1Total.reduce((a, b) => a + b, 0));
+                    }
+
+                    // องค์ประกอบที่ 2
+                    if (e.detailed_scores.p2 !== undefined && e.detailed_scores.p2 !== null) {
+                        p2Scores.push(e.detailed_scores.p2);
+                    }
+
+                    // องค์ประกอบที่ 3
+                    const p3 = e.detailed_scores.p3 || [];
+                    const p3Total = p3.filter(s => typeof s === 'number' && !isNaN(s));
+                    if (p3Total.length > 0) {
+                        p3Scores.push(p3Total.reduce((a, b) => a + b, 0));
+                    }
+
+                    totalScores.push(e.total_score);
+                }
+            });
+
+            // หา Mode ของคะแนนแต่ละองค์ประกอบ
+            const modeP1 = p1Scores.length > 0 ? findMode(p1Scores) : null;
+            const modeP2 = p2Scores.length > 0 ? findMode(p2Scores) : null;
+            const modeP3 = p3Scores.length > 0 ? findMode(p3Scores) : null;
+            const modeTotal = totalScores.length > 0 ? findMode(totalScores) : null;
+
+            // สถานะ
+            let statusBadge = isEvaluated 
+                ? '<span class="status-badge done">✅ ประเมินแล้ว</span>'
+                : '<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>';
+
+            // ปุ่มดูรายละเอียด
+            let detailBtn = isEvaluated
+                ? `<button onclick="viewTeacherEvalDetail('${teacher.id}')" 
+                         class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                     <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด
+                   </button>`
+                : '<span class="text-gray-400 text-xs">-</span>';
+
+            // แสดงคะแนน
+            const displayP1 = modeP1 !== null ? modeP1.toFixed(2) : '-';
+            const displayP2 = modeP2 !== null ? modeP2.toFixed(2) : '-';
+            const displayP3 = modeP3 !== null ? modeP3.toFixed(2) : '-';
+            const displayTotal = modeTotal !== null ? modeTotal.toFixed(2) : '-';
+
+            if (isEvaluated) {
+                totalEvaluated++;
+                totalScore += modeTotal || 0;
+            }
+
+            html += `
+                <tr>
+                    <td class="text-center">${index + 1}</td>
+                    <td class="font-medium">${fullName}</td>
+                    <td>${standing}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center font-medium ${modeP1 !== null ? 'text-blue-600' : 'text-gray-400'}">${displayP1}</td>
+                    <td class="text-center font-medium ${modeP2 !== null ? 'text-emerald-600' : 'text-gray-400'}">${displayP2}</td>
+                    <td class="text-center font-medium ${modeP3 !== null ? 'text-purple-600' : 'text-gray-400'}">${displayP3}</td>
+                    <td class="text-center font-bold ${modeTotal !== null ? 'text-indigo-700' : 'text-gray-400'}">${displayTotal}</td>
+                    <td class="text-center">${detailBtn}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('tb-review').innerHTML = html;
+
+        // อัปเดตสรุป
+        document.getElementById('reviewTotalTeachers').innerText = teachers.length;
+        document.getElementById('reviewEvaluated').innerText = totalEvaluated;
+        document.getElementById('reviewNotEvaluated').innerText = teachers.length - totalEvaluated;
+        document.getElementById('reviewAvgScore').innerText = totalEvaluated > 0 
+            ? (totalScore / totalEvaluated).toFixed(2) 
+            : '0.00';
+        document.getElementById('reviewSummary').classList.remove('hidden');
+
+        // สร้าง DataTable
+        setTimeout(() => {
+            try {
+                if ($.fn.DataTable.isDataTable('#reviewTable')) {
+                    $('#reviewTable').DataTable().destroy();
+                }
+                reviewDataTable = $('#reviewTable').DataTable({
+                    scrollX: true,
+                    language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                    pageLength: 10,
+                    lengthMenu: [[5, 10, 25, -1], [5, 10, 25, 'ทั้งหมด']],
+                    columnDefs: [
+                        { targets: [0], width: '5%', orderable: true },
+                        { targets: [1], width: '15%' },
+                        { targets: [2], width: '10%' },
+                        { targets: [3], width: '10%', orderable: false },
+                        { targets: [4], width: '10%' },
+                        { targets: [5], width: '10%' },
+                        { targets: [6], width: '10%' },
+                        { targets: [7], width: '10%' },
+                        { targets: [8], width: '10%', orderable: false }
+                    ],
+                    dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>',
+                    order: [[0, 'asc']]
+                });
+            } catch (e) {
+                console.warn('DataTable init error:', e);
+            }
+        }, 300);
+
+        Swal.close();
+
+    } catch (err) {
+        console.error('Error loading review data:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// ดูรายละเอียดการประเมินของครูแต่ละคน
+// ==========================================
+async function viewTeacherEvalDetail(evaluateeId) {
+    try {
+        const { data: results, error } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        if (error) throw error;
+
+        if (!results || results.length === 0) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลการประเมิน', 'info');
+        }
+
+        const { data: teacher } = await db
+            .from('core_personnel')
+            .select('prefix, first_name, last_name, academic_standing')
+            .eq('id', evaluateeId)
+            .single();
+
+        const name = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่พบข้อมูล';
+        const standing = teacher?.academic_standing || '-';
+
+        // สร้างตารางแสดงรายละเอียด
+        let detailHtml = `
+            <div class="mb-4">
+                <p class="font-bold text-gray-800">${name}</p>
+                <p class="text-sm text-gray-500">วิทยฐานะ: ${standing}</p>
+                <p class="text-sm text-gray-500">จำนวนกรรมการที่ประเมิน: ${results.length} ท่าน</p>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm border-collapse">
+                    <thead>
+                        <tr class="bg-gray-100">
+                            <th class="p-2 text-left border">กรรมการ</th>
+                            <th class="p-2 text-center border">องค์ประกอบที่ 1</th>
+                            <th class="p-2 text-center border">องค์ประกอบที่ 2</th>
+                            <th class="p-2 text-center border">องค์ประกอบที่ 3</th>
+                            <th class="p-2 text-center border">คะแนนรวม</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        let allScores = [];
+        results.forEach(r => {
+            const p1s1 = r.detailed_scores?.p1_s1 || [];
+            const p1s2 = r.detailed_scores?.p1_s2 || [];
+            const p1Total = [...p1s1, ...p1s2].filter(s => typeof s === 'number' && !isNaN(s));
+            const p1Sum = p1Total.length > 0 ? p1Total.reduce((a, b) => a + b, 0) : '-';
+            
+            const p2 = r.detailed_scores?.p2 !== undefined ? r.detailed_scores.p2 : '-';
+            
+            const p3 = r.detailed_scores?.p3 || [];
+            const p3Total = p3.filter(s => typeof s === 'number' && !isNaN(s));
+            const p3Sum = p3Total.length > 0 ? p3Total.reduce((a, b) => a + b, 0) : '-';
+
+            const displayP1 = typeof p1Sum === 'number' ? p1Sum.toFixed(2) : '-';
+            const displayP2 = typeof p2 === 'number' ? p2.toFixed(2) : '-';
+            const displayP3 = typeof p3Sum === 'number' ? p3Sum.toFixed(2) : '-';
+            const displayTotal = typeof r.total_score === 'number' ? r.total_score.toFixed(2) : '-';
+
+            if (typeof r.total_score === 'number') {
+                allScores.push(r.total_score);
+            }
+
+            detailHtml += `
+                <tr class="border-b hover:bg-gray-50">
+                    <td class="p-2 border">${r.evaluator_id?.substring(0, 8) || '-'}</td>
+                    <td class="p-2 text-center border">${displayP1}</td>
+                    <td class="p-2 text-center border">${displayP2}</td>
+                    <td class="p-2 text-center border">${displayP3}</td>
+                    <td class="p-2 text-center border font-bold">${displayTotal}</td>
+                </tr>
+            `;
+        });
+
+        // หา Mode ของคะแนนรวม
+        const modeTotal = allScores.length > 0 ? findMode(allScores) : null;
+
+        detailHtml += `
+                    </tbody>
+                    <tfoot>
+                        <tr class="bg-indigo-50 font-bold">
+                            <td class="p-2 border">โหมดคะแนน (Mode)</td>
+                            <td class="p-2 text-center border">-</td>
+                            <td class="p-2 text-center border">-</td>
+                            <td class="p-2 text-center border">-</td>
+                            <td class="p-2 text-center border text-indigo-600">${modeTotal !== null ? modeTotal.toFixed(2) : '-'}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        `;
+
+        await Swal.fire({
+            title: '📊 รายละเอียดการประเมิน',
+            html: detailHtml,
+            width: '800px',
+            confirmButtonText: 'ปิด',
+            confirmButtonColor: '#6366f1'
+        });
+
+    } catch (err) {
+        console.error('Error viewing teacher detail:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
 // LOGOUT
 // ==========================================
 async function logout() {
@@ -3154,5 +3604,10 @@ window.saveFinalScoreFromModal = saveFinalScoreFromModal;
 window.printFinalScore = printFinalScore;
 window.exportFinalScores = exportFinalScores;
 window.getLevelText = getLevelText;
+
+window.openCommitteeReviewModal = openCommitteeReviewModal;
+window.closeCommitteeReviewModal = closeCommitteeReviewModal;
+window.loadReviewData = loadReviewData;
+window.viewTeacherEvalDetail = viewTeacherEvalDetail;
 
 console.log('✅ All evaluation functions exposed to window');
