@@ -11,10 +11,12 @@
         .hide-scrollbar::-webkit-scrollbar {
             display: none;
         }
+
         .hide-scrollbar {
             -ms-overflow-style: none;
             scrollbar-width: none;
         }
+
         .btn-icon {
             display: inline-flex;
             align-items: center;
@@ -26,14 +28,17 @@
             font-size: 12px;
             flex-shrink: 0;
         }
+
         .btn-icon:hover {
             transform: scale(1.1);
         }
+
         .btn-icon:disabled {
             opacity: 0.5;
             cursor: default;
             transform: none;
         }
+
         /* ----- วันหยุด ----- */
         .holiday-tag {
             display: inline-block;
@@ -46,6 +51,7 @@
             border: 1px solid #bae6fd;
             margin: 0.15rem 0.2rem;
         }
+
         .holiday-tag .remove-holiday {
             margin-left: 0.3rem;
             cursor: pointer;
@@ -54,6 +60,7 @@
             opacity: 0.7;
             transition: opacity 0.15s;
         }
+
         .holiday-tag .remove-holiday:hover {
             opacity: 1;
         }
@@ -67,30 +74,54 @@
             <div class="flex items-center gap-3">
                 <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10 w-auto drop-shadow-sm" alt="Logo">
                 <div>
-                    <span class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">WRK Admin</span>
-                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest hidden sm:block">ระบบจัดการการลา (ส่วนกลาง)</p>
+                    <span
+                        class="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">WRK
+                        Admin</span>
+                    <p class="text-[10px] text-slate-500 font-bold uppercase tracking-widest hidden sm:block">
+                        ระบบจัดการการลา (ส่วนกลาง)</p>
                 </div>
             </div>
             <div class="flex items-center gap-2">
-                <button onclick="window.location.href='super_admin.html'" class="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition shadow-sm border border-purple-200 flex items-center justify-center" title="หน้าผู้ดูแลระบบสูงสุด"><i class="fas fa-crown"></i></button>
-                <button id="btnToggleMode" onclick="switchToTeacherMode()" class="hidden h-10 px-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition font-bold text-sm items-center gap-2 shadow-sm" title="สลับไปยังโหมดครู"><i class="fas fa-chalkboard-user"></i> <span class="hidden sm:inline">สลับโหมดครู</span></button>
-                <div class="hidden sm:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-200">
-                    <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold shadow-sm"><i class="fas fa-user-shield"></i></div>
+                <button onclick="window.location.href='super_admin.html'"
+                    class="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition shadow-sm border border-purple-200 flex items-center justify-center"
+                    title="หน้าผู้ดูแลระบบสูงสุด"><i class="fas fa-crown"></i></button>
+                <button id="btnToggleMode" onclick="switchToTeacherMode()"
+                    class="hidden h-10 px-3 rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition font-bold text-sm items-center gap-2 shadow-sm"
+                    title="สลับไปยังโหมดครู"><i class="fas fa-chalkboard-user"></i> <span
+                        class="hidden sm:inline">สลับโหมดครู</span></button>
+                <div
+                    class="hidden sm:flex items-center gap-3 bg-slate-50 px-4 py-1.5 rounded-full border border-slate-200">
+                    <div
+                        class="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 text-white flex items-center justify-center font-bold shadow-sm">
+                        <i class="fas fa-user-shield"></i></div>
                     <div class="text-sm">
                         <p class="font-bold text-slate-800" id="display-name">กำลังโหลด...</p>
                         <p class="text-[10px] text-indigo-600 font-bold uppercase tracking-wider">Administrator</p>
                     </div>
                 </div>
-                <button onclick="window.location.href='index.html'" class="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition shadow-sm border border-indigo-200 flex items-center justify-center" title="หน้าหลัก"><i class="fas fa-home"></i></button>
-                <button onclick="db.auth.signOut().then(() => window.location.replace('login.html'))" class="w-10 h-10 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full flex items-center justify-center transition shadow-sm border border-rose-100" title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
+                <button onclick="window.location.href='index.html'"
+                    class="h-10 w-10 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition shadow-sm border border-indigo-200 flex items-center justify-center"
+                    title="หน้าหลัก"><i class="fas fa-home"></i></button>
+                <button onclick="db.auth.signOut().then(() => window.location.replace('login.html'))"
+                    class="w-10 h-10 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-full flex items-center justify-center transition shadow-sm border border-rose-100"
+                    title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
             </div>
         </div>
         <div class="bg-white border-t border-slate-100 px-4 sm:px-6 lg:px-8 shadow-sm">
-            <div class="max-w-screen-2xl mx-auto flex overflow-x-auto hide-scrollbar gap-2 py-2" id="tabButtonsContainer">
-                <button onclick="switchTab('dashboard')" id="btn-dashboard" class="tab-btn bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i class="fas fa-chart-pie"></i> ภาพรวมสถิติ</button>
-                <button onclick="switchTab('manage-leave')" id="btn-manage-leave" class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i class="fas fa-list-check"></i> ตรวจสอบใบลา</button>
-                <button onclick="switchTab('attendance')" id="btn-attendance" class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i class="fas fa-user-clock"></i> บันทึกขาด/มาสาย</button>
-                <button onclick="switchTab('settings')" id="btn-settings" class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i class="fas fa-cog"></i> ตั้งค่าระบบ</button>
+            <div class="max-w-screen-2xl mx-auto flex overflow-x-auto hide-scrollbar gap-2 py-2"
+                id="tabButtonsContainer">
+                <button onclick="switchTab('dashboard')" id="btn-dashboard"
+                    class="tab-btn bg-purple-50 text-purple-700 border-purple-200 flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i
+                        class="fas fa-chart-pie"></i> ภาพรวมสถิติ</button>
+                <button onclick="switchTab('manage-leave')" id="btn-manage-leave"
+                    class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i
+                        class="fas fa-list-check"></i> ตรวจสอบใบลา</button>
+                <button onclick="switchTab('attendance')" id="btn-attendance"
+                    class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i
+                        class="fas fa-user-clock"></i> บันทึกขาด/มาสาย</button>
+                <button onclick="switchTab('settings')" id="btn-settings"
+                    class="tab-btn text-slate-500 hover:bg-slate-50 border border-transparent flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all whitespace-nowrap"><i
+                        class="fas fa-cog"></i> ตั้งค่าระบบ</button>
             </div>
         </div>
     </header>
@@ -101,22 +132,49 @@
         <!-- Dashboard content -->
         <section id="tab-dashboard" class="tab-content">
             <div class="flex items-center justify-between mb-4">
-                <h2 class="font-bold text-slate-700 text-lg"><i class="fas fa-calendar-day text-indigo-500 mr-2"></i>ข้อมูลประจำ <span id="dash-fiscal-badge" class="text-indigo-600">ปี...</span></h2>
-                <button onclick="loadDashboardStats()" class="text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 font-bold text-slate-600"><i class="fas fa-sync-alt mr-1"></i> รีเฟรช</button>
+                <h2 class="font-bold text-slate-700 text-lg"><i
+                        class="fas fa-calendar-day text-indigo-500 mr-2"></i>ข้อมูลประจำ <span id="dash-fiscal-badge"
+                        class="text-indigo-600">ปี...</span></h2>
+                <button onclick="loadDashboardStats()"
+                    class="text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 font-bold text-slate-600"><i
+                        class="fas fa-sync-alt mr-1"></i> รีเฟรช</button>
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500"><p class="text-slate-500 text-xs font-bold uppercase mb-1">ลาป่วย (รวม)</p><h3 id="total-sick" class="text-3xl font-black text-blue-600">0 <span class="text-sm font-medium text-slate-500">วัน</span></h3></div>
-                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-orange-500"><p class="text-slate-500 text-xs font-bold uppercase mb-1">ลากิจ (รวม)</p><h3 id="total-personal" class="text-3xl font-black text-orange-600">0 <span class="text-sm font-medium text-slate-500">วัน</span></h3></div>
-                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500"><p class="text-slate-500 text-xs font-bold uppercase mb-1">รอการอนุมัติ</p><h3 id="total-pending" class="text-3xl font-black text-rose-600">0 <span class="text-sm font-medium text-slate-500">รายการ</span></h3></div>
-                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500"><p class="text-slate-500 text-xs font-bold uppercase mb-1">บุคลากรที่ลารอบนี้</p><h3 id="total-people" class="text-3xl font-black text-emerald-600">0 <span class="text-sm font-medium text-slate-500">คน</span></h3></div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-blue-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">ลาป่วย (รวม)</p>
+                    <h3 id="total-sick" class="text-3xl font-black text-blue-600">0 <span
+                            class="text-sm font-medium text-slate-500">วัน</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-orange-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">ลากิจ (รวม)</p>
+                    <h3 id="total-personal" class="text-3xl font-black text-orange-600">0 <span
+                            class="text-sm font-medium text-slate-500">วัน</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">รอการอนุมัติ</p>
+                    <h3 id="total-pending" class="text-3xl font-black text-rose-600">0 <span
+                            class="text-sm font-medium text-slate-500">รายการ</span></h3>
+                </div>
+                <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500">
+                    <p class="text-slate-500 text-xs font-bold uppercase mb-1">บุคลากรที่ลารอบนี้</p>
+                    <h3 id="total-people" class="text-3xl font-black text-emerald-600">0 <span
+                            class="text-sm font-medium text-slate-500">คน</span></h3>
+                </div>
             </div>
             <div class="glass-panel p-6 rounded-2xl shadow-sm">
-                <h3 class="font-bold text-rose-600 mb-4 border-b border-slate-100 pb-2"><i class="fas fa-bell mr-2"></i>แจ้งเตือน: บุคลากรที่ใช้วันลาใกล้ครบกำหนด (เสี่ยงเกินเกณฑ์)</h3>
-                <div id="alert-zone" class="space-y-2 max-h-80 overflow-y-auto pr-2"><div class="text-center text-slate-400 py-4 text-sm">กำลังตรวจสอบข้อมูล...</div></div>
+                <h3 class="font-bold text-rose-600 mb-4 border-b border-slate-100 pb-2"><i
+                        class="fas fa-bell mr-2"></i>แจ้งเตือน: บุคลากรที่ใช้วันลาใกล้ครบกำหนด (เสี่ยงเกินเกณฑ์)</h3>
+                <div id="alert-zone" class="space-y-2 max-h-80 overflow-y-auto pr-2">
+                    <div class="text-center text-slate-400 py-4 text-sm">กำลังตรวจสอบข้อมูล...</div>
+                </div>
             </div>
             <div class="glass-panel p-6 rounded-2xl shadow-sm mt-6">
-                <h3 class="font-bold text-blue-600 mb-4 border-b border-slate-100 pb-2"><i class="fas fa-gavel mr-2"></i>แจ้งเตือน: บุคลากรที่ไม่ผ่านเกณฑ์การเลื่อนเงินเดือน (ตาม ก.ค.ศ.)</h3>
-                <div id="promotion-alert-zone" class="space-y-2 max-h-80 overflow-y-auto pr-2"><div class="text-center text-slate-400 py-4 text-sm">กำลังตรวจสอบข้อมูล...</div></div>
+                <h3 class="font-bold text-blue-600 mb-4 border-b border-slate-100 pb-2"><i
+                        class="fas fa-gavel mr-2"></i>แจ้งเตือน: บุคลากรที่ไม่ผ่านเกณฑ์การเลื่อนเงินเดือน (ตาม ก.ค.ศ.)
+                </h3>
+                <div id="promotion-alert-zone" class="space-y-2 max-h-80 overflow-y-auto pr-2">
+                    <div class="text-center text-slate-400 py-4 text-sm">กำลังตรวจสอบข้อมูล...</div>
+                </div>
             </div>
         </section>
 
@@ -125,15 +183,36 @@
             <div class="glass-panel p-6 rounded-2xl shadow-sm">
                 <div class="flex flex-col md:flex-row justify-between gap-4 mb-6 border-b border-slate-100 pb-4">
                     <div class="flex flex-wrap gap-2">
-                        <button onclick="exportLeaveReport()" class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition shadow-sm text-sm flex items-center gap-2"><i class="fas fa-file-excel"></i> ส่งออกรายการ (Excel)</button>
-                        <button onclick="exportLeaveSummaryReport()" class="bg-teal-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm text-sm flex items-center gap-2"><i class="fas fa-chart-line"></i> สรุปรายงานส่งเขต (Excel)</button>
-                        <button onclick="openAdminLeaveModal()" class="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition shadow-sm text-sm flex items-center gap-2"><i class="fas fa-user-plus"></i> เขียนใบลาแทนบุคลากร</button>
+                        <button onclick="exportLeaveReport()"
+                            class="bg-emerald-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-emerald-700 transition shadow-sm text-sm flex items-center gap-2"><i
+                                class="fas fa-file-excel"></i> ส่งออกรายการ (Excel)</button>
+                        <button onclick="exportLeaveSummaryReport()"
+                            class="bg-teal-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-teal-700 transition shadow-sm text-sm flex items-center gap-2"><i
+                                class="fas fa-chart-line"></i> สรุปรายงานส่งเขต (Excel)</button>
+                        <button onclick="openAdminLeaveModal()"
+                            class="bg-purple-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-purple-700 transition shadow-sm text-sm flex items-center gap-2"><i
+                                class="fas fa-user-plus"></i> เขียนใบลาแทนบุคลากร</button>
                     </div>
-                    <div class="w-full md:w-72"><select id="filter-personnel" class="w-full" onchange="filterTableByPerson()"><option value="">-- ดูข้อมูลทุกคน --</option></select></div>
+                    <div class="w-full md:w-72"><select id="filter-personnel" class="w-full"
+                            onchange="filterTableByPerson()">
+                            <option value="">-- ดูข้อมูลทุกคน --</option>
+                        </select></div>
                 </div>
                 <div class="w-full">
                     <table id="adminLeaveTable" class="w-full text-left text-sm display nowrap">
-                        <thead><tr class="bg-slate-50 text-slate-600"><th class="text-center">วันที่ส่ง</th><th>ชื่อบุคลากร</th><th>ประเภท</th><th>ช่วงวันที่ลา</th><th class="text-center">จำนวน (วัน)</th><th class="text-center">จำนวน (ครั้ง)</th><th class="text-center">สถานะ</th><th class="text-center">สถานะรับทราบ</th><th class="text-center w-40">จัดการ/อนุมัติ</th></tr></thead>
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600">
+                                <th class="text-center">วันที่ส่ง</th>
+                                <th>ชื่อบุคลากร</th>
+                                <th>ประเภท</th>
+                                <th>ช่วงวันที่ลา</th>
+                                <th class="text-center">จำนวน (วัน)</th>
+                                <th class="text-center">จำนวน (ครั้ง)</th>
+                                <th class="text-center">สถานะ</th>
+                                <th class="text-center">สถานะรับทราบ</th>
+                                <th class="text-center w-40">จัดการ/อนุมัติ</th>
+                            </tr>
+                        </thead>
                         <tbody id="tb-admin-leave"></tbody>
                     </table>
                 </div>
@@ -144,14 +223,28 @@
         <section id="tab-attendance" class="tab-content hidden">
             <div class="glass-panel p-6 rounded-2xl shadow-lg">
                 <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-bold text-gray-700 text-xl"><i class="fas fa-clipboard-list mr-2 text-blue-600"></i>บันทึกการขาดราชการ / มาสาย</h3>
+                    <h3 class="font-bold text-gray-700 text-xl"><i
+                            class="fas fa-clipboard-list mr-2 text-blue-600"></i>บันทึกการขาดราชการ / มาสาย</h3>
                     <div class="flex gap-2">
-                        <button onclick="exportAttendanceReport()" class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition shadow flex items-center gap-2"><i class="fas fa-file-excel"></i> ส่งออกสรุป Excel</button>
-                        <button onclick="openAttendanceModal('add')" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow flex items-center gap-2"><i class="fas fa-plus"></i> เพิ่มรายการ</button>
+                        <button onclick="exportAttendanceReport()"
+                            class="bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition shadow flex items-center gap-2"><i
+                                class="fas fa-file-excel"></i> ส่งออกสรุป Excel</button>
+                        <button onclick="openAttendanceModal('add')"
+                            class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition shadow flex items-center gap-2"><i
+                                class="fas fa-plus"></i> เพิ่มรายการ</button>
                     </div>
                 </div>
                 <table id="attendanceTable" class="w-full text-sm display responsive nowrap">
-                    <thead><tr class="bg-slate-50 text-slate-600"><th class="text-center">วันที่</th><th>ชื่อ-สกุล</th><th>กลุ่มสาระฯ/กลุ่มงาน</th><th class="text-center">ประเภท</th><th>หมายเหตุ</th><th class="text-center">จัดการ</th></tr></thead>
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600">
+                            <th class="text-center">วันที่</th>
+                            <th>ชื่อ-สกุล</th>
+                            <th>กลุ่มสาระฯ/กลุ่มงาน</th>
+                            <th class="text-center">ประเภท</th>
+                            <th>หมายเหตุ</th>
+                            <th class="text-center">จัดการ</th>
+                        </tr>
+                    </thead>
                     <tbody id="tb-attendance"></tbody>
                 </table>
             </div>
@@ -160,162 +253,305 @@
         <!-- Settings content -->
         <section id="tab-settings" class="tab-content hidden">
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <!-- คอลัมน์ซ้าย: ตั้งค่าระบบและผู้ลงนาม -->
                 <div class="glass-panel p-6 rounded-2xl shadow-sm h-fit">
                     <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                        <h3 class="font-bold text-blue-800"><i class="fas fa-sliders mr-2"></i>ตั้งค่าระบบและผู้ลงนาม</h3>
-                        <span class="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">Super Admin เท่านั้น</span>
+                        <h3 class="font-bold text-blue-800"><i class="fas fa-sliders mr-2"></i>ตั้งค่าระบบและผู้ลงนาม
+                        </h3>
+                        <span
+                            class="text-[10px] font-bold bg-blue-100 text-blue-700 px-3 py-1 rounded-full border border-blue-200">Super
+                            Admin เท่านั้น</span>
                     </div>
                     <form id="systemSettingsForm" onsubmit="saveSystemSettings(event)" class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ปีงบประมาณปัจจุบัน (พ.ศ.) *</label><input type="number" id="fiscal_year" required class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-blue-700"></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">รอบการประเมินปัจจุบัน *</label><select id="evaluation_round" required class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 bg-white font-bold text-blue-700"><option value="1">ครั้งที่ 1 (1 ต.ค. - 31 มี.ค.)</option><option value="2">ครั้งที่ 2 (1 เม.ย. - 30 ก.ย.)</option></select></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ปีงบประมาณปัจจุบัน (พ.ศ.)
+                                    *</label><input type="number" id="fiscal_year" required
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 font-bold text-blue-700">
+                            </div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">รอบการประเมินปัจจุบัน
+                                    *</label><select id="evaluation_round" required
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 bg-white font-bold text-blue-700">
+                                    <option value="1">ครั้งที่ 1 (1 ต.ค. - 31 มี.ค.)</option>
+                                    <option value="2">ครั้งที่ 2 (1 เม.ย. - 30 ก.ย.)</option>
+                                </select></div>
                         </div>
                         <div class="border-t border-slate-100 pt-4 space-y-4">
-                            <h4 class="text-sm font-bold text-slate-800"><i class="fas fa-file-signature text-blue-500 mr-2"></i>ผู้ลงนามในใบลา (สำหรับการพิมพ์ PDF)</h4>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ผู้รับผิดชอบการลา (เจ้าหน้าที่/ธุรการ) <span class="text-rose-500">*ต้องเลือก</span></label><select id="sign_leave_admin" class="w-full select2-personnel"><option value="">-- เลือกผู้รับผิดชอบ --</option></select></div>
+                            <h4 class="text-sm font-bold text-slate-800"><i
+                                    class="fas fa-file-signature text-blue-500 mr-2"></i>ผู้ลงนามในใบลา (สำหรับการพิมพ์
+                                PDF)</h4>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ผู้รับผิดชอบการลา
+                                    (เจ้าหน้าที่/ธุรการ) <span class="text-rose-500">*ต้องเลือก</span></label><select
+                                    id="sign_leave_admin" class="w-full select2-personnel">
+                                    <option value="">-- เลือกผู้รับผิดชอบ --</option>
+                                </select></div>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label class="block text-xs font-bold text-slate-500 mb-1">รองผู้อำนวยการกลุ่มบริหารงานบุคคล (ดึงจากส่วนกลาง)</label><div id="display_hr_deputy" class="font-bold text-slate-700 text-sm">กำลังโหลด...</div></div>
-                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label class="block text-xs font-bold text-slate-500 mb-1">ผู้อำนวยการโรงเรียน (ดึงจากส่วนกลาง)</label><div id="display_director" class="font-bold text-slate-700 text-sm">กำลังโหลด...</div></div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label
+                                        class="block text-xs font-bold text-slate-500 mb-1">รองผู้อำนวยการกลุ่มบริหารงานบุคคล
+                                        (ดึงจากส่วนกลาง)</label>
+                                    <div id="display_hr_deputy" class="font-bold text-slate-700 text-sm">กำลังโหลด...
+                                    </div>
+                                </div>
+                                <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label
+                                        class="block text-xs font-bold text-slate-500 mb-1">ผู้อำนวยการโรงเรียน
+                                        (ดึงจากส่วนกลาง)</label>
+                                    <div id="display_director" class="font-bold text-slate-700 text-sm">กำลังโหลด...
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="border-t border-slate-100 pt-6 mt-4 space-y-4">
-                            <h4 class="text-sm font-bold text-slate-800"><i class="fas fa-file-pdf text-red-500 mr-2"></i>ตั้งค่าการพิมพ์ PDF (ผ่าน GAS)</h4>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">GAS Web App URL <span class="text-red-500">*</span></label><input type="url" id="set_gas_url" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-medium" placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Slide Template ID <span class="text-red-500">*</span></label><input type="text" id="set_slide_template_id" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600" placeholder="รหัสจาก URL ของ Google Slide"></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID (สำหรับเก็บ PDF) <span class="text-red-500">*</span></label><input type="text" id="set_pdf_folder_id" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono" placeholder="1ABC123defGHI..."><p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ต้องเป็น ID ของโฟลเดอร์ใน Google Drive ที่ GAS สามารถเขียนไฟล์ได้</p></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID (สำหรับลายเซ็น) <span class="text-red-500">*</span></label><input type="text" id="set_signature_folder_id" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono" placeholder="1XYZ..."><p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ต้องเป็น ID ของโฟลเดอร์ที่เก็บไฟล์ลายเซ็น (รูป .png/.jpg) โดย GAS ต้องมีสิทธิ์อ่าน</p></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID (สำหรับหลักฐานการลา) <span class="text-red-500">*</span></label><input type="text" id="set_evidence_folder_id" class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono" placeholder="1ABC..."><p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ใช้เก็บไฟล์หลักฐานที่อัปโหลด (ใบรับรองแพทย์ ฯลฯ)</p></div>
-                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ใช้ Slide เพียง 1 เทมเพลตเป็นแบบฟอร์มกลางสำหรับทุกประเภทการลา</p>
+                            <h4 class="text-sm font-bold text-slate-800"><i
+                                    class="fas fa-file-pdf text-red-500 mr-2"></i>ตั้งค่าการพิมพ์ PDF (ผ่าน GAS)</h4>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">GAS Web App URL <span
+                                        class="text-red-500">*</span></label><input type="url" id="set_gas_url"
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-medium"
+                                    placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Slide Template ID <span
+                                        class="text-red-500">*</span></label><input type="text"
+                                    id="set_slide_template_id"
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600"
+                                    placeholder="รหัสจาก URL ของ Google Slide"></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID
+                                    (สำหรับเก็บ PDF) <span class="text-red-500">*</span></label><input type="text"
+                                    id="set_pdf_folder_id"
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono"
+                                    placeholder="1ABC123defGHI...">
+                                <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ต้องเป็น
+                                    ID ของโฟลเดอร์ใน Google Drive ที่ GAS สามารถเขียนไฟล์ได้</p>
+                            </div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID
+                                    (สำหรับลายเซ็น) <span class="text-red-500">*</span></label><input type="text"
+                                    id="set_signature_folder_id"
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono"
+                                    placeholder="1XYZ...">
+                                <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ต้องเป็น
+                                    ID ของโฟลเดอร์ที่เก็บไฟล์ลายเซ็น (รูป .png/.jpg) โดย GAS ต้องมีสิทธิ์อ่าน</p>
+                            </div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">Google Drive Folder ID
+                                    (สำหรับหลักฐานการลา) <span class="text-red-500">*</span></label><input type="text"
+                                    id="set_evidence_folder_id"
+                                    class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-blue-500 text-sm text-slate-600 font-mono"
+                                    placeholder="1ABC...">
+                                <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i>
+                                    ใช้เก็บไฟล์หลักฐานที่อัปโหลด (ใบรับรองแพทย์ ฯลฯ)</p>
+                            </div>
+                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> ใช้ Slide
+                                เพียง 1 เทมเพลตเป็นแบบฟอร์มกลางสำหรับทุกประเภทการลา</p>
                         </div>
-                        <div class="pt-4"><button type="submit" id="btn-save-settings" class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"><i class="fas fa-save mr-2"></i> บันทึกการตั้งค่าระบบ</button></div>
+                        <div class="pt-4"><button type="submit" id="btn-save-settings"
+                                class="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 rounded-xl font-bold shadow-md transition disabled:opacity-50 disabled:cursor-not-allowed"><i
+                                    class="fas fa-save mr-2"></i> บันทึกการตั้งค่าระบบ</button></div>
                     </form>
                 </div>
 
+                <!-- คอลัมน์ขวา: Module Admins, จัดการลายเซ็น, และตั้งค่าวันหยุด -->
                 <div class="flex flex-col gap-6" id="superadmin-only-section">
+                    <!-- บล็อกที่ 1: ผู้ดูแลระบบการลา (Module Admins) -->
                     <div class="glass-panel p-6 rounded-2xl shadow-sm h-fit">
                         <div class="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
-                            <h3 class="font-bold text-purple-800"><i class="fas fa-user-shield mr-2"></i>ผู้ดูแลระบบการลา (Module Admins)</h3><span class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200">Super Admin เท่านั้น</span>
+                            <h3 class="font-bold text-purple-800"><i
+                                    class="fas fa-user-shield mr-2"></i>ผู้ดูแลระบบการลา (Module Admins)</h3>
+                            <span
+                                class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200">Super
+                                Admin เท่านั้น</span>
                         </div>
                         <div class="flex flex-col sm:flex-row gap-3 mb-4">
-                            <div class="flex-1"><select id="select-new-admin" class="w-full select2-personnel"><option value="">-- พิมพ์ค้นหาชื่อบุคลากร --</option></select></div><button onclick="addModuleAdmin()" id="btn-add-admin" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed h-[42px]"><i class="fas fa-plus"></i> แต่งตั้ง</button>
+                            <div class="flex-1"><select id="select-new-admin" class="w-full select2-personnel">
+                                    <option value="">-- พิมพ์ค้นหาชื่อบุคลากร --</option>
+                                </select></div>
+                            <button onclick="addModuleAdmin()" id="btn-add-admin"
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm transition flex items-center justify-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed h-[42px]"><i
+                                    class="fas fa-plus"></i> แต่งตั้ง</button>
                         </div>
-                        <div class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
-                            <table class="w-full text-sm text-left"><thead class="bg-purple-50 text-purple-800 sticky top-0"><tr><th class="p-3 font-bold">ชื่อ - นามสกุล</th><th class="p-3 text-center font-bold w-20">ถอดถอน</th></tr></thead><tbody id="admin-list" class="divide-y divide-slate-100 bg-white"><tr><td colspan="2" class="p-4 text-center text-slate-400">กำลังโหลด...</td></tr></tbody></table>
+                        <div
+                            class="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
+                            <table class="w-full text-sm text-left">
+                                <thead class="bg-purple-50 text-purple-800 sticky top-0">
+                                    <tr>
+                                        <th class="p-3 font-bold">ชื่อ - นามสกุล</th>
+                                        <th class="p-3 text-center font-bold w-20">ถอดถอน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="admin-list" class="divide-y divide-slate-100 bg-white">
+                                    <tr>
+                                        <td colspan="2" class="p-4 text-center text-slate-400">กำลังโหลด...</td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
+
+                    <!-- บล็อกที่ 2: จัดการลายเซ็นบุคลากร -->
                     <div class="glass-panel p-6 rounded-2xl shadow-sm h-fit">
                         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <h3 class="font-bold text-purple-800"><i class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
-                            <span class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200">Super Admin เท่านั้น</span>
+                            <h3 class="font-bold text-purple-800"><i
+                                    class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
+                            <span
+                                class="text-[10px] font-bold bg-purple-100 text-purple-700 px-3 py-1 rounded-full border border-purple-200">Super
+                                Admin เท่านั้น</span>
                         </div>
                         <div class="mt-4 flex flex-wrap items-center gap-4">
-                            <p class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display" class="font-mono text-xs bg-slate-100 px-2 py-1 rounded">ยังไม่ได้ตั้งค่า</span></p>
-                            <button onclick="openSignatureModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow transition flex items-center gap-2"><i class="fas fa-upload"></i> จัดการลายเซ็น</button>
+                            <p class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display"
+                                    class="font-mono text-xs bg-slate-100 px-2 py-1 rounded">ยังไม่ได้ตั้งค่า</span></p>
+                            <button onclick="openSignatureModal()"
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow transition flex items-center gap-2"><i
+                                    class="fas fa-upload"></i> จัดการลายเซ็น</button>
+                        </div>
+                    </div>
+
+                    <!-- บล็อกที่ 3: ตั้งค่าวันหยุดของโรงเรียน (ย้ายมาอยู่ฝั่งขวา ใต้จัดการลายเซ็น) -->
+                    <div id="holidaySettingsSectionAdmin" class="glass-panel p-6 rounded-2xl shadow-sm h-fit">
+                        <div
+                            class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
+                            <h3 class="font-bold text-blue-800 flex items-center gap-2">
+                                <i class="fas fa-calendar-times text-blue-600"></i> ตั้งค่าวันหยุดของโรงเรียน
+                                <span
+                                    class="text-[10px] font-bold bg-rose-100 text-rose-700 px-3 py-1 rounded-full border border-rose-200">เฉพาะ
+                                    Super Admin</span>
+                            </h3>
+                            <button onclick="addHolidayAdmin()"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2 whitespace-nowrap">
+                                <i class="fas fa-plus"></i> เพิ่มวันหยุด
+                            </button>
+                        </div>
+
+                        <div class="flex flex-wrap gap-2 mb-4" id="holidayListContainerAdmin">
+                            <span class="text-slate-400 text-sm">กำลังโหลดรายการวันหยุด...</span>
+                        </div>
+
+                        <div id="addHolidayFormAdmin"
+                            class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">วันที่เริ่มต้น *</label>
+                                    <input type="date" id="holidayStartDateAdmin"
+                                        class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">วันที่สิ้นสุด *</label>
+                                    <input type="date" id="holidayEndDateAdmin"
+                                        class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-600 mb-1">คำอธิบาย</label>
+                                    <input type="text" id="holidayDescriptionAdmin"
+                                        class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                        placeholder="ปิดเทอมภาคเรียน...">
+                                </div>
+                                <div class="flex gap-2">
+                                    <button onclick="saveHolidayAdmin()"
+                                        class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex-1">บันทึก</button>
+                                    <button onclick="cancelAddHolidayAdmin()"
+                                        class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition">ยกเลิก</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end">
+                            <button onclick="loadHolidaysAdmin()"
+                                class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
+                                <i class="fas fa-sync-alt"></i> รีเฟรชรายการ
+                            </button>
                         </div>
                     </div>
                 </div>
             </div>
-
-            <!-- ============================================================ -->
-            <!--  ส่วนตั้งค่าวันหยุดของโรงเรียน (เฉพาะ Super Admin)             -->
-            <!-- ============================================================ -->
-            <div id="holidaySettingsSectionAdmin" class="glass-panel p-6 rounded-2xl shadow-sm mt-6 hidden">
-                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4 mb-4">
-                    <h3 class="font-bold text-blue-800 flex items-center gap-2">
-                        <i class="fas fa-calendar-times text-blue-600"></i> ตั้งค่าวันหยุดของโรงเรียน
-                        <span class="text-[10px] font-bold bg-rose-100 text-rose-700 px-3 py-1 rounded-full border border-rose-200">เฉพาะ Super Admin</span>
-                    </h3>
-                    <button onclick="addHolidayAdmin()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition flex items-center gap-2">
-                        <i class="fas fa-plus"></i> เพิ่มวันหยุด
-                    </button>
-                </div>
-
-                <div class="flex flex-wrap gap-2 mb-4" id="holidayListContainerAdmin">
-                    <span class="text-slate-400 text-sm">กำลังโหลดรายการวันหยุด...</span>
-                </div>
-
-                <div id="addHolidayFormAdmin" class="hidden bg-slate-50 p-4 rounded-xl border border-slate-200 mb-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่เริ่มต้น *</label>
-                            <input type="date" id="holidayStartDateAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่สิ้นสุด *</label>
-                            <input type="date" id="holidayEndDateAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">คำอธิบาย</label>
-                            <input type="text" id="holidayDescriptionAdmin" class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none" placeholder="ปิดเทอมภาคเรียน...">
-                        </div>
-                        <div class="flex gap-2">
-                            <button onclick="saveHolidayAdmin()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition flex-1">บันทึก</button>
-                            <button onclick="cancelAddHolidayAdmin()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold transition">ยกเลิก</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="flex justify-end">
-                    <button onclick="loadHolidaysAdmin()" class="text-sm bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1">
-                        <i class="fas fa-sync-alt"></i> รีเฟรชรายการ
-                    </button>
-                </div>
-            </div>
-            <!-- ============================================================ -->
-
         </section>
     </main>
 
     <!-- Edit Leave Modal (พร้อมช่องอัปโหลด) -->
-    <div id="editLeaveModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity">
+    <div id="editLeaveModal"
+        class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity">
         <div class="glass-panel p-6 md:p-8 w-full max-w-4xl bg-white rounded-2xl shadow-2xl transform transition-all">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-xl font-bold text-blue-800"><i class="fas fa-edit mr-2"></i>แก้ไขข้อมูลการลา</h2>
-                <button onclick="closeEditModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+                <button onclick="closeEditModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
             <form id="editLeaveForm" class="space-y-4">
                 <input type="hidden" id="edit_leave_id">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
                     <div class="md:col-span-7 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i class="fas fa-file-alt text-blue-500 mr-2"></i> ข้อมูลการลา</h4>
-                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">ประเภทการลา <span class="text-red-500">*</span></label><select id="edit_leave_type" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none" required onchange="calculateEditDays()"><option value="ลาป่วย">ลาป่วย</option><option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option><option value="ลาคลอดบุตร">ลาคลอดบุตร</option></select></div>
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i
+                                class="fas fa-file-alt text-blue-500 mr-2"></i> ข้อมูลการลา</h4>
+                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">ประเภทการลา <span
+                                    class="text-red-500">*</span></label><select id="edit_leave_type"
+                                class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                required onchange="calculateEditDays()">
+                                <option value="ลาป่วย">ลาป่วย</option>
+                                <option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option>
+                                <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                            </select></div>
                         <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-semibold text-gray-700 mb-1">เริ่มวันที่ <span class="text-red-500">*</span></label><input type="text" id="edit_start_date" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker" required></div>
-                            <div><label class="block text-sm font-semibold text-gray-700 mb-1">ถึงวันที่ <span class="text-red-500">*</span></label><input type="text" id="edit_end_date" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker" required></div>
+                            <div><label class="block text-sm font-semibold text-gray-700 mb-1">เริ่มวันที่ <span
+                                        class="text-red-500">*</span></label><input type="text" id="edit_start_date"
+                                    class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker"
+                                    required></div>
+                            <div><label class="block text-sm font-semibold text-gray-700 mb-1">ถึงวันที่ <span
+                                        class="text-red-500">*</span></label><input type="text" id="edit_end_date"
+                                    class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker"
+                                    required></div>
                             <div class="flex items-center gap-4 mt-2 col-span-2">
-                                <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input type="checkbox" id="edit_is_half_day" onchange="calculateEditDays()" class="w-5 h-5 accent-blue-500"> ลาครึ่งวัน</label>
+                                <label
+                                    class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input
+                                        type="checkbox" id="edit_is_half_day" onchange="calculateEditDays()"
+                                        class="w-5 h-5 accent-blue-500"> ลาครึ่งวัน</label>
                             </div>
                         </div>
-                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">สาเหตุการลา <span class="text-red-500">*</span></label><textarea id="edit_reason" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" rows="3" required></textarea></div>
+                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">สาเหตุการลา <span
+                                    class="text-red-500">*</span></label><textarea id="edit_reason"
+                                class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                                rows="3" required></textarea></div>
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">วันที่ส่งใบลา (ย้อนหลังได้)</label>
-                            <input type="text" id="edit_submitted_date" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">วันที่ส่งใบลา
+                                (ย้อนหลังได้)</label>
+                            <input type="text" id="edit_submitted_date"
+                                class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none edit-datepicker">
                         </div>
                         <div class="bg-blue-50 p-4 rounded-xl flex justify-between items-center">
                             <span class="font-bold text-blue-800 text-sm">รวมระยะเวลาลา (คำนวณอัตโนมัติ):</span>
-                            <div class="text-2xl font-black text-blue-600"><span id="edit_calc_days">0</span> <span class="text-sm font-bold text-blue-800">วัน</span></div>
+                            <div class="text-2xl font-black text-blue-600"><span id="edit_calc_days">0</span> <span
+                                    class="text-sm font-bold text-blue-800">วัน</span></div>
                         </div>
                         <div id="edit_evidence_upload_wrapper" class="hidden">
-                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์) <span class="text-red-500">*</span></label>
-                            <input type="file" id="edit_evidence_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full border-2 border-slate-200 rounded-xl p-3">
-                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> อัปโหลดไฟล์ PDF, JPG, PNG ขนาดไม่เกิน 5MB</p>
-                            <div id="edit_existing_evidence" class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์)
+                                <span class="text-red-500">*</span></label>
+                            <input type="file" id="edit_evidence_file" accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3">
+                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> อัปโหลดไฟล์
+                                PDF, JPG, PNG ขนาดไม่เกิน 5MB</p>
+                            <div id="edit_existing_evidence"
+                                class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2">
                                 <i class="fas fa-paperclip text-blue-500"></i>
                                 <span id="edit_existing_evidence_name" class="font-medium text-blue-700"></span>
-                                <button type="button" onclick="document.getElementById('edit_evidence_file').value=''; document.getElementById('edit_existing_evidence').classList.add('hidden');" class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button>
+                                <button type="button"
+                                    onclick="document.getElementById('edit_evidence_file').value=''; document.getElementById('edit_existing_evidence').classList.add('hidden');"
+                                    class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button>
                             </div>
                         </div>
                     </div>
                     <div class="md:col-span-5 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
-                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">ที่อยู่ระหว่างลา</label><textarea id="edit_contact_address" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" rows="4"></textarea></div>
-                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">เบอร์โทรติดต่อ</label><input type="tel" id="edit_phone_number" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"></div>
-                        <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 text-xs text-orange-800"><i class="fas fa-info-circle text-orange-500 mr-1"></i> ข้อมูลนี้จะแสดงในใบลา PDF</div>
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i
+                                class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
+                        <div><label
+                                class="block text-sm font-semibold text-gray-700 mb-1">ที่อยู่ระหว่างลา</label><textarea
+                                id="edit_contact_address"
+                                class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                                rows="4"></textarea></div>
+                        <div><label class="block text-sm font-semibold text-gray-700 mb-1">เบอร์โทรติดต่อ</label><input
+                                type="tel" id="edit_phone_number"
+                                class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none">
+                        </div>
+                        <div class="bg-orange-50 border border-orange-100 rounded-xl p-3 text-xs text-orange-800"><i
+                                class="fas fa-info-circle text-orange-500 mr-1"></i> ข้อมูลนี้จะแสดงในใบลา PDF</div>
                     </div>
                 </div>
                 <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeEditModal()" class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">ยกเลิก</button>
-                    <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2"><i class="fas fa-save"></i> บันทึกการแก้ไข</button>
+                    <button type="button" onclick="closeEditModal()"
+                        class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">ยกเลิก</button>
+                    <button type="submit"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2"><i
+                            class="fas fa-save"></i> บันทึกการแก้ไข</button>
                 </div>
             </form>
         </div>
@@ -324,113 +560,251 @@
     <!-- Admin Leave Modal (เขียนใบลาแทน) พร้อมช่องอัปโหลด -->
     <div id="adminLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdminLeaveModal()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-pen"></i> เขียนใบลาแทนบุคลากร</h3><button type="button" onclick="closeAdminLeaveModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+        <div
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-pen"></i>
+                    เขียนใบลาแทนบุคลากร</h3><button type="button" onclick="closeAdminLeaveModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <form id="adminLeaveForm" onsubmit="saveLeaveForAdmin(event)" class="p-6 overflow-y-auto">
                 <input type="hidden" id="admin_leave_id">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
                     <div class="md:col-span-7 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i class="fas fa-file-alt text-purple-500 mr-2"></i> ข้อมูลการลา</h4>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร *</label><select id="admin_personnel_id" class="w-full" required></select></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ประเภทการลา *</label><select id="admin_leave_type" required onchange="adminUpdateLeaveGuide()" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 bg-white"><option value="">-- กรุณาเลือกประเภท --</option><option value="ลาป่วย">ลาป่วย</option><option value="ลาคลอดบุตร">ลาคลอดบุตร</option><option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option><option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option><option value="ลาพักผ่อน">ลาพักผ่อน</option><option value="ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์">ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์</option><option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option><option value="ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน">ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน</option><option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">ลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option><option value="ลาติดตามคู่สมรส">ลาติดตามคู่สมรส</option><option value="ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option></select></div>
-                        <div id="admin_leave_guide" class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl"></div>
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm flex items-center"><i
+                                class="fas fa-file-alt text-purple-500 mr-2"></i> ข้อมูลการลา</h4>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร *</label><select
+                                id="admin_personnel_id" class="w-full" required></select></div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ประเภทการลา *</label><select
+                                id="admin_leave_type" required onchange="adminUpdateLeaveGuide()"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 bg-white">
+                                <option value="">-- กรุณาเลือกประเภท --</option>
+                                <option value="ลาป่วย">ลาป่วย</option>
+                                <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
+                                <option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
+                                <option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option>
+                                <option value="ลาพักผ่อน">ลาพักผ่อน</option>
+                                <option value="ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์">ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์
+                                </option>
+                                <option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">
+                                    ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+                                <option value="ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน">ลาไปศึกษา ฝึกอบรม
+                                    ปฏิบัติการวิจัย หรือดูงาน</option>
+                                <option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">
+                                    ลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option>
+                                <option value="ลาติดตามคู่สมรส">ลาติดตามคู่สมรส</option>
+                                <option value="ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
+                            </select></div>
+                        <div id="admin_leave_guide"
+                            class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl"></div>
                         <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่ *</label><input type="text" id="admin_start_date" required class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input type="hidden" id="admin_start_date_iso"></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label><input type="text" id="admin_end_date" required class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input type="hidden" id="admin_end_date_iso"></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่
+                                    *</label><input type="text" id="admin_start_date" required
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input
+                                    type="hidden" id="admin_start_date_iso"></div>
+                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label><input
+                                    type="text" id="admin_end_date" required
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker"><input
+                                    type="hidden" id="admin_end_date_iso"></div>
                             <div class="flex items-center gap-4 mt-2 col-span-2">
-                                <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input type="checkbox" id="admin_is_half_day" onchange="adminCalculateDays()" class="w-5 h-5 accent-purple-500"> ลาครึ่งวัน</label>
+                                <label
+                                    class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input
+                                        type="checkbox" id="admin_is_half_day" onchange="adminCalculateDays()"
+                                        class="w-5 h-5 accent-purple-500"> ลาครึ่งวัน</label>
                                 <span class="text-xs text-slate-400">(เลือกกรณีลาเพียงครึ่งวัน จะนับเป็น 0.5 วัน)</span>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">วันที่ส่งใบลา (ถ้าไม่ระบุจะใช้วันที่บันทึก)</label>
-                            <input type="text" id="admin_submitted_date" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">วันที่ส่งใบลา
+                                (ถ้าไม่ระบุจะใช้วันที่บันทึก)</label>
+                            <input type="text" id="admin_submitted_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-datepicker">
                             <input type="hidden" id="admin_submitted_date_iso">
                         </div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">สาเหตุการลา *</label><input type="text" id="admin_reason" required class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
-                        <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl"><span class="font-bold text-purple-800">รวมระยะเวลาลา:</span> <span id="admin_calc_days" class="text-2xl font-black text-purple-600">0</span> วัน</div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">สาเหตุการลา *</label><input
+                                type="text" id="admin_reason" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
+                        <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl"><span
+                                class="font-bold text-purple-800">รวมระยะเวลาลา:</span> <span id="admin_calc_days"
+                                class="text-2xl font-black text-purple-600">0</span> วัน</div>
                         <div id="admin_evidence_upload_wrapper" class="hidden">
-                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์) <span class="text-red-500">*</span></label>
-                            <input type="file" id="admin_evidence_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full border-2 border-slate-200 rounded-xl p-3">
-                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> อัปโหลดไฟล์ PDF, JPG, PNG ขนาดไม่เกิน 5MB</p>
-                            <div id="admin_existing_evidence" class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์)
+                                <span class="text-red-500">*</span></label>
+                            <input type="file" id="admin_evidence_file" accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3">
+                            <p class="text-[10px] text-slate-400 mt-1"><i class="fas fa-info-circle"></i> อัปโหลดไฟล์
+                                PDF, JPG, PNG ขนาดไม่เกิน 5MB</p>
+                            <div id="admin_existing_evidence"
+                                class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2">
                                 <i class="fas fa-paperclip text-blue-500"></i>
                                 <span id="admin_existing_evidence_name" class="font-medium text-blue-700"></span>
-                                <button type="button" onclick="document.getElementById('admin_evidence_file').value=''; document.getElementById('admin_existing_evidence').classList.add('hidden');" class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button>
+                                <button type="button"
+                                    onclick="document.getElementById('admin_evidence_file').value=''; document.getElementById('admin_existing_evidence').classList.add('hidden');"
+                                    class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button>
                             </div>
                         </div>
                     </div>
                     <div class="md:col-span-5 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm"><i class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ระหว่างลา *</label><textarea id="admin_contact_address" required rows="4" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 resize-none"></textarea></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์โทรติดต่อ *</label><input type="tel" id="admin_phone_number" required pattern="[0-9]{9,10}" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
+                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 text-sm"><i
+                                class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ระหว่างลา
+                                *</label><textarea id="admin_contact_address" required rows="4"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 resize-none"></textarea>
+                        </div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์โทรติดต่อ *</label><input
+                                type="tel" id="admin_phone_number" required pattern="[0-9]{9,10}"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3"></div>
                     </div>
                 </div>
-                <div class="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3"><button type="button" onclick="closeAdminLeaveModal()" class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">ยกเลิก</button><button type="submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-purple-200 flex items-center gap-2"><i class="fas fa-paper-plane"></i> บันทึกใบลา</button></div>
+                <div class="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3"><button type="button"
+                        onclick="closeAdminLeaveModal()"
+                        class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">ยกเลิก</button><button
+                        type="submit"
+                        class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-lg shadow-purple-200 flex items-center gap-2"><i
+                            class="fas fa-paper-plane"></i> บันทึกใบลา</button></div>
             </form>
         </div>
     </div>
 
     <!-- Attendance Modal -->
-    <div id="attendanceModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[60] backdrop-blur-sm transition-opacity">
+    <div id="attendanceModal"
+        class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[60] backdrop-blur-sm transition-opacity">
         <div class="glass-panel p-6 md:p-8 w-full max-w-lg bg-white rounded-2xl shadow-2xl">
-            <div class="flex justify-between items-center mb-6"><h2 id="att_modal_title" class="text-xl font-bold text-blue-800"><i class="fas fa-plus-circle mr-2"></i>เพิ่มรายการ ขาด/มาสาย</h2><button onclick="closeAttendanceModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fas fa-times text-xl"></i></button></div>
+            <div class="flex justify-between items-center mb-6">
+                <h2 id="att_modal_title" class="text-xl font-bold text-blue-800"><i
+                        class="fas fa-plus-circle mr-2"></i>เพิ่มรายการ ขาด/มาสาย</h2><button
+                    onclick="closeAttendanceModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
+            </div>
             <form id="attendanceForm" class="space-y-4">
                 <input type="hidden" id="att_id">
-                <div><label class="block text-sm font-semibold text-gray-700 mb-1">ชื่อ-สกุล <span class="text-red-500">*</span></label><select id="att_personnel_id" class="w-full" required></select></div>
-                <div><label class="block text-sm font-semibold text-gray-700 mb-1">กลุ่มสาระการเรียนรู้ / กลุ่มงาน</label><input type="text" id="att_department" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-100 text-gray-500 cursor-not-allowed outline-none" readonly placeholder="จะแสดงอัตโนมัติเมื่อเลือกบุคลากร"></div>
-                <div class="grid grid-cols-2 gap-4"><div><label class="block text-sm font-semibold text-gray-700 mb-1">วันที่เกิดเหตุ <span class="text-red-500">*</span></label><input type="text" id="att_record_date" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none att-datepicker" required placeholder="เลือกวันที่"></div><div><label class="block text-sm font-semibold text-gray-700 mb-1">ประเภท <span class="text-red-500">*</span></label><select id="att_record_type" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" required><option value="มาสาย">มาสาย</option><option value="ขาดราชการ">ขาดราชการ</option></select></div></div>
-                <div><label class="block text-sm font-semibold text-gray-700 mb-1">หมายเหตุ / สาเหตุ (ถ้ามี)</label><textarea id="att_reason" class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none" rows="2" placeholder="ระบุเหตุผลเพิ่มเติม..."></textarea></div>
-                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100"><button type="button" onclick="closeAttendanceModal()" class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">ยกเลิก</button><button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2"><i class="fas fa-save"></i> บันทึกข้อมูล</button></div>
+                <div><label class="block text-sm font-semibold text-gray-700 mb-1">ชื่อ-สกุล <span
+                            class="text-red-500">*</span></label><select id="att_personnel_id" class="w-full"
+                        required></select></div>
+                <div><label class="block text-sm font-semibold text-gray-700 mb-1">กลุ่มสาระการเรียนรู้ /
+                        กลุ่มงาน</label><input type="text" id="att_department"
+                        class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-100 text-gray-500 cursor-not-allowed outline-none"
+                        readonly placeholder="จะแสดงอัตโนมัติเมื่อเลือกบุคลากร"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-semibold text-gray-700 mb-1">วันที่เกิดเหตุ <span
+                                class="text-red-500">*</span></label><input type="text" id="att_record_date"
+                            class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none att-datepicker"
+                            required placeholder="เลือกวันที่"></div>
+                    <div><label class="block text-sm font-semibold text-gray-700 mb-1">ประเภท <span
+                                class="text-red-500">*</span></label><select id="att_record_type"
+                            class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                            required>
+                            <option value="มาสาย">มาสาย</option>
+                            <option value="ขาดราชการ">ขาดราชการ</option>
+                        </select></div>
+                </div>
+                <div><label class="block text-sm font-semibold text-gray-700 mb-1">หมายเหตุ / สาเหตุ
+                        (ถ้ามี)</label><textarea id="att_reason"
+                        class="w-full border border-gray-300 rounded-lg p-2.5 bg-gray-50 focus:ring-2 focus:ring-blue-500 outline-none"
+                        rows="2" placeholder="ระบุเหตุผลเพิ่มเติม..."></textarea></div>
+                <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100"><button type="button"
+                        onclick="closeAttendanceModal()"
+                        class="px-5 py-2.5 text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors">ยกเลิก</button><button
+                        type="submit"
+                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg shadow-blue-500/30 transition-all flex items-center gap-2"><i
+                            class="fas fa-save"></i> บันทึกข้อมูล</button></div>
             </form>
         </div>
     </div>
 
     <!-- View Leave Modal (แสดงข้อมูลทั้งหมด + สถานะรับทราบ) -->
-    <div id="viewLeaveModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
+    <div id="viewLeaveModal"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
         <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl text-white flex-shrink-0">
-                <h3 class="font-bold text-base flex items-center gap-2"><i class="fas fa-file-alt"></i> รายละเอียดใบลา</h3>
-                <button onclick="closeViewModal()" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times text-sm"></i></button>
+            <div
+                class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl text-white flex-shrink-0">
+                <h3 class="font-bold text-base flex items-center gap-2"><i class="fas fa-file-alt"></i> รายละเอียดใบลา
+                </h3>
+                <button onclick="closeViewModal()"
+                    class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times text-sm"></i></button>
             </div>
-            <div id="viewLeaveContent" class="p-5 overflow-y-auto flex-1"><div class="text-center text-slate-400 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div></div>
-            <div class="px-5 py-3 border-t border-slate-100 flex justify-end flex-shrink-0"><button onclick="closeViewModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button></div>
+            <div id="viewLeaveContent" class="p-5 overflow-y-auto flex-1">
+                <div class="text-center text-slate-400 py-8"><i class="fas fa-spinner fa-spin text-2xl"></i></div>
+            </div>
+            <div class="px-5 py-3 border-t border-slate-100 flex justify-end flex-shrink-0"><button
+                    onclick="closeViewModal()"
+                    class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button>
+            </div>
         </div>
     </div>
 
     <!-- View Signature Image Modal -->
-    <div id="viewSignatureImageModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[80] p-4">
+    <div id="viewSignatureImageModal"
+        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[80] p-4">
         <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl flex flex-col overflow-hidden">
-            <div class="flex items-center justify-between px-5 py-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600 text-white"><div class="flex items-center gap-2"><i class="fas fa-signature"></i><h3 id="sig-view-name" class="font-bold text-sm leading-tight"></h3></div><button onclick="closeViewSignatureImageModal()" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times text-sm"></i></button></div>
-            <div class="p-6 flex items-center justify-center min-h-[180px] bg-slate-50"><img id="sig-view-img" src="" alt="ลายเซ็น" class="max-w-full max-h-48 object-contain rounded-lg"><div id="sig-view-error" class="hidden flex-col items-center gap-2 text-slate-400 text-sm text-center"><i class="fas fa-image text-3xl text-slate-300"></i><p>โหลดรูปลายเซ็นไม่ได้<br><span class="text-xs">ลิงก์อาจหมดอายุหรือไฟล์ถูกลบ</span></p></div></div>
-            <div class="px-5 py-3 border-t bg-white flex items-center justify-between gap-3"><a id="sig-view-link" href="#" target="_blank" class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition font-medium"><i class="fas fa-external-link-alt"></i> เปิดในแท็บใหม่</a><button onclick="closeViewSignatureImageModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button></div>
-        </div>
-    </div>
-<!-- ========== Signature Management Modal ========== -->
-<div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
-    <div class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
-        <div class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-t-3xl">
-            <h3 class="text-lg font-bold"><i class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
-            <button onclick="closeSignatureModal()" class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><i class="fas fa-times"></i></button>
-        </div>
-        <div class="flex-1 overflow-y-auto p-6">
-            <div class="mb-4 flex flex-wrap justify-between items-center gap-2">
-                <span class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display-modal" class="font-mono text-xs"></span></span>
-                <div class="flex items-center gap-2">
-                    <button onclick="exportSignatureExcel()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
-                    <button onclick="refreshSignatureList()" class="text-sm bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-medium"><i class="fas fa-sync"></i> รีเฟรช</button>
+            <div
+                class="flex items-center justify-between px-5 py-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
+                <div class="flex items-center gap-2"><i class="fas fa-signature"></i>
+                    <h3 id="sig-view-name" class="font-bold text-sm leading-tight"></h3>
+                </div><button onclick="closeViewSignatureImageModal()"
+                    class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times text-sm"></i></button>
+            </div>
+            <div class="p-6 flex items-center justify-center min-h-[180px] bg-slate-50"><img id="sig-view-img" src=""
+                    alt="ลายเซ็น" class="max-w-full max-h-48 object-contain rounded-lg">
+                <div id="sig-view-error" class="hidden flex-col items-center gap-2 text-slate-400 text-sm text-center">
+                    <i class="fas fa-image text-3xl text-slate-300"></i>
+                    <p>โหลดรูปลายเซ็นไม่ได้<br><span class="text-xs">ลิงก์อาจหมดอายุหรือไฟล์ถูกลบ</span></p>
                 </div>
             </div>
-            <table id="signatureTable" class="w-full text-sm">
-                <thead class="bg-slate-50"><tr><th class="p-2 text-left">ชื่อ-สกุล</th><th class="p-2 text-left">ตำแหน่ง</th><th class="p-2 text-left">กลุ่มงาน</th><th class="p-2 text-center">ลายเซ็น</th><th class="p-2 text-center">จัดการ</th></tr></thead>
-                <tbody id="signature-tbody"></tbody>
-            </table>
+            <div class="px-5 py-3 border-t bg-white flex items-center justify-between gap-3"><a id="sig-view-link"
+                    href="#" target="_blank"
+                    class="flex items-center gap-1.5 text-xs text-slate-500 hover:text-emerald-600 transition font-medium"><i
+                        class="fas fa-external-link-alt"></i> เปิดในแท็บใหม่</a><button
+                    onclick="closeViewSignatureImageModal()"
+                    class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button>
+            </div>
         </div>
-        <div class="px-6 py-3 border-t flex justify-end"><button onclick="closeSignatureModal()" class="px-5 py-2 bg-slate-200 rounded-xl hover:bg-slate-300">ปิด</button></div>
     </div>
-</div>
+    <!-- ========== Signature Management Modal ========== -->
+    <div id="signatureModal"
+        class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+        <div class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-t-3xl">
+                <h3 class="text-lg font-bold"><i class="fas fa-signature mr-2"></i>จัดการลายเซ็นบุคลากร</h3>
+                <button onclick="closeSignatureModal()"
+                    class="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center"><i
+                        class="fas fa-times"></i></button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6">
+                <div class="mb-4 flex flex-wrap justify-between items-center gap-2">
+                    <span class="text-sm text-slate-500">โฟลเดอร์ลายเซ็น: <span id="sig-folder-id-display-modal"
+                            class="font-mono text-xs"></span></span>
+                    <div class="flex items-center gap-2">
+                        <button onclick="exportSignatureExcel()"
+                            class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow transition"><i
+                                class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                        <button onclick="refreshSignatureList()"
+                            class="text-sm bg-slate-100 px-3 py-1.5 rounded-lg hover:bg-slate-200 font-medium"><i
+                                class="fas fa-sync"></i> รีเฟรช</button>
+                    </div>
+                </div>
+                <table id="signatureTable" class="w-full text-sm">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="p-2 text-left">ชื่อ-สกุล</th>
+                            <th class="p-2 text-left">ตำแหน่ง</th>
+                            <th class="p-2 text-left">กลุ่มงาน</th>
+                            <th class="p-2 text-center">ลายเซ็น</th>
+                            <th class="p-2 text-center">จัดการ</th>
+                        </tr>
+                    </thead>
+                    <tbody id="signature-tbody"></tbody>
+                </table>
+            </div>
+            <div class="px-6 py-3 border-t flex justify-end"><button onclick="closeSignatureModal()"
+                    class="px-5 py-2 bg-slate-200 rounded-xl hover:bg-slate-300">ปิด</button></div>
+        </div>
+    </div>
     <script src="leave_admin.js"></script>
 </body>
 
