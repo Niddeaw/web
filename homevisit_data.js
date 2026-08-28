@@ -285,7 +285,7 @@ function populateFormFromTemplate(headers, values) {
         'sib_diff_male': { id: 'sib_diff_male' },
         'sib_diff_female': { id: 'sib_diff_female' },
         'economic_income': { id: 'family_income_monthly' },
-        'economic_allowance_source': { id: 'student_allowance_source' },
+        'economic_allowance_source': { id: 'student_allowance_source', tomInstance: 'tomAllowanceSource' },
         'economic_student_job_name': { id: 'student_job_name' },
         'economic_student_job_income': { id: 'student_job_income' },
         'economic_money_to_school': { id: 'money_to_school' },
@@ -294,7 +294,7 @@ function populateFormFromTemplate(headers, values) {
         'special_help_details': { id: 'special_help_details', textarea: true },
         'responsibilities_details': { id: 'responsibilities_details', textarea: true },
         'hobbies_details': { id: 'hobbies_details', textarea: true },
-        'leave_with_whom_details': { id: 'leave_with_whom_details', textarea: true },
+        'leave_with_whom_details': { id: 'leave_with_whom_details', tomInstance: 'tomLeaveWithWhom' },
         'guardian_concerns': { id: 'guardian_concerns_details', textarea: true },
         'guardian_requests': { id: 'guardian_requests_details', textarea: true },
         'past_welfare': { id: 'past_welfare_details', textarea: true },
@@ -2884,198 +2884,6 @@ window.viewExistingPDF = function (pdfUrl) {
 // ==========================================
 // 7. COMPLETENESS & MISSING FIELDS
 // ==========================================
-
-/**
- * จัดกลุ่มรายการที่ยังไม่ได้กรอกแยกตามขั้น 1-5
- * คืนค่าเป็น object { step1: [...], step2: [...], step3: [...], step4: [...], step5: [...] }
- */
-function getStepMissingFields(visit) {
-    if (!visit) return { step1: ['ยังไม่มีข้อมูลการเยี่ยมบ้าน'], step2: [], step3: [], step4: [], step5: [] };
-
-    const toNum = (v) => {
-        if (v === undefined || v === null || v === '') return undefined;
-        const n = parseFloat(v);
-        return isNaN(n) ? undefined : n;
-    };
-    const hasNum = (v) => toNum(v) !== undefined;
-
-    const step1 = [];
-    const step2 = [];
-    const step3 = [];
-    const step4 = [];
-    const step5 = [];
-
-    // ── ขั้นที่ 1: ข้อมูลนักเรียนและบิดามารดาผู้ปกครอง ──
-    if (!visit.visit_date)                      step1.push('วันที่เยี่ยมบ้าน');
-    if (!visit.visit_times)                     step1.push('ครั้งที่');
-    if (!visit.student_nickname?.trim())        step1.push('ชื่อเล่น');
-    if (!visit.student_phone?.trim())           step1.push('เบอร์โทรศัพท์นักเรียน');
-    if (!visit.father_name?.trim())             step1.push('ชื่อบิดา');
-    if (!visit.father_job?.trim())              step1.push('อาชีพบิดา');
-    if (!visit.father_phone?.trim())            step1.push('เบอร์โทรบิดา');
-    if (!visit.mother_name?.trim())             step1.push('ชื่อมารดา');
-    if (!visit.mother_job?.trim())              step1.push('อาชีพมารดา');
-    if (!visit.mother_phone?.trim())            step1.push('เบอร์โทรมารดา');
-    if (!visit.guardian_name?.trim())           step1.push('ชื่อผู้ปกครอง');
-    if (!visit.guardian_job?.trim())            step1.push('อาชีพผู้ปกครอง');
-    if (!visit.guardian_phone?.trim())          step1.push('เบอร์โทรผู้ปกครอง');
-    if (!visit.guardian_relation?.trim())       step1.push('ความสัมพันธ์ผู้ปกครอง');
-    if (!visit.living_with?.trim())             step1.push('อาศัยอยู่กับ');
-    if (!visit.parents_status?.trim())          step1.push('สถานภาพบิดามารดา');
-
-    // ── ขั้นที่ 2: ที่อยู่และพิกัด ──
-    if (!visit.house_number?.trim())            step2.push('บ้านเลขที่');
-    if (!visit.village_no?.trim())              step2.push('หมู่ที่');
-    if (!visit.sub_district?.trim())            step2.push('ตำบล');
-    if (!visit.district?.trim())                step2.push('อำเภอ');
-    if (!visit.province?.trim())                step2.push('จังหวัด');
-    if (!visit.zipcode?.trim())                 step2.push('รหัสไปรษณีย์');
-    if (!visit.latitude || !visit.longitude)    step2.push('พิกัด GPS (ปักหมุดบนแผนที่)');
-    if (!visit.house_type?.trim())              step2.push('ประเภทบ้าน');
-    if (!hasNum(visit.travel_hour) || !hasNum(visit.travel_minute)) step2.push('เวลาเดินทาง');
-    if (!visit.travel_method?.trim())           step2.push('วิธีการเดินทาง');
-    if (!visit.env_house_status?.trim())        step2.push('สภาพตัวบ้าน');
-    if (!visit.env_clean_status?.trim())        step2.push('ความสะอาดและระเบียบ');
-    if (!visit.env_location_status?.trim())     step2.push('สภาพแวดล้อมที่อยู่อาศัย');
-    if (!visit.utility_electric)               step2.push('ข้อมูลไฟฟ้า');
-    if (!visit.utility_water)                  step2.push('ข้อมูลน้ำอุปโภคบริโภค');
-    if (!visit.utility_toilet)                 step2.push('ข้อมูลห้องสุขา');
-
-    // ── ขั้นที่ 3: ข้อมูลครอบครัว ──
-    const fm = visit.family_members || {};
-    if (!hasNum(fm.total))                      step3.push('สมาชิกในครอบครัว (รวม)');
-    if (!hasNum(fm.male))                       step3.push('สมาชิกชาย');
-    if (!hasNum(fm.female))                     step3.push('สมาชิกหญิง');
-    if (!hasNum(fm.sib_same_total))             step3.push('พี่น้องร่วมบิดามารดา (รวม)');
-    if (!hasNum(fm.sib_same_male))              step3.push('พี่น้องร่วมฯ ชาย');
-    if (!hasNum(fm.sib_same_female))            step3.push('พี่น้องร่วมฯ หญิง');
-    if (!hasNum(fm.sib_diff_total))             step3.push('พี่น้องต่างบิดามารดา (รวม)');
-    if (!hasNum(fm.sib_diff_male))              step3.push('พี่น้องต่างฯ ชาย');
-    if (!hasNum(fm.sib_diff_female))            step3.push('พี่น้องต่างฯ หญิง');
-    const eco = visit.economic_data || {};
-    if (!hasNum(eco.income))                    step3.push('รายได้ครอบครัวต่อเดือน');
-    if (!eco.allowance_source?.trim())          step3.push('นักเรียนได้รับค่าใช้จ่ายจาก');
-    if (!hasNum(eco.student_job_income))        step3.push('รายได้นักเรียนต่อวัน');
-    if (!hasNum(eco.money_to_school))           step3.push('เงินไปโรงเรียนต่อวัน');
-    const fRel = visit.family_relations || {};
-    if (!fRel.status?.trim())                   step3.push('ความสัมพันธ์ในครอบครัว');
-    if (!hasNum(fRel.time_together))            step3.push('เวลาอยู่ร่วมกันต่อวัน');
-    if (!visit.special_help_details?.trim())    step3.push('กรณีต้องการการช่วยเหลือพิเศษ');
-    if (!visit.responsibilities_details?.trim()) step3.push('ภาระงานรับผิดชอบต่อครอบครัว');
-    if (!visit.hobbies_details?.trim())         step3.push('กิจกรรมยามว่างหรืองานอดิเรก');
-    if (!visit.leave_with_whom_details?.trim()) step3.push('ฝากเด็กอยู่กับใครเมื่อผู้ปกครองไม่อยู่');
-
-    // ── ขั้นที่ 4: แนบภาพถ่าย ──
-    if (!visit.photo_student)   step4.push('ภาพถ่ายตัวนักเรียน');
-    if (!visit.photo_outside)   step4.push('ภาพถ่ายสภาพบ้านภายนอก');
-    if (!visit.photo_inside)    step4.push('ภาพถ่ายสภาพบ้านภายใน');
-    if (!visit.photo_teacher)   step4.push('ภาพครูกำลังเยี่ยมบ้านกับผู้ปกครอง');
-
-    // ── ขั้นที่ 5: ข้อห่วงใยและผู้ให้ข้อมูล ──
-    if (!visit.guardian_concerns?.trim())       step5.push('ข้อห่วงใยของผู้ปกครอง');
-    if (!visit.guardian_requests?.trim())       step5.push('สิ่งที่ผู้ปกครองต้องการให้โรงเรียนช่วยเหลือ');
-    if (!visit.past_welfare?.trim())            step5.push('ความช่วยเหลือที่เคยได้รับ');
-    if (!visit.informant_type?.trim())          step5.push('ผู้ให้ข้อมูล');
-
-    return { step1, step2, step3, step4, step5 };
-}
-
-/**
- * สร้าง HTML ของ panel สรุปรายการที่ยังขาด แสดงเหนือ step tracker
- * ถ้าข้อมูลครบ → ซ่อน panel
- */
-window.renderMissingSummaryPanel = function (visit) {
-    const panelId = 'missing-summary-panel';
-    let panel = document.getElementById(panelId);
-
-    // ถ้ายังไม่มีข้อมูล (ยังไม่เคยบันทึก) หรือ step_status ยังไม่มี → ซ่อน panel
-    if (!visit) {
-        if (panel) panel.remove();
-        return;
-    }
-
-    const steps = getStepMissingFields(visit);
-    const totalMissing = steps.step1.length + steps.step2.length + steps.step3.length + steps.step4.length + steps.step5.length;
-
-    // ถ้าครบหมดแล้ว ให้ซ่อน / ลบ panel
-    if (totalMissing === 0) {
-        if (panel) panel.remove();
-        return;
-    }
-
-    const stepConfig = [
-        { key: 'step1', num: 1, label: 'ขั้นที่ 1 — ข้อมูลนักเรียน', color: 'red',    icon: 'fa-user-graduate' },
-        { key: 'step2', num: 2, label: 'ขั้นที่ 2 — ที่อยู่ / พิกัด',  color: 'orange', icon: 'fa-map-location-dot' },
-        { key: 'step3', num: 3, label: 'ขั้นที่ 3 — ครอบครัว',         color: 'yellow', icon: 'fa-people-roof' },
-        { key: 'step4', num: 4, label: 'ขั้นที่ 4 — อัพโหลดรูป',       color: 'green',  icon: 'fa-camera' },
-        { key: 'step5', num: 5, label: 'ขั้นที่ 5 — ข้อห่วงใย',         color: 'sky',    icon: 'fa-comment-medical' },
-    ];
-
-    const colorMap = {
-        red:    { bg: 'bg-red-50',    border: 'border-red-200',    text: 'text-red-700',    badge: 'bg-red-100 text-red-700',    dot: 'bg-red-400' },
-        orange: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', badge: 'bg-orange-100 text-orange-700', dot: 'bg-orange-400' },
-        yellow: { bg: 'bg-yellow-50', border: 'border-yellow-200', text: 'text-yellow-700', badge: 'bg-yellow-100 text-yellow-800', dot: 'bg-yellow-400' },
-        green:  { bg: 'bg-green-50',  border: 'border-green-200',  text: 'text-green-700',  badge: 'bg-green-100 text-green-700',  dot: 'bg-green-400' },
-        sky:    { bg: 'bg-sky-50',    border: 'border-sky-200',    text: 'text-sky-700',    badge: 'bg-sky-100 text-sky-700',    dot: 'bg-sky-400' },
-    };
-
-    // สร้าง HTML แต่ละ step ที่ยังขาด
-    const stepCards = stepConfig.map(sc => {
-        const missing = steps[sc.key];
-        if (missing.length === 0) return ''; // ขั้นนี้ครบแล้ว ไม่แสดง
-        const c = colorMap[sc.color];
-        const items = missing.map(m => `
-            <li class="flex items-start gap-2 py-1">
-                <span class="mt-1.5 flex-shrink-0 w-2 h-2 rounded-full ${c.dot}"></span>
-                <span class="text-slate-700 text-xs">${m}</span>
-            </li>`).join('');
-        return `
-            <div class="${c.bg} ${c.border} border rounded-2xl p-4 shadow-sm">
-                <button type="button"
-                    onclick="goToStep(${sc.num})"
-                    class="flex items-center justify-between w-full mb-2 group"
-                    title="คลิกเพื่อไปขั้นที่ ${sc.num}">
-                    <span class="flex items-center gap-2 font-extrabold text-sm ${c.text}">
-                        <i class="fa-solid ${sc.icon}"></i>
-                        ${sc.label}
-                        <span class="ml-1 px-2 py-0.5 rounded-full text-[10px] font-black ${c.badge}">${missing.length} รายการ</span>
-                    </span>
-                    <span class="text-xs font-bold ${c.text} opacity-60 group-hover:opacity-100 transition">
-                        <i class="fas fa-arrow-right"></i>
-                    </span>
-                </button>
-                <ul class="space-y-0.5 pl-1">${items}</ul>
-            </div>`;
-    }).join('');
-
-    const html = `
-        <div id="${panelId}" class="mx-6 md:mx-10 mb-0 mt-4">
-            <div class="bg-amber-50 border border-amber-300 rounded-2xl shadow-sm overflow-hidden">
-                <div class="flex items-center gap-3 px-5 py-3 bg-amber-100 border-b border-amber-200">
-                    <i class="fas fa-clipboard-list text-amber-600 text-lg flex-shrink-0"></i>
-                    <div class="flex-1 min-w-0">
-                        <p class="font-extrabold text-amber-900 text-sm uppercase tracking-wider">สรุปรายการที่ยังไม่ได้กรอก</p>
-                        <p class="text-[11px] text-amber-700 font-medium mt-0.5">ยังขาดอีก <strong>${totalMissing}</strong> รายการ — คลิกหัวข้อเพื่อไปแก้ไขขั้นนั้นได้เลย</p>
-                    </div>
-                    <span class="flex-shrink-0 px-3 py-1 rounded-full bg-amber-600 text-white text-xs font-black">${totalMissing}</span>
-                </div>
-                <div class="p-4 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                    ${stepCards}
-                </div>
-            </div>
-        </div>`;
-
-    // แทรก panel ก่อน step tracker (div ที่มี id="progressBar")
-    const progressBarParent = document.getElementById('progressBar')?.closest('.bg-white.border-b');
-    if (!progressBarParent) return;
-
-    if (panel) {
-        panel.outerHTML = html;
-    } else {
-        // แทรกก่อน progress bar container (ภายใน form)
-        progressBarParent.insertAdjacentHTML('beforebegin', html);
-    }
-};
 
 function getCompletenessStatus(visit) {
     if (!visit) return { complete: false, missingFields: ['ยังไม่มีข้อมูลการเยี่ยมบ้าน'] };

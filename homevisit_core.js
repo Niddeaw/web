@@ -598,10 +598,6 @@ async function loadStudentInfo(studentId) {
 function clearStudentInfo() {
     suppressDirty = true;
     currentStudentId = null;
-    // ล้าง panel สรุปรายการขาด
-    if (typeof window.renderMissingSummaryPanel === 'function') {
-        window.renderMissingSummaryPanel(null);
-    }
     formIsDirty = false;
 
     ['student_code', 'student_fullname', 'student_grade', 'student_number'].forEach(id => {
@@ -901,11 +897,6 @@ async function loadExistingHomeVisit(studentId) {
         formIsDirty = false;
         updateStatusBadge('completed');
 
-        // ✅ แสดง panel สรุปรายการที่ยังขาด (เหนือ step tracker)
-        if (typeof window.renderMissingSummaryPanel === 'function') {
-            window.renderMissingSummaryPanel(data);
-        }
-
     } catch (err) {
         console.error('Error loading existing home visit:', err);
         suppressDirty = false;
@@ -1194,13 +1185,6 @@ async function autoSaveStep() {
         formIsDirty = false;
         updateStatusBadge('completed');
 
-        // ✅ อัปเดต panel สรุปรายการขาด หลัง auto-save
-        if (typeof window.renderMissingSummaryPanel === 'function') {
-            const builtData = buildFormData(currentStudentId, window.currentClassroomId);
-            // สร้าง mock visit object จาก form ปัจจุบัน เพื่อ re-check
-            window.renderMissingSummaryPanel(builtData);
-        }
-
         Swal.close();
 
         Swal.fire({
@@ -1286,7 +1270,6 @@ window.submitHomeVisit = async function (isAutoSave = false) {
             goToStep(1);
             updateStatusBadge('completed');
             if (currentStudentId) {
-                // loadExistingHomeVisit จะเรียก renderMissingSummaryPanel ภายในตัวเอง
                 await loadExistingHomeVisit(currentStudentId);
             }
             if (typeof loadDataTable === 'function') loadDataTable();

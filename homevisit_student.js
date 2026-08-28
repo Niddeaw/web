@@ -1,9 +1,25 @@
 // ==========================================
-// homevisit_student.js
+// homevisit_student.js (ฉบับสมบูรณ์ แก้ไขปัญหา)
 // สำหรับนักเรียนกรอกข้อมูลเยี่ยมบ้านของตนเอง
 // (มีระบบ Lock เมื่อครูกดยืนยัน)
 // ==========================================
 
+// ==========================================
+// 0. กำหนด stepColorConfigs ก่อนใช้งาน (ป้องกัน error)
+// ==========================================
+if (typeof window.stepColorConfigs === 'undefined') {
+    window.stepColorConfigs = {
+        1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
+        2: { bg: 'bg-orange-600', text: 'text-orange-700', shadow: 'shadow-orange-100' },
+        3: { bg: 'bg-yellow-600', text: 'text-yellow-700', shadow: 'shadow-yellow-100' },
+        4: { bg: 'bg-green-600', text: 'text-green-700', shadow: 'shadow-green-100' },
+        5: { bg: 'bg-sky-600', text: 'text-sky-700', shadow: 'shadow-sky-100' }
+    };
+}
+
+// ==========================================
+// 1. ตัวแปร Global
+// ==========================================
 let currentUser = null;
 let currentStudentId = null;
 let currentClassroomId = null;
@@ -17,13 +33,14 @@ let moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_
 
 let formIsDirty = false;
 let suppressDirty = false;
+let isSubmitting = false;
 
 const SCHOOL_LAT = 13.740269204697068;
 const SCHOOL_LNG = 100.25988109513965;
 const SCHOOL_NAME = 'โรงเรียนวัดไร่ขิงวิทยา';
 
 // ==========================================
-// 1. ตรวจสอบ Session และโหลดข้อมูล
+// 2. ตรวจสอบ Session และโหลดข้อมูล
 // ==========================================
 $(document).ready(async function () {
     const { data: { session } } = await db.auth.getSession();
@@ -144,7 +161,7 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// 2. ดึงรูปโปรไฟล์ไปใช้ใน Step 4 Card 1
+// 3. ดึงรูปโปรไฟล์ไปใช้ใน Step 4 Card 1
 // ==========================================
 function applyAvatarToStep4(avatarUrl) {
     const autoBanner = document.getElementById('avatar-auto-banner');
@@ -185,18 +202,18 @@ function applyAvatarToStep4(avatarUrl) {
 }
 
 // ==========================================
-// 3. เริ่มต้นฟอร์ม
+// 4. เริ่มต้นฟอร์ม
 // ==========================================
+// 1. แก้ไข initForm (ไม่เรียก initMap)
 function initForm() {
     initPlugins();
     initAllTomSelects();
     initDirtyTracking();
-    goToStep(1);
-    setTimeout(() => { if (document.getElementById('map')) initMap(); }, 500);
+    goToStep(1);  // เริ่มที่ step 1 (ไม่ต้อง initMap)
 }
 
 // ==========================================
-// 4. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
+// 5. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
 // ==========================================
 async function loadExistingHomeVisit(studentId) {
     try {
@@ -227,7 +244,7 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// 5. ล็อกฟอร์ม (สำหรับนักเรียน)
+// 6. ล็อกฟอร์ม (สำหรับนักเรียน)
 // ==========================================
 function applyStudentLockState() {
     const form = document.getElementById('homeVisitForm');
@@ -262,7 +279,7 @@ function applyStudentLockState() {
 }
 
 // ==========================================
-// 6. populateFormWithData (เหมือนครู)
+// 7. populateFormWithData (เหมือนครู)
 // ==========================================
 function populateFormWithData(data) {
     suppressDirty = true;
@@ -350,13 +367,10 @@ function populateFormWithData(data) {
         });
     });
 
-    // ✅ เพิ่มส่วนนี้เข้าไป (ดึง internet_access)
     if (risk.internet_access) {
         const radio = document.querySelector(`input[name="internet_access"][value="${risk.internet_access}"]`);
         if (radio) radio.checked = true;
     }
-    
-    setRadio('internet_access', risk.internet_access);
 
     setVal('special_help_details', data.special_help_details);
     setVal('responsibilities_details', data.responsibilities_details);
@@ -418,9 +432,28 @@ function populateFormWithData(data) {
 }
 
 // ==========================================
-// 7. buildFormData (เหมือนครู)
+// 8. ฟังก์ชันดึง teacher_id จากห้องเรียน (แก้ RLS)
 // ==========================================
-function buildFormData(studentId, classroomId) {
+async function getAdvisorId(classroomId) {
+    if (!classroomId) return null;
+    try {
+        const { data, error } = await db
+            .from('core_classrooms')
+            .select('adviser_id_1')
+            .eq('id', classroomId)
+            .single();
+        if (error || !data) return null;
+        return data.adviser_id_1; // ถ้าต้องการ adviser_id_2 ก็สามารถปรับได้
+    } catch (err) {
+        console.warn('ไม่สามารถดึง teacher_id:', err);
+        return null;
+    }
+}
+
+// ==========================================
+// 9. buildFormData (ปรับให้รับ teacherId)
+// ==========================================
+function buildFormData(studentId, classroomId, teacherId) {
     const getVal = (id) => document.getElementById(id)?.value || '';
     const getRadio = (name) => document.querySelector(`input[name="${name}"]:checked`)?.value || null;
 
@@ -447,8 +480,11 @@ function buildFormData(studentId, classroomId) {
     });
 
     return {
-        student_id: studentId, classroom_id: classroomId, teacher_id: null,
-        academic_year: currentYear, semester: currentTerm,
+        student_id: studentId,
+        classroom_id: classroomId,
+        teacher_id: teacherId, // ใช้ teacherId ที่ส่งเข้ามา (อาจเป็น null)
+        academic_year: currentYear,
+        semester: currentTerm,
         visit_date: getVal('hv_date') || new Date().toISOString().split('T')[0],
         visit_status: getRadio('visit_status') || 'เยี่ยมแล้ว',
         visit_times: parseInt(getVal('visit_times')) || 1,
@@ -487,9 +523,15 @@ function buildFormData(studentId, classroomId) {
         utility_water: getRadio('utility_water'),
         utility_toilet: getRadio('utility_toilet'),
         family_members: {
-            total: getVal('member_total'), male: getVal('member_male'), female: getVal('member_female'),
-            sib_same_total: getVal('sib_same_total'), sib_same_male: getVal('sib_same_male'), sib_same_female: getVal('sib_same_female'),
-            sib_diff_total: getVal('sib_diff_total'), sib_diff_male: getVal('sib_diff_male'), sib_diff_female: getVal('sib_diff_female'),
+            total: getVal('member_total'),
+            male: getVal('member_male'),
+            female: getVal('member_female'),
+            sib_same_total: getVal('sib_same_total'),
+            sib_same_male: getVal('sib_same_male'),
+            sib_same_female: getVal('sib_same_female'),
+            sib_diff_total: getVal('sib_diff_total'),
+            sib_diff_male: getVal('sib_diff_male'),
+            sib_diff_female: getVal('sib_diff_female'),
         },
         economic_data: {
             income: getVal('family_income_monthly'),
@@ -498,7 +540,10 @@ function buildFormData(studentId, classroomId) {
             student_job_income: getVal('student_job_income'),
             money_to_school: getVal('money_to_school'),
         },
-        family_relations: { status: window.tomFamilyRelationStatus?.getValue() || '', time_together: getVal('time_together_hours') },
+        family_relations: {
+            status: window.tomFamilyRelationStatus?.getValue() || '',
+            time_together: getVal('time_together_hours')
+        },
         special_help_details: getVal('special_help_details'),
         responsibilities_details: getVal('responsibilities_details'),
         hobbies_details: getVal('hobbies_details'),
@@ -518,10 +563,8 @@ function buildFormData(studentId, classroomId) {
 }
 
 // ==========================================
-// 8. submitHomeVisit (พร้อมเช็ค Lock)
+// 10. submitHomeVisit (พร้อมเช็ค Lock และดึง teacher_id)
 // ==========================================
-let isSubmitting = false;
-
 window.submitHomeVisit = async function () {
     if (isSubmitting) return;
     if (!currentStudentId || !currentClassroomId) {
@@ -538,7 +581,22 @@ window.submitHomeVisit = async function () {
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        const formData = buildFormData(currentStudentId, currentClassroomId);
+        // ดึง teacher_id จากห้องเรียน (แก้ RLS)
+        let teacherId = await getAdvisorId(currentClassroomId);
+        if (!teacherId) {
+            // ถ้าไม่มีครูที่ปรึกษา (กรณี error) ให้แจ้งเตือนและหยุด
+            Swal.close();
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่พบครูที่ปรึกษา',
+                text: 'ระบบไม่พบครูที่ปรึกษาของห้องนี้ กรุณาติดต่อผู้ดูแลระบบ',
+                confirmButtonText: 'ตกลง'
+            });
+            isSubmitting = false;
+            return;
+        }
+
+        const formData = buildFormData(currentStudentId, currentClassroomId, teacherId);
 
         const { data: existingRecords, error: selectError } = await db
             .from('module_home_visits')
@@ -570,7 +628,13 @@ window.submitHomeVisit = async function () {
             saveError = error;
         }
 
-        if (saveError) throw saveError;
+        if (saveError) {
+            // ถ้า error เกิดจาก RLS (เช่น teacher_id ไม่ถูกต้อง) ให้แจ้งให้ชัดเจน
+            if (saveError.message && saveError.message.includes('permission denied')) {
+                throw new Error('ไม่มีสิทธิ์บันทึกข้อมูล กรุณาติดต่อครูที่ปรึกษา');
+            }
+            throw saveError;
+        }
         if (!savedData || savedData.length === 0) {
             throw new Error('ไม่สามารถบันทึกข้อมูล (อาจถูก RLS ปิดกั้น)');
         }
@@ -590,7 +654,7 @@ window.submitHomeVisit = async function () {
 };
 
 // ==========================================
-// ฟังก์ชัน Auto Save
+// 11. ฟังก์ชัน Auto Save (ปรับให้ใช้ teacher_id เช่นกัน)
 // ==========================================
 let isAutoSaving = false;
 
@@ -603,7 +667,13 @@ async function autoSaveStep() {
 
     isAutoSaving = true;
     try {
-        const formData = buildFormData(currentStudentId, currentClassroomId);
+        let teacherId = await getAdvisorId(currentClassroomId);
+        if (!teacherId) {
+            // ถ้าไม่มี teacher_id ไม่ต้อง auto save (เดี๋ยว submit เอง)
+            return true;
+        }
+
+        const formData = buildFormData(currentStudentId, currentClassroomId, teacherId);
 
         const { data: existingRecords, error: selectError } = await db
             .from('module_home_visits')
@@ -671,7 +741,7 @@ async function autoSaveStep() {
 }
 
 // ==========================================
-// ฟังก์ชันเสริม (คงเดิม – copy จาก homevisit.js ครู)
+// 12. ฟังก์ชันเสริม (markDirty, initDirtyTracking)
 // ==========================================
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
@@ -695,19 +765,25 @@ function initDirtyTracking() {
     });
 }
 
-// ---------- Step Navigation (เหมือนใน core.js) ----------
+// ==========================================
+// 13. Step Navigation (ปลอดภัย)
+// ==========================================
+// ==========================================
+// 13. Step Navigation (แก้ไขให้เรียกแผนที่ง่ายขึ้น)
+// ==========================================
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
     const targetStep = document.getElementById(`step-${step}`);
     if (targetStep) targetStep.classList.add('active');
+
     const percentages = { 1: '0%', 2: '25%', 3: '50%', 4: '75%', 5: '100%' };
     const progBar = document.getElementById('progressBar');
     if (progBar) progBar.style.width = percentages[step];
+
     for (let i = 1; i <= 5; i++) {
         const circle = document.getElementById(`circle-${i}`);
         const text = document.getElementById(`text-step-${i}`);
         if (circle && text) {
-            // ✅ ใช้ window.stepColorConfigs แทน stepColorConfigs
             const config = window.stepColorConfigs[i];
             if (i <= step) {
                 circle.className = `w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg text-white shadow-md transition-all ${config.bg} ${config.shadow}`;
@@ -718,15 +794,118 @@ window.goToStep = function (step) {
             }
         }
     }
-    if (step === 2) setTimeout(initMap, 200);
+
+    // แก้ไข: เมื่อไป Step 2 ให้รอ 200ms แล้วเรียก initMap ทันที (ไม่ต้องเช็คขนาดซับซ้อน)
+    if (step === 2) {
+        setTimeout(() => {
+            initMap();
+        }, 200);
+    }
 };
+
+// ==========================================
+// initMap (เวอร์ชันแก้ไข - ใช้ตัวแปร Global map/marker)
+// ==========================================
+function initMap() {
+    const mapEl = document.getElementById('map');
+    if (!mapEl) {
+        console.error('ไม่พบ element #map');
+        return;
+    }
+
+    // ✅ ถ้ามีแผนที่อยู่แล้ว ให้ invalidateSize เฉยๆ
+    if (map) { 
+        map.invalidateSize(); 
+        return; 
+    }
+
+    // ✅ ตรวจสอบว่า Leaflet โหลดแล้วหรือยัง
+    if (typeof L === 'undefined') {
+        console.warn('Leaflet ยังไม่โหลด');
+        return;
+    }
+
+    try {
+        // ✅ ใช้ตัวแปร map (Global) ไม่ใช่ window.map
+        map = L.map(mapEl).setView([SCHOOL_LAT, SCHOOL_LNG], 10);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        const schoolIcon = L.divIcon({
+            html: `<div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:26px solid #dc2626;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));position:relative;"><div style="position:absolute;bottom:-24px;left:-6px;width:12px;height:12px;background:#fff;border-radius:50%;"></div></div>`,
+            iconSize: [28, 28],
+            iconAnchor: [14, 26],
+            className: ''
+        });
+
+        L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon, draggable: false })
+            .addTo(map)
+            .bindTooltip(`🏫 ${SCHOOL_NAME}`, { permanent: false, direction: 'top' });
+
+        const homeIcon = L.divIcon({
+            html: `<div style="width:22px;height:22px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,0.6);"></div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+            className: ''
+        });
+
+        const latInput = document.getElementById('lat');
+        const lngInput = document.getElementById('lng');
+        const hasCoords = latInput?.value && lngInput?.value;
+        const homeLat = hasCoords ? parseFloat(latInput.value) : SCHOOL_LAT;
+        const homeLng = hasCoords ? parseFloat(lngInput.value) : SCHOOL_LNG;
+
+        marker = L.marker([homeLat, homeLng], { icon: homeIcon, draggable: true })
+            .addTo(map)
+            .bindTooltip('🏠 บ้านนักเรียน', { permanent: false, direction: 'top' });
+
+        marker.on('dragend', function () {
+            const pos = marker.getLatLng();
+            document.getElementById('lat').value = pos.lat.toFixed(7);
+            document.getElementById('lng').value = pos.lng.toFixed(7);
+            calculateRoute(SCHOOL_LAT, SCHOOL_LNG, pos.lat, pos.lng);
+        });
+
+        $('#lat, #lng').off('input').on('input', function () {
+            const lat = parseFloat($('#lat').val());
+            const lng = parseFloat($('#lng').val());
+            if (!isNaN(lat) && !isNaN(lng) && marker) {
+                marker.setLatLng([lat, lng]);
+                map.setView([lat, lng], map.getZoom());
+                calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
+            }
+        });
+
+        if (hasCoords && !isNaN(homeLat) && !isNaN(homeLng)) {
+            calculateRoute(SCHOOL_LAT, SCHOOL_LNG, homeLat, homeLng);
+        } else {
+            updateRouteInfoPanel(null);
+        }
+
+        // บังคับปรับขนาดอีกครั้ง
+        setTimeout(() => {
+            if (map) map.invalidateSize();
+        }, 300);
+
+        console.log('✅ แผนที่ถูกสร้างเรียบร้อย');
+
+    } catch (e) {
+        console.error('Error initializing map:', e);
+    }
+}
+
 window.nextStep = async function (step) {
     await autoSaveStep();
     goToStep(step);
 };
+
 window.prevStep = function (step) { goToStep(step); };
 
-// ---------- Plugins ----------
+// ==========================================
+// 14. Plugins (Flatpickr, Thailand.js)
+// ==========================================
 function initPlugins() {
     if (document.getElementById('hv_date')) {
         flatpickr("#hv_date", { locale: "th", dateFormat: "Y-m-d", defaultDate: "today" });
@@ -740,67 +919,9 @@ function initPlugins() {
     });
 }
 
-// ---------- Map ----------
-function initMap() {
-    // ใช้ implementation เดิมจาก homevisit_student.js (ไม่เปลี่ยนแปลง)
-    const mapEl = document.getElementById('map');
-    if (!mapEl) return;
-    if (window.map) { window.map.invalidateSize(); return; }
-
-    window.map = L.map('map').setView([SCHOOL_LAT, SCHOOL_LNG], 10);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-    }).addTo(window.map);
-
-    const schoolIcon = L.divIcon({
-        html: `<div style="width:0;height:0;border-left:14px solid transparent;border-right:14px solid transparent;border-bottom:26px solid #dc2626;filter:drop-shadow(0 2px 4px rgba(0,0,0,0.5));position:relative;"><div style="position:absolute;bottom:-24px;left:-6px;width:12px;height:12px;background:#fff;border-radius:50%;"></div></div>`,
-        iconSize: [28, 28], iconAnchor: [14, 26], className: ''
-    });
-
-    const homeIcon = L.divIcon({
-        html: `<div style="width:22px;height:22px;background:#2563eb;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 8px rgba(37,99,235,0.6);"></div>`,
-        iconSize: [22, 22], iconAnchor: [11, 11], className: ''
-    });
-
-    L.marker([SCHOOL_LAT, SCHOOL_LNG], { icon: schoolIcon, draggable: false })
-        .addTo(window.map)
-        .bindTooltip(`🏫 ${SCHOOL_NAME}`, { permanent: false, direction: 'top' });
-
-    const latInput = document.getElementById('lat');
-    const lngInput = document.getElementById('lng');
-    const hasCoords = latInput?.value && lngInput?.value;
-    const homeLat = hasCoords ? parseFloat(latInput.value) : SCHOOL_LAT;
-    const homeLng = hasCoords ? parseFloat(lngInput.value) : SCHOOL_LNG;
-
-    window.marker = L.marker([homeLat, homeLng], { icon: homeIcon, draggable: true })
-        .addTo(window.map)
-        .bindTooltip('🏠 บ้านนักเรียน', { permanent: false, direction: 'top' });
-
-    window.marker.on('dragend', function () {
-        const pos = window.marker.getLatLng();
-        document.getElementById('lat').value = pos.lat.toFixed(7);
-        document.getElementById('lng').value = pos.lng.toFixed(7);
-        calculateRoute(SCHOOL_LAT, SCHOOL_LNG, pos.lat, pos.lng);
-    });
-
-    $('#lat, #lng').off('input').on('input', function () {
-        const lat = parseFloat($('#lat').val());
-        const lng = parseFloat($('#lng').val());
-        if (!isNaN(lat) && !isNaN(lng) && window.marker) {
-            window.marker.setLatLng([lat, lng]);
-            window.map.setView([lat, lng], window.map.getZoom());
-            calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
-        }
-    });
-
-    if (hasCoords && !isNaN(homeLat) && !isNaN(homeLng)) {
-        calculateRoute(SCHOOL_LAT, SCHOOL_LNG, homeLat, homeLng);
-    } else {
-        updateRouteInfoPanel(null);
-    }
-}
-
-// ---------- Route ----------
+// ==========================================
+// 16. Route (OSRM)
+// ==========================================
 async function calculateRoute(fromLat, fromLng, toLat, toLng) {
     const panel = document.getElementById('route-info-panel');
     if (panel) {
@@ -868,7 +989,9 @@ function updateRouteInfoPanel(info) {
         </div>`;
 }
 
-// ---------- Map Helpers ----------
+// ==========================================
+// 17. Map Helpers (geocode, pin, Google Maps)
+// ==========================================
 window.geocodeAddress = function () {
     const house = document.getElementById('addr_house').value;
     const subdistrict = document.getElementById('addr_subdistrict').value;
@@ -931,11 +1054,14 @@ window.openRouteInGoogleMaps = function () {
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${SCHOOL_LAT},${SCHOOL_LNG}&destination=${lat},${lng}&travelmode=driving`, '_blank');
 };
 
-// ---------- Upload (ใช้ฟังก์ชันจาก homevisit_upload.js) ----------
-// หมายเหตุ: ฟังก์ชัน compressImage, triggerSingleUpload, previewSelectedImage, clearSelectedImage, openImagePreview, syncCamToMain
-// ถูกนิยามไว้ใน homevisit_upload.js แล้ว ไม่ต้องประกาศซ้ำ
+// ==========================================
+// 18. Upload (ฟังก์ชันจาก homevisit_upload.js)
+// ฟังก์ชันเหล่านี้ถูกประกาศใน homevisit_upload.js แล้ว ไม่ต้องประกาศซ้ำ
+// ==========================================
 
-// ---------- Other Helpers ----------
+// ==========================================
+// 19. Other Helpers
+// ==========================================
 window.syncGuardianData = function (role) {
     const isFather = (role === 'father');
     const getVal = id => document.getElementById(id) ? document.getElementById(id).value : '';
@@ -953,7 +1079,9 @@ window.calcFemaleCount = function (prefix) {
     if (femaleEl) femaleEl.value = (total - male) >= 0 ? (total - male) : 0;
 };
 
-// ---------- TomSelect ----------
+// ==========================================
+// 20. TomSelect
+// ==========================================
 const dropdownOptions = {
     living_with: ['บิดา', 'มารดา', 'บิดาและมารดา', 'ปู่/ย่า/ตา/ยาย', 'ญาติ', 'อยู่คนเดียว', 'อื่นๆ'],
     parents_status: ['อยู่ด้วยกันจดทะเบียนสมรส', 'อยู่ด้วยกันไม่ได้จดทะเบียนสมรส', 'หย่าร้าง', 'แยกกันอยู่', 'บิดาถึงแก่กรรม', 'มารดาถึงแก่กรรม', 'บิดาและมารดาถึงแก่กรรม', 'ไม่ทราบ'],
@@ -981,10 +1109,10 @@ function initAllTomSelects() {
     });
 
     window.tomLivingWith = new TomSelect('#living_with', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.living_with.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('living_with', 'living_with_other', val) });
-    window.tomParentsStatus = new TomSelect('#parents_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.parents_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', });
+    window.tomParentsStatus = new TomSelect('#parents_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.parents_status.map(v => ({ value: v, text: v })), dropdownParent: 'body' });
     window.tomHouseType = new TomSelect('#house_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.house_type.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('house_type', 'house_type_other', val) });
     window.tomTravelMethod = new TomSelect('#travel_method', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.travel_method.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('travel_method', 'travel_method_other', val) });
-    window.tomEnvHouseStatus = new TomSelect('#env_house_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_house_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', });
+    window.tomEnvHouseStatus = new TomSelect('#env_house_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_house_status.map(v => ({ value: v, text: v })), dropdownParent: 'body' });
     window.tomEnvCleanStatus = new TomSelect('#env_clean_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_clean_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('env_clean_status', 'env_clean_other', val) });
     window.tomEnvLocationStatus = new TomSelect('#env_location_status', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.env_location_status.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('env_location_status', 'env_location_other', val) });
     window.tomInformantType = new TomSelect('#informant_type', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.informant_type.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('informant_type', 'informant_type_other', val) });
@@ -993,7 +1121,9 @@ function initAllTomSelects() {
     window.tomAllowanceSource = new TomSelect('#student_allowance_source', { create: false, placeholder: '-- เลือก --', options: dropdownOptions.allowance_source.map(v => ({ value: v, text: v })), dropdownParent: 'body', onChange: (val) => toggleOtherInput('student_allowance_source', 'student_allowance_source_other', val) });
 }
 
-// ---------- Status Badge ----------
+// ==========================================
+// 21. Status Badge
+// ==========================================
 function updateStatusBadge(status) {
     const badge = document.getElementById('status-badge');
     const text = document.getElementById('status-text');
@@ -1007,7 +1137,9 @@ function updateStatusBadge(status) {
     }
 }
 
-// ---------- Logout ----------
+// ==========================================
+// 22. Logout
+// ==========================================
 async function logout() {
     const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });
     if (r.isConfirmed) {
