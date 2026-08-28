@@ -110,9 +110,9 @@
                 </button>
                 <!-- สำหรับแอดมินนำเข้า Excel ข้อมูลเดิม -->
                 <button id="btn-import-excel" onclick="importFromExcel()"
-                class="hidden flex h-11 px-4 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition font-bold text-sm border border-emerald-200 shadow-sm">
-                <i class="fas fa-file-excel mr-2"></i> <span class="hidden sm:inline">นำเข้าข้อมูล</span>
-            </button>
+                    class="hidden flex h-11 px-4 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition font-bold text-sm border border-emerald-200 shadow-sm">
+                    <i class="fas fa-file-excel mr-2"></i> <span class="hidden sm:inline">นำเข้าข้อมูล</span>
+                </button>
                 <div class="h-8 w-px bg-slate-200 mx-1"></div>
                 <div class="flex items-center gap-3">
                     <div class="text-right hidden md:block">
@@ -251,6 +251,9 @@
 
                     <!-- 🔴 STEP 1: ข้อมูลนักเรียนและบิดามารดาผู้ปกครอง -->
                     <div class="step-content active p-6 md:p-10 theme-step-1" id="step-1">
+                        <!-- ✅ เพิ่มกล่องนี้ -->
+                        <div id="missing-box-step-1" class="missing-box"></div>
+
                         <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-red-100">
                             <div class="w-3.5 h-7 bg-red-600 rounded-full animate-pulse"></div>
                             <i class="fa-solid fa-user-graduate text-red-600 text-2xl"></i>
@@ -486,6 +489,9 @@
 
                     <!-- 🟠 STEP 2: ข้อมูลที่อยู่และตำแหน่งพิกัดบ้าน พร้อมสภาพแวดล้อม -->
                     <div class="step-content p-6 md:p-10 theme-step-2" id="step-2">
+                        <!-- ✅ เพิ่มกล่องนี้ -->
+                        <div id="missing-box-step-2" class="missing-box"></div>
+
                         <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-orange-200">
                             <div class="w-3.5 h-7 bg-orange-600 rounded-full animate-pulse"></div>
                             <i class="fa-solid fa-map-location-dot text-orange-600 text-2xl"></i>
@@ -734,6 +740,9 @@
 
                     <!-- 💛 STEP 3: ข้อมูลครอบครัวและสภาพแวดล้อม -->
                     <div class="step-content p-6 md:p-10 theme-step-3" id="step-3">
+                        <!-- ✅ เพิ่มกล่องนี้ -->
+                        <div id="missing-box-step-3" class="missing-box"></div>
+
                         <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-yellow-200">
                             <div class="w-3.5 h-7 bg-yellow-600 rounded-full animate-pulse"></div>
                             <i class="fa-solid fa-people-roof text-yellow-600 text-2xl"></i>
@@ -998,6 +1007,9 @@
 
                     <!-- 💚 STEP 4: แนบภาพถ่ายหลักฐานการเยี่ยมบ้าน -->
                     <div class="step-content p-6 md:p-10 theme-step-4" id="step-4">
+                        <!-- ✅ เพิ่มกล่องนี้ -->
+                        <div id="missing-box-step-4" class="missing-box"></div>
+
                         <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-green-200">
                             <div class="w-3.5 h-7 bg-green-600 rounded-full animate-pulse"></div>
                             <i class="fa-solid fa-camera text-green-600 text-2xl"></i>
@@ -1174,6 +1186,9 @@
 
                     <!-- 🔵 STEP 5: ข้อห่วงใยและความช่วยเหลือเพิ่มเติม -->
                     <div class="step-content p-6 md:p-10 theme-step-5" id="step-5">
+                        <!-- ✅ เพิ่มกล่องนี้ -->
+                        <div id="missing-box-step-5" class="missing-box"></div>
+
                         <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-sky-300">
                             <div class="w-3.5 h-7 bg-sky-600 rounded-full animate-pulse"></div>
                             <i class="fa-solid fa-comment-medical text-sky-600 text-2xl"></i>

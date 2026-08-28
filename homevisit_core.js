@@ -592,6 +592,16 @@ async function loadStudentInfo(studentId) {
     }
 
     await loadExistingHomeVisit(studentId);
+
+    // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดทันทีที่เลือกนักเรียน
+    if (typeof renderMissingBox === 'function') {
+        const currentStep = document.querySelector('.step-content.active');
+        if (currentStep) {
+            const stepId = currentStep.id.replace('step-', '');
+            renderMissingBox(parseInt(stepId));
+        }
+    }
+    
     Swal.close();
 }
 
@@ -941,6 +951,11 @@ window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
     const targetStep = document.getElementById(`step-${step}`);
     if (targetStep) targetStep.classList.add('active');
+
+     // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดในแต่ละขั้น
+    if (typeof renderMissingBox === 'function') {
+        renderMissingBox(step);
+    }
 
     const percentages = { 1: '0%', 2: '25%', 3: '50%', 4: '75%', 5: '100%' };
     const progBar = document.getElementById('progressBar');

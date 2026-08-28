@@ -3256,3 +3256,113 @@ if (typeof window.loadReport !== 'function') {
         Swal.fire('ข้อผิดพลาด', 'ฟังก์ชันรายงานไม่พร้อมใช้งาน กรุณารีเฟรชหน้า', 'error');
     };
 }
+
+// ==========================================
+// ฟังก์ชันแสดงกล่องรายการที่ขาดในแต่ละ Step (ฝั่งครู)
+// ==========================================
+function getMissingFieldsByStep(missingFields, stepNumber) {
+    const step1Fields = [
+        'วันที่เยี่ยมบ้าน', 'ครั้งที่', 'ชื่อเล่น', 'เบอร์โทรศัพท์นักเรียน',
+        'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
+        'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
+        'ชื่อผู้ปกครอง', 'อาชีพผู้ปกครอง', 'เบอร์โทรผู้ปกครอง', 'ความสัมพันธ์ผู้ปกครอง',
+        'อาศัยอยู่กับ', 'สถานภาพบิดามารดา'
+    ];
+    const step2Fields = [
+        'บ้านเลขที่', 'หมู่ที่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
+        'พิกัด GPS', 'ประเภทบ้าน', 'เวลาเดินทาง', 'วิธีการเดินทาง',
+        'สภาพตัวบ้าน', 'ความสะอาด', 'สภาพแวดล้อม',
+        'ไฟฟ้า', 'น้ำอุปโภคบริโภค', 'ห้องสุขา'
+    ];
+    const step3Fields = [
+        'สมาชิกในครอบครัว (รวม)', 'สมาชิกชาย', 'สมาชิกหญิง',
+        'พี่น้องร่วมบิดามารดา (รวม)', 'พี่น้องร่วมฯ ชาย', 'พี่น้องร่วมฯ หญิง',
+        'พี่น้องต่างบิดามารดา (รวม)', 'พี่น้องต่างฯ ชาย', 'พี่น้องต่างฯ หญิง',
+        'รายได้ครอบครัวต่อเดือน', 'นักเรียนได้รับค่าใช้จ่ายจาก',
+        'รายได้นักเรียนต่อวัน', 'เงินไปโรงเรียนต่อวัน',
+        'ความสัมพันธ์ในครอบครัว', 'เวลาอยู่ร่วมกันต่อวัน',
+        'กรณีต้องการการช่วยเหลือพิเศษ', 'ภาระงานรับผิดชอบ',
+        'กิจกรรมยามว่าง', 'ฝากเด็กอยู่กับใคร'
+    ];
+    const step4Fields = [
+        'ภาพถ่ายตัวนักเรียน', 'ภาพถ่ายสภาพบ้านภายนอก',
+        'ภาพถ่ายสภาพบ้านภายใน', 'ภาพครูกำลังเยี่ยมบ้าน'
+    ];
+    const step5Fields = [
+        'ข้อห่วงใยของผู้ปกครอง', 'สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ',
+        'ความช่วยเหลือที่เคยได้รับ', 'ผู้ให้ข้อมูล'
+    ];
+
+    let stepFields = [];
+    if (stepNumber === 1) stepFields = step1Fields;
+    else if (stepNumber === 2) stepFields = step2Fields;
+    else if (stepNumber === 3) stepFields = step3Fields;
+    else if (stepNumber === 4) stepFields = step4Fields;
+    else if (stepNumber === 5) stepFields = step5Fields;
+
+    // กรองเฉพาะรายการที่ขาดใน step นี้
+    return missingFields.filter(field => stepFields.includes(field));
+}
+
+async function renderMissingBox(stepNumber) {
+    const box = document.getElementById(`missing-box-step-${stepNumber}`);
+    if (!box) return;
+
+    // ถ้ายังไม่มีนักเรียนที่เลือก ให้ซ่อนกล่อง
+    if (!currentStudentId) {
+        box.innerHTML = '';
+        return;
+    }
+
+    try {
+        // ดึงข้อมูลการเยี่ยมบ้านล่าสุดของนักเรียนคนนี้
+        const { data: visit, error } = await db
+            .from('module_home_visits')
+            .select('*')
+            .eq('student_id', currentStudentId)
+            .eq('academic_year', currentYear)
+            .eq('semester', currentTerm)
+            .maybeSingle();
+
+        if (error) {
+            console.error('Error loading visit for missing box:', error);
+            box.innerHTML = '';
+            return;
+        }
+
+        const completeness = getCompletenessStatus(visit);
+        const missingFields = completeness.missingFields || [];
+        const stepMissing = getMissingFieldsByStep(missingFields, stepNumber);
+
+        if (stepMissing.length === 0) {
+            box.innerHTML = ''; // ซ่อนกล่องถ้าไม่มีรายการขาด
+            return;
+        }
+
+        // สร้าง HTML ของกล่องรายการที่ขาด
+        let html = `
+            <div class="bg-amber-50 border-l-4 border-amber-500 p-4 mb-6 rounded-r-xl shadow-sm">
+                <div class="flex items-start gap-3">
+                    <div class="text-amber-500 mt-0.5"><i class="fas fa-exclamation-triangle"></i></div>
+                    <div class="flex-1">
+                        <p class="font-bold text-amber-800 text-sm mb-2">⚠️ ข้อมูลในขั้นตอนที่ ${stepNumber} ยังไม่ครบถ้วน</p>
+                        <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1 text-sm text-amber-700 list-disc list-inside">
+        `;
+
+        stepMissing.forEach(field => {
+            html += `<li>${field}</li>`;
+        });
+
+        html += `
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        box.innerHTML = html;
+    } catch (err) {
+        console.error('Error rendering missing box:', err);
+        box.innerHTML = '';
+    }
+}
