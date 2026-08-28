@@ -23,6 +23,7 @@
                 opacity: 0;
                 transform: translateY(20px);
             }
+
             100% {
                 opacity: 1;
                 transform: translateY(0);
@@ -272,6 +273,7 @@
                 opacity: 0;
                 transform: translateY(-30px) scale(0.95);
             }
+
             to {
                 opacity: 1;
                 transform: translateY(0) scale(1);
@@ -313,11 +315,13 @@
             .no-print {
                 display: none !important;
             }
+
             #evalDetailModal {
                 position: static !important;
                 background: white !important;
                 backdrop-filter: none !important;
             }
+
             #evalDetailModal .modal-content {
                 box-shadow: none !important;
                 border: 1px solid #e2e8f0 !important;
@@ -398,14 +402,17 @@
                 max-height: 98vh;
                 border-radius: 12px;
             }
+
             #committeeReviewModal .modal-body-scroll {
                 max-height: 75vh;
             }
+
             #reviewTable td,
             #reviewTable th {
                 font-size: 0.7rem !important;
                 padding: 4px 6px !important;
             }
+
             #reviewTable td:nth-child(8) button {
                 font-size: 0.6rem !important;
                 padding: 2px 6px !important;
@@ -413,6 +420,7 @@
         }
 
         @media (max-width: 480px) {
+
             #reviewTable td,
             #reviewTable th {
                 font-size: 0.6rem !important;
@@ -513,6 +521,12 @@
                                     class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
                                     <i class="fa-solid fa-pen-to-square"></i> ประเมินตนเอง
                                 </button>
+
+                                <!-- ✅ ปุ่มสร้าง PDF (เพิ่มตรงนี้) -->
+                                <button onclick="generateEvaluationPDF()"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
+                                    <i class="fa-solid fa-file-pdf"></i> สร้าง PDF
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -520,58 +534,54 @@
 
                 <!-- การ์ดกรรมการประเมิน -->
                 <div id="committeeCard" class="hidden">
-                    <div
-                        class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
                         <div class="flex flex-wrap justify-between items-center mb-4">
                             <h3 class="font-bold text-lg">
                                 <i class="fa-solid fa-users text-blue-500 mr-2"></i>ประเมินครูในกลุ่มสาระ
                             </h3>
+                            
+                            <!-- ✅ Badge สวมรอย -->
+                            <span id="adminImpersonationBadge" class="hidden px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
+                                <i class="fa-solid fa-crown mr-1"></i> Super Admin โหมดสวมรอย
+                            </span>
+
                             <!-- ✅ ปุ่มตรวจสอบการประเมิน -->
                             <button onclick="openCommitteeReviewModal()"
-                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
                                 <i class="fa-solid fa-magnifying-glass-chart mr-1"></i> ตรวจสอบการประเมิน
                             </button>
                         </div>
 
-                        <!-- เลือกชุดคณะกรรมการ -->
-                        <div class="flex flex-wrap items-center gap-4 mb-4">
-                            <div class="w-full md:w-64">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">
-                                    เลือกชุดคณะกรรมการ <span class="text-red-500">*</span>
-                                </label>
-                                <select id="sel_committee_group"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
-                                    <option value="">-- เลือกชุด --</option>
-                                </select>
-                                <p class="text-xs text-gray-400 mt-1">เลือกชุดคณะกรรมการที่ต้องการประเมิน</p>
-                            </div>
+                        <!-- ✅ แท็บชุดหลัก (Main Groups 1-7) -->
+                        <div id="main_group_tabs" class="flex flex-wrap gap-2 mb-4">
+                            <!-- จะถูกสร้างโดย JavaScript -->
+                        </div>
+
+                        <!-- ✅ เลือกชุดย่อยภายใน Main Group -->
+                        <div id="sub_group_selection" class="mb-4">
+                            <!-- จะถูกสร้างโดย JavaScript -->
+                        </div>
+
+                        <!-- เลือกกลุ่มสาระ (สำหรับ Super Admin) -->
+                        <!-- <div class="flex flex-wrap items-center gap-4 mb-4">
                             <div class="w-full md:w-72">
                                 <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ</label>
-                                <select id="sel_department"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
+                                <select id="sel_department" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
                                     <option value="">-- เลือกกลุ่มสาระ --</option>
                                 </select>
                             </div>
                             <div class="flex items-end gap-2">
-                                <button onclick="window.loadTeachersForEvalBySubGroup(
-                                    window._currentSubGroupId, 
-                                    document.getElementById('sel_department').value,
-                                    window._currentSelectedItems
-                                )"
-                                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
+                                <button onclick="window.loadTeachersForEvalBySubGroup(window._currentSubGroupId, document.getElementById('sel_department').value, window._currentSelectedItems)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
                                     <i class="fa-solid fa-search mr-1"></i> แสดงรายชื่อ
                                 </button>
-                                <button onclick="location.reload()"
-                                    class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2.5 rounded-xl font-bold transition-colors"
-                                    title="โหลดใหม่">
+                                <button onclick="location.reload()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2.5 rounded-xl font-bold transition-colors" title="โหลดใหม่">
                                     <i class="fa-solid fa-rotate"></i>
                                 </button>
                             </div>
-                        </div>
+                        </div> -->
 
                         <!-- แสดงข้อมูลชุดที่เลือก -->
-                        <div id="selectedGroupInfo"
-                            class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
+                        <div id="selectedGroupInfo" class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
                             <div class="flex flex-wrap justify-between items-center gap-2">
                                 <div>
                                     <p class="text-sm font-bold text-blue-700">
@@ -589,11 +599,11 @@
                         <!-- ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
                         <div id="finalSummaryActions" class="hidden mb-4">
                             <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
-                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-calculator mr-1"></i> สรุปผลคะแนนทั้งหมด
                             </button>
                             <button onclick="window.exportFinalScores()"
-                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
                                 <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
                             </button>
                         </div>
@@ -782,12 +792,13 @@
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] shadow-2xl modal-content">
                 <!-- Header -->
-                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                <div
+                    class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-file-pen text-blue-500 mr-2"></i>รายละเอียดผลการประเมิน
                     </h3>
-                    <button onclick="closeEvalDetailModal()" 
-                            class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeEvalDetailModal()"
+                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
@@ -797,7 +808,8 @@
                     <!-- ข้อมูลผู้ถูกประเมิน -->
                     <div id="evalDetailUserInfo" class="mb-4 bg-gray-50 p-4 rounded-xl">
                         <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
+                            <div
+                                class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
                                 <span id="evalDetailUserInitial">-</span>
                             </div>
                             <div>
@@ -817,16 +829,16 @@
 
                     <!-- ปุ่มดำเนินการ -->
                     <div class="flex flex-wrap gap-3 mt-4 no-print">
-                        <button onclick="window.saveFinalScoreFromModal()" 
-                                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <button onclick="window.saveFinalScoreFromModal()"
+                            class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                             <i class="fa-solid fa-rotate mr-1"></i> คำนวณใหม่
                         </button>
-                        <button onclick="window.printFinalScore()" 
-                                class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
+                        <button onclick="window.printFinalScore()"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors">
                             <i class="fa-solid fa-print mr-1"></i> พิมพ์
                         </button>
-                        <button onclick="closeEvalDetailModal()" 
-                                class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors ml-auto">
+                        <button onclick="closeEvalDetailModal()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors ml-auto">
                             ปิด
                         </button>
                     </div>
@@ -842,13 +854,14 @@
         <div class="flex items-center justify-center min-h-screen p-4">
             <div class="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] shadow-2xl modal-content">
                 <!-- Header -->
-                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                <div
+                    class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-magnifying-glass-chart text-indigo-500 mr-2"></i>
                         ตรวจสอบการประเมิน
                     </h3>
-                    <button onclick="closeCommitteeReviewModal()" 
-                            class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeCommitteeReviewModal()"
+                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
@@ -876,7 +889,7 @@
                             </select>
                         </div>
                         <button onclick="loadReviewData()"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2 mt-1">
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2 mt-1">
                             <i class="fa-solid fa-search"></i> แสดงข้อมูล
                         </button>
                     </div>
@@ -884,19 +897,23 @@
                     <!-- สรุปข้อมูล -->
                     <div id="reviewSummary" class="mb-4 hidden">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                            <div
+                                class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
                                 <p class="text-xs text-gray-500">ผู้ถูกประเมินทั้งหมด</p>
                                 <p class="text-2xl font-bold text-blue-600" id="reviewTotalTeachers">0</p>
                             </div>
-                            <div class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                            <div
+                                class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
                                 <p class="text-xs text-gray-500">ประเมินแล้ว</p>
                                 <p class="text-2xl font-bold text-green-600" id="reviewEvaluated">0</p>
                             </div>
-                            <div class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                            <div
+                                class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
                                 <p class="text-xs text-gray-500">ยังไม่ประเมิน</p>
                                 <p class="text-2xl font-bold text-yellow-600" id="reviewNotEvaluated">0</p>
                             </div>
-                            <div class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                            <div
+                                class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
                                 <p class="text-xs text-gray-500">คะแนนเฉลี่ยรวม</p>
                                 <p class="text-2xl font-bold text-purple-600" id="reviewAvgScore">0.00</p>
                             </div>
@@ -933,8 +950,8 @@
 
                 <!-- Footer -->
                 <div class="flex justify-end p-4 border-t border-gray-200 sticky bottom-0 bg-white rounded-b-2xl">
-                    <button onclick="closeCommitteeReviewModal()" 
-                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">
+                    <button onclick="closeCommitteeReviewModal()"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">
                         ปิด
                     </button>
                 </div>
@@ -945,33 +962,9 @@
     <!-- ========================================== -->
     <!-- SCRIPTS -->
     <!-- ========================================== -->
-    <script src="evaluation.js"></script>
-
-    <!-- ========================================== -->
-    <!-- ตรวจจับการเปลี่ยนกลุ่มสาระอัตโนมัติ -->
-    <!-- ========================================== -->
-    <script>
-        document.addEventListener('DOMContentLoaded', function () {
-            const deptSelect = document.getElementById('sel_department');
-            if (deptSelect) {
-                deptSelect.addEventListener('change', function () {
-                    if (this.value && window._currentSubGroupId) {
-                        window.loadTeachersForEvalBySubGroup(
-                            window._currentSubGroupId,
-                            this.value,
-                            window._currentSelectedItems
-                        );
-                    }
-                });
-            }
-
-            // ✅ แสดงปุ่มสรุปผลสำหรับ Admin
-            const currentUserRole = document.getElementById('header_user_role')?.innerText || '';
-            if (['admin', 'super_admin'].includes(currentUserRole)) {
-                document.getElementById('finalSummaryActions')?.classList.remove('hidden');
-            }
-        });
-    </script>
+    <script src="evaluation_core.js"></script>
+    <script src="evaluation_logic.js"></script>
+    <script src="evaluation_ui.js"></script>
 
 </body>
 

@@ -1274,6 +1274,353 @@ function closeCompletenessModal() {
 }
 
 // ==========================================
+// ✅ [SUPER ADMIN] เปิด Modal สวมรอยประเมินแทนกรรมการ
+// ==========================================
+
+/**
+ * เปิด Panel เลือกชุดย่อย → เลือกกรรมการ → เลือกครู → สวมรอยประเมิน
+ * แสดงเฉพาะเมื่อ currentUser.role === 'super_admin'
+ */
+async function openImpersonatePanel() {
+    if (!currentUser || currentUser.role !== 'super_admin') {
+        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'error');
+    }
+
+    // ต้องเลือกรอบก่อน
+    const roundId = document.getElementById('filter_round_for_groups').value;
+    if (!roundId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อน', 'warning');
+    }
+
+    Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        // โหลดชุดย่อยทั้งหมดในรอบนี้
+        const { data: subGroups, error: sgErr } = await db
+            .from('eval_committee_groups')
+            .select('id, group_name, parent_group_id')
+            .eq('eval_round_id', roundId)
+            .eq('group_type', 'sub')
+            .eq('is_active', true)
+            .order('group_name');
+
+        if (sgErr) throw sgErr;
+
+        if (!subGroups || subGroups.length === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่พบชุดย่อยคณะกรรมการในรอบนี้', 'warning');
+        }
+
+        Swal.close();
+
+        // สร้าง Modal
+        let modal = document.getElementById('impersonateModal');
+        if (modal) modal.remove();
+
+        modal = document.createElement('div');
+        modal.id = 'impersonateModal';
+        modal.className = 'fixed inset-0 z-[200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4';
+        modal.innerHTML = `
+            <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+                <!-- Header -->
+                <div class="flex justify-between items-center p-5 border-b border-gray-200 flex-shrink-0">
+                    <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                        <span class="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                            <i class="fa-solid fa-user-secret text-orange-500"></i>
+                        </span>
+                        สวมรอยประเมินแทนกรรมการ
+                    </h3>
+                    <button onclick="closeImpersonatePanel()"
+                            class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+                        <i class="fa-solid fa-xmark text-xl"></i>
+                    </button>
+                </div>
+
+                <!-- Warning -->
+                <div class="mx-5 mt-4 bg-orange-50 border border-orange-200 rounded-xl p-3 flex-shrink-0">
+                    <p class="text-sm text-orange-700 font-medium">
+                        <i class="fa-solid fa-triangle-exclamation mr-2"></i>
+                        คะแนนที่บันทึกจะเป็น evaluator_id ของกรรมการท่านนั้น และการกระทำนี้จะถูก log ไว้ทั้งหมด
+                    </p>
+                </div>
+
+                <!-- Body -->
+                <div class="p-5 overflow-y-auto flex-1 space-y-4">
+                    <!-- Step 1: เลือกชุดย่อย -->
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">
+                            <span class="inline-flex items-center justify-center w-5 h-5 bg-blue-600 text-white rounded-full text-xs mr-1">1</span>
+                            เลือกชุดคณะกรรมการ
+                        </label>
+                        <select id="imp_sub_group"
+                                onchange="onImpersonateSubGroupChange()"
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-colors">
+                            <option value="">-- เลือกชุดย่อย --</option>
+                            ${subGroups.map(g => `<option value="${g.id}">${g.group_name}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Step 2: เลือกกรรมการ -->
+                    <div id="imp_evaluator_section" class="hidden">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">
+                            <span class="inline-flex items-center justify-center w-5 h-5 bg-blue-600 text-white rounded-full text-xs mr-1">2</span>
+                            เลือกกรรมการที่จะสวมรอย
+                        </label>
+                        <select id="imp_evaluator"
+                                onchange="onImpersonateEvaluatorChange()"
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-colors">
+                            <option value="">-- เลือกกรรมการ --</option>
+                        </select>
+                    </div>
+
+                    <!-- Step 3: เลือกกลุ่มสาระ -->
+                    <div id="imp_dept_section" class="hidden">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">
+                            <span class="inline-flex items-center justify-center w-5 h-5 bg-blue-600 text-white rounded-full text-xs mr-1">3</span>
+                            เลือกกลุ่มสาระ
+                        </label>
+                        <select id="imp_department"
+                                onchange="onImpersonateDeptChange()"
+                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-100 transition-colors">
+                            <option value="">-- เลือกกลุ่มสาระ --</option>
+                        </select>
+                    </div>
+
+                    <!-- Step 4: เลือกครูที่จะประเมิน -->
+                    <div id="imp_teacher_section" class="hidden">
+                        <label class="block text-sm font-bold text-gray-700 mb-2">
+                            <span class="inline-flex items-center justify-center w-5 h-5 bg-blue-600 text-white rounded-full text-xs mr-1">4</span>
+                            เลือกครูที่จะประเมิน
+                        </label>
+                        <div id="imp_teacher_list" class="space-y-2 max-h-52 overflow-y-auto pr-1"></div>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex justify-end p-4 border-t border-gray-200 flex-shrink-0">
+                    <button onclick="closeImpersonatePanel()"
+                            class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-5 py-2 rounded-xl font-bold text-sm transition-colors">
+                        ปิด
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+    } catch (err) {
+        Swal.close();
+        console.error('Error opening impersonate panel:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * ปิด Modal สวมรอย
+ */
+function closeImpersonatePanel() {
+    const modal = document.getElementById('impersonateModal');
+    if (modal) modal.remove();
+}
+
+/**
+ * เมื่อเลือกชุดย่อย → โหลดรายชื่อกรรมการ
+ */
+async function onImpersonateSubGroupChange() {
+    const subGroupId = document.getElementById('imp_sub_group').value;
+
+    // ซ่อน section ถัดไป
+    ['imp_evaluator_section', 'imp_dept_section', 'imp_teacher_section'].forEach(id => {
+        document.getElementById(id)?.classList.add('hidden');
+    });
+
+    if (!subGroupId) return;
+
+    try {
+        const { data: members, error } = await db
+            .from('eval_committee_members')
+            .select('user_id, core_personnel(id, prefix, first_name, last_name, academic_standing)')
+            .eq('committee_group_id', subGroupId)
+            .eq('is_active', true);
+
+        if (error) throw error;
+
+        const select = document.getElementById('imp_evaluator');
+        select.innerHTML = '<option value="">-- เลือกกรรมการ --</option>';
+
+        (members || []).forEach(m => {
+            if (!m.core_personnel) return;
+            const p = m.core_personnel;
+            const opt = document.createElement('option');
+            opt.value = m.user_id;
+            opt.textContent = `${p.prefix || ''}${p.first_name} ${p.last_name} (${p.academic_standing || '-'})`;
+            opt.dataset.name = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+            select.appendChild(opt);
+        });
+
+        document.getElementById('imp_evaluator_section')?.classList.remove('hidden');
+
+        // โหลดกลุ่มสาระของชุดนี้
+        const { data: targets, error: tErr } = await db
+            .from('eval_committee_targets')
+            .select('target_value')
+            .eq('committee_group_id', subGroupId)
+            .eq('target_type', 'department')
+            .eq('is_active', true);
+
+        if (tErr) throw tErr;
+
+        const deptSelect = document.getElementById('imp_department');
+        deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+        (targets || []).forEach(t => {
+            deptSelect.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
+        });
+
+        document.getElementById('imp_dept_section')?.classList.remove('hidden');
+
+    } catch (err) {
+        console.error('Error loading impersonate evaluators:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * เมื่อเลือกกรรมการ (ไม่ต้องทำอะไรพิเศษ เพราะโหลด dept พร้อมกันแล้ว)
+ */
+function onImpersonateEvaluatorChange() {
+    // ไม่ต้องทำอะไร ปล่อยให้ user เลือก dept ต่อ
+}
+
+/**
+ * เมื่อเลือกกลุ่มสาระ → โหลดรายชื่อครู
+ */
+async function onImpersonateDeptChange() {
+    const dept = document.getElementById('imp_department').value;
+    const subGroupId = document.getElementById('imp_sub_group').value;
+
+    document.getElementById('imp_teacher_section')?.classList.add('hidden');
+
+    if (!dept) return;
+
+    try {
+        const { data: teachers, error } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .eq('department', dept)
+            .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+            .order('first_name');
+
+        if (error) throw error;
+
+        const container = document.getElementById('imp_teacher_list');
+
+        if (!teachers || teachers.length === 0) {
+            container.innerHTML = '<p class="text-sm text-gray-400 py-2">ไม่พบบุคลากรในกลุ่มสาระนี้</p>';
+            document.getElementById('imp_teacher_section')?.classList.remove('hidden');
+            return;
+        }
+
+        const roundId = document.getElementById('filter_round_for_results')?.value
+            || document.getElementById('filter_round_for_groups')?.value;
+
+        // ดึงสถานะการประเมินของแต่ละครู (โดย evaluator ที่เลือก)
+        const evaluatorId = document.getElementById('imp_evaluator').value;
+        let evalMap = {};
+
+        if (evaluatorId && roundId) {
+            const { data: evals } = await db
+                .from('eval_results')
+                .select('evaluatee_id, status, total_score')
+                .in('evaluatee_id', teachers.map(t => t.id))
+                .eq('evaluator_id', evaluatorId)
+                .eq('eval_type', 'committee')
+                .eq('status', 'submitted');
+
+            (evals || []).forEach(e => { evalMap[e.evaluatee_id] = e; });
+        }
+
+        container.innerHTML = teachers.map(teacher => {
+            const fullName = `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`;
+            const evalResult = evalMap[teacher.id];
+            const statusBadge = evalResult
+                ? `<span class="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✅ ประเมินแล้ว (${evalResult.total_score?.toFixed(2)})</span>`
+                : `<span class="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">⏳ ยังไม่ประเมิน</span>`;
+
+            const teacherJson = JSON.stringify(teacher).replace(/"/g, '&quot;');
+
+            return `
+                <div class="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 hover:border-orange-300 hover:bg-orange-50 transition-colors">
+                    <div>
+                        <p class="font-medium text-sm text-gray-800">${fullName}</p>
+                        <p class="text-xs text-gray-400">${teacher.academic_standing || '-'}</p>
+                        <div class="mt-1">${statusBadge}</div>
+                    </div>
+                    <button onclick="triggerImpersonation('${teacher.id}')"
+                            data-teacher="${teacherJson}"
+                            class="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center gap-1 flex-shrink-0 ml-3">
+                        <i class="fa-solid fa-user-secret"></i>
+                        สวมรอย
+                    </button>
+                </div>
+            `;
+        }).join('');
+
+        document.getElementById('imp_teacher_section')?.classList.remove('hidden');
+
+    } catch (err) {
+        console.error('Error loading teachers for impersonation:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * trigger การสวมรอย เมื่อกดปุ่มในรายการครู
+ */
+async function triggerImpersonation(teacherId) {
+    const subGroupId = document.getElementById('imp_sub_group').value;
+    const evaluatorSelect = document.getElementById('imp_evaluator');
+    const evaluatorId = evaluatorSelect.value;
+    const evaluatorName = evaluatorSelect.options[evaluatorSelect.selectedIndex]?.dataset?.name || 'ไม่ทราบชื่อ';
+
+    if (!evaluatorId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกรรมการก่อน', 'warning');
+    }
+
+    // หาข้อมูลครู
+    const btn = document.querySelector(`[onclick="triggerImpersonation('${teacherId}')"]`);
+    let teacherData;
+    try {
+        teacherData = JSON.parse(btn?.dataset?.teacher || '{}');
+    } catch (e) {
+        // fallback: query ใหม่
+        const { data: t } = await db.from('core_personnel').select('*').eq('id', teacherId).single();
+        teacherData = t;
+    }
+
+    if (!teacherData?.id) {
+        return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลครู', 'error');
+    }
+
+    // ปิด modal ก่อน
+    closeImpersonatePanel();
+
+    // เปิดหน้า evaluation.html และ trigger impersonation
+    // เนื่องจาก evaluation_admin.html และ evaluation.html แยกกัน
+    // ให้เก็บค่าไว้ใน sessionStorage แล้ว redirect ไป evaluation.html
+
+    const impersonationPayload = {
+        mode: 'impersonate',
+        subGroupId,
+        evaluatorId,
+        evaluatorName,
+        teacherData
+    };
+
+    sessionStorage.setItem('wrk_impersonation', JSON.stringify(impersonationPayload));
+    window.open('evaluation.html?impersonate=1', '_blank');
+}
+
+// ==========================================
 // EXPOSE GROUPS FUNCTIONS
 // ==========================================
 window.loadGroupsTable = loadGroupsTable;
@@ -1293,3 +1640,11 @@ window.checkEvaluationCompleteness = checkEvaluationCompleteness;
 window.closeCompletenessModal = closeCompletenessModal;
 
 console.log('✅ evaluation_admin_groups.js loaded successfully');
+window.openImpersonatePanel = openImpersonatePanel;
+window.closeImpersonatePanel = closeImpersonatePanel;
+window.onImpersonateSubGroupChange = onImpersonateSubGroupChange;
+window.onImpersonateEvaluatorChange = onImpersonateEvaluatorChange;
+window.onImpersonateDeptChange = onImpersonateDeptChange;
+window.triggerImpersonation = triggerImpersonation;
+
+console.log('✅ Impersonation panel functions loaded');
