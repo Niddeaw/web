@@ -814,9 +814,9 @@ function initMap() {
     }
 
     // ✅ ถ้ามีแผนที่อยู่แล้ว ให้ invalidateSize เฉยๆ
-    if (map) { 
-        map.invalidateSize(); 
-        return; 
+    if (map) {
+        map.invalidateSize();
+        return;
     }
 
     // ✅ ตรวจสอบว่า Leaflet โหลดแล้วหรือยัง
@@ -941,13 +941,13 @@ async function calculateRoute(fromLat, fromLng, toLat, toLng) {
         const distanceKm = (route.distance / 1000).toFixed(2);
         const durationMin = Math.round(route.duration / 60);
 
-        if (window.routeLayer) window.map.removeLayer(window.routeLayer);
-        window.routeLayer = L.geoJSON(route.geometry, {
+        if (routeLayer) map.removeLayer(routeLayer);
+        routeLayer = L.geoJSON(route.geometry, {
             style: { color: '#3b82f6', weight: 5, opacity: 0.85, lineCap: 'round', lineJoin: 'round' }
-        }).addTo(window.map);
+        }).addTo(map);
 
         const bounds = L.latLngBounds([fromLat, fromLng], [toLat, toLng]);
-        window.map.fitBounds(bounds, { padding: [50, 50] });
+        map.fitBounds(bounds, { padding: [50, 50] });
 
         document.getElementById('travel_distance').value = distanceKm;
         document.getElementById('travel_hour').value = Math.floor(durationMin / 60);
@@ -1006,9 +1006,9 @@ window.geocodeAddress = function () {
                 const lng = parseFloat(data[0].lon);
                 document.getElementById('lat').value = lat.toFixed(7);
                 document.getElementById('lng').value = lng.toFixed(7);
-                if (window.map && window.marker) {
-                    window.marker.setLatLng([lat, lng]);
-                    window.map.setView([lat, lng], 16);
+                if (map && marker) {
+                    marker.setLatLng([lat, lng]);
+                    map.setView([lat, lng], 16);
                     calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
                 }
             } else {
@@ -1027,9 +1027,9 @@ window.parseAndPinCoords = function () {
     if (isNaN(lat) || isNaN(lng)) return Swal.fire('รูปแบบไม่ถูกต้อง', 'พบตัวเลขพิกัดไม่สมบูรณ์', 'warning');
     document.getElementById('lat').value = lat.toFixed(7);
     document.getElementById('lng').value = lng.toFixed(7);
-    if (window.map && window.marker) {
-        window.marker.setLatLng([lat, lng]);
-        window.map.setView([lat, lng], 13);
+    if (map && marker) { // ✅ ใช้ map, marker
+        marker.setLatLng([lat, lng]);
+        map.setView([lat, lng], 13);
         calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
     }
     Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `ปักหมุดแล้ว: ${lat.toFixed(6)}, ${lng.toFixed(6)}`, showConfirmButton: false, timer: 2500 });
