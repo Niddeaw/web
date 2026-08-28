@@ -115,13 +115,11 @@ function calculateTotalScoreFromModeDetails(modeDetails) {
     if (modeDetails.p1_s1 !== undefined) {
         const p1s1Mode = modeDetails.p1_s1;
         if (isAssistant) {
-            // ครูผู้ช่วย: 14 ข้อ (1.1-1.7 + 2.1-2.4 + 3.1-3.3)
-            // คะแนนเต็ม 14x4 = 56
+            // ✅ ครูผู้ช่วย: 14 ข้อ × 4 = 56 คะแนนเต็ม → แปลงเป็น 60 คะแนน
             part1Total += (p1s1Mode * 60) / 56;
         } else {
-            // ครู, ชำนาญการ, ชำนาญการพิเศษ: 15 ข้อ (1.1-1.8 + 2.1-2.4 + 3.1-3.3)
-            // คะแนนเต็ม 15x4 = 60
-            part1Total += (p1s1Mode / 60) * 60;
+            // ✅ ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 คะแนนเต็ม → 60 คะแนน
+            part1Total += p1s1Mode;
         }
     }
 

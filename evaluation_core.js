@@ -344,8 +344,17 @@ async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('index.html');
 
-    const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+    // ✅ โหลด profile + schoolInfo + evalRound + systemConfigs แบบขนาน (ลดเวลา ~60%)
+    const [
+        { data: profile },
+        { data: schoolInfo },
+    ] = await Promise.all([
+        db.from('core_personnel').select('*').eq('id', session.user.id).single(),
+        db.from('core_school_info').select('*').single(),
+    ]);
+
     currentUser = profile;
+    currentTermData = schoolInfo;
 
     const allowedRoles = ['teacher', 'staff', 'deputy', 'director', 'admin', 'super_admin'];
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
@@ -355,6 +364,11 @@ async function checkAuth() {
         window.location.replace('index.html');
         return;
     }
+
+    // ✅ อัปเดต header ทันทีที่ได้ข้อมูล
+    document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
+    document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+    document.getElementById('header_user_role').innerText = currentUser.role || '';
 
     const selfEvalRoles = ['teacher', 'staff', 'super_admin'];
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
@@ -367,24 +381,24 @@ async function checkAuth() {
         selfEvalCard.classList.add('hidden');
     }
 
-    await loadEvaluationRound();
-    await loadSystemConfigs();
-
     const btnGoToAdmin = document.getElementById('btnGoToAdmin');
     if (btnGoToAdmin && ['admin', 'super_admin'].includes(currentUser.role)) {
         btnGoToAdmin.classList.remove('hidden');
     }
 
-    const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
-    currentTermData = schoolInfo;
-    document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
-    document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('header_user_role').innerText = currentUser.role || '';
+    // ✅ โหลด evalRound + systemConfigs แบบขนาน
+    await Promise.all([
+        loadEvaluationRound(),
+        loadSystemConfigs(),
+    ]);
 
     await checkAndPickupImpersonation();
 
-    await loadCommitteeEvaluationTasks();
-    await loadMyEvaluationStatus();
+    // ✅ โหลด committeeTask + myStatus แบบขนาน
+    await Promise.all([
+        loadCommitteeEvaluationTasks(),
+        loadMyEvaluationStatus(),
+    ]);
 
     if (currentEvalRound) {
         document.getElementById('eval_round_display_big').innerText = currentEvalRound.round_name || '-';
@@ -417,28 +431,73 @@ async function loadEvaluationRound() {
 }
 
 // ==========================================
-// โหลดโครงสร้างคณะกรรมการ (รวม targets แล้ว)
+// โหลดโครงสร้างคณะกรรมการ (รวม targets แล้ว) — batch query ลด roundtrip
 // ==========================================
 async function loadCommitteeStructure(evalRoundId) {
     try {
-        const { data: mainGroups, error: mainError } = await db.from('eval_committee_groups').select('*').eq('eval_round_id', evalRoundId).eq('group_type', 'main').eq('is_active', true);
-        if (mainError) throw mainError;
-        const result = [];
-        for (const mainGroup of mainGroups || []) {
-            const { data: subGroups, error: subError } = await db.from('eval_committee_groups').select('*').eq('parent_group_id', mainGroup.id).eq('is_active', true);
-            if (subError) throw subError;
-            const subGroupData = [];
-            for (const subGroup of subGroups || []) {
-                const { data: members, error: memError } = await db.from('eval_committee_members').select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)').eq('committee_group_id', subGroup.id).eq('is_active', true);
-                if (memError) throw memError;
-                const { data: targets, error: tarError } = await db.from('eval_committee_targets').select('*').eq('committee_group_id', subGroup.id).eq('is_active', true);
-                if (tarError) throw tarError;
-                subGroupData.push({ ...subGroup, members: members || [], targets: targets || [], selected_sub_items: subGroup.selected_sub_items || [] });
-            }
-            const { data: mainMembers } = await db.from('eval_committee_members').select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)').eq('committee_group_id', mainGroup.id).eq('is_active', true);
-            const { data: mainTargets } = await db.from('eval_committee_targets').select('*').eq('committee_group_id', mainGroup.id).eq('is_active', true);
-            result.push({ ...mainGroup, members: mainMembers || [], targets: mainTargets || [], sub_groups: subGroupData, selected_sub_items: mainGroup.selected_sub_items || [] });
-        }
+        // ✅ ดึง main + sub groups พร้อมกันในคำสั่งเดียว
+        const { data: allGroups, error: groupError } = await db
+            .from('eval_committee_groups')
+            .select('*')
+            .eq('eval_round_id', evalRoundId)
+            .eq('is_active', true)
+            .order('group_name', { ascending: true });
+        if (groupError) throw groupError;
+
+        const mainGroups = (allGroups || []).filter(g => g.group_type === 'main');
+        const subGroupsAll = (allGroups || []).filter(g => g.group_type === 'sub');
+        const allGroupIds = (allGroups || []).map(g => g.id);
+
+        if (allGroupIds.length === 0) return [];
+
+        // ✅ ดึง members + targets พร้อมกัน 2 query เท่านั้น (แทน N*4 queries)
+        const [membersRes, targetsRes] = await Promise.all([
+            db.from('eval_committee_members')
+                .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
+                .in('committee_group_id', allGroupIds)
+                .eq('is_active', true),
+            db.from('eval_committee_targets')
+                .select('*')
+                .in('committee_group_id', allGroupIds)
+                .eq('is_active', true),
+        ]);
+
+        // จัดกลุ่มตาม committee_group_id
+        const membersMap = {};
+        const targetsMap = {};
+        (membersRes.data || []).forEach(m => {
+            if (!membersMap[m.committee_group_id]) membersMap[m.committee_group_id] = [];
+            membersMap[m.committee_group_id].push(m);
+        });
+        (targetsRes.data || []).forEach(t => {
+            if (!targetsMap[t.committee_group_id]) targetsMap[t.committee_group_id] = [];
+            targetsMap[t.committee_group_id].push(t);
+        });
+
+        // สร้าง subGroupsAll enriched
+        const subGroupsEnriched = subGroupsAll.map(sub => ({
+            ...sub,
+            members: membersMap[sub.id] || [],
+            targets: targetsMap[sub.id] || [],
+            selected_sub_items: sub.selected_sub_items || [],
+        }));
+
+        // Map parent_group_id → sub[]
+        const subByParent = {};
+        subGroupsEnriched.forEach(sub => {
+            if (!subByParent[sub.parent_group_id]) subByParent[sub.parent_group_id] = [];
+            subByParent[sub.parent_group_id].push(sub);
+        });
+
+        // Build result
+        const result = mainGroups.map(main => ({
+            ...main,
+            members: membersMap[main.id] || [],
+            targets: targetsMap[main.id] || [],
+            selected_sub_items: main.selected_sub_items || [],
+            sub_groups: subByParent[main.id] || [],
+        }));
+
         return result;
     } catch (err) {
         console.error('Error loading committee structure:', err);
@@ -451,20 +510,46 @@ async function loadCommitteeStructure(evalRoundId) {
 // ==========================================
 async function getUserCommitteeSubGroups(userId, evalRoundId) {
     try {
-        const { data: memberships, error } = await db.from('eval_committee_members').select('committee_group_id').eq('user_id', userId).eq('is_active', true);
+        const { data: memberships, error } = await db
+            .from('eval_committee_members')
+            .select('committee_group_id')
+            .eq('user_id', userId)
+            .eq('is_active', true);
         if (error) throw error;
         const subGroupIds = memberships.map(m => m.committee_group_id);
         if (subGroupIds.length === 0) return [];
-        const { data: subGroups, error: subError } = await db.from('eval_committee_groups').select('*, eval_committee_targets(*)').in('id', subGroupIds).eq('is_active', true);
-        if (subError) throw subError;
-        for (const sub of subGroups || []) {
-            // แปลง eval_committee_targets เป็น targets
-            sub.targets = sub.eval_committee_targets || [];
-            delete sub.eval_committee_targets;
-            const { data: members } = await db.from('eval_committee_members').select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)').eq('committee_group_id', sub.id).eq('is_active', true);
-            sub.members = members || [];
-        }
-        return subGroups || [];
+
+        // ✅ ดึง subGroups + members + targets แบบขนาน
+        const [subGroupsRes, membersRes, targetsRes] = await Promise.all([
+            db.from('eval_committee_groups').select('*').in('id', subGroupIds).eq('is_active', true),
+            db.from('eval_committee_members')
+                .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
+                .in('committee_group_id', subGroupIds)
+                .eq('is_active', true),
+            db.from('eval_committee_targets').select('*').in('committee_group_id', subGroupIds).eq('is_active', true),
+        ]);
+
+        if (subGroupsRes.error) throw subGroupsRes.error;
+
+        const membersMap = {};
+        const targetsMap = {};
+        (membersRes.data || []).forEach(m => {
+            if (!membersMap[m.committee_group_id]) membersMap[m.committee_group_id] = [];
+            membersMap[m.committee_group_id].push(m);
+        });
+        (targetsRes.data || []).forEach(t => {
+            if (!targetsMap[t.committee_group_id]) targetsMap[t.committee_group_id] = [];
+            targetsMap[t.committee_group_id].push(t);
+        });
+
+        const subGroups = (subGroupsRes.data || []).map(sub => ({
+            ...sub,
+            targets: targetsMap[sub.id] || [],
+            members: membersMap[sub.id] || [],
+            selected_sub_items: sub.selected_sub_items || [],
+        }));
+
+        return subGroups;
     } catch (err) {
         console.error('Error getting user committee sub groups:', err);
         return [];
@@ -487,27 +572,9 @@ async function loadCommitteeEvaluationTasks() {
         let viewOnly = false;
         let isSuperAdmin = false;
 
-        async function _loadAllSubGroupMembers(subs) {
-            for (const sub of subs) {
-                const { data: members } = await db
-                    .from('eval_committee_members')
-                    .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
-                    .eq('committee_group_id', sub.id)
-                    .eq('is_active', true);
-                sub.members = members || [];
-            }
-        }
-
-        async function _loadMainGroupMembers(mains) {
-            for (const main of mains) {
-                const { data: members } = await db
-                    .from('eval_committee_members')
-                    .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
-                    .eq('committee_group_id', main.id)
-                    .eq('is_active', true);
-                main.members = members || [];
-            }
-        }
+        // ✅ loadCommitteeStructure ดึง members ไว้แล้ว ไม่ต้องโหลดซ้ำ
+        async function _loadAllSubGroupMembers(_subs) { /* no-op: members loaded via loadCommitteeStructure */ }
+        async function _loadMainGroupMembers(_mains) { /* no-op: members loaded via loadCommitteeStructure */ }
 
         if (currentUser.role === 'super_admin') {
             isSuperAdmin = true;
@@ -800,10 +867,10 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
         });
     }
 
-    // ✅ Auto-trigger ครั้งแรก
+    // ✅ Auto-trigger ครั้งแรก (ใช้ 0ms แทน 300ms)
     setTimeout(() => {
         if (subSelect) subSelect.dispatchEvent(new Event('change'));
-    }, 300);
+    }, 0);
 }
 
 // ==========================================

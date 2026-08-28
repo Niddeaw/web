@@ -147,9 +147,11 @@ function calculateLiveTotal() {
             p1s1Raw += parseInt(el.value) || 0;
         });
         if (isAssistant) {
-            part1Total += (p1s1Raw * 80) / 56;
+            // ✅ ครูผู้ช่วย: 14 ข้อ × 4 = 56 คะแนนเต็ม → แปลงเป็น 60 คะแนน (ตอนที่ 1 ใน Org.1)
+            part1Total += (p1s1Raw * 60) / 56;
         } else {
-            part1Total += (p1s1Raw / 60) * 60;
+            // ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 คะแนนเต็ม → 60 คะแนน
+            part1Total += p1s1Raw;
         }
     }
 
@@ -210,9 +212,11 @@ function updateSummary() {
 
     let p1s1Final = 0;
     if (isAssistant) {
-        p1s1Final = (p1s1Raw * 80) / 56;
+        // ✅ ครูผู้ช่วย: 14 ข้อ × 4 = 56 คะแนนเต็ม → แปลงเป็น 60 คะแนน (ตอนที่ 1)
+        p1s1Final = (p1s1Raw * 60) / 56;
     } else {
-        p1s1Final = (p1s1Raw / 60) * 60;
+        // ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 คะแนนเต็ม → 60 คะแนน
+        p1s1Final = p1s1Raw;
     }
 
     let p1s2Raw = 0;
