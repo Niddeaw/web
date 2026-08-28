@@ -758,7 +758,6 @@ window.loadDataTable = async function () {
     if (!isTeacher) {
         const tableId = '#class-summary-table';
 
-        // ทำลาย DataTable เก่าถ้ามี
         if ($.fn.DataTable.isDataTable(tableId)) {
             $(tableId).DataTable().clear().destroy();
         }
@@ -803,7 +802,6 @@ window.loadDataTable = async function () {
                     action: `<button onclick="editFromTable('${row.classroom_id}')" class="text-blue-500 hover:text-blue-700 p-2"><i class="fas fa-edit"></i></button>`
                 }));
 
-                // อัปเดตการ์ด Dashboard
                 if (res.summary) {
                     renderDashboard(
                         res.summary.totalStudents,
@@ -851,12 +849,10 @@ window.loadDataTable = async function () {
             },
             pageLength: 25,
             order: [[0, 'asc']],
-            drawCallback: function () {
-                // ผูก event หรือทำความสะอาดเพิ่มเติมได้ที่นี่
-            }
+            drawCallback: function () { }
         });
 
-        return; // จบส่วน admin
+        return;
     }
 
     // ========== ส่วนของครูที่ปรึกษา (คงเดิม) ==========
@@ -881,8 +877,9 @@ window.loadDataTable = async function () {
         if (classError) console.warn('ไม่พบข้อมูลห้องเรียน', classError);
         const roomLabel = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
 
+        // ✅ ดึง avatar_students_url มาใช้คำนวณความครบถ้วน
         const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
-            .select('student_id, student_number, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .select('student_id, student_number, core_students(id, student_id_card, prefix, first_name, last_name, avatar_students_url)')
             .eq('classroom_id', classroomId)
             .order('student_number');
 
@@ -924,8 +921,10 @@ window.loadDataTable = async function () {
                 room: roomLabel
             };
 
+            // ✅ คำนวณความครบถ้วน โดยส่ง avatar_students_url เข้าไปด้วย
+            const completeness = getCompletenessStatus(visit, s.avatar_students_url);
+
             if (isVisited) {
-                const completeness = getCompletenessStatus(visit);
                 if (completeness.complete) {
                     completeCount++;
                     window.overviewCompleteList.push(studentItem);
@@ -939,7 +938,7 @@ window.loadDataTable = async function () {
             }
 
             const completeBadge = isVisited ?
-                (getCompletenessStatus(visit).complete ?
+                (completeness.complete ?
                     '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>' :
                     '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>') :
                 '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>';
@@ -949,7 +948,7 @@ window.loadDataTable = async function () {
                 '<span class="px-3 py-1 bg-rose-50 text-rose-500 rounded-xl text-[10px] font-black uppercase">ยังไม่เยี่ยม</span>';
 
             const checkButton = (!isVisited ? '' :
-                (getCompletenessStatus(visit).complete ?
+                (completeness.complete ?
                     '<span class="text-slate-400 text-xs px-2">-</span>' :
                     `<button onclick="showMissingFields('${s.id}')" class="text-blue-600 hover:bg-blue-50 px-2 py-1 rounded border border-blue-200 text-xs font-bold transition"><i class="fas fa-list mr-1"></i> รายการที่ขาด</button>`)
             );
@@ -1533,10 +1532,10 @@ async function loadModuleSettings() {
 window.openAdminModal = async function () {
     // ✅ ใช้ requireAdmin จาก config.js
     if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) return;
-    
+
     document.getElementById('admin-modal').classList.remove('hidden');
     await loadAdminSettings();
-    
+
     const toggleContainer = document.getElementById('report-toggle-container');
     if (toggleContainer) {
         if (actualRole === 'super_admin') {
@@ -1552,7 +1551,7 @@ function closeAdminModal() { document.getElementById('admin-modal').classList.ad
 async function loadAdminSettings() {
     // ✅ ใช้ isAdminUser จาก config.js
     if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
-    
+
     await loadModuleSettings();
     document.getElementById('set-gas-url').value = moduleSettings.gas_url;
     document.getElementById('set-drive-folder-id').value = moduleSettings.drive_folder_id;
@@ -1571,7 +1570,7 @@ async function loadAdminSettings() {
 async function saveAdminSettings() {
     // ✅ ใช้ requireAdmin จาก config.js
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     const showReportCheckbox = document.getElementById('setting-show-report');
     const showReportValue = showReportCheckbox ? (showReportCheckbox.checked ? 'true' : 'false') : 'false';
     const payload = {
@@ -1618,7 +1617,7 @@ async function loadTeachersForAppoint() {
 async function loadModuleAdminsList() {
     // ✅ ใช้ isAdminUser จาก config.js
     if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
-    
+
     const tbody = document.getElementById('module-admin-list');
     tbody.innerHTML = '<tr><td colspan="2" class="text-center py-4 text-slate-400">กำลังโหลด...</td></tr>';
     try {
@@ -1666,7 +1665,7 @@ async function loadModuleAdminsList() {
 window.appointModuleAdmin = async function () {
     // ✅ ใช้ requireAdmin จาก config.js
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     const teacherId = document.getElementById('select-teacher-appoint').value;
     if (!teacherId) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครู', 'warning');
@@ -1695,7 +1694,7 @@ window.appointModuleAdmin = async function () {
 window.removeModuleAdmin = async function (recordId) {
     // ✅ ใช้ requireAdmin จาก config.js
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     const result = await Swal.fire({
         title: 'ยืนยันการปลดสิทธิ์?',
         text: "ครูท่านนี้จะกลับไปเห็นข้อมูลเฉพาะห้องประจำชั้นของตนเอง",
@@ -1804,7 +1803,7 @@ window.loadReport = async function () {
 
         const [{ data: enrolls }, { data: classrooms }] = await Promise.all([
             db.from('student_enrollments')
-                .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name), classroom_id')
+                .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name, avatar_students_url), classroom_id')
                 .in('classroom_id', classIds),
             db.from('core_classrooms')
                 .select('id, grade_level, room_number')
@@ -1871,7 +1870,7 @@ window.loadReport = async function () {
             };
 
             if (visit && visit.visit_status === 'เยี่ยมแล้ว') {
-                const completeness = getCompletenessStatus(visit);
+                const completeness = getCompletenessStatus(visit, s.avatar_students_url);
                 if (completeness.complete) {
                     visitedCompleteCount++;
                     window.reportCompleteList.push(studentItem);
@@ -2368,7 +2367,7 @@ window.loadOverviewByClassroom = async function () {
         const roomLabel = classroom ? `ม.${classroom.grade_level}/${classroom.room_number}` : '-';
 
         const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
-            .select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .select('student_number, student_id, core_students(id, student_id_card, prefix, first_name, last_name,avatar_students_url)')
             .eq('classroom_id', classroomId)
             .order('student_number');
 
@@ -2415,7 +2414,7 @@ window.loadOverviewByClassroom = async function () {
             };
 
             if (isVisited) {
-                const comp = getCompletenessStatus(visit);
+                const comp = getCompletenessStatus(visit, s.avatar_students_url);
                 if (comp.complete) {
                     completedStudents++;
                     window.overviewCompleteList.push(studentItem);
@@ -2428,7 +2427,7 @@ window.loadOverviewByClassroom = async function () {
                 window.overviewNotVisitedList.push(studentItem);
             }
 
-            const completeness = getCompletenessStatus(visit);
+            const completeness = getCompletenessStatus(visit, s.avatar_students_url);
             let completeBadge = '';
             if (!isVisited) {
                 completeBadge = '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>';
@@ -2591,6 +2590,7 @@ async function loadTeacherOverview() {
 
         const classIds = classrooms.map(c => c.id);
 
+        // ✅ เพิ่ม avatar_students_url ใน query
         const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
             .select(`
                 student_number,
@@ -2600,7 +2600,8 @@ async function loadTeacherOverview() {
                     student_id_card,
                     prefix,
                     first_name,
-                    last_name
+                    last_name,
+                    avatar_students_url
                 )
             `)
             .in('classroom_id', classIds)
@@ -2632,7 +2633,8 @@ async function loadTeacherOverview() {
             const visit = visitMap[s.id] || null;
             const isVisited = visit && visit.visit_status === 'เยี่ยมแล้ว';
 
-            const completeness = getCompletenessStatus(visit);
+            // ✅ ส่ง avatar_students_url เข้าไป
+            const completeness = getCompletenessStatus(visit, s.avatar_students_url);
             const completeBadge = !isVisited ?
                 '<span class="bg-slate-100 text-slate-500 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-hourglass-half mr-1"></i> รอการเยี่ยม</span>' :
                 (completeness.complete ?
@@ -2673,8 +2675,9 @@ async function loadTeacherOverview() {
         let notVisitedStudents = 0;
         for (const e of enrolls) {
             const v = visitMap[e.student_id];
+            // ✅ ส่ง avatar_students_url เข้าไป
+            const comp = getCompletenessStatus(v, e.core_students?.avatar_students_url);
             if (v && v.visit_status === 'เยี่ยมแล้ว') {
-                const comp = getCompletenessStatus(v);
                 if (comp.complete) completedStudents++;
                 else incompleteStudents++;
             } else {
@@ -2715,7 +2718,7 @@ async function loadAdminOverview() {
         classrooms.forEach(c => { roomMap[c.id] = `ม.${c.grade_level}/${c.room_number}`; });
 
         const { data: students } = await db.from('core_students')
-            .select('id, student_id_card, prefix, first_name, last_name, classroom_id')
+            .select('id, student_id_card, prefix, first_name, last_name, classroom_id, avatar_students_url')
             .in('classroom_id', classIds)
             .order('classroom_id');
 
@@ -2735,7 +2738,7 @@ async function loadAdminOverview() {
         tbody.innerHTML = students.map(s => {
             const v = visitMap[s.id];
             const isVisited = v && v.visit_status === 'เยี่ยมแล้ว';
-            const completeness = getCompletenessStatus(v);
+            const completeness = getCompletenessStatus(v, s.avatar_students_url);
             const completeBadge = completeness.complete
                 ? `<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-check-double mr-1"></i> ครบ</span>`
                 : `<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold"><i class="fas fa-exclamation-triangle mr-1"></i> ยังไม่ครบ</span>`;
@@ -2884,21 +2887,16 @@ window.viewExistingPDF = function (pdfUrl) {
 // ==========================================
 // 7. COMPLETENESS & MISSING FIELDS
 // ==========================================
-
-function getCompletenessStatus(visit) {
+function getCompletenessStatus(visit, studentAvatarUrl = null) {
     if (!visit) return { complete: false, missingFields: ['ยังไม่มีข้อมูลการเยี่ยมบ้าน'] };
 
     const missing = [];
 
-    // ✅ Bug #2 Fix: helper แปลง string/number/null → number หรือ undefined
-    // buildFormData เก็บ family_members เป็น string จาก getVal() เสมอ
-    // ดังนั้นต้องใช้ toNum() เพื่อแปลงก่อนเปรียบเทียบ
     const toNum = (v) => {
         if (v === undefined || v === null || v === '') return undefined;
         const n = parseFloat(v);
         return isNaN(n) ? undefined : n;
     };
-    // helper ตรวจว่าค่าตัวเลขถูกกรอกหรือไม่ (รวม 0 ถือว่ากรอกแล้ว)
     const hasNum = (v) => toNum(v) !== undefined;
 
     // Step 1
@@ -2906,7 +2904,6 @@ function getCompletenessStatus(visit) {
     if (!visit.visit_times) missing.push('ครั้งที่');
     if (!visit.student_nickname?.trim()) missing.push('ชื่อเล่น');
     if (!visit.student_phone?.trim()) missing.push('เบอร์โทรศัพท์นักเรียน');
-    // ✅ ลบ student_line — ID Line เป็น optional ไม่ใช่ทุกคนมี Line
 
     if (!visit.father_name?.trim()) missing.push('ชื่อบิดา');
     if (!visit.father_job?.trim()) missing.push('อาชีพบิดา');
@@ -2932,7 +2929,6 @@ function getCompletenessStatus(visit) {
     if (!visit.zipcode?.trim()) missing.push('รหัสไปรษณีย์');
     if (!visit.latitude || !visit.longitude) missing.push('พิกัด GPS');
     if (!visit.house_type?.trim()) missing.push('ประเภทบ้าน');
-    // ✅ Bug #2 Fix: travel_hour=0 ถือว่ากรอกแล้ว (ต้องใช้ hasNum ไม่ใช่ === undefined)
     if (!hasNum(visit.travel_hour) || !hasNum(visit.travel_minute)) missing.push('เวลาเดินทาง');
     if (!visit.travel_method?.trim()) missing.push('วิธีการเดินทาง');
     if (!visit.env_house_status?.trim()) missing.push('สภาพตัวบ้าน');
@@ -2943,12 +2939,10 @@ function getCompletenessStatus(visit) {
     if (!visit.utility_toilet) missing.push('ห้องสุขา');
 
     // Step 3
-    // ✅ Bug #2 Fix: ใช้ toNum/hasNum เพราะ buildFormData เก็บค่าเป็น string จาก getVal()
-    // "0" (string) != 0 (number) ทำให้ตรวจสอบผิดพลาดเมื่อค่าเป็น 0
     const fm = visit.family_members || {};
-    if (!hasNum(fm.total))         missing.push('สมาชิกในครอบครัว (รวม)');
-    if (!hasNum(fm.male))          missing.push('สมาชิกชาย');
-    if (!hasNum(fm.female))        missing.push('สมาชิกหญิง');
+    if (!hasNum(fm.total)) missing.push('สมาชิกในครอบครัว (รวม)');
+    if (!hasNum(fm.male)) missing.push('สมาชิกชาย');
+    if (!hasNum(fm.female)) missing.push('สมาชิกหญิง');
     if (!hasNum(fm.sib_same_total)) missing.push('พี่น้องร่วมบิดามารดา (รวม)');
     if (!hasNum(fm.sib_same_male)) missing.push('พี่น้องร่วมฯ ชาย');
     if (!hasNum(fm.sib_same_female)) missing.push('พี่น้องร่วมฯ หญิง');
@@ -2957,17 +2951,13 @@ function getCompletenessStatus(visit) {
     if (!hasNum(fm.sib_diff_female)) missing.push('พี่น้องต่างฯ หญิง');
 
     const eco = visit.economic_data || {};
-    // ✅ Bug #2 Fix: eco.income อาจเป็น string "15000" จาก getVal() ต้องใช้ hasNum
     if (!hasNum(eco.income)) missing.push('รายได้ครอบครัวต่อเดือน');
     if (!eco.allowance_source?.trim()) missing.push('นักเรียนได้รับค่าใช้จ่ายจาก');
-    // ✅ ลบ student_job_name — optional (ไม่ใช่ทุกคนมีอาชีพเสริม)
-    // ✅ Bug #2 Fix: eco.student_job_income และ money_to_school ใช้ hasNum
     if (!hasNum(eco.student_job_income)) missing.push('รายได้นักเรียนต่อวัน');
     if (!hasNum(eco.money_to_school)) missing.push('เงินไปโรงเรียนต่อวัน');
 
     const fRel = visit.family_relations || {};
     if (!fRel.status?.trim()) missing.push('ความสัมพันธ์ในครอบครัว');
-    // ✅ Bug #2 Fix: time_together อาจเป็น string "3" ต้องใช้ hasNum
     if (!hasNum(fRel.time_together)) missing.push('เวลาอยู่ร่วมกันต่อวัน');
 
     if (!visit.special_help_details?.trim()) missing.push('กรณีต้องการการช่วยเหลือพิเศษ');
@@ -2976,7 +2966,8 @@ function getCompletenessStatus(visit) {
     if (!visit.leave_with_whom_details?.trim()) missing.push('ฝากเด็กอยู่กับใคร');
 
     // Step 4
-    if (!visit.photo_student) missing.push('ภาพถ่ายตัวนักเรียน');
+    // ✅ ใช้ studentAvatarUrl ที่ส่งเข้ามาแทน window.currentStudentAvatarUrl
+    if (!visit.photo_student && !studentAvatarUrl) missing.push('ภาพถ่ายตัวนักเรียน');
     if (!visit.photo_outside) missing.push('ภาพถ่ายสภาพบ้านภายนอก');
     if (!visit.photo_inside) missing.push('ภาพถ่ายสภาพบ้านภายใน');
     if (!visit.photo_teacher) missing.push('ภาพครูกำลังเยี่ยมบ้าน');
@@ -2994,6 +2985,12 @@ function getCompletenessStatus(visit) {
 }
 
 window.showMissingFields = async function (studentId) {
+    // ✅ ดึง avatar_students_url ของนักเรียนมาใช้ประกอบการคำนวณ
+    const { data: student } = await db.from('core_students')
+        .select('avatar_students_url')
+        .eq('id', studentId)
+        .maybeSingle();
+
     const { data: visit } = await db.from('module_home_visits')
         .select('*')
         .eq('student_id', studentId)
@@ -3001,7 +2998,7 @@ window.showMissingFields = async function (studentId) {
         .eq('semester', currentTerm)
         .maybeSingle();
 
-    const completeness = getCompletenessStatus(visit);
+    const completeness = getCompletenessStatus(visit, student?.avatar_students_url);
     if (completeness.complete) {
         Swal.fire('ข้อมูลครบถ้วน', 'นักเรียนคนนี้กรอกข้อมูลครบทุกส่วน (ยกเว้นหัวข้อความเสี่ยง)', 'success');
         return;
@@ -3139,7 +3136,6 @@ function switchTab(tabId) {
         }
 
         // เรียก loadReport
-        // loadReport();
         window.loadReport();
     }
 }
@@ -3330,7 +3326,7 @@ async function renderMissingBox(stepNumber) {
             return;
         }
 
-        const completeness = getCompletenessStatus(visit);
+        const completeness = getCompletenessStatus(visit, window.currentStudentAvatarUrl);
         const missingFields = completeness.missingFields || [];
         const stepMissing = getMissingFieldsByStep(missingFields, stepNumber);
 

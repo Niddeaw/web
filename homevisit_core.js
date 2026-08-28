@@ -37,6 +37,7 @@ let currentTerm = '';
 let currentStudentId = null;
 window.currentClassroomId = null;
 let overviewClassroomTom = null;
+let currentStudentAvatarUrl = null; // เพิ่มบรรทัดนี้
 
 const templateFields = [
     'student_id_card',
@@ -546,6 +547,8 @@ async function loadStudentInfo(studentId) {
     document.getElementById('student_number').value = enroll.student_number || '';
 
     const avatarUrl = enroll.core_students?.avatar_students_url;
+    currentStudentAvatarUrl = avatarUrl || null; // ✅ เพิ่มบรรทัดนี้
+
     const studentPicInput = document.getElementById('pic_student');
     const avatarImg = document.getElementById('student-avatar-img');
     const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
@@ -601,7 +604,7 @@ async function loadStudentInfo(studentId) {
             renderMissingBox(parseInt(stepId));
         }
     }
-    
+
     Swal.close();
 }
 
@@ -899,6 +902,11 @@ async function loadExistingHomeVisit(studentId) {
         };
 
         loadPic('pic_student', 'preview1', 'cloud_btn1', 'del_btn1', data.photo_student);
+        // ✅ เพิ่มบรรทัดนี้ต่อท้าย (กันข้อมูลหายถ้าในตาราง module_home_visits ยังไม่มี photo_student)
+        if (!data.photo_student && currentStudentAvatarUrl) {
+            data.photo_student = currentStudentAvatarUrl;
+            loadPic('pic_student', 'preview1', 'cloud_btn1', 'del_btn1', data.photo_student);
+        }
         loadPic('pic_outside', 'preview2', 'cloud_btn2', 'del_btn2', data.photo_outside);
         loadPic('pic_inside', 'preview3', 'cloud_btn3', 'del_btn3', data.photo_inside);
         loadPic('pic_teacher', 'preview4', 'cloud_btn4', 'del_btn4', data.photo_teacher);
@@ -952,7 +960,7 @@ window.goToStep = function (step) {
     const targetStep = document.getElementById(`step-${step}`);
     if (targetStep) targetStep.classList.add('active');
 
-     // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดในแต่ละขั้น
+    // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดในแต่ละขั้น
     if (typeof renderMissingBox === 'function') {
         renderMissingBox(step);
     }
