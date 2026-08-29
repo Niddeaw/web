@@ -356,11 +356,21 @@ async function checkAuth() {
     currentUser = profile;
     currentTermData = schoolInfo;
 
-    const allowedRoles = ['teacher', 'staff', 'deputy', 'director', 'admin', 'super_admin'];
+    // ✅ จำกัดสิทธิ์เข้าระบบประเมินนี้: super_admin, admin, ผู้อำนวยการ, รองผู้อำนวยการ, ครู เท่านั้น
+    //    ห้าม: staff, office (เจ้าหน้าที่สำนักงาน)
+    const allowedRoles = ['teacher', 'deputy', 'director', 'admin', 'super_admin'];
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+    // ✅ ห้ามเข้าระบบนี้เช่นกัน แม้ role จะเป็น teacher: ครูอัตราจ้าง, ครูพี่เลี้ยง, พนักงานราชการ
+    const blockedAcademicStanding = ['ครูอัตราจ้าง', 'ครูพี่เลี้ยง', 'พนักงานราชการ'];
 
     if (!allowedRoles.includes(currentUser.role)) {
-        await Swal.fire({ icon: 'error', title: 'ไม่มีสิทธิ์เข้าใช้งาน', text: 'ระบบนี้สำหรับข้าราชการครูและบุคลากรทางการศึกษาเท่านั้น', confirmButtonText: 'ตกลง' });
+        await Swal.fire({ icon: 'error', title: 'ไม่มีสิทธิ์เข้าใช้งาน', text: 'ระบบนี้สำหรับผู้บริหารและข้าราชการครูเท่านั้น (ไม่รวมเจ้าหน้าที่สำนักงาน)', confirmButtonText: 'ตกลง' });
+        window.location.replace('index.html');
+        return;
+    }
+
+    if (blockedAcademicStanding.includes(currentUser.academic_standing)) {
+        await Swal.fire({ icon: 'error', title: 'ไม่มีสิทธิ์เข้าใช้งาน', text: `ระบบนี้ไม่รวมถึง ${currentUser.academic_standing} กรุณาติดต่อผู้ดูแลระบบหากมีข้อสงสัย`, confirmButtonText: 'ตกลง' });
         window.location.replace('index.html');
         return;
     }
@@ -370,7 +380,7 @@ async function checkAuth() {
     document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('header_user_role').innerText = currentUser.role || '';
 
-    const selfEvalRoles = ['teacher', 'staff', 'super_admin'];
+    const selfEvalRoles = ['teacher', 'super_admin'];
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
     const showSelfEval = selfEvalRoles.includes(currentUser.role) && isAllowedAcademic;
 
@@ -572,56 +582,24 @@ async function loadCommitteeEvaluationTasks() {
         let viewOnly = false;
         let isSuperAdmin = false;
 
-        // ✅ loadCommitteeStructure ดึง members ไว้แล้ว ไม่ต้องโหลดซ้ำ
-        async function _loadAllSubGroupMembers(_subs) { /* no-op: members loaded via loadCommitteeStructure */ }
-        async function _loadMainGroupMembers(_mains) { /* no-op: members loaded via loadCommitteeStructure */ }
+        // ✅ ใช้ sub_groups ที่แนบมากับ structure โดยตรง (มี members + targets ครบแล้ว
+        //    จาก loadCommitteeStructure) แทนการ query ซ้ำแบบเดิมซึ่งไม่ได้ join
+        //    eval_committee_members ทำให้ sub.members เป็น undefined เสมอ
+        const structureSubGroups = mainGroups.flatMap(m => m.sub_groups || []);
 
         if (currentUser.role === 'super_admin') {
             isSuperAdmin = true;
-            const { data: allSubs } = await db
-                .from('eval_committee_groups')
-                .select('*, eval_committee_targets(*)')
-                .eq('eval_round_id', currentEvalRound.id)
-                .eq('group_type', 'sub')
-                .eq('is_active', true);
-            allSubGroups = allSubs || [];
-            // 🔥 แปลง eval_committee_targets เป็น targets
-            allSubGroups = allSubGroups.map(sub => {
-                sub.targets = sub.eval_committee_targets || [];
-                delete sub.eval_committee_targets;
-                return sub;
-            });
-            await _loadAllSubGroupMembers(allSubGroups);
-            await _loadMainGroupMembers(mainGroups);
+            allSubGroups = structureSubGroups;
         } else if (['director', 'admin'].includes(currentUser.role)) {
             viewOnly = true;
-            const { data: allSubs } = await db
-                .from('eval_committee_groups')
-                .select('*, eval_committee_targets(*)')
-                .eq('eval_round_id', currentEvalRound.id)
-                .eq('group_type', 'sub')
-                .eq('is_active', true);
-            allSubGroups = allSubs || [];
-            // 🔥 แปลง eval_committee_targets เป็น targets
-            allSubGroups = allSubGroups.map(sub => {
-                sub.targets = sub.eval_committee_targets || [];
-                delete sub.eval_committee_targets;
-                return sub;
-            });
-            await _loadAllSubGroupMembers(allSubGroups);
-            await _loadMainGroupMembers(mainGroups);
-        } else if (['teacher', 'staff', 'deputy'].includes(currentUser.role)) {
+            allSubGroups = structureSubGroups;
+        } else if (['teacher', 'deputy'].includes(currentUser.role)) {
             allSubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
             const subGroupParentIds = new Set(allSubGroups.map(sg => sg.parent_group_id));
+            // ✅ main.members มาจาก structure อยู่แล้ว (query เดียวกันเป๊ะกับที่เคย query ซ้ำตรงนี้)
+            //    ไม่ต้อง query DB ใหม่ — แค่ซ่อนรายชื่อกรรมการของชุดหลักที่ผู้ใช้ไม่มีส่วนเกี่ยวข้อง (privacy)
             for (const main of mainGroups) {
-                if (subGroupParentIds.has(main.id)) {
-                    const { data: members } = await db
-                        .from('eval_committee_members')
-                        .select('*, core_personnel(id, prefix, first_name, last_name, academic_standing)')
-                        .eq('committee_group_id', main.id)
-                        .eq('is_active', true);
-                    main.members = members || [];
-                } else {
+                if (!subGroupParentIds.has(main.id)) {
                     main.members = [];
                 }
             }
