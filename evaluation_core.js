@@ -999,6 +999,21 @@ async function loadTeachersForSubGroup() {
 // ==========================================
 // ✅ ฟังก์ชัน render ตารางด้วย HTML ธรรมดา
 // ==========================================
+
+// ✅ แก้ไข XSS/บั๊ก: เดิมฝัง JSON.stringify(teacher) ทั้งก้อนลงใน onclick attribute
+//    ถ้าชื่อมีอักขระพิเศษ (เช่น single quote) จะทำให้ onclick พัง หรือเสี่ยงต่อการฉีดสคริปต์
+//    แก้โดยเก็บ object ของครูไว้ใน cache แล้วส่งแค่ id ผ่าน onclick แทน
+const _teacherRowCache = {};
+
+function startEvaluationFromCache(type, teacherId) {
+    const teacherData = _teacherRowCache[teacherId];
+    if (!teacherData) {
+        return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลบุคลากร กรุณาโหลดหน้าใหม่แล้วลองอีกครั้ง', 'error');
+    }
+    return startEvaluation(type, teacherData);
+}
+window.startEvaluationFromCache = startEvaluationFromCache;
+
 function renderTeacherTable(teachers, evalMap, viewOnly) {
     const tbody = document.getElementById('tb-teacher-eval');
     if (!tbody) return;
@@ -1016,6 +1031,9 @@ function renderTeacherTable(teachers, evalMap, viewOnly) {
 
     let html = '';
     teachers.forEach(teacher => {
+        // ✅ เก็บ object ของครูไว้ใน cache เพื่อใช้แทนการฝัง JSON ลงใน onclick
+        _teacherRowCache[teacher.id] = teacher;
+
         const fullName = teacher.prefix
             ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}`
             : `${teacher.first_name} ${teacher.last_name}`;
@@ -1035,7 +1053,7 @@ function renderTeacherTable(teachers, evalMap, viewOnly) {
                     <div class="text-xs text-gray-400 mt-1">${score} คะแนน · ${dateStr}</div>`;
                 if (!viewOnly) {
                     actionBtn = `
-                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                        <button onclick="startEvaluationFromCache('committee', '${teacher.id}')"
                                 class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
                             <i class="fa-solid fa-pen-to-square mr-1"></i>แก้ไข
                         </button>`;
@@ -1046,7 +1064,7 @@ function renderTeacherTable(teachers, evalMap, viewOnly) {
                 statusBadge = `<span class="status-badge draft">📝 ร่าง</span>`;
                 if (!viewOnly) {
                     actionBtn = `
-                        <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                        <button onclick="startEvaluationFromCache('committee', '${teacher.id}')"
                                 class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
                             <i class="fa-solid fa-play mr-1"></i>ประเมินต่อ
                         </button>`;
@@ -1058,7 +1076,7 @@ function renderTeacherTable(teachers, evalMap, viewOnly) {
             statusBadge = `<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>`;
             if (!viewOnly) {
                 actionBtn = `
-                    <button onclick='startEvaluation("committee", ${JSON.stringify(teacher).replace(/"/g, '&quot;')})'
+                    <button onclick="startEvaluationFromCache('committee', '${teacher.id}')"
                             class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors shadow-sm">
                         <i class="fa-solid fa-clipboard-check mr-1"></i>ประเมิน
                     </button>`;

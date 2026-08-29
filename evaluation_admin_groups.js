@@ -43,31 +43,50 @@ async function loadGroupsTable() {
     let html = '';
     let mobileHtml = '';
 
+    // ✅ แก้ไข N+1 Query: เดิม query สมาชิกและกลุ่มเป้าหมายแยกทุก group ใน loop
+    //    (20 กลุ่ม = 40 queries) เปลี่ยนเป็นดึงข้อมูลทั้งหมดครั้งเดียวด้วย .in()
+    //    แล้ว map ใน memory แทน (เหมือนแนวทางที่ใช้ใน loadCommitteeStructure())
+    const groupIds = displayGroups.map(g => g.id);
+
+    const [{ data: allMembers }, { data: allTargets }] = await Promise.all([
+        db.from('eval_committee_members')
+            .select('committee_group_id, user_id, core_personnel(first_name, last_name)')
+            .in('committee_group_id', groupIds)
+            .eq('is_active', true),
+        db.from('eval_committee_targets')
+            .select('committee_group_id, target_type, target_value')
+            .in('committee_group_id', groupIds)
+            .eq('is_active', true)
+    ]);
+
+    // ✅ จัดกลุ่มข้อมูลตาม committee_group_id ไว้ล่วงหน้า
+    const membersByGroup = {};
+    (allMembers || []).forEach(m => {
+        if (!membersByGroup[m.committee_group_id]) membersByGroup[m.committee_group_id] = [];
+        membersByGroup[m.committee_group_id].push(m);
+    });
+
+    const targetsByGroup = {};
+    (allTargets || []).forEach(t => {
+        if (!targetsByGroup[t.committee_group_id]) targetsByGroup[t.committee_group_id] = [];
+        targetsByGroup[t.committee_group_id].push(t);
+    });
+
     for (const group of displayGroups) {
         const isActive = group.is_active !== false;
         const statusBadge = isActive
             ? '<span class="status-badge active">✅ เปิดใช้งาน</span>'
             : '<span class="status-badge inactive">❌ ปิดใช้งาน</span>';
 
-        // ✅ หาสมาชิก
-        const { data: members } = await db
-            .from('eval_committee_members')
-            .select('user_id, core_personnel(first_name, last_name)')
-            .eq('committee_group_id', group.id)
-            .eq('is_active', true);
-
-        const memberNames = members ? members.map(m =>
+        // ✅ หาสมาชิก (จาก map ที่โหลดไว้ล่วงหน้า ไม่ query ซ้ำ)
+        const members = membersByGroup[group.id] || [];
+        const memberNames = members.map(m =>
             m.core_personnel ? `${m.core_personnel.first_name} ${m.core_personnel.last_name}` : '-'
-        ) : [];
+        );
 
-        // ✅ หากลุ่มเป้าหมาย
-        const { data: targets } = await db
-            .from('eval_committee_targets')
-            .select('target_type, target_value')
-            .eq('committee_group_id', group.id)
-            .eq('is_active', true);
-
-        const targetNames = targets ? targets.map(t => t.target_value).join(', ') : '-';
+        // ✅ หากลุ่มเป้าหมาย (จาก map ที่โหลดไว้ล่วงหน้า ไม่ query ซ้ำ)
+        const targets = targetsByGroup[group.id] || [];
+        const targetNames = targets.length > 0 ? targets.map(t => t.target_value).join(', ') : '-';
 
         // ✅ แสดงหัวข้อย่อย
         const subItems = group.selected_sub_items || [];

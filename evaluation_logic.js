@@ -37,6 +37,15 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
         if (error) throw error;
         if (!evalResults || evalResults.length === 0) return null;
 
+        // ✅ ดึงวิทยฐานะของผู้ถูกประเมิน เพื่อใช้คำนวณสูตรให้ถูกต้อง
+        //    (ไม่พึ่งพา global evaluateeData เพราะฟังก์ชันนี้อาจถูกเรียกกับครูคนอื่น)
+        const { data: evaluateePersonnel } = await db
+            .from('core_personnel')
+            .select('academic_standing')
+            .eq('id', evaluateeId)
+            .maybeSingle();
+        const academicStanding = evaluateePersonnel?.academic_standing || 'ครู';
+
         const { data: members, error: memError } = await db
             .from('eval_committee_members')
             .select('user_id')
@@ -79,7 +88,7 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
         });
 
         // คำนวณคะแนนรวมจาก Mode
-        const totalScore = calculateTotalScoreFromModeDetails(modeDetails);
+        const totalScore = calculateTotalScoreFromModeDetails(modeDetails, academicStanding);
 
         return {
             sub_group_id: subGroupId,
@@ -98,9 +107,12 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
 
 // ==========================================
 // คำนวณคะแนนรวมจาก Mode Details
+// ✅ แก้ไข: รับ academicStanding เป็น parameter แทนการอ้างตัวแปร
+//    global `evaluateeData` ที่อาจไม่มีอยู่ในบริบทนี้ (เช่นตอนสรุปผลทั้งหมด)
+//    ยังคง fallback ไปที่ evaluateeData ไว้เผื่อเรียกจากที่อื่นแบบเดิม
 // ==========================================
-function calculateTotalScoreFromModeDetails(modeDetails) {
-    const academic = evaluateeData?.academic_standing || 'ครู';
+function calculateTotalScoreFromModeDetails(modeDetails, academicStanding = null) {
+    const academic = academicStanding || (typeof evaluateeData !== 'undefined' ? evaluateeData?.academic_standing : null) || 'ครู';
     const isAssistant = academic === 'ครูผู้ช่วย';
 
     let part1Total = 0;
@@ -115,8 +127,10 @@ function calculateTotalScoreFromModeDetails(modeDetails) {
     if (modeDetails.p1_s1 !== undefined) {
         const p1s1Mode = modeDetails.p1_s1;
         if (isAssistant) {
-            // ✅ ครูผู้ช่วย: 14 ข้อ × 4 = 56 คะแนนเต็ม → แปลงเป็น 60 คะแนน
-            part1Total += (p1s1Mode * 60) / 56;
+            // ✅ แก้ไข: ครูผู้ช่วย ฐานคะแนนตอนที่ 1 คือ 80 คะแนน (ไม่ใช่ 60)
+            //    14 ข้อ × 4 = 56 คะแนนเต็ม (raw) → แปลงเป็น 80 คะแนน
+            //    (ให้ตรงกับ part1_sec1_base: 80 ใน evalCriteriaDB และสูตรใน calculateLiveTotal())
+            part1Total += (p1s1Mode * 80) / 56;
         } else {
             // ✅ ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 คะแนนเต็ม → 60 คะแนน
             part1Total += p1s1Mode;
@@ -178,6 +192,16 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
         if (!evalResults || evalResults.length === 0) {
             return null;
         }
+
+        // ✅ ดึงวิทยฐานะของผู้ถูกประเมิน เพื่อใช้คำนวณสูตรให้ถูกต้อง
+        //    (แก้ไข: เดิมฟังก์ชัน calculateTotalScoreFromModeDetails อ้าง evaluateeData
+        //     ซึ่งไม่มีอยู่ในบริบทนี้ ทำให้คะแนนของครูผู้ช่วยคำนวณผิดฐานเสมอ)
+        const { data: evaluateePersonnel } = await db
+            .from('core_personnel')
+            .select('academic_standing')
+            .eq('id', evaluateeId)
+            .maybeSingle();
+        const academicStanding = evaluateePersonnel?.academic_standing || 'ครู';
 
         // 2. ดึงชุดย่อยทั้งหมดในรอบนี้
         const { data: subGroups, error: sgError } = await db
@@ -246,7 +270,7 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             });
 
             // คำนวณคะแนนรวมของชุดนี้จาก Mode Details
-            const totalScore = calculateTotalScoreFromModeDetails(modeDetails);
+            const totalScore = calculateTotalScoreFromModeDetails(modeDetails, academicStanding);
 
             groupResults.push({
                 sub_group_id: subGroup.id,
@@ -285,7 +309,7 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
         });
 
         // คำนวณคะแนนรวมสุดท้ายจาก finalModeDetails
-        const finalTotal = calculateTotalScoreFromModeDetails(finalModeDetails);
+        const finalTotal = calculateTotalScoreFromModeDetails(finalModeDetails, academicStanding);
 
         // 5. สรุปผลลัพธ์ (ลบ all_evaluator_scores ออก)
         return {
@@ -739,7 +763,7 @@ async function exportFinalScores() {
             'คะแนนเฉลี่ย': r.average_score?.toFixed(2) || '0.00',
             'จำนวนกรรมการ': r.evaluator_count || 0,
             'จำนวนชุด': r.committee_group_count || 0,
-            'ระดับคุณภาพ': getLevelText(r.average_score),
+            'ระดับคุณภาพ': getLevelText(r.average_score).text, // ✅ แก้ไข: เดิมไม่ได้เรียก .text ทำให้ Excel แสดง [object Object]
             'สถานะ': r.status === 'finalized' ? '✅ สรุปแล้ว' : '⏳ รอสรุป'
         }));
 
@@ -1337,6 +1361,19 @@ async function viewTeacherEvalDetail(evaluateeId) {
         const name = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : 'ไม่พบข้อมูล';
         const standing = teacher?.academic_standing || '-';
 
+        // ✅ แก้ไข: ดึงชื่อกรรมการผู้ประเมินแทนการแสดง UUID ย่อ
+        const evaluatorIds = [...new Set(results.map(r => r.evaluator_id).filter(Boolean))];
+        const evaluatorNameMap = {};
+        if (evaluatorIds.length > 0) {
+            const { data: evaluators } = await db
+                .from('core_personnel')
+                .select('id, prefix, first_name, last_name')
+                .in('id', evaluatorIds);
+            (evaluators || []).forEach(e => {
+                evaluatorNameMap[e.id] = `${e.prefix || ''}${e.first_name} ${e.last_name}`;
+            });
+        }
+
         // สร้างตารางแสดงรายละเอียด
         let detailHtml = `
             <div class="mb-4">
@@ -1382,7 +1419,7 @@ async function viewTeacherEvalDetail(evaluateeId) {
 
             detailHtml += `
                 <tr class="border-b hover:bg-gray-50">
-                    <td class="p-2 border">${r.evaluator_id?.substring(0, 8) || '-'}</td>
+                    <td class="p-2 border">${evaluatorNameMap[r.evaluator_id] || r.evaluator_id?.substring(0, 8) || '-'}</td>
                     <td class="p-2 text-center border">${displayP1}</td>
                     <td class="p-2 text-center border">${displayP2}</td>
                     <td class="p-2 text-center border">${displayP3}</td>

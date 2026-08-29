@@ -550,6 +550,20 @@
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
                                 <i class="fa-solid fa-magnifying-glass-chart mr-1"></i> ตรวจสอบการประเมิน
                             </button>
+
+
+<!-- ✅ ปุ่มนำเข้า/ส่งออก Excel สำหรับกรรมการ -->
+<div class="flex flex-wrap gap-2 mt-2">
+    <button onclick="exportCommitteeExcel()"
+            class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+        <i class="fa-solid fa-file-excel mr-1"></i> ส่งออก Excel (คะแนนของฉัน)
+    </button>
+    <button onclick="document.getElementById('importExcelInput').click()"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
+        <i class="fa-solid fa-file-import mr-1"></i> นำเข้า Excel
+    </button>
+    <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden" onchange="importCommitteeExcel(event)">
+</div>
                         </div>
 
                         <!-- ✅ แท็บชุดหลัก (Main Groups 1-7) -->
@@ -561,24 +575,6 @@
                         <div id="sub_group_selection" class="mb-4">
                             <!-- จะถูกสร้างโดย JavaScript -->
                         </div>
-
-                        <!-- เลือกกลุ่มสาระ (สำหรับ Super Admin) -->
-                        <!-- <div class="flex flex-wrap items-center gap-4 mb-4">
-                            <div class="w-full md:w-72">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ</label>
-                                <select id="sel_department" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
-                                    <option value="">-- เลือกกลุ่มสาระ --</option>
-                                </select>
-                            </div>
-                            <div class="flex items-end gap-2">
-                                <button onclick="window.loadTeachersForEvalBySubGroup(window._currentSubGroupId, document.getElementById('sel_department').value, window._currentSelectedItems)" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors">
-                                    <i class="fa-solid fa-search mr-1"></i> แสดงรายชื่อ
-                                </button>
-                                <button onclick="location.reload()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-3 py-2.5 rounded-xl font-bold transition-colors" title="โหลดใหม่">
-                                    <i class="fa-solid fa-rotate"></i>
-                                </button>
-                            </div>
-                        </div> -->
 
                         <!-- แสดงข้อมูลชุดที่เลือก -->
                         <div id="selectedGroupInfo" class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
@@ -604,7 +600,7 @@
                             </button>
                             <button onclick="window.exportFinalScores()"
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
-                                <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
+                                <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel (สรุปผลคะแนน)
                             </button>
                         </div>
 
