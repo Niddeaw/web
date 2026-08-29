@@ -261,7 +261,7 @@ function closeGroupModal() {
 }
 
 // ==========================================
-// แก้ไขคณะกรรมการ (ปรับปรุง)
+// แก้ไขคณะกรรมการ (เพิ่มการตรวจสอบ)
 // ==========================================
 async function editGroup(groupId) {
     // ✅ ปิด Modal ตรวจสอบความครบถ้วนก่อน (ถ้าเปิดอยู่)
@@ -270,7 +270,15 @@ async function editGroup(groupId) {
     const group = allGroups.find(g => g.id === groupId);
     if (!group) return;
 
-    document.getElementById('groupModalTitle').innerHTML = `
+    // ตรวจสอบว่า modal element มีอยู่
+    const titleEl = document.getElementById('groupModalTitle');
+    if (!titleEl) {
+        console.error('groupModalTitle not found - modal may have been removed');
+        await Swal.fire('ข้อผิดพลาด', 'ไม่พบหน้าต่างแก้ไข กรุณาโหลดหน้าใหม่', 'error');
+        return;
+    }
+
+    titleEl.innerHTML = `
         <i class="fa-solid fa-pen-to-square text-amber-500 mr-2"></i>แก้ไขชุดคณะกรรมการ
     `;
     document.getElementById('group_edit_id').value = group.id;
@@ -1270,26 +1278,19 @@ async function checkEvaluationCompleteness() {
 }
 
 // ==========================================
-// ปิด Modal ตรวจสอบความครบถ้วน
+// ปิด Modal ตรวจสอบความครบถ้วน (แก้ไข)
 // ==========================================
 function closeCompletenessModal() {
     const modal = document.getElementById('completenessModal');
     if (modal) {
         modal.classList.add('hidden');
-
-        // ✅ ลบ Modal ออกจาก DOM
         setTimeout(() => {
             if (modal.parentNode) {
                 modal.parentNode.removeChild(modal);
             }
-        }, 100); // ลดเวลาเหลือ 100ms เพื่อให้ปิดไวขึ้น
-    } else {
-        // ถ้าหา Modal ไม่เจอ (เผื่อซ่อนอยู่) ให้ค้นหาจาก document
-        const existingModal = document.querySelector('.fixed.inset-0.z-50');
-        if (existingModal) {
-            existingModal.remove();
-        }
+        }, 100);
     }
+    // ไม่ต้องทำอย่างอื่น เพื่อป้องกันการลบ modal อื่น
 }
 
 // ==========================================
