@@ -12,7 +12,18 @@ let isEditingMode = false;
 window._existingEvalId = null; // เก็บ ID ของการประเมินที่กำลังแก้ไข
 
 // ==========================================
-// ฟังก์ชันเปลี่ยนขั้นตอน
+// ฟังก์ชันตรวจสอบว่าขั้นตอนมีเนื้อหาหรือไม่
+// ==========================================
+function checkStepHasContent(step) {
+    if (step === 1) return window._hasElement1 === true;
+    if (step === 2) return window._hasElement2 === true;
+    if (step === 3) return window._hasElement3 === true;
+    if (step === 4) return true;
+    return false;
+}
+
+// ==========================================
+// ฟังก์ชันเปลี่ยนขั้นตอน (ปรับให้ข้ามขั้นตอนว่าง)
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
@@ -81,9 +92,23 @@ function changeStep(direction) {
         }
     }
 
-    // ✅ ใช้ active class ในการแสดง/ซ่อน
+    // ซ่อนขั้นตอนปัจจุบัน
     document.getElementById(`step${wizardCurrentStep}`).classList.remove('active');
     wizardCurrentStep += direction;
+
+    // ข้ามขั้นตอนที่ไม่มีเนื้อหา
+    while (wizardCurrentStep >= 1 && wizardCurrentStep <= 4) {
+        const hasContent = checkStepHasContent(wizardCurrentStep);
+        if (!hasContent && wizardCurrentStep < 4 && direction === 1) {
+            wizardCurrentStep++;
+        } else if (!hasContent && wizardCurrentStep > 1 && direction === -1) {
+            wizardCurrentStep--;
+        } else {
+            break;
+        }
+    }
+
+    // แสดงขั้นตอนใหม่
     document.getElementById(`step${wizardCurrentStep}`).classList.add('active');
 
     if (wizardCurrentStep === 4) {
@@ -93,34 +118,46 @@ function changeStep(direction) {
     updateWizardUI();
 }
 
+// ==========================================
+// อัปเดต UI Wizard (ปรับให้แสดงปุ่มตามเนื้อหา)
+// ==========================================
 function updateWizardUI() {
     const totalSteps = 4;
     document.getElementById('currentStepText').innerText = wizardCurrentStep;
     document.getElementById('progressBar').style.width = `${(wizardCurrentStep / totalSteps) * 100}%`;
 
+    // ปุ่มย้อนกลับ
     document.getElementById('btnPrev').classList.toggle('hidden', wizardCurrentStep === 1);
-    document.getElementById('btnNext').classList.toggle('hidden', wizardCurrentStep === totalSteps);
 
+    // ปุ่มถัดไป
     const nextBtn = document.getElementById('btnNext');
-    if (nextBtn && wizardCurrentStep < totalSteps) {
-        let hasItems = false;
-        if (wizardCurrentStep === 1) {
-            hasItems = window._hasElement1 === true;
-        } else if (wizardCurrentStep === 2) {
-            hasItems = window._hasElement2 === true;
-        } else if (wizardCurrentStep === 3) {
-            hasItems = window._hasElement3 === true;
+    if (nextBtn) {
+        let nextStep = wizardCurrentStep + 1;
+        while (nextStep <= 4 && !checkStepHasContent(nextStep)) {
+            nextStep++;
         }
+        const hasNext = nextStep <= 4;
 
-        if (!hasItems) {
-            nextBtn.innerHTML = 'ข้าม <i class="fa-solid fa-forward-step ml-1"></i>';
-            nextBtn.className = 'bg-gray-400 hover:bg-gray-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+        if (wizardCurrentStep < 4 && hasNext) {
+            nextBtn.classList.remove('hidden');
+            let hasItems = false;
+            if (wizardCurrentStep === 1) hasItems = window._hasElement1 === true;
+            else if (wizardCurrentStep === 2) hasItems = window._hasElement2 === true;
+            else if (wizardCurrentStep === 3) hasItems = window._hasElement3 === true;
+
+            if (!hasItems) {
+                nextBtn.innerHTML = 'ข้าม <i class="fa-solid fa-forward-step ml-1"></i>';
+                nextBtn.className = 'bg-gray-400 hover:bg-gray-500 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+            } else {
+                nextBtn.innerHTML = 'ถัดไป <i class="fa-solid fa-chevron-right ml-1"></i>';
+                nextBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+            }
         } else {
-            nextBtn.innerHTML = 'ถัดไป <i class="fa-solid fa-chevron-right ml-1"></i>';
-            nextBtn.className = 'bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors ml-auto';
+            nextBtn.classList.add('hidden');
         }
     }
 
+    // ปุ่มบันทึก
     const submitBtn = document.getElementById('btnSubmit');
     if (isEditingMode && submitBtn) {
         submitBtn.innerHTML = '<i class="fa-solid fa-pen-to-square mr-1"></i> บันทึกการแก้ไข';
@@ -131,7 +168,12 @@ function updateWizardUI() {
         submitBtn.innerHTML = '<i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกผลการประเมิน';
         submitBtn.classList.remove('bg-amber-600', 'hover:bg-amber-700');
         submitBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
-        submitBtn.classList.toggle('hidden', wizardCurrentStep !== totalSteps);
+        // แสดงปุ่มบันทึกเฉพาะขั้นตอนสุดท้ายที่มีเนื้อหา
+        let lastStep = 4;
+        while (lastStep > 1 && !checkStepHasContent(lastStep)) {
+            lastStep--;
+        }
+        submitBtn.classList.toggle('hidden', wizardCurrentStep !== lastStep);
     }
 }
 
@@ -371,6 +413,10 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
     window._hasElement1 = hasAnyElement1;
     window._hasElement2 = hasAnyElement2;
     window._hasElement3 = hasAnyElement3;
+
+    console.log('✅ ตั้งค่า _hasElement1:', hasAnyElement1);
+    console.log('✅ ตั้งค่า _hasElement2:', hasAnyElement2);
+    console.log('✅ ตั้งค่า _hasElement3:', hasAnyElement3);
 
     // ==========================================
     // STEP 1: องค์ประกอบที่ 1
@@ -750,8 +796,14 @@ async function startEvaluation(type, teacherData = null) {
             return Swal.fire('แจ้งเตือน', 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่', 'warning');
         }
 
+        // ✅ โหลดข้อมูลเดิมก่อนสร้างฟอร์ม (จะตั้งค่า isEditingMode และ _existingEvalId)
+        let hasExisting = false;
         if (!window._existingEvalId && !isEditingMode) {
-            await loadExistingEvaluation();
+            hasExisting = await loadExistingEvaluation();
+            // ถ้าผู้ใช้ยกเลิก จะ return false และเราไม่ต้องทำต่อ
+            if (hasExisting === false) {
+                return;
+            }
         }
 
         let allowedSubItems = null;
@@ -799,7 +851,24 @@ async function startEvaluation(type, teacherData = null) {
         wizardCurrentStep = 1;
         updateWizardUI();
 
-        if (!window._existingEvalId) {
+        // ✅ ถ้ามีการโหลดข้อมูลเดิม (แก้ไข) ให้โหลดคะแนนลงฟอร์มและข้ามการตรวจสอบการส่งแล้ว
+        if (window._existingEvalId && isEditingMode) {
+            // โหลดข้อมูลเดิมที่เรามีอยู่แล้ว (loadExistingEvaluation ได้ตั้งค่า window._existingEvalId)
+            // แต่เรายังต้องโหลดคะแนน (ถ้าทำไม่ได้ ให้ดึงใหม่)
+            if (!document.querySelector('input[name^="p1s1_"]:checked')) {
+                // ถ้ายังไม่มีคะแนนในฟอร์ม ให้ลองโหลดอีกครั้ง
+                const { data: existingEval } = await db
+                    .from('eval_results')
+                    .select('*')
+                    .eq('id', window._existingEvalId)
+                    .single();
+                if (existingEval) {
+                    loadScoresToForm(existingEval);
+                }
+            }
+            // ไม่ต้องตรวจสอบ existingSubmitted
+        } else if (!window._existingEvalId) {
+            // ถ้ายังไม่มีข้อมูลเดิม (ไม่ใช่แก้ไข) ให้ตรวจสอบว่ามีการส่งแล้วหรือไม่
             const { data: existingSubmitted, error } = await db
                 .from('eval_results')
                 .select('id, total_score, detailed_scores, status')
@@ -908,8 +977,6 @@ async function startEditEvaluation(evalId) {
 // ==========================================
 async function loadExistingEvaluation() {
     try {
-        // ✅ แก้ไข: เพิ่ม eq('eval_round_id', ...) เพื่อไม่ให้โหลดผลจากรอบประเมินอื่น
-        //    ที่บังเอิญอยู่ใน academic_year/semester เดียวกัน
         if (!currentEvalRound?.id) return;
 
         const { data: existingEval, error } = await db
@@ -965,99 +1032,115 @@ async function loadExistingEvaluation() {
                 isEditingMode = true;
                 window._existingEvalId = existingEval.id;
                 loadScoresToForm(existingEval);
+                return true;
             } else if (result.isDenied) {
                 await db.from('eval_results').delete().eq('id', existingEval.id);
                 window._existingEvalId = null;
                 isEditingMode = false;
                 resetForm();
+                return false;
             } else {
+                // ยกเลิก
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
+                return false;
             }
         }
+        return true;
     } catch (err) {
         console.error('Error in loadExistingEvaluation:', err);
+        return true;
     }
 }
 
 // ==========================================
-// ฟังก์ชันโหลดคะแนนเดิมใส่ฟอร์ม
+// ฟังก์ชันโหลดคะแนนเดิมใส่ฟอร์ม (ปรับปรุง)
 // ==========================================
 function loadScoresToForm(existingEval) {
     const detailedScores = existingEval.detailed_scores || {};
     console.log('📥 โหลดข้อมูลเดิม:', detailedScores);
 
-    if (detailedScores.p1_s1 && Array.isArray(detailedScores.p1_s1)) {
-        const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
-        const groups = {};
-        p1s1Inputs.forEach(input => {
-            if (!groups[input.name]) groups[input.name] = [];
-            groups[input.name].push(input);
-        });
-
-        const sortedNames = Object.keys(groups).sort();
-        sortedNames.forEach((name, index) => {
-            if (index < detailedScores.p1_s1.length) {
-                const value = detailedScores.p1_s1[index];
-                if (value && value >= 1 && value <= 4) {
-                    const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
-                    if (radioToCheck) radioToCheck.checked = true;
-                }
-            }
-        });
-    }
-
-    if (detailedScores.p1_s2 && Array.isArray(detailedScores.p1_s2)) {
-        const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
-        const groups = {};
-        p1s2Inputs.forEach(input => {
-            if (!groups[input.name]) groups[input.name] = [];
-            groups[input.name].push(input);
-        });
-
-        const sortedNames = Object.keys(groups).sort();
-        sortedNames.forEach((name, index) => {
-            if (index < detailedScores.p1_s2.length) {
-                const value = detailedScores.p1_s2[index];
-                if (value && value >= 1 && value <= 4) {
-                    const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
-                    if (radioToCheck) radioToCheck.checked = true;
-                }
-            }
-        });
-    }
-
-    if (detailedScores.p2) {
-        const p2Value = detailedScores.p2;
-        const p2Input = document.querySelector(`input[name="sc_part2"][value="${p2Value}"]`);
-        if (p2Input) p2Input.checked = true;
-    }
-
-    if (detailedScores.p3 && Array.isArray(detailedScores.p3)) {
-        const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
-        const groups = {};
-        p3Inputs.forEach(input => {
-            if (!groups[input.name]) groups[input.name] = [];
-            groups[input.name].push(input);
-        });
-
-        const sortedNames = Object.keys(groups).sort();
-        sortedNames.forEach((name, index) => {
-            if (index < detailedScores.p3.length) {
-                const value = detailedScores.p3[index];
-                if (value && value >= 1 && value <= 4) {
-                    const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
-                    if (radioToCheck) radioToCheck.checked = true;
-                }
-            }
-        });
-    }
-
+    // ✅ รอให้ DOM พร้อม แล้วโหลดคะแนน
     setTimeout(() => {
-        calculateLiveTotal();
-    }, 100);
+        // องค์ประกอบที่ 1 ตอนที่ 1
+        if (detailedScores.p1_s1 && Array.isArray(detailedScores.p1_s1)) {
+            const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
+            const groups = {};
+            p1s1Inputs.forEach(input => {
+                if (!groups[input.name]) groups[input.name] = [];
+                groups[input.name].push(input);
+            });
 
-    window._existingEvalId = existingEval.id;
+            const sortedNames = Object.keys(groups).sort();
+            sortedNames.forEach((name, index) => {
+                if (index < detailedScores.p1_s1.length) {
+                    const value = detailedScores.p1_s1[index];
+                    if (value && value >= 1 && value <= 4) {
+                        const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
+                        if (radioToCheck) radioToCheck.checked = true;
+                    }
+                }
+            });
+        }
+
+        // องค์ประกอบที่ 1 ตอนที่ 2
+        if (detailedScores.p1_s2 && Array.isArray(detailedScores.p1_s2)) {
+            const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
+            const groups = {};
+            p1s2Inputs.forEach(input => {
+                if (!groups[input.name]) groups[input.name] = [];
+                groups[input.name].push(input);
+            });
+
+            const sortedNames = Object.keys(groups).sort();
+            sortedNames.forEach((name, index) => {
+                if (index < detailedScores.p1_s2.length) {
+                    const value = detailedScores.p1_s2[index];
+                    if (value && value >= 1 && value <= 4) {
+                        const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
+                        if (radioToCheck) radioToCheck.checked = true;
+                    }
+                }
+            });
+        }
+
+        // องค์ประกอบที่ 2
+        if (detailedScores.p2) {
+            const p2Value = detailedScores.p2;
+            const p2Input = document.querySelector(`input[name="sc_part2"][value="${p2Value}"]`);
+            if (p2Input) p2Input.checked = true;
+        }
+
+        // องค์ประกอบที่ 3
+        if (detailedScores.p3 && Array.isArray(detailedScores.p3)) {
+            const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
+            const groups = {};
+            p3Inputs.forEach(input => {
+                if (!groups[input.name]) groups[input.name] = [];
+                groups[input.name].push(input);
+            });
+
+            const sortedNames = Object.keys(groups).sort();
+            sortedNames.forEach((name, index) => {
+                if (index < detailedScores.p3.length) {
+                    const value = detailedScores.p3[index];
+                    if (value && value >= 1 && value <= 4) {
+                        const radioToCheck = document.querySelector(`input[name="${name}"][value="${value}"]`);
+                        if (radioToCheck) radioToCheck.checked = true;
+                    }
+                }
+            });
+        }
+
+        // ✅ อัปเดตคะแนนรวม live และ UI
+        setTimeout(() => {
+            calculateLiveTotal();
+            // ✅ อัปเดต UI เพื่อให้ปุ่มและขั้นตอนแสดงถูกต้อง
+            updateWizardUI();
+            console.log('✅ โหลดคะแนนเสร็จ, อัปเดต UI แล้ว');
+        }, 50);
+
+    }, 150); // เพิ่มเวลาเล็กน้อยเพื่อให้ DOM พร้อม
 }
 
 // ==========================================
@@ -1254,9 +1337,6 @@ async function submitEvaluation() {
 }
 
 // ==========================================
-// ✅ ส่งออก Excel สำหรับกรรมการ (Export)
-// ==========================================
-// ==========================================
 // ✅ ส่งออก Excel สำหรับกรรมการ (Export) - ฉบับ Query ตรง
 // ==========================================
 async function exportCommitteeExcel() {
@@ -1309,7 +1389,6 @@ async function exportCommitteeExcel() {
             return Swal.fire('แจ้งเตือน', 'คุณไม่ได้เป็นกรรมการในชุดใดเลย', 'warning');
         }
 
-        // ✅ 2. ดึงข้อมูลชุดย่อยพร้อม targets
         const { data: subs, error: subError } = await db
             .from('eval_committee_groups')
             .select('*, eval_committee_targets(*)')
@@ -1324,30 +1403,18 @@ async function exportCommitteeExcel() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดย่อยที่ใช้งานอยู่', 'warning');
         }
 
-        // ✅ 3. รวบรวม departments ที่ต้องประเมิน (จาก targets)
         const allDepartments = new Set();
-        const subGroupMap = {};
-
         for (const sub of subGroups) {
             const targets = sub.eval_committee_targets || [];
             const depts = targets
                 .filter(t => t.target_type === 'department')
                 .map(t => t.target_value);
-
-            // เก็บเฉพาะกลุ่มสาระที่อนุญาต
             const allowed = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
                 'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
                 'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
                 'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)', 'แนะแนว'];
             const filteredDepts = depts.filter(d => allowed.includes(d));
-
             filteredDepts.forEach(d => allDepartments.add(d));
-
-            subGroupMap[sub.id] = {
-                name: sub.group_name,
-                items: sub.selected_sub_items || [],
-                departments: filteredDepts
-            };
         }
 
         if (allDepartments.size === 0) {
@@ -1355,9 +1422,6 @@ async function exportCommitteeExcel() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบกลุ่มเป้าหมาย (department targets) ในชุดย่อยที่สังกัด', 'warning');
         }
 
-        console.log('✅ Departments ที่ต้องโหลด:', Array.from(allDepartments));
-
-        // ✅ 4. โหลดครูจากทุก department (แบบขนาน)
         const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
         const deptArray = Array.from(allDepartments);
         const queryPromises = deptArray.map(dept =>
@@ -1394,7 +1458,6 @@ async function exportCommitteeExcel() {
             });
         }
 
-        // ✅ 5. ดึงผลการประเมินเดิม
         const teacherIds = allTeachers.map(t => t.id);
         const { data: evalResults } = await db
             .from('eval_results')
@@ -1407,7 +1470,6 @@ async function exportCommitteeExcel() {
         const evalMap = {};
         (evalResults || []).forEach(r => { evalMap[r.evaluatee_id] = r; });
 
-        // ✅ 6. สร้างหัวข้อประเมิน (unique)
         const allSubItems = [];
         const academic = currentUser.academic_standing || 'ครู';
         const criteria = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
@@ -1452,7 +1514,6 @@ async function exportCommitteeExcel() {
             }
         });
 
-        // ✅ 7. สร้าง Header
         const headers = ['กลุ่มสาระ', 'คำนำหน้าชื่อ-สกุล', 'วิทยฐานะ'];
         uniqueItems.forEach(item => {
             headers.push(item.label || `ข้อ ${item.value}`);
@@ -1460,7 +1521,6 @@ async function exportCommitteeExcel() {
         headers.push('สถานะ');
         headers.push('คะแนนรวม');
 
-        // ✅ 8. สร้างแถวข้อมูล
         const rows = [];
         for (const teacher of allTeachers) {
             const row = [
@@ -1524,7 +1584,6 @@ async function exportCommitteeExcel() {
             rows.push(row);
         }
 
-        // ✅ 9. สร้าง Workbook
         const wb = XLSX.utils.book_new();
         const wsData = [headers, ...rows];
         const ws = XLSX.utils.aoa_to_sheet(wsData);
@@ -1538,7 +1597,6 @@ async function exportCommitteeExcel() {
             return { wch: 30 };
         });
 
-        // Sheet ข้อมูลเพิ่มเติม
         const infoData = [
             ['ข้อมูลการส่งออก'],
             ['รอบการประเมิน', currentEvalRound.round_name || ''],
@@ -1590,20 +1648,18 @@ function parseScoreValue(value) {
     
     let str = String(value).trim();
     
-    // ถ้ามีเครื่องหมายจุลภาค (เช่น "4, 4") ให้แยกและใช้ค่าแรก
     if (str.includes(',')) {
         const parts = str.split(',').map(s => parseFloat(s.trim()));
         const validParts = parts.filter(n => !isNaN(n) && n >= 1 && n <= 5);
         if (validParts.length === 0) return null;
-        return validParts[0]; // ใช้ค่าแรก
+        return validParts[0];
     }
     
     const num = parseFloat(str);
     if (isNaN(num)) return null;
     
-    // ✅ คะแนนต้องอยู่ระหว่าง 1-5 (ไม่ใช่ 0)
     if (num >= 1 && num <= 5) return num;
-    return null; // ถ้าเป็น 0 หรือนอกช่วง ให้เป็น null
+    return null;
 }
 
 // ==========================================
@@ -1700,19 +1756,11 @@ async function importCommitteeExcel(event) {
             const firstName = nameParts[0] || '';
             const lastName = nameParts.slice(1).join(' ') || '';
 
-            // ✅ แก้ไข: ใช้ eq (ตรงตัว) แทน ilike (match แบบคลุมเครือ) และรองรับกรณีชื่อซ้ำ
-            //    โดยใช้คอลัมภ์กลุ่มสาระในไฟล์ Excel (ถ้ามี) ช่วยแยกแยะ แทนการสุ่มเลือกคนแรก
-            const { data: teacherMatches, error: teacherLookupError } = await db
+            const { data: teacherMatches } = await db
                 .from('core_personnel')
                 .select('id, first_name, last_name, academic_standing, department')
                 .eq('first_name', firstName)
                 .eq('last_name', lastName);
-
-            if (teacherLookupError) {
-                errors.push(`ค้นหาข้อมูลผิดพลาด: ${teacherName}`);
-                failCount++;
-                continue;
-            }
 
             let teacher = null;
             if (!teacherMatches || teacherMatches.length === 0) {
@@ -1722,7 +1770,6 @@ async function importCommitteeExcel(event) {
             } else if (teacherMatches.length === 1) {
                 teacher = teacherMatches[0];
             } else {
-                // ✅ ชื่อซ้ำมากกว่า 1 คน — พยายามแยกแยะด้วยกลุ่มสาระในไฟล์ Excel
                 const rowDept = deptCol ? String(row[deptCol] || '').trim() : '';
                 const filtered = rowDept ? teacherMatches.filter(t => t.department === rowDept) : [];
                 if (filtered.length === 1) {
@@ -1743,7 +1790,6 @@ async function importCommitteeExcel(event) {
                 .eq('is_active', true);
 
             if (!targets || targets.length === 0) {
-                // ไม่ใช่กลุ่มเป้าหมาย ข้ามไป (ไม่ถือเป็น error)
                 skippedCount++;
                 continue;
             }
@@ -1777,7 +1823,6 @@ async function importCommitteeExcel(event) {
                 }
             }
 
-            // คำนวณคะแนนรวม
             const isAssistant = teacher.academic_standing === 'ครูผู้ช่วย';
             
             if (detailedScores.p2 !== null && detailedScores.p2 !== undefined) {

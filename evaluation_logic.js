@@ -779,7 +779,7 @@ async function exportFinalScores() {
 }
 
 // ==========================================
-// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - ปรับปรุง placeholders
+// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - แก้ไขการคำนวณตอนที่ 2
 // ==========================================
 async function generateEvaluationPDF() {
     // 1. ตรวจสอบว่าผู้ใช้มีสิทธิ์ (ต้องเป็นครูที่ประเมินตนเองแล้ว)
@@ -844,14 +844,10 @@ async function generateEvaluationPDF() {
     }
 
     // ----- องค์ประกอบที่ 1 ตอนที่ 1 (60 คะแนน) -----
-    // ข้อ 1.1-1.8 (ครูผู้ช่วยมีแค่ 1.1-1.7)
     const p1s1 = details.p1_s1 || [];
     const isAssistant = academic === 'ครูผู้ช่วย';
-    const maxP1S1Count = isAssistant ? 14 : 15; // ครูผู้ช่วยมี 14 ข้อ, ครูอื่น 15 ข้อ
 
-    // แมปตามลำดับ: 1.1-1.7/1.8, 2.1-2.4, 3.1-3.3
     const p1s1Scores = {
-        // 1. ด้านการจัดการเรียนรู้ (1.1-1.8)
         '1_1': getScoreByIndex(p1s1, 0),
         '1_2': getScoreByIndex(p1s1, 1),
         '1_3': getScoreByIndex(p1s1, 2),
@@ -859,54 +855,61 @@ async function generateEvaluationPDF() {
         '1_5': getScoreByIndex(p1s1, 4),
         '1_6': getScoreByIndex(p1s1, 5),
         '1_7': getScoreByIndex(p1s1, 6),
-        '1_8': isAssistant ? '' : getScoreByIndex(p1s1, 7), // ครูผู้ช่วยไม่มีข้อ 1.8
-
-        // 2. ด้านการส่งเสริมและสนับสนุน (2.1-2.4)
+        '1_8': isAssistant ? '' : getScoreByIndex(p1s1, 7),
         '2_1': getScoreByIndex(p1s1, isAssistant ? 7 : 8),
         '2_2': getScoreByIndex(p1s1, isAssistant ? 8 : 9),
         '2_3': getScoreByIndex(p1s1, isAssistant ? 9 : 10),
         '2_4': getScoreByIndex(p1s1, isAssistant ? 10 : 11),
-
-        // 3. ด้านการพัฒนาตนเอง (3.1-3.3)
         '3_1': getScoreByIndex(p1s1, isAssistant ? 11 : 12),
         '3_2': getScoreByIndex(p1s1, isAssistant ? 12 : 13),
         '3_3': getScoreByIndex(p1s1, isAssistant ? 13 : 14),
     };
 
-    // คำนวณรวมคะแนนดิบของตอนที่ 1 (รวมทุกข้อ)
     const p1s1RawSum = Object.values(p1s1Scores)
         .filter(v => v !== '')
         .reduce((a, b) => a + parseFloat(b || 0), 0);
 
-    // คำนวณคะแนนตอนที่ 1 (แปลงเป็น 60 คะแนน)
     let p1s1Total = 0;
     if (isAssistant) {
-        // ครูผู้ช่วย: 14 ข้อ x 4 = 56 คะแนนดิบ  -> คะแนน = (rawSum * 60) / 56
         p1s1Total = (p1s1RawSum * 60) / 56;
     } else {
-        // ครูอื่น: 15 ข้อ x 4 = 60 คะแนนดิบ -> คะแนน = rawSum (เพราะเต็ม 60 อยู่แล้ว)
         p1s1Total = p1s1RawSum;
     }
 
-    // ----- องค์ประกอบที่ 1 ตอนที่ 2 (20 คะแนน) -----
+    // ==========================================
+    // ✅ องค์ประกอบที่ 1 ตอนที่ 2 (20 คะแนน) - แก้ไขแล้ว
+    // ==========================================
     const p1s2 = details.p1_s2 || [];
     const p1s2Scores = {
         '1': getScoreByIndex(p1s2, 0),      // วิธีดำเนินการ
         '2_1': getScoreByIndex(p1s2, 1),    // เชิงปริมาณ
         '2_2': getScoreByIndex(p1s2, 2),    // เชิงคุณภาพ
     };
-    const p1s2RawSum = Object.values(p1s2Scores)
-        .filter(v => v !== '')
-        .reduce((a, b) => a + parseFloat(b || 0), 0);
-    // คะแนนตอนที่ 2 = (rawSum * 20) / 40 (เพราะ 3 ข้อ แต่ละข้อ max 20,10,10 รวม 40)
-    const p1s2Total = (p1s2RawSum * 20) / 40;
+
+    // ✅ แผนที่แปลงระดับ (1-4) เป็นคะแนนตามเกณฑ์ที่กำหนด
+    const p1s2ScoreMap = {
+        '1':   { '1': 5, '2': 10, '3': 15, '4': 20 },    // วิธีดำเนินการ
+        '2_1': { '1': 2.5, '2': 5, '3': 7.5, '4': 10 },  // เชิงปริมาณ
+        '2_2': { '1': 2.5, '2': 5, '3': 7.5, '4': 10 }   // เชิงคุณภาพ
+    };
+
+    // คำนวณคะแนนดิบรวม (สูงสุด 40)
+    let p1s2RawTotal = 0;
+    for (const [key, level] of Object.entries(p1s2Scores)) {
+        const levelNum = parseInt(level) || 0;
+        const score = p1s2ScoreMap[key]?.[levelNum] || 0;
+        p1s2RawTotal += score;
+    }
+
+    // ✅ แปลงจาก 40 เป็น 20 คะแนน
+    const p1s2Total = p1s2RawTotal / 2;
 
     // ----- รวมองค์ประกอบที่ 1 (80 คะแนน) -----
     const p1Total = p1s1Total + p1s2Total;
 
     // ----- องค์ประกอบที่ 2 (10 คะแนน) -----
-    const p2Level = details.p2 || 0; // ระดับ 1-5
-    const p2Score = p2Level * 2; // คะแนนเต็ม 10
+    const p2Level = details.p2 || 0;
+    const p2Score = p2Level * 2;
 
     // ----- องค์ประกอบที่ 3 (10 คะแนน) -----
     const p3 = details.p3 || [];
@@ -917,7 +920,7 @@ async function generateEvaluationPDF() {
     const p3RawSum = Object.values(p3Scores)
         .filter(v => v !== '')
         .reduce((a, b) => a + parseFloat(b || 0), 0);
-    const p3Total = p3RawSum / 4; // 10 คะแนน
+    const p3Total = p3RawSum / 4;
 
     // ----- คะแนนรวมทั้งหมด -----
     const totalScore = p1Total + p2Score + p3Total;
@@ -962,12 +965,15 @@ async function generateEvaluationPDF() {
         // คะแนนรวมตอนที่ 1 (เต็ม 60)
         "{{P1S1_TOTAL}}": p1s1Total.toFixed(2),
 
-        // องค์ประกอบที่ 1 ตอนที่ 2
-        "{{P1S2_1}}": p1s2Scores['1'],        // วิธีดำเนินการ
-        "{{P1S2_2_1}}": p1s2Scores['2_1'],    // เชิงปริมาณ
-        "{{P1S2_2_2}}": p1s2Scores['2_2'],    // เชิงคุณภาพ
+        // ✅ องค์ประกอบที่ 1 ตอนที่ 2 (ส่งทั้งระดับและคะแนนจริง)
+        "{{P1S2_1}}": p1s2Scores['1'],           // ระดับ 1-4
+        "{{P1S2_1_SCORE}}": p1s2ScoreMap['1']?.[parseInt(p1s2Scores['1']) || 0] || 0,  // คะแนนจริง (5-20)
+        "{{P1S2_2_1}}": p1s2Scores['2_1'],       // ระดับ 1-4
+        "{{P1S2_2_1_SCORE}}": p1s2ScoreMap['2_1']?.[parseInt(p1s2Scores['2_1']) || 0] || 0, // คะแนนจริง (2.5-10)
+        "{{P1S2_2_2}}": p1s2Scores['2_2'],       // ระดับ 1-4
+        "{{P1S2_2_2_SCORE}}": p1s2ScoreMap['2_2']?.[parseInt(p1s2Scores['2_2']) || 0] || 0, // คะแนนจริง (2.5-10)
 
-        // คะแนนรวมตอนที่ 2 (เต็ม 20)
+        // คะแนนรวมตอนที่ 2 (เต็ม 20) - ถูกต้องแล้ว (หาร 2)
         "{{P1S2_TOTAL}}": p1s2Total.toFixed(2),
 
         // คะแนนรวมองค์ประกอบที่ 1 (เต็ม 80)
@@ -994,7 +1000,7 @@ async function generateEvaluationPDF() {
         "{{TOTAL_SCORE}}": totalScore.toFixed(2),
         "{{LEVEL}}": level.text,
 
-        // ลายเซ็น (ถ้ามี)
+        // ลายเซ็น
         "{{PERSONNEL_SIGNATURE_IMAGE}}": currentUser.signature_file_id ? `https://drive.google.com/uc?id=${currentUser.signature_file_id}` : ''
     };
 
