@@ -1695,6 +1695,141 @@ async function importCommitteeExcel(event) {
         return;
     }
 
+    // ✅ อ่านไฟล์ก่อนเพื่อตรวจสอบ
+    let workbook;
+    try {
+        const data = await file.arrayBuffer();
+        workbook = XLSX.read(data, { type: 'array' });
+    } catch (err) {
+        Swal.fire('ผิดพลาด', 'ไม่สามารถอ่านไฟล์ได้: ' + err.message, 'error');
+        event.target.value = '';
+        return;
+    }
+
+    // ==========================================
+    // ✅ ฟังก์ชันช่วยตัดคำนำหน้า
+    // ==========================================
+    function stripThaiTitle(name) {
+        const titles = ['นางสาว', 'นาง', 'นาย', 'ดร.', 'ดร', 'ว่าที่', 'พัน', 'ร้อย', 'สิบ', 'จ่า'];
+        let cleaned = name.trim();
+        for (const title of titles) {
+            if (cleaned.startsWith(title)) {
+                cleaned = cleaned.substring(title.length).trim();
+                break;
+            }
+        }
+        return cleaned;
+    }
+
+    // ==========================================
+    // ✅ ฟังก์ชันเปรียบเทียบชื่อแบบไม่สนใจคำนำหน้า
+    // ==========================================
+    function compareNames(name1, name2) {
+        if (!name1 || !name2) return false;
+
+        const clean1 = stripThaiTitle(name1);
+        const clean2 = stripThaiTitle(name2);
+
+        if (clean1 === clean2) return true;
+
+        const parts1 = clean1.split(/\s+/);
+        const parts2 = clean2.split(/\s+/);
+
+        if (parts1.length >= 2 && parts2.length >= 2) {
+            const firstName1 = parts1[0];
+            const lastName1 = parts1.slice(1).join(' ');
+            const firstName2 = parts2[0];
+            const lastName2 = parts2.slice(1).join(' ');
+
+            if (firstName1 === firstName2 && lastName1 === lastName2) return true;
+            if (lastName1 === lastName2 && parts1.length === 2 && parts2.length === 2) return true;
+        }
+        return false;
+    }
+
+    // ==========================================
+    // ✅ ตรวจสอบว่าไฟล์นี้เป็นของกรรมการที่เลือกหรือไม่
+    // ==========================================
+    const currentEvaluatorName = _impersonationMode
+        ? _impersonatedEvaluatorName
+        : `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`.trim();
+
+    let evaluatorNameInFile = null;
+    let roundNameInFile = null;
+
+    if (workbook.SheetNames.includes('ข้อมูล')) {
+        const infoSheet = workbook.Sheets['ข้อมูล'];
+        const infoData = XLSX.utils.sheet_to_json(infoSheet, { header: 1 });
+        for (let row of infoData) {
+            if (row.length >= 2 && row[0] === 'ผู้ประเมิน') {
+                evaluatorNameInFile = row[1]?.trim();
+            }
+            if (row.length >= 2 && row[0] === 'รอบการประเมิน') {
+                roundNameInFile = row[1]?.trim();
+            }
+        }
+    }
+
+    if (evaluatorNameInFile) {
+        const isMatch = compareNames(evaluatorNameInFile, currentEvaluatorName);
+        if (!isMatch) {
+            await Swal.fire({
+                icon: 'error',
+                title: '❌ ไฟล์ไม่ตรงกับกรรมการที่เลือก',
+                html: `
+                    <p>ไฟล์นี้เป็นของ: <b>${evaluatorNameInFile}</b></p>
+                    <p>แต่คุณกำลังนำเข้าในนาม: <b>${currentEvaluatorName}</b></p>
+                    <p class="text-sm text-red-500 mt-2">กรุณาเลือกกรรมการให้ถูกต้อง หรือใช้ไฟล์ที่ถูกต้อง</p>
+                    <p class="text-xs text-gray-400 mt-1">💡 ชื่อที่ไม่ตรงกันอาจเกิดจากคำนำหน้า (นางสาว/นาง/นาย) ที่ต่างกัน</p>
+                `,
+                confirmButtonText: 'ตกลง'
+            });
+            event.target.value = '';
+            return;
+        }
+    } else {
+        const confirmContinue = await Swal.fire({
+            icon: 'warning',
+            title: '⚠️ ไม่พบข้อมูลผู้ประเมินในไฟล์',
+            html: `
+                <p>ไฟล์นี้ไม่มีข้อมูลผู้ประเมิน (อาจเป็นไฟล์ที่สร้างจากแหล่งอื่น)</p>
+                <p class="text-sm text-gray-500">คุณต้องการนำเข้าต่อโดยไม่ตรวจสอบหรือไม่?</p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '✅ นำเข้าต่อ',
+            cancelButtonText: 'ยกเลิก'
+        });
+        if (!confirmContinue.isConfirmed) {
+            event.target.value = '';
+            return;
+        }
+    }
+
+    // ✅ ตรวจสอบรอบการประเมิน (ถ้ามี)
+    if (roundNameInFile && currentEvalRound.round_name) {
+        if (roundNameInFile !== currentEvalRound.round_name) {
+            const confirmRound = await Swal.fire({
+                icon: 'warning',
+                title: '⚠️ รอบการประเมินไม่ตรงกัน',
+                html: `
+                    <p>ไฟล์นี้เป็นรอบ: <b>${roundNameInFile}</b></p>
+                    <p>รอบปัจจุบัน: <b>${currentEvalRound.round_name}</b></p>
+                    <p class="text-sm text-gray-500">ต้องการนำเข้าต่อหรือไม่?</p>
+                `,
+                showCancelButton: true,
+                confirmButtonText: '✅ นำเข้าต่อ',
+                cancelButtonText: 'ยกเลิก'
+            });
+            if (!confirmRound.isConfirmed) {
+                event.target.value = '';
+                return;
+            }
+        }
+    }
+
+    // ==========================================
+    // ✅ ยืนยันการนำเข้า
+    // ==========================================
     const confirm = await Swal.fire({
         icon: 'warning',
         title: 'ยืนยันการนำเข้า',
@@ -1703,6 +1838,7 @@ async function importCommitteeExcel(event) {
             <p class="text-sm text-gray-500 mt-2">⚠️ ข้อมูลที่มีอยู่เดิมจะถูก <b>แทนที่</b> ด้วยข้อมูลในไฟล์</p>
             <p class="text-sm text-gray-500">เฉพาะรายการที่มีการเปลี่ยนแปลงเท่านั้นที่จะถูกอัปเดต</p>
             <p class="text-sm text-amber-500 mt-2">✅ ค่า 0 หรือค่าผิดปกติจะถูกละเว้น</p>
+            ${_impersonationMode ? `<p class="text-sm text-orange-500 mt-2">👑 สวมรอย: <b>${currentEvaluatorName}</b></p>` : ''}
         `,
         showCancelButton: true,
         confirmButtonText: '✅ ยืนยันนำเข้า',
@@ -1714,6 +1850,9 @@ async function importCommitteeExcel(event) {
         return;
     }
 
+    // ==========================================
+    // ✅ เริ่มนำเข้าข้อมูล
+    // ==========================================
     Swal.fire({
         title: 'กำลังนำเข้าข้อมูล...',
         allowOutsideClick: false,
@@ -1721,15 +1860,13 @@ async function importCommitteeExcel(event) {
     });
 
     try {
-        const data = await file.arrayBuffer();
-        const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames.find(name => name === 'คะแนนประเมิน') || workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
         if (!jsonData || jsonData.length === 0) {
             Swal.close();
-            Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในไฟล์ Excel', 'warning');
+            Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในชีท "คะแนนประเมิน"', 'warning');
             event.target.value = '';
             return;
         }
@@ -1749,6 +1886,106 @@ async function importCommitteeExcel(event) {
             !h.includes('สถานะ') && !h.includes('คะแนนรวม')
         );
 
+        // ==========================================
+        // ✅ ฟังก์ชันค้นหาครูแบบหลายวิธี
+        // ==========================================
+        async function findTeacher(teacherName, deptName) {
+            const cleanName = stripThaiTitle(teacherName);
+            const nameParts = cleanName.split(/\s+/);
+            let firstName = '';
+            let lastName = '';
+
+            if (nameParts.length >= 2) {
+                firstName = nameParts[0] || '';
+                lastName = nameParts.slice(1).join(' ') || '';
+            } else if (nameParts.length === 1) {
+                firstName = nameParts[0] || '';
+                lastName = '';
+            } else {
+                return null;
+            }
+
+            // วิธีที่ 1: ค้นหาแบบตรงเป๊ะ
+            let query = db.from('core_personnel')
+                .select('id, prefix, first_name, last_name, academic_standing, department, position')
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
+                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+            if (firstName && lastName) {
+                query = query.eq('first_name', firstName).eq('last_name', lastName);
+            } else if (firstName && !lastName) {
+                query = query.ilike('first_name', `%${firstName}%`);
+            } else {
+                return null;
+            }
+
+            let { data: matches, error } = await query;
+            if (error) {
+                console.warn('Query error (exact):', error);
+                matches = [];
+            }
+
+            if (matches.length > 1 && deptName) {
+                matches = matches.filter(p => p.department === deptName);
+            }
+
+            if (matches.length === 1) {
+                return matches[0];
+            }
+
+            // วิธีที่ 2: ค้นหาแบบ ILIKE
+            if (matches.length === 0 || matches.length > 1) {
+                let ilikeQuery = db.from('core_personnel')
+                    .select('id, prefix, first_name, last_name, academic_standing, department, position')
+                    .in('position', ['ครู', 'ครูผู้ช่วย'])
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+                if (firstName && lastName) {
+                    ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`).ilike('last_name', `%${lastName}%`);
+                } else if (firstName) {
+                    ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`);
+                } else {
+                    return null;
+                }
+
+                let { data: ilikeMatches, error: ilikeError } = await ilikeQuery.limit(10);
+                if (!ilikeError && ilikeMatches && ilikeMatches.length > 0) {
+                    if (ilikeMatches.length === 1) {
+                        return ilikeMatches[0];
+                    }
+                    if (deptName) {
+                        const filtered = ilikeMatches.filter(p => p.department === deptName);
+                        if (filtered.length === 1) return filtered[0];
+                    }
+                }
+            }
+
+            // วิธีที่ 3: ค้นหาจากชื่อเต็ม
+            if (matches.length === 0) {
+                const searchWords = cleanName.split(/\s+/);
+                let { data: allTeachers, error: allError } = await db
+                    .from('core_personnel')
+                    .select('id, prefix, first_name, last_name, academic_standing, department, position')
+                    .in('position', ['ครู', 'ครูผู้ช่วย'])
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+                if (!allError && allTeachers) {
+                    const matched = allTeachers.filter(p => {
+                        const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim();
+                        return searchWords.every(word => fullName.includes(word));
+                    });
+                    if (matched.length === 1) {
+                        return matched[0];
+                    } else if (matched.length > 1 && deptName) {
+                        const filtered = matched.filter(p => p.department === deptName);
+                        if (filtered.length === 1) return filtered[0];
+                    }
+                }
+            }
+
+            return null;
+        }
+
         let successCount = 0;
         let failCount = 0;
         let errors = [];
@@ -1758,42 +1995,28 @@ async function importCommitteeExcel(event) {
             const teacherName = row[nameCol]?.trim();
             if (!teacherName) continue;
 
-            const nameParts = teacherName.split(/\s+/);
-            const firstName = nameParts[0] || '';
-            const lastName = nameParts.slice(1).join(' ') || '';
+            const rowDept = deptCol ? String(row[deptCol] || '').trim() : '';
+            const teacher = await findTeacher(teacherName, rowDept);
 
-            const { data: teacherMatches } = await db
-                .from('core_personnel')
-                .select('id, first_name, last_name, academic_standing, department')
-                .eq('first_name', firstName)
-                .eq('last_name', lastName);
-
-            let teacher = null;
-            if (!teacherMatches || teacherMatches.length === 0) {
+            if (!teacher) {
                 errors.push(`ไม่พบครู: ${teacherName}`);
                 failCount++;
                 continue;
-            } else if (teacherMatches.length === 1) {
-                teacher = teacherMatches[0];
-            } else {
-                const rowDept = deptCol ? String(row[deptCol] || '').trim() : '';
-                const filtered = rowDept ? teacherMatches.filter(t => t.department === rowDept) : [];
-                if (filtered.length === 1) {
-                    teacher = filtered[0];
-                } else {
-                    errors.push(`พบครูชื่อ "${teacherName}" ซ้ำกัน ${teacherMatches.length} คน กรุณาระบุกลุ่มสาระในไฟล์เพื่อแยกความแตกต่าง`);
-                    failCount++;
-                    continue;
-                }
             }
 
             // ตรวจสอบว่าครูอยู่ในกลุ่มเป้าหมาย
-            const { data: targets } = await db
+            const { data: targets, error: targetError } = await db
                 .from('eval_committee_targets')
                 .select('committee_group_id')
                 .eq('target_type', 'department')
                 .eq('target_value', teacher.department)
                 .eq('is_active', true);
+
+            if (targetError) {
+                errors.push(`ตรวจสอบกลุ่มเป้าหมายของ ${teacherName} ล้มเหลว: ${targetError.message}`);
+                failCount++;
+                continue;
+            }
 
             if (!targets || targets.length === 0) {
                 skippedCount++;
