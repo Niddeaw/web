@@ -259,16 +259,15 @@ async function loadDepartments() {
 }
 
 // ==========================================
-// โหลดหัวข้อย่อย (จาก evalCriteriaDB)
+// โหลดหัวข้อย่อย (จาก evalCriteriaDB) - แก้ไข
 // ==========================================
 async function loadSubItems() {
-    // ใช้ evalCriteriaDB จาก evaluation.js
-    // ถ้า evalCriteriaDB ไม่มี ให้ใช้ค่าจาก EVAL_SUB_ITEMS
-    if (typeof evalCriteriaDB !== 'undefined') {
-        // ดึงหัวข้อจาก evalCriteriaDB
+    // ✅ ใช้ getCriteriaByAcademic แทนการอ้าง evalCriteriaDB โดยตรง
+    if (typeof getCriteriaByAcademic === 'function') {
         const sampleLevel = Object.keys(evalCriteriaDB)[0];
         if (sampleLevel) {
-            const criteria = evalCriteriaDB[sampleLevel];
+            // ✅ ใช้ getCriteriaByAcademic เพื่อให้แน่ใจว่าได้เกณฑ์ที่ถูกต้อง
+            const criteria = getCriteriaByAcademic(sampleLevel);
             if (criteria && criteria.part1_sec1) {
                 allSubItems = criteria.part1_sec1.flatMap(group =>
                     group.items.map(item => ({
@@ -279,9 +278,26 @@ async function loadSubItems() {
                 );
             }
         }
+    } else {
+        // fallback
+        if (typeof evalCriteriaDB !== 'undefined') {
+            const sampleLevel = Object.keys(evalCriteriaDB)[0];
+            if (sampleLevel) {
+                const criteria = evalCriteriaDB[sampleLevel];
+                if (criteria && criteria.part1_sec1) {
+                    allSubItems = criteria.part1_sec1.flatMap(group =>
+                        group.items.map(item => ({
+                            id: item.id,
+                            label: item.label,
+                            desc: item.desc
+                        }))
+                    );
+                }
+            }
+        }
     }
+
     if (allSubItems.length === 0) {
-        // ใช้ค่าเริ่มต้น
         allSubItems = EVAL_SUB_ITEMS.element1.part1;
     }
 }

@@ -27,6 +27,27 @@ let _selectedSubGroupTargets = [];
 let _selectedSubGroupItems = [];
 
 // ==========================================
+// ✅ Helper Functions สำหรับวิทยฐานะ (เพิ่มตรงนี้)
+// ==========================================
+
+/**
+ * ฟังก์ชันช่วยแปลงวิทยฐานะเป็นเกณฑ์ที่ถูกต้อง
+ * - 'ไม่มีวิทยฐานะ' → ใช้เกณฑ์ของ 'ครู'
+ * - ค่าอื่นๆ → ใช้ตามเดิม
+ */
+function getCriteriaByAcademic(academic) {
+    const mappedAcademic = (academic === 'ไม่มีวิทยฐานะ') ? 'ครู' : academic;
+    return evalCriteriaDB[mappedAcademic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
+}
+
+/**
+ * ตรวจสอบว่าเป็นครูผู้ช่วยหรือไม่ (ใช้กับสูตรคำนวณ)
+ */
+function isAssistantTeacher(academic) {
+    return academic === 'ครูผู้ช่วย';
+}
+
+// ==========================================
 // ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ)
 // ==========================================
 const evalCriteriaDB = {
@@ -370,7 +391,7 @@ function canEvaluate(type) {
 }
 
 // ==========================================
-// 1. ตรวจสอบสิทธิ์และการโหลดข้อมูลเริ่มต้น
+// ✅ ฟังก์ชัน checkAuth (แก้ไข)
 // ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -378,7 +399,6 @@ async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('index.html');
 
-    // ✅ โหลด profile + schoolInfo + evalRound + systemConfigs แบบขนาน (ลดเวลา ~60%)
     const [
         { data: profile },
         { data: schoolInfo },
@@ -390,11 +410,10 @@ async function checkAuth() {
     currentUser = profile;
     currentTermData = schoolInfo;
 
-    // ✅ จำกัดสิทธิ์เข้าระบบประเมินนี้: super_admin, admin, ผู้อำนวยการ, รองผู้อำนวยการ, ครู เท่านั้น
-    //    ห้าม: staff, office (เจ้าหน้าที่สำนักงาน)
+    // ✅ จำกัดสิทธิ์เข้าระบบประเมินนี้
     const allowedRoles = ['teacher', 'deputy', 'director', 'admin', 'super_admin'];
-    const allowedAcademicStanding = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
-    // ✅ ห้ามเข้าระบบนี้เช่นกัน แม้ role จะเป็น teacher: ครูอัตราจ้าง, ครูพี่เลี้ยง, พนักงานราชการ
+    // ✅ แก้ไข: เพิ่ม 'ไม่มีวิทยฐานะ' เข้าไปในรายการที่อนุญาต
+    const allowedAcademicStanding = ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
     const blockedAcademicStanding = ['ครูอัตราจ้าง', 'ครูพี่เลี้ยง', 'พนักงานราชการ'];
 
     if (!allowedRoles.includes(currentUser.role)) {
@@ -409,7 +428,6 @@ async function checkAuth() {
         return;
     }
 
-    // ✅ อัปเดต header ทันทีที่ได้ข้อมูล
     document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
     document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('header_user_role').innerText = currentUser.role || '';
@@ -430,7 +448,6 @@ async function checkAuth() {
         btnGoToAdmin.classList.remove('hidden');
     }
 
-    // ✅ โหลด evalRound + systemConfigs แบบขนาน
     await Promise.all([
         loadEvaluationRound(),
         loadSystemConfigs(),
@@ -438,7 +455,6 @@ async function checkAuth() {
 
     await checkAndPickupImpersonation();
 
-    // ✅ โหลด committeeTask + myStatus แบบขนาน
     await Promise.all([
         loadCommitteeEvaluationTasks(),
         loadMyEvaluationStatus(),
@@ -1310,4 +1326,8 @@ window.renderCommitteeSelection = renderCommitteeSelection;
 window.getSelectedSubGroupId = getSelectedSubGroupId;
 window.getSelectedSubGroupItems = getSelectedSubGroupItems;
 
-console.log('✅ evaluation_core.js loaded successfully (แก้ไข targets แล้ว)');
+// ✅ Export Helper Functions
+window.getCriteriaByAcademic = getCriteriaByAcademic;
+window.isAssistantTeacher = isAssistantTeacher;
+
+console.log('✅ evaluation_core.js loaded successfully');

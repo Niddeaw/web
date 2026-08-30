@@ -37,8 +37,6 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
         if (error) throw error;
         if (!evalResults || evalResults.length === 0) return null;
 
-        // ✅ ดึงวิทยฐานะของผู้ถูกประเมิน เพื่อใช้คำนวณสูตรให้ถูกต้อง
-        //    (ไม่พึ่งพา global evaluateeData เพราะฟังก์ชันนี้อาจถูกเรียกกับครูคนอื่น)
         const { data: evaluateePersonnel } = await db
             .from('core_personnel')
             .select('academic_standing')
@@ -59,35 +57,72 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
 
         if (groupResults.length === 0) return null;
 
-        // ✅ ใช้ MODE แทนค่าเฉลี่ย
-        const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
+        // ----- คำนวณ Mode แยกตามองค์ประกอบ -----
         const modeDetails = {};
 
-        detailedKeys.forEach(key => {
-            const allScores = [];
-            groupResults.forEach(result => {
-                if (result.detailed_scores && result.detailed_scores[key]) {
-                    const scores = result.detailed_scores[key];
-                    if (Array.isArray(scores)) {
-                        scores.forEach(score => {
-                            if (typeof score === 'number' && !isNaN(score)) {
-                                allScores.push(score);
-                            }
-                        });
-                    } else if (typeof scores === 'number' && !isNaN(scores)) {
-                        allScores.push(scores);
-                    }
-                }
-            });
-            if (allScores.length > 0) {
-                const modeScore = findMode(allScores);
-                if (modeScore !== null) {
-                    modeDetails[key] = modeScore;
-                }
+        // p1_s1: รวมทุกข้อ (15 หรือ 14 ข้อ) หา mode เดียว
+        const allP1S1 = [];
+        groupResults.forEach(result => {
+            if (result.detailed_scores?.p1_s1 && Array.isArray(result.detailed_scores.p1_s1)) {
+                result.detailed_scores.p1_s1.forEach(s => {
+                    if (typeof s === 'number' && !isNaN(s)) allP1S1.push(s);
+                });
             }
         });
+        if (allP1S1.length > 0) {
+            const mode = findMode(allP1S1);
+            if (mode !== null) modeDetails.p1_s1 = mode;
+        }
 
-        // คำนวณคะแนนรวมจาก Mode
+        // p1_s2: แยกตามข้อ (3 ข้อ) หา mode แต่ละข้อ
+        const p1s2Modes = [];
+        for (let i = 0; i < 3; i++) {
+            const scores = [];
+            groupResults.forEach(result => {
+                if (result.detailed_scores?.p1_s2 && Array.isArray(result.detailed_scores.p1_s2) && result.detailed_scores.p1_s2.length > i) {
+                    const val = result.detailed_scores.p1_s2[i];
+                    if (typeof val === 'number' && !isNaN(val)) scores.push(val);
+                }
+            });
+            if (scores.length > 0) {
+                const mode = findMode(scores);
+                if (mode !== null) p1s2Modes.push(mode);
+            } else {
+                p1s2Modes.push(null);
+            }
+        }
+        if (p1s2Modes.some(m => m !== null)) {
+            modeDetails.p1_s2 = p1s2Modes; // อาร์เรย์ [mode1, mode2, mode3]
+        }
+
+        // p2: ระดับเดียว
+        const allP2 = [];
+        groupResults.forEach(result => {
+            if (result.detailed_scores?.p2 !== undefined && result.detailed_scores.p2 !== null) {
+                const val = result.detailed_scores.p2;
+                if (typeof val === 'number' && !isNaN(val)) allP2.push(val);
+            }
+        });
+        if (allP2.length > 0) {
+            const mode = findMode(allP2);
+            if (mode !== null) modeDetails.p2 = mode;
+        }
+
+        // p3: รวมทุกข้อ (10 ข้อ) หา mode เดียว
+        const allP3 = [];
+        groupResults.forEach(result => {
+            if (result.detailed_scores?.p3 && Array.isArray(result.detailed_scores.p3)) {
+                result.detailed_scores.p3.forEach(s => {
+                    if (typeof s === 'number' && !isNaN(s)) allP3.push(s);
+                });
+            }
+        });
+        if (allP3.length > 0) {
+            const mode = findMode(allP3);
+            if (mode !== null) modeDetails.p3 = mode;
+        }
+
+        // คำนวณคะแนนรวมจาก Mode Details
         const totalScore = calculateTotalScoreFromModeDetails(modeDetails, academicStanding);
 
         return {
@@ -106,65 +141,54 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
 }
 
 // ==========================================
-// คำนวณคะแนนรวมจาก Mode Details
-// ✅ แก้ไข: รับ academicStanding เป็น parameter แทนการอ้างตัวแปร
-//    global `evaluateeData` ที่อาจไม่มีอยู่ในบริบทนี้ (เช่นตอนสรุปผลทั้งหมด)
-//    ยังคง fallback ไปที่ evaluateeData ไว้เผื่อเรียกจากที่อื่นแบบเดิม
+// คำนวณคะแนนรวมจาก Mode Details (รองรับ p1_s2 แบบอาร์เรย์)
 // ==========================================
 function calculateTotalScoreFromModeDetails(modeDetails, academicStanding = null) {
-    const academic = academicStanding || (typeof evaluateeData !== 'undefined' ? evaluateeData?.academic_standing : null) || 'ครู';
+    const academic = academicStanding || 'ครู';
     const isAssistant = academic === 'ครูผู้ช่วย';
 
     let part1Total = 0;
     let part2Total = 0;
     let part3Total = 0;
 
-    // ==========================================
-    // องค์ประกอบที่ 1: ประสิทธิภาพและประสิทธิผล (80 คะแนน)
-    // ==========================================
-
-    // ตอนที่ 1: ระดับความสำเร็จตามมาตรฐานตำแหน่ง (60 คะแนน)
+    // ----- องค์ประกอบที่ 1: p1_s1 -----
     if (modeDetails.p1_s1 !== undefined) {
         const p1s1Mode = modeDetails.p1_s1;
         if (isAssistant) {
-            // ✅ แก้ไข: ครูผู้ช่วย ฐานคะแนนตอนที่ 1 คือ 80 คะแนน (ไม่ใช่ 60)
-            //    14 ข้อ × 4 = 56 คะแนนเต็ม (raw) → แปลงเป็น 80 คะแนน
-            //    (ให้ตรงกับ part1_sec1_base: 80 ใน evalCriteriaDB และสูตรใน calculateLiveTotal())
+            // ครูผู้ช่วย: 14 ข้อ × 4 = 56 → 80 คะแนน
             part1Total += (p1s1Mode * 80) / 56;
         } else {
-            // ✅ ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 คะแนนเต็ม → 60 คะแนน
+            // ครู/ชำนาญการ/ชำนาญการพิเศษ: 15 ข้อ × 4 = 60 → 60 คะแนน
             part1Total += p1s1Mode;
         }
     }
 
-    // ตอนที่ 2: ระดับความสำเร็จในการพัฒนางานที่เสนอเป็นประเด็นท้าทาย (20 คะแนน)
-    if (modeDetails.p1_s2 !== undefined) {
-        const p1s2Mode = modeDetails.p1_s2;
-        // p1_s2 มี 3 ข้อ (วิธีดำเนินการ 20, เชิงปริมาณ 10, เชิงคุณภาพ 10)
-        // คะแนนเต็ม 3x4 = 12 ระดับ → คิดเป็น 20 คะแนน
-        part1Total += (p1s2Mode * 20) / 12;
+    // ----- องค์ประกอบที่ 1: p1_s2 (อาร์เรย์ของ mode แต่ละข้อ) -----
+    if (modeDetails.p1_s2 && Array.isArray(modeDetails.p1_s2) && modeDetails.p1_s2.length === 3) {
+        const [m1, m2, m3] = modeDetails.p1_s2.map(v => (v !== null && !isNaN(v)) ? v : 0);
+        // ข้อ 1: 20 คะแนน, ข้อ 2: 10 คะแนน, ข้อ 3: 10 คะแนน
+        const raw = (m1 / 4) * 20 + (m2 / 4) * 10 + (m3 / 4) * 10;
+        // หาร 2 เพื่อปรับจาก 40 เป็น 20 คะแนน
+        part1Total += raw / 2;
     }
 
-    // ==========================================
-    // องค์ประกอบที่ 2: การมีส่วนร่วมในการพัฒนาการศึกษา (10 คะแนน)
-    // ==========================================
+    // ----- องค์ประกอบที่ 2: p2 (ระดับ 1-5 → คะแนน = ระดับ × 2) -----
     if (modeDetails.p2 !== undefined) {
         const p2Mode = modeDetails.p2;
-        // ระดับ 1-5 → คะแนน = ระดับ × 2
-        part2Total = p2Mode * 2;
+        if (typeof p2Mode === 'number' && !isNaN(p2Mode)) {
+            part2Total = p2Mode * 2;
+        }
     }
 
-    // ==========================================
-    // องค์ประกอบที่ 3: วินัย คุณธรรม จริยธรรม (10 คะแนน)
-    // ==========================================
+    // ----- องค์ประกอบที่ 3: p3 (รวม 10 ข้อ → หาร 4) -----
     if (modeDetails.p3 !== undefined) {
-        if (Array.isArray(modeDetails.p3)) {
-            // ถ้าเป็น array (10 ข้อ) ให้รวมแล้วหาร 4
-            const sumP3 = modeDetails.p3.reduce((a, b) => a + b, 0);
-            part3Total = sumP3 / 4;
-        } else {
-            // ถ้าเป็นตัวเลขเดียว
-            part3Total = modeDetails.p3 / 4;
+        const p3Mode = modeDetails.p3;
+        if (typeof p3Mode === 'number' && !isNaN(p3Mode)) {
+            part3Total = p3Mode / 4;
+        } else if (Array.isArray(p3Mode)) {
+            // เผื่อกรณีเก็บเป็นอาร์เรย์ (แต่โดยปกติเก็บเป็นตัวเลข)
+            const sum = p3Mode.reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
+            part3Total = sum / 4;
         }
     }
 
@@ -174,11 +198,10 @@ function calculateTotalScoreFromModeDetails(modeDetails, academicStanding = null
 }
 
 // ==========================================
-// คำนวณคะแนนสรุปจากทุกชุดย่อย (ใช้ Mode) - แก้ไขแล้ว
+// คำนวณคะแนนสรุปจากทุกชุดย่อย (ใช้ Mode) - แก้ไข p1_s2
 // ==========================================
 async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
     try {
-        // 1. ดึงผลการประเมินทั้งหมดของผู้ถูกประเมินในรอบนี้
         const { data: evalResults, error } = await db
             .from('eval_results')
             .select('*')
@@ -188,14 +211,8 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             .eq('status', 'submitted');
 
         if (error) throw error;
+        if (!evalResults || evalResults.length === 0) return null;
 
-        if (!evalResults || evalResults.length === 0) {
-            return null;
-        }
-
-        // ✅ ดึงวิทยฐานะของผู้ถูกประเมิน เพื่อใช้คำนวณสูตรให้ถูกต้อง
-        //    (แก้ไข: เดิมฟังก์ชัน calculateTotalScoreFromModeDetails อ้าง evaluateeData
-        //     ซึ่งไม่มีอยู่ในบริบทนี้ ทำให้คะแนนของครูผู้ช่วยคำนวณผิดฐานเสมอ)
         const { data: evaluateePersonnel } = await db
             .from('core_personnel')
             .select('academic_standing')
@@ -203,7 +220,6 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             .maybeSingle();
         const academicStanding = evaluateePersonnel?.academic_standing || 'ครู';
 
-        // 2. ดึงชุดย่อยทั้งหมดในรอบนี้
         const { data: subGroups, error: sgError } = await db
             .from('eval_committee_groups')
             .select('id, group_name, selected_sub_items')
@@ -212,16 +228,11 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             .eq('is_active', true);
 
         if (sgError) throw sgError;
+        if (!subGroups || subGroups.length === 0) return null;
 
-        if (!subGroups || subGroups.length === 0) {
-            return null;
-        }
-
-        // 3. คำนวณคะแนน Mode ของแต่ละชุดย่อย
         const groupResults = [];
 
         for (const subGroup of subGroups) {
-            // หาสมาชิกในชุดย่อยนี้
             const { data: members, error: memError } = await db
                 .from('eval_committee_members')
                 .select('user_id')
@@ -231,45 +242,67 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             if (memError) throw memError;
 
             const evaluatorIds = members.map(m => m.user_id);
-
-            // กรองผลการประเมินของกรรมการในชุดนี้
             const groupEvals = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
 
-            if (groupEvals.length === 0) {
-                continue;
-            }
+            if (groupEvals.length === 0) continue;
 
-            // ----- คำนวณ Mode ของแต่ละข้อในชุดนี้ -----
-            const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
+            // ----- คำนวณ Mode แยกตามองค์ประกอบ (เหมือนใน calculateCommitteeGroupAverage) -----
             const modeDetails = {};
 
-            detailedKeys.forEach(key => {
-                const allScores = [];
-
-                groupEvals.forEach(result => {
-                    if (result.detailed_scores && result.detailed_scores[key] !== undefined) {
-                        const scores = result.detailed_scores[key];
-                        if (Array.isArray(scores)) {
-                            scores.forEach(score => {
-                                if (typeof score === 'number' && !isNaN(score)) {
-                                    allScores.push(score);
-                                }
-                            });
-                        } else if (typeof scores === 'number' && !isNaN(scores)) {
-                            allScores.push(scores);
-                        }
-                    }
-                });
-
-                if (allScores.length > 0) {
-                    const modeScore = findMode(allScores);
-                    if (modeScore !== null) {
-                        modeDetails[key] = modeScore;
-                    }
+            const allP1S1 = [];
+            groupEvals.forEach(r => {
+                if (r.detailed_scores?.p1_s1 && Array.isArray(r.detailed_scores.p1_s1)) {
+                    r.detailed_scores.p1_s1.forEach(s => { if (typeof s === 'number' && !isNaN(s)) allP1S1.push(s); });
                 }
             });
+            if (allP1S1.length > 0) {
+                const mode = findMode(allP1S1);
+                if (mode !== null) modeDetails.p1_s1 = mode;
+            }
 
-            // คำนวณคะแนนรวมของชุดนี้จาก Mode Details
+            const p1s2Modes = [];
+            for (let i = 0; i < 3; i++) {
+                const scores = [];
+                groupEvals.forEach(r => {
+                    if (r.detailed_scores?.p1_s2 && Array.isArray(r.detailed_scores.p1_s2) && r.detailed_scores.p1_s2.length > i) {
+                        const val = r.detailed_scores.p1_s2[i];
+                        if (typeof val === 'number' && !isNaN(val)) scores.push(val);
+                    }
+                });
+                if (scores.length > 0) {
+                    const mode = findMode(scores);
+                    if (mode !== null) p1s2Modes.push(mode);
+                } else {
+                    p1s2Modes.push(null);
+                }
+            }
+            if (p1s2Modes.some(m => m !== null)) {
+                modeDetails.p1_s2 = p1s2Modes;
+            }
+
+            const allP2 = [];
+            groupEvals.forEach(r => {
+                if (r.detailed_scores?.p2 !== undefined && r.detailed_scores.p2 !== null) {
+                    const val = r.detailed_scores.p2;
+                    if (typeof val === 'number' && !isNaN(val)) allP2.push(val);
+                }
+            });
+            if (allP2.length > 0) {
+                const mode = findMode(allP2);
+                if (mode !== null) modeDetails.p2 = mode;
+            }
+
+            const allP3 = [];
+            groupEvals.forEach(r => {
+                if (r.detailed_scores?.p3 && Array.isArray(r.detailed_scores.p3)) {
+                    r.detailed_scores.p3.forEach(s => { if (typeof s === 'number' && !isNaN(s)) allP3.push(s); });
+                }
+            });
+            if (allP3.length > 0) {
+                const mode = findMode(allP3);
+                if (mode !== null) modeDetails.p3 = mode;
+            }
+
             const totalScore = calculateTotalScoreFromModeDetails(modeDetails, academicStanding);
 
             groupResults.push({
@@ -283,35 +316,52 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             });
         }
 
-        if (groupResults.length === 0) {
-            return null;
+        if (groupResults.length === 0) return null;
+
+        // ----- รวมคะแนนจากทุกชุดย่อย (หา Mode ข้ามชุด) -----
+        const finalModeDetails = {};
+
+        // p1_s1: หา mode จาก p1_s1 ของทุกชุด
+        const allModesP1S1 = groupResults.map(g => g.detailed_scores?.p1_s1).filter(v => v !== undefined && v !== null);
+        if (allModesP1S1.length > 0) {
+            const mode = findMode(allModesP1S1);
+            if (mode !== null) finalModeDetails.p1_s1 = mode;
         }
 
-        // 4. รวมคะแนน Mode จากทุกชุดย่อย เพื่อหาคะแนนสรุป final
-        const finalModeDetails = {};
-        const detailedKeys = ['p1_s1', 'p1_s2', 'p2', 'p3'];
-
-        detailedKeys.forEach(key => {
-            const allModes = [];
-
-            groupResults.forEach(g => {
-                if (g.detailed_scores && g.detailed_scores[key] !== undefined) {
-                    allModes.push(g.detailed_scores[key]);
-                }
-            });
-
-            if (allModes.length > 0) {
-                const finalMode = findMode(allModes);
-                if (finalMode !== null) {
-                    finalModeDetails[key] = finalMode;
-                }
+        // p1_s2: หา mode แยกแต่ละข้อ
+        const p1s2ModesByItem = [[], [], []];
+        groupResults.forEach(g => {
+            const arr = g.detailed_scores?.p1_s2;
+            if (Array.isArray(arr) && arr.length === 3) {
+                arr.forEach((val, idx) => {
+                    if (typeof val === 'number' && !isNaN(val)) p1s2ModesByItem[idx].push(val);
+                });
             }
         });
+        const finalP1S2Modes = p1s2ModesByItem.map(scores => {
+            if (scores.length === 0) return null;
+            return findMode(scores);
+        });
+        if (finalP1S2Modes.some(m => m !== null)) {
+            finalModeDetails.p1_s2 = finalP1S2Modes;
+        }
 
-        // คำนวณคะแนนรวมสุดท้ายจาก finalModeDetails
+        // p2
+        const allModesP2 = groupResults.map(g => g.detailed_scores?.p2).filter(v => v !== undefined && v !== null);
+        if (allModesP2.length > 0) {
+            const mode = findMode(allModesP2);
+            if (mode !== null) finalModeDetails.p2 = mode;
+        }
+
+        // p3
+        const allModesP3 = groupResults.map(g => g.detailed_scores?.p3).filter(v => v !== undefined && v !== null);
+        if (allModesP3.length > 0) {
+            const mode = findMode(allModesP3);
+            if (mode !== null) finalModeDetails.p3 = mode;
+        }
+
         const finalTotal = calculateTotalScoreFromModeDetails(finalModeDetails, academicStanding);
 
-        // 5. สรุปผลลัพธ์ (ลบ all_evaluator_scores ออก)
         return {
             total_evaluators: evalResults.length,
             committee_groups: groupResults.length,
@@ -333,7 +383,7 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
 }
 
 // ==========================================
-// บันทึกคะแนนสรุป final (ใช้ Mode) - แก้ไขแล้ว
+// บันทึกคะแนนสรุป final (ใช้ Mode) - ไม่เปลี่ยนแปลงโครงสร้าง
 // ==========================================
 async function saveFinalScore(evaluateeId, evalRoundId) {
     Swal.fire({
@@ -355,7 +405,6 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
             return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลการประเมินจากกรรมการในชุดใดเลย', 'warning');
         }
 
-        // ✅ เตรียมข้อมูลสำหรับบันทึก (ลบ all_evaluator_scores ออก)
         const payload = {
             evaluatee_id: evaluateeId,
             eval_round_id: evalRoundId,
@@ -373,7 +422,6 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
             updated_at: new Date().toISOString()
         };
 
-        // ตรวจสอบว่ามีข้อมูลเดิมหรือไม่
         const { data: existing, error: checkError } = await db
             .from('eval_final_results')
             .select('id')
@@ -405,7 +453,6 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
 
         Swal.close();
 
-        // แสดงผลลัพธ์
         const levelText = getLevelText(finalResult.final_score);
 
         let groupDetailsHtml = '';
@@ -425,14 +472,15 @@ async function saveFinalScore(evaluateeId, evalRoundId) {
             if (details.p1_s1 !== undefined) {
                 detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 1 (ตอนที่ 1):</span><span class="font-bold">${details.p1_s1}</span></div>`;
             }
-            if (details.p1_s2 !== undefined) {
-                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 1 (ตอนที่ 2):</span><span class="font-bold">${details.p1_s2}</span></div>`;
+            if (details.p1_s2 && Array.isArray(details.p1_s2)) {
+                const display = details.p1_s2.map(v => v !== null ? v : '-').join(', ');
+                detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 1 (ตอนที่ 2):</span><span class="font-bold">[${display}]</span></div>`;
             }
             if (details.p2 !== undefined) {
                 detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 2:</span><span class="font-bold">${details.p2}</span></div>`;
             }
             if (details.p3 !== undefined) {
-                const p3Display = Array.isArray(details.p3) ? details.p3.join(', ') : details.p3;
+                const p3Display = typeof details.p3 === 'number' ? details.p3 : (Array.isArray(details.p3) ? details.p3.join(', ') : details.p3);
                 detailScoresHtml += `<div class="flex justify-between text-sm"><span>องค์ประกอบที่ 3:</span><span class="font-bold">${p3Display}</span></div>`;
             }
         }
@@ -717,6 +765,9 @@ async function openEvalDetailModal(evaluateeId, evalRoundId) {
 // ==========================================
 // 🔍 เปิด Modal แสดงรายละเอียดการประเมินตนเอง (แก้ไขแล้ว)
 // ==========================================
+// ==========================================
+// 🔍 เปิด Modal แสดงรายละเอียดการประเมินตนเอง (แก้ไขแล้ว)
+// ==========================================
 async function openSelfEvalDetailModal() {
     try {
         if (!currentUser) {
@@ -726,7 +777,6 @@ async function openSelfEvalDetailModal() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
         }
 
-        // ✅ ดึงข้อมูลการประเมินตนเองล่าสุด
         const { data: evalResult, error } = await db
             .from('eval_results')
             .select('*')
@@ -746,15 +796,16 @@ async function openSelfEvalDetailModal() {
         const modal = document.getElementById('evalDetailModal');
         modal.classList.remove('hidden');
 
-        // ✅ ข้อมูลผู้ประเมิน
         document.getElementById('evalDetailUserInitial').innerText = currentUser.first_name?.charAt(0) || '-';
         document.getElementById('evalDetailUserName').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
         document.getElementById('evalDetailUserStanding').innerText = currentUser.academic_standing || 'ไม่มีวิทยฐานะ';
 
         const details = evalResult.detailed_scores || {};
-        const academic = currentUser.academic_standing || 'ครู';
-        const isAssistant = academic === 'ครูผู้ช่วย';
-        const criteria = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
+        const academicLevel = currentUser.academic_standing || 'ครู';
+
+        // ✅ ใช้ Helper Functions
+        const criteria = getCriteriaByAcademic(academicLevel);
+        const isAssistant = isAssistantTeacher(academicLevel);
 
         // ==========================================
         // ✅ ฟังก์ชันช่วยแปลงระดับเป็นคะแนน (ตอนที่ 2)
@@ -995,6 +1046,8 @@ async function openSelfEvalDetailModal() {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
+
+
 // ==========================================
 // ปิด Modal
 // ==========================================
@@ -1060,7 +1113,10 @@ async function exportFinalScores() {
 }
 
 // ==========================================
-// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - แก้ไขการคำนวณตอนที่ 2
+// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - แก้ไขการคำนวณตอนที่ 2 และแก้ไขตัวแปรซ้ำ
+// ==========================================
+// ==========================================
+// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - แก้ไขแล้ว
 // ==========================================
 async function generateEvaluationPDF() {
     // 1. ตรวจสอบว่าผู้ใช้มีสิทธิ์ (ต้องเป็นครูที่ประเมินตนเองแล้ว)
@@ -1081,16 +1137,23 @@ async function generateEvaluationPDF() {
         return Swal.fire('ตั้งค่าไม่สมบูรณ์', 'กรุณาตั้งค่า GAS URL และ PDF Folder ID ในเมนู "ตั้งค่าระบบ" ก่อนพิมพ์ PDF', 'warning');
     }
 
-    // 3. เลือก Slide Template ID ตามวิทยฐานะ
-    const academic = currentUser.academic_standing || 'ครู';
+    // 3. เลือก Slide Template ID ตามวิทยฐานะ (รองรับ 'ไม่มีวิทยฐานะ')
+    const academicLevel = currentUser.academic_standing || 'ครู';
     let templateId = '';
-    if (academic === 'ครูผู้ช่วย') templateId = config.slide_template_1;
-    else if (academic === 'ครู') templateId = config.slide_template_2;
-    else if (academic === 'ครูชำนาญการ') templateId = config.slide_template_3;
-    else if (academic === 'ครูชำนาญการพิเศษ') templateId = config.slide_template_4;
+    if (academicLevel === 'ครูผู้ช่วย') {
+        templateId = config.slide_template_1;
+    } else if (academicLevel === 'ครู' || academicLevel === 'ไม่มีวิทยฐานะ') {
+        templateId = config.slide_template_2;  // ใช้ template ของครู
+    } else if (academicLevel === 'ครูชำนาญการ') {
+        templateId = config.slide_template_3;
+    } else if (academicLevel === 'ครูชำนาญการพิเศษ') {
+        templateId = config.slide_template_4;
+    } else {
+        templateId = config.slide_template_2; // fallback
+    }
 
     if (!templateId) {
-        return Swal.fire('ผิดพลาด', `ยังไม่ได้ตั้งค่า Slide Template สำหรับวิทยฐานะ "${academic}"`, 'error');
+        return Swal.fire('ผิดพลาด', `ยังไม่ได้ตั้งค่า Slide Template สำหรับวิทยฐานะ "${academicLevel}"`, 'error');
     }
 
     // 4. ดึงข้อมูลการประเมินตนเองล่าสุดที่ส่งแล้ว
@@ -1114,6 +1177,11 @@ async function generateEvaluationPDF() {
 
     // 6. เตรียมข้อมูลแทนที่ (Placeholders)
     const details = evalResult.detailed_scores || {};
+    // academicLevel ใช้ตัวแปรเดิม (ไม่ต้องประกาศซ้ำ)
+
+    // ✅ ใช้ Helper Functions
+    const criteria = getCriteriaByAcademic(academicLevel);
+    const isAssistant = isAssistantTeacher(academicLevel);
 
     // ----- ฟังก์ชันช่วยแปลง array เป็น object ตาม index -----
     function getScoreByIndex(arr, index, defaultValue = '') {
@@ -1126,8 +1194,6 @@ async function generateEvaluationPDF() {
 
     // ----- องค์ประกอบที่ 1 ตอนที่ 1 (60 คะแนน) -----
     const p1s1 = details.p1_s1 || [];
-    const isAssistant = academic === 'ครูผู้ช่วย';
-
     const p1s1Scores = {
         '1_1': getScoreByIndex(p1s1, 0),
         '1_2': getScoreByIndex(p1s1, 1),
@@ -1216,7 +1282,7 @@ async function generateEvaluationPDF() {
     const replacements = {
         // ข้อมูลทั่วไป
         "{{FULL_NAME}}": `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`,
-        "{{ACADEMIC_STANDING}}": academic,
+        "{{ACADEMIC_STANDING}}": academicLevel,
         "{{POSITION}}": currentUser.position || 'ครู',
         "{{DEPARTMENT}}": currentUser.department || '-',
         "{{TERM}}": `ภาคเรียนที่ ${currentTermData.current_semester} / ${currentTermData.current_academic_year}`,
@@ -1247,14 +1313,14 @@ async function generateEvaluationPDF() {
         "{{P1S1_TOTAL}}": p1s1Total.toFixed(2),
 
         // ✅ องค์ประกอบที่ 1 ตอนที่ 2 (ส่งทั้งระดับและคะแนนจริง)
-        "{{P1S2_1}}": p1s2Scores['1'],           // ระดับ 1-4
-        "{{P1S2_1_SCORE}}": p1s2ScoreMap['1']?.[parseInt(p1s2Scores['1']) || 0] || 0,  // คะแนนจริง (5-20)
-        "{{P1S2_2_1}}": p1s2Scores['2_1'],       // ระดับ 1-4
-        "{{P1S2_2_1_SCORE}}": p1s2ScoreMap['2_1']?.[parseInt(p1s2Scores['2_1']) || 0] || 0, // คะแนนจริง (2.5-10)
-        "{{P1S2_2_2}}": p1s2Scores['2_2'],       // ระดับ 1-4
-        "{{P1S2_2_2_SCORE}}": p1s2ScoreMap['2_2']?.[parseInt(p1s2Scores['2_2']) || 0] || 0, // คะแนนจริง (2.5-10)
+        "{{P1S2_1}}": p1s2Scores['1'],
+        "{{P1S2_1_SCORE}}": p1s2ScoreMap['1']?.[parseInt(p1s2Scores['1']) || 0] || 0,
+        "{{P1S2_2_1}}": p1s2Scores['2_1'],
+        "{{P1S2_2_1_SCORE}}": p1s2ScoreMap['2_1']?.[parseInt(p1s2Scores['2_1']) || 0] || 0,
+        "{{P1S2_2_2}}": p1s2Scores['2_2'],
+        "{{P1S2_2_2_SCORE}}": p1s2ScoreMap['2_2']?.[parseInt(p1s2Scores['2_2']) || 0] || 0,
 
-        // คะแนนรวมตอนที่ 2 (เต็ม 20) - ถูกต้องแล้ว (หาร 2)
+        // คะแนนรวมตอนที่ 2 (เต็ม 20)
         "{{P1S2_TOTAL}}": p1s2Total.toFixed(2),
 
         // คะแนนรวมองค์ประกอบที่ 1 (เต็ม 80)
@@ -1326,10 +1392,8 @@ async function generateEvaluationPDF() {
         }
 
         if (result && result.status === 'success' && result.url) {
-            // ✅ บันทึก URL PDF ลง localStorage เพื่อใช้แสดงปุ่ม "ไฟล์ PDF"
             if (currentUser && currentUser.id) {
                 localStorage.setItem('pdf_url_' + currentUser.id, result.url);
-                // อัปเดตปุ่มไฟล์ PDF ให้แสดงทันที (ถ้าหน้าถูกเปิดอยู่)
                 const btnPDF = document.getElementById('btnViewPDF');
                 if (btnPDF) {
                     btnPDF.classList.remove('hidden');

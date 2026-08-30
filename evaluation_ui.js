@@ -358,12 +358,17 @@ function updateSummary() {
 // ==========================================
 // ✅ ฟังก์ชันสร้าง UI แบบ Dynamic (ฉบับสมบูรณ์)
 // ==========================================
+// ==========================================
+// ✅ ฟังก์ชันสร้าง UI แบบ Dynamic (ฉบับสมบูรณ์ - แก้ไข)
+// ==========================================
 function generateDynamicForm(academicLevel, allowedSubItems = null) {
     console.log('📋 generateDynamicForm - academicLevel:', academicLevel);
     console.log('📋 generateDynamicForm - allowedSubItems:', allowedSubItems);
 
-    const criteriaSet = evalCriteriaDB[academicLevel] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
-    const isAssistant = academicLevel === 'ครูผู้ช่วย';
+    // ✅ ใช้ Helper Function แทนการอ้าง evalCriteriaDB โดยตรง
+    const criteriaSet = getCriteriaByAcademic(academicLevel);
+    // ✅ ใช้ Helper Function ตรวจสอบครูผู้ช่วย
+    const isAssistant = isAssistantTeacher(academicLevel);
 
     const allowedSet = new Set();
     const allowedPart2Set = new Set();
