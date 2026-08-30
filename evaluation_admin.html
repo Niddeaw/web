@@ -659,7 +659,7 @@
                                 class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-purple-500 text-sm">
                                 <option value="">-- เลือกรอบการประเมิน --</option>
                             </select>
-                            
+
                             <!-- ✅ ปุ่มคัดลอกหัวข้อชุดหลักให้ชุดย่อย -->
                             <button onclick="copySubItemsToAllSubGroups()"
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
@@ -744,7 +744,7 @@
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
                             </button>
-                            <button onclick="generateAllFinalScores()"
+                            <button onclick="triggerGenerateAllFinalScores()"
                                 class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
                                 <i class="fa-solid fa-calculator mr-1"></i> สรุปผลทั้งหมด
                             </button>
@@ -972,6 +972,8 @@
     <!-- ========================================== -->
     <!-- SCRIPTS -->
     <!-- ========================================== -->
+    <script src="evaluation_core.js"></script>
+    <script src="evaluation_logic.js"></script>
     <script src="evaluation_admin_groups.js"></script>
     <script src="evaluation_admin_results.js"></script>
     <script src="evaluation_admin.js"></script>

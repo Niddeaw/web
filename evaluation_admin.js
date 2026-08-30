@@ -5,9 +5,6 @@
 // ==========================================
 // ตัวแปรระบบ (Global Variables)
 // ==========================================
-let currentUser = null;
-let currentTermData = null;
-let currentEvalRound = null;
 let allRounds = [];
 let allGroups = [];
 let allPersonnel = [];

@@ -129,7 +129,7 @@ async function recalculateResult(evaluateeId, evalRoundId) {
 }
 
 // ==========================================
-// ส่งออก Excel ทั้งหมด (แยกชีทตามคณะกรรมการ)
+// ส่งออก Excel ทั้งหมด (แยกชีทตามคณะกรรมการ) - แก้ไขให้ไม่ค้าง
 // ==========================================
 async function exportAllResults() {
     const roundId = document.getElementById('filter_round_for_results').value;
@@ -138,7 +138,19 @@ async function exportAllResults() {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนส่งออก', 'warning');
     }
 
-    // ✅ แสดงสถานะการทำงาน
+    // ✅ ตรวจสอบว่ามีผลสรุปหรือไม่ก่อนแสดง Loading
+    const { data: hasResults, error: checkError } = await db
+        .from('eval_final_results')
+        .select('id', { count: 'exact' })
+        .eq('eval_round_id', roundId)
+        .eq('status', 'finalized')
+        .limit(1);
+
+    if (checkError) throw checkError;
+    if (!hasResults || hasResults.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'ยังไม่มีผลการประเมินที่สรุปแล้วในรอบนี้', 'info');
+    }
+
     Swal.fire({
         title: 'กำลังส่งออกข้อมูล...',
         html: 'กำลังโหลดข้อมูลรอบการประเมิน...',
@@ -147,10 +159,9 @@ async function exportAllResults() {
     });
 
     try {
-        // 1. ดึงข้อมูลรอบ
         const roundName = allRounds.find(r => r.id === roundId)?.round_name || 'รอบประเมิน';
 
-        // 2. ดึงข้อมูลชุดคณะกรรมการทั้งหมดในรอบ
+        // ดึงข้อมูลชุดคณะกรรมการทั้งหมดในรอบ
         const { data: groups, error: gErr } = await db
             .from('eval_committee_groups')
             .select('*, eval_committee_members(user_id, role, core_personnel(first_name, last_name, academic_standing))')
@@ -164,10 +175,9 @@ async function exportAllResults() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบชุดคณะกรรมการในรอบนี้', 'warning');
         }
 
-        // ✅ สร้าง Workbook
         const wb = XLSX.utils.book_new();
 
-        // 3. สร้างชีทสรุปภาพรวม (สรุปคะแนนรวม)
+        // สร้างชีทสรุปภาพรวม (ใช้ eval_final_results)
         const { data: finalResults, error: fErr } = await db
             .from('eval_final_results')
             .select('*, core_personnel(first_name, last_name, academic_standing, department)')
@@ -308,9 +318,8 @@ async function exportAllResults() {
             XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
         }
 
-        // ✅ ปิด SweetAlert และบันทึกไฟล์
+        // ปิด Swal และบันทึกไฟล์
         Swal.close();
-
         XLSX.writeFile(wb, `ผลประเมิน_${roundName}_${new Date().toLocaleDateString('th-TH')}.xlsx`);
 
         Swal.fire({
@@ -351,15 +360,14 @@ function calculateMode(arr) {
 }
 
 // ==========================================
-// สรุปผลทั้งหมด (เดิม)
+// สรุปผลทั้งหมด (Wrapper) - เรียกใช้ฟังก์ชันจาก evaluation_logic.js
 // ==========================================
-async function generateAllFinalScores() {
+async function triggerGenerateAllFinalScores() {
     const roundId = document.getElementById('filter_round_for_results').value;
-
     if (!roundId) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนสรุปผล', 'warning');
     }
-
+    // เรียกฟังก์ชันที่อยู่ใน evaluation_logic.js
     if (typeof window.generateAllFinalScores === 'function') {
         await window.generateAllFinalScores(roundId);
         await loadResultsTable();
@@ -369,113 +377,84 @@ async function generateAllFinalScores() {
 }
 
 // ==========================================
-// ✅ [ฟังก์ชันใหม่] ตรวจสอบการให้คะแนนรายบุคคลของกรรมการ
-// (เวอร์ชันแสดง Progress ผ่าน SweetAlert)
+// ✅ ตรวจสอบการให้คะแนนรายบุคคลของกรรมการ (ปรับปรุง)
 // ==========================================
 async function checkEvaluatorAssignments() {
-    const roundId = document.getElementById('filter_round_for_results').value;
-
+    // ใช้ currentEvalRound จาก core เป็นหลัก
+    const roundId = currentEvalRound?.id || document.getElementById('filter_round_for_results').value;
     if (!roundId) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนตรวจสอบ', 'warning');
+        return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมินที่เปิดใช้งาน หรือกรุณาเลือกรอบใน dropdown', 'warning');
     }
 
-    // ✅ แสดง SweetAlert เริ่มต้น
     Swal.fire({
         title: 'กำลังตรวจสอบการให้คะแนน...',
         html: 'กำลังโหลดข้อมูลชุดคณะกรรมการ...',
         allowOutsideClick: false,
         allowEscapeKey: false,
-        didOpen: () => {
-            Swal.showLoading();
-        }
+        didOpen: () => { Swal.showLoading(); }
     });
-
-    // ดึงข้อมูลชุดคณะกรรมการและสมาชิก (กรองตามรอบทันที!)
-    const { data: groups, error: gErr } = await db
-        .from('eval_committee_groups')
-        .select('*, eval_committee_members(user_id, role, core_personnel(first_name, last_name))')
-        .eq('eval_round_id', roundId)
-        .eq('is_active', true);
-
-    if (gErr) throw gErr;
-
-    // ✅ อัปเดต SweetAlert: ดึงข้อมูลสำเร็จ
-    Swal.update({
-        html: `✅ ดึงข้อมูลชุดคณะกรรมการสำเร็จ: <b>${groups.length}</b> ชุด<br>กำลังโหลดรายละเอียดกรรมการ...`
-    });
-
-    // สร้าง Modal
-    const modal = document.createElement('div');
-    modal.id = 'evaluatorAssignmentModal';
-    modal.className = 'fixed inset-0 z-50 hidden';
-    modal.innerHTML = `
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-2xl max-w-7xl w-full max-h-[90vh] shadow-2xl modal-content">
-                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
-                    <h3 class="text-xl font-bold text-gray-800">
-                        <i class="fa-solid fa-user-check text-blue-500 mr-2"></i>
-                        ตรวจสอบการให้คะแนนของคณะกรรมการ (ใครประเมินใคร)
-                    </h3>
-                    <button onclick="closeEvaluatorAssignmentModal()" 
-                            class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
-                        <i class="fa-solid fa-xmark text-2xl"></i>
-                    </button>
-                </div>
-                <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 80px);">
-                    <div id="evaluatorAssignmentBody">
-                        <div class="text-center py-8">
-                            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-                            <p class="mt-4 text-gray-500">กำลังโหลดข้อมูล...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-    document.body.appendChild(modal);
-    modal.classList.remove('hidden');
 
     try {
+        // ดึงข้อมูลชุดคณะกรรมการและสมาชิก (กรองตามรอบ)
+        const { data: groups, error: gErr } = await db
+            .from('eval_committee_groups')
+            .select('*, eval_committee_members(user_id, role, core_personnel(first_name, last_name))')
+            .eq('eval_round_id', roundId)
+            .eq('is_active', true);
+
+        if (gErr) throw gErr;
+
+        if (!groups || groups.length === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่พบชุดคณะกรรมการในรอบนี้', 'info');
+        }
+
+        // เก็บ HTML ทั้งหมด
         let html = '';
         let totalEvaluated = 0;
         let totalPending = 0;
 
-        // ✅ วนลูปดูแต่ละชุดคณะกรรมการ
+        // วนลูปแต่ละชุด (ใช้ for...of เพื่อรอ await)
         for (let i = 0; i < groups.length; i++) {
             const group = groups[i];
             const members = group.eval_committee_members || [];
             if (members.length === 0) continue;
 
-            // ✅ อัปเดต SweetAlert: กำลังตรวจสอบชุดที่ i+1
+            // อัปเดตสถานะ
             Swal.update({
                 html: `กำลังตรวจสอบชุด: <b>${group.group_name}</b> (กรรมการ ${members.length} คน)<br><small>ชุดที่ ${i + 1} จาก ${groups.length}</small>`
             });
 
-            // ✅ ดึงกลุ่มเป้าหมาย
-            const { data: targets } = await db
+            // ดึงกลุ่มเป้าหมาย (department)
+            const { data: targets, error: tErr } = await db
                 .from('eval_committee_targets')
                 .select('target_value')
                 .eq('committee_group_id', group.id)
                 .eq('target_type', 'department')
                 .eq('is_active', true);
 
-            const departments = (targets || []).map(t => t.target_value);
+            if (tErr) throw tErr;
 
-            // ✅ ดึงครูในกลุ่มเป้าหมาย
-            let allTeachers = [];
-            for (const dept of departments) {
-                const { data: teachers, error: tErr } = await db
-                    .from('core_personnel')
+            const departments = (targets || []).map(t => t.target_value);
+            if (departments.length === 0) continue;
+
+            // ดึงครูจากทุก department แบบขนาน
+            const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+            const teacherPromises = departments.map(dept =>
+                db.from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
                     .eq('department', dept)
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-                if (!tErr && teachers) allTeachers = [...allTeachers, ...teachers];
-            }
+                    .in('academic_standing', validStandings)
+            );
+            const teacherResults = await Promise.all(teacherPromises);
+            let allTeachers = [];
+            teacherResults.forEach(res => {
+                if (!res.error && res.data) allTeachers = allTeachers.concat(res.data);
+            });
 
             if (allTeachers.length === 0) continue;
 
-            // ✅ ดึงข้อมูลการประเมินทั้งหมดของชุดนี้ในคราวเดียว (ลดการ Query ซ้ำซ้อน)
+            // ดึงผลการประเมินของครูทั้งหมดในชุดนี้
             const teacherIds = allTeachers.map(t => t.id);
             const { data: allEvals, error: eErr } = await db
                 .from('eval_results')
@@ -487,16 +466,42 @@ async function checkEvaluatorAssignments() {
 
             if (eErr) throw eErr;
 
-            // ✅ สร้าง Map ข้อมูล: evaluator_id -> Set(evaluatee_id) (ประเมินแล้ว)
-            const evaluatorMap = {}; 
+            // สร้าง Map: evaluator_id -> Set(evaluatee_id)
+            const evaluatorMap = {};
             (allEvals || []).forEach(ev => {
-                if (!evaluatorMap[ev.evaluator_id]) {
-                    evaluatorMap[ev.evaluator_id] = new Set();
-                }
+                if (!evaluatorMap[ev.evaluator_id]) evaluatorMap[ev.evaluator_id] = new Set();
                 evaluatorMap[ev.evaluator_id].add(ev.evaluatee_id);
             });
 
-            // แสดง Header ของชุด
+            // สร้างแถวตารางสำหรับชุดนี้
+            let tableRows = '';
+            for (const member of members) {
+                const evaluatorId = member.user_id;
+                const evaluatorName = member.core_personnel
+                    ? `${member.core_personnel.first_name} ${member.core_personnel.last_name}`
+                    : '-';
+
+                const evaluatedIds = evaluatorMap[evaluatorId] || new Set();
+                const notEvaluatedTeachers = allTeachers.filter(t => !evaluatedIds.has(t.id));
+                const notEvaluatedNames = notEvaluatedTeachers.map(t =>
+                    `${t.prefix || ''}${t.first_name} ${t.last_name}`
+                ).join(', ');
+
+                totalEvaluated += evaluatedIds.size;
+                totalPending += notEvaluatedTeachers.length;
+
+                tableRows += `
+                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                        <td class="p-2 font-medium">${evaluatorName}</td>
+                        <td class="p-2 text-center font-bold text-green-600">${evaluatedIds.size}</td>
+                        <td class="p-2 text-center font-bold text-red-500">${notEvaluatedTeachers.length}</td>
+                        <td class="p-2 text-xs text-gray-600 max-w-[300px] truncate" title="${notEvaluatedNames}">
+                            ${notEvaluatedTeachers.length > 0 ? notEvaluatedNames : '<span class="text-green-500">✅ ประเมินครบแล้ว</span>'}
+                        </td>
+                    </tr>
+                `;
+            }
+
             html += `
                 <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
                     <div class="flex justify-between items-center mb-2">
@@ -513,41 +518,18 @@ async function checkEvaluatorAssignments() {
                                 </tr>
                             </thead>
                             <tbody>
-            `;
-
-            // ✅ วนลูปดูกรรมการแต่ละคน (ใช้ข้อมูลจาก evaluatorMap ที่โหลดมาแล้ว)
-            for (const member of members) {
-                const evaluatorId = member.user_id;
-                const evaluatorName = member.core_personnel ? `${member.core_personnel.first_name} ${member.core_personnel.last_name}` : '-';
-
-                const evaluatedIds = evaluatorMap[evaluatorId] || new Set();
-                const notEvaluatedTeachers = allTeachers.filter(t => !evaluatedIds.has(t.id));
-                const notEvaluatedNames = notEvaluatedTeachers.map(t => `${t.prefix || ''}${t.first_name} ${t.last_name}`).join(', ');
-
-                totalEvaluated += evaluatedIds.size;
-                totalPending += notEvaluatedTeachers.length;
-
-                html += `
-                    <tr class="border-b border-gray-100 hover:bg-gray-50">
-                        <td class="p-2 font-medium">${evaluatorName}</td>
-                        <td class="p-2 text-center font-bold text-green-600">${evaluatedIds.size}</td>
-                        <td class="p-2 text-center font-bold text-red-500">${notEvaluatedTeachers.length}</td>
-                        <td class="p-2 text-xs text-gray-600 max-w-[300px] truncate" title="${notEvaluatedNames}">
-                            ${notEvaluatedTeachers.length > 0 ? notEvaluatedNames : '<span class="text-green-500">✅ ประเมินครบแล้ว</span>'}
-                        </td>
-                    </tr>
-                `;
-            }
-
-            html += `
+                                ${tableRows}
                             </tbody>
                         </table>
                     </div>
                 </div>
             `;
+
+            // ให้ UI refresh เล็กน้อย
+            await new Promise(resolve => setTimeout(resolve, 50));
         }
 
-        // ✅ สรุปภาพรวม
+        // สรุปภาพรวม
         const summaryHtml = `
             <div class="mb-4 grid grid-cols-3 gap-3">
                 <div class="bg-green-50 p-3 rounded-lg text-center border border-green-200">
@@ -565,30 +547,45 @@ async function checkEvaluatorAssignments() {
             </div>
         `;
 
-        // ✅ ปิด SweetAlert ก่อนแสดง Modal
+        // ปิด SweetAlert ก่อนแสดง Modal
         Swal.close();
 
-        // ✅ แสดงผล ถ้าไม่มีข้อมูลเลย
-        if (!html) {
-            document.getElementById('evaluatorAssignmentBody').innerHTML = `
-                <div class="text-center py-8 text-gray-400">
-                    <i class="fa-solid fa-info-circle text-2xl mb-2"></i>
-                    <p>ยังไม่มีข้อมูลการให้คะแนนในรอบนี้ หรือยังไม่มีการแต่งตั้งกรรมการ</p>
+        // สร้าง Modal (ถ้ามีอยู่แล้วให้ลบเก่า)
+        let modal = document.getElementById('evaluatorAssignmentModal');
+        if (modal) modal.remove();
+
+        modal = document.createElement('div');
+        modal.id = 'evaluatorAssignmentModal';
+        modal.className = 'fixed inset-0 z-50 hidden';
+        modal.innerHTML = `
+            <div class="flex items-center justify-center min-h-screen p-4">
+                <div class="bg-white rounded-2xl max-w-7xl w-full max-h-[90vh] shadow-2xl modal-content">
+                    <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                        <h3 class="text-xl font-bold text-gray-800">
+                            <i class="fa-solid fa-user-check text-blue-500 mr-2"></i>
+                            ตรวจสอบการให้คะแนนของคณะกรรมการ (ใครประเมินใคร)
+                        </h3>
+                        <button onclick="closeEvaluatorAssignmentModal()" 
+                                class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                            <i class="fa-solid fa-xmark text-2xl"></i>
+                        </button>
+                    </div>
+                    <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 80px);">
+                        <div id="evaluatorAssignmentBody">
+                            ${summaryHtml}
+                            ${html || '<div class="text-center py-8 text-gray-400">ไม่พบข้อมูลการให้คะแนน</div>'}
+                        </div>
+                    </div>
                 </div>
-            `;
-        } else {
-            document.getElementById('evaluatorAssignmentBody').innerHTML = summaryHtml + html;
-        }
+            </div>
+        `;
+        document.body.appendChild(modal);
+        modal.classList.remove('hidden');
 
     } catch (err) {
         console.error('Error checking evaluator assignments:', err);
-
-        // ✅ แสดง Error ผ่าน SweetAlert
-        Swal.fire({
-            icon: 'error',
-            title: 'เกิดข้อผิดพลาด',
-            text: err.message
-        });
+        Swal.close();
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
 
@@ -613,6 +610,7 @@ window.getLevelText = getLevelText;
 window.viewResultDetail = viewResultDetail;
 window.recalculateResult = recalculateResult;
 window.exportAllResults = exportAllResults;
-window.generateAllFinalScores = generateAllFinalScores;
+window.triggerGenerateAllFinalScores = triggerGenerateAllFinalScores;
+window.exportAllResults = exportAllResults;
 
 console.log('✅ evaluation_admin_results.js loaded successfully');
