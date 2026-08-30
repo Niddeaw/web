@@ -439,7 +439,7 @@ async function checkEvaluatorAssignments() {
             if (departments.length === 0) continue;
 
             // ดึงครูจากทุก department แบบขนาน
-            const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+            const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];
             const teacherPromises = departments.map(dept =>
                 db.from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
@@ -611,6 +611,5 @@ window.viewResultDetail = viewResultDetail;
 window.recalculateResult = recalculateResult;
 window.exportAllResults = exportAllResults;
 window.triggerGenerateAllFinalScores = triggerGenerateAllFinalScores;
-window.exportAllResults = exportAllResults;
 
 console.log('✅ evaluation_admin_results.js loaded successfully');

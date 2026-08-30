@@ -907,7 +907,7 @@ async function copySubItemsToAllSubGroups() {
                     .from('eval_committee_groups')
                     .update({ selected_sub_items: parent.selected_sub_items || [] })
                     .eq('id', sub.id);
-                
+
                 if (!updateErr) updatedCount++;
             }
         }
@@ -1162,7 +1162,7 @@ async function checkEvaluationCompleteness() {
                     .from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
                     .eq('department', dept)
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ']);
 
                 if (!tErr && teachers) {
                     allTeachers = [...allTeachers, ...teachers];

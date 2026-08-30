@@ -1427,7 +1427,7 @@ async function exportCommitteeExcel() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบกลุ่มเป้าหมาย (department targets) ในชุดย่อยที่สังกัด', 'warning');
         }
 
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];;
         const deptArray = Array.from(allDepartments);
         const queryPromises = deptArray.map(dept =>
             db.from('core_personnel')

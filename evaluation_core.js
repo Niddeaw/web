@@ -443,9 +443,16 @@ async function checkAuth() {
         selfEvalCard.classList.add('hidden');
     }
 
+    // ✅ แสดงปุ่ม "ตั้งค่ากรรมการ" (admin, super_admin)
     const btnGoToAdmin = document.getElementById('btnGoToAdmin');
     if (btnGoToAdmin && ['admin', 'super_admin'].includes(currentUser.role)) {
         btnGoToAdmin.classList.remove('hidden');
+    }
+
+    // ✅ แสดงปุ่ม "ตั้งค่าระบบ" (เฉพาะ super_admin)
+    const btnGoToSettings = document.getElementById('btnGoToSettings');
+    if (btnGoToSettings && currentUser.role === 'super_admin') {
+        btnGoToSettings.classList.remove('hidden');
     }
 
     await Promise.all([
@@ -954,7 +961,7 @@ async function loadTeachersForSubGroup() {
     console.time('⏱️ โหลดครูทั้งหมด');
 
     try {
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];
         const allowedDepartments = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
             'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
             'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',

@@ -1610,7 +1610,7 @@ async function loadReviewData() {
         }
 
         // โหลดรายชื่อครูในกลุ่มสาระ
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];
         const { data: teachers, error: tErr } = await db
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, academic_standing, department')
