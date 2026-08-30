@@ -249,9 +249,13 @@ async function loadMyEvaluationStatus() {
         if (error) throw error;
 
         const container = document.getElementById('myEvalStatus');
+        const btnView = document.getElementById('btnViewSelfEval');
+        const btnPDF = document.getElementById('btnViewPDF');
+
         if (!container) return;
 
         if (data) {
+            const isSubmitted = data.status === 'submitted';
             container.innerHTML = `
                 <div class="flex flex-wrap items-center gap-3">
                     <span class="px-3 py-1 ${data.status === 'submitted' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'} rounded-full text-sm font-bold">
@@ -261,6 +265,33 @@ async function loadMyEvaluationStatus() {
                     <span class="text-xs text-gray-400">${new Date(data.updated_at).toLocaleDateString('th-TH')}</span>
                 </div>
             `;
+
+            // ในฟังก์ชัน loadMyEvaluationStatus (ส่วนที่แสดงปุ่ม "ดูผล")
+            if (btnView) {
+                if (isSubmitted) {
+                    btnView.classList.remove('hidden');
+                    // ✅ เปลี่ยนเป็นเรียก openSelfEvalDetailModal
+                    btnView.onclick = function () {
+                        openSelfEvalDetailModal();
+                    };
+                } else {
+                    btnView.classList.add('hidden');
+                }
+            }
+
+            // ✅ ตรวจสอบว่า localStorage มี URL PDF หรือไม่
+            if (btnPDF && currentUser) {
+                const pdfUrl = localStorage.getItem('pdf_url_' + currentUser.id);
+                if (pdfUrl) {
+                    btnPDF.classList.remove('hidden');
+                    btnPDF.onclick = function () {
+                        window.open(pdfUrl, '_blank');
+                    };
+                } else {
+                    btnPDF.classList.add('hidden');
+                }
+            }
+
         } else {
             container.innerHTML = `
                 <div class="flex items-center gap-3">
@@ -268,6 +299,9 @@ async function loadMyEvaluationStatus() {
                     <span class="text-sm text-gray-400">กรุณาทำการประเมินตนเอง</span>
                 </div>
             `;
+            // ซ่อนปุ่มดูผลและไฟล์ PDF
+            if (btnView) btnView.classList.add('hidden');
+            if (btnPDF) btnPDF.classList.add('hidden');
         }
     } catch (err) {
         console.error('Error loading eval status:', err);
@@ -792,7 +826,7 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
 
     const subSelect = document.getElementById('sel_sub_group');
     if (subSelect) {
-        subSelect.addEventListener('change', function() {
+        subSelect.addEventListener('change', function () {
             const parsed = _readSubGroupDataset(this);
             if (!parsed || !parsed.id) return;
 
@@ -828,7 +862,7 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
 
     const memSelect = document.getElementById('sel_committee_member');
     if (memSelect) {
-        memSelect.addEventListener('change', function() {
+        memSelect.addEventListener('change', function () {
             const opt = this.options[this.selectedIndex];
             if (opt && opt.value) {
                 _impersonatedEvaluatorId = opt.value;

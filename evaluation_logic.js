@@ -715,6 +715,287 @@ async function openEvalDetailModal(evaluateeId, evalRoundId) {
 }
 
 // ==========================================
+// 🔍 เปิด Modal แสดงรายละเอียดการประเมินตนเอง (แก้ไขแล้ว)
+// ==========================================
+async function openSelfEvalDetailModal() {
+    try {
+        if (!currentUser) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลผู้ใช้', 'warning');
+        }
+        if (!currentEvalRound?.id) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
+        }
+
+        // ✅ ดึงข้อมูลการประเมินตนเองล่าสุด
+        const { data: evalResult, error } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', currentUser.id)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'self')
+            .eq('status', 'submitted')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!evalResult) {
+            return Swal.fire('แจ้งเตือน', 'ยังไม่มีการประเมินตนเอง', 'warning');
+        }
+
+        const modal = document.getElementById('evalDetailModal');
+        modal.classList.remove('hidden');
+
+        // ✅ ข้อมูลผู้ประเมิน
+        document.getElementById('evalDetailUserInitial').innerText = currentUser.first_name?.charAt(0) || '-';
+        document.getElementById('evalDetailUserName').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
+        document.getElementById('evalDetailUserStanding').innerText = currentUser.academic_standing || 'ไม่มีวิทยฐานะ';
+
+        const details = evalResult.detailed_scores || {};
+        const academic = currentUser.academic_standing || 'ครู';
+        const isAssistant = academic === 'ครูผู้ช่วย';
+        const criteria = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
+
+        // ==========================================
+        // ✅ ฟังก์ชันช่วยแปลงระดับเป็นคะแนน (ตอนที่ 2)
+        // ==========================================
+        function getP1S2Score(level, maxScore) {
+            if (!level || level === '') return 0;
+            const lv = parseFloat(level);
+            if (isNaN(lv) || lv < 1 || lv > 4) return 0;
+            return (lv / 4) * maxScore;
+        }
+
+        // ==========================================
+        // ✅ คำนวณองค์ประกอบที่ 1 ตอนที่ 1
+        // ==========================================
+        const p1s1 = details.p1_s1 || [];
+        const p1s1RawSum = p1s1.reduce((a, b) => a + b, 0);
+        let p1s1Total = 0;
+        if (isAssistant) {
+            p1s1Total = (p1s1RawSum * 80) / 56;
+        } else {
+            p1s1Total = (p1s1RawSum / 60) * 60;
+        }
+
+        // ==========================================
+        // ✅ คำนวณองค์ประกอบที่ 1 ตอนที่ 2 (แก้ไขแล้ว)
+        // ==========================================
+        const p1s2 = details.p1_s2 || [];
+
+        // ข้อ 1: วิธีดำเนินการ (เต็ม 20)
+        const p1s2_1_level = (p1s2.length > 0) ? p1s2[0] : 0;
+        const p1s2_1_score = getP1S2Score(p1s2_1_level, 20);
+
+        // ข้อ 2.1: เชิงปริมาณ (เต็ม 10)
+        const p1s2_2_1_level = (p1s2.length > 1) ? p1s2[1] : 0;
+        const p1s2_2_1_score = getP1S2Score(p1s2_2_1_level, 10);
+
+        // ข้อ 2.2: เชิงคุณภาพ (เต็ม 10)
+        const p1s2_2_2_level = (p1s2.length > 2) ? p1s2[2] : 0;
+        const p1s2_2_2_score = getP1S2Score(p1s2_2_2_level, 10);
+
+        // ✅ คะแนนรวมตอนที่ 2 (เต็ม 20) - ต้องหาร 2 !!!
+        const p1s2Total = (p1s2_1_score + p1s2_2_1_score + p1s2_2_2_score) / 2;
+
+        // ==========================================
+        // ✅ คำนวณองค์ประกอบที่ 1 รวม (80 คะแนน)
+        // ==========================================
+        const p1Total = p1s1Total + p1s2Total;
+
+        // ==========================================
+        // ✅ คำนวณองค์ประกอบที่ 2 (10 คะแนน)
+        // ==========================================
+        const p2Level = details.p2 || 0;
+        const p2Score = p2Level * 2;
+
+        // ==========================================
+        // ✅ คำนวณองค์ประกอบที่ 3 (10 คะแนน)
+        // ==========================================
+        const p3 = details.p3 || [];
+        const p3RawSum = p3.reduce((a, b) => a + b, 0);
+        const p3Total = p3RawSum / 4;
+
+        // ==========================================
+        // ✅ คะแนนรวมทั้งหมด (100 คะแนน)
+        // ==========================================
+        const totalScore = p1Total + p2Score + p3Total;
+        const level = getLevelText(totalScore);
+
+        // ==========================================
+        // ✅ สร้าง HTML สำหรับ Modal
+        // ==========================================
+        let detailHtml = `
+            <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 mb-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm text-gray-500">คะแนนรวม</p>
+                        <p class="text-3xl font-bold text-blue-600">${totalScore.toFixed(2)}</p>
+                        <p class="text-sm text-gray-500">/ 100</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm text-gray-500">สถานะ</p>
+                        <span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-bold">✅ ส่งแล้ว</span>
+                        <p class="text-xs text-gray-400 mt-1">${new Date(evalResult.updated_at).toLocaleString('th-TH')}</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 📊 สรุปคะแนนแยกองค์ประกอบ -->
+            <div class="grid grid-cols-3 gap-3 mb-4">
+                <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-200">
+                    <p class="text-xs text-gray-500">องค์ประกอบที่ 1</p>
+                    <p class="text-xl font-bold text-blue-600">${p1Total.toFixed(2)}</p>
+                    <p class="text-[10px] text-gray-400">/ 80</p>
+                </div>
+                <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-200">
+                    <p class="text-xs text-gray-500">องค์ประกอบที่ 2</p>
+                    <p class="text-xl font-bold text-emerald-600">${p2Score.toFixed(2)}</p>
+                    <p class="text-[10px] text-gray-400">/ 10</p>
+                </div>
+                <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-200">
+                    <p class="text-xs text-gray-500">องค์ประกอบที่ 3</p>
+                    <p class="text-xl font-bold text-purple-600">${p3Total.toFixed(2)}</p>
+                    <p class="text-[10px] text-gray-400">/ 10</p>
+                </div>
+            </div>
+
+            <!-- 📋 องค์ประกอบที่ 1 ตอนที่ 1 -->
+            <div class="mb-4 bg-blue-50/50 border border-blue-100 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-bold text-blue-800">🎯 องค์ประกอบที่ 1 ตอนที่ 1</h4>
+                    <span class="text-sm font-bold text-blue-600">${p1s1Total.toFixed(2)} / ${isAssistant ? '80' : '60'}</span>
+                </div>
+        `;
+
+        const p1s1Groups = criteria.part1_sec1 || [];
+        let p1s1Index = 0;
+        p1s1Groups.forEach((group) => {
+            detailHtml += `
+                <div class="mb-2">
+                    <p class="text-xs font-semibold text-gray-600 mb-1">${group.group}</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
+            `;
+            group.items.forEach((item) => {
+                const score = (p1s1Index < p1s1.length) ? p1s1[p1s1Index] : '-';
+                detailHtml += `
+                    <div class="flex justify-between items-center bg-white p-1.5 px-3 rounded-lg border border-gray-100 text-sm">
+                        <span class="text-gray-600 text-xs">${item.label}</span>
+                        <span class="font-bold ${score !== '-' && score >= 3 ? 'text-emerald-600' : score !== '-' && score >= 2 ? 'text-amber-600' : 'text-gray-400'}">
+                            ${score !== '-' ? score : '-'}
+                        </span>
+                    </div>
+                `;
+                p1s1Index++;
+            });
+            detailHtml += `</div></div>`;
+        });
+
+        // 📋 องค์ประกอบที่ 1 ตอนที่ 2
+        detailHtml += `
+                <div class="mt-3 bg-indigo-50/50 border border-indigo-100 rounded-xl p-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <h4 class="font-bold text-indigo-800">🎯 องค์ประกอบที่ 1 ตอนที่ 2</h4>
+                        <span class="text-sm font-bold text-indigo-600">${p1s2Total.toFixed(2)} / 20</span>
+                    </div>
+                    <div class="grid grid-cols-1 gap-1">
+        `;
+
+        const p1s2Labels = [
+            { label: '1. วิธีการดำเนินการ', level: p1s2_1_level, score: p1s2_1_score, max: 20 },
+            { label: '2.1 ผลลัพธ์เชิงปริมาณ', level: p1s2_2_1_level, score: p1s2_2_1_score, max: 10 },
+            { label: '2.2 ผลลัพธ์เชิงคุณภาพ', level: p1s2_2_2_level, score: p1s2_2_2_score, max: 10 }
+        ];
+
+        p1s2Labels.forEach((item) => {
+            detailHtml += `
+                <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100 text-sm">
+                    <span class="text-gray-600">${item.label}</span>
+                    <span>
+                        <span class="font-bold ${item.level >= 3 ? 'text-emerald-600' : item.level >= 2 ? 'text-amber-600' : 'text-gray-400'}">
+                            ${item.level > 0 ? `ระดับ ${item.level}` : '-'}
+                        </span>
+                        <span class="text-xs text-gray-400 ml-2">(${item.score.toFixed(1)}/${item.max})</span>
+                    </span>
+                </div>
+            `;
+        });
+
+        detailHtml += `</div></div></div>`;
+
+        // 📋 องค์ประกอบที่ 2
+        detailHtml += `
+            <div class="mb-4 bg-emerald-50/50 border border-emerald-100 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-bold text-emerald-800">🤝 องค์ประกอบที่ 2</h4>
+                    <span class="text-sm font-bold text-emerald-600">${p2Score.toFixed(2)} / 10</span>
+                </div>
+                <div class="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100 text-sm">
+                    <span class="text-gray-600">ความสำเร็จของงานที่ได้รับมอบหมายจากผู้บังคับบัญชา</span>
+                    <span>
+                        <span class="font-bold ${p2Level >= 4 ? 'text-emerald-600' : p2Level >= 3 ? 'text-amber-600' : 'text-gray-400'}">
+                            ${p2Level > 0 ? `ระดับ ${p2Level}` : '-'}
+                        </span>
+                        <span class="text-xs text-gray-400 ml-2">(${p2Score.toFixed(2)} คะแนน)</span>
+                    </span>
+                </div>
+            </div>
+        `;
+
+        // 📋 องค์ประกอบที่ 3
+        detailHtml += `
+            <div class="mb-4 bg-purple-50/50 border border-purple-100 rounded-xl p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h4 class="font-bold text-purple-800">⚖️ องค์ประกอบที่ 3</h4>
+                    <span class="text-sm font-bold text-purple-600">${p3Total.toFixed(2)} / 10</span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-1">
+        `;
+        PART3_ITEMS.forEach((text, idx) => {
+            const score = (idx < p3.length) ? p3[idx] : '-';
+            detailHtml += `
+                <div class="flex justify-between items-center bg-white p-1.5 px-3 rounded-lg border border-gray-100 text-sm">
+                    <span class="text-gray-600 text-xs">${idx + 1}. ${text.substring(0, 35)}${text.length > 35 ? '...' : ''}</span>
+                    <span class="font-bold ${score !== '-' && score >= 3 ? 'text-emerald-600' : score !== '-' && score >= 2 ? 'text-amber-600' : 'text-gray-400'}">
+                        ${score !== '-' ? score : '-'}
+                    </span>
+                </div>
+            `;
+        });
+        detailHtml += `</div></div>`;
+
+        // 📊 สรุปผลรวม
+        detailHtml += `
+            <div class="bg-gradient-to-r from-blue-600 to-indigo-600 p-4 rounded-xl text-white mt-2">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-sm opacity-80">คะแนนรวมทั้งหมด</p>
+                        <p class="text-3xl font-bold">${totalScore.toFixed(2)}</p>
+                        <p class="text-sm opacity-80">/ 100</p>
+                    </div>
+                    <div class="text-right">
+                        <p class="text-sm opacity-80">ระดับคุณภาพ</p>
+                        <p class="text-2xl font-bold">${level.text}</p>
+                    </div>
+                    <div class="text-5xl opacity-50">${level.text === 'ดีมาก' ? '🌟' : level.text === 'ดี' ? '⭐' : level.text === 'พอใช้' ? '📊' : '📈'}</div>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('evalDetailFinalScore').innerHTML = detailHtml;
+
+        // ✅ เก็บค่าไว้ใช้ในปุ่มคำนวณใหม่
+        window._modalEvaluateeId = currentUser.id;
+        window._modalEvalRoundId = currentEvalRound.id;
+
+    } catch (err) {
+        console.error('Error opening self eval detail:', err);
+        document.getElementById('evalDetailFinalScore').innerHTML =
+            '<p class="text-red-400">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>';
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+// ==========================================
 // ปิด Modal
 // ==========================================
 function closeEvalDetailModal() {
@@ -888,7 +1169,7 @@ async function generateEvaluationPDF() {
 
     // ✅ แผนที่แปลงระดับ (1-4) เป็นคะแนนตามเกณฑ์ที่กำหนด
     const p1s2ScoreMap = {
-        '1':   { '1': 5, '2': 10, '3': 15, '4': 20 },    // วิธีดำเนินการ
+        '1': { '1': 5, '2': 10, '3': 15, '4': 20 },    // วิธีดำเนินการ
         '2_1': { '1': 2.5, '2': 5, '3': 7.5, '4': 10 },  // เชิงปริมาณ
         '2_2': { '1': 2.5, '2': 5, '3': 7.5, '4': 10 }   // เชิงคุณภาพ
     };
@@ -1045,6 +1326,18 @@ async function generateEvaluationPDF() {
         }
 
         if (result && result.status === 'success' && result.url) {
+            // ✅ บันทึก URL PDF ลง localStorage เพื่อใช้แสดงปุ่ม "ไฟล์ PDF"
+            if (currentUser && currentUser.id) {
+                localStorage.setItem('pdf_url_' + currentUser.id, result.url);
+                // อัปเดตปุ่มไฟล์ PDF ให้แสดงทันที (ถ้าหน้าถูกเปิดอยู่)
+                const btnPDF = document.getElementById('btnViewPDF');
+                if (btnPDF) {
+                    btnPDF.classList.remove('hidden');
+                    btnPDF.onclick = function () {
+                        window.open(result.url, '_blank');
+                    };
+                }
+            }
             Swal.close();
             window.open(result.url, '_blank');
             return true;
@@ -1587,5 +1880,6 @@ window.openCommitteeReviewModal = openCommitteeReviewModal;
 window.closeCommitteeReviewModal = closeCommitteeReviewModal;
 window.loadReviewData = loadReviewData;
 window.viewTeacherEvalDetail = viewTeacherEvalDetail;
+window.openSelfEvalDetailModal = openSelfEvalDetailModal;
 
 console.log('✅ evaluation_logic.js loaded successfully');
