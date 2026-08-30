@@ -16,60 +16,75 @@ window._existingEvalId = null; // เก็บ ID ของการประเ
 // ==========================================
 function changeStep(direction) {
     if (direction === 1) {
-        if (wizardCurrentStep === 1) {
-            const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
-            const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
-            const hasElement1 = p1s1Groups.length > 0 || p1s2Groups.length > 0;
-
-            if (hasElement1) {
-                let missing = false;
-                const groupNames = new Set();
-                p1s1Groups.forEach(el => groupNames.add(el.name));
-                p1s2Groups.forEach(el => groupNames.add(el.name));
-
+        // ตรวจสอบเฉพาะเมื่อมีองค์ประกอบที่ 1
+        if (wizardCurrentStep === 1 && window._hasElement1) {
+            const p1s1Groups = document.querySelectorAll('#step1 input[name^="p1s1_"]');
+            const p1s2Groups = document.querySelectorAll('#step1 input[name^="p1s2_"]');
+            let missing = false;
+            const groupNames = new Set();
+            p1s1Groups.forEach(el => groupNames.add(el.name));
+            p1s2Groups.forEach(el => groupNames.add(el.name));
+            
+            if (groupNames.size > 0) {
+                const missingItems = [];
                 groupNames.forEach(name => {
-                    const checked = document.querySelector(`input[name="${name}"]:checked`);
-                    if (!checked) missing = true;
+                    const checked = document.querySelector(`#step1 input[name="${name}"]:checked`);
+                    if (!checked) {
+                        missing = true;
+                        missingItems.push(name);
+                    }
                 });
-
                 if (missing) {
-                    return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ', 'warning');
+                    return Swal.fire({
+                        icon: 'warning',
+                        title: 'กรุณาให้คะแนนองค์ประกอบที่ 1 ให้ครบทุกข้อ',
+                        html: `ยังไม่เลือก: <b>${missingItems.join(', ')}</b>`,
+                        confirmButtonText: 'ตกลง'
+                    });
                 }
             }
         }
 
-        if (wizardCurrentStep === 2) {
-            const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
+        if (wizardCurrentStep === 2 && window._hasElement2) {
+            const p2Inputs = document.querySelectorAll('#step2 input[name="sc_part2"]');
             if (p2Inputs.length > 0) {
-                const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
+                const p2Checked = document.querySelector('#step2 input[name="sc_part2"]:checked');
                 if (!p2Checked) {
                     return Swal.fire('แจ้งเตือน', 'กรุณาเลือกระดับความสำเร็จองค์ประกอบที่ 2', 'warning');
                 }
             }
         }
 
-        if (wizardCurrentStep === 3) {
-            const p3Groups = document.querySelectorAll('[name^="p3_"]');
+        if (wizardCurrentStep === 3 && window._hasElement3) {
+            const p3Groups = document.querySelectorAll('#step3 input[name^="p3_"]');
             if (p3Groups.length > 0) {
                 const groupNames3 = new Set();
                 p3Groups.forEach(el => groupNames3.add(el.name));
-
                 let missingP3 = false;
+                const missingItems3 = [];
                 groupNames3.forEach(name => {
-                    const checked = document.querySelector(`input[name="${name}"]:checked`);
-                    if (!checked) missingP3 = true;
+                    const checked = document.querySelector(`#step3 input[name="${name}"]:checked`);
+                    if (!checked) {
+                        missingP3 = true;
+                        missingItems3.push(name);
+                    }
                 });
-
                 if (missingP3) {
-                    return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ', 'warning');
+                    return Swal.fire({
+                        icon: 'warning',
+                        title: 'กรุณาให้คะแนนส่วนที่ 3 ให้ครบทุกข้อ',
+                        html: `ยังไม่เลือก: <b>${missingItems3.join(', ')}</b>`,
+                        confirmButtonText: 'ตกลง'
+                    });
                 }
             }
         }
     }
 
-    document.getElementById(`step${wizardCurrentStep}`).classList.add('hidden');
+    // ✅ ใช้ active class ในการแสดง/ซ่อน
+    document.getElementById(`step${wizardCurrentStep}`).classList.remove('active');
     wizardCurrentStep += direction;
-    document.getElementById(`step${wizardCurrentStep}`).classList.remove('hidden');
+    document.getElementById(`step${wizardCurrentStep}`).classList.add('active');
 
     if (wizardCurrentStep === 4) {
         updateSummary();
@@ -78,9 +93,6 @@ function changeStep(direction) {
     updateWizardUI();
 }
 
-// ==========================================
-// อัปเดต UI Wizard
-// ==========================================
 function updateWizardUI() {
     const totalSteps = 4;
     document.getElementById('currentStepText').innerText = wizardCurrentStep;
@@ -93,15 +105,11 @@ function updateWizardUI() {
     if (nextBtn && wizardCurrentStep < totalSteps) {
         let hasItems = false;
         if (wizardCurrentStep === 1) {
-            const p1s1Inputs = document.querySelectorAll('input[name^="p1s1_"]');
-            const p1s2Inputs = document.querySelectorAll('input[name^="p1s2_"]');
-            hasItems = p1s1Inputs.length > 0 || p1s2Inputs.length > 0;
+            hasItems = window._hasElement1 === true;
         } else if (wizardCurrentStep === 2) {
-            const p2Inputs = document.querySelectorAll('input[name="sc_part2"]');
-            hasItems = p2Inputs.length > 0;
+            hasItems = window._hasElement2 === true;
         } else if (wizardCurrentStep === 3) {
-            const p3Inputs = document.querySelectorAll('input[name^="p3_"]');
-            hasItems = p3Inputs.length > 0;
+            hasItems = window._hasElement3 === true;
         }
 
         if (!hasItems) {

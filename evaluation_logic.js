@@ -779,7 +779,7 @@ async function exportFinalScores() {
 }
 
 // ==========================================
-// ✅ [ฟังก์ชันใหม่] สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง)
+// ✅ สร้างไฟล์ PDF จากเทมเพลต (ประเมินตนเอง) - ปรับปรุง placeholders
 // ==========================================
 async function generateEvaluationPDF() {
     // 1. ตรวจสอบว่าผู้ใช้มีสิทธิ์ (ต้องเป็นครูที่ประเมินตนเองแล้ว)
@@ -828,46 +828,109 @@ async function generateEvaluationPDF() {
         return Swal.fire('แจ้งเตือน', 'ยังไม่มีผลการประเมินตนเอง กรุณาประเมินก่อน', 'warning');
     }
 
-    // 5. ดึงข้อมูลโรงเรียน (สำหรับชื่อผู้อำนวยการ ฯลฯ)
+    // 5. ดึงข้อมูลโรงเรียน
     const { data: school } = await db.from('core_school_info').select('*').single();
 
     // 6. เตรียมข้อมูลแทนที่ (Placeholders)
     const details = evalResult.detailed_scores || {};
 
-    // คำนวณคะแนนองค์ประกอบที่ 1 (คำนวณตามสูตรเดียวกับฟอร์ม)
+    // ----- ฟังก์ชันช่วยแปลง array เป็น object ตาม index -----
+    function getScoreByIndex(arr, index, defaultValue = '') {
+        if (Array.isArray(arr) && arr.length > index) {
+            const val = arr[index];
+            return (val !== undefined && val !== null && val !== 0) ? val : '';
+        }
+        return '';
+    }
+
+    // ----- องค์ประกอบที่ 1 ตอนที่ 1 (60 คะแนน) -----
+    // ข้อ 1.1-1.8 (ครูผู้ช่วยมีแค่ 1.1-1.7)
+    const p1s1 = details.p1_s1 || [];
     const isAssistant = academic === 'ครูผู้ช่วย';
-    let part1Sec1 = 0, part1Sec2 = 0, part1Total = 0;
-    if (Array.isArray(details.p1_s1)) {
-        const rawSum = details.p1_s1.reduce((a, b) => a + b, 0);
-        part1Sec1 = isAssistant ? (rawSum * 80) / 56 : (rawSum / 60) * 60;
-    }
-    if (Array.isArray(details.p1_s2)) {
-        const rawSum = details.p1_s2.reduce((a, b) => a + b, 0);
-        part1Sec2 = (rawSum * 20) / 40;
-    }
-    part1Total = part1Sec1 + part1Sec2;
+    const maxP1S1Count = isAssistant ? 14 : 15; // ครูผู้ช่วยมี 14 ข้อ, ครูอื่น 15 ข้อ
 
-    // คำนวณองค์ประกอบที่ 2
-    let part2Score = 0;
-    if (details.p2) part2Score = parseInt(details.p2) * 2;
+    // แมปตามลำดับ: 1.1-1.7/1.8, 2.1-2.4, 3.1-3.3
+    const p1s1Scores = {
+        // 1. ด้านการจัดการเรียนรู้ (1.1-1.8)
+        '1_1': getScoreByIndex(p1s1, 0),
+        '1_2': getScoreByIndex(p1s1, 1),
+        '1_3': getScoreByIndex(p1s1, 2),
+        '1_4': getScoreByIndex(p1s1, 3),
+        '1_5': getScoreByIndex(p1s1, 4),
+        '1_6': getScoreByIndex(p1s1, 5),
+        '1_7': getScoreByIndex(p1s1, 6),
+        '1_8': isAssistant ? '' : getScoreByIndex(p1s1, 7), // ครูผู้ช่วยไม่มีข้อ 1.8
 
-    // คำนวณองค์ประกอบที่ 3
-    let part3Score = 0, p3Raw = 0;
-    if (Array.isArray(details.p3)) {
-        p3Raw = details.p3.reduce((a, b) => a + b, 0);
-        part3Score = p3Raw / 4;
+        // 2. ด้านการส่งเสริมและสนับสนุน (2.1-2.4)
+        '2_1': getScoreByIndex(p1s1, isAssistant ? 7 : 8),
+        '2_2': getScoreByIndex(p1s1, isAssistant ? 8 : 9),
+        '2_3': getScoreByIndex(p1s1, isAssistant ? 9 : 10),
+        '2_4': getScoreByIndex(p1s1, isAssistant ? 10 : 11),
+
+        // 3. ด้านการพัฒนาตนเอง (3.1-3.3)
+        '3_1': getScoreByIndex(p1s1, isAssistant ? 11 : 12),
+        '3_2': getScoreByIndex(p1s1, isAssistant ? 12 : 13),
+        '3_3': getScoreByIndex(p1s1, isAssistant ? 13 : 14),
+    };
+
+    // คำนวณรวมคะแนนดิบของตอนที่ 1 (รวมทุกข้อ)
+    const p1s1RawSum = Object.values(p1s1Scores)
+        .filter(v => v !== '')
+        .reduce((a, b) => a + parseFloat(b || 0), 0);
+
+    // คำนวณคะแนนตอนที่ 1 (แปลงเป็น 60 คะแนน)
+    let p1s1Total = 0;
+    if (isAssistant) {
+        // ครูผู้ช่วย: 14 ข้อ x 4 = 56 คะแนนดิบ  -> คะแนน = (rawSum * 60) / 56
+        p1s1Total = (p1s1RawSum * 60) / 56;
+    } else {
+        // ครูอื่น: 15 ข้อ x 4 = 60 คะแนนดิบ -> คะแนน = rawSum (เพราะเต็ม 60 อยู่แล้ว)
+        p1s1Total = p1s1RawSum;
     }
 
-    const totalScore = evalResult.total_score || (part1Total + part2Score + part3Score);
+    // ----- องค์ประกอบที่ 1 ตอนที่ 2 (20 คะแนน) -----
+    const p1s2 = details.p1_s2 || [];
+    const p1s2Scores = {
+        '1': getScoreByIndex(p1s2, 0),      // วิธีดำเนินการ
+        '2_1': getScoreByIndex(p1s2, 1),    // เชิงปริมาณ
+        '2_2': getScoreByIndex(p1s2, 2),    // เชิงคุณภาพ
+    };
+    const p1s2RawSum = Object.values(p1s2Scores)
+        .filter(v => v !== '')
+        .reduce((a, b) => a + parseFloat(b || 0), 0);
+    // คะแนนตอนที่ 2 = (rawSum * 20) / 40 (เพราะ 3 ข้อ แต่ละข้อ max 20,10,10 รวม 40)
+    const p1s2Total = (p1s2RawSum * 20) / 40;
+
+    // ----- รวมองค์ประกอบที่ 1 (80 คะแนน) -----
+    const p1Total = p1s1Total + p1s2Total;
+
+    // ----- องค์ประกอบที่ 2 (10 คะแนน) -----
+    const p2Level = details.p2 || 0; // ระดับ 1-5
+    const p2Score = p2Level * 2; // คะแนนเต็ม 10
+
+    // ----- องค์ประกอบที่ 3 (10 คะแนน) -----
+    const p3 = details.p3 || [];
+    const p3Scores = {};
+    for (let i = 1; i <= 10; i++) {
+        p3Scores[`${i}`] = getScoreByIndex(p3, i - 1);
+    }
+    const p3RawSum = Object.values(p3Scores)
+        .filter(v => v !== '')
+        .reduce((a, b) => a + parseFloat(b || 0), 0);
+    const p3Total = p3RawSum / 4; // 10 คะแนน
+
+    // ----- คะแนนรวมทั้งหมด -----
+    const totalScore = p1Total + p2Score + p3Total;
     const level = getLevelText(totalScore);
 
-    // 7. สร้าง replacements object
+    // ----- วันที่ -----
     const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
     const currentDate = new Date();
     const dateStr = `วันที่ ${currentDate.getDate()} เดือน ${thMonths[currentDate.getMonth()]} พ.ศ. ${currentDate.getFullYear() + 543}`;
 
+    // 7. สร้าง replacements object
     const replacements = {
-        // ข้อมูลผู้ถูกประเมิน
+        // ข้อมูลทั่วไป
         "{{FULL_NAME}}": `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`,
         "{{ACADEMIC_STANDING}}": academic,
         "{{POSITION}}": currentUser.position || 'ครู',
@@ -875,20 +938,57 @@ async function generateEvaluationPDF() {
         "{{TERM}}": `ภาคเรียนที่ ${currentTermData.current_semester} / ${currentTermData.current_academic_year}`,
         "{{DATE}}": dateStr,
 
-        // คะแนนองค์ประกอบที่ 1
-        "{{P1_S1_SCORE}}": part1Sec1.toFixed(2),
-        "{{P1_S2_SCORE}}": part1Sec2.toFixed(2),
-        "{{P1_TOTAL}}": part1Total.toFixed(2),
-        "{{P1_S1_RAW}}": Array.isArray(details.p1_s1) ? details.p1_s1.join(', ') : '-',
-        "{{P1_S2_RAW}}": Array.isArray(details.p1_s2) ? details.p1_s2.join(', ') : '-',
+        // องค์ประกอบที่ 1 ตอนที่ 1 (ข้อ 1.1-1.8)
+        "{{P1S1_1_1}}": p1s1Scores['1_1'],
+        "{{P1S1_1_2}}": p1s1Scores['1_2'],
+        "{{P1S1_1_3}}": p1s1Scores['1_3'],
+        "{{P1S1_1_4}}": p1s1Scores['1_4'],
+        "{{P1S1_1_5}}": p1s1Scores['1_5'],
+        "{{P1S1_1_6}}": p1s1Scores['1_6'],
+        "{{P1S1_1_7}}": p1s1Scores['1_7'],
+        "{{P1S1_1_8}}": p1s1Scores['1_8'],
 
-        // คะแนนองค์ประกอบที่ 2
-        "{{P2_LEVEL}}": details.p2 ? `ระดับ ${details.p2}` : '-',
-        "{{P2_SCORE}}": part2Score.toFixed(2),
+        // องค์ประกอบที่ 1 ตอนที่ 1 (ข้อ 2.1-2.4)
+        "{{P1S1_2_1}}": p1s1Scores['2_1'],
+        "{{P1S1_2_2}}": p1s1Scores['2_2'],
+        "{{P1S1_2_3}}": p1s1Scores['2_3'],
+        "{{P1S1_2_4}}": p1s1Scores['2_4'],
 
-        // คะแนนองค์ประกอบที่ 3
-        "{{P3_RAW}}": Array.isArray(details.p3) ? details.p3.join(', ') : '-',
-        "{{P3_SCORE}}": part3Score.toFixed(2),
+        // องค์ประกอบที่ 1 ตอนที่ 1 (ข้อ 3.1-3.3)
+        "{{P1S1_3_1}}": p1s1Scores['3_1'],
+        "{{P1S1_3_2}}": p1s1Scores['3_2'],
+        "{{P1S1_3_3}}": p1s1Scores['3_3'],
+
+        // คะแนนรวมตอนที่ 1 (เต็ม 60)
+        "{{P1S1_TOTAL}}": p1s1Total.toFixed(2),
+
+        // องค์ประกอบที่ 1 ตอนที่ 2
+        "{{P1S2_1}}": p1s2Scores['1'],        // วิธีดำเนินการ
+        "{{P1S2_2_1}}": p1s2Scores['2_1'],    // เชิงปริมาณ
+        "{{P1S2_2_2}}": p1s2Scores['2_2'],    // เชิงคุณภาพ
+
+        // คะแนนรวมตอนที่ 2 (เต็ม 20)
+        "{{P1S2_TOTAL}}": p1s2Total.toFixed(2),
+
+        // คะแนนรวมองค์ประกอบที่ 1 (เต็ม 80)
+        "{{P1_TOTAL}}": p1Total.toFixed(2),
+
+        // องค์ประกอบที่ 2
+        "{{P2_LEVEL}}": p2Level > 0 ? `ระดับ ${p2Level}` : '-',
+        "{{P2_SCORE}}": p2Score.toFixed(2),
+
+        // องค์ประกอบที่ 3 (ข้อ 1-10)
+        "{{P3_1}}": p3Scores['1'],
+        "{{P3_2}}": p3Scores['2'],
+        "{{P3_3}}": p3Scores['3'],
+        "{{P3_4}}": p3Scores['4'],
+        "{{P3_5}}": p3Scores['5'],
+        "{{P3_6}}": p3Scores['6'],
+        "{{P3_7}}": p3Scores['7'],
+        "{{P3_8}}": p3Scores['8'],
+        "{{P3_9}}": p3Scores['9'],
+        "{{P3_10}}": p3Scores['10'],
+        "{{P3_TOTAL}}": p3Total.toFixed(2),
 
         // คะแนนรวมและระดับ
         "{{TOTAL_SCORE}}": totalScore.toFixed(2),
