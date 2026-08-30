@@ -202,7 +202,7 @@ async function exportAllResults() {
         // 4. วนลูปสร้างชีทตามชุดคณะกรรมการ
         for (const group of groups) {
             const groupName = group.group_name || 'ไม่ระบุชื่อชุด';
-            
+
             // ✅ ดึงกลุ่มเป้าหมาย (Department)
             const { data: targets } = await db
                 .from('eval_committee_targets')
@@ -227,7 +227,8 @@ async function exportAllResults() {
                     .from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
                     .eq('department', dept)
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+                    .in('position', ['ครู', 'ครูผู้ช่วย'])
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
 
                 if (!tErr && teachers) allTeachers = [...allTeachers, ...teachers];
             }
@@ -264,7 +265,7 @@ async function exportAllResults() {
                 // ✅ สำหรับแต่ละหัวข้อ ให้คำนวณ Mode จากคะแนนของกรรมการทุกคน
                 for (const item of subItems) {
                     const key = item.element === '1' ? (item.part === '1' ? 'p1_s1' : 'p1_s2') : (item.element === '2' ? 'p2' : 'p3');
-                    
+
                     // ดึงคะแนนของครูคนนี้จากทุกคน
                     const scores = [];
                     (allEvals || []).filter(ev => ev.evaluatee_id === teacher.id).forEach(ev => {
@@ -287,7 +288,7 @@ async function exportAllResults() {
 
             // ✅ สร้างแถวรายชื่อกรรมการสำหรับลงนาม
             const members = group.eval_committee_members || [];
-            const memberNames = members.map(m => 
+            const memberNames = members.map(m =>
                 m.core_personnel ? `${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}` : '-'
             );
 
@@ -444,7 +445,8 @@ async function checkEvaluatorAssignments() {
                 db.from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
                     .eq('department', dept)
-                    .in('academic_standing', validStandings)
+                    .in('position', ['ครู', 'ครูผู้ช่วย'])
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
             );
             const teacherResults = await Promise.all(teacherPromises);
             let allTeachers = [];

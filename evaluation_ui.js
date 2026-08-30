@@ -35,7 +35,7 @@ function changeStep(direction) {
             const groupNames = new Set();
             p1s1Groups.forEach(el => groupNames.add(el.name));
             p1s2Groups.forEach(el => groupNames.add(el.name));
-            
+
             if (groupNames.size > 0) {
                 const missingItems = [];
                 groupNames.forEach(name => {
@@ -1433,7 +1433,8 @@ async function exportCommitteeExcel() {
             db.from('core_personnel')
                 .select('id, prefix, first_name, last_name, academic_standing, department')
                 .eq('department', dept)
-                .in('academic_standing', validStandings)
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
+                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
                 .order('first_name', { ascending: true })
         );
 
@@ -1553,7 +1554,7 @@ async function exportCommitteeExcel() {
                     if (Array.isArray(scores)) {
                         let scoreAtIndex = null;
                         if (key === 'p1_s1' || key === 'p3') {
-                            const allItems = key === 'p1_s1' ? 
+                            const allItems = key === 'p1_s1' ?
                                 (criteria.part1_sec1?.flatMap(g => g.items) || []) :
                                 PART3_ITEMS;
                             const index = allItems.findIndex(i => i.id === item.value || i === item.value);
@@ -1561,7 +1562,7 @@ async function exportCommitteeExcel() {
                                 scoreAtIndex = scores[index];
                             }
                         } else if (key === 'p1_s2') {
-                            const map = {'1': 0, '2.1': 1, '2.2': 2};
+                            const map = { '1': 0, '2.1': 1, '2.2': 2 };
                             const idx = map[item.value];
                             if (idx !== undefined && idx < scores.length) {
                                 scoreAtIndex = scores[idx];
@@ -1650,19 +1651,19 @@ async function exportCommitteeExcel() {
 // ==========================================
 function parseScoreValue(value) {
     if (value === undefined || value === null || value === '') return null;
-    
+
     let str = String(value).trim();
-    
+
     if (str.includes(',')) {
         const parts = str.split(',').map(s => parseFloat(s.trim()));
         const validParts = parts.filter(n => !isNaN(n) && n >= 1 && n <= 5);
         if (validParts.length === 0) return null;
         return validParts[0];
     }
-    
+
     const num = parseFloat(str);
     if (isNaN(num)) return null;
-    
+
     if (num >= 1 && num <= 5) return num;
     return null;
 }
@@ -1744,7 +1745,7 @@ async function importCommitteeExcel(event) {
             return;
         }
 
-        const evalItemHeaders = headers.slice(3).filter(h => 
+        const evalItemHeaders = headers.slice(3).filter(h =>
             !h.includes('สถานะ') && !h.includes('คะแนนรวม')
         );
 
@@ -1816,7 +1817,7 @@ async function importCommitteeExcel(event) {
 
                 hasScore = true;
                 const lowerHeader = header.toLowerCase();
-                
+
                 if (lowerHeader.includes('1.') || lowerHeader.includes('2.') || lowerHeader.includes('3.')) {
                     detailedScores.p1_s1.push(numValue);
                 } else if (lowerHeader.includes('ระดับ') || lowerHeader.includes('ความสำเร็จ')) {
@@ -1829,7 +1830,7 @@ async function importCommitteeExcel(event) {
             }
 
             const isAssistant = teacher.academic_standing === 'ครูผู้ช่วย';
-            
+
             if (detailedScores.p2 !== null && detailedScores.p2 !== undefined) {
                 totalScore += detailedScores.p2 * 2;
             }

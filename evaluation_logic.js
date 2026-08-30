@@ -1615,7 +1615,8 @@ async function loadReviewData() {
             .from('core_personnel')
             .select('id, prefix, first_name, last_name, academic_standing, department')
             .eq('department', department)
-            .in('academic_standing', validStandings)
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
             .order('first_name', { ascending: true });
 
         if (tErr) throw tErr;

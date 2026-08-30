@@ -987,6 +987,7 @@ async function loadTeachersForSubGroup() {
                 .select('id, prefix, first_name, last_name, academic_standing, department')
                 .eq('department', dept)
                 .in('academic_standing', validStandings)
+                .in('position', ['ครู', 'ครูผู้ช่วย'])   // <- เพิ่มบรรทัดนี้
                 .order('first_name', { ascending: true })
         );
 

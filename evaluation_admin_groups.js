@@ -1162,7 +1162,8 @@ async function checkEvaluationCompleteness() {
                     .from('core_personnel')
                     .select('id, prefix, first_name, last_name, academic_standing')
                     .eq('department', dept)
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ']);
+                    .in('position', ['ครู', 'ครูผู้ช่วย'])
+                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
 
                 if (!tErr && teachers) {
                     allTeachers = [...allTeachers, ...teachers];
