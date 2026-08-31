@@ -1427,7 +1427,7 @@ async function exportCommitteeExcel() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบกลุ่มเป้าหมาย (department targets) ในชุดย่อยที่สังกัด', 'warning');
         }
 
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];;
+        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];
         const deptArray = Array.from(allDepartments);
         const queryPromises = deptArray.map(dept =>
             db.from('core_personnel')
@@ -1669,12 +1669,13 @@ function parseScoreValue(value) {
 }
 
 // ==========================================
-// ✅ นำเข้า Excel สำหรับกรรมการ (Import)
+// ✅ นำเข้า Excel สำหรับกรรมการ (พร้อมตรวจสอบความครบถ้วน)
 // ==========================================
 async function importCommitteeExcel(event) {
     const file = event.target.files[0];
     if (!file) return;
 
+    // ตรวจสอบประเภทไฟล์
     const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
     if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/)) {
         Swal.fire('แจ้งเตือน', 'กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls)', 'warning');
@@ -1682,12 +1683,14 @@ async function importCommitteeExcel(event) {
         return;
     }
 
+    // ตรวจสอบรอบการประเมิน
     if (!currentEvalRound) {
         Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
         event.target.value = '';
         return;
     }
 
+    // ตรวจสอบผู้ประเมิน
     const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
     if (!evaluatorId) {
         Swal.fire('แจ้งเตือน', 'ไม่พบผู้ประเมิน กรุณาเลือกกรรมการก่อน', 'warning');
@@ -1695,7 +1698,9 @@ async function importCommitteeExcel(event) {
         return;
     }
 
-    // ✅ อ่านไฟล์ก่อนเพื่อตรวจสอบ
+    // ==========================================
+    // อ่านไฟล์ Excel
+    // ==========================================
     let workbook;
     try {
         const data = await file.arrayBuffer();
@@ -1707,7 +1712,7 @@ async function importCommitteeExcel(event) {
     }
 
     // ==========================================
-    // ✅ ฟังก์ชันช่วยตัดคำนำหน้า
+    // ฟังก์ชันช่วยตัดคำนำหน้า
     // ==========================================
     function stripThaiTitle(name) {
         const titles = ['นางสาว', 'นาง', 'นาย', 'ดร.', 'ดร', 'ว่าที่', 'พัน', 'ร้อย', 'สิบ', 'จ่า'];
@@ -1722,7 +1727,7 @@ async function importCommitteeExcel(event) {
     }
 
     // ==========================================
-    // ✅ ฟังก์ชันเปรียบเทียบชื่อแบบไม่สนใจคำนำหน้า
+    // ฟังก์ชันเปรียบเทียบชื่อแบบไม่สนใจคำนำหน้า
     // ==========================================
     function compareNames(name1, name2) {
         if (!name1 || !name2) return false;
@@ -1748,7 +1753,107 @@ async function importCommitteeExcel(event) {
     }
 
     // ==========================================
-    // ✅ ตรวจสอบว่าไฟล์นี้เป็นของกรรมการที่เลือกหรือไม่
+    // ฟังก์ชันค้นหาครูแบบหลายวิธี
+    // ==========================================
+    async function findTeacher(teacherName, deptName) {
+        const cleanName = stripThaiTitle(teacherName);
+        const nameParts = cleanName.split(/\s+/);
+        let firstName = '';
+        let lastName = '';
+
+        if (nameParts.length >= 2) {
+            firstName = nameParts[0] || '';
+            lastName = nameParts.slice(1).join(' ') || '';
+        } else if (nameParts.length === 1) {
+            firstName = nameParts[0] || '';
+            lastName = '';
+        } else {
+            return null;
+        }
+
+        // วิธีที่ 1: ค้นหาแบบตรงเป๊ะ
+        let query = db.from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department, position')
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+        if (firstName && lastName) {
+            query = query.eq('first_name', firstName).eq('last_name', lastName);
+        } else if (firstName && !lastName) {
+            query = query.ilike('first_name', `%${firstName}%`);
+        } else {
+            return null;
+        }
+
+        let { data: matches, error } = await query;
+        if (error) {
+            console.warn('Query error (exact):', error);
+            matches = [];
+        }
+
+        if (matches.length > 1 && deptName) {
+            matches = matches.filter(p => p.department === deptName);
+        }
+
+        if (matches.length === 1) {
+            return matches[0];
+        }
+
+        // วิธีที่ 2: ค้นหาแบบ ILIKE
+        if (matches.length === 0 || matches.length > 1) {
+            let ilikeQuery = db.from('core_personnel')
+                .select('id, prefix, first_name, last_name, academic_standing, department, position')
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
+                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+            if (firstName && lastName) {
+                ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`).ilike('last_name', `%${lastName}%`);
+            } else if (firstName) {
+                ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`);
+            } else {
+                return null;
+            }
+
+            let { data: ilikeMatches, error: ilikeError } = await ilikeQuery.limit(10);
+            if (!ilikeError && ilikeMatches && ilikeMatches.length > 0) {
+                if (ilikeMatches.length === 1) {
+                    return ilikeMatches[0];
+                }
+                if (deptName) {
+                    const filtered = ilikeMatches.filter(p => p.department === deptName);
+                    if (filtered.length === 1) return filtered[0];
+                }
+            }
+        }
+
+        // วิธีที่ 3: ค้นหาจากชื่อเต็ม
+        if (matches.length === 0) {
+            const searchWords = cleanName.split(/\s+/);
+            let { data: allTeachers, error: allError } = await db
+                .from('core_personnel')
+                .select('id, prefix, first_name, last_name, academic_standing, department, position')
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
+                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+            if (!allError && allTeachers) {
+                const matched = allTeachers.filter(p => {
+                    const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim();
+                    return searchWords.every(word => fullName.includes(word));
+                });
+                if (matched.length === 1) {
+                    return matched[0];
+                } else if (matched.length > 1 && deptName) {
+                    const filtered = matched.filter(p => p.department === deptName);
+                    if (filtered.length === 1) return filtered[0];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    // ==========================================
+    // ตรวจสอบชื่อผู้ประเมินในไฟล์
     // ==========================================
     const currentEvaluatorName = _impersonationMode
         ? _impersonatedEvaluatorName
@@ -1805,7 +1910,7 @@ async function importCommitteeExcel(event) {
         }
     }
 
-    // ✅ ตรวจสอบรอบการประเมิน (ถ้ามี)
+    // ตรวจสอบรอบการประเมิน (ถ้ามี)
     if (roundNameInFile && currentEvalRound.round_name) {
         if (roundNameInFile !== currentEvalRound.round_name) {
             const confirmRound = await Swal.fire({
@@ -1828,7 +1933,7 @@ async function importCommitteeExcel(event) {
     }
 
     // ==========================================
-    // ✅ ยืนยันการนำเข้า
+    // ยืนยันการนำเข้า
     // ==========================================
     const confirm = await Swal.fire({
         icon: 'warning',
@@ -1851,7 +1956,7 @@ async function importCommitteeExcel(event) {
     }
 
     // ==========================================
-    // ✅ เริ่มนำเข้าข้อมูล
+    // เริ่มนำเข้าข้อมูล
     // ==========================================
     Swal.fire({
         title: 'กำลังนำเข้าข้อมูล...',
@@ -1886,110 +1991,11 @@ async function importCommitteeExcel(event) {
             !h.includes('สถานะ') && !h.includes('คะแนนรวม')
         );
 
-        // ==========================================
-        // ✅ ฟังก์ชันค้นหาครูแบบหลายวิธี
-        // ==========================================
-        async function findTeacher(teacherName, deptName) {
-            const cleanName = stripThaiTitle(teacherName);
-            const nameParts = cleanName.split(/\s+/);
-            let firstName = '';
-            let lastName = '';
-
-            if (nameParts.length >= 2) {
-                firstName = nameParts[0] || '';
-                lastName = nameParts.slice(1).join(' ') || '';
-            } else if (nameParts.length === 1) {
-                firstName = nameParts[0] || '';
-                lastName = '';
-            } else {
-                return null;
-            }
-
-            // วิธีที่ 1: ค้นหาแบบตรงเป๊ะ
-            let query = db.from('core_personnel')
-                .select('id, prefix, first_name, last_name, academic_standing, department, position')
-                .in('position', ['ครู', 'ครูผู้ช่วย'])
-                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-            if (firstName && lastName) {
-                query = query.eq('first_name', firstName).eq('last_name', lastName);
-            } else if (firstName && !lastName) {
-                query = query.ilike('first_name', `%${firstName}%`);
-            } else {
-                return null;
-            }
-
-            let { data: matches, error } = await query;
-            if (error) {
-                console.warn('Query error (exact):', error);
-                matches = [];
-            }
-
-            if (matches.length > 1 && deptName) {
-                matches = matches.filter(p => p.department === deptName);
-            }
-
-            if (matches.length === 1) {
-                return matches[0];
-            }
-
-            // วิธีที่ 2: ค้นหาแบบ ILIKE
-            if (matches.length === 0 || matches.length > 1) {
-                let ilikeQuery = db.from('core_personnel')
-                    .select('id, prefix, first_name, last_name, academic_standing, department, position')
-                    .in('position', ['ครู', 'ครูผู้ช่วย'])
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-                if (firstName && lastName) {
-                    ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`).ilike('last_name', `%${lastName}%`);
-                } else if (firstName) {
-                    ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`);
-                } else {
-                    return null;
-                }
-
-                let { data: ilikeMatches, error: ilikeError } = await ilikeQuery.limit(10);
-                if (!ilikeError && ilikeMatches && ilikeMatches.length > 0) {
-                    if (ilikeMatches.length === 1) {
-                        return ilikeMatches[0];
-                    }
-                    if (deptName) {
-                        const filtered = ilikeMatches.filter(p => p.department === deptName);
-                        if (filtered.length === 1) return filtered[0];
-                    }
-                }
-            }
-
-            // วิธีที่ 3: ค้นหาจากชื่อเต็ม
-            if (matches.length === 0) {
-                const searchWords = cleanName.split(/\s+/);
-                let { data: allTeachers, error: allError } = await db
-                    .from('core_personnel')
-                    .select('id, prefix, first_name, last_name, academic_standing, department, position')
-                    .in('position', ['ครู', 'ครูผู้ช่วย'])
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-                if (!allError && allTeachers) {
-                    const matched = allTeachers.filter(p => {
-                        const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim();
-                        return searchWords.every(word => fullName.includes(word));
-                    });
-                    if (matched.length === 1) {
-                        return matched[0];
-                    } else if (matched.length > 1 && deptName) {
-                        const filtered = matched.filter(p => p.department === deptName);
-                        if (filtered.length === 1) return filtered[0];
-                    }
-                }
-            }
-
-            return null;
-        }
-
         let successCount = 0;
         let failCount = 0;
         let errors = [];
         let skippedCount = 0;
+        const missingScoreErrors = [];
 
         for (const row of jsonData) {
             const teacherName = row[nameCol]?.trim();
@@ -2023,6 +2029,40 @@ async function importCommitteeExcel(event) {
                 continue;
             }
 
+            // ==========================================
+            // ✅ ตรวจสอบความครบถ้วนของคะแนนในแต่ละหัวข้อ
+            // ==========================================
+            const missingHeaders = [];
+            const invalidScores = [];
+
+            for (const header of evalItemHeaders) {
+                const value = row[header];
+                const numValue = parseScoreValue(value);
+
+                if (numValue === null || numValue === undefined || numValue === '') {
+                    missingHeaders.push(header);
+                } else if (numValue < 1 || numValue > 4) {
+                    invalidScores.push(`${header} = ${numValue} (ต้อง 1-4)`);
+                }
+            }
+
+            // ถ้ามีหัวข้อที่ขาดหรือคะแนนผิด ให้บันทึก error และข้ามแถวนี้
+            if (missingHeaders.length > 0 || invalidScores.length > 0) {
+                let errorMsg = `ครู: ${teacherName}`;
+                if (missingHeaders.length > 0) {
+                    errorMsg += `<br>❌ ขาดคะแนนหัวข้อ: ${missingHeaders.join(', ')}`;
+                }
+                if (invalidScores.length > 0) {
+                    errorMsg += `<br>⚠️ คะแนนผิดช่วง: ${invalidScores.join(', ')} (ต้อง 1-4)`;
+                }
+                missingScoreErrors.push(errorMsg);
+                failCount++;
+                continue; // ข้ามไม่บันทึก
+            }
+
+            // ==========================================
+            // คำนวณคะแนน
+            // ==========================================
             const detailedScores = {
                 p1_s1: [],
                 p1_s2: [],
@@ -2075,6 +2115,9 @@ async function importCommitteeExcel(event) {
 
             totalScore = Math.min(Math.max(totalScore, 0), 100);
 
+            // ==========================================
+            // บันทึกข้อมูล
+            // ==========================================
             const payload = {
                 eval_round_id: currentEvalRound.id,
                 academic_year: currentTermData.current_academic_year,
@@ -2112,22 +2155,52 @@ async function importCommitteeExcel(event) {
 
         Swal.close();
 
+        // ==========================================
+        // แสดงผลลัพธ์
+        // ==========================================
         let message = `
             <div class="text-left space-y-2">
                 <p>✅ นำเข้าสำเร็จ: <b>${successCount}</b> รายการ</p>
                 <p>⏭️ ข้าม (ไม่ใช่กลุ่มเป้าหมาย): <b>${skippedCount}</b> รายการ</p>
                 <p>❌ ล้มเหลว: <b>${failCount}</b> รายการ</p>
         `;
-        if (errors.length > 0) {
-            message += `<div class="mt-3 text-sm text-red-500 max-h-40 overflow-y-auto">${errors.slice(0, 20).join('<br>')}${errors.length > 20 ? `<br>... และอีก ${errors.length - 20} รายการ` : ''}</div>`;
+
+        if (missingScoreErrors.length > 0) {
+            // สร้าง HTML รายการแยกตามครู
+            let errorListHtml = missingScoreErrors.map((err, idx) => {
+                return `<div class="border-b border-red-100 py-2 text-xs">
+                    <span class="font-bold text-red-700">${idx + 1}. ${err}</span>
+                </div>`;
+            }).join('');
+
+            message += `
+        <div class="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
+            <p class="text-sm font-bold text-red-700">⚠️ รายการที่ถูกข้ามเนื่องจากคะแนนไม่สมบูรณ์ (${missingScoreErrors.length} รายการ):</p>
+            <div class="text-xs text-red-600 max-h-60 overflow-y-auto mt-1 space-y-1">
+                ${errorListHtml}
+            </div>
+            <p class="text-xs text-gray-400 mt-2">💡 กรุณากรอกคะแนนให้ครบทุกหัวข้อ (1-4) แล้วนำเข้าใหม่</p>
+        </div>
+    `;
         }
+
+        if (errors.length > 0) {
+            message += `
+                <div class="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                    <p class="text-sm font-bold text-yellow-700">⚠️ ข้อผิดพลาดอื่นๆ:</p>
+                    <div class="text-xs text-yellow-600 max-h-40 overflow-y-auto mt-1">${errors.slice(0, 10).join('<br>')}</div>
+                </div>
+            `;
+        }
+
         message += `</div>`;
 
         await Swal.fire({
             icon: successCount > 0 ? 'success' : 'error',
             title: successCount > 0 ? '✅ นำเข้าข้อมูลสำเร็จ' : '❌ นำเข้าข้อมูลล้มเหลว',
             html: message,
-            confirmButtonText: 'ตกลง'
+            confirmButtonText: 'ตกลง',
+            width: '700px'
         });
 
         if (successCount > 0) {
