@@ -1166,6 +1166,75 @@ function resetForm() {
 }
 
 // ==========================================
+// ✅ ฟังก์ชันรีเฟรชตารางรายชื่อครู (หลังบันทึก/ลบ/แก้ไข) - ฉบับปรับปรุง v2
+// ==========================================
+async function refreshCommitteeTeacherList() {
+    if (evaluationMode !== 'committee') return;
+
+    let subGroupId = window._currentSubGroupId;
+    let selectedItems = window._currentSelectedItems;
+    let deptTargets = window._selectedSubGroupTargets?.filter(t => t.target_type === 'department') || [];
+
+    // ✅ Fallback 1: ดึงจาก sessionStorage
+    if (!subGroupId) {
+        subGroupId = sessionStorage.getItem('lastCommitteeSubGroupId') || null;
+    }
+    if (!selectedItems || selectedItems.length === 0) {
+        try {
+            selectedItems = JSON.parse(sessionStorage.getItem('lastCommitteeSelectedItems') || '[]');
+        } catch (e) {
+            selectedItems = [];
+        }
+    }
+
+    // ✅ Fallback 2: หา subGroupId จาก select ใน DOM
+    if (!subGroupId) {
+        const subGroupSelect = document.getElementById('subGroupSelect');
+        if (subGroupSelect) subGroupId = subGroupSelect.value;
+    }
+
+    // ✅ Fallback 3: ดึงจาก memberships ของกรรมการ
+    if (!subGroupId) {
+        const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
+        const { data: memberships } = await db
+            .from('eval_committee_members')
+            .select('committee_group_id')
+            .eq('user_id', evaluatorId)
+            .eq('is_active', true);
+        if (memberships && memberships.length > 0) {
+            subGroupId = memberships[0].committee_group_id;
+        }
+    }
+
+    // ✅ ถ้าไม่มี deptTargets ให้ดึงจากฐานข้อมูลโดยใช้ subGroupId
+    if (deptTargets.length === 0 && subGroupId) {
+        try {
+            const { data: subGroup, error } = await db
+                .from('eval_committee_groups')
+                .select('*, eval_committee_targets(*)')
+                .eq('id', subGroupId)
+                .single();
+
+            if (!error && subGroup && subGroup.eval_committee_targets) {
+                deptTargets = subGroup.eval_committee_targets.filter(t => t.target_type === 'department');
+            }
+        } catch (err) {
+            console.error('Error fetching targets for refresh:', err);
+        }
+    }
+
+    // ✅ ถ้าพบ deptTargets และ subGroupId ให้โหลดตารางครู
+    if (deptTargets.length > 0 && subGroupId) {
+        for (const t of deptTargets) {
+            await loadTeachersForEvalBySubGroup(subGroupId, t.target_value, selectedItems, false);
+        }
+    } else {
+        // แสดงข้อความแบบไม่รบกวน (ไม่ใช่ warning)
+        console.log('ℹ️ ไม่พบกลุ่มเป้าหมายสำหรับรีเฟรชตารางครู (อาจไม่ได้อยู่ในหน้า committee)');
+    }
+}
+
+// ==========================================
 // ✅ Submit Evaluation
 // ==========================================
 async function submitEvaluation() {
@@ -1319,15 +1388,17 @@ async function submitEvaluation() {
             } else if (evaluationMode === 'committee') {
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
+
+                // ✅ เก็บค่า subGroupId และ selectedItems ลง sessionStorage เพื่อใช้ตอนรีเฟรช
+                if (window._currentSubGroupId) {
+                    sessionStorage.setItem('lastCommitteeSubGroupId', window._currentSubGroupId);
+                }
+                if (window._currentSelectedItems) {
+                    sessionStorage.setItem('lastCommitteeSelectedItems', JSON.stringify(window._currentSelectedItems));
+                }
+
                 setTimeout(() => {
-                    const deptTargets = window._selectedSubGroupTargets?.filter(t => t.target_type === 'department') || [];
-                    if (deptTargets.length > 0) {
-                        deptTargets.forEach(t => {
-                            loadTeachersForEvalBySubGroup(window._currentSubGroupId, t.target_value, window._currentSelectedItems, false);
-                        });
-                    } else {
-                        console.warn('No department targets found, cannot reload teacher list');
-                    }
+                    refreshCommitteeTeacherList();
                 }, 500);
             } else {
                 window.location.reload();
@@ -1338,886 +1409,6 @@ async function submitEvaluation() {
         console.error('Error:', err);
         Swal.close();
         Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-// ==========================================
-// ✅ ส่งออก Excel สำหรับกรรมการ (Export) - ฉบับ Query ตรง
-// ==========================================
-async function exportCommitteeExcel() {
-    try {
-        if (!currentEvalRound) {
-            return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
-        }
-
-        const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
-        const evaluatorName = _impersonationMode ? _impersonatedEvaluatorName : `${currentUser.first_name} ${currentUser.last_name}`;
-
-        if (currentUser.role === 'super_admin' && !_impersonationMode) {
-            const confirm = await Swal.fire({
-                icon: 'info',
-                title: 'เลือกกรรมการที่ต้องการ',
-                text: 'คุณอยู่ในโหมด Super Admin กรุณาเลือกกรรมการที่ต้องการส่งออก Excel ก่อน',
-                showCancelButton: true,
-                confirmButtonText: 'เลือกกรรมการ',
-                cancelButtonText: 'ยกเลิก'
-            });
-            if (confirm.isConfirmed) {
-                const memSelect = document.getElementById('sel_committee_member');
-                if (memSelect) {
-                    memSelect.focus();
-                    memSelect.click();
-                }
-            }
-            return;
-        }
-
-        Swal.fire({
-            title: 'กำลังสร้างไฟล์ Excel...',
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading()
-        });
-
-        // ✅ 1. Query ชุดย่อยที่กรรมการคนนี้สังกัด (โดยตรง)
-        let subGroups = [];
-        const { data: memberships, error: memError } = await db
-            .from('eval_committee_members')
-            .select('committee_group_id')
-            .eq('user_id', evaluatorId)
-            .eq('is_active', true);
-
-        if (memError) throw memError;
-
-        const subGroupIds = memberships.map(m => m.committee_group_id);
-        if (subGroupIds.length === 0) {
-            Swal.close();
-            return Swal.fire('แจ้งเตือน', 'คุณไม่ได้เป็นกรรมการในชุดใดเลย', 'warning');
-        }
-
-        const { data: subs, error: subError } = await db
-            .from('eval_committee_groups')
-            .select('*, eval_committee_targets(*)')
-            .in('id', subGroupIds)
-            .eq('is_active', true);
-
-        if (subError) throw subError;
-        subGroups = subs || [];
-
-        if (subGroups.length === 0) {
-            Swal.close();
-            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลชุดย่อยที่ใช้งานอยู่', 'warning');
-        }
-
-        const allDepartments = new Set();
-        for (const sub of subGroups) {
-            const targets = sub.eval_committee_targets || [];
-            const depts = targets
-                .filter(t => t.target_type === 'department')
-                .map(t => t.target_value);
-            const allowed = ['ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
-                'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)', 'สังคมศึกษา ศาสนาและวัฒนธรรม',
-                'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
-                'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)', 'แนะแนว'];
-            const filteredDepts = depts.filter(d => allowed.includes(d));
-            filteredDepts.forEach(d => allDepartments.add(d));
-        }
-
-        if (allDepartments.size === 0) {
-            Swal.close();
-            return Swal.fire('แจ้งเตือน', 'ไม่พบกลุ่มเป้าหมาย (department targets) ในชุดย่อยที่สังกัด', 'warning');
-        }
-
-        const validStandings = ['ครูผู้ช่วย', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ', 'ไม่มีวิทยฐานะ'];
-        const deptArray = Array.from(allDepartments);
-        const queryPromises = deptArray.map(dept =>
-            db.from('core_personnel')
-                .select('id, prefix, first_name, last_name, academic_standing, department')
-                .eq('department', dept)
-                .in('position', ['ครู', 'ครูผู้ช่วย'])
-                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
-                .order('first_name', { ascending: true })
-        );
-
-        const results = await Promise.all(queryPromises);
-        let allTeachers = [];
-        results.forEach(({ data, error }) => {
-            if (!error && data) {
-                allTeachers = allTeachers.concat(data);
-            }
-        });
-
-        if (allTeachers.length === 0) {
-            Swal.close();
-            return Swal.fire({
-                icon: 'warning',
-                title: 'ไม่พบครูที่ต้องประเมิน',
-                html: `
-                    <div class="text-left">
-                        <p><b>กลุ่มสาระที่ตั้งค่าไว้:</b></p>
-                        <ul class="list-disc pl-5 text-sm">
-                            ${deptArray.map(d => `<li>${d}</li>`).join('')}
-                        </ul>
-                        <p class="text-sm text-gray-500 mt-3">💡 ตรวจสอบว่ามีครูในกลุ่มสาระเหล่านี้ หรือตั้งค่า targets ถูกต้อง</p>
-                    </div>
-                `,
-                confirmButtonText: 'ตกลง'
-            });
-        }
-
-        const teacherIds = allTeachers.map(t => t.id);
-        const { data: evalResults } = await db
-            .from('eval_results')
-            .select('evaluatee_id, detailed_scores, total_score, status')
-            .in('evaluatee_id', teacherIds)
-            .eq('eval_round_id', currentEvalRound.id)
-            .eq('evaluator_id', evaluatorId)
-            .eq('eval_type', 'committee');
-
-        const evalMap = {};
-        (evalResults || []).forEach(r => { evalMap[r.evaluatee_id] = r; });
-
-        const allSubItems = [];
-        const academic = currentUser.academic_standing || 'ครู';
-        const criteria = evalCriteriaDB[academic] || evalCriteriaDB['ครูชำนาญการพิเศษ'];
-
-        for (const sub of subGroups) {
-            const items = sub.selected_sub_items || [];
-            const formattedItems = items.map(item => {
-                let label = '';
-                if (item.element === '1') {
-                    if (item.part === '1') {
-                        for (const group of criteria.part1_sec1 || []) {
-                            const found = group.items.find(i => i.id === item.value || i.id === item.value.replace('.', '_'));
-                            if (found) { label = found.label; break; }
-                        }
-                    } else if (item.part === '2') {
-                        const found = criteria.part1_sec2?.find(i => {
-                            const id = i.id === 's2_1' ? '1' : i.id === 's2_2_1' ? '2.1' : i.id === 's2_2_2' ? '2.2' : i.id;
-                            return id === item.value || id === item.value.replace('.', '_');
-                        });
-                        if (found) label = found.label;
-                    }
-                } else if (item.element === '2') {
-                    label = 'ความสำเร็จของงานที่ได้รับมอบหมาย (ระดับ 1-5)';
-                } else if (item.element === '3') {
-                    const idx = parseInt(item.value) - 1;
-                    if (idx >= 0 && idx < PART3_ITEMS.length) {
-                        label = PART3_ITEMS[idx].substring(0, 50) + '...';
-                    }
-                }
-                return { ...item, label: label || `${item.element}:${item.value}` };
-            });
-            allSubItems.push(...formattedItems);
-        }
-
-        const uniqueItems = [];
-        const seen = new Set();
-        allSubItems.forEach(item => {
-            const key = `${item.element}-${item.value}-${item.part || ''}`;
-            if (!seen.has(key)) {
-                seen.add(key);
-                uniqueItems.push(item);
-            }
-        });
-
-        const headers = ['กลุ่มสาระ', 'คำนำหน้าชื่อ-สกุล', 'วิทยฐานะ'];
-        uniqueItems.forEach(item => {
-            headers.push(item.label || `ข้อ ${item.value}`);
-        });
-        headers.push('สถานะ');
-        headers.push('คะแนนรวม');
-
-        const rows = [];
-        for (const teacher of allTeachers) {
-            const row = [
-                teacher.department || '-',
-                `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`,
-                teacher.academic_standing || '-'
-            ];
-
-            const evalData = evalMap[teacher.id];
-            const detailedScores = evalData?.detailed_scores || {};
-
-            for (const item of uniqueItems) {
-                let key = '';
-                if (item.element === '1') {
-                    key = item.part === '1' ? 'p1_s1' : 'p1_s2';
-                } else if (item.element === '2') {
-                    key = 'p2';
-                } else if (item.element === '3') {
-                    key = 'p3';
-                }
-
-                const scores = detailedScores[key];
-                let value = '';
-                if (scores !== undefined && scores !== null) {
-                    if (Array.isArray(scores)) {
-                        let scoreAtIndex = null;
-                        if (key === 'p1_s1' || key === 'p3') {
-                            const allItems = key === 'p1_s1' ?
-                                (criteria.part1_sec1?.flatMap(g => g.items) || []) :
-                                PART3_ITEMS;
-                            const index = allItems.findIndex(i => i.id === item.value || i === item.value);
-                            if (index >= 0 && index < scores.length) {
-                                scoreAtIndex = scores[index];
-                            }
-                        } else if (key === 'p1_s2') {
-                            const map = { '1': 0, '2.1': 1, '2.2': 2 };
-                            const idx = map[item.value];
-                            if (idx !== undefined && idx < scores.length) {
-                                scoreAtIndex = scores[idx];
-                            }
-                        }
-                        if (scoreAtIndex !== null && scoreAtIndex !== undefined && scoreAtIndex !== 0) {
-                            value = scoreAtIndex;
-                        }
-                    } else {
-                        if (scores !== null && scores !== undefined && scores !== 0) {
-                            value = scores;
-                        }
-                    }
-                }
-                row.push(value !== '' ? value : '');
-            }
-
-            if (evalData) {
-                row.push(evalData.status === 'submitted' ? 'ส่งแล้ว' : 'ร่าง');
-                row.push(evalData.total_score?.toFixed(2) || '');
-            } else {
-                row.push('ยังไม่ประเมิน');
-                row.push('');
-            }
-            rows.push(row);
-        }
-
-        const wb = XLSX.utils.book_new();
-        const wsData = [headers, ...rows];
-        const ws = XLSX.utils.aoa_to_sheet(wsData);
-
-        ws['!cols'] = headers.map((h, i) => {
-            if (i === 0) return { wch: 25 };
-            if (i === 1) return { wch: 35 };
-            if (i === 2) return { wch: 20 };
-            if (i === headers.length - 2) return { wch: 12 };
-            if (i === headers.length - 1) return { wch: 12 };
-            return { wch: 30 };
-        });
-
-        const infoData = [
-            ['ข้อมูลการส่งออก'],
-            ['รอบการประเมิน', currentEvalRound.round_name || ''],
-            ['ผู้ประเมิน', evaluatorName],
-            ['จำนวนครูที่ต้องประเมิน', allTeachers.length],
-            ['จำนวนหัวข้อ', uniqueItems.length],
-            ['กลุ่มสาระเป้าหมาย', deptArray.join(', ')],
-            ['วันที่ส่งออก', new Date().toLocaleString('th-TH')],
-            [''],
-            ['รายละเอียดชุดย่อยที่สังกัด'],
-            ['ชุดย่อย', 'จำนวนหัวข้อ', 'กลุ่มสาระเป้าหมาย']
-        ];
-        for (const sub of subGroups) {
-            const targets = sub.eval_committee_targets || [];
-            const depts = targets.filter(t => t.target_type === 'department').map(t => t.target_value).join(', ');
-            infoData.push([sub.group_name, (sub.selected_sub_items || []).length, depts || '-']);
-        }
-        const wsInfo = XLSX.utils.aoa_to_sheet(infoData);
-        wsInfo['!cols'] = [{ wch: 25 }, { wch: 15 }, { wch: 40 }];
-
-        XLSX.utils.book_append_sheet(wb, wsInfo, 'ข้อมูล');
-        XLSX.utils.book_append_sheet(wb, ws, 'คะแนนประเมิน');
-
-        Swal.close();
-
-        const fileName = `คะแนนประเมิน_${evaluatorName.replace(/\s/g, '_')}_${currentEvalRound.round_name?.replace(/\s/g, '_') || 'round'}.xlsx`;
-        XLSX.writeFile(wb, fileName);
-
-        Swal.fire({
-            icon: 'success',
-            title: 'ส่งออก Excel สำเร็จ!',
-            text: `ไฟล์ "${fileName}" ถูกบันทึกเรียบร้อย`,
-            timer: 2000,
-            showConfirmButton: false
-        });
-
-    } catch (err) {
-        console.error('Error exporting committee Excel:', err);
-        Swal.close();
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-// ==========================================
-// ✅ ฟังก์ชันแปลงค่าคะแนนอย่างปลอดภัย
-// ==========================================
-function parseScoreValue(value) {
-    if (value === undefined || value === null || value === '') return null;
-
-    let str = String(value).trim();
-
-    if (str.includes(',')) {
-        const parts = str.split(',').map(s => parseFloat(s.trim()));
-        const validParts = parts.filter(n => !isNaN(n) && n >= 1 && n <= 5);
-        if (validParts.length === 0) return null;
-        return validParts[0];
-    }
-
-    const num = parseFloat(str);
-    if (isNaN(num)) return null;
-
-    if (num >= 1 && num <= 5) return num;
-    return null;
-}
-
-// ==========================================
-// ✅ นำเข้า Excel สำหรับกรรมการ (พร้อมตรวจสอบความครบถ้วน)
-// ==========================================
-async function importCommitteeExcel(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    // ตรวจสอบประเภทไฟล์
-    const validTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
-    if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx|xls)$/)) {
-        Swal.fire('แจ้งเตือน', 'กรุณาเลือกไฟล์ Excel (.xlsx หรือ .xls)', 'warning');
-        event.target.value = '';
-        return;
-    }
-
-    // ตรวจสอบรอบการประเมิน
-    if (!currentEvalRound) {
-        Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
-        event.target.value = '';
-        return;
-    }
-
-    // ตรวจสอบผู้ประเมิน
-    const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
-    if (!evaluatorId) {
-        Swal.fire('แจ้งเตือน', 'ไม่พบผู้ประเมิน กรุณาเลือกกรรมการก่อน', 'warning');
-        event.target.value = '';
-        return;
-    }
-
-    // ==========================================
-    // อ่านไฟล์ Excel
-    // ==========================================
-    let workbook;
-    try {
-        const data = await file.arrayBuffer();
-        workbook = XLSX.read(data, { type: 'array' });
-    } catch (err) {
-        Swal.fire('ผิดพลาด', 'ไม่สามารถอ่านไฟล์ได้: ' + err.message, 'error');
-        event.target.value = '';
-        return;
-    }
-
-    // ==========================================
-    // ฟังก์ชันช่วยตัดคำนำหน้า
-    // ==========================================
-    function stripThaiTitle(name) {
-        const titles = ['นางสาว', 'นาง', 'นาย', 'ดร.', 'ดร', 'ว่าที่', 'พัน', 'ร้อย', 'สิบ', 'จ่า'];
-        let cleaned = name.trim();
-        for (const title of titles) {
-            if (cleaned.startsWith(title)) {
-                cleaned = cleaned.substring(title.length).trim();
-                break;
-            }
-        }
-        return cleaned;
-    }
-
-    // ==========================================
-    // ฟังก์ชันเปรียบเทียบชื่อแบบไม่สนใจคำนำหน้า
-    // ==========================================
-    function compareNames(name1, name2) {
-        if (!name1 || !name2) return false;
-
-        const clean1 = stripThaiTitle(name1);
-        const clean2 = stripThaiTitle(name2);
-
-        if (clean1 === clean2) return true;
-
-        const parts1 = clean1.split(/\s+/);
-        const parts2 = clean2.split(/\s+/);
-
-        if (parts1.length >= 2 && parts2.length >= 2) {
-            const firstName1 = parts1[0];
-            const lastName1 = parts1.slice(1).join(' ');
-            const firstName2 = parts2[0];
-            const lastName2 = parts2.slice(1).join(' ');
-
-            if (firstName1 === firstName2 && lastName1 === lastName2) return true;
-            if (lastName1 === lastName2 && parts1.length === 2 && parts2.length === 2) return true;
-        }
-        return false;
-    }
-
-    // ==========================================
-    // ฟังก์ชันค้นหาครูแบบหลายวิธี
-    // ==========================================
-    async function findTeacher(teacherName, deptName) {
-        const cleanName = stripThaiTitle(teacherName);
-        const nameParts = cleanName.split(/\s+/);
-        let firstName = '';
-        let lastName = '';
-
-        if (nameParts.length >= 2) {
-            firstName = nameParts[0] || '';
-            lastName = nameParts.slice(1).join(' ') || '';
-        } else if (nameParts.length === 1) {
-            firstName = nameParts[0] || '';
-            lastName = '';
-        } else {
-            return null;
-        }
-
-        // วิธีที่ 1: ค้นหาแบบตรงเป๊ะ
-        let query = db.from('core_personnel')
-            .select('id, prefix, first_name, last_name, academic_standing, department, position')
-            .in('position', ['ครู', 'ครูผู้ช่วย'])
-            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-        if (firstName && lastName) {
-            query = query.eq('first_name', firstName).eq('last_name', lastName);
-        } else if (firstName && !lastName) {
-            query = query.ilike('first_name', `%${firstName}%`);
-        } else {
-            return null;
-        }
-
-        let { data: matches, error } = await query;
-        if (error) {
-            console.warn('Query error (exact):', error);
-            matches = [];
-        }
-
-        if (matches.length > 1 && deptName) {
-            matches = matches.filter(p => p.department === deptName);
-        }
-
-        if (matches.length === 1) {
-            return matches[0];
-        }
-
-        // วิธีที่ 2: ค้นหาแบบ ILIKE
-        if (matches.length === 0 || matches.length > 1) {
-            let ilikeQuery = db.from('core_personnel')
-                .select('id, prefix, first_name, last_name, academic_standing, department, position')
-                .in('position', ['ครู', 'ครูผู้ช่วย'])
-                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-            if (firstName && lastName) {
-                ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`).ilike('last_name', `%${lastName}%`);
-            } else if (firstName) {
-                ilikeQuery = ilikeQuery.ilike('first_name', `%${firstName}%`);
-            } else {
-                return null;
-            }
-
-            let { data: ilikeMatches, error: ilikeError } = await ilikeQuery.limit(10);
-            if (!ilikeError && ilikeMatches && ilikeMatches.length > 0) {
-                if (ilikeMatches.length === 1) {
-                    return ilikeMatches[0];
-                }
-                if (deptName) {
-                    const filtered = ilikeMatches.filter(p => p.department === deptName);
-                    if (filtered.length === 1) return filtered[0];
-                }
-            }
-        }
-
-        // วิธีที่ 3: ค้นหาจากชื่อเต็ม
-        if (matches.length === 0) {
-            const searchWords = cleanName.split(/\s+/);
-            let { data: allTeachers, error: allError } = await db
-                .from('core_personnel')
-                .select('id, prefix, first_name, last_name, academic_standing, department, position')
-                .in('position', ['ครู', 'ครูผู้ช่วย'])
-                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-            if (!allError && allTeachers) {
-                const matched = allTeachers.filter(p => {
-                    const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim();
-                    return searchWords.every(word => fullName.includes(word));
-                });
-                if (matched.length === 1) {
-                    return matched[0];
-                } else if (matched.length > 1 && deptName) {
-                    const filtered = matched.filter(p => p.department === deptName);
-                    if (filtered.length === 1) return filtered[0];
-                }
-            }
-        }
-
-        return null;
-    }
-
-    // ==========================================
-    // ตรวจสอบชื่อผู้ประเมินในไฟล์
-    // ==========================================
-    const currentEvaluatorName = _impersonationMode
-        ? _impersonatedEvaluatorName
-        : `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`.trim();
-
-    let evaluatorNameInFile = null;
-    let roundNameInFile = null;
-
-    if (workbook.SheetNames.includes('ข้อมูล')) {
-        const infoSheet = workbook.Sheets['ข้อมูล'];
-        const infoData = XLSX.utils.sheet_to_json(infoSheet, { header: 1 });
-        for (let row of infoData) {
-            if (row.length >= 2 && row[0] === 'ผู้ประเมิน') {
-                evaluatorNameInFile = row[1]?.trim();
-            }
-            if (row.length >= 2 && row[0] === 'รอบการประเมิน') {
-                roundNameInFile = row[1]?.trim();
-            }
-        }
-    }
-
-    if (evaluatorNameInFile) {
-        const isMatch = compareNames(evaluatorNameInFile, currentEvaluatorName);
-        if (!isMatch) {
-            await Swal.fire({
-                icon: 'error',
-                title: '❌ ไฟล์ไม่ตรงกับกรรมการที่เลือก',
-                html: `
-                    <p>ไฟล์นี้เป็นของ: <b>${evaluatorNameInFile}</b></p>
-                    <p>แต่คุณกำลังนำเข้าในนาม: <b>${currentEvaluatorName}</b></p>
-                    <p class="text-sm text-red-500 mt-2">กรุณาเลือกกรรมการให้ถูกต้อง หรือใช้ไฟล์ที่ถูกต้อง</p>
-                    <p class="text-xs text-gray-400 mt-1">💡 ชื่อที่ไม่ตรงกันอาจเกิดจากคำนำหน้า (นางสาว/นาง/นาย) ที่ต่างกัน</p>
-                `,
-                confirmButtonText: 'ตกลง'
-            });
-            event.target.value = '';
-            return;
-        }
-    } else {
-        const confirmContinue = await Swal.fire({
-            icon: 'warning',
-            title: '⚠️ ไม่พบข้อมูลผู้ประเมินในไฟล์',
-            html: `
-                <p>ไฟล์นี้ไม่มีข้อมูลผู้ประเมิน (อาจเป็นไฟล์ที่สร้างจากแหล่งอื่น)</p>
-                <p class="text-sm text-gray-500">คุณต้องการนำเข้าต่อโดยไม่ตรวจสอบหรือไม่?</p>
-            `,
-            showCancelButton: true,
-            confirmButtonText: '✅ นำเข้าต่อ',
-            cancelButtonText: 'ยกเลิก'
-        });
-        if (!confirmContinue.isConfirmed) {
-            event.target.value = '';
-            return;
-        }
-    }
-
-    // ตรวจสอบรอบการประเมิน (ถ้ามี)
-    if (roundNameInFile && currentEvalRound.round_name) {
-        if (roundNameInFile !== currentEvalRound.round_name) {
-            const confirmRound = await Swal.fire({
-                icon: 'warning',
-                title: '⚠️ รอบการประเมินไม่ตรงกัน',
-                html: `
-                    <p>ไฟล์นี้เป็นรอบ: <b>${roundNameInFile}</b></p>
-                    <p>รอบปัจจุบัน: <b>${currentEvalRound.round_name}</b></p>
-                    <p class="text-sm text-gray-500">ต้องการนำเข้าต่อหรือไม่?</p>
-                `,
-                showCancelButton: true,
-                confirmButtonText: '✅ นำเข้าต่อ',
-                cancelButtonText: 'ยกเลิก'
-            });
-            if (!confirmRound.isConfirmed) {
-                event.target.value = '';
-                return;
-            }
-        }
-    }
-
-    // ==========================================
-    // ยืนยันการนำเข้า
-    // ==========================================
-    const confirm = await Swal.fire({
-        icon: 'warning',
-        title: 'ยืนยันการนำเข้า',
-        html: `
-            <p>คุณกำลังจะนำเข้าข้อมูลจากไฟล์ <b>${file.name}</b></p>
-            <p class="text-sm text-gray-500 mt-2">⚠️ ข้อมูลที่มีอยู่เดิมจะถูก <b>แทนที่</b> ด้วยข้อมูลในไฟล์</p>
-            <p class="text-sm text-gray-500">เฉพาะรายการที่มีการเปลี่ยนแปลงเท่านั้นที่จะถูกอัปเดต</p>
-            <p class="text-sm text-amber-500 mt-2">✅ ค่า 0 หรือค่าผิดปกติจะถูกละเว้น</p>
-            ${_impersonationMode ? `<p class="text-sm text-orange-500 mt-2">👑 สวมรอย: <b>${currentEvaluatorName}</b></p>` : ''}
-        `,
-        showCancelButton: true,
-        confirmButtonText: '✅ ยืนยันนำเข้า',
-        cancelButtonText: 'ยกเลิก'
-    });
-
-    if (!confirm.isConfirmed) {
-        event.target.value = '';
-        return;
-    }
-
-    // ==========================================
-    // เริ่มนำเข้าข้อมูล
-    // ==========================================
-    Swal.fire({
-        title: 'กำลังนำเข้าข้อมูล...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-    try {
-        const sheetName = workbook.SheetNames.find(name => name === 'คะแนนประเมิน') || workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
-
-        if (!jsonData || jsonData.length === 0) {
-            Swal.close();
-            Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลในชีท "คะแนนประเมิน"', 'warning');
-            event.target.value = '';
-            return;
-        }
-
-        const headers = Object.keys(jsonData[0]);
-        const nameCol = headers.find(h => h.includes('ชื่อ') || h.includes('สกุล'));
-        const deptCol = headers.find(h => h.includes('กลุ่มสาระ') || h.includes('สาระ'));
-
-        if (!nameCol) {
-            Swal.close();
-            Swal.fire('แจ้งเตือน', 'ไม่พบคอลัมภ์ชื่อ-สกุลในไฟล์ Excel', 'warning');
-            event.target.value = '';
-            return;
-        }
-
-        const evalItemHeaders = headers.slice(3).filter(h =>
-            !h.includes('สถานะ') && !h.includes('คะแนนรวม')
-        );
-
-        let successCount = 0;
-        let failCount = 0;
-        let errors = [];
-        let skippedCount = 0;
-        const missingScoreErrors = [];
-
-        for (const row of jsonData) {
-            const teacherName = row[nameCol]?.trim();
-            if (!teacherName) continue;
-
-            const rowDept = deptCol ? String(row[deptCol] || '').trim() : '';
-            const teacher = await findTeacher(teacherName, rowDept);
-
-            if (!teacher) {
-                errors.push(`ไม่พบครู: ${teacherName}`);
-                failCount++;
-                continue;
-            }
-
-            // ตรวจสอบว่าครูอยู่ในกลุ่มเป้าหมาย
-            const { data: targets, error: targetError } = await db
-                .from('eval_committee_targets')
-                .select('committee_group_id')
-                .eq('target_type', 'department')
-                .eq('target_value', teacher.department)
-                .eq('is_active', true);
-
-            if (targetError) {
-                errors.push(`ตรวจสอบกลุ่มเป้าหมายของ ${teacherName} ล้มเหลว: ${targetError.message}`);
-                failCount++;
-                continue;
-            }
-
-            if (!targets || targets.length === 0) {
-                skippedCount++;
-                continue;
-            }
-
-            // ==========================================
-            // ✅ ตรวจสอบความครบถ้วนของคะแนนในแต่ละหัวข้อ
-            // ==========================================
-            const missingHeaders = [];
-            const invalidScores = [];
-
-            for (const header of evalItemHeaders) {
-                const value = row[header];
-                const numValue = parseScoreValue(value);
-
-                if (numValue === null || numValue === undefined || numValue === '') {
-                    missingHeaders.push(header);
-                } else if (numValue < 1 || numValue > 4) {
-                    invalidScores.push(`${header} = ${numValue} (ต้อง 1-4)`);
-                }
-            }
-
-            // ถ้ามีหัวข้อที่ขาดหรือคะแนนผิด ให้บันทึก error และข้ามแถวนี้
-            if (missingHeaders.length > 0 || invalidScores.length > 0) {
-                let errorMsg = `ครู: ${teacherName}`;
-                if (missingHeaders.length > 0) {
-                    errorMsg += `<br>❌ ขาดคะแนนหัวข้อ: ${missingHeaders.join(', ')}`;
-                }
-                if (invalidScores.length > 0) {
-                    errorMsg += `<br>⚠️ คะแนนผิดช่วง: ${invalidScores.join(', ')} (ต้อง 1-4)`;
-                }
-                missingScoreErrors.push(errorMsg);
-                failCount++;
-                continue; // ข้ามไม่บันทึก
-            }
-
-            // ==========================================
-            // คำนวณคะแนน
-            // ==========================================
-            const detailedScores = {
-                p1_s1: [],
-                p1_s2: [],
-                p2: null,
-                p3: []
-            };
-
-            let hasScore = false;
-            let totalScore = 0;
-
-            for (const header of evalItemHeaders) {
-                const value = row[header];
-                const numValue = parseScoreValue(value);
-                if (numValue === null) continue;
-
-                hasScore = true;
-                const lowerHeader = header.toLowerCase();
-
-                if (lowerHeader.includes('1.') || lowerHeader.includes('2.') || lowerHeader.includes('3.')) {
-                    detailedScores.p1_s1.push(numValue);
-                } else if (lowerHeader.includes('ระดับ') || lowerHeader.includes('ความสำเร็จ')) {
-                    detailedScores.p2 = numValue;
-                } else if (lowerHeader.includes('จริยธรรม') || lowerHeader.includes('วินัย') || lowerHeader.includes('คุณธรรม')) {
-                    detailedScores.p3.push(numValue);
-                } else {
-                    detailedScores.p1_s1.push(numValue);
-                }
-            }
-
-            const isAssistant = teacher.academic_standing === 'ครูผู้ช่วย';
-
-            if (detailedScores.p2 !== null && detailedScores.p2 !== undefined) {
-                totalScore += detailedScores.p2 * 2;
-            }
-
-            if (detailedScores.p1_s1.length > 0) {
-                const sum = detailedScores.p1_s1.reduce((a, b) => a + b, 0);
-                totalScore += isAssistant ? (sum * 80) / 56 : (sum / 60) * 60;
-            }
-
-            if (detailedScores.p1_s2.length > 0) {
-                const sum = detailedScores.p1_s2.reduce((a, b) => a + b, 0);
-                totalScore += (sum * 20) / 40;
-            }
-
-            if (detailedScores.p3.length > 0) {
-                const sum = detailedScores.p3.reduce((a, b) => a + b, 0);
-                totalScore += sum / 4;
-            }
-
-            totalScore = Math.min(Math.max(totalScore, 0), 100);
-
-            // ==========================================
-            // บันทึกข้อมูล
-            // ==========================================
-            const payload = {
-                eval_round_id: currentEvalRound.id,
-                academic_year: currentTermData.current_academic_year,
-                semester: currentTermData.current_semester,
-                evaluatee_id: teacher.id,
-                evaluator_id: evaluatorId,
-                eval_type: 'committee',
-                total_score: totalScore,
-                detailed_scores: detailedScores,
-                status: hasScore ? 'submitted' : 'draft',
-                updated_at: new Date().toISOString()
-            };
-
-            try {
-                const { data: existing } = await db
-                    .from('eval_results')
-                    .select('id')
-                    .eq('evaluatee_id', teacher.id)
-                    .eq('eval_round_id', currentEvalRound.id)
-                    .eq('evaluator_id', evaluatorId)
-                    .eq('eval_type', 'committee')
-                    .maybeSingle();
-
-                if (existing) {
-                    await db.from('eval_results').update(payload).eq('id', existing.id);
-                } else {
-                    await db.from('eval_results').insert([payload]);
-                }
-                successCount++;
-            } catch (err) {
-                errors.push(`อัปเดต ${teacherName} ล้มเหลว: ${err.message}`);
-                failCount++;
-            }
-        }
-
-        Swal.close();
-
-        // ==========================================
-        // แสดงผลลัพธ์
-        // ==========================================
-        let message = `
-            <div class="text-left space-y-2">
-                <p>✅ นำเข้าสำเร็จ: <b>${successCount}</b> รายการ</p>
-                <p>⏭️ ข้าม (ไม่ใช่กลุ่มเป้าหมาย): <b>${skippedCount}</b> รายการ</p>
-                <p>❌ ล้มเหลว: <b>${failCount}</b> รายการ</p>
-        `;
-
-        if (missingScoreErrors.length > 0) {
-            // สร้าง HTML รายการแยกตามครู
-            let errorListHtml = missingScoreErrors.map((err, idx) => {
-                return `<div class="border-b border-red-100 py-2 text-xs">
-                    <span class="font-bold text-red-700">${idx + 1}. ${err}</span>
-                </div>`;
-            }).join('');
-
-            message += `
-        <div class="mt-3 p-3 bg-red-50 rounded-lg border border-red-200">
-            <p class="text-sm font-bold text-red-700">⚠️ รายการที่ถูกข้ามเนื่องจากคะแนนไม่สมบูรณ์ (${missingScoreErrors.length} รายการ):</p>
-            <div class="text-xs text-red-600 max-h-60 overflow-y-auto mt-1 space-y-1">
-                ${errorListHtml}
-            </div>
-            <p class="text-xs text-gray-400 mt-2">💡 กรุณากรอกคะแนนให้ครบทุกหัวข้อ (1-4) แล้วนำเข้าใหม่</p>
-        </div>
-    `;
-        }
-
-        if (errors.length > 0) {
-            message += `
-                <div class="mt-3 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <p class="text-sm font-bold text-yellow-700">⚠️ ข้อผิดพลาดอื่นๆ:</p>
-                    <div class="text-xs text-yellow-600 max-h-40 overflow-y-auto mt-1">${errors.slice(0, 10).join('<br>')}</div>
-                </div>
-            `;
-        }
-
-        message += `</div>`;
-
-        await Swal.fire({
-            icon: successCount > 0 ? 'success' : 'error',
-            title: successCount > 0 ? '✅ นำเข้าข้อมูลสำเร็จ' : '❌ นำเข้าข้อมูลล้มเหลว',
-            html: message,
-            confirmButtonText: 'ตกลง',
-            width: '700px'
-        });
-
-        if (successCount > 0) {
-            const deptTargets = window._selectedSubGroupTargets?.filter(t => t.target_type === 'department') || [];
-            if (deptTargets.length > 0) {
-                for (const t of deptTargets) {
-                    await loadTeachersForEvalBySubGroup(window._currentSubGroupId, t.target_value, window._currentSelectedItems, false);
-                }
-            }
-        }
-
-    } catch (err) {
-        console.error('Error importing Excel:', err);
-        Swal.close();
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    } finally {
-        event.target.value = '';
     }
 }
 
@@ -2235,7 +1426,5 @@ window.loadExistingEvaluation = loadExistingEvaluation;
 window.loadScoresToForm = loadScoresToForm;
 window.resetForm = resetForm;
 window.submitEvaluation = submitEvaluation;
-window.exportCommitteeExcel = exportCommitteeExcel;
-window.importCommitteeExcel = importCommitteeExcel;
 
 console.log('✅ evaluation_ui.js loaded successfully');
