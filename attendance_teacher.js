@@ -419,7 +419,7 @@ function applyReadOnlyState() {
 
     // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
     // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
-    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
         if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
             && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
@@ -442,7 +442,7 @@ function applyReadOnlyState() {
     } else if (isHead && isDisciplineHead) {
         roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
     }
-    
+
     const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
         <i class="fas fa-eye text-amber-600"></i>
         <span class="font-bold">${roleText}</span>
@@ -816,7 +816,7 @@ function applyReadOnlyState() {
 
     // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
     // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
-    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function() {
+    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
         if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
             && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
@@ -839,7 +839,7 @@ function applyReadOnlyState() {
     } else if (isHead && isDisciplineHead) {
         roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
     }
-    
+
     const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
         <i class="fas fa-eye text-amber-600"></i>
         <span class="font-bold">${roleText}</span>
@@ -1492,6 +1492,30 @@ function renderTable(enrollments) {
             <td class="px-6 py-4 align-middle"><div class="flex justify-center gap-1 sm:gap-2">${btns}</div></td>
         </tr>`);
     });
+    resetSearch(); // รีเซ็ตช่องค้นหา
+}
+
+// หลังจาก renderTable() ให้เพิ่ม event listener
+$('#searchStudent').on('keyup', function() {
+    const keyword = $(this).val().toLowerCase().trim();
+    let visible = 0;
+    $('#student-list tr').each(function() {
+        const text = $(this).text().toLowerCase();
+        if (text.includes(keyword)) {
+            $(this).show();
+            visible++;
+        } else {
+            $(this).hide();
+        }
+    });
+    $('#searchResultCount').text(visible > 0 ? `แสดง ${visible} คน` : 'ไม่พบข้อมูล');
+});
+
+// เมื่อโหลดข้อมูลใหม่ (loadStudentList) ให้เคลียร์ค่าและแสดงผลทั้งหมด
+function resetSearch() {
+    $('#searchStudent').val('');
+    $('#student-list tr').show();
+    $('#searchResultCount').text('');
 }
 
 function showFullImage(imageUrl, studentName) {
@@ -1700,7 +1724,7 @@ async function exportToExcel() {
 function escapeHtml(str) {
     if (str === undefined || str === null) return '';
     const s = String(str);
-    return s.replace(/[&<>]/g, function(m) {
+    return s.replace(/[&<>]/g, function (m) {
         if (m === '&') return '&amp;';
         if (m === '<') return '&lt;';
         if (m === '>') return '&gt;';
@@ -2182,7 +2206,7 @@ function exportGradeOverviewPDF() {
             </tr></thead>
             <tbody>${tableRowsHtml}</tbody>
         </table>
-        <div class="print-date">พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', {year:'numeric',month:'long',day:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+        <div class="print-date">พิมพ์เมื่อ: ${new Date().toLocaleDateString('th-TH', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
     </div></body></html>`;
 
     Swal.fire({ title: 'กำลังสร้าง PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -2195,15 +2219,15 @@ function exportGradeOverviewPDF() {
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
         pagebreak: { mode: ['css', 'legacy'] }
     }).from(htmlContent).save()
-    .then(() => {
-        Swal.close();
-        Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF รายงานระดับชั้นเรียบร้อยแล้ว', 'success');
-    })
-    .catch(err => {
-        Swal.close();
-        console.error('Grade PDF error:', err);
-        Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถสร้าง PDF ได้', 'error');
-    });
+        .then(() => {
+            Swal.close();
+            Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF รายงานระดับชั้นเรียบร้อยแล้ว', 'success');
+        })
+        .catch(err => {
+            Swal.close();
+            console.error('Grade PDF error:', err);
+            Swal.fire('เกิดข้อผิดพลาด', err.message || 'ไม่สามารถสร้าง PDF ได้', 'error');
+        });
 }
 
 function closeGradeOverview() {
@@ -2354,18 +2378,14 @@ async function generateStats() {
     Swal.fire({ title: 'กำลังประมวลผลข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
-        // =============================================
-        // 1. โหลดข้อมูลครูที่ปรึกษาของห้องที่เลือก
-        // =============================================
+        // 1. ดึงข้อมูลครูที่ปรึกษา
         let adviser1 = '.......................................';
         let adviser2 = '.......................................';
-
         const { data: roomData } = await db
             .from('core_classrooms')
             .select('adviser_id_1, adviser_id_2')
             .eq('id', classroomId)
             .single();
-
         if (roomData) {
             const ids = [roomData.adviser_id_1, roomData.adviser_id_2].filter(id => id);
             if (ids.length > 0) {
@@ -2383,118 +2403,134 @@ async function generateStats() {
             }
         }
 
-        // =============================================
-        // 2. ดึงข้อมูลการเช็คชื่อตามช่วงวันที่
-        // =============================================
-        const { data: records, error } = await db
+        // 2. ดึงนักเรียนทั้งหมดในห้อง
+        const { data: enrollments, error: enrollError } = await db
+            .from('student_enrollments')
+            .select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`)
+            .eq('classroom_id', classroomId)
+            .order('student_number', { ascending: true });
+
+        if (enrollError) throw enrollError;
+        if (!enrollments || enrollments.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องนี้', 'warning');
+        }
+
+        // 3. ดึงข้อมูลการเช็คชื่อในช่วงวันที่
+        const { data: records, error: attError } = await db
             .from('homeroom_attendance')
             .select('student_id, status')
             .eq('classroom_id', classroomId)
             .gte('check_date', startDate)
             .lte('check_date', endDate);
 
-        if (error) throw error;
+        if (attError) throw attError;
 
-        // =============================================
-        // 3. คำนวณสถิติรวม
-        // =============================================
-        const statsCount = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
-        const studentIssues = { 'ขาด': {}, 'สาย': {}, 'ลา': {}, 'ป่วย': {} };
-
-        records.forEach(r => {
-            if (statsCount[r.status] !== undefined) {
-                statsCount[r.status]++;
-                if (r.status !== 'มา') {
-                    if (!studentIssues[r.status][r.student_id]) studentIssues[r.status][r.student_id] = 0;
-                    studentIssues[r.status][r.student_id]++;
-                }
-            }
+        // 4. สร้าง map สำหรับนับจำนวนแต่ละสถานะต่อนักเรียน
+        const studentStats = {};
+        enrollments.forEach(enroll => {
+            const sid = enroll.student_id;
+            const std = enroll.core_students || {};
+            studentStats[sid] = {
+                student_number: enroll.student_number || '-',
+                student_id_card: std.student_id_card || '-',
+                name: `${std.prefix || ''}${std.first_name || ''} ${std.last_name || ''}`.trim() || 'ไม่ระบุชื่อ',
+                counts: { มา: 0, ขาด: 0, สาย: 0, ลา: 0, ป่วย: 0 }
+            };
         });
 
-        // =============================================
-        // 4. จับคู่ student_id กับชื่อ (ใช้ข้อมูลที่มีในหน้าหลักถ้าเป็นห้องเดียวกัน หรือดึงใหม่)
-        // =============================================
-        const studentMap = {};
-        const mainClassroomId = $('#classroom-select').val();
-
-        if (currentDashboardStudents.length > 0 && classroomId === mainClassroomId) {
-            currentDashboardStudents.forEach(enroll => {
-                const s = enroll.core_students || enroll;
-                const sid = enroll.student_id || enroll.id;
-                studentMap[sid] = {
-                    name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
-                    no: enroll.student_number || '-'
-                };
-            });
-        } else {
-            const { data: enrollExtra } = await db
-                .from('student_enrollments')
-                .select('student_id, student_number, core_students(prefix, first_name, last_name)')
-                .eq('classroom_id', classroomId)
-                .order('student_number', { ascending: true });
-
-            (enrollExtra || []).forEach(enroll => {
-                const s = enroll.core_students || {};
-                studentMap[enroll.student_id] = {
-                    name: `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim(),
-                    no: enroll.student_number || '-'
-                };
+        if (records) {
+            records.forEach(rec => {
+                if (studentStats[rec.student_id]) {
+                    const status = rec.status;
+                    if (studentStats[rec.student_id].counts[status] !== undefined) {
+                        studentStats[rec.student_id].counts[status]++;
+                    }
+                }
             });
         }
 
-        // =============================================
-        // 5. สร้าง HTML รายชื่อแยกตามสถานะ (ขาด, สาย, ลา, ป่วย)
-        // =============================================
-        const generateStatsListHTML = (title, statusKey, icon, colorClass, bgClass) => {
-            const issues = studentIssues[statusKey];
-            const studentIds = Object.keys(issues);
-            if (studentIds.length === 0) return '';
+        // 5. เรียงลำดับตามเลขที่
+        const sortedStudents = Object.values(studentStats).sort((a, b) => {
+            const noA = parseInt(a.student_number, 10);
+            const noB = parseInt(b.student_number, 10);
+            if (isNaN(noA) && isNaN(noB)) return 0;
+            if (isNaN(noA)) return 1;
+            if (isNaN(noB)) return -1;
+            return noA - noB;
+        });
 
-            const list = studentIds.map(sid => {
-                const info = studentMap[sid] || { name: 'ไม่พบข้อมูลชื่อ', no: 99 };
-                return { name: info.name, no: info.no, count: issues[sid] };
-            }).sort((a, b) => a.no - b.no);
+        // 6. สร้างตาราง HTML สำหรับแสดงใน modal (ไม่มีลายเซ็น)
+        let tableRows = '';
+        sortedStudents.forEach(s => {
+            tableRows += `<tr class="border-b border-slate-200 hover:bg-slate-50/50">
+                <td class="px-4 py-2 text-center font-medium text-slate-500">${escapeHtml(s.student_number)}</td>
+                <td class="px-4 py-2 text-center font-mono text-sm">${escapeHtml(s.student_id_card)}</td>
+                <td class="px-4 py-2 font-medium text-slate-700">${escapeHtml(s.name)}</td>
+                <td class="px-4 py-2 text-center font-bold text-emerald-600">${s.counts.มา}</td>
+                <td class="px-4 py-2 text-center font-bold text-rose-600">${s.counts.ขาด}</td>
+                <td class="px-4 py-2 text-center font-bold text-orange-500">${s.counts.สาย}</td>
+                <td class="px-4 py-2 text-center font-bold text-blue-600">${s.counts.ป่วย}</td>
+                <td class="px-4 py-2 text-center font-bold text-yellow-600">${s.counts.ลา}</td>
+            </tr>`;
+        });
 
-            const itemsHTML = list.map(s => `
-                <li class="flex justify-between items-center py-1.5 border-b border-slate-200/50 last:border-0" style="page-break-inside: avoid; break-inside: avoid;">
-                    <div class="text-[12px] text-slate-700"><span class="font-bold text-slate-500 mr-1">${s.no}.</span> ${s.name}</div>
-                    <div class="text-[11px] font-black px-2 py-0.5 rounded-lg bg-white text-slate-600 shadow-sm border border-slate-100">${s.count} ครั้ง</div>
-                </li>`).join('');
+        const tableHtml = `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm border-collapse border border-slate-200">
+                <thead class="bg-indigo-50 text-indigo-700">
+                    <tr>
+                        <th class="px-4 py-2 text-left font-bold border border-slate-200">เลขที่</th>
+                        <th class="px-4 py-2 text-left font-bold border border-slate-200">เลขประจำตัว</th>
+                        <th class="px-4 py-2 text-left font-bold border border-slate-200">ชื่อ-สกุล</th>
+                        <th class="px-4 py-2 text-center font-bold text-emerald-600 border border-slate-200">มา</th>
+                        <th class="px-4 py-2 text-center font-bold text-rose-600 border border-slate-200">ขาด</th>
+                        <th class="px-4 py-2 text-center font-bold text-orange-500 border border-slate-200">สาย</th>
+                        <th class="px-4 py-2 text-center font-bold text-blue-600 border border-slate-200">ลาป่วย</th>
+                        <th class="px-4 py-2 text-center font-bold text-yellow-600 border border-slate-200">ลากิจ</th>
+                    </tr>
+                </thead>
+                <tbody>${tableRows}</tbody>
+            </table>
+        </div>`;
 
-            return `<div class="${bgClass} p-5 rounded-2xl border border-slate-200 shadow-sm" style="page-break-inside: avoid; break-inside: avoid; margin-bottom: 16px;">
-                <h4 class="font-black text-sm ${colorClass} mb-3 flex items-center border-b border-white pb-2"><i class="${icon} mr-2"></i> ${title} (${list.length} คน)</h4>
-                <ul class="space-y-1">${itemsHTML}</ul>
-            </div>`;
-        };
-
+        // 7. แสดงใน modal
         const listsContainer = document.getElementById('stats-student-lists');
         if (listsContainer) {
-            listsContainer.innerHTML =
-                generateStatsListHTML('ขาดเรียน', 'ขาด', 'fas fa-user-times', '#be123c', '#fff1f2') +
-                generateStatsListHTML('มาสาย', 'สาย', 'fas fa-clock', '#c2410c', '#fff7ed') +
-                generateStatsListHTML('ลากิจ', 'ลา', 'fas fa-envelope-open-text', '#a16207', '#fefce8') +
-                generateStatsListHTML('ลาป่วย', 'ป่วย', 'fas fa-procedures', '#1d4ed8', '#eff6ff');
+            listsContainer.innerHTML = tableHtml;
+            listsContainer.className = 'w-full overflow-x-auto';
             listsContainer.classList.remove('hidden');
         }
 
-        // =============================================
-        // 6. อัปเดต UI ด้วยข้อมูลที่คำนวณได้ (รวมชื่อครูที่ปรึกษา)
-        // =============================================
+        // ซ่อนกราฟ
+        const chartWrapper = document.querySelector('#attendanceChart')?.parentElement;
+        if (chartWrapper) chartWrapper.style.display = 'none';
+
+        // 8. อัปเดตข้อมูลส่วนหัว (เฉพาะห้องเรียนและวันที่)
         const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
         const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
-
         document.getElementById('ui-stats-room-term').textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
-        document.getElementById('ui-stats-advisers').textContent = `ครูที่ปรึกษา: ${adviser1} และ ${adviser2}`;
+        document.getElementById('ui-stats-advisers').textContent = '';
         document.getElementById('stats-pdf-term').textContent = `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`;
         document.getElementById('stats-pdf-room').textContent = `ระดับชั้น: ${roomText}`;
-        document.getElementById('stats-pdf-adviser1').textContent = `ครูที่ปรึกษาคนที่ 1: ${adviser1}`;
-        document.getElementById('stats-pdf-adviser2').textContent = `ครูที่ปรึกษาคนที่ 2: ${adviser2}`;
+        document.getElementById('stats-pdf-adviser1').textContent = '';
+        document.getElementById('stats-pdf-adviser2').textContent = '';
         document.getElementById('stats-pdf-subtitle').textContent = `ช่วงวันที่: ${formatThaiDate(startDate)} ถึง ${formatThaiDate(endDate)}`;
 
-        // =============================================
-        // 7. วาดกราฟ
-        // =============================================
-        renderAttendanceChart(statsCount);
+        // 9. เก็บข้อมูลสำหรับการพิมพ์ PDF
+        window._statsPrintData = {
+            students: sortedStudents,
+            roomText: roomText,
+            startDate: startDate,
+            endDate: endDate,
+            adviser1: adviser1,
+            adviser2: adviser2,
+            sem: sem,
+            year: year,
+            schoolName: currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน',
+            logoUrl: currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+            termInfo: `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`
+        };
 
         Swal.close();
     } catch (err) {
@@ -2532,28 +2568,165 @@ function renderAttendanceChart(stats) {
         }
     });
 }
+
 function printStatsPDF() {
-    if (!attendanceChartInstance) {
-        return Swal.fire('แจ้งเตือน', 'กรุณากดปุ่ม "ดูสถิติ" เพื่อแสดงกราฟและรายชื่อก่อน', 'warning');
+    const data = window._statsPrintData;
+    if (!data) {
+        return Swal.fire('แจ้งเตือน', 'กรุณากดปุ่ม "ดูสถิติ" เพื่อโหลดข้อมูลก่อนพิมพ์', 'warning');
     }
-    const header = document.getElementById('stats-pdf-header');
-    header.classList.remove('hidden');
-    const listsContainer = document.getElementById('stats-student-lists');
-    if (listsContainer) listsContainer.classList.remove('hidden');
-    const element = document.getElementById('stats-print-area');
+
+    const { students, roomText, startDate, endDate, adviser1, adviser2, sem, year, schoolName, logoUrl, termInfo } = data;
+    const thaiStart = formatThaiDate(startDate);
+    const thaiEnd = formatThaiDate(endDate);
+
+    // ฟังก์ชันสร้างตารางสำหรับแต่ละหน้า (ปรับขนาดใหญ่ขึ้น)
+    const buildTable = (studentSlice) => {
+        let html = `<table style="width:100%; border-collapse: collapse; font-size: 13px; margin-top: 5px;">`;
+        html += `<thead>
+            <tr style="background-color: #e0e7ff; font-weight: bold;">
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:8%;">เลขที่</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:15%;">เลขประจำตัว</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:left; width:35%;">ชื่อ-สกุล</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:8%;">มา</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:8%;">ขาด</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:8%;">สาย</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:9%;">ลาป่วย</th>
+                <th style="border:1px solid #ccc; padding: 6px 8px; text-align:center; width:9%;">ลากิจ</th>
+            </tr>
+        </thead>`;
+        html += `<tbody>`;
+        studentSlice.forEach(s => {
+            html += `<tr>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center;">${escapeHtml(s.student_number)}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center;">${escapeHtml(s.student_id_card)}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:left; font-weight:500;">${escapeHtml(s.name)}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center; color:#16a34a; font-weight:bold;">${s.counts.มา}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center; color:#dc2626; font-weight:bold;">${s.counts.ขาด}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center; color:#ea580c; font-weight:bold;">${s.counts.สาย}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center; color:#2563eb; font-weight:bold;">${s.counts.ป่วย}</td>
+                <td style="border:1px solid #ccc; padding: 6px 8px; text-align:center; color:#ca8a04; font-weight:bold;">${s.counts.ลา}</td>
+            </tr>`;
+        });
+        html += `</tbody></table>`;
+        return html;
+    };
+
+    // แบ่งนักเรียนออกเป็นหน้าๆ ละ 20 คน
+    const perPage = 20;
+    const pages = [];
+    for (let i = 0; i < students.length; i += perPage) {
+        pages.push(students.slice(i, i + perPage));
+    }
+
+    // สร้าง HTML ทั้งหมด
+    let fullHtml = `<!DOCTYPE html>
+    <html><head><meta charset="UTF-8">
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body { font-family:'Sarabun','Noto Sans Thai','Tahoma',sans-serif; background:white; }
+        .page { padding: 10mm 12mm; page-break-after: always; }
+        .page:last-child { page-break-after: avoid; }
+        .header { text-align:center; margin-bottom: 12px; }
+        .logo { display: block; margin: 0 auto; height: 60px; }
+        .school-name { font-size: 18px; font-weight:bold; }
+        .term { font-size: 14px; margin: 2px 0; }
+        .room-date { font-size: 14px; margin: 2px 0; }
+        .adviser { font-size: 13px; margin: 2px 0; }
+        .subtitle { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+        table { width:100%; border-collapse: collapse; font-size: 13px; }
+        th, td { padding: 6px 8px; border:1px solid #ccc; }
+        th { background-color: #e0e7ff; text-align:center; font-weight:bold; }
+        td { text-align:center; }
+        td:nth-child(3) { text-align:left; font-weight:500; }
+        .signature-area { margin-top: 25px; display: flex; justify-content: space-around; text-align: center; }
+        .signature-box { width: 180px; }
+        .signature-line { border-top: 1px solid #000; margin: 0 auto 4px auto; width: 180px; }
+        .signature-name { font-weight:bold; font-size:14px; }
+        .signature-label { font-size:12px; color:#666; }
+    </style>
+    </head><body>`;
+
+    pages.forEach((pageStudents, index) => {
+        const isLast = (index === pages.length - 1);
+        fullHtml += `<div class="page">`;
+
+        // หัวข้อสำหรับหน้าแรก (เพิ่มข้อมูลครูที่ปรึกษา)
+        if (index === 0) {
+            let adviserHtml = '';
+            if (adviser1 && adviser1 !== '.......................................') {
+                adviserHtml += `<div class="adviser">ครูที่ปรึกษาคนที่ 1: ${escapeHtml(adviser1)}</div>`;
+            }
+            if (adviser2 && adviser2 !== '.......................................') {
+                adviserHtml += `<div class="adviser">ครูที่ปรึกษาคนที่ 2: ${escapeHtml(adviser2)}</div>`;
+            }
+
+            fullHtml += `<div class="header">
+                <img src="${logoUrl}" class="logo" crossorigin="anonymous" alt="logo" onerror="this.style.display='none'">
+                <div class="school-name">${escapeHtml(schoolName)}</div>
+                <div class="term">${escapeHtml(termInfo)}</div>
+                <div class="room-date">ระดับชั้น: ${escapeHtml(roomText)}</div>
+                ${adviserHtml}
+                <div class="subtitle">ช่วงวันที่: ${escapeHtml(thaiStart)} ถึง ${escapeHtml(thaiEnd)}</div>
+            </div>`;
+        } else {
+            fullHtml += `<div style="text-align:center; font-size:14px; font-weight:bold; margin-bottom:8px;">รายงานสถิติการเข้าเรียน (ต่อ)</div>`;
+        }
+
+        // สร้างตาราง (ทุกหน้ามีหัวตาราง)
+        fullHtml += buildTable(pageStudents);
+
+        // ถ้าเป็นหน้าสุดท้าย ให้เพิ่มลายเซ็นครูที่ปรึกษา
+        if (isLast) {
+            const hasAdviser2 = adviser2 && adviser2 !== '.......................................';
+            let sigHtml = `<div class="signature-area">`;
+            if (hasAdviser2) {
+                sigHtml += `
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-name">${escapeHtml(adviser1)}</div>
+                        <div class="signature-label">ครูที่ปรึกษาคนที่ 1</div>
+                    </div>
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-name">${escapeHtml(adviser2)}</div>
+                        <div class="signature-label">ครูที่ปรึกษาคนที่ 2</div>
+                    </div>
+                `;
+            } else {
+                sigHtml += `
+                    <div class="signature-box">
+                        <div class="signature-line"></div>
+                        <div class="signature-name">${escapeHtml(adviser1)}</div>
+                        <div class="signature-label">ครูที่ปรึกษา</div>
+                    </div>
+                `;
+            }
+            sigHtml += `</div>`;
+            fullHtml += sigHtml;
+        }
+
+        fullHtml += `</div>`;
+    });
+
+    fullHtml += `</body></html>`;
+
+    // พิมพ์ PDF
+    Swal.fire({ title: 'กำลังสร้าง PDF...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const opt = {
-        margin: [4, 4, 4, 4],
-        filename: `รายงานสถิติ_${$('#classroom-select option:selected').text()}.pdf`,
+        margin: [0, 0, 0, 0],
+        filename: `รายงานสถิติ_${roomText.replace(/\s+/g, '')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-        pagebreak: { mode: ['css'], avoid: ['tr'] }
+        pagebreak: { mode: ['css', 'legacy'] }
     };
-    Swal.fire({ title: 'กำลังเตรียมไฟล์ PDF...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    html2pdf().set(opt).from(element).save().then(() => {
-        header.classList.add('hidden');
-        if (listsContainer) listsContainer.classList.add('hidden');
+    html2pdf().set(opt).from(fullHtml).save().then(() => {
         Swal.close();
+        Swal.fire('สำเร็จ', 'ดาวน์โหลดไฟล์ PDF เรียบร้อยแล้ว', 'success');
+    }).catch(err => {
+        Swal.close();
+        console.error(err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     });
 }
 
