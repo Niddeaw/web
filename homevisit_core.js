@@ -179,6 +179,16 @@ function applyAdminVisibility() {
         toggleBtn: 'btnAdminMode',
         adminManagerBtn: 'adminManagerBtn'
     });
+
+    // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา → แสดงปุ่มสลับโหมดด้วย
+    //    (applyVisibilityByRole อาจซ่อนปุ่มนี้ไป ต้องเปิดให้ถ้าเป็นหัวหน้าที่มีห้อง)
+    if (isHead) {
+        const toggleBtn = document.getElementById('btnAdminMode');
+        if (toggleBtn) {
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.classList.add('flex');
+        }
+    }
 }
 
 // ==========================================
@@ -221,6 +231,19 @@ async function checkAuth() {
             .maybeSingle();
         if (gradeHead) isGradeHead = true;
 
+        // ✅ ตรวจสอบว่าครูคนนี้มีห้องที่ปรึกษาของตัวเองหรือไม่
+        //    (หัวหน้าระดับที่ยังเป็นครูที่ปรึกษาด้วย ต้องแก้ไขข้อมูลห้องตัวเองได้)
+        let hasOwnClassroom = false;
+        if (isDisciplineHead || isGradeHead) {
+            const { data: ownClassrooms } = await db.from('core_classrooms')
+                .select('id')
+                .eq('academic_year', currentYear)
+                .eq('semester', currentTerm)
+                .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
+                .limit(1);
+            hasOwnClassroom = !!(ownClassrooms && ownClassrooms.length > 0);
+        }
+
         if (role === 'super_admin') {
             currentViewRole = 'super_admin';
             isReadOnly = false;
@@ -228,8 +251,16 @@ async function checkAuth() {
             currentViewRole = 'module_admin';
             isReadOnly = false;
         } else if (isDisciplineHead || isGradeHead) {
-            currentViewRole = isDisciplineHead ? 'head_discipline' : 'head_grade';
-            isReadOnly = true;
+            // ✅ ถ้าเป็นหัวหน้าระดับ/ปกครอง และมีห้องที่ปรึกษาด้วย
+            //    → เริ่มในโหมดครู (แก้ไขห้องตัวเองได้) แทนการล็อก read-only
+            if (hasOwnClassroom) {
+                currentViewRole = 'teacher';
+                isReadOnly = false;
+                isHead = true; // ✅ flag บอกว่าเป็นหัวหน้าด้วย (สำหรับปุ่มสลับโหมด)
+            } else {
+                currentViewRole = isDisciplineHead ? 'head_discipline' : 'head_grade';
+                isReadOnly = true;
+            }
         } else {
             currentViewRole = 'teacher';
             isReadOnly = false;
@@ -243,6 +274,17 @@ async function checkAuth() {
         if (role === 'super_admin' || isModuleAdmin) {
             const toggleBtn = document.getElementById('btnAdminMode');
             if (toggleBtn) toggleBtn.classList.remove('hidden');
+        }
+
+        // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา → แสดงปุ่มสลับโหมดและตั้งข้อความให้ถูกต้อง
+        if (isHead) {
+            const toggleBtn = document.getElementById('btnAdminMode');
+            if (toggleBtn) {
+                toggleBtn.classList.remove('hidden');
+                toggleBtn.classList.add('flex');
+                toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดภาพรวม</span>';
+                toggleBtn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
+            }
         }
 
         const termDisplay = document.getElementById('term-display');
@@ -265,8 +307,26 @@ async function checkAuth() {
 }
 
 function applyReadOnlyState() {
-    if (!isReadOnly) return;
+    // ✅ ล้าง banner เดิมก่อนเสมอ เพื่อรองรับการสลับโหมดกลับมา
+    $('#readonly-alert-banner').remove();
 
+    if (!isReadOnly) {
+        // ✅ คืนสถานะฟอร์มให้แก้ไขได้เมื่อสลับกลับโหมดครู
+        $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
+            if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
+                $(this).prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
+            }
+        });
+        $('#homeVisitForm input, #homeVisitForm select, #homeVisitForm textarea').each(function () {
+            if ($(this).attr('type') !== 'file') {
+                $(this).prop('disabled', false).removeClass('opacity-60');
+            }
+        });
+        $('#btn-add-student, #btn-edit-student, #btn-delete-student, #btn-submit-homevisit, #btn-import').show();
+        return;
+    }
+
+    // ✅ โหมด read-only
     $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
         if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
@@ -281,9 +341,14 @@ function applyReadOnlyState() {
 
     $('#btn-add-student, #btn-edit-student, #btn-delete-student, #btn-submit-homevisit, #btn-import').hide();
 
-    const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
+    // ✅ แสดง banner พร้อม id เพื่อให้ลบได้เมื่อสลับโหมด
+    const roleLabel = currentViewRole === 'head_grade'
+        ? 'โหมดภาพรวมระดับ — ดูข้อมูลได้ทุกห้องในระดับ'
+        : 'โหมดดูข้อมูลอย่างเดียว';
+    const alertHtml = `<div id="readonly-alert-banner" class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
         <i class="fas fa-eye text-amber-600"></i>
-        <span class="font-bold">คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)</span>
+        <span class="font-bold">${roleLabel} (ไม่สามารถแก้ไขได้)</span>
+        ${isHead ? '<span class="ml-auto text-xs text-amber-600 font-medium">กดปุ่ม "โหมดครู" เพื่อกลับไปแก้ไขห้องของตัวเอง</span>' : ''}
     </div>`;
     $('#form-section .glass-card:first').prepend(alertHtml);
 
@@ -299,6 +364,8 @@ function updateUIByRole() {
     else if (currentViewRole === 'module_admin') roleText = 'แอดมินโมดูลเยี่ยมบ้าน';
     else if (currentViewRole === 'head_discipline') roleText = 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
+    // ✅ หัวหน้าที่มีห้องที่ปรึกษา — แสดงสถานะให้ชัดเจน
+    else if (currentViewRole === 'teacher' && isHead) roleText = 'หัวหน้าระดับ / ครูที่ปรึกษา';
     document.getElementById('userRoleDisplay').innerText = roleText;
 
     const submitBtn = document.getElementById('btn-submit-homevisit');
@@ -317,15 +384,30 @@ function updateUIByRole() {
 
 window.toggleRoleView = function () {
     const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
-    if (!isAdminEffective) {
-        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'warning');
+    // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา สามารถสลับไปโหมดดูภาพรวมระดับได้ด้วย
+    const isHeadWithClassroom = isHead;
+
+    if (!isAdminEffective && !isHeadWithClassroom) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบหรือหัวหน้าระดับเท่านั้นที่สามารถสลับโหมดได้', 'warning');
         return;
     }
 
     if (currentViewRole === 'teacher') {
-        currentViewRole = isModuleAdmin ? 'module_admin' : (currentUserRole === 'super_admin' ? 'super_admin' : 'admin');
-        isReadOnly = false;
+        // ✅ สลับไปโหมดภาพรวม
+        if (isModuleAdmin) {
+            currentViewRole = 'module_admin';
+        } else if (currentUserRole === 'super_admin') {
+            currentViewRole = 'super_admin';
+        } else if (isHeadWithClassroom) {
+            // หัวหน้าระดับที่มีห้องที่ปรึกษา → สลับไปโหมดดูภาพรวมระดับ (read-only สำหรับห้องอื่น)
+            currentViewRole = 'head_grade';
+            isReadOnly = false; // head_grade โหมดดูได้ทุกห้องในระดับ (ไม่แก้ไข)
+        } else {
+            currentViewRole = 'admin';
+        }
+        isReadOnly = (currentViewRole === 'head_discipline' || currentViewRole === 'head_grade');
     } else {
+        // ✅ สลับกลับโหมดครู (แก้ไขได้เฉพาะห้องตัวเอง)
         currentViewRole = 'teacher';
         isReadOnly = false;
     }
@@ -333,7 +415,7 @@ window.toggleRoleView = function () {
     const btn = document.getElementById('btnAdminMode');
     if (btn) {
         if (currentViewRole === 'teacher') {
-            btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
+            btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดภาพรวม</span>';
             btn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
         } else {
             btn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
@@ -343,10 +425,15 @@ window.toggleRoleView = function () {
 
     window.logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'homevisit');
     applyAdminVisibility();
+    applyReadOnlyState();
     updateUIByRole();
     loadClassrooms();
 
-    const modeName = currentViewRole === 'teacher' ? 'โหมดครูที่ปรึกษา' : 'โหมดผู้ดูแลระบบ';
+    let modeName = 'โหมดครูที่ปรึกษา';
+    if (currentViewRole === 'head_grade') modeName = 'โหมดดูภาพรวมระดับ';
+    else if (currentViewRole === 'head_discipline') modeName = 'โหมดดูภาพรวมปกครอง';
+    else if (currentViewRole !== 'teacher') modeName = 'โหมดผู้ดูแลระบบ';
+
     Swal.fire({
         toast: true,
         position: 'top-end',
@@ -409,11 +496,14 @@ async function loadClassrooms() {
         .order('grade_level').order('room_number');
 
     const isHighLevel = ['super_admin', 'module_admin', 'head_discipline'].includes(currentViewRole);
+
     if (currentViewRole === 'head_grade') {
+        // ✅ โหมดภาพรวมระดับ — ดูทุกห้องในระดับที่รับผิดชอบ (read-only สำหรับห้องที่ไม่ใช่ของตน)
         const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
         if (gh) query = query.eq('grade_level', gh.grade_level);
         else query = query.eq('id', '00000000-0000-0000-0000-000000000000');
     } else if (!isHighLevel) {
+        // ✅ โหมดครู (รวมหัวหน้าระดับที่สลับมาโหมดครู) — เห็นเฉพาะห้องที่ตนเป็นที่ปรึกษา
         query = query.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
     }
 

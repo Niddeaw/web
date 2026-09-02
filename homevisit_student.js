@@ -1,7 +1,10 @@
 // ==========================================
-// homevisit_student.js (ฉบับสมบูรณ์ แก้ไขปัญหา)
+// homevisit_student.js (ฉบับแก้ไขสมบูรณ์ - แสดง Missing Box)
 // สำหรับนักเรียนกรอกข้อมูลเยี่ยมบ้านของตนเอง
 // (มีระบบ Lock เมื่อครูกดยืนยัน)
+// รองรับการทำงานโดยไม่มีครูที่ปรึกษา (teacher_id = null)
+// และแสดงรายการที่ขาดเฉพาะฟิลด์ที่จำเป็นสำหรับนักเรียน
+// รองรับการอัปโหลดรูปภาพผ่าน homevisit_upload.js
 // ==========================================
 
 // ==========================================
@@ -22,6 +25,7 @@ if (typeof window.stepColorConfigs === 'undefined') {
 // ==========================================
 let currentUser = null;
 let currentStudentId = null;
+let currentStudentCode = '';
 let currentClassroomId = null;
 let currentYear = '';
 let currentTerm = '';
@@ -40,7 +44,36 @@ const SCHOOL_LNG = 100.25988109513965;
 const SCHOOL_NAME = 'โรงเรียนวัดไร่ขิงวิทยา';
 
 // ==========================================
-// 2. ตรวจสอบ Session และโหลดข้อมูล
+// 2. loadModuleSettings - โหลดการตั้งค่าระบบ
+// ==========================================
+async function loadModuleSettings() {
+    try {
+        const { data, error } = await db.from('core_system_modules')
+            .select('settings')
+            .eq('module_id', 'homevisit')
+            .single();
+        if (error) {
+            console.warn('ไม่พบการตั้งค่าโมดูล homevisit:', error.message);
+            return;
+        }
+        if (data?.settings) {
+            moduleSettings = {
+                gas_url: data.settings.gas_url || "",
+                drive_folder_id: data.settings.drive_folder_id || "",
+                pdf_api_url: data.settings.pdf_api_url || "",
+                slide_template_url: data.settings.slide_template_url || "",
+                gd_pdf_folder_id: data.settings.gd_pdf_folder_id || "",
+                report_template_id: data.settings.report_template_id || "",
+                show_report: data.settings.show_report || "false"
+            };
+        }
+    } catch (err) {
+        console.warn('loadModuleSettings error:', err);
+    }
+}
+
+// ==========================================
+// 3. ตรวจสอบ Session และโหลดข้อมูล
 // ==========================================
 $(document).ready(async function () {
     const { data: { session } } = await db.auth.getSession();
@@ -51,6 +84,8 @@ $(document).ready(async function () {
     }
     currentUser = session.user;
     try {
+        await loadModuleSettings();
+
         const email = session.user.email;
         const studentIdCard = email.split('@')[0];
         const { data: student, error } = await db
@@ -70,13 +105,15 @@ $(document).ready(async function () {
         if (error || !student) throw new Error('ไม่พบข้อมูลนักเรียนในระบบ');
 
         currentStudentId = student.id;
+        currentStudentCode = student.student_id_card || '';
+        window.currentStudentId = currentStudentId;
+        window.currentStudentCode = currentStudentCode;
 
         const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
         document.getElementById('userNameDisplay').textContent = fullName;
         document.getElementById('student-fullname-display').textContent = fullName;
         document.getElementById('student-id-display').textContent = student.student_id_card;
 
-        // ✅ ดึงปีการศึกษา/เทอมจาก core_school_info
         const { data: sInfo } = await db.from('core_school_info')
             .select('current_academic_year, current_semester')
             .single();
@@ -85,13 +122,11 @@ $(document).ready(async function () {
             currentTerm = sInfo.current_semester;
         }
 
-        // ✅ หา enrollment ที่ตรงกับปีการศึกษา/เทอมปัจจุบัน
         let currentEnrollment = null;
         if (student.student_enrollments) {
             currentEnrollment = student.student_enrollments.find(
                 e => e.academic_year == currentYear && e.semester == currentTerm
             );
-            // ถ้าไม่เจอ ให้ใช้อันแรก
             if (!currentEnrollment && student.student_enrollments.length > 0) {
                 currentEnrollment = student.student_enrollments[0];
                 if (!currentYear || !currentTerm) {
@@ -107,7 +142,6 @@ $(document).ready(async function () {
             document.getElementById('student-class-display').textContent = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
             document.getElementById('student_grade').value = cls?.grade_level || '';
 
-            // ดึงเลขที่จาก student_enrollments
             const { data: enrollDetail } = await db
                 .from('student_enrollments')
                 .select('student_number')
@@ -119,7 +153,6 @@ $(document).ready(async function () {
             document.getElementById('student-class-display').textContent = '-';
             document.getElementById('student_grade').value = '';
             document.getElementById('student_number').value = '';
-            // ถ้าไม่มี enrollment ให้ไม่สามารถบันทึกได้ (จะเช็คตอน submit)
         }
 
         document.getElementById('student_code').value = student.student_id_card || '';
@@ -127,7 +160,6 @@ $(document).ready(async function () {
 
         window._student = student;
 
-        // ✅ แสดงรูปโปรไฟล์จาก core_students
         const avatarUrl = student.avatar_students_url;
         const avatarImg = document.getElementById('student-avatar-img');
         const avatarPlaceholder = document.getElementById('student-avatar-placeholder');
@@ -147,7 +179,6 @@ $(document).ready(async function () {
 
         applyAvatarToStep4(avatarUrl);
 
-        // ✅ แก้ไขลำดับ: สร้าง TomSelect ก่อน แล้วค่อยโหลดข้อมูล
         initForm();
         await loadExistingHomeVisit(currentStudentId);
 
@@ -162,7 +193,7 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// 3. ดึงรูปโปรไฟล์ไปใช้ใน Step 4 Card 1
+// 4. ดึงรูปโปรไฟล์ไปใช้ใน Step 4 Card 1
 // ==========================================
 function applyAvatarToStep4(avatarUrl) {
     const autoBanner = document.getElementById('avatar-auto-banner');
@@ -199,21 +230,29 @@ function applyAvatarToStep4(avatarUrl) {
             previewImg.classList.add('hidden');
             delete previewImg.dataset.url;
         }
+        if (cloudBtn) {
+            cloudBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> อัพโหลดรูปนี้';
+            cloudBtn.classList.remove('bg-slate-700', 'text-white');
+            cloudBtn.classList.add('bg-green-600', 'text-white', 'opacity-40');
+            cloudBtn.disabled = true;
+        }
+        if (delBtn) { delBtn.classList.add('hidden'); delBtn.classList.remove('flex'); }
+        delete studentPicInput?.dataset.uploadedUrl;
     }
 }
 
 // ==========================================
-// 4. เริ่มต้นฟอร์ม
+// 5. เริ่มต้นฟอร์ม
 // ==========================================
 function initForm() {
     initPlugins();
     initAllTomSelects();
     initDirtyTracking();
-    goToStep(1);  // เริ่มที่ step 1 (ไม่ต้อง initMap)
+    goToStep(1);
 }
 
 // ==========================================
-// 5. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
+// 6. โหลดข้อมูลเยี่ยมบ้านเดิม + ตรวจสอบ Lock
 // ==========================================
 async function loadExistingHomeVisit(studentId) {
     try {
@@ -243,13 +282,11 @@ async function loadExistingHomeVisit(studentId) {
             applyStudentLockState();
         }
 
-        // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องทันทีที่โหลดข้อมูลเสร็จ
-        if (typeof renderMissingBox === 'function') {
-            const currentStep = document.querySelector('.step-content.active');
-            if (currentStep) {
-                const stepId = currentStep.id.replace('step-', '');
-                renderMissingBox(parseInt(stepId));
-            }
+        // ✅ แสดงกล่องรายการที่ขาด
+        const currentStep = document.querySelector('.step-content.active');
+        if (currentStep) {
+            const stepId = currentStep.id.replace('step-', '');
+            renderMissingBox(parseInt(stepId));
         }
 
     } catch (err) {
@@ -258,7 +295,7 @@ async function loadExistingHomeVisit(studentId) {
 }
 
 // ==========================================
-// 6. ล็อกฟอร์ม (สำหรับนักเรียน)
+// 7. ล็อกฟอร์ม
 // ==========================================
 function applyStudentLockState() {
     const form = document.getElementById('homeVisitForm');
@@ -277,6 +314,10 @@ function applyStudentLockState() {
             submitBtn.disabled = true;
             submitBtn.classList.add('opacity-40', 'cursor-not-allowed');
         }
+        document.querySelectorAll('.btn-upload').forEach(btn => {
+            btn.disabled = true;
+            btn.classList.add('opacity-40', 'cursor-not-allowed');
+        });
     } else {
         banner.classList.add('hidden');
         form.querySelectorAll('input, textarea, select, button').forEach(el => {
@@ -289,42 +330,37 @@ function applyStudentLockState() {
             submitBtn.disabled = false;
             submitBtn.classList.remove('opacity-40', 'cursor-not-allowed');
         }
+        document.querySelectorAll('.btn-upload').forEach(btn => {
+            btn.disabled = false;
+            btn.classList.remove('opacity-40', 'cursor-not-allowed');
+        });
     }
 }
 
 // ==========================================
-// 7. populateFormWithData (เหมือนครู)
-// ==========================================
-// ==========================================
-// ฟังก์ชันช่วย: ตั้งค่า TomSelect แบบปลอดภัย (รอให้พร้อมก่อนเสมอ)
+// 8. populateFormWithData
 // ==========================================
 function safeSetTomSelect(selectId, instanceName, val) {
     if (!val) return;
 
-    // 1. ตั้งค่า select ต้นฉบับ (DOM) ก่อนเสมอ
     const el = document.getElementById(selectId);
     if (el) el.value = val;
 
-    // 2. ค่อยพยายาม sync ค่าให้ TomSelect (ถ้ายังไม่พร้อม ให้ retry)
     const trySet = (attempts = 0) => {
-        // ลองดึง instance จาก window หรือ el.tomselect
         let tomInstance = window[instanceName];
         if (!tomInstance && el && el.tomselect) {
             tomInstance = el.tomselect;
         }
 
         if (tomInstance && typeof tomInstance.setValue === 'function') {
-            tomInstance.setValue(val, true); // true = ไม่ trigger onChange
-        } else if (attempts < 20) { // ลองสูงสุด 20 ครั้ง (4 วินาที)
+            tomInstance.setValue(val, true);
+        } else if (attempts < 20) {
             setTimeout(() => trySet(attempts + 1), 200);
         }
     };
     trySet();
 }
 
-// ==========================================
-// populateFormWithData (ฉบับแก้ไขสมบูรณ์)
-// ==========================================
 function populateFormWithData(data) {
     suppressDirty = true;
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined && val !== null) el.value = val; };
@@ -334,7 +370,6 @@ function populateFormWithData(data) {
         if (el) el.checked = true;
     };
 
-    // --- Step 1: ข้อมูลนักเรียน ---
     setVal('hv_date', data.visit_date ? data.visit_date.split('T')[0] : '');
     setRadio('visit_status', data.visit_status);
     setVal('visit_times', data.visit_times);
@@ -352,11 +387,9 @@ function populateFormWithData(data) {
     setVal('guardian_phone', data.guardian_phone);
     setVal('guardian_relation', data.guardian_relation);
 
-    // ✅ ใช้ safeSetTomSelect สำหรับ Dropdown ทุกตัว
     safeSetTomSelect('living_with', 'tomLivingWith', data.living_with);
     safeSetTomSelect('parents_status', 'tomParentsStatus', data.parents_status);
 
-    // --- Step 2: ที่อยู่และแผนที่ ---
     setVal('addr_house', data.house_number);
     setVal('addr_moo', data.village_no);
     setVal('addr_subdistrict', data.sub_district);
@@ -381,7 +414,6 @@ function populateFormWithData(data) {
     setRadio('utility_water', data.utility_water);
     setRadio('utility_toilet', data.utility_toilet);
 
-    // --- Step 3: ครอบครัว ---
     const fm = data.family_members || {};
     setVal('member_total', fm.total); setVal('member_male', fm.male); setVal('member_female', fm.female);
     setVal('sib_same_total', fm.sib_same_total); setVal('sib_same_male', fm.sib_same_male); setVal('sib_same_female', fm.sib_same_female);
@@ -398,14 +430,12 @@ function populateFormWithData(data) {
     safeSetTomSelect('family_relation_status', 'tomFamilyRelationStatus', fRel.status);
     setVal('time_together_hours', fRel.time_together);
 
-    // ตั้งค่า Radio ความสัมพันธ์ (Relations)
     const relations = data.relations_data || data.relatives_data || [];
     relations.forEach((item, i) => {
         const el = document.querySelector(`input[name="rel_radio_${i}"][value="${item.relation}"]`);
         if (el) el.checked = true;
     });
 
-    // ตั้งค่า Checkbox ความเสี่ยง (Risk Factors)
     const risk = data.risk_data || data.risk_factors || {};
     const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
     riskGroups.forEach(group => {
@@ -435,13 +465,11 @@ function populateFormWithData(data) {
     setVal('hobbies_details', data.hobbies_details);
     safeSetTomSelect('leave_with_whom_details', 'tomLeaveWithWhom', data.leave_with_whom_details);
 
-    // --- Step 5: ข้อห่วงใยและอื่นๆ ---
     setVal('guardian_concerns_details', data.guardian_concerns);
     setVal('guardian_requests_details', data.guardian_requests);
     setVal('past_welfare_details', data.past_welfare);
     safeSetTomSelect('informant_type', 'tomInformantType', data.informant_type);
 
-    // --- รูปภาพ ---
     const loadPic = (id, previewId, btnId, delId, url) => {
         const input = document.getElementById(id);
         if (!input) return;
@@ -460,6 +488,7 @@ function populateFormWithData(data) {
                 cloudBtn.innerHTML = '<i class="fa-solid fa-check text-green-400"></i> อัพโหลดแล้ว';
                 cloudBtn.classList.add('bg-slate-700', 'text-white');
                 cloudBtn.classList.remove('bg-green-600', 'opacity-40');
+                cloudBtn.disabled = true;
             }
         }
     };
@@ -468,7 +497,6 @@ function populateFormWithData(data) {
     loadPic('pic_inside', 'preview3', 'cloud_btn3', 'del_btn3', data.photo_inside);
     loadPic('pic_teacher', 'preview4', 'cloud_btn4', 'del_btn4', data.photo_teacher);
 
-    // อัพเดตรูปโปรไฟล์ (ถ้ามี)
     if (data.photo_student) {
         const s1Img = document.getElementById('student-avatar-img');
         const s1Placeholder = document.getElementById('student-avatar-placeholder');
@@ -480,7 +508,6 @@ function populateFormWithData(data) {
         if (s1Status) s1Status.textContent = 'มีรูปโปรไฟล์แล้ว ✓';
     }
 
-    // --- แผนที่ (ถ้ามีพิกัด) ---
     if (data.latitude && data.longitude && map) {
         const lat = parseFloat(data.latitude);
         const lng = parseFloat(data.longitude);
@@ -496,7 +523,7 @@ function populateFormWithData(data) {
 }
 
 // ==========================================
-// 8. ฟังก์ชันดึง teacher_id จากห้องเรียน (แก้ RLS)
+// 9. ฟังก์ชันดึง teacher_id
 // ==========================================
 async function getAdvisorId(classroomId) {
     if (!classroomId) return null;
@@ -511,7 +538,7 @@ async function getAdvisorId(classroomId) {
             console.warn('ไม่สามารถดึง teacher_id:', error?.message);
             return null;
         }
-        return data.adviser_id_1 || null; // ถ้าไม่มีครูที่ปรึกษา ให้คืนค่า null
+        return data.adviser_id_1 || null;
     } catch (err) {
         console.warn('ไม่สามารถดึง teacher_id:', err);
         return null;
@@ -519,13 +546,12 @@ async function getAdvisorId(classroomId) {
 }
 
 // ==========================================
-// 9. buildFormData (ปรับให้รับ teacherId)
+// 10. buildFormData
 // ==========================================
 function getTomSelectValue(selectId, instanceName) {
     const el = document.getElementById(selectId);
     if (!el) return '';
 
-    // ✅ ดึง Instance โดยใช้ API มาตรฐานของ TomSelect
     let tomInstance = null;
     if (window.TomSelect && typeof window.TomSelect.getInstance === 'function') {
         tomInstance = window.TomSelect.getInstance(el);
@@ -537,7 +563,6 @@ function getTomSelectValue(selectId, instanceName) {
         tomInstance = window[instanceName];
     }
 
-    // ✅ ถ้ามี Instance ให้ดึงค่าจาก getValue()
     if (tomInstance && typeof tomInstance.getValue === 'function') {
         const val = tomInstance.getValue();
         if (val && val !== '') {
@@ -545,7 +570,6 @@ function getTomSelectValue(selectId, instanceName) {
         }
     }
 
-    // ✅ Fallback กลับไปที่ DOM (เผื่อ TomSelect ไม่ทำงาน)
     return el.value || '';
 }
 
@@ -569,8 +593,6 @@ function forceSyncTomSelectToDom() {
         if (!el) return;
 
         let val = '';
-
-        // ✅ ดึง Instance อย่างมั่นใจ
         let tomInstance = null;
         if (window.TomSelect && typeof window.TomSelect.getInstance === 'function') {
             tomInstance = window.TomSelect.getInstance(el);
@@ -582,16 +604,13 @@ function forceSyncTomSelectToDom() {
             tomInstance = window[item.instance];
         }
 
-        // ✅ ดึงค่าและเขียนลง select ต้นฉบับเสมอ
         if (tomInstance && typeof tomInstance.getValue === 'function') {
             val = tomInstance.getValue() || '';
         }
 
-        // เขียนค่าลง DOM (แม้จะเป็นค่าว่างก็ตาม)
         el.value = val;
     });
 }
-
 
 function buildFormData(studentId, classroomId, teacherId) {
     const getVal = (id) => document.getElementById(id)?.value || '';
@@ -641,11 +660,8 @@ function buildFormData(studentId, classroomId, teacherId) {
         guardian_job: getVal('guardian_job'),
         guardian_phone: getVal('guardian_phone'),
         guardian_relation: getVal('guardian_relation'),
-
-        // ✅ เปลี่ยนเป็น getTomSelectValue สำหรับทุก Dropdown
         living_with: getTomSelectValue('living_with', 'tomLivingWith'),
         parents_status: getTomSelectValue('parents_status', 'tomParentsStatus'),
-
         house_number: getVal('addr_house'),
         village_no: getVal('addr_moo'),
         sub_district: getVal('addr_subdistrict'),
@@ -655,21 +671,16 @@ function buildFormData(studentId, classroomId, teacherId) {
         latitude: getVal('lat') || null,
         longitude: getVal('lng') || null,
         travel_distance: getVal('travel_distance') || null,
-
         house_type: getTomSelectValue('house_type', 'tomHouseType'),
-
         travel_hour: parseInt(getVal('travel_hour')) || 0,
         travel_minute: parseInt(getVal('travel_minute')) || 0,
         travel_method: getTomSelectValue('travel_method', 'tomTravelMethod'),
-
         env_house_status: getTomSelectValue('env_house_status', 'tomEnvHouseStatus'),
         env_clean_status: getTomSelectValue('env_clean_status', 'tomEnvCleanStatus'),
         env_location_status: getTomSelectValue('env_location_status', 'tomEnvLocationStatus'),
-
         utility_electric: getRadio('utility_electric'),
         utility_water: getRadio('utility_water'),
         utility_toilet: getRadio('utility_toilet'),
-
         family_members: {
             total: getVal('member_total'),
             male: getVal('member_male'),
@@ -681,7 +692,6 @@ function buildFormData(studentId, classroomId, teacherId) {
             sib_diff_male: getVal('sib_diff_male'),
             sib_diff_female: getVal('sib_diff_female'),
         },
-
         economic_data: {
             income: getVal('family_income_monthly'),
             allowance_source: getTomSelectValue('student_allowance_source', 'tomAllowanceSource'),
@@ -689,27 +699,22 @@ function buildFormData(studentId, classroomId, teacherId) {
             student_job_income: getVal('student_job_income'),
             money_to_school: getVal('money_to_school'),
         },
-
         family_relations: {
             status: getTomSelectValue('family_relation_status', 'tomFamilyRelationStatus'),
             time_together: getVal('time_together_hours')
         },
-
         special_help_details: getVal('special_help_details'),
         responsibilities_details: getVal('responsibilities_details'),
         hobbies_details: getVal('hobbies_details'),
         leave_with_whom_details: getTomSelectValue('leave_with_whom_details', 'tomLeaveWithWhom'),
-
         photo_student: document.getElementById('pic_student')?.dataset.uploadedUrl || null,
         photo_outside: document.getElementById('pic_outside')?.dataset.uploadedUrl || null,
         photo_inside: document.getElementById('pic_inside')?.dataset.uploadedUrl || null,
         photo_teacher: document.getElementById('pic_teacher')?.dataset.uploadedUrl || null,
-
         guardian_concerns: getVal('guardian_concerns_details'),
         guardian_requests: getVal('guardian_requests_details'),
         past_welfare: getVal('past_welfare_details'),
         informant_type: getTomSelectValue('informant_type', 'tomInformantType'),
-
         risk_data: riskData,
         relations_data: relations,
         updated_at: new Date().toISOString()
@@ -717,7 +722,7 @@ function buildFormData(studentId, classroomId, teacherId) {
 }
 
 // ==========================================
-// 10. submitHomeVisit (พร้อมเช็ค Lock และดึง teacher_id)
+// 11. submitHomeVisit
 // ==========================================
 window.submitHomeVisit = async function () {
     if (isSubmitting) return;
@@ -735,25 +740,14 @@ window.submitHomeVisit = async function () {
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        // ดึง teacher_id จากห้องเรียน
         let teacherId = await getAdvisorId(currentClassroomId);
         if (!teacherId) {
-            Swal.close();
-            Swal.fire({
-                icon: 'warning',
-                title: 'ไม่พบครูที่ปรึกษา',
-                text: 'ระบบไม่พบครูที่ปรึกษาของห้องนี้ กรุณาติดต่อผู้ดูแลระบบ',
-                confirmButtonText: 'ตกลง'
-            });
-            isSubmitting = false;
-            return;
+            console.warn('⚠️ ไม่พบครูที่ปรึกษา สำหรับห้องนี้ บันทึกโดยไม่มี teacher_id');
         }
 
-        // ✅ สำคัญมาก: บังคับ sync ค่า TomSelect ลง DOM ก่อนสร้าง formData
         forceSyncTomSelectToDom();
 
         const formData = buildFormData(currentStudentId, currentClassroomId, teacherId);
-        console.log('📦 ข้อมูลที่กำลังจะบันทึก:', formData);
 
         const { data: existingRecords, error: selectError } = await db
             .from('module_home_visits')
@@ -786,7 +780,7 @@ window.submitHomeVisit = async function () {
         }
 
         if (saveError) {
-            console.error('❌ Save Error:', saveError); // ✅ ดู Error ใน Console
+            console.error('❌ Save Error:', saveError);
             throw saveError;
         }
         if (!savedData || savedData.length === 0) {
@@ -808,7 +802,7 @@ window.submitHomeVisit = async function () {
 };
 
 // ==========================================
-// 11. ฟังก์ชัน Auto Save (ปรับให้ใช้ teacher_id เช่นกัน)
+// 12. Auto Save
 // ==========================================
 let isAutoSaving = false;
 
@@ -823,8 +817,7 @@ async function autoSaveStep() {
     try {
         let teacherId = await getAdvisorId(currentClassroomId);
         if (!teacherId) {
-            // ถ้าไม่มี teacher_id ไม่ต้อง auto save (เดี๋ยว submit เอง)
-            return true;
+            console.warn('⚠️ autoSave: ไม่พบ teacher_id ใช้ null');
         }
 
         const formData = buildFormData(currentStudentId, currentClassroomId, teacherId);
@@ -895,7 +888,7 @@ async function autoSaveStep() {
 }
 
 // ==========================================
-// 12. ฟังก์ชันเสริม (markDirty, initDirtyTracking)
+// 13. markDirty & initDirtyTracking
 // ==========================================
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
@@ -920,17 +913,15 @@ function initDirtyTracking() {
 }
 
 // ==========================================
-// 13. Step Navigation (แก้ไขให้เรียกแผนที่ง่ายขึ้น)
+// 14. Step Navigation
 // ==========================================
 window.goToStep = function (step) {
     document.querySelectorAll('.step-content').forEach(el => el.classList.remove('active'));
     const targetStep = document.getElementById(`step-${step}`);
     if (targetStep) targetStep.classList.add('active');
 
-    // ✅ เพิ่มบรรทัดนี้
-    if (typeof renderMissingBox === 'function') {
-        renderMissingBox(step);
-    }
+    // ✅ แสดงกล่องรายการที่ขาดทุกครั้งที่เปลี่ยน step
+    renderMissingBox(step);
 
     const percentages = { 1: '0%', 2: '25%', 3: '50%', 4: '75%', 5: '100%' };
     const progBar = document.getElementById('progressBar');
@@ -951,7 +942,6 @@ window.goToStep = function (step) {
         }
     }
 
-    // แก้ไข: เมื่อไป Step 2 ให้รอ 200ms แล้วเรียก initMap ทันที (ไม่ต้องเช็คขนาดซับซ้อน)
     if (step === 2) {
         setTimeout(() => {
             initMap();
@@ -959,8 +949,15 @@ window.goToStep = function (step) {
     }
 };
 
+window.nextStep = async function (step) {
+    await autoSaveStep();
+    goToStep(step);
+};
+
+window.prevStep = function (step) { goToStep(step); };
+
 // ==========================================
-// initMap (เวอร์ชันแก้ไข - ใช้ตัวแปร Global map/marker)
+// 15. initMap
 // ==========================================
 function initMap() {
     const mapEl = document.getElementById('map');
@@ -969,20 +966,17 @@ function initMap() {
         return;
     }
 
-    // ✅ ถ้ามีแผนที่อยู่แล้ว ให้ invalidateSize เฉยๆ
     if (map) {
         map.invalidateSize();
         return;
     }
 
-    // ✅ ตรวจสอบว่า Leaflet โหลดแล้วหรือยัง
     if (typeof L === 'undefined') {
         console.warn('Leaflet ยังไม่โหลด');
         return;
     }
 
     try {
-        // ✅ ใช้ตัวแปร map (Global) ไม่ใช่ window.map
         map = L.map(mapEl).setView([SCHOOL_LAT, SCHOOL_LNG], 10);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -1040,7 +1034,6 @@ function initMap() {
             updateRouteInfoPanel(null);
         }
 
-        // บังคับปรับขนาดอีกครั้ง
         setTimeout(() => {
             if (map) map.invalidateSize();
         }, 300);
@@ -1052,15 +1045,8 @@ function initMap() {
     }
 }
 
-window.nextStep = async function (step) {
-    await autoSaveStep();
-    goToStep(step);
-};
-
-window.prevStep = function (step) { goToStep(step); };
-
 // ==========================================
-// 14. Plugins (Flatpickr, Thailand.js)
+// 16. Plugins
 // ==========================================
 function initPlugins() {
     if (document.getElementById('hv_date')) {
@@ -1076,7 +1062,7 @@ function initPlugins() {
 }
 
 // ==========================================
-// 16. Route (OSRM)
+// 17. Route (OSRM)
 // ==========================================
 async function calculateRoute(fromLat, fromLng, toLat, toLng) {
     const panel = document.getElementById('route-info-panel');
@@ -1146,7 +1132,7 @@ function updateRouteInfoPanel(info) {
 }
 
 // ==========================================
-// 17. Map Helpers (geocode, pin, Google Maps)
+// 18. Map Helpers
 // ==========================================
 window.geocodeAddress = function () {
     const house = document.getElementById('addr_house').value;
@@ -1183,7 +1169,7 @@ window.parseAndPinCoords = function () {
     if (isNaN(lat) || isNaN(lng)) return Swal.fire('รูปแบบไม่ถูกต้อง', 'พบตัวเลขพิกัดไม่สมบูรณ์', 'warning');
     document.getElementById('lat').value = lat.toFixed(7);
     document.getElementById('lng').value = lng.toFixed(7);
-    if (map && marker) { // ✅ ใช้ map, marker
+    if (map && marker) {
         marker.setLatLng([lat, lng]);
         map.setView([lat, lng], 13);
         calculateRoute(SCHOOL_LAT, SCHOOL_LNG, lat, lng);
@@ -1209,11 +1195,6 @@ window.openRouteInGoogleMaps = function () {
     }
     window.open(`https://www.google.com/maps/dir/?api=1&origin=${SCHOOL_LAT},${SCHOOL_LNG}&destination=${lat},${lng}&travelmode=driving`, '_blank');
 };
-
-// ==========================================
-// 18. Upload (ฟังก์ชันจาก homevisit_upload.js)
-// ฟังก์ชันเหล่านี้ถูกประกาศใน homevisit_upload.js แล้ว ไม่ต้องประกาศซ้ำ
-// ==========================================
 
 // ==========================================
 // 19. Other Helpers
@@ -1293,9 +1274,39 @@ function updateStatusBadge(status) {
     }
 }
 
-function getCompletenessStatus(visit) {
-    if (!visit) return { complete: false, missingFields: ['ยังไม่มีข้อมูลการเยี่ยมบ้าน'] };
+// ==========================================
+// 22. ตรวจสอบความสมบูรณ์ของข้อมูล (เฉพาะนักเรียน)
+// ==========================================
+function getStudentCompletenessStatus(visit) {
+    // ถ้าไม่มีข้อมูลเลย
+    if (!visit) {
+        const allFields = [
+            'วันที่เยี่ยมบ้าน', 'ครั้งที่', 'ชื่อเล่น', 'เบอร์โทรศัพท์นักเรียน',
+            'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
+            'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
+            'ชื่อผู้ปกครอง', 'อาชีพผู้ปกครอง', 'เบอร์โทรผู้ปกครอง', 'ความสัมพันธ์ผู้ปกครอง',
+            'อาศัยอยู่กับ', 'สถานภาพบิดามารดา',
+            'บ้านเลขที่', 'หมู่ที่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
+            'พิกัด GPS', 'ประเภทบ้าน', 'เวลาเดินทาง', 'วิธีการเดินทาง',
+            'สภาพตัวบ้าน', 'ความสะอาด', 'สภาพแวดล้อม',
+            'ไฟฟ้า', 'น้ำอุปโภคบริโภค', 'ห้องสุขา',
+            'สมาชิกในครอบครัว (รวม)', 'สมาชิกชาย', 'สมาชิกหญิง',
+            'พี่น้องร่วมบิดามารดา (รวม)', 'พี่น้องร่วมฯ ชาย', 'พี่น้องร่วมฯ หญิง',
+            'พี่น้องต่างบิดามารดา (รวม)', 'พี่น้องต่างฯ ชาย', 'พี่น้องต่างฯ หญิง',
+            'รายได้ครอบครัวต่อเดือน', 'นักเรียนได้รับค่าใช้จ่ายจาก',
+            'รายได้นักเรียนต่อวัน', 'เงินไปโรงเรียนต่อวัน',
+            'ความสัมพันธ์ในครอบครัว', 'เวลาอยู่ร่วมกันต่อวัน',
+            'กรณีต้องการการช่วยเหลือพิเศษ', 'ภาระงานรับผิดชอบ',
+            'กิจกรรมยามว่าง', 'ฝากเด็กอยู่กับใคร',
+            'ภาพถ่ายตัวนักเรียน', 'ภาพถ่ายสภาพบ้านภายนอก',
+            'ภาพถ่ายสภาพบ้านภายใน',
+            'ข้อห่วงใยของผู้ปกครอง', 'สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ',
+            'ความช่วยเหลือที่เคยได้รับ', 'ผู้ให้ข้อมูล'
+        ];
+        return { complete: false, missingFields: allFields };
+    }
 
+    // ตรวจสอบว่าฟิลด์ใดบ้างที่ขาด (ข้ามภาพครู)
     const missing = [];
     const toNum = (v) => {
         if (v === undefined || v === null || v === '') return undefined;
@@ -1367,11 +1378,11 @@ function getCompletenessStatus(visit) {
     if (!visit.hobbies_details?.trim()) missing.push('กิจกรรมยามว่าง');
     if (!visit.leave_with_whom_details?.trim()) missing.push('ฝากเด็กอยู่กับใคร');
 
-    // Step 4
-    if (!visit.photo_student) missing.push('ภาพถ่ายตัวนักเรียน');
+    // Step 4 (ข้ามภาพครู)
+    const studentAvatarUrl = window._student?.avatar_students_url || null;
+    if (!visit.photo_student && !studentAvatarUrl) missing.push('ภาพถ่ายตัวนักเรียน');
     if (!visit.photo_outside) missing.push('ภาพถ่ายสภาพบ้านภายนอก');
     if (!visit.photo_inside) missing.push('ภาพถ่ายสภาพบ้านภายใน');
-    if (!visit.photo_teacher) missing.push('ภาพครูกำลังเยี่ยมบ้าน');
 
     // Step 5
     if (!visit.guardian_concerns?.trim()) missing.push('ข้อห่วงใยของผู้ปกครอง');
@@ -1386,68 +1397,22 @@ function getCompletenessStatus(visit) {
 }
 
 // ==========================================
-// ฟังก์ชันแสดงกล่องรายการที่ขาดในแต่ละ Step (สำหรับนักเรียน)
+// 23. renderMissingBox
 // ==========================================
-function getMissingFieldsByStep(missingFields, stepNumber) {
-    const step1Fields = [
-        'วันที่เยี่ยมบ้าน', 'ครั้งที่', 'ชื่อเล่น', 'เบอร์โทรศัพท์นักเรียน',
-        'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
-        'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
-        'ชื่อผู้ปกครอง', 'อาชีพผู้ปกครอง', 'เบอร์โทรผู้ปกครอง', 'ความสัมพันธ์ผู้ปกครอง',
-        'อาศัยอยู่กับ', 'สถานภาพบิดามารดา'
-    ];
-    const step2Fields = [
-        'บ้านเลขที่', 'หมู่ที่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
-        'พิกัด GPS', 'ประเภทบ้าน', 'เวลาเดินทาง', 'วิธีการเดินทาง',
-        'สภาพตัวบ้าน', 'ความสะอาด', 'สภาพแวดล้อม',
-        'ไฟฟ้า', 'น้ำอุปโภคบริโภค', 'ห้องสุขา'
-    ];
-    const step3Fields = [
-        'สมาชิกในครอบครัว (รวม)', 'สมาชิกชาย', 'สมาชิกหญิง',
-        'พี่น้องร่วมบิดามารดา (รวม)', 'พี่น้องร่วมฯ ชาย', 'พี่น้องร่วมฯ หญิง',
-        'พี่น้องต่างบิดามารดา (รวม)', 'พี่น้องต่างฯ ชาย', 'พี่น้องต่างฯ หญิง',
-        'รายได้ครอบครัวต่อเดือน', 'นักเรียนได้รับค่าใช้จ่ายจาก',
-        'รายได้นักเรียนต่อวัน', 'เงินไปโรงเรียนต่อวัน',
-        'ความสัมพันธ์ในครอบครัว', 'เวลาอยู่ร่วมกันต่อวัน',
-        'กรณีต้องการการช่วยเหลือพิเศษ', 'ภาระงานรับผิดชอบ',
-        'กิจกรรมยามว่าง', 'ฝากเด็กอยู่กับใคร'
-    ];
-    const step4Fields = [
-        'ภาพถ่ายตัวนักเรียน', 'ภาพถ่ายสภาพบ้านภายนอก',
-        'ภาพถ่ายสภาพบ้านภายใน', 'ภาพครูกำลังเยี่ยมบ้าน'
-    ];
-    const step5Fields = [
-        'ข้อห่วงใยของผู้ปกครอง', 'สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ',
-        'ความช่วยเหลือที่เคยได้รับ', 'ผู้ให้ข้อมูล'
-    ];
-
-    let stepFields = [];
-    if (stepNumber === 1) stepFields = step1Fields;
-    else if (stepNumber === 2) stepFields = step2Fields;
-    else if (stepNumber === 3) stepFields = step3Fields;
-    else if (stepNumber === 4) stepFields = step4Fields;
-    else if (stepNumber === 5) stepFields = step5Fields;
-
-    return missingFields.filter(field => stepFields.includes(field));
-}
-
 async function renderMissingBox(stepNumber) {
     const box = document.getElementById(`missing-box-step-${stepNumber}`);
-    if (!box) return;
-
-    // ✅ ถ้านักเรียนถูกล็อก (is_verified = true) ให้ซ่อนกล่อง เพราะแก้ไขไม่ได้แล้ว
-    if (isVerified) {
-        box.innerHTML = '';
+    if (!box) {
+        console.warn(`ไม่พบ element #missing-box-step-${stepNumber}`);
         return;
     }
 
-    if (!currentStudentId) {
+    // ถ้าข้อมูลถูกล็อก หรือยังไม่มีนักเรียนที่เลือก ให้ซ่อนกล่อง
+    if (isVerified || !currentStudentId) {
         box.innerHTML = '';
         return;
     }
 
     try {
-        // ดึงข้อมูลการเยี่ยมบ้านของนักเรียนคนนี้
         const { data: visit, error } = await db
             .from('module_home_visits')
             .select('*')
@@ -1462,39 +1427,10 @@ async function renderMissingBox(stepNumber) {
             return;
         }
 
-        // ถ้าไม่มีข้อมูลเลย ให้แสดงรายการที่ขาดทั้งหมด (เพราะยังไม่ได้กรอก)
-        let missingFields = [];
-        if (!visit) {
-            // รายการที่จำเป็นทั้งหมด
-            missingFields = [
-                'วันที่เยี่ยมบ้าน', 'ครั้งที่', 'ชื่อเล่น', 'เบอร์โทรศัพท์นักเรียน',
-                'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
-                'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
-                'ชื่อผู้ปกครอง', 'อาชีพผู้ปกครอง', 'เบอร์โทรผู้ปกครอง', 'ความสัมพันธ์ผู้ปกครอง',
-                'อาศัยอยู่กับ', 'สถานภาพบิดามารดา',
-                'บ้านเลขที่', 'หมู่ที่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
-                'พิกัด GPS', 'ประเภทบ้าน', 'เวลาเดินทาง', 'วิธีการเดินทาง',
-                'สภาพตัวบ้าน', 'ความสะอาด', 'สภาพแวดล้อม',
-                'ไฟฟ้า', 'น้ำอุปโภคบริโภค', 'ห้องสุขา',
-                'สมาชิกในครอบครัว (รวม)', 'สมาชิกชาย', 'สมาชิกหญิง',
-                'พี่น้องร่วมบิดามารดา (รวม)', 'พี่น้องร่วมฯ ชาย', 'พี่น้องร่วมฯ หญิง',
-                'พี่น้องต่างบิดามารดา (รวม)', 'พี่น้องต่างฯ ชาย', 'พี่น้องต่างฯ หญิง',
-                'รายได้ครอบครัวต่อเดือน', 'นักเรียนได้รับค่าใช้จ่ายจาก',
-                'รายได้นักเรียนต่อวัน', 'เงินไปโรงเรียนต่อวัน',
-                'ความสัมพันธ์ในครอบครัว', 'เวลาอยู่ร่วมกันต่อวัน',
-                'กรณีต้องการการช่วยเหลือพิเศษ', 'ภาระงานรับผิดชอบ',
-                'กิจกรรมยามว่าง', 'ฝากเด็กอยู่กับใคร',
-                'ภาพถ่ายตัวนักเรียน', 'ภาพถ่ายสภาพบ้านภายนอก',
-                'ภาพถ่ายสภาพบ้านภายใน', 'ภาพครูกำลังเยี่ยมบ้าน',
-                'ข้อห่วงใยของผู้ปกครอง', 'สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ',
-                'ความช่วยเหลือที่เคยได้รับ', 'ผู้ให้ข้อมูล'
-            ];
-        } else {
-            // ใช้ getCompletenessStatus ที่มีอยู่ในไฟล์นี้ (ต้องเพิ่มฟังก์ชันนี้ลงในไฟล์ด้วย ถ้ายังไม่มี)
-            const completeness = getCompletenessStatus(visit);
-            missingFields = completeness.missingFields || [];
-        }
+        const completeness = getStudentCompletenessStatus(visit);
+        const missingFields = completeness.missingFields || [];
 
+        // กรองเฉพาะฟิลด์ที่อยู่ใน step นี้
         const stepMissing = getMissingFieldsByStep(missingFields, stepNumber);
 
         if (stepMissing.length === 0) {
@@ -1529,8 +1465,51 @@ async function renderMissingBox(stepNumber) {
     }
 }
 
+function getMissingFieldsByStep(missingFields, stepNumber) {
+    const step1Fields = [
+        'วันที่เยี่ยมบ้าน', 'ครั้งที่', 'ชื่อเล่น', 'เบอร์โทรศัพท์นักเรียน',
+        'ชื่อบิดา', 'อาชีพบิดา', 'เบอร์โทรบิดา',
+        'ชื่อมารดา', 'อาชีพมารดา', 'เบอร์โทรมารดา',
+        'ชื่อผู้ปกครอง', 'อาชีพผู้ปกครอง', 'เบอร์โทรผู้ปกครอง', 'ความสัมพันธ์ผู้ปกครอง',
+        'อาศัยอยู่กับ', 'สถานภาพบิดามารดา'
+    ];
+    const step2Fields = [
+        'บ้านเลขที่', 'หมู่ที่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
+        'พิกัด GPS', 'ประเภทบ้าน', 'เวลาเดินทาง', 'วิธีการเดินทาง',
+        'สภาพตัวบ้าน', 'ความสะอาด', 'สภาพแวดล้อม',
+        'ไฟฟ้า', 'น้ำอุปโภคบริโภค', 'ห้องสุขา'
+    ];
+    const step3Fields = [
+        'สมาชิกในครอบครัว (รวม)', 'สมาชิกชาย', 'สมาชิกหญิง',
+        'พี่น้องร่วมบิดามารดา (รวม)', 'พี่น้องร่วมฯ ชาย', 'พี่น้องร่วมฯ หญิง',
+        'พี่น้องต่างบิดามารดา (รวม)', 'พี่น้องต่างฯ ชาย', 'พี่น้องต่างฯ หญิง',
+        'รายได้ครอบครัวต่อเดือน', 'นักเรียนได้รับค่าใช้จ่ายจาก',
+        'รายได้นักเรียนต่อวัน', 'เงินไปโรงเรียนต่อวัน',
+        'ความสัมพันธ์ในครอบครัว', 'เวลาอยู่ร่วมกันต่อวัน',
+        'กรณีต้องการการช่วยเหลือพิเศษ', 'ภาระงานรับผิดชอบ',
+        'กิจกรรมยามว่าง', 'ฝากเด็กอยู่กับใคร'
+    ];
+    const step4Fields = [
+        'ภาพถ่ายตัวนักเรียน', 'ภาพถ่ายสภาพบ้านภายนอก',
+        'ภาพถ่ายสภาพบ้านภายใน'
+    ];
+    const step5Fields = [
+        'ข้อห่วงใยของผู้ปกครอง', 'สิ่งที่ผู้ปกครองต้องการให้ช่วยเหลือ',
+        'ความช่วยเหลือที่เคยได้รับ', 'ผู้ให้ข้อมูล'
+    ];
+
+    let stepFields = [];
+    if (stepNumber === 1) stepFields = step1Fields;
+    else if (stepNumber === 2) stepFields = step2Fields;
+    else if (stepNumber === 3) stepFields = step3Fields;
+    else if (stepNumber === 4) stepFields = step4Fields;
+    else if (stepNumber === 5) stepFields = step5Fields;
+
+    return missingFields.filter(field => stepFields.includes(field));
+}
+
 // ==========================================
-// 22. Logout
+// 24. Logout
 // ==========================================
 async function logout() {
     const r = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออก', cancelButtonText: 'ยกเลิก' });

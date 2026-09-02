@@ -581,7 +581,7 @@ function buildVisitDataFromRow(headers, values, studentId, classroomId) {
         },
         economic_data: {
             income: getVal('family_income_monthly'),
-            allowance_source: window.tomAllowanceSource?.getValue() || '',
+            allowance_source: getVal('economic_allowance_source'), // ✅ อ่านจาก Excel row แทน TomSelect instance
             student_job_name: getVal('student_job_name'),
             student_job_income: getVal('student_job_income'),
             money_to_school: getVal('money_to_school'),
@@ -593,7 +593,7 @@ function buildVisitDataFromRow(headers, values, studentId, classroomId) {
         special_help_details: getVal('special_help_details'),
         responsibilities_details: getVal('responsibilities_details'),
         hobbies_details: getVal('hobbies_details'),
-        leave_with_whom_details: window.tomLeaveWithWhom?.getValue() || '',
+        leave_with_whom_details: getVal('leave_with_whom_details'), // ✅ อ่านจาก Excel row แทน TomSelect instance
         guardian_concerns: getVal('guardian_concerns'),
         guardian_requests: getVal('guardian_requests'),
         past_welfare: getVal('past_welfare'),
