@@ -129,216 +129,6 @@ async function recalculateResult(evaluateeId, evalRoundId) {
 }
 
 // ==========================================
-// ส่งออก Excel ทั้งหมด (แยกชีทตามคณะกรรมการ) - แก้ไขให้ไม่ค้าง
-// ==========================================
-async function exportAllResults() {
-    const roundId = document.getElementById('filter_round_for_results').value;
-
-    if (!roundId) {
-        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนส่งออก', 'warning');
-    }
-
-    // ✅ ตรวจสอบว่ามีผลสรุปหรือไม่ก่อนแสดง Loading
-    const { data: hasResults, error: checkError } = await db
-        .from('eval_final_results')
-        .select('id', { count: 'exact' })
-        .eq('eval_round_id', roundId)
-        .eq('status', 'finalized')
-        .limit(1);
-
-    if (checkError) throw checkError;
-    if (!hasResults || hasResults.length === 0) {
-        return Swal.fire('แจ้งเตือน', 'ยังไม่มีผลการประเมินที่สรุปแล้วในรอบนี้', 'info');
-    }
-
-    Swal.fire({
-        title: 'กำลังส่งออกข้อมูล...',
-        html: 'กำลังโหลดข้อมูลรอบการประเมิน...',
-        allowOutsideClick: false,
-        didOpen: () => Swal.showLoading()
-    });
-
-    try {
-        const roundName = allRounds.find(r => r.id === roundId)?.round_name || 'รอบประเมิน';
-
-        // ดึงข้อมูลชุดคณะกรรมการทั้งหมดในรอบ
-        const { data: groups, error: gErr } = await db
-            .from('eval_committee_groups')
-            .select('*, eval_committee_members(user_id, role, core_personnel(first_name, last_name, academic_standing))')
-            .eq('eval_round_id', roundId)
-            .eq('is_active', true);
-
-        if (gErr) throw gErr;
-
-        if (!groups || groups.length === 0) {
-            Swal.close();
-            return Swal.fire('แจ้งเตือน', 'ไม่พบชุดคณะกรรมการในรอบนี้', 'warning');
-        }
-
-        const wb = XLSX.utils.book_new();
-
-        // สร้างชีทสรุปภาพรวม (ใช้ eval_final_results)
-        const { data: finalResults, error: fErr } = await db
-            .from('eval_final_results')
-            .select('*, core_personnel(first_name, last_name, academic_standing, department)')
-            .eq('eval_round_id', roundId)
-            .eq('status', 'finalized');
-
-        if (!fErr && finalResults && finalResults.length > 0) {
-            const summaryData = finalResults.map(r => ({
-                'ชื่อ-สกุล': `${r.core_personnel?.first_name || ''} ${r.core_personnel?.last_name || ''}`,
-                'กลุ่มสาระ': r.core_personnel?.department || '-',
-                'วิทยฐานะ': r.core_personnel?.academic_standing || '-',
-                'คะแนนเฉลี่ย': r.average_score?.toFixed(2) || '0.00',
-                'จำนวนกรรมการ': r.evaluator_count || 0,
-                'จำนวนชุด': r.committee_group_count || 0,
-                'ระดับคุณภาพ': getLevelText(r.average_score).text
-            }));
-
-            const wsSummary = XLSX.utils.json_to_sheet(summaryData);
-            XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปทั้งหมด');
-        }
-
-        // 4. วนลูปสร้างชีทตามชุดคณะกรรมการ
-        for (const group of groups) {
-            const groupName = group.group_name || 'ไม่ระบุชื่อชุด';
-
-            // ✅ ดึงกลุ่มเป้าหมาย (Department)
-            const { data: targets } = await db
-                .from('eval_committee_targets')
-                .select('target_value')
-                .eq('committee_group_id', group.id)
-                .eq('target_type', 'department')
-                .eq('is_active', true);
-
-            const departments = (targets || []).map(t => t.target_value);
-
-            // ✅ ดึงหัวข้อที่ต้องประเมิน (selected_sub_items)
-            const subItems = group.selected_sub_items || [];
-            const subItemLabels = subItems.map(item => {
-                const standard = STANDARD_FULL_ITEMS.find(s => s.element === item.element && s.value === item.value && s.part === (item.part || ''));
-                return standard ? standard.label : `${item.element}:${item.value}`;
-            });
-
-            // ✅ ดึงครูในกลุ่มเป้าหมาย
-            let allTeachers = [];
-            for (const dept of departments) {
-                const { data: teachers, error: tErr } = await db
-                    .from('core_personnel')
-                    .select('id, prefix, first_name, last_name, academic_standing')
-                    .eq('department', dept)
-                    .in('position', ['ครู', 'ครูผู้ช่วย'])
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-                if (!tErr && teachers) allTeachers = [...allTeachers, ...teachers];
-            }
-
-            if (allTeachers.length === 0) continue;
-
-            // ✅ สร้าง Header ของตาราง
-            const headerRow = ['กลุ่มสาระฯ', 'รายชื่อ', 'ตำแหน่ง', 'วิทยฐานะ', ...subItemLabels];
-
-            // ✅ สร้างข้อมูลแถวครูแต่ละคน
-            const rows = [];
-            const teacherIds = allTeachers.map(t => t.id);
-
-            // ดึงคะแนนทั้งหมดของครูในชุดนี้
-            const { data: allEvals, error: eErr } = await db
-                .from('eval_results')
-                .select('evaluatee_id, detailed_scores, total_score')
-                .in('evaluatee_id', teacherIds)
-                .eq('eval_round_id', roundId)
-                .eq('eval_type', 'committee')
-                .eq('status', 'submitted');
-
-            if (eErr) throw eErr;
-
-            // ✅ คำนวณ Mode ของแต่ละหัวข้อ
-            for (const teacher of allTeachers) {
-                const row = [
-                    departments.join(', '), // กลุ่มสาระฯ
-                    `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`, // รายชื่อ
-                    'ครู', // ตำแหน่ง
-                    teacher.academic_standing || '-' // วิทยฐานะ
-                ];
-
-                // ✅ สำหรับแต่ละหัวข้อ ให้คำนวณ Mode จากคะแนนของกรรมการทุกคน
-                for (const item of subItems) {
-                    const key = item.element === '1' ? (item.part === '1' ? 'p1_s1' : 'p1_s2') : (item.element === '2' ? 'p2' : 'p3');
-
-                    // ดึงคะแนนของครูคนนี้จากทุกคน
-                    const scores = [];
-                    (allEvals || []).filter(ev => ev.evaluatee_id === teacher.id).forEach(ev => {
-                        if (ev.detailed_scores && ev.detailed_scores[key]) {
-                            if (Array.isArray(ev.detailed_scores[key])) {
-                                scores.push(...ev.detailed_scores[key]);
-                            } else {
-                                scores.push(ev.detailed_scores[key]);
-                            }
-                        }
-                    });
-
-                    // ✅ คำนวณ Mode (ค่าที่ซ้ำมากที่สุด)
-                    const mode = calculateMode(scores);
-                    row.push(mode);
-                }
-
-                rows.push(row);
-            }
-
-            // ✅ สร้างแถวรายชื่อกรรมการสำหรับลงนาม
-            const members = group.eval_committee_members || [];
-            const memberNames = members.map(m =>
-                m.core_personnel ? `${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}` : '-'
-            );
-
-            // เพิ่มแถวว่าง 1 แถว
-            rows.push([]);
-            rows.push(['รายชื่อคณะกรรมการสำหรับลงนาม']);
-
-            // เพิ่มรายชื่อกรรมการทีละคน (ในคอลัมภ์ B)
-            memberNames.forEach((name, idx) => {
-                const signRow = ['', `${idx + 1}. ${name}`, '', ''];
-                rows.push(signRow);
-            });
-
-            // ✅ สร้าง Sheet
-            const ws = XLSX.utils.aoa_to_sheet([headerRow, ...rows]);
-
-            // ✅ กำหนดความกว้างคอลัมภ์
-            ws['!cols'] = [
-                { wch: 25 }, // A: กลุ่มสาระ
-                { wch: 30 }, // B: รายชื่อ
-                { wch: 15 }, // C: ตำแหน่ง
-                { wch: 20 }, // D: วิทยฐานะ
-                ...subItemLabels.map(() => ({ wch: 18 })) // E ขึ้นไป: หัวข้อ
-            ];
-
-            // ✅ ตั้งชื่อชีท (จำกัดความยาวไม่เกิน 31 ตัวอักษร)
-            const safeSheetName = groupName.substring(0, 31);
-            XLSX.utils.book_append_sheet(wb, ws, safeSheetName);
-        }
-
-        // ปิด Swal และบันทึกไฟล์
-        Swal.close();
-        XLSX.writeFile(wb, `ผลประเมิน_${roundName}_${new Date().toLocaleDateString('th-TH')}.xlsx`);
-
-        Swal.fire({
-            icon: 'success',
-            title: 'ส่งออกสำเร็จ!',
-            text: 'ไฟล์ Excel ถูกบันทึกเรียบร้อยแล้ว',
-            timer: 2000,
-            showConfirmButton: false
-        });
-
-    } catch (err) {
-        console.error('Error exporting:', err);
-        Swal.close();
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-// ==========================================
 // ฟังก์ชันคำนวณ Mode (ค่าที่ซ้ำมากที่สุด)
 // ==========================================
 function calculateMode(arr) {
@@ -604,14 +394,578 @@ function closeEvaluatorAssignmentModal() {
     }
 }
 
-// ✅ Export ฟังก์ชัน
+// ==========================================
+// ✅ showExportModal (แก้ไข: ใช้รายการกลุ่มสาระคงที่)
+// ==========================================
+async function showExportModal() {
+    const roundId = document.getElementById('filter_round_for_results')?.value;
+    if (!roundId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนส่งออก', 'warning');
+    }
+
+    // ✅ รายการกลุ่มสาระที่อนุญาตให้ประเมิน (ตามที่กำหนด)
+    const departments = [
+        'ภาษาไทย',
+        'คณิตศาสตร์',
+        'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
+        'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
+        'สังคมศึกษา ศาสนาและวัฒนธรรม',
+        'สุขศึกษาและพลศึกษา',
+        'ศิลปะ',
+        'การงานอาชีพ',
+        'ภาษาต่างประเทศ (ภาษาอังกฤษ)',
+        'ภาษาต่างประเทศ (ภาษาจีน)',
+        'แนะแนว'
+    ];
+
+    // สร้าง HTML สำหรับ checkbox กลุ่มสาระ
+    let deptCheckboxes = departments.map(dept => `
+        <label class="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded">
+            <input type="checkbox" class="dept-checkbox" value="${dept}">
+            <span>${dept}</span>
+        </label>
+    `).join('');
+
+    const { value: result } = await Swal.fire({
+        title: '📤 ส่งออก Excel',
+        html: `
+            <div class="text-left space-y-4">
+                <div>
+                    <label class="block font-bold text-gray-700 mb-2">เลือกประเภทการส่งออก</label>
+                    <div class="flex flex-col gap-2">
+                        <label class="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-blue-50 transition">
+                            <input type="radio" name="export_type" value="self" checked>
+                            <span class="font-medium">📋 สรุปการประเมินตนเอง</span>
+                        </label>
+                        <label class="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-blue-50 transition">
+                            <input type="radio" name="export_type" value="committee">
+                            <span class="font-medium">👥 สรุปการประเมินจากกรรมการ</span>
+                        </label>
+                    </div>
+                </div>
+
+                <div id="deptSelection" class="border-t pt-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-gray-700">เลือกกลุ่มสาระ</span>
+                        <label class="flex items-center gap-2 text-sm cursor-pointer">
+                            <input type="checkbox" id="selectAllDepts" checked>
+                            <span>เลือกทั้งหมด</span>
+                        </label>
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-1 max-h-52 overflow-y-auto p-2 bg-gray-50 rounded-lg border">
+                        ${deptCheckboxes}
+                    </div>
+                    <p class="text-xs text-gray-400 mt-2">เฉพาะการส่งออกประเมินตนเองเท่านั้นที่กรองตามกลุ่มสาระ</p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '✅ ส่งออก',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#10b981',
+        preConfirm: () => {
+            const exportType = document.querySelector('input[name="export_type"]:checked')?.value || 'self';
+            const selectedDepts = [];
+            document.querySelectorAll('.dept-checkbox:checked').forEach(cb => {
+                selectedDepts.push(cb.value);
+            });
+            const selectAll = document.getElementById('selectAllDepts')?.checked || false;
+            return { exportType, selectedDepts, selectAll };
+        },
+        didOpen: () => {
+            // จัดการ checkbox "เลือกทั้งหมด"
+            const selectAll = document.getElementById('selectAllDepts');
+            const checkboxes = document.querySelectorAll('.dept-checkbox');
+            if (selectAll) {
+                selectAll.addEventListener('change', function () {
+                    checkboxes.forEach(cb => cb.checked = this.checked);
+                });
+                checkboxes.forEach(cb => {
+                    cb.addEventListener('change', function () {
+                        const allChecked = Array.from(checkboxes).every(c => c.checked);
+                        selectAll.checked = allChecked;
+                    });
+                });
+            }
+
+            // เมื่อเปลี่ยนประเภทการส่งออก ให้แสดง/ซ่อนตัวเลือกกลุ่มสาระ
+            document.querySelectorAll('input[name="export_type"]').forEach(radio => {
+                radio.addEventListener('change', function () {
+                    const deptDiv = document.getElementById('deptSelection');
+                    if (this.value === 'self') {
+                        deptDiv.style.display = 'block';
+                    } else {
+                        deptDiv.style.display = 'none';
+                    }
+                });
+            });
+            // เริ่มต้น: ถ้าเลือก self ให้แสดง
+            const initial = document.querySelector('input[name="export_type"]:checked')?.value;
+            if (initial === 'committee') {
+                document.getElementById('deptSelection').style.display = 'none';
+            }
+        }
+    });
+
+    if (!result) return;
+
+    const { exportType, selectedDepts, selectAll } = result;
+
+    if (exportType === 'self') {
+        const depts = selectAll ? [] : selectedDepts; // [] หมายถึงทั้งหมด
+        await exportSelfEvaluation(roundId, depts);
+    } else {
+        await exportCommitteeEvaluation(roundId);
+    }
+}
+
+// ==========================================
+// ✅ 1. ส่งออกการประเมินตนเอง (ปรับชื่อไฟล์)
+// ==========================================
+async function exportSelfEvaluation(roundId, selectedDepts = []) {
+    Swal.fire({
+        title: 'กำลังสร้างไฟล์ Excel...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ดึงข้อมูลครูทั้งหมด (เฉพาะที่มีสิทธิ์ประเมินตนเอง)
+        let query = db.from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
+
+        if (selectedDepts.length > 0) {
+            query = query.in('department', selectedDepts);
+        }
+
+        const { data: teachers, error: tErr } = await query.order('department').order('first_name');
+        if (tErr) throw tErr;
+
+        if (!teachers || teachers.length === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลบุคลากร', 'warning');
+        }
+
+        // ดึงผลการประเมินตนเองของครูเหล่านี้
+        const teacherIds = teachers.map(t => t.id);
+        const { data: selfResults, error: sErr } = await db
+            .from('eval_results')
+            .select('*')
+            .in('evaluatee_id', teacherIds)
+            .eq('eval_round_id', roundId)
+            .eq('eval_type', 'self')
+            .eq('status', 'submitted');
+
+        if (sErr) throw sErr;
+
+        const resultMap = {};
+        (selfResults || []).forEach(r => {
+            resultMap[r.evaluatee_id] = r;
+        });
+
+        // ใช้ STANDARD_FULL_ITEMS เป็นคอลัมน์
+        const headers = ['กลุ่มสาระ', 'ชื่อ-สกุล', 'วิทยฐานะ'];
+        const itemHeaders = STANDARD_FULL_ITEMS.map(item => {
+            // สร้างชื่อคอลัมน์ เช่น "1.1", "2.1", "3.1"
+            return `${item.element}.${item.value}`;
+        });
+        headers.push(...itemHeaders);
+        headers.push('คะแนนรวม');
+
+        const rows = [];
+
+        for (const teacher of teachers) {
+            const row = [
+                teacher.department || '-',
+                `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`,
+                teacher.academic_standing || '-'
+            ];
+
+            const evalData = resultMap[teacher.id];
+            if (evalData) {
+                // แมปคะแนน
+                const scoreMap = mapSelfScoresToStandards(evalData.detailed_scores || {}, teacher.academic_standing);
+                // เพิ่มคะแนนตามลำดับ STANDARD_FULL_ITEMS
+                for (const item of STANDARD_FULL_ITEMS) {
+                    const key = `${item.element}_${item.value}_${item.part || ''}`;
+                    row.push(scoreMap[key] ?? '');
+                }
+                row.push(evalData.total_score?.toFixed(2) || '');
+            } else {
+                // ไม่มีผลประเมิน ให้เว้นว่าง
+                for (let i = 0; i < STANDARD_FULL_ITEMS.length; i++) {
+                    row.push('');
+                }
+                row.push('');
+            }
+            rows.push(row);
+        }
+
+        // สร้าง Excel
+        const wb = XLSX.utils.book_new();
+        const wsData = [headers, ...rows];
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols'] = [
+            { wch: 25 }, // กลุ่มสาระ
+            { wch: 35 }, // ชื่อ-สกุล
+            { wch: 20 }, // วิทยฐานะ
+            ...itemHeaders.map(() => ({ wch: 12 }))
+        ];
+        XLSX.utils.book_append_sheet(wb, ws, 'ประเมินตนเอง');
+
+        // ✅ ตั้งชื่อไฟล์ตามกลุ่มสาระที่เลือก
+        let fileName = `ประเมินตนเอง_${new Date().toLocaleDateString('th-TH')}`;
+        if (selectedDepts.length > 0 && selectedDepts.length < 11) {
+            // ถ้าเลือกบางกลุ่ม (ไม่ใช่ทั้งหมด) ให้ต่อท้ายชื่อกลุ่ม
+            const deptSuffix = selectedDepts.join('_');
+            fileName += `_${deptSuffix}`;
+        }
+        fileName += '.xlsx';
+
+        XLSX.writeFile(wb, fileName);
+
+        Swal.close();
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งออกสำเร็จ!',
+            text: `ไฟล์ "${fileName}"`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('Error exporting self evaluation:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * แมปคะแนนจากการประเมินตนเองไปยัง STANDARD_FULL_ITEMS
+ */
+function mapSelfScoresToStandards(detailedScores, academicStanding) {
+    const map = {};
+    const criteria = getCriteriaByAcademic(academicStanding);
+
+    // p1_s1
+    const p1s1 = detailedScores.p1_s1 || [];
+    const allItems = [];
+    (criteria.part1_sec1 || []).forEach(group => {
+        group.items.forEach(item => {
+            allItems.push(item);
+        });
+    });
+    allItems.forEach((item, idx) => {
+        const key = `1_${item.id}_1`; // element=1, part=1
+        if (idx < p1s1.length) {
+            map[key] = p1s1[idx];
+        }
+    });
+
+    // p1_s2
+    const p1s2 = detailedScores.p1_s2 || [];
+    const p1s2Ids = ['1', '2.1', '2.2'];
+    p1s2Ids.forEach((id, idx) => {
+        const key = `1_${id}_2`;
+        if (idx < p1s2.length) {
+            map[key] = p1s2[idx];
+        }
+    });
+
+    // p2
+    if (detailedScores.p2 !== undefined && detailedScores.p2 !== null) {
+        map['2_1_'] = detailedScores.p2;
+    }
+
+    // p3
+    const p3 = detailedScores.p3 || [];
+    for (let i = 0; i < 10; i++) {
+        const key = `3_${i+1}_`;
+        if (i < p3.length) {
+            map[key] = p3[i];
+        }
+    }
+
+    return map;
+}
+
+// ==========================================
+// ✅ 2. ส่งออกการประเมินจากกรรมการ (เฉพาะชีตสรุปรวมทุกชุด)
+// ==========================================
+async function exportCommitteeEvaluation(roundId) {
+    Swal.fire({
+        title: 'กำลังสร้างไฟล์ Excel...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ดึงข้อมูลสรุปรวมทุกชุด (mainGroupId = null)
+        const allData = await generateCommitteeSheetData(roundId, null);
+        if (!allData) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลการประเมินจากกรรมการ', 'warning');
+        }
+
+        // สร้าง workbook และเพิ่มชีตเดียว
+        const wb = XLSX.utils.book_new();
+        const ws = createWorksheetFromData(allData);
+        XLSX.utils.book_append_sheet(wb, ws, 'สรุปรวมทุกชุด');
+
+        const fileName = `ประเมินจากกรรมการ_${new Date().toLocaleDateString('th-TH')}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        Swal.close();
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งออกสำเร็จ!',
+            text: `ไฟล์ "${fileName}"`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('Error exporting committee evaluation:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+/**
+ * สร้างข้อมูลสำหรับชีตการประเมินจากกรรมการ (Mode)
+ * @param {string} roundId
+ * @param {string|null} mainGroupId - ถ้า null ให้ใช้ทุก main group
+ * @returns {Object|null} { headers, rows }
+ */
+async function generateCommitteeSheetData(roundId, mainGroupId) {
+    // 1. ดึง sub groups ที่เกี่ยวข้อง
+    let subQuery = db.from('eval_committee_groups')
+        .select('*, eval_committee_targets(*), eval_committee_members(user_id, core_personnel(first_name, last_name))')
+        .eq('eval_round_id', roundId)
+        .eq('group_type', 'sub')
+        .eq('is_active', true);
+
+    if (mainGroupId) {
+        subQuery = subQuery.eq('parent_group_id', mainGroupId);
+    }
+    const { data: subGroups, error: sgErr } = await subQuery;
+    if (sgErr) throw sgErr;
+
+    if (!subGroups || subGroups.length === 0) return null;
+
+    // 2. รวบรวม department targets จากทุก sub group
+    const deptSet = new Set();
+    subGroups.forEach(sub => {
+        (sub.eval_committee_targets || []).forEach(t => {
+            if (t.target_type === 'department') deptSet.add(t.target_value);
+        });
+    });
+    const departments = Array.from(deptSet);
+    if (departments.length === 0) return null;
+
+    // 3. ดึงครูใน department เหล่านั้น
+    const { data: teachers, error: tErr } = await db
+        .from('core_personnel')
+        .select('id, prefix, first_name, last_name, academic_standing, department')
+        .in('department', departments)
+        .in('position', ['ครู', 'ครูผู้ช่วย'])
+        .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครู', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+        .order('department').order('first_name');
+
+    if (tErr) throw tErr;
+    if (!teachers || teachers.length === 0) return null;
+
+    const teacherIds = teachers.map(t => t.id);
+
+    // 4. ดึง eval_results ของครูทั้งหมดในรอบนี้ (committee)
+    const { data: evalResults, error: eErr } = await db
+        .from('eval_results')
+        .select('*')
+        .in('evaluatee_id', teacherIds)
+        .eq('eval_round_id', roundId)
+        .eq('eval_type', 'committee')
+        .eq('status', 'submitted');
+
+    if (eErr) throw eErr;
+
+    // จัดกลุ่ม eval ตาม evaluatee_id
+    const evalMap = {};
+    (evalResults || []).forEach(ev => {
+        if (!evalMap[ev.evaluatee_id]) evalMap[ev.evaluatee_id] = [];
+        evalMap[ev.evaluatee_id].push(ev);
+    });
+
+    // 5. สร้าง headers (ใช้ STANDARD_FULL_ITEMS)
+    const headers = ['กลุ่มสาระ', 'ชื่อ-สกุล', 'วิทยฐานะ'];
+    const itemHeaders = STANDARD_FULL_ITEMS.map(item => `${item.element}.${item.value}`);
+    headers.push(...itemHeaders);
+    headers.push('คะแนนรวม');
+
+    const rows = [];
+
+    // 6. สำหรับครูแต่ละคน
+    for (const teacher of teachers) {
+        // หา sub groups ที่เกี่ยวข้องกับครูนี้ (department ตรง)
+        const relevantSubGroups = subGroups.filter(sub => {
+            const targets = sub.eval_committee_targets || [];
+            return targets.some(t => t.target_type === 'department' && t.target_value === teacher.department);
+        });
+
+        if (relevantSubGroups.length === 0) {
+            // ครูคนนี้ไม่อยู่ในกลุ่มเป้าหมายของ sub group ใด -> ข้าม
+            continue;
+        }
+
+        // รวบรวมกรรมการที่เกี่ยวข้อง (unique user_id)
+        const memberSet = new Set();
+        relevantSubGroups.forEach(sub => {
+            (sub.eval_committee_members || []).forEach(m => {
+                if (m.user_id) memberSet.add(m.user_id);
+            });
+        });
+        const memberIds = Array.from(memberSet);
+        if (memberIds.length === 0) continue;
+
+        // ดึง eval ของครูคนนี้
+        const evals = evalMap[teacher.id] || [];
+        // กรองเฉพาะ eval ที่ evaluator อยู่ใน memberIds
+        const relevantEvals = evals.filter(ev => memberIds.includes(ev.evaluator_id));
+
+        // สร้าง row เริ่มต้น
+        const row = [
+            teacher.department || '-',
+            `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`,
+            teacher.academic_standing || '-'
+        ];
+
+        let allScoresComplete = true;
+        const scoreValues = [];
+
+        // สำหรับแต่ละหัวข้อใน STANDARD_FULL_ITEMS
+        for (const item of STANDARD_FULL_ITEMS) {
+            // รวบรวมคะแนนจากกรรมการทุกคนที่มีคะแนนในหัวข้อนี้
+            const scores = [];
+            for (const ev of relevantEvals) {
+                const score = extractScoreFromDetails(ev.detailed_scores || {}, item, teacher.academic_standing);
+                if (score !== null && score !== undefined && score !== '') {
+                    scores.push(score);
+                }
+            }
+
+            // ตรวจสอบว่ามีคะแนนครบตามจำนวนกรรมการหรือไม่
+            const isComplete = scores.length === memberIds.length;
+            let modeValue = '-';
+            if (isComplete && scores.length > 0) {
+                const mode = calculateMode(scores);
+                modeValue = mode !== null ? mode : '-';
+            } else {
+                allScoresComplete = false;
+            }
+            row.push(modeValue);
+            scoreValues.push(modeValue);
+        }
+
+        // คำนวณคะแนนรวม (ถ้าครบทุกหัวข้อ)
+        let totalScore = '-';
+        if (allScoresComplete) {
+            // รวมคะแนนจาก mode ทั้งหมด (เฉพาะที่เป็นตัวเลข)
+            const numericScores = scoreValues.filter(v => typeof v === 'number' && !isNaN(v));
+            if (numericScores.length === scoreValues.length) {
+                totalScore = numericScores.reduce((a, b) => a + b, 0).toFixed(2);
+            }
+        }
+        row.push(totalScore);
+
+        rows.push(row);
+    }
+
+    return { headers, rows };
+}
+
+/**
+ * ดึงคะแนนจาก detailed_scores ตาม item ใน STANDARD_FULL_ITEMS
+ */
+function extractScoreFromDetails(details, item, academicStanding) {
+    const criteria = getCriteriaByAcademic(academicStanding);
+    const element = item.element;
+    const part = item.part || '';
+    const value = item.value;
+
+    if (element === '1') {
+        if (part === '1') {
+            // p1_s1
+            const p1s1 = details.p1_s1 || [];
+            const allItems = [];
+            (criteria.part1_sec1 || []).forEach(group => {
+                group.items.forEach(it => allItems.push(it));
+            });
+            const idx = allItems.findIndex(it => it.id === value || it.id === value.replace('.', '_'));
+            if (idx !== -1 && idx < p1s1.length) {
+                return p1s1[idx];
+            }
+        } else if (part === '2') {
+            // p1_s2
+            const p1s2 = details.p1_s2 || [];
+            const idMap = { '1': 0, '2.1': 1, '2.2': 2 };
+            const idx = idMap[value];
+            if (idx !== undefined && idx < p1s2.length) {
+                return p1s2[idx];
+            }
+        }
+    } else if (element === '2') {
+        // p2
+        if (details.p2 !== undefined && details.p2 !== null) {
+            return details.p2;
+        }
+    } else if (element === '3') {
+        // p3
+        const p3 = details.p3 || [];
+        const idx = parseInt(value) - 1;
+        if (idx >= 0 && idx < p3.length) {
+            return p3[idx];
+        }
+    }
+    return null;
+}
+
+/**
+ * สร้าง worksheet จากข้อมูล { headers, rows }
+ */
+function createWorksheetFromData({ headers, rows }) {
+    const wsData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [
+        { wch: 25 }, // กลุ่มสาระ
+        { wch: 35 }, // ชื่อ-สกุล
+        { wch: 20 }, // วิทยฐานะ
+        ...STANDARD_FULL_ITEMS.map(() => ({ wch: 12 }))
+    ];
+    return ws;
+}
+
+// ==========================================
+// EXPOSE GLOBAL FUNCTIONS
+// ==========================================
+
+// ------------------------------------------
+// ฟังก์ชันส่งออก Excel (ใหม่)
+// ------------------------------------------
+window.showExportModal = showExportModal;
+window.exportAllResults = showExportModal;          // ตัวเดิมถูกแทนที่ด้วย showExportModal
+window.exportSelfEvaluation = exportSelfEvaluation;
+window.exportCommitteeEvaluation = exportCommitteeEvaluation;
+
+// ------------------------------------------
+// ฟังก์ชันอื่น ๆ (ที่มีอยู่แล้ว)
+// ------------------------------------------
 window.checkEvaluatorAssignments = checkEvaluatorAssignments;
 window.closeEvaluatorAssignmentModal = closeEvaluatorAssignmentModal;
 window.loadResultsTable = loadResultsTable;
 window.getLevelText = getLevelText;
 window.viewResultDetail = viewResultDetail;
 window.recalculateResult = recalculateResult;
-window.exportAllResults = exportAllResults;
 window.triggerGenerateAllFinalScores = triggerGenerateAllFinalScores;
 
 console.log('✅ evaluation_admin_results.js loaded successfully');
