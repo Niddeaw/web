@@ -4,19 +4,21 @@
 async function loadSickLeaveWidget() {
     try {
         const today = new Date();
-        const todayStr = today.toISOString().split('T')[0];
+
+        // ✅ ใช้ toLocaleDateString('sv-SE') เพื่อให้ได้วันที่ตามเวลาท้องถิ่น (YYYY-MM-DD)
+        const todayStr = today.toLocaleDateString('sv-SE');
 
         // คำนวณวันเริ่มต้นสัปดาห์ (วันจันทร์)
         const startOfWeek = new Date(today);
         const dayOfWeek = today.getDay(); // 0=อาทิตย์, 1=จันทร์ ...
         const diffToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
         startOfWeek.setDate(today.getDate() - diffToMonday);
-        const startWeekStr = startOfWeek.toISOString().split('T')[0];
+        const startWeekStr = startOfWeek.toLocaleDateString('sv-SE');
 
         // คำนวณวันสิ้นสุดสัปดาห์ (วันอาทิตย์)
         const endOfWeek = new Date(startOfWeek);
         endOfWeek.setDate(startOfWeek.getDate() + 6);
-        const endWeekStr = endOfWeek.toISOString().split('T')[0];
+        const endWeekStr = endOfWeek.toLocaleDateString('sv-SE');
 
         // แสดงช่วงวันที่
         const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
