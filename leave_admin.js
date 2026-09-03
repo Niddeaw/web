@@ -1384,12 +1384,11 @@ async function exportLeaveSummaryReport() {
     try {
         Swal.fire({ title: 'กำลังสร้างรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
+        // ✅ กรองเฉพาะตำแหน่งที่ต้องการ
         let personnel = allPersonnelData.filter(p => {
             const pos = p.position || '';
-            if (pos === 'ผู้อำนวยการสถานศึกษา') return false;
-            if (pos.includes('พนักงานราชการ')) return false;
-            if (pos.includes('ครูอัตราจ้าง')) return false;
-            return true;
+            if (pos.includes('พนักงานราชการ') || pos.includes('ครูอัตราจ้าง') || pos.includes('ครูพี่เลี้ยงเด็กพิการ')) return false;
+            return pos.includes('ผู้อำนวยการ') || pos.includes('รองผู้อำนวยการ') || pos.includes('ครู');
         });
 
         const { data: leaves, error: leavesErr } = await db.from('leave_requests')
