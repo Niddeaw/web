@@ -444,6 +444,35 @@ window.saveLeave = async function (e) {
         }
     }
 
+    // ✅ ตรวจสอบข้อมูลซ้ำ
+    const duplicate = await window.checkDuplicateLeave(
+        window.currentUser.id,
+        type,
+        startDate,
+        endDate,
+        id || null  // ถ้ามี id (แก้ไข) จะไม่นับรายการนี้
+    );
+
+    if (duplicate.exists) {
+        const existingName = duplicate.existingLeave?.core_personnel
+            ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
+            : 'บุคลากร';
+        await Swal.fire({
+            icon: 'warning',
+            title: 'มีใบลาซ้ำ',
+            html: `
+                <div class="text-left">
+                    <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
+                    <p class="text-sm text-slate-600">ประเภท: ${type}</p>
+                    <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai(startDate)} - ${window.formatDateThai(endDate)}</p>
+                    <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
+                </div>
+            `,
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
+    
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const payload = {

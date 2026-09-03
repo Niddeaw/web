@@ -640,7 +640,7 @@ function renderTable() {
             const dateDisplay = formatDateThai(l.created_at);
             const dateOrder = l.created_at || '';
 
-            const resetAckBtn = isSuperAdmin 
+            const resetAckBtn = isSuperAdmin
                 ? `<button onclick="resetAllAcknowledge('${l.id}')" class="btn-icon text-amber-600 hover:bg-amber-100 hover:text-amber-700" title="ยกเลิกรับทราบทั้งหมด"><i class="fas fa-undo-alt"></i></button>`
                 : '';
 
@@ -842,6 +842,43 @@ $('#editLeaveForm').on('submit', async function (e) {
         is_half_day: isHalfDay,
         pdf_url: null
     };
+
+    // ✅ ดึง personnel_id ของใบลานี้จาก allLeavesData
+    const leaveRecord = allLeavesData.find(l => l.id === id);
+    if (!leaveRecord) {
+        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลใบลา', 'error');
+        return;
+    }
+    const personnelId = leaveRecord.personnel_id;
+
+    // ตรวจสอบซ้ำ (ข้ามรายการตัวเอง)
+    const duplicate = await window.checkDuplicateLeave(
+        personnelId,
+        $('#edit_leave_type').val(),
+        $('#edit_start_date').val(),
+        $('#edit_end_date').val(),
+        id  // ข้ามตัวเอง
+    );
+
+    if (duplicate.exists) {
+        const existingName = duplicate.existingLeave?.core_personnel
+            ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
+            : 'บุคลากร';
+        await Swal.fire({
+            icon: 'warning',
+            title: 'มีใบลาซ้ำ',
+            html: `
+                <div class="text-left">
+                    <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
+                    <p class="text-sm text-slate-600">ประเภท: ${$('#edit_leave_type').val()}</p>
+                    <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai($('#edit_start_date').val())} - ${window.formatDateThai($('#edit_end_date').val())}</p>
+                    <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
+                </div>
+            `,
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
 
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
@@ -1131,13 +1168,16 @@ function viewLeave(id) {
         const p = iso.split('-');
         return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
     }
-    function fmtDateTime(iso) {
+    // ลบหรือแทนที่ฟังก์ชัน fmtDateTime เดิม
+    function formatDateOnly(iso) {
         if (!iso) return '-';
         const d = new Date(iso);
-        const thMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543} เวลา ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} น.`;
+        if (isNaN(d.getTime())) return '-';
+        const months = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+            'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+        return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
     }
-
+    const approvedDisplay = l.approved_date || l.approved_at;
     const leaveInfoHtml = `
         <div class="border border-slate-200 rounded-xl p-3 space-y-2 mb-4">
             <div class="flex justify-between items-center">
@@ -1171,7 +1211,7 @@ function viewLeave(id) {
     <span class="font-bold text-slate-800">${l.is_half_day ? '0.5 (ครึ่งวัน)' : l.total_days + ' วัน'}</span>
 </div>
             ${l.reject_comment ? `<div class="flex justify-between items-start"><span class="text-sm font-bold text-slate-600">เหตุผลที่ไม่อนุมัติ</span><span class="text-rose-700 text-sm">${l.reject_comment}</span></div>` : ''}
-            ${l.approved_at ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${fmtDateTime(l.approved_at)}</span></div>` : ''}
+${approvedDisplay ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span></div>` : ''}
             ${l.submitted_date ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span><span class="text-slate-600 text-sm">${fmt(l.submitted_date)}</span></div>` : ''}
             ${l.attachment_file_id ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span><a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
         </div>
@@ -1180,7 +1220,7 @@ function viewLeave(id) {
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
-        const atValue = l[atField] ? fmtDateTime(l[atField]) : '';
+        const atValue = l[atField] ? formatDateOnly(l[atField]) : '';
         let buttonHtml = '';
         if (isSuperAdminView && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบแทน</button>`;
@@ -1894,6 +1934,35 @@ window.saveLeaveForAdmin = async function (e) {
         }
     }
 
+    // ✅ ตรวจสอบข้อมูลซ้ำ
+    const duplicate = await window.checkDuplicateLeave(
+        personnelId,
+        type,
+        startDate,
+        endDate,
+        null  // ไม่มี id เพราะเป็นการสร้างใหม่
+    );
+
+    if (duplicate.exists) {
+        const existingName = duplicate.existingLeave?.core_personnel
+            ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
+            : 'บุคลากร';
+        await Swal.fire({
+            icon: 'warning',
+            title: 'มีใบลาซ้ำ',
+            html: `
+                <div class="text-left">
+                    <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
+                    <p class="text-sm text-slate-600">ประเภท: ${type}</p>
+                    <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai(startDate)} - ${window.formatDateThai(endDate)}</p>
+                    <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
+                </div>
+            `,
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
+
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const payload = {
         personnel_id: personnelId,
@@ -2417,5 +2486,6 @@ window.logout = logout;
 window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 window.exportSignatureExcel = exportSignatureExcel;
+window.checkDuplicateLeave = window.checkDuplicateLeave; // (ไม่จำเป็น ถ้าใช้ window โดยตรง)
 
 console.log('✅ leave_admin.js loaded with submitted_date, approved_date, evidence upload, full viewLeave, and holiday management (Super Admin only)');

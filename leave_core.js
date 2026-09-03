@@ -529,4 +529,31 @@ window.generateLeavePDF = async function (id, systemSettings) {
     }
 };
 
+// ==========================================
+// ตรวจสอบใบลาซ้ำ (personnel_id, type, start_date, end_date)
+// ==========================================
+window.checkDuplicateLeave = async function (personnelId, type, startDate, endDate, excludeId = null) {
+    try {
+        let query = window.db
+            .from('leave_requests')
+            .select('id, status, type, start_date, end_date, core_personnel!inner(prefix, first_name, last_name)')
+            .eq('personnel_id', personnelId)
+            .eq('type', type)
+            .eq('start_date', startDate)
+            .eq('end_date', endDate)
+            .neq('status', 'ไม่อนุมัติ'); // ข้ามรายการที่ถูกไม่อนุมัติ
+
+        if (excludeId) {
+            query = query.neq('id', excludeId);
+        }
+
+        const { data, error } = await query.maybeSingle();
+        if (error) throw error;
+        return { exists: !!data, existingLeave: data };
+    } catch (err) {
+        console.error('checkDuplicateLeave error:', err);
+        return { exists: false, existingLeave: null };
+    }
+};
+
 console.log('✅ leave_core.js loaded (all functions registered globally) — using RPC for holiday calculation');
