@@ -914,3 +914,20 @@ canvas {
 .shadow-strong {
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
 }
+
+/* ส่วนแสดงการลาหน้า index */
+/* ซ่อน Scrollbar สำหรับรายการ */
+#sick-leave-week ul::-webkit-scrollbar {
+    width: 4px;
+}
+#sick-leave-week ul::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+#sick-leave-week ul::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+#sick-leave-week ul::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
+}

@@ -130,6 +130,39 @@
                 </div>
             </section>
 
+            <!-- ส่วนแสดงผู้ลาป่วย -->
+            <section class="mb-8">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <!-- วันนี้ -->
+                    <div class="bg-white rounded-2xl shadow-sm p-5 border-l-4 border-l-rose-500">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i class="fas fa-head-side-cough text-rose-500 text-xl"></i>
+                            <h3 class="font-bold text-gray-800">📋 ลาป่วยวันนี้</h3>
+                            <span class="ml-auto text-xs text-gray-400" id="sick-today-date"></span>
+                        </div>
+                        <div id="sick-leave-today" class="min-h-[60px]">
+                            <p class="text-gray-400 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- สัปดาห์นี้ -->
+                    <div class="bg-white rounded-2xl shadow-sm p-5 border-l-4 border-l-orange-500">
+                        <div class="flex items-center gap-2 mb-3">
+                            <i class="fas fa-calendar-week text-orange-500 text-xl"></i>
+                            <h3 class="font-bold text-gray-800">📋 ลาป่วยสัปดาห์นี้</h3>
+                            <span class="ml-auto text-xs text-gray-400" id="sick-week-range"></span>
+                        </div>
+                        <div id="sick-leave-week" class="min-h-[60px]">
+                            <p class="text-gray-400 text-sm flex items-center gap-2">
+                                <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
             <div
                 class="flex flex-wrap gap-2 mb-8 bg-white/50 backdrop-blur-md p-2 rounded-2xl border border-white shadow-sm">
                 <button onclick="switchMainTab('academic', this)"
@@ -160,6 +193,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="leave_dashboard.js"></script>
     <script src="calendar_manager.js"></script>
     <script>
         // =======================================================
@@ -315,6 +349,8 @@
 
             updateUI();
             await checkCalendarAdminAccess();
+            // ✅ โหลดข้อมูลผู้ลาป่วย
+            await loadSickLeaveWidget();
             renderAppCards();
         }
 
@@ -544,6 +580,7 @@
             loadEventsByMonth();
         });
     </script>
+
 </body>
 
 </html>
