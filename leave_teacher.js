@@ -472,7 +472,7 @@ window.saveLeave = async function (e) {
         });
         return;
     }
-    
+
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const payload = {
@@ -529,25 +529,143 @@ window.deleteLeave = async function (id) {
 };
 
 // ==========================================
-// ส่งออก Excel
+// ส่งออก Excel (เพิ่มสรุปการลาต่อท้าย)
 // ==========================================
 window.exportExcel = function () {
-    if (window.allMyLeaves.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
-    const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
+    if (window.allMyLeaves.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
+    }
+
+    const fmt = (iso) => {
+        if (!iso) return '-';
+        const p = iso.split('-');
+        return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
+    };
+
+    // 1. สร้างข้อมูลหลัก (ประวัติการลาทั้งหมด)
     const exportData = window.allMyLeaves.map(l => ({
         'วันที่ส่งใบลา': new Date(l.created_at).toLocaleDateString('th-TH'),
-        'ปีงบประมาณ': l.fiscal_year, 'รอบประเมิน': l.eval_round, 'ประเภทการลา': l.type,
-        'เริ่มวันที่': fmt(l.start_date), 'ถึงวันที่': fmt(l.end_date),
-        'จำนวน (วัน)': l.status === 'ไม่อนุมัติ' ? 0 : l.total_days,
+        'ปีงบประมาณ': l.fiscal_year,
+        'รอบประเมิน': l.eval_round,
+        'ประเภทการลา': l.type,
+        'เริ่มวันที่': fmt(l.start_date),
+        'ถึงวันที่': fmt(l.end_date),
+        'จำนวน (วัน)': l.status === 'ไม่อนุมัติ' ? 0 : (l.is_half_day ? 0.5 : l.total_days),
         'จำนวน (ครั้ง)': l.status === 'ไม่อนุมัติ' ? 0 : 1,
-        'สาเหตุ': l.reason, 'ที่อยู่ติดต่อ': l.contact_address || '-', 'เบอร์โทรศัพท์': l.phone_number || '-',
-        'สถานะ': l.status, 'เหตุผล (กรณีไม่อนุมัติ)': l.reject_comment || ''
+        'สาเหตุ': l.reason,
+        'ที่อยู่ติดต่อ': l.contact_address || '-',
+        'เบอร์โทรศัพท์': l.phone_number || '-',
+        'สถานะ': l.status,
+        'เหตุผล (กรณีไม่อนุมัติ)': l.reject_comment || ''
     }));
+
+    // 2. สร้างข้อมูลสรุปเฉพาะรายการที่อนุมัติแล้ว
+    const approvedLeaves = window.allMyLeaves.filter(l => l.status === 'อนุมัติ');
+
+    if (approvedLeaves.length > 0) {
+        // คำนวณสรุปแยกตามประเภท
+        const summary = {};
+        approvedLeaves.forEach(l => {
+            const type = l.type;
+            if (!summary[type]) {
+                summary[type] = {
+                    count: 0,
+                    days: 0,
+                    minStart: l.start_date,
+                    maxEnd: l.end_date
+                };
+            }
+            summary[type].count += 1;
+            summary[type].days += l.is_half_day ? 0.5 : l.total_days;
+            if (l.start_date < summary[type].minStart) summary[type].minStart = l.start_date;
+            if (l.end_date > summary[type].maxEnd) summary[type].maxEnd = l.end_date;
+        });
+
+        // เพิ่มแถวว่างคั่น
+        exportData.push({
+            'วันที่ส่งใบลา': '',
+            'ปีงบประมาณ': '',
+            'รอบประเมิน': '',
+            'ประเภทการลา': '',
+            'เริ่มวันที่': '',
+            'ถึงวันที่': '',
+            'จำนวน (วัน)': '',
+            'จำนวน (ครั้ง)': '',
+            'สาเหตุ': '',
+            'ที่อยู่ติดต่อ': '',
+            'เบอร์โทรศัพท์': '',
+            'สถานะ': '',
+            'เหตุผล (กรณีไม่อนุมัติ)': ''
+        });
+
+        // แถวหัวข้อสรุป
+        exportData.push({
+            'วันที่ส่งใบลา': '=== สรุปการลา (เฉพาะที่อนุมัติแล้ว) ===',
+            'ปีงบประมาณ': '',
+            'รอบประเมิน': '',
+            'ประเภทการลา': '',
+            'เริ่มวันที่': '',
+            'ถึงวันที่': '',
+            'จำนวน (วัน)': '',
+            'จำนวน (ครั้ง)': '',
+            'สาเหตุ': '',
+            'ที่อยู่ติดต่อ': '',
+            'เบอร์โทรศัพท์': '',
+            'สถานะ': '',
+            'เหตุผล (กรณีไม่อนุมัติ)': ''
+        });
+
+        // แถวสรุปแต่ละประเภท
+        for (const [type, data] of Object.entries(summary)) {
+            exportData.push({
+                'วันที่ส่งใบลา': '',
+                'ปีงบประมาณ': '',
+                'รอบประเมิน': '',
+                'ประเภทการลา': type,
+                'เริ่มวันที่': fmt(data.minStart),
+                'ถึงวันที่': fmt(data.maxEnd),
+                'จำนวน (วัน)': data.days,
+                'จำนวน (ครั้ง)': data.count,
+                'สาเหตุ': '',
+                'ที่อยู่ติดต่อ': '',
+                'เบอร์โทรศัพท์': '',
+                'สถานะ': '',
+                'เหตุผล (กรณีไม่อนุมัติ)': ''
+            });
+        }
+
+        // แถวรวมทั้งหมด
+        const totalCount = approvedLeaves.length;
+        const totalDays = approvedLeaves.reduce((sum, l) => sum + (l.is_half_day ? 0.5 : l.total_days), 0);
+        exportData.push({
+            'วันที่ส่งใบลา': '',
+            'ปีงบประมาณ': '',
+            'รอบประเมิน': '',
+            'ประเภทการลา': 'รวมทั้งหมด',
+            'เริ่มวันที่': '',
+            'ถึงวันที่': '',
+            'จำนวน (วัน)': totalDays,
+            'จำนวน (ครั้ง)': totalCount,
+            'สาเหตุ': '',
+            'ที่อยู่ติดต่อ': '',
+            'เบอร์โทรศัพท์': '',
+            'สถานะ': '',
+            'เหตุผล (กรณีไม่อนุมัติ)': ''
+        });
+    }
+
+    // 3. สร้างไฟล์ Excel
     const ws = XLSX.utils.json_to_sheet(exportData);
-    ws['!cols'] = [{ wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 20 }, { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 30 }];
+    ws['!cols'] = [
+        { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
+        { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
+        { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 15 },
+        { wch: 30 }
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ประวัติการลา");
     XLSX.writeFile(wb, `ประวัติการลา_${window.currentProfile.first_name}.xlsx`);
+
     window.logUserAction('ส่งออกประวัติการลา (Excel)', 'leave');
 };
 
