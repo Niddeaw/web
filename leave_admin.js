@@ -331,94 +331,118 @@ async function removeModuleAdmin(id) {
 // Dashboard & ตารางข้อมูล
 // ==========================================
 async function loadDashboardStats() {
-    const { data: leaves, error } = await db.from('leave_requests')
-        .select('*, core_personnel(prefix, first_name, last_name, department, position)')
-        .eq('fiscal_year', systemSettings.fiscal_year)
-        .eq('eval_round', systemSettings.eval_round);
-    if (error) { console.error(error); return; }
-    allLeavesData = leaves || [];
+    try {
+        if (!systemSettings || !systemSettings.fiscal_year) {
+            throw new Error('ยังไม่ได้ตั้งค่าระบบ กรุณาตั้งค่าปีงบประมาณในเมนูตั้งค่าระบบ');
+        }
 
-    const approvedLeaves = allLeavesData.filter(l => l.status === 'อนุมัติ');
-    const pendingLeaves = allLeavesData.filter(l => l.status === 'รออนุมัติ');
+        const { data: leaves, error } = await db.from('leave_requests')
+            .select('*, core_personnel(prefix, first_name, last_name, department, position)')
+            .eq('fiscal_year', systemSettings.fiscal_year)
+            .eq('eval_round', systemSettings.eval_round);
+        if (error) { console.error(error); return; }
+        allLeavesData = leaves || [];
 
-    const approvedSickDays = approvedLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
-    const approvedPersonalDays = approvedLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
-    const approvedPeople = [...new Set(approvedLeaves.map(l => l.personnel_id))].length;
+        const approvedLeaves = allLeavesData.filter(l => l.status === 'อนุมัติ');
+        const pendingLeaves = allLeavesData.filter(l => l.status === 'รออนุมัติ');
 
-    const pendingSickDays = pendingLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
-    const pendingPersonalDays = pendingLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
-    const pendingPeople = [...new Set(pendingLeaves.map(l => l.personnel_id))].length;
-    const pendingCount = pendingLeaves.length;
+        const approvedSickDays = approvedLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
+        const approvedPersonalDays = approvedLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
+        const approvedPeople = [...new Set(approvedLeaves.map(l => l.personnel_id))].length;
 
-    $('#total-sick').html(`
+        const pendingSickDays = pendingLeaves.filter(l => l.type === 'ลาป่วย').reduce((sum, l) => sum + l.total_days, 0);
+        const pendingPersonalDays = pendingLeaves.filter(l => l.type === 'ลากิจส่วนตัว').reduce((sum, l) => sum + l.total_days, 0);
+        const pendingPeople = [...new Set(pendingLeaves.map(l => l.personnel_id))].length;
+        const pendingCount = pendingLeaves.length;
+
+        $('#total-sick').html(`
         ${approvedSickDays} <span class="text-sm font-medium text-slate-500">วัน</span>
         <div class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ ${pendingSickDays} วัน</div>
     `);
-    $('#total-personal').html(`
+        $('#total-personal').html(`
         ${approvedPersonalDays} <span class="text-sm font-medium text-slate-500">วัน</span>
         <div class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ ${pendingPersonalDays} วัน</div>
     `);
-    $('#total-pending').html(`
+        $('#total-pending').html(`
         ${pendingCount} <span class="text-sm font-medium text-slate-500">รายการ</span>
     `);
-    $('#total-people').html(`
+        $('#total-people').html(`
         ${approvedPeople} <span class="text-sm font-medium text-slate-500">คน</span>
         <div class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ ${pendingPeople} คน</div>
     `);
 
-    checkLeaveLimits(approvedLeaves);
-    await loadPromotionWarnings();
-    renderTable();
+        checkLeaveLimits(approvedLeaves);
+        await loadPromotionWarnings();
+        renderTable();
+    } catch (err) {
+        console.error('loadDashboardStats error:', err);
+        $('#alert-zone').html(`<div class="text-red-500 text-sm">${err.message}</div>`);
+        $('#promotion-alert-zone').html(`<div class="text-red-500 text-sm">${err.message}</div>`);
+    }
 }
 
 function checkLeaveLimits(approvedLeaves) {
-    const personnelStats = {};
-    approvedLeaves.forEach(l => {
-        if (!personnelStats[l.personnel_id]) {
-            personnelStats[l.personnel_id] = {
-                name: `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`,
-                sick: 0,
-                personal: 0,
-                totalCount: 0
-            };
-        }
-        if (l.type === 'ลาป่วย') personnelStats[l.personnel_id].sick += l.total_days;
-        if (l.type === 'ลากิจส่วนตัว') personnelStats[l.personnel_id].personal += l.total_days;
-        personnelStats[l.personnel_id].totalCount++;
-    });
+    try {
+        const personnelStats = {};
+        approvedLeaves.forEach(l => {
+            if (!personnelStats[l.personnel_id]) {
+                const name = l.core_personnel
+                    ? `${l.core_personnel.prefix || ''}${l.core_personnel.first_name} ${l.core_personnel.last_name}`
+                    : 'ไม่พบชื่อ';
+                personnelStats[l.personnel_id] = {
+                    name: name,
+                    sick: 0,
+                    personal: 0,
+                    totalCount: 0
+                };
+            }
+            if (l.type === 'ลาป่วย') personnelStats[l.personnel_id].sick += l.total_days;
+            if (l.type === 'ลากิจส่วนตัว') personnelStats[l.personnel_id].personal += l.total_days;
+            personnelStats[l.personnel_id].totalCount++;
+        });
 
-    const alertZone = $('#alert-zone');
-    alertZone.empty();
-    let hasAlert = false;
+        const alertZone = $('#alert-zone');
+        alertZone.empty();
 
-    Object.values(personnelStats).forEach(p => {
-        const warnings = [];
-        if (p.sick >= 25) warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
-        if (p.personal >= 40) warnings.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
-        if (p.totalCount >= 4) {
-            let msg = '';
-            if (p.totalCount > 6) msg = `<span class="text-red-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (เกินเกณฑ์ 6 ครั้ง)</span>`;
-            else if (p.totalCount === 6) msg = `<span class="text-orange-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ถึงเกณฑ์ 6 ครั้ง)</span>`;
-            else msg = `<span class="text-amber-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ใกล้เกณฑ์ 6 ครั้ง)</span>`;
-            warnings.push(msg);
+        const entries = Object.values(personnelStats);
+        if (entries.length === 0) {
+            alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> ไม่มีบุคลากรที่ใช้วันลาในรอบนี้</div>');
+            return;
         }
-        if (warnings.length > 0) {
-            hasAlert = true;
-            alertZone.append(`
-                <div class="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl shadow-sm">
-                    <div class="text-sm">
-                        <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
-                        <span class="font-bold text-slate-800">${p.name}</span>
-                        <span class="mx-2 text-slate-400">|</span> 
-                        ${warnings.join(', ')}
+
+        let hasAlert = false;
+        entries.forEach(p => {
+            const warnings = [];
+            if (p.sick >= 25) warnings.push(`<span class="text-red-600">ป่วย: ${p.sick}/30 วัน</span>`);
+            if (p.personal >= 40) warnings.push(`<span class="text-orange-600">ลากิจ: ${p.personal}/45 วัน</span>`);
+            if (p.totalCount >= 4) {
+                let msg = '';
+                if (p.totalCount > 6) msg = `<span class="text-red-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (เกินเกณฑ์ 6 ครั้ง)</span>`;
+                else if (p.totalCount === 6) msg = `<span class="text-orange-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ถึงเกณฑ์ 6 ครั้ง)</span>`;
+                else msg = `<span class="text-amber-600">ลาทั้งหมด: ${p.totalCount} ครั้ง (ใกล้เกณฑ์ 6 ครั้ง)</span>`;
+                warnings.push(msg);
+            }
+            if (warnings.length > 0) {
+                hasAlert = true;
+                alertZone.append(`
+                    <div class="flex items-center justify-between p-3 bg-red-50 border border-red-200 rounded-xl shadow-sm">
+                        <div class="text-sm">
+                            <i class="fas fa-exclamation-triangle text-red-500 mr-2"></i>
+                            <span class="font-bold text-slate-800">${p.name}</span>
+                            <span class="mx-2 text-slate-400">|</span> 
+                            ${warnings.join(', ')}
+                        </div>
                     </div>
-                </div>
-            `);
-        }
-    });
+                `);
+            }
+        });
 
-    if (!hasAlert) {
-        alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนยังอยู่ในเกณฑ์ปกติครับ</div>');
+        if (!hasAlert) {
+            alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนยังอยู่ในเกณฑ์ปกติครับ</div>');
+        }
+    } catch (err) {
+        console.error('checkLeaveLimits error:', err);
+        $('#alert-zone').html(`<div class="text-red-500 text-sm">เกิดข้อผิดพลาดในการตรวจสอบ: ${err.message}</div>`);
     }
 }
 
@@ -485,6 +509,7 @@ async function loadPromotionWarnings() {
             alertZone.html('<div class="text-center text-emerald-500 py-4 text-sm font-bold"><i class="fas fa-check-circle mr-2"></i> บุคลากรทุกคนผ่านเกณฑ์การเลื่อนเงินเดือน</div>');
             return;
         }
+
         let html = '';
         for (const p of evaluation) {
             html += `
@@ -501,9 +526,10 @@ async function loadPromotionWarnings() {
             `;
         }
         alertZone.html(html);
+
     } catch (err) {
         console.error('loadPromotionWarnings error:', err);
-        $('#promotion-alert-zone').html('<div class="text-center text-red-500 py-4 text-sm">เกิดข้อผิดพลาดในการโหลดข้อมูล</div>');
+        $('#promotion-alert-zone').html(`<div class="text-red-500 text-sm">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${err.message}</div>`);
     }
 }
 
@@ -637,8 +663,8 @@ function renderTable() {
                 ? `<button onclick="deleteLeave('${l.id}', '${safeFullName}')" class="btn-icon text-slate-300 hover:bg-rose-50 hover:text-rose-600" title="ลบ"><i class="fas fa-trash-alt"></i></button>`
                 : '';
 
-            const dateDisplay = formatDateThai(l.created_at);
-            const dateOrder = l.created_at || '';
+            const dateDisplay = l.submitted_date ? formatDateThai(l.submitted_date) : formatDateThai(l.created_at);
+            const dateOrder = l.submitted_date || l.created_at || '';
 
             const resetAckBtn = isSuperAdmin
                 ? `<button onclick="resetAllAcknowledge('${l.id}')" class="btn-icon text-amber-600 hover:bg-amber-100 hover:text-amber-700" title="ยกเลิกรับทราบทั้งหมด"><i class="fas fa-undo-alt"></i></button>`
@@ -648,7 +674,7 @@ function renderTable() {
                 <td class="text-center text-slate-600 text-sm font-medium" data-order="${dateOrder}">${dateDisplay}</td>
                 <td class="font-bold text-slate-700">${fullName}</td>
                 <td class="font-bold ${typeClass}">${l.type}</td>
-                <td class="text-slate-600">${fmt(l.start_date)} - ${fmt(l.end_date)}</td>
+                <td class="text-slate-600" data-order="${l.start_date}">${fmt(l.start_date)} - ${fmt(l.end_date)}</td>
                 <td class="text-center font-black ${typeClass}">${displayDays}</td>
                 <td class="text-center font-black ${typeClass}">${displayTimes}</td>
                 <td class="text-center">${statusHtml}</td>
@@ -674,12 +700,13 @@ function renderTable() {
         responsive: true,
         scrollX: false,
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']],
+        order: [[3, 'desc']],
         columnDefs: [
             { responsivePriority: 1, targets: -1 },
             { orderable: false, targets: [8] }
         ],
-        pageLength: 25
+        pageLength: 20,
+        lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "ทั้งหมด"]],
     });
 }
 
@@ -1211,8 +1238,8 @@ function viewLeave(id) {
     <span class="font-bold text-slate-800">${l.is_half_day ? '0.5 (ครึ่งวัน)' : l.total_days + ' วัน'}</span>
 </div>
             ${l.reject_comment ? `<div class="flex justify-between items-start"><span class="text-sm font-bold text-slate-600">เหตุผลที่ไม่อนุมัติ</span><span class="text-rose-700 text-sm">${l.reject_comment}</span></div>` : ''}
-${approvedDisplay ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span></div>` : ''}
-            ${l.submitted_date ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span><span class="text-slate-600 text-sm">${fmt(l.submitted_date)}</span></div>` : ''}
+            ${approvedDisplay ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span></div>` : ''}
+            ${l.submitted_date ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span><span class="text-slate-600 text-sm">${formatDateOnly(l.submitted_date)}</span></div>` : ''}
             ${l.attachment_file_id ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span><a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
         </div>
     `;
