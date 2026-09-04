@@ -118,7 +118,16 @@
 
                 <h3 class="text-sm font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2 z-10">ภาพรวมการเช็คชื่อ
                     (เทอมนี้)</h3>
-                <div class="grid grid-cols-2 gap-2 z-10">
+
+                <div class="grid grid-cols-3 gap-2 z-10">
+                    <!-- วันทั้งหมด (ใหม่) -->
+                    <div>
+                        <p class="text-[10px] font-black text-slate-500 uppercase">วันทั้งหมด</p>
+                        <p class="text-2xl font-black text-slate-700">
+                            <span id="total-days-count">0</span> <span class="text-sm font-medium">วัน</span>
+                        </p>
+                    </div>
+                    <!-- เช็คแล้ว (เดิม) -->
                     <div>
                         <p class="text-[10px] font-black text-slate-500 uppercase">เช็คแล้ว</p>
                         <p class="text-2xl font-black text-blue-600 cursor-pointer hover:text-blue-800 transition-colors"
@@ -127,6 +136,7 @@
                             <i class="fas fa-info-circle text-[10px] align-top"></i>
                         </p>
                     </div>
+                    <!-- ลืมเช็ค/ขาดเช็ค (เดิม) -->
                     <div>
                         <p class="text-[10px] font-black text-rose-500 uppercase">ลืมเช็ค/ขาดเช็ค</p>
                         <p class="text-2xl font-black text-rose-600 cursor-pointer hover:text-rose-800 transition-colors"

@@ -1430,21 +1430,60 @@ function updateStatsClear() {
 
 async function loadClassroomOverview(classroomId) {
     if (!termStartDate) return;
-    const { data: checked } = await db.from('homeroom_attendance').select('check_date').eq('classroom_id', classroomId);
-    checkedDatesList = [...new Set(checked?.map(d => d.check_date) || [])].sort();
-    $('#days-checked-count').text(checkedDatesList.length);
 
-    const endDate = (termEndDate && new Date() > new Date(termEndDate)) ? new Date(termEndDate) : new Date();
+    // กำหนดวันสิ้นสุด (ถ้ามี termEndDate ใช้ค่านั้น ไม่เช่นนั้นใช้วันปัจจุบัน)
+    const endDateObj = (termEndDate && new Date() > new Date(termEndDate))
+        ? new Date(termEndDate)
+        : new Date();
+    const endDateStr = endDateObj.toISOString().split('T')[0];
+    const startDateStr = termStartDate;
+
+    // --- คำนวณจำนวนวันทำงานทั้งหมด (จันทร์-ศุกร์) ---
+    let totalWeekdays = 0;
+    let current = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    while (current <= end) {
+        const day = current.getDay(); // 0=อาทิตย์, 6=เสาร์
+        if (day !== 0 && day !== 6) totalWeekdays++;
+        current.setDate(current.getDate() + 1);
+    }
+    document.getElementById('total-days-count').textContent = totalWeekdays;
+
+    // --- ดึงข้อมูลวันที่เช็คแล้ว ---
+    const { data: checked } = await db
+        .from('homeroom_attendance')
+        .select('check_date')
+        .eq('classroom_id', classroomId);
+
+    let allCheckedDates = checked?.map(d => d.check_date) || [];
+
+    // กรองเฉพาะวันที่อยู่ในช่วงเทอม
+    checkedDatesList = [...new Set(
+        allCheckedDates.filter(d => d >= startDateStr && d <= endDateStr)
+    )].sort();
+
+    // --- คำนวณวันที่ยังไม่ได้เช็ค (ไม่รวมเสาร์-อาทิตย์ และวันหยุดตามระบบ) ---
     missingDatesList = [];
-    for (let d = new Date(termStartDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+    for (let d = new Date(startDateStr); d <= endDateObj; d.setDate(d.getDate() + 1)) {
         const ds = d.toISOString().split('T')[0];
         const dow = d.getDay();
-        if ((!moduleSettings.check_only_weekdays || (dow !== 0 && dow !== 6)) && !holidayList.some(h => h.holiday_date === ds) && !checkedDatesList.includes(ds)) {
+        const isWeekend = (dow === 0 || dow === 6);
+        const isHoliday = holidayList.some(h => h.holiday_date === ds);
+
+        if (
+            (!moduleSettings.check_only_weekdays || !isWeekend) &&
+            !isHoliday &&
+            !checkedDatesList.includes(ds)
+        ) {
             missingDatesList.push(ds);
         }
     }
-    $('#missing-days-count').text(missingDatesList.length);
+
+    // --- อัปเดต UI ---
+    document.getElementById('days-checked-count').textContent = checkedDatesList.length;
+    document.getElementById('missing-days-count').textContent = missingDatesList.length;
 }
+
 
 function showCheckedDates() {
     if (!checkedDatesList.length) return Swal.fire('ข้อมูล', 'ยังไม่มีการเช็คชื่อ', 'info');
@@ -1496,10 +1535,10 @@ function renderTable(enrollments) {
 }
 
 // หลังจาก renderTable() ให้เพิ่ม event listener
-$('#searchStudent').on('keyup', function() {
+$('#searchStudent').on('keyup', function () {
     const keyword = $(this).val().toLowerCase().trim();
     let visible = 0;
-    $('#student-list tr').each(function() {
+    $('#student-list tr').each(function () {
         const text = $(this).text().toLowerCase();
         if (text.includes(keyword)) {
             $(this).show();
