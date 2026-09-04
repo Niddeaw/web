@@ -1384,11 +1384,25 @@ async function exportLeaveSummaryReport() {
     try {
         Swal.fire({ title: 'กำลังสร้างรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-        // ✅ กรองเฉพาะตำแหน่งที่ต้องการ
+        // กรองเฉพาะตำแหน่งที่ต้องการ (ผู้อำนวยการ, รองผู้อำนวยการ, ครูทุกประเภท, พนักงานราชการ)
+        // และตัดตำแหน่งที่ไม่ต้องการออก
         let personnel = allPersonnelData.filter(p => {
             const pos = p.position || '';
-            if (pos.includes('พนักงานราชการ') || pos.includes('ครูอัตราจ้าง') || pos.includes('ครูพี่เลี้ยงเด็กพิการ')) return false;
-            return pos.includes('ผู้อำนวยการ') || pos.includes('รองผู้อำนวยการ') || pos.includes('ครู');
+
+            // ตัดตำแหน่งที่ไม่ต้องการออกก่อน
+            if (pos.includes('ครูอัตราจ้าง')) return false;
+            if (pos.includes('ครูพี่เลี้ยงเด็กพิการ')) return false;
+            if (pos.includes('เจ้าหน้าที่สำนักงาน')) return false;
+            if (pos.includes('พนักงานขับรถยนต์')) return false;
+            if (pos.includes('พนักงานบริการ')) return false;
+            if (pos.includes('พนักงานรักษาความปลอดภัย')) return false;
+            // สามารถเพิ่มตำแหน่งอื่นที่ต้องการตัดได้ที่นี่
+
+            // อนุญาตเฉพาะตำแหน่งที่มีคำเหล่านี้
+            return pos.includes('ผู้อำนวยการ') ||
+                pos.includes('รองผู้อำนวยการ') ||
+                pos.includes('ครู') ||
+                pos.includes('พนักงานราชการ');
         });
 
         const { data: leaves, error: leavesErr } = await db.from('leave_requests')
