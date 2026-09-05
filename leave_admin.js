@@ -1552,6 +1552,7 @@ async function exportLeaveSummaryReport() {
 }
 
 async function exportAttendanceReport() {
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
     try {
         const { data: attendanceStats, error } = await db.from('personnel_attendance')
             .select('personnel_id, record_type')
@@ -1697,7 +1698,7 @@ function renderAttendanceTable() {
 }
 
 function openAttendanceModal(mode, id = null) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     $('#attendanceForm')[0].reset();
     $('#att_id').val('');
@@ -1756,7 +1757,7 @@ function openAttendanceModal(mode, id = null) {
 function closeAttendanceModal() { $('#attendanceModal').addClass('hidden'); }
 $('#attendanceForm').on('submit', async function (e) {
     e.preventDefault();
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const id = $('#att_id').val();
     const payload = {
@@ -1766,7 +1767,7 @@ $('#attendanceForm').on('submit', async function (e) {
         reason: $('#att_reason').val(),
         fiscal_year: systemSettings.fiscal_year,
         eval_round: systemSettings.eval_round,
-        submitted_date: submittedDateIso,
+        // submitted_date: submittedDateIso,
     };
     if (!payload.personnel_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -1788,7 +1789,7 @@ $('#attendanceForm').on('submit', async function (e) {
     }
 });
 async function deleteAttendance(id) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const { isConfirmed } = await Swal.fire({ title: 'ยืนยันการลบ?', text: 'คุณต้องการลบรายการนี้ใช่หรือไม่?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ใช่, ลบเลย!' });
     if (isConfirmed) {
