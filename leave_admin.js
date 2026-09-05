@@ -1553,6 +1553,7 @@ async function exportLeaveSummaryReport() {
 
 async function exportAttendanceReport() {
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+
     try {
         const { data: attendanceStats, error } = await db.from('personnel_attendance')
             .select('personnel_id, record_type')
@@ -1578,6 +1579,7 @@ async function exportAttendanceReport() {
                 const c = counts[p.id] || { late: 0, absent: 0 };
                 return {
                     'ชื่อ-สกุล': `${p.prefix || ''}${p.first_name} ${p.last_name}`,
+                    'กลุ่มสาระฯ/กลุ่มงาน': p.department || '-',   // ✅ เพิ่มคอลัมน์นี้
                     'มาสาย (ครั้ง)': c.late,
                     'ขาดราชการ (ครั้ง)': c.absent,
                     'รวม': c.late + c.absent
@@ -1592,10 +1594,11 @@ async function exportAttendanceReport() {
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [
-            { wch: 30 },
-            { wch: 15 },
-            { wch: 15 },
-            { wch: 10 }
+            { wch: 30 },   // ชื่อ-สกุล
+            { wch: 28 },   // กลุ่มสาระฯ/กลุ่มงาน ✅ เพิ่ม
+            { wch: 15 },   // มาสาย (ครั้ง)
+            { wch: 15 },   // ขาดราชการ (ครั้ง)
+            { wch: 10 }    // รวม
         ];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'สรุปการขาด-มาสาย');
