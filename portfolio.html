@@ -354,6 +354,18 @@
                         class="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500">
                 </div>
 
+                <!-- ภายใน Modal: <form id="entryForm"> หลังจากฟิลด์ f_organizer หรือก่อนปุ่มบันทึก -->
+                <div id="user-select-container" class="md:col-span-2 hidden">
+                    <label class="block text-sm font-bold text-gray-700 mb-1">
+                        <i class="fa-regular fa-user mr-1"></i> เลือกครู (กรณีเพิ่มข้อมูลให้ผู้อื่น)
+                    </label>
+                    <select id="f_user_id"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2.5 outline-none focus:border-blue-500">
+                        <!-- options จะถูกเติมด้วย JavaScript -->
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-1">* เฉพาะผู้ดูแลระบบเท่านั้นที่เห็นตัวเลือกนี้</p>
+                </div>
+
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">วันที่ได้รับ / วันที่อบรม *</label>
                     <input type="text" id="f_date" required placeholder="เลือกวันที่"
@@ -414,6 +426,7 @@
                             (จะแทนที่ลิงก์เดิม)</p>
                     </div>
                 </div>
+
 
                 <div class="md:col-span-2 flex justify-end gap-3 mt-4 pt-4 border-t border-gray-100">
                     <button type="button" onclick="closeEntryModal()"

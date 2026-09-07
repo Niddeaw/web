@@ -24,6 +24,8 @@ let currentTableData = [];
 
 // เพิ่มตัวแปร global สำหรับเก็บข้อมูลทั้งหมด (Dashboard)
 let globalEntries = [];
+let teacherSelectInstance = null;
+
 // ==========================================
 // 1. ระบบรักษาความปลอดภัย & ตั้งค่าเริ่มต้น
 // ==========================================
@@ -127,7 +129,8 @@ function isAdminView() {
 
 function canManagePortfolioSettings() {
     if (forceTeacherMode) return false;
-    return window.canManageSettings ? window.canManageSettings(currentRole) : currentRole === 'super_admin';
+    // ให้เฉพาะ super_admin เท่านั้น
+    return currentRole === 'super_admin';
 }
 
 async function toggleRoleView() {
@@ -181,12 +184,13 @@ function applyRoleUI() {
         addBtn = document.querySelector('button[onclick="openEntryFormModal()"]');
         if (addBtn) addBtn.id = 'btn-add-entry';
     }
-    if (addBtn) addBtn.style.display = !isAdminView() ? '' : 'none';
+    // ✅ แสดงปุ่มเพิ่มเสมอ (ทั้ง Admin และ Teacher)
+    if (addBtn) {
+        addBtn.style.display = '';   // หรือ 'flex' ก็ได้
+    }
 
     const chartsArea = document.getElementById('adminChartsArea');
     if (chartsArea) chartsArea.classList.remove('hidden');
-
-    // ใช้ SearchBuilder แทน filter dropdowns
 }
 
 function logout() {
@@ -939,14 +943,12 @@ function updateDashboardStats() {
 // ==========================================
 // 7. Form Management (Add/Edit)
 // ==========================================
-
 function openEntryFormModal() {
     const form = document.getElementById('entryForm');
     if (form) form.reset();
 
     document.getElementById('entry_id').value = '';
     document.getElementById('entry_type_hidden').value = currentEntryType;
-
     document.getElementById('f_year').value = currentSchoolInfo.current_academic_year;
     document.getElementById('f_term').value = currentSchoolInfo.current_semester;
 
@@ -959,8 +961,18 @@ function openEntryFormModal() {
         flatpickr(".flatpickr", { locale: "th", dateFormat: "Y-m-d" });
     }
 
-    // ✅ เคลียร์ preview
     clearFilePreview();
+
+    // ✅ จัดการ dropdown เลือกครู (เฉพาะ Admin)
+    const container = document.getElementById('user-select-container');
+    if (container) {
+        if (isAdminView()) {
+            container.classList.remove('hidden');
+            initTeacherSelect();   // ใช้ TomSelect
+        } else {
+            container.classList.add('hidden');
+        }
+    }
 
     document.getElementById('entryModal').classList.remove('hidden');
 }
@@ -988,7 +1000,11 @@ function openEditEntryModal(entryId) {
     const modalTitle = document.getElementById('entryModalTitle');
     if (modalTitle) modalTitle.innerText = entry.entry_type === 'work' ? 'แก้ไขผลงาน/รางวัล' : 'แก้ไขประวัติการอบรม';
 
-    // ✅ แสดงลิงก์ไฟล์ปัจจุบัน
+    // ✅ ซ่อน dropdown (ไม่ให้เปลี่ยนเจ้าของในโหมดแก้ไข)
+    const container = document.getElementById('user-select-container');
+    if (container) container.classList.add('hidden');
+
+    // แสดงลิงก์ไฟล์ปัจจุบัน ฯลฯ (ส่วนเดิม)
     const currentLinkContainer = document.getElementById('current-file-link-container');
     const currentLinkInput = document.getElementById('current-file-link');
     if (currentLinkContainer && currentLinkInput) {
@@ -1001,9 +1017,7 @@ function openEditEntryModal(entryId) {
         }
     }
 
-    // ✅ เคลียร์ preview
     clearFilePreview();
-
     document.getElementById('f_file').value = '';
     if (typeof flatpickr !== 'undefined') {
         flatpickr('#f_date', { locale: 'th', dateFormat: 'Y-m-d' });
@@ -1014,7 +1028,13 @@ function openEditEntryModal(entryId) {
 
 function closeEntryModal() {
     document.getElementById('entryModal').classList.add('hidden');
-    clearFilePreview(); // ✅ เคลียร์ preview เมื่อปิด modal
+    clearFilePreview();
+
+    // ทำลาย TomSelect instance
+    if (teacherSelectInstance) {
+        teacherSelectInstance.destroy();
+        teacherSelectInstance = null;
+    }
 }
 
 function copyCurrentFileLink() {
@@ -1134,8 +1154,22 @@ async function saveEntry(e) {
             }
         }
 
+        // ✅ กำหนด user_id
+        let userId = currentUser.id;
+        if (!entryId && isAdminView()) {
+            // ใช้ TomSelect instance เพื่ออ่านค่า
+            if (teacherSelectInstance) {
+                const val = teacherSelectInstance.getValue();
+                if (val) userId = val;
+            } else {
+                // fallback
+                const selectedUserId = document.getElementById('f_user_id').value;
+                if (selectedUserId) userId = selectedUserId;
+            }
+        }
+
         const payload = {
-            user_id: currentUser.id,
+            user_id: userId,
             academic_year: document.getElementById('f_year').value,
             semester: document.getElementById('f_term').value,
             entry_type: document.getElementById('entry_type_hidden').value,
@@ -1163,8 +1197,10 @@ async function saveEntry(e) {
 
         if (dbError) throw dbError;
 
+        // ✅ บันทึก Log พร้อมระบุว่าเพิ่มให้ใคร
         await logUserAction(
-            `${entryId ? 'แก้ไข' : 'เพิ่ม'}ข้อมูล portfolio (${payload.entry_type})`,
+            `${entryId ? 'แก้ไข' : 'เพิ่ม'}ข้อมูล portfolio (${payload.entry_type})` +
+            (userId !== currentUser.id ? ` ให้กับ userId=${userId}` : ''),
             'portfolio'
         );
 
@@ -2365,6 +2401,82 @@ async function saveSettings(e) {
     }
 }
 
+/**
+ * initTeacherSelect — สร้าง TomSelect สำหรับเลือกครู (เฉพาะ Admin)
+ * กรองเฉพาะตำแหน่ง: ผู้อำนวยการ, รองผู้อำนวยการ, ครู
+ */
+async function initTeacherSelect() {
+    const selectEl = document.getElementById('f_user_id');
+    if (!selectEl) return;
+
+    // ถ้ามี instance เก่า ให้ทำลายก่อน
+    if (teacherSelectInstance) {
+        teacherSelectInstance.destroy();
+        teacherSelectInstance = null;
+    }
+
+    try {
+        // ดึงข้อมูลบุคลากรเฉพาะตำแหน่งที่ต้องการ
+        // สมมติว่ามีคอลัมน์ `role` ในตาราง core_personnel
+        // ปรับเงื่อนไขตามโครงสร้างจริง (อาจใช้ position, department, หรือ custom field)
+        const { data, error } = await db
+            .from('core_personnel')
+            .select('id, first_name, last_name, prefix, role')
+            .in('role', ['director', 'deputy', 'teacher'])   // ← ปรับตามค่าจริง
+            .order('first_name');
+
+        if (error) throw error;
+
+        // สร้าง options สำหรับ TomSelect
+        const options = data.map(p => ({
+            value: p.id,
+            text: `${p.prefix || ''}${p.first_name} ${p.last_name} (${p.role || ''})`
+        }));
+
+        // เพิ่มตัวเองเป็นตัวเลือกแรก (ถ้าอยู่ในลิสต์)
+        const ownIndex = options.findIndex(opt => opt.value === currentUser.id);
+        if (ownIndex > -1) {
+            const own = options.splice(ownIndex, 1)[0];
+            options.unshift({ ...own, text: `👤 ${own.text} (ตัวเอง)` });
+        } else {
+            // ถ้าตัวเองไม่อยู่ในลิสต์ (เช่น ไม่ใช่ครู) ก็เพิ่มเข้าไป
+            options.unshift({
+                value: currentUser.id,
+                text: `👤 ${currentPersonnel.first_name} ${currentPersonnel.last_name} (ตัวเอง)`
+            });
+        }
+
+        // กำหนดค่าเริ่มต้นเป็นตัวเอง
+        const defaultVal = currentUser.id;
+
+        // สร้าง TomSelect
+        teacherSelectInstance = new TomSelect(selectEl, {
+            options: options,
+            placeholder: '-- พิมพ์ค้นหาชื่อครู --',
+            create: false,
+            searchField: ['text'],
+            maxItems: 1,
+            preload: true,
+            render: {
+                option: function (data, escape) {
+                    return `<div class="py-1 px-2">${escape(data.text)}</div>`;
+                },
+                item: function (data, escape) {
+                    return `<div class="py-1 px-2">${escape(data.text)}</div>`;
+                }
+            },
+            onInitialize: function () {
+                this.setValue(defaultVal);
+            }
+        });
+
+    } catch (err) {
+        console.error('initTeacherSelect error:', err);
+        // Fallback: ใช้ select ธรรมดา
+        selectEl.innerHTML = '<option value="">-- ไม่สามารถโหลดข้อมูล --</option>';
+    }
+}
+
 // ==========================================
 // 12. ประกาศฟังก์ชัน Global (ที่ใช้ใน HTML)
 // ==========================================
@@ -2403,3 +2515,4 @@ window.convertSheetToCsvUrl = convertSheetToCsvUrl;
 window.parseCsv = parseCsv;
 window.loadAllData = loadAllData;
 window.toggleEntryType = toggleEntryType;
+window.initTeacherSelect = initTeacherSelect;
