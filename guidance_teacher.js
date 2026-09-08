@@ -3,7 +3,7 @@
 // - ใช้ checkSessionAndRole, isAdminUser, hasModuleAccess
 // - ใช้ logUserAction() ในทุก CRUD
 // - ใช้ logout() มาตรฐานกลาง
-// - คงฟังก์ชัน printPDF_v7 ไว้เหมือนเดิม
+// - ใช้ printPDF_v7() สำหรับพิมพ์ PDF ด้วย HTML (ไม่ใช้ GAS)
 // ==========================================
 
 let currentUserProfile = null;
@@ -325,38 +325,27 @@ function calcAttTotal(stdId) {
 }
 
 function calcScoreTotal(stdId) {
-    let total = 0;
+    let t = 0;
     let hasValue = false;
     for (let i = 1; i <= 5; i++) {
-        const el = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`);
-        if (el) {
-            const val = el.value.trim();
-            if (val !== '') {
-                const num = parseFloat(val);
-                if (!isNaN(num)) {
-                    total += num;
-                    hasValue = true;
-                }
-            }
+        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value;
+        if (v && v.trim() !== '') {
+            const num = parseFloat(v);
+            if (!isNaN(num)) { t += num; hasValue = true; }
         }
     }
-    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? total.toFixed(2) : '';
+    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
 
 function calcAttr(stdId, attTotal) {
     let pass = true;
     ATTR_COLS.forEach(c => {
         const el = document.getElementById(`at_${stdId}_${c}`);
-        if (el) {
-            selectColor(el);
-            if (el.value === "0") pass = false;
-        }
+        if (el) { selectColor(el); if (el.value === "0") pass = false; }
     });
-
     const p1 = document.getElementById(`at_sum1_${stdId}`);
     const p2 = document.getElementById(`at_sum2_${stdId}`);
     const p3 = document.getElementById(`at_sum3_${stdId}`);
-
     if (p1) p1.innerHTML = pass ? '<span class="text-blue-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
     if (p2) p2.innerHTML = attTotal >= 16 ? '<span class="text-indigo-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
     if (p3) p3.innerHTML = (pass && attTotal >= 16) ? '<span class="text-emerald-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
@@ -432,9 +421,10 @@ async function saveAllData() {
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
 
-        if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id, week_number' });
-        if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id, column_name' });
-        if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id, attribute_name' });
+        // ✅ FIX: ลบ space ออกจาก onConflict (ต้องไม่มี space หลังเครื่องหมายจุลภาค)
+        if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
+        if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id,column_name' });
+        if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
         const cacheKey = classId;
         delete dataCache.students[cacheKey];
@@ -468,37 +458,37 @@ function formatThaiDateFullStr(dateString) {
     return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
 }
 
-// ========== พิมพ์ PDF (คงไว้เหมือนต้นฉบับ) ==========
+// ==========================================
+// Print PDF v7 - พิมพ์ด้วย HTML (ไม่ใช้ GAS)
+// ==========================================
 async function printPDF_v7() {
-    if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนพิมพ์', 'warning');
-    Swal.fire({ title: 'กำลังเตรียมหน้ากระดาษ...', text: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+    if (!globalSelectedClass) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนก่อนพิมพ์', 'warning');
+    }
+    Swal.fire({
+        title: 'กำลังเตรียมหน้ากระดาษ...',
+        text: 'กรุณารอสักครู่',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
 
-    // 🔧 ใช้ fallback หากตาราง system_settings ไม่มี
-    let sys = {};
-    try {
-        const { data } = await db.from('system_settings').select('*').limit(1).single();
-        if (data) sys = data;
-    } catch (e) { console.warn('ไม่พบตาราง system_settings, ใช้ fallback'); }
-
-    // ✅ ใช้ชื่อเต็มจาก profile
+    // ✅ ใช้ข้อมูลจาก globalSystemSettings และ globalGuidanceSettings
     const teacherFullName = currentUserProfile
         ? `${currentUserProfile.prefix || ''}${currentUserProfile.first_name} ${currentUserProfile.last_name}`.trim()
         : '-';
 
-    const t_subject = sys?.subject_name || 'กิจกรรมแนะแนว';
-    const t_term = sys?.semester || globalSystemSettings?.current_semester || '-';
-    const t_year = sys?.academic_year || globalSystemSettings?.current_academic_year || '-';
-    const t_director = sys?.school_director || globalSystemSettings?.director_name || '(................................................)';
-    const t_deputy = sys?.deputy_director_academic || '(................................................)';
-    const t_head_eval = sys?.head_evaluation || '(................................................)';
-    const t_head_std = sys?.head_student_dev || '(................................................)';
-    const t_head_gui = sys?.head_guidance || globalGuidanceSettings?.head_guidance || '(................................................)';
+    const t_subject = globalGuidanceSettings?.subject_name || 'กิจกรรมแนะแนว';
+    const t_term = globalSystemSettings?.current_semester || '-';
+    const t_year = globalSystemSettings?.current_academic_year || '-';
+    const t_director = globalSystemSettings?.director_name || '(................................................)';
+    const t_deputy = globalSystemSettings?.deputy_academic || '(................................................)';
+    const t_head_eval = globalGuidanceSettings?.head_evaluation || '(................................................)';
+    const t_head_std = globalGuidanceSettings?.head_student_dev || '(................................................)';
+    const t_head_gui = globalGuidanceSettings?.head_guidance || '(................................................)';
     const t_teacher = teacherFullName;
+    const approvalDateStr = formatThaiDateFullStr(globalGuidanceSettings?.approval_date);
 
-    // ✅ สร้าง className จาก grade/room
-    const className = `ม.${globalSelectedClass.grade}/${globalSelectedClass.room}`;
-    const approvalDateStr = formatThaiDateFullStr(sys?.approval_date);
-
+    // คำนวณรหัสวิชา
     let subjectCode = "ก22901";
     const grade = globalSelectedClass.grade;
     if (grade === 1) subjectCode = t_term === "2" ? "ก21902" : "ก21901";
@@ -508,6 +498,7 @@ async function printPDF_v7() {
     else if (grade === 5) subjectCode = t_term === "2" ? "ก32903" : "ก32901";
     else if (grade === 6) subjectCode = t_term === "2" ? "ก33903" : "ก33901";
 
+    // สถิติ
     let totalStd = globalStudents.length;
     let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, dropCount = 0;
 
@@ -572,12 +563,12 @@ async function printPDF_v7() {
                 <th style="font-weight: normal;">ผ่าน</th><th style="font-weight: normal;">ไม่ผ่าน</th><th style="font-weight: normal;">ขาดนาน</th><th style="font-weight: normal;">พักการเรียน</th><th style="font-weight: normal;">ออก</th>
             </tr>
             <tr style="height: 35px;">
-                <td style="text-align: center;">${totalStd}</td><td style="text-align: center;">${passCount}</td><td style="text-align: center;">${failCount}</td>
-                <td style="text-align: center;">${absentCount === 0 ? '-' : absentCount}</td><td style="text-align: center;">${suspendCount === 0 ? '-' : suspendCount}</td><td style="text-align: center;">${dropCount === 0 ? '-' : dropCount}</td>
+                <td style="text-align: center; font-size: 14pt">${totalStd}</td><td style="text-align: center; font-size: 14pt">${passCount}</td><td style="text-align: center; font-size: 14pt">${failCount}</td>
+                <td style="text-align: center; font-size: 14pt">${absentCount === 0 ? '-' : absentCount}</td><td style="text-align: center; font-size: 14pt">${suspendCount === 0 ? '-' : suspendCount}</td><td style="text-align: center;font-size: 14pt">${dropCount === 0 ? '-' : dropCount}</td>
             </tr>
         </table>
         <div style="text-align: center; font-size: 14pt; margin-bottom: 5px;">การอนุมัติผลการจัดการเรียนรู้กิจกรรมแนะแนว</div>
-        <div style="border: 1px solid #000; padding: 15px 20px 30px 20px; font-size: 14pt; position: relative; width: 95%; margin: 0 auto; box-sizing: border-box;">
+        <div style="border: 1px solid #000; padding: 15px 20px 30px 20px; font-size: 12pt; position: relative; width: 95%; margin: 0 auto; box-sizing: border-box;">
             <div style="position: absolute; top: 10px; left: 10px;">การอนุมัติผลการเรียน</div>
             <div style="display: flex; justify-content: space-around; text-align: center; margin-top: 40px;">
                 <div style="width: 45%;">ลงชื่อ....................................................<br><div style="margin-top: 5px;">(${t_teacher})</div><div style="margin-top: 5px;">ผู้จัดกิจกรรมแนะแนว</div></div>
@@ -618,13 +609,13 @@ async function printPDF_v7() {
         </div>
         <div style="text-align:left; width:100%; max-width:680px; margin:0 auto; font-size:14pt; line-height:1.6;">
             <div style="font-weight:bold; text-align:center; margin-bottom:10px; font-size:15pt;">คุณลักษณะอันพึงประสงค์ของกิจกรรมแนะแนว</div>
-            <div style="margin-left: 20px; margin-bottom: 25px;">
+            <div style="margin-left: 20px; margin-bottom: 25px; font-size: 12pt">
                 <div>1. รักและเห็นคุณค่าในตนเองและผู้อื่น</div><div>2. รู้จักแสวงหาและใช้ข้อมูลสารสนเทศ</div><div>3. สามารถพัฒนาบุคลิกภาพและปรับตัวอยู่ในสังคมได้อย่างมีความสุข</div><div>4. มีเจตคติที่ดีต่ออาชีพสุจริต</div><div>5. มีค่านิยมที่ดี มีวินัย มีคุณธรรมจริยธรรม</div><div>6. มีจิตสำนึกรับผิดชอบต่อตนเอง ครอบครัว สังคม และประเทศไทย</div>
             </div>
             <div style="font-weight:bold; text-align:center; margin-bottom:10px; font-size:15pt;">คำชี้แจงในการทำประเมินผล กิจกรรมแนะแนว</div>
-            <div style="margin-left: 20px;">
-                <div style="display:flex; margin-bottom:8px;"><div style="min-width:25px;">1.</div><div>การนับเวลาเรียน เวลาเรียนเต็ม ภาคเรียนละ 20 ชั่วโมง นักเรียนเข้าเรียนให้เว้นว่างไว้ ถ้าขาด<br>เรียนใส่ (ข) ด้วยปากกามึกสีแดง</div></div>
-                <div style="display:flex; margin-bottom:8px;"><div style="min-width:25px;">2.</div><div>นักเรียนที่เวลาเรียนครบ 80% ใส่ตัวเลขด้วยปากกามึกสีน้ำเงิน ส่วนนักเรียนที่เวลาเรียนไม่ครบ<br>80% ให้เขียนเวลาเรียนเป็นตัวเลขด้วยปากกามึกสีแดง</div></div>
+            <div style="margin-left: 20px; font-size: 12pt">
+                <div style="display:flex; margin-bottom:8px;"><div style="min-width:25px;">1.</div><div>การนับเวลาเรียน เวลาเรียนเต็ม ภาคเรียนละ 20 ชั่วโมง นักเรียนเข้าเรียนให้เว้นว่างไว้ ถ้าขาดเรียนใส่ (ข) ด้วยปากกามึกสีแดง</div></div>
+                <div style="display:flex; margin-bottom:8px;"><div style="min-width:25px;">2.</div><div>นักเรียนที่เวลาเรียนครบ 80% ใส่ตัวเลขด้วยปากกามึกสีน้ำเงิน ส่วนนักเรียนที่เวลาเรียนไม่ครบ80% ให้เขียนเวลาเรียนเป็นตัวเลขด้วยปากกามึกสีแดง</div></div>
                 <div style="display:flex; margin-bottom:8px;"><div style="min-width:25px;">3.</div><div>ประเมินคุณลักษณะอันพึงประสงค์ของกิจกรรมแนะแนว ตามมาตรฐานทำเครื่องหมาย / ในช่อง ผ หรือ มผ</div></div>
                 <div style="display:flex;"><div style="min-width:25px;">4.</div><div>สรุปประเมินผล เขียน ผ หรือ มผ</div></div>
             </div>
@@ -648,6 +639,7 @@ async function printPDF_v7() {
                 const mark = (rec && rec.status !== 'มา') ? (rec.status === 'ขาด' ? 'ข' : (rec.status === 'ลา' ? 'ล' : (rec.status === 'ป่วย' ? 'ป' : '/'))) : '/';
                 cols += `<td class="col-center" style="font-size:9pt;">${mark}</td>`;
             }
+            // ✅ ใช้ column_name โดยตรง
             const myScores = globalScores.filter(s => s.student_id === std.id);
             let s1 = myScores.find(s => s.column_name === 'ครั้งที่ 1')?.score_value ?? '';
             let s2 = myScores.find(s => s.column_name === 'ครั้งที่ 2')?.score_value ?? '';
@@ -660,7 +652,7 @@ async function printPDF_v7() {
 
             return `<tr><td class="col-center">${sNum}</td><td class="col-center">${sCode}</td><td class="col-left" style="white-space:nowrap; overflow:hidden; max-width:160px;">${std.prefix}${std.first_name} ${std.last_name}</td>${cols}<td class="col-center">${std.attTotal}</td><td class="col-center">${s1}</td><td class="col-center">${s2}</td><td class="col-center">${s3}</td><td class="col-center">${s4}</td><td class="col-center">${s5}</td><td class="col-center">${totalS}</td><td class="col-center">${pre}</td><td class="col-center">${post}</td><td class="col-center" style="font-weight:bold;">${std.finalRes}</td></tr>`;
         } else {
-            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td class="col-center"></td><td class="col-center"></td>${'<td class="col-center"></td>'.repeat(20)}<td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td><td class="col-center"></td></tr>`;
+            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td></td><td></td>${'<td class="col-center"></td>'.repeat(20)}<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
         }
     }).join('');
 
@@ -707,7 +699,7 @@ async function printPDF_v7() {
             }).join('');
             return `<tr><td class="col-center">${sNum}</td><td class="col-center">${sCode}</td><td class="col-left" style="white-space:nowrap; overflow:hidden; max-width:160px;">${std.prefix}${std.first_name} ${std.last_name}</td>${cols}<td class="col-center" style="font-weight:bold;">${std.finalRes}</td></tr>`;
         } else {
-            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td class="col-center"></td><td class="col-center"></td>${'<td class="col-center"></td>'.repeat(12)}<td class="col-center"></td></tr>`;
+            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td></td><td></td>${'<td class="col-center"></td>'.repeat(12)}<td></td></tr>`;
         }
     }).join('');
 
@@ -729,41 +721,161 @@ async function printPDF_v7() {
         </table>
     </div>`;
 
+    // ===== CSS สำหรับพิมพ์ (ใช้กับหน้าต่างใหม่) =====
     const stylePrint = `
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-            #print-wrapper { font-family: 'Sarabun', sans-serif !important; color: #000 !important; background: #fff !important; }
-            #print-wrapper table, #print-wrapper th, #print-wrapper td, #print-wrapper tr { background-color: #ffffff !important; background: none !important; color: #000000 !important; }
-            #print-wrapper .col-center { text-align: center !important; vertical-align: middle !important; }
-            #print-wrapper .col-left { text-align: left !important; padding-left: 6px !important; vertical-align: middle !important; }
-            #print-wrapper .v-text { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; margin: 0 auto; display: block;}
-            .print-table { width: 100%; border-collapse: collapse; border: 1px solid #000; }
-            .print-table th, .print-table td { border: 1px solid #000; }
-            .print-table-small { font-size: 8pt; }
-            .page-break { page-break-after: always; }
+            
+            /* กำหนดหน้ากระดาษ A4 */
+            @page {
+                size: A4 portrait;
+                margin: 0;
+            }
+            
+            * {
+                font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                box-sizing: border-box;
+            }
+            
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            
+            #print-wrapper {
+                background: white;
+                width: 100%;
+                height: auto;
+            }
+            
+            .page-break {
+                page-break-after: always !important;
+                break-after: page !important;
+                page-break-inside: avoid !important;
+                break-inside: avoid !important;
+                height: 297mm;
+                min-height: 297mm;
+                max-height: 297mm;
+                padding: 10mm 15mm;
+                box-sizing: border-box;
+                position: relative;
+                overflow: hidden;
+                background: white;
+            }
+            
+            .page-break:last-child {
+                page-break-after: avoid !important;
+                break-after: avoid !important;
+            }
+            
+            .col-center {
+                text-align: center !important;
+                vertical-align: middle !important;
+            }
+            .col-left {
+                text-align: left !important;
+                padding-left: 6px !important;
+                vertical-align: middle !important;
+            }
+            .v-text {
+                writing-mode: vertical-rl;
+                transform: rotate(180deg);
+                white-space: nowrap;
+                margin: 0 auto;
+                display: block;
+            }
+            .print-table {
+                width: 100%;
+                border-collapse: collapse;
+                border: 1px solid #000;
+            }
+            .print-table th,
+            .print-table td {
+                border: 1px solid #000;
+                padding: 2px 4px;
+                font-size: 8pt;
+            }
+            .print-table-small {
+                font-size: 8pt;
+            }
+            
+            /* โลโก้ */
+            .logo-img {
+                max-height: 100px;
+                margin: 0 auto;
+                display: block;
+            }
+            
+            @media print {
+                body {
+                    margin: 0;
+                    padding: 0;
+                }
+                .no-print {
+                    display: none !important;
+                }
+            }
         </style>
     `;
 
-    const printArea = document.getElementById('print-area');
-    printArea.classList.add('visible');
-    printArea.innerHTML = stylePrint + `<div id="print-wrapper">${page1 + page2 + page3 + page4}</div>`;
+    // ===== สร้าง HTML ฉบับสมบูรณ์สำหรับพิมพ์ =====
+    const printHtml = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>ปพ.5 แนะแนว ม.${grade}/${globalSelectedClass.room}</title>
+            ${stylePrint}
+        </head>
+        <body>
+            <div id="print-wrapper">
+                ${page1 + page2 + page3 + page4}
+            </div>
+            <script>
+                // เมื่อโหลดเสร็จให้พิมพ์
+                window.onload = function() {
+                    // รอให้ฟอนต์โหลด
+                    document.fonts.load('16px "Sarabun"')
+                        .then(() => {
+                            setTimeout(() => {
+                                window.print();
+                                // หลังจากพิมพ์เสร็จให้ปิดหน้าต่าง (หรือไม่ปิดก็ได้)
+                                // window.close();
+                            }, 500);
+                        })
+                        .catch(() => {
+                            setTimeout(() => {
+                                window.print();
+                            }, 500);
+                        });
+                };
+            <\/script>
+        </body>
+        </html>
+    `;
 
-    document.fonts.ready.then(() => {
-        setTimeout(() => {
-            Swal.close();
-            window.print();
-            window.addEventListener('afterprint', () => {
-                printArea.classList.remove('visible');
-            }, { once: true });
-        }, 800);
-    }).catch(() => {
-        setTimeout(() => {
-            Swal.close();
-            window.print();
-            window.addEventListener('afterprint', () => {
-                printArea.classList.remove('visible');
-            }, { once: true });
-        }, 800);
+    // ===== เปิดหน้าต่างใหม่และพิมพ์ =====
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) {
+        Swal.fire('แจ้งเตือน', 'กรุณาอนุญาตให้เปิดหน้าต่างป๊อปอัป (Pop-up) เพื่อพิมพ์', 'warning');
+        return;
+    }
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+
+    // ปิด Swal และแสดงข้อความ
+    Swal.close();
+    Swal.fire({
+        icon: 'info',
+        title: 'กำลังเปิดหน้าต่างพิมพ์',
+        text: 'กรุณารอสักครู่ ระบบจะเตรียมหน้ากระดาษและแสดงหน้าต่างพิมพ์',
+        timer: 2000,
+        showConfirmButton: false
     });
 }
 
@@ -783,7 +895,7 @@ function exportExcelAll() {
     globalStudents.forEach(std => { const row = [std.student_number, std.student_id_card, std.first_name, std.last_name]; ATTR_COLS.forEach(c => { const el = document.getElementById(`at_${std.id}_${c}`); row.push(el ? (el.value === '1' ? 'ผ' : 'มผ') : ''); }); attrData.push(row); });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attrData), "คุณลักษณะ");
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
-    
+
     // ✅ บันทึก Log
     window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }

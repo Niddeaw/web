@@ -6,14 +6,14 @@
 // ==========================================
 
 let currentUserProfile = null;
-let globalSystemSettings = null; 
+let globalSystemSettings = null;
 let globalGuidanceSettings = null;
 let allSystemClasses = [];
 let allSystemTeachers = [];
 let guidanceTeachersList = [];
-let monitorData = []; 
+let monitorData = [];
 
-let globalSelectedClass = null; 
+let globalSelectedClass = null;
 let globalStudents = [];
 let globalAttendance = [];
 let globalScores = [];
@@ -21,7 +21,7 @@ let globalAttributes = [];
 let weekDatesArray = [];
 
 let currentTeacherId = null;
-let teacherModalData = []; 
+let teacherModalData = [];
 let tomSelectInstances = []; // เก็บ TomSelect instances ใน modal
 
 let currentUserRole = 'admin';
@@ -134,7 +134,7 @@ window.onload = async () => {
 async function loadSystemSettings() {
     const { data: sys } = await db.from('core_school_info').select('*').eq('id', 1).single();
     globalSystemSettings = sys || { current_academic_year: '2569', current_semester: '1' };
-    
+
     const { data: gui } = await db.from('guidance_settings').select('*').eq('id', 1).single();
     globalGuidanceSettings = gui || {};
 
@@ -144,52 +144,58 @@ async function loadSystemSettings() {
         const { data: mod } = await db.from('core_system_modules').select('is_active').eq('module_id', 'guidance').single();
         const isOpen = mod ? mod.is_active : true;
         toggle.checked = isOpen;
-        if (isOpen) { label.innerText = "ระบบเปิดอยู่"; label.classList.replace('text-gray-500', 'text-green-600'); } 
+        if (isOpen) { label.innerText = "ระบบเปิดอยู่"; label.classList.replace('text-gray-500', 'text-green-600'); }
         else { label.innerText = "ปิดระบบ"; label.classList.replace('text-green-600', 'text-gray-500'); }
     }
-    
-    const setVal = (id, val, isLocked = false) => { 
-        const el = document.getElementById(id); 
-        if(el) { 
-            el.value = val || ''; 
-            if(isLocked) { 
-                el.disabled = true; 
-                el.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed'); 
-            } 
-        } 
+
+    const setVal = (id, val, isLocked = false) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.value = val || '';
+            if (isLocked) {
+                el.disabled = true;
+                el.classList.add('bg-gray-100', 'text-gray-500', 'cursor-not-allowed');
+            }
+        }
     };
 
     setVal('set_subject', globalGuidanceSettings.subject_name);
     setVal('set_semester', globalSystemSettings.current_semester, true);
     setVal('set_year', globalSystemSettings.current_academic_year, true);
     setVal('set_term_start', globalSystemSettings.term_start_date, true);
-    setVal('set_director', globalSystemSettings.director_name, true); 
-    setVal('set_deputy', globalSystemSettings.deputy_academic, true); 
+    setVal('set_director', globalSystemSettings.director_name, true);
+    setVal('set_deputy', globalSystemSettings.deputy_academic, true);
     setVal('set_eval', globalGuidanceSettings.head_evaluation);
     setVal('set_student_dev', globalGuidanceSettings.head_student_dev);
     setVal('set_guidance', globalGuidanceSettings.head_guidance);
     setVal('set_approval_date', globalGuidanceSettings.approval_date);
+    setVal('set_gas_api_url', globalGuidanceSettings.gas_api_url);
+    setVal('set_pdf_folder_id', globalGuidanceSettings.pdf_folder_id);
+    setVal('set_slide_template_id', globalGuidanceSettings.slide_template_id);
 }
 
 async function saveSystemSettings(e) {
     e.preventDefault();
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     Swal.fire({ title: 'กำลังบันทึกการตั้งค่า...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     const updates = {
         subject_name: document.getElementById('set_subject')?.value,
         head_evaluation: document.getElementById('set_eval')?.value,
         head_student_dev: document.getElementById('set_student_dev')?.value,
         head_guidance: document.getElementById('set_guidance')?.value,
-        approval_date: document.getElementById('set_approval_date')?.value || null
+        approval_date: document.getElementById('set_approval_date')?.value || null,
+        gas_api_url: document.getElementById('set_gas_api_url')?.value,
+        pdf_folder_id: document.getElementById('set_pdf_folder_id')?.value,
+        slide_template_id: document.getElementById('set_slide_template_id')?.value
     };
     const { error } = await db.from('guidance_settings').update(updates).eq('id', 1);
     if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-    else { 
-        globalGuidanceSettings = { ...globalGuidanceSettings, ...updates }; 
+    else {
+        globalGuidanceSettings = { ...globalGuidanceSettings, ...updates };
         // ✅ บันทึก Log
         await window.logUserAction('บันทึกการตั้งค่าระบบแนะแนว', 'guidance');
-        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false }); 
+        Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
     }
 }
 
@@ -199,8 +205,8 @@ async function toggleSystemStatus(el) {
     const { error } = await db.from('core_system_modules').update({ is_active: isOpen }).eq('module_id', 'guidance');
     if (!error) {
         await window.logUserAction(`${isOpen ? 'เปิด' : 'ปิด'}ระบบแนะแนว`, 'guidance');
-        if (isOpen) { label.innerText = "ระบบเปิดอยู่"; label.classList.replace('text-gray-500', 'text-green-600'); Swal.fire({ icon: 'success', title: 'เปิดระบบแล้ว', timer: 1500, showConfirmButton: false}); } 
-        else { label.innerText = "ปิดระบบ"; label.classList.replace('text-green-600', 'text-gray-500'); Swal.fire({ icon: 'warning', title: 'ปิดระบบแล้ว', timer: 1500, showConfirmButton: false}); }
+        if (isOpen) { label.innerText = "ระบบเปิดอยู่"; label.classList.replace('text-gray-500', 'text-green-600'); Swal.fire({ icon: 'success', title: 'เปิดระบบแล้ว', timer: 1500, showConfirmButton: false }); }
+        else { label.innerText = "ปิดระบบ"; label.classList.replace('text-green-600', 'text-gray-500'); Swal.fire({ icon: 'warning', title: 'ปิดระบบแล้ว', timer: 1500, showConfirmButton: false }); }
     }
 }
 
@@ -209,22 +215,46 @@ async function toggleSystemStatus(el) {
 // -----------------------------------
 async function loadMonitoringData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     const currentSemester = globalSystemSettings.current_semester;
     const currentYear = globalSystemSettings.current_academic_year;
 
-    // 1. ดึงข้อมูลห้องเรียนทั้งหมดพร้อมจำนวนนักเรียน
+    // ✅ FIX: ดึงห้องเรียนโดยไม่ใช้ student_enrollments(count) ซึ่งทำให้เกิด 500 Error
     const { data: classes } = await db.from('core_classrooms')
-        .select(`
-            id, grade_level, room_number,
-            student_enrollments(count)
-        `)
+        .select('id, grade_level, room_number')
         .eq('semester', currentSemester)
         .eq('academic_year', currentYear)
         .order('grade_level').order('room_number');
-    
+
     allSystemClasses = classes || [];
     allSystemClasses.sort((a, b) => a.grade_level - b.grade_level || a.room_number - b.room_number);
+
+    // ✅ FIX: ดึงจำนวนนักเรียนโดยตรงจาก student_enrollments (ไม่ต้องพึ่ง RPC)
+    const classroomIds = allSystemClasses.map(c => c.id);
+    let studentCountMap = {};
+
+    if (classroomIds.length > 0) {
+        const countPromises = classroomIds.map(async (classId) => {
+            const { count, error } = await db
+                .from('student_enrollments')
+                .select('*', { count: 'exact', head: true })
+                .eq('classroom_id', classId);
+            if (!error) {
+                return { classroom_id: classId, count: count || 0 };
+            }
+            return null;
+        });
+        const results = await Promise.all(countPromises);
+        results.forEach(r => {
+            if (r) studentCountMap[r.classroom_id] = Number(r.count);
+        });
+    }
+
+    // แทรกจำนวนนักเรียนเข้า allSystemClasses
+    allSystemClasses = allSystemClasses.map(c => ({
+        ...c,
+        _studentCount: studentCountMap[c.id] || 0
+    }));
 
     // 2. ดึงข้อมูลครูแนะแนว
     const { data: guiTeachers } = await db.from('guidance_teachers')
@@ -235,41 +265,35 @@ async function loadMonitoringData() {
     const { data: mappedClasses } = await db.from('guidance_classes').select('*');
 
     // 4. ใช้ RPC เพื่อดึงสถิติ attendance และ attributes
-    const classroomIds = allSystemClasses.map(c => c.id);
     let attStats = {}, attrStats = {};
 
     if (classroomIds.length > 0) {
         const { data: attCounts, error: attError } = await db.rpc('get_attendance_counts', {
             classroom_ids: classroomIds
         });
-        
         if (!attError && attCounts) {
-            attCounts.forEach(row => {
-                attStats[row.classroom_id] = row.count;
-            });
+            attCounts.forEach(row => { attStats[row.classroom_id] = Number(row.count); });
         }
 
         const { data: attrCounts, error: attrError } = await db.rpc('get_attribute_counts_by_classroom', {
             classroom_ids: classroomIds
         });
-        
         if (!attrError && attrCounts) {
-            attrCounts.forEach(row => {
-                attrStats[row.classroom_id] = row.count;
-            });
+            attrCounts.forEach(row => { attrStats[row.classroom_id] = Number(row.count); });
         }
     }
 
     // 5. สร้างข้อมูล monitoring
-    const monitorPromises = allSystemClasses.map(async (cls) => {
-        const mapping = mappedClasses.find(m => m.classroom_id === cls.id);
+    monitorData = allSystemClasses.map(cls => {
+        const mapping = (mappedClasses || []).find(m => m.classroom_id === cls.id);
         let teacherName = 'ไม่ระบุครู';
         if (mapping) {
             const t = guidanceTeachersList.find(gt => gt.id === mapping.teacher_id);
             if (t) teacherName = `${t.first_name} ${t.last_name}`;
         }
 
-        const n_std = cls.student_enrollments?.[0]?.count || 0;
+        // ✅ FIX: ใช้ _studentCount แทน student_enrollments?.[0]?.count
+        const n_std = cls._studentCount || 0;
         let isComplete = false;
 
         if (n_std > 0) {
@@ -289,17 +313,16 @@ async function loadMonitoringData() {
         };
     });
 
-    monitorData = await Promise.all(monitorPromises);
     renderMonitoringTable(monitorData);
-    renderTeacherManageTable(mappedClasses);
+    renderTeacherManageTable(mappedClasses || []);
     Swal.close();
 }
 
 function renderMonitoringTable(dataArray) {
     if ($.fn.DataTable.isDataTable('#monitoringTable')) $('#monitoringTable').DataTable().destroy();
     const tbody = document.getElementById('tb-monitoring');
-    
-    if(dataArray.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-400">ยังไม่มีข้อมูลห้องเรียนในระบบส่วนกลาง</td></tr>'; return; }
+
+    if (dataArray.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-400">ยังไม่มีข้อมูลห้องเรียนในระบบส่วนกลาง</td></tr>'; return; }
 
     tbody.innerHTML = dataArray.map(item => {
         let statusHtml = item.studentCount === 0 ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-500">ไม่มีเด็ก</span>' : (item.isComplete ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">🟢 เรียบร้อย</span>' : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-600">🔴 ยังไม่ครบ</span>');
@@ -313,7 +336,7 @@ function renderMonitoringTable(dataArray) {
         </tr>`;
     }).join('');
 
-    $('#monitoringTable').DataTable({ language: { url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/th.json' }, pageLength: 15, order: [], columnDefs: [ { orderable: false, targets: 4 } ], destroy: true });
+    $('#monitoringTable').DataTable({ language: { url: 'https://cdn.datatables.net/plug-ins/1.13.7/i18n/th.json' }, pageLength: 15, order: [], columnDefs: [{ orderable: false, targets: 4 }], destroy: true });
 }
 
 // -----------------------------------
@@ -325,17 +348,17 @@ function renderTeacherManageTable(mappedClasses) {
     guidanceTeachersList.forEach(teacher => {
         const tMappings = mappedClasses.filter(m => m.teacher_id === teacher.id);
         let badgesHtml = '<div class="flex flex-wrap gap-2">';
-        
+
         tMappings.forEach(tm => {
             const cls = allSystemClasses.find(c => c.id === tm.classroom_id);
-            if(cls) {
+            if (cls) {
                 const mon = monitorData.find(m => m.id === cls.id);
                 const color = (mon && mon.isComplete && mon.studentCount > 0) ? 'bg-green-600 hover:bg-green-700' : 'bg-red-500 hover:bg-red-600';
                 badgesHtml += `<button onclick="openAdminEditor('${cls.id}', 'ม.${cls.grade_level}/${cls.room_number}')" class="px-2.5 py-1.5 ${color} text-white text-xs font-bold rounded-lg shadow-sm transition">ม.${cls.grade_level}/${cls.room_number}</button>`;
             }
         });
         badgesHtml += '</div>';
-        if(tMappings.length === 0) badgesHtml = '<span class="text-gray-400 italic">ยังไม่ได้จัดห้องสอน</span>';
+        if (tMappings.length === 0) badgesHtml = '<span class="text-gray-400 italic">ยังไม่ได้จัดห้องสอน</span>';
 
         html += `
         <tr class="hover:bg-gray-50 transition">
@@ -357,17 +380,17 @@ function renderTeacherManageTable(mappedClasses) {
 
 async function openAddGuidanceTeacherModal() {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     Swal.fire({ title: 'กำลังดึงรายชื่อ...', didOpen: () => Swal.showLoading() });
     const { data: allPersonnel, error } = await db.from('core_personnel').select('id, first_name, last_name, email');
-    
+
     if (error) return Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
 
     const available = allPersonnel.filter(p => !guidanceTeachersList.find(gt => gt.id === p.id));
     if (available.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่พบรายชื่อครูจากส่วนกลาง หรือถูกดึงมาเป็นครูแนะแนวครบทุกคนแล้ว', 'info');
 
     available.sort((a, b) => a.first_name.localeCompare(b.first_name, 'th'));
-    
+
     let optionsHtml = '';
     available.forEach(t => { optionsHtml += `<option value="${t.id}" class="p-2.5 border-b border-gray-100 hover:bg-indigo-50 cursor-pointer text-gray-700">${t.first_name} ${t.last_name} (${t.email})</option>`; });
 
@@ -391,12 +414,12 @@ async function openAddGuidanceTeacherModal() {
             const options = selectBox.options;
 
             setTimeout(() => searchInput.focus(), 100);
-            searchInput.addEventListener('input', function() {
+            searchInput.addEventListener('input', function () {
                 const filter = searchInput.value.toLowerCase().replace(/\s+/g, '');
                 let firstVisibleOption = null;
                 for (let i = 0; i < options.length; i++) {
                     const txtValue = options[i].text.toLowerCase().replace(/\s+/g, '');
-                    if (txtValue.includes(filter)) { options[i].style.display = ""; if(!firstVisibleOption) firstVisibleOption = options[i]; } 
+                    if (txtValue.includes(filter)) { options[i].style.display = ""; if (!firstVisibleOption) firstVisibleOption = options[i]; }
                     else { options[i].style.display = "none"; }
                 }
                 if (firstVisibleOption && filter !== '') selectBox.value = firstVisibleOption.value;
@@ -413,17 +436,17 @@ async function openAddGuidanceTeacherModal() {
         Swal.fire({ title: 'กำลังแต่งตั้ง...', didOpen: () => Swal.showLoading() });
         const { error } = await db.from('guidance_teachers').insert({ teacher_id: selectedId });
         if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
-        else { 
+        else {
             await window.logUserAction(`แต่งตั้งครูแนะแนว: ${selectedId}`, 'guidance');
-            await loadMonitoringData(); 
-            Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ!', timer: 1500, showConfirmButton: false }); 
+            await loadMonitoringData();
+            Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ!', timer: 1500, showConfirmButton: false });
         }
     }
 }
 
 async function removeGuidanceRole(teacherId, name) {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     const { isConfirmed } = await Swal.fire({ title: 'ถอดสิทธิ์ครูแนะแนว?', html: `ถอดสิทธิ์ <b>${name}</b> ใช่หรือไม่?<br><span class="text-red-500 text-sm">ห้องเรียนที่รับผิดชอบจะว่างลง</span>`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ยืนยัน' });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading() });
@@ -437,21 +460,21 @@ async function removeGuidanceRole(teacherId, name) {
 
 async function openTeacherModal(teacherId, name) {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     currentTeacherId = teacherId;
     document.getElementById('modalTeacherName').innerText = name;
-    
+
     const { data: tClasses } = await db.from('guidance_classes').select('*').eq('teacher_id', teacherId);
     const groups = {};
     (tClasses || []).forEach(c => {
         const d = c.start_date || '';
-        if(!groups[d]) groups[d] = [];
+        if (!groups[d]) groups[d] = [];
         groups[d].push(c.classroom_id);
     });
     teacherModalData = Object.keys(groups).map(date => ({ date: date, classes: groups[date] }));
-    
+
     const defaultDate = globalSystemSettings.term_start_date || '';
-    if(teacherModalData.length === 0) teacherModalData.push({ date: defaultDate, classes: [] }); 
+    if (teacherModalData.length === 0) teacherModalData.push({ date: defaultDate, classes: [] });
 
     renderModalRows();
     document.getElementById('teacherModal').classList.remove('hidden');
@@ -464,12 +487,12 @@ function renderModalRows() {
         tomSelectInstances.forEach(ts => ts.destroy());
         tomSelectInstances = [];
     }
-    
+
     let optionsHtml = '';
     allSystemClasses.forEach(c => {
         optionsHtml += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
     });
-    
+
     container.innerHTML = teacherModalData.map((row, idx) => `
         <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
             <td class="p-4 align-middle border-r border-gray-200">
@@ -478,13 +501,13 @@ function renderModalRows() {
             <td class="p-4 align-top">
                 <div class="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-xl min-h-[80px] bg-gray-50 items-center" id="class-badge-container-${idx}">
                     ${row.classes.map((clsId, cIdx) => {
-                        const cInfo = allSystemClasses.find(c => c.id === clsId);
-                        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
-                        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+        const cInfo = allSystemClasses.find(c => c.id === clsId);
+        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
+        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
                                     ${cName}
                                     <button onclick="teacherModalData[${idx}].classes.splice(${cIdx}, 1); renderModalRows();" class="ml-2 text-red-400 hover:text-red-600">&times;</button>
                                 </span>`;
-                    }).join('')}
+    }).join('')}
                 </div>
                 <select id="class-select-${idx}" class="mt-2 w-full tom-selector" data-idx="${idx}">
                     <option value="">-- เลือกห้องเรียน --</option>
@@ -504,7 +527,7 @@ function renderModalRows() {
         const ts = new TomSelect(select, {
             create: false,
             placeholder: '-- เลือกห้องเรียน --',
-            onChange: function(value) {
+            onChange: function (value) {
                 if (value && !teacherModalData[idx].classes.includes(value)) {
                     teacherModalData[idx].classes.push(value);
                     renderModalRows();
@@ -516,13 +539,13 @@ function renderModalRows() {
     });
 }
 
-function addModalRow() { 
+function addModalRow() {
     const defaultDate = globalSystemSettings.term_start_date || '';
-    teacherModalData.push({ date: defaultDate, classes: [] }); 
-    renderModalRows(); 
+    teacherModalData.push({ date: defaultDate, classes: [] });
+    renderModalRows();
 }
 
-function closeTeacherModal() { 
+function closeTeacherModal() {
     document.getElementById('teacherModal').classList.add('hidden');
     if (tomSelectInstances.length) {
         tomSelectInstances.forEach(ts => ts.destroy());
@@ -532,27 +555,27 @@ function closeTeacherModal() {
 
 async function saveTeacherClasses() {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         await db.from('guidance_classes').delete().eq('teacher_id', currentTeacherId);
-        
+
         const toInsert = [];
         teacherModalData.forEach(row => {
             row.classes.forEach(clsId => {
-                toInsert.push({ 
-                    classroom_id: clsId, 
-                    teacher_id: currentTeacherId, 
-                    start_date: row.date || null 
+                toInsert.push({
+                    classroom_id: clsId,
+                    teacher_id: currentTeacherId,
+                    start_date: row.date || null
                 });
             });
         });
-        
+
         if (toInsert.length > 0) {
             const { error } = await db.from('guidance_classes').insert(toInsert);
             if (error) throw error;
         }
-        
+
         await window.logUserAction(`บันทึกการจัดห้องสอนของครู ID ${currentTeacherId}`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
         closeTeacherModal();
@@ -570,37 +593,37 @@ async function openAdminEditor(classId, classNameStr) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
         return;
     }
-    
+
     document.getElementById('mainAdminView').classList.add('hidden');
     document.getElementById('adminEditorView').classList.remove('hidden');
     document.getElementById('adminEditTitle').innerText = `ห้อง: ${classNameStr}`;
     Swal.fire({ title: 'กำลังโหลดข้อมูลห้อง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-    
+
     globalSelectedClass = allSystemClasses.find(c => c.id === classId);
-    
+
     const { data: stds } = await db.from('student_enrollments')
         .select(`id, student_number, status, student_id, core_students(student_id_card, prefix, first_name, last_name)`)
         .eq('classroom_id', classId).order('student_number');
-    
+
     globalStudents = stds ? stds.map(s => ({
         id: s.student_id, student_number: s.student_number, student_id_card: s.core_students.student_id_card,
         prefix: s.core_students.prefix, first_name: s.core_students.first_name, last_name: s.core_students.last_name, student_status: s.status
     })) : [];
 
     const stdIds = globalStudents.map(s => s.id);
-    const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId); 
+    const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
     globalAttendance = att || [];
-    
+
     if (stdIds.length > 0) {
         const { data: scrs } = await db.from('guidance_scores').select('*').in('student_id', stdIds); globalScores = scrs || [];
         const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds); globalAttributes = attrs || [];
     } else { globalScores = []; globalAttributes = []; }
-    
+
     const mapping = (await db.from('guidance_classes').select('start_date').eq('classroom_id', classId).single()).data;
     if (mapping && mapping.start_date) {
         const startObj = new Date(mapping.start_date);
-        weekDatesArray = Array.from({length: 20}, (_, i) => { let d = new Date(startObj); d.setDate(startObj.getDate() + (i * 7)); return d; });
-    } else { weekDatesArray = Array.from({length: 20}, () => null); }
+        weekDatesArray = Array.from({ length: 20 }, (_, i) => { let d = new Date(startObj); d.setDate(startObj.getDate() + (i * 7)); return d; });
+    } else { weekDatesArray = Array.from({ length: 20 }, () => null); }
 
     renderAttendanceTab(); renderScoresTab(); renderAttributesTab();
     Swal.close();
@@ -619,62 +642,62 @@ function switchAdminTab(tabId, btnElement) {
     document.getElementById(tabId).classList.remove('hidden');
 }
 
-function selectColor(el) { if(el) el.setAttribute('data-val', el.value); }
+function selectColor(el) { if (el) el.setAttribute('data-val', el.value); }
 
-function calcAttTotal(stdId) { 
-    let t = 0; 
-    for(let w=1; w<=20; w++){ 
-        const s = document.getElementById(`att_${stdId}_w${w}`); 
-        if(s && s.value==='มา') t++; 
-    } 
-    document.getElementById(`att_total_${stdId}`).innerText = t; 
-    calcAttr(stdId, t); 
+function calcAttTotal(stdId) {
+    let t = 0;
+    for (let w = 1; w <= 20; w++) {
+        const s = document.getElementById(`att_${stdId}_w${w}`);
+        if (s && s.value === 'มา') t++;
+    }
+    document.getElementById(`att_total_${stdId}`).innerText = t;
+    calcAttr(stdId, t);
 }
 
-function calcScoreTotal(stdId) { 
-    let t = 0; 
+function calcScoreTotal(stdId) {
+    let t = 0;
     let hasValue = false;
-    for(let i=1; i<=5; i++){ 
-        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value; 
-        if(v && v.trim() !== '') {
+    for (let i = 1; i <= 5; i++) {
+        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value;
+        if (v && v.trim() !== '') {
             const num = parseFloat(v);
-            if(!isNaN(num)) {
+            if (!isNaN(num)) {
                 t += num;
                 hasValue = true;
             }
         }
-    } 
+    }
     document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
 
 function calcAttr(stdId, attTotal) {
-    let pass = true; 
-    ATTR_COLS.forEach(c => { 
-        const el=document.getElementById(`at_${stdId}_${c}`); 
-        if(el){ 
-            selectColor(el); 
-            if(el.value==="0") pass=false; 
-        } 
+    let pass = true;
+    ATTR_COLS.forEach(c => {
+        const el = document.getElementById(`at_${stdId}_${c}`);
+        if (el) {
+            selectColor(el);
+            if (el.value === "0") pass = false;
+        }
     });
     const p1 = document.getElementById(`at_sum1_${stdId}`), p2 = document.getElementById(`at_sum2_${stdId}`), p3 = document.getElementById(`at_sum3_${stdId}`);
-    if(p1) p1.innerHTML = pass ? '<span class="text-blue-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
-    if(p2) p2.innerHTML = attTotal>=16 ? '<span class="text-indigo-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
-    if(p3) p3.innerHTML = (pass && attTotal>=16) ? '<span class="text-emerald-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
+    if (p1) p1.innerHTML = pass ? '<span class="text-blue-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
+    if (p2) p2.innerHTML = attTotal >= 16 ? '<span class="text-indigo-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
+    if (p3) p3.innerHTML = (pass && attTotal >= 16) ? '<span class="text-emerald-600 font-bold">ผ</span>' : '<span class="text-red-600 font-bold">มผ</span>';
 }
 
 function renderAttendanceTab() {
     const tbody = document.getElementById('tb-attendance'), tr1 = document.getElementById('att-header-row-1'), tr2 = document.getElementById('att-header-row-2');
-    if(!globalStudents.length) { tbody.innerHTML = '<tr><td colspan="24" class="p-8 text-center text-gray-400">ยังไม่มีรายชื่อนักเรียนจากส่วนกลาง</td></tr>'; return; }
-    document.querySelectorAll('.dynamic-th').forEach(el => el.remove()); const targetTh = tr1.children[2]; 
+    if (!globalStudents.length) { tbody.innerHTML = '<tr><td colspan="24" class="p-8 text-center text-gray-400">ยังไม่มีรายชื่อนักเรียนจากส่วนกลาง</td></tr>'; return; }
+    document.querySelectorAll('.dynamic-th').forEach(el => el.remove()); const targetTh = tr1.children[2];
     weekDatesArray.forEach((d, i) => {
-        const th1 = document.createElement('th'); th1.className = 'dynamic-th w-16 px-1'; th1.innerText = `ส.${i+1}`; tr1.insertBefore(th1, targetTh); 
-        const th2 = document.createElement('th'); th2.className = 'dynamic-th p-1 text-[10px]'; th2.innerText = d ? d.toLocaleDateString('th-TH',{day:'numeric',month:'short'}) : '-รอตั้งค่า-'; tr2.appendChild(th2);
+        const th1 = document.createElement('th'); th1.className = 'dynamic-th w-16 px-1'; th1.innerText = `ส.${i + 1}`; tr1.insertBefore(th1, targetTh);
+        const th2 = document.createElement('th'); th2.className = 'dynamic-th p-1 text-[10px]'; th2.innerText = d ? d.toLocaleDateString('th-TH', { day: 'numeric', month: 'short' }) : '-รอตั้งค่า-'; tr2.appendChild(th2);
     });
     tbody.innerHTML = globalStudents.map(std => {
         const myAtt = globalAttendance.filter(a => a.student_id === std.id);
-        const drops = Array.from({length:20}, (_,i) => {
-            const w=i+1, v = myAtt.find(a=>a.week_number===w)?.status || 'มา';
-            return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v==='มา'?'selected':''}>มา</option><option value="ป่วย" ${v==='ป่วย'?'selected':''}>ป่วย</option><option value="ลา" ${v==='ลา'?'selected':''}>ลา</option><option value="ขาด" ${v==='ขาด'?'selected':''}>ขาด</option></select></td>`; 
+        const drops = Array.from({ length: 20 }, (_, i) => {
+            const w = i + 1, v = myAtt.find(a => a.week_number === w)?.status || 'มา';
+            return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v === 'มา' ? 'selected' : ''}>มา</option><option value="ป่วย" ${v === 'ป่วย' ? 'selected' : ''}>ป่วย</option><option value="ลา" ${v === 'ลา' ? 'selected' : ''}>ลา</option><option value="ขาด" ${v === 'ขาด' ? 'selected' : ''}>ขาด</option></select></td>`;
         }).join('');
         return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td><td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm">${std.student_status}</td></tr>`;
     }).join('');
@@ -682,11 +705,11 @@ function renderAttendanceTab() {
 }
 
 function renderScoresTab() {
-    const tbody = document.getElementById('tb-scores'); if(!globalStudents.length) return;
+    const tbody = document.getElementById('tb-scores'); if (!globalStudents.length) return;
     tbody.innerHTML = globalStudents.map(std => {
         const mySc = globalScores.filter(s => s.student_id === std.id);
         const inps = SCORE_COLS.map(c => {
-            const v = mySc.find(s=>s.column_name===c)?.score_value ?? '';
+            const v = mySc.find(s => s.column_name === c)?.score_value ?? '';
             return `<td><input type="number" id="sc_${std.id}_${c}" class="w-full text-center rounded-md border border-gray-200 p-1" value="${v}" oninput="calcScoreTotal('${std.id}')"></td>`;
         });
         inps.splice(5, 0, `<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="sc_total_${std.id}">0</td>`);
@@ -696,12 +719,12 @@ function renderScoresTab() {
 }
 
 function renderAttributesTab() {
-    const tbody = document.getElementById('tb-attributes'); if(!globalStudents.length) return;
+    const tbody = document.getElementById('tb-attributes'); if (!globalStudents.length) return;
     tbody.innerHTML = globalStudents.map(std => {
         const myAt = globalAttributes.filter(a => a.student_id === std.id);
         const drops = ATTR_COLS.map(c => {
-            const v = myAt.find(a=>a.attribute_name===c)?.score ?? 1;
-            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="calcAttTotal('${std.id}')"><option value="1" ${v===1?'selected':''}>ผ</option><option value="0" ${v===0?'selected':''}>มผ</option></select></td>`;
+            const v = myAt.find(a => a.attribute_name === c)?.score ?? 1;
+            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="calcAttTotal('${std.id}')"><option value="1" ${v === 1 ? 'selected' : ''}>ผ</option><option value="0" ${v === 0 ? 'selected' : ''}>มผ</option></select></td>`;
         }).join('');
         return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="bg-blue-50/50 border-l-2 border-gray-300 text-center" id="at_sum1_${std.id}"></td><td class="bg-indigo-50/50 border-l border-gray-300 text-center" id="at_sum2_${std.id}"></td><td class="bg-emerald-50/50 border-l-2 border-emerald-300 text-center" id="at_sum3_${std.id}"></td></tr>`;
     }).join('');
@@ -710,23 +733,24 @@ function renderAttributesTab() {
 
 async function adminSaveAllData() {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    
+
     const classId = globalSelectedClass.id;
     Swal.fire({ title: 'กำลังบังคับบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         const attToUpsert = [], scToUpsert = [], atToUpsert = [];
         globalStudents.forEach(std => {
-            for(let w=1; w<=20; w++) {
+            for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
-                if(s && weekDatesArray[w-1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w-1].toISOString().split('T')[0] });
+                if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
             }
-            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if(v && v.trim()!=='') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
-            ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if(s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
+            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if (v && v.trim() !== '') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
+            ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
 
-        if(attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id, week_number' });
-        if(scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id, column_name' });
-        if(atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id, attribute_name' });
+        // ✅ FIX: ลบ space ออกจาก onConflict (ต้องไม่มี space หลังเครื่องหมายจุลภาค)
+        if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
+        if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id,column_name' });
+        if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
         await window.logUserAction(`Admin บันทึกข้อมูลห้อง ${classId} (บังคับ)`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
@@ -738,13 +762,13 @@ async function adminSaveAllData() {
 // ==========================================
 function exportExcelAll() {
     // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
-    if(!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
+    if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
-    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({length:20}, (_,i)=>`ส.${i+1}`)]];
+    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`)]];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
-        for(let w=1; w<=20; w++) {
+        for (let w = 1; w <= 20; w++) {
             const el = document.getElementById(`att_${std.id}_w${w}`);
             row.push(el ? el.value : '');
         }
@@ -768,14 +792,14 @@ function exportExcelAll() {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
         ATTR_COLS.forEach(c => {
             const el = document.getElementById(`at_${std.id}_${c}`);
-            row.push(el ? (el.value==='1'?'ผ':'มผ') : '');
+            row.push(el ? (el.value === '1' ? 'ผ' : 'มผ') : '');
         });
         attrData.push(row);
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attrData), "คุณลักษณะ");
 
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
-    
+
     // ✅ บันทึก Log
     window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }
@@ -783,51 +807,51 @@ function exportExcelAll() {
 async function importExcelAll(event) {
     // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
     const file = event.target.files[0];
-    if(!file) return;
+    if (!file) return;
     Swal.fire({ title: 'กำลังดึงข้อมูลจาก Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const reader = new FileReader();
-    reader.onload = function(e) {
+    reader.onload = function (e) {
         try {
             const data = new Uint8Array(e.target.result);
-            const workbook = XLSX.read(data, {type: 'array'});
+            const workbook = XLSX.read(data, { type: 'array' });
 
-            if(workbook.Sheets["เวลาเรียน"]) {
+            if (workbook.Sheets["เวลาเรียน"]) {
                 const rows = XLSX.utils.sheet_to_json(workbook.Sheets["เวลาเรียน"]);
                 rows.forEach(row => {
                     const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
-                    if(std) {
-                        for(let w=1; w<=20; w++) {
+                    if (std) {
+                        for (let w = 1; w <= 20; w++) {
                             const el = document.getElementById(`att_${std.id}_w${w}`);
-                            if(el && row[`ส.${w}`]) { el.value = row[`ส.${w}`]; selectColor(el); }
+                            if (el && row[`ส.${w}`]) { el.value = row[`ส.${w}`]; selectColor(el); }
                         }
                         calcAttTotal(std.id);
                     }
                 });
             }
 
-            if(workbook.Sheets["คะแนน"]) {
+            if (workbook.Sheets["คะแนน"]) {
                 const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คะแนน"]);
                 rows.forEach(row => {
                     const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
-                    if(std) {
+                    if (std) {
                         SCORE_COLS.forEach(c => {
                             const el = document.getElementById(`sc_${std.id}_${c}`);
-                            if(el && row[c] !== undefined) el.value = row[c];
+                            if (el && row[c] !== undefined) el.value = row[c];
                         });
                         calcScoreTotal(std.id);
                     }
                 });
             }
 
-            if(workbook.Sheets["คุณลักษณะ"]) {
+            if (workbook.Sheets["คุณลักษณะ"]) {
                 const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คุณลักษณะ"]);
                 rows.forEach(row => {
                     const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
-                    if(std) {
+                    if (std) {
                         ATTR_COLS.forEach(c => {
                             const el = document.getElementById(`at_${std.id}_${c}`);
-                            if(el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); }
+                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); }
                         });
                         calcAttTotal(std.id);
                     }
@@ -835,7 +859,7 @@ async function importExcelAll(event) {
             }
 
             Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', text: 'ข้อมูลอยู่บนหน้าจอแล้ว กรุณากด "บันทึกข้อมูล" เพื่อเก็บลงฐานข้อมูล' });
-        } catch(err) {
+        } catch (err) {
             Swal.fire('ผิดพลาด', 'รูปแบบไฟล์ไม่ถูกต้อง หรือหาชีตข้อมูลไม่พบ', 'error');
         }
         event.target.value = '';
@@ -848,11 +872,11 @@ async function importExcelAll(event) {
 // ==========================================
 async function toggleRoleView() {
     if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
-    
+
     isAdminMode = !isAdminMode;
     applyAdminVisibility();
     await loadMonitoringData();
-    
+
     await window.logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'guidance');
 }
 
