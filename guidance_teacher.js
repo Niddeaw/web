@@ -534,6 +534,10 @@ async function printPDF_v7() {
         return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
     });
 
+    // ใน printPDF_v7() หลังจากคำนวณ subjectCode
+    const className = `ม.${grade}/${globalSelectedClass.room}`;
+    const classNameFull = `ชั้นมัธยมศึกษาปีที่ ${grade}/${globalSelectedClass.room}`;
+
     const page1 = `
     <div class="page-break" style="padding: 10mm 15mm; position:relative; height: 297mm; box-sizing:border-box; line-height: 1.4;">
         <div style="text-align: center; margin-bottom: 20px;">
@@ -545,7 +549,7 @@ async function printPDF_v7() {
             </div>
             <div style="font-size: 14pt; margin-bottom: 5px;">โรงเรียนวัดไร่ขิงวิทยา อำเภอสามพราน อำเภอนครปฐม</div>
             <div style="font-size: 14pt; margin-bottom: 5px;">
-                <span>ระดับชั้นมัธยมศึกษาปีที่ ${grade}</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
+                <span>${classNameFull}</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
                 <span>ภาคเรียนที่ ${t_term}</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 
                 <span>ปีการศึกษา ${t_year}</span>
             </div>
@@ -637,9 +641,8 @@ async function printPDF_v7() {
             for (let w = 1; w <= 20; w++) {
                 const rec = myAtt.find(a => a.week_number === w);
                 const mark = (rec && rec.status !== 'มา') ? (rec.status === 'ขาด' ? 'ข' : (rec.status === 'ลา' ? 'ล' : (rec.status === 'ป่วย' ? 'ป' : '/'))) : '/';
-                cols += `<td class="col-center" style="font-size:9pt;">${mark}</td>`;
+                cols += `<td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${mark}</td>`;
             }
-            // ✅ ใช้ column_name โดยตรง
             const myScores = globalScores.filter(s => s.student_id === std.id);
             let s1 = myScores.find(s => s.column_name === 'ครั้งที่ 1')?.score_value ?? '';
             let s2 = myScores.find(s => s.column_name === 'ครั้งที่ 2')?.score_value ?? '';
@@ -650,30 +653,59 @@ async function printPDF_v7() {
             let post = myScores.find(s => s.column_name === 'Posttest')?.score_value ?? '';
             let totalS = (Number(s1) + Number(s2) + Number(s3) + Number(s4) + Number(s5)) || '';
 
-            return `<tr><td class="col-center">${sNum}</td><td class="col-center">${sCode}</td><td class="col-left" style="white-space:nowrap; overflow:hidden; max-width:160px;">${std.prefix}${std.first_name} ${std.last_name}</td>${cols}<td class="col-center">${std.attTotal}</td><td class="col-center">${s1}</td><td class="col-center">${s2}</td><td class="col-center">${s3}</td><td class="col-center">${s4}</td><td class="col-center">${s5}</td><td class="col-center">${totalS}</td><td class="col-center">${pre}</td><td class="col-center">${post}</td><td class="col-center" style="font-weight:bold;">${std.finalRes}</td></tr>`;
+            return `<tr>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sNum}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sCode}</td>
+            <td class="col-left" style="font-size:6.5pt; padding:1px 2px; white-space:nowrap; overflow:hidden; max-width:120px; text-overflow:ellipsis;">${std.prefix}${std.first_name} ${std.last_name}</td>
+            ${cols}
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${std.attTotal}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s1}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s2}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s3}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s4}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s5}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${totalS}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${pre}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${post}</td>
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px; font-weight:bold;">${std.finalRes}</td>
+        </tr>`;
         } else {
-            return `<tr style="height:19px;"><td class="col-center">${i + 1}</td><td></td><td></td>${'<td class="col-center"></td>'.repeat(20)}<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td></tr>`;
+            return `<tr style="height:16px;">
+            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${i + 1}</td>
+            <td></td><td></td>
+            ${'<td class="col-center" style="padding:1px 1px;"></td>'.repeat(20)}
+            <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+        </tr>`;
         }
     }).join('');
 
     const page3 = `
-    <div class="page-break" style="padding: 20px 10px; position:relative; height: 297mm; box-sizing:border-box;">
-        <h3 style="text-align:center; font-weight:bold; font-size:14pt; margin-bottom:10px;">บันทึกเวลาเรียนกิจกรรมแนะแนว ชั้น มัธยมศึกษาปีที่ ${grade} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}</h3>
-        <table class="print-table print-table-small">
+    <div class="page-break page-break-attendance" style="position:relative; box-sizing:border-box;">
+        <h3 style="text-align:center; font-weight:bold; font-size:12pt; margin-bottom:8px; margin-top:0;">
+            บันทึกเวลาเรียนกิจกรรมแนะแนว ${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
+        </h3>
+        <table class="print-table print-table-small" style="width:100%; table-layout:fixed; border-collapse:collapse;">
             <thead>
                 <tr>
-                    <th rowspan="3" style="width:25px;"><div class="v-text" style="height:50px;">เลขที่</div></th>
-                    <th rowspan="3" style="width:55px;"><div class="v-text" style="height:70px;">เลขประจำตัว</div></th>
-                    <th rowspan="3" style="width:160px; text-align:center !important;">ชื่อ-สกุล</th>
-                    <th colspan="20">วัน เดือน ปี ที่จัดการเรียนการสอน</th>
-                    <th rowspan="3" style="width:30px;"><div class="v-text" style="height:70px;">รวมเวลาเรียน</div></th>
-                    <th colspan="8" rowspan="2" style="vertical-align:middle; text-align:center;">ผลการประเมินกิจกรรมแนะแนวตาม<br>มาตรฐานการแนะแนว 4 กลุ่ม</th>
-                    <th rowspan="3" style="width:35px;"><div class="v-text" style="height:80px;">สรุปผลการประเมิน</div></th>
+                    <th rowspan="3" class="col-no" style="width:20px;"><div class="v-text" style="height:45px; font-size:6pt;">เลขที่</div></th>
+                    <th rowspan="3" class="col-id" style="width:45px;"><div class="v-text" style="height:60px; font-size:6pt;">เลขประจำตัว</div></th>
+                    <th rowspan="3" class="col-name" style="width:120px; text-align:center !important; font-size:7pt;">ชื่อ-สกุล</th>
+                    <th colspan="20" style="font-size:7pt; padding:1px 2px;">วัน เดือน ปี ที่จัดการเรียนการสอน</th>
+                    <th rowspan="3" class="col-total" style="width:25px;"><div class="v-text" style="height:60px; font-size:6pt;">รวมเวลาเรียน</div></th>
+                    <th colspan="8" rowspan="2" style="vertical-align:middle; text-align:center; font-size:6pt; padding:1px 2px;">ผลการประเมินกิจกรรมแนะแนวตาม<br>มาตรฐานการแนะแนว 4 กลุ่ม</th>
+                    <th rowspan="3" class="col-result" style="width:25px;"><div class="v-text" style="height:70px; font-size:6pt;">สรุปผลการประเมิน</div></th>
                 </tr>
                 <tr>${thDates}</tr>
-                <tr style="font-size:7.5pt;">
-                    ${Array.from({ length: 20 }, (_, i) => `<th class="col-center">${i + 1}</th>`).join('')}
-                    <th class="col-center">1</th><th class="col-center">2</th><th class="col-center">3</th><th class="col-center">4</th><th class="col-center">5</th><th class="col-center">รวม</th><th class="col-center">PRE</th><th class="col-center">OST</th>
+                <tr style="font-size:6.5pt;">
+                    ${Array.from({ length: 20 }, (_, i) => `<th class="col-center" style="width:16px; padding:1px 1px;">${i + 1}</th>`).join('')}
+                    <th class="col-center" style="width:18px; padding:1px 1px;">1</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">2</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">3</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">4</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">5</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">รวม</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">PRE</th>
+                    <th class="col-center" style="width:18px; padding:1px 1px;">OST</th>
                 </tr>
             </thead>
             <tbody>${trRows3}</tbody>
@@ -705,7 +737,9 @@ async function printPDF_v7() {
 
     const page4 = `
     <div style="padding: 20px 10px; position:relative; height: 297mm; box-sizing:border-box;">
-        <h3 style="text-align:center; font-weight:bold; font-size:14pt; margin-bottom:10px;">การประเมินคุณลักษณะอันพึงประสงค์ของกิจกรรมแนะแนว ชั้น ม.${grade} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}</h3>
+        <h3 style="text-align:center; font-weight:bold; font-size:14pt; margin-bottom:10px;">
+            การประเมินคุณลักษณะอันพึงประสงค์ของกิจกรรมแนะแนว <br>${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
+        </h3>
         <table class="print-table print-table-small">
             <thead>
                 <tr>
@@ -723,103 +757,121 @@ async function printPDF_v7() {
 
     // ===== CSS สำหรับพิมพ์ (ใช้กับหน้าต่างใหม่) =====
     const stylePrint = `
-        <style>
-            @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-            
-            /* กำหนดหน้ากระดาษ A4 */
-            @page {
-                size: A4 portrait;
-                margin: 0;
-            }
-            
-            * {
-                font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-                box-sizing: border-box;
-            }
-            
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
+        
+        @page {
+            size: A4 portrait;
+            margin: 0;
+        }
+        
+        * {
+            font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+            box-sizing: border-box;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            background: white;
+        }
+        
+        #print-wrapper {
+            background: white;
+            width: 100%;
+            height: auto;
+        }
+        
+        .page-break {
+            page-break-after: always !important;
+            break-after: page !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            height: 297mm;
+            min-height: 297mm;
+            max-height: 297mm;
+            padding: 10mm 15mm;
+            box-sizing: border-box;
+            position: relative;
+            overflow: hidden;
+            background: white;
+        }
+        
+        /* ✅ เพิ่ม CSS สำหรับหน้า 3 โดยเฉพาะ (ลด padding และฟอนต์) */
+        .page-break-attendance {
+            padding: 8mm 5mm !important;   /* ลด padding ซ้าย-ขวา */
+        }
+        
+        .page-break:last-child {
+            page-break-after: avoid !important;
+            break-after: avoid !important;
+        }
+        
+        .col-center {
+            text-align: center !important;
+            vertical-align: middle !important;
+        }
+        .col-left {
+            text-align: left !important;
+            padding-left: 6px !important;
+            vertical-align: middle !important;
+        }
+        .v-text {
+            writing-mode: vertical-rl;
+            transform: rotate(180deg);
+            white-space: nowrap;
+            margin: 0 auto;
+            display: block;
+        }
+        .print-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #000;
+        }
+        .print-table th,
+        .print-table td {
+            border: 1px solid #000;
+            padding: 2px 4px;
+            font-size: 8pt;
+        }
+        .print-table-small {
+            font-size: 7pt;   /* ✅ ลดจาก 8pt เป็น 7pt */
+        }
+        .print-table-small th,
+        .print-table-small td {
+            padding: 1px 2px;  /* ✅ ลด padding ในเซลล์ */
+            font-size: 7pt;
+        }
+        
+        /* ✅ ลดความกว้างของคอลัมน์ในตาราง (ใช้ class แทน style inline) */
+        .print-table-small .col-no { width: 20px; min-width: 20px; }
+        .print-table-small .col-id { width: 45px; min-width: 45px; }
+        .print-table-small .col-name { width: 120px; min-width: 120px; }
+        .print-table-small .col-week { width: 16px; min-width: 16px; }
+        .print-table-small .col-total { width: 25px; min-width: 25px; }
+        .print-table-small .col-score { width: 20px; min-width: 20px; }
+        .print-table-small .col-result { width: 25px; min-width: 25px; }
+        
+        /* โลโก้ */
+        .logo-img {
+            max-height: 100px;
+            margin: 0 auto;
+            display: block;
+        }
+        
+        @media print {
             body {
                 margin: 0;
                 padding: 0;
-                background: white;
             }
-            
-            #print-wrapper {
-                background: white;
-                width: 100%;
-                height: auto;
+            .no-print {
+                display: none !important;
             }
-            
-            .page-break {
-                page-break-after: always !important;
-                break-after: page !important;
-                page-break-inside: avoid !important;
-                break-inside: avoid !important;
-                height: 297mm;
-                min-height: 297mm;
-                max-height: 297mm;
-                padding: 10mm 15mm;
-                box-sizing: border-box;
-                position: relative;
-                overflow: hidden;
-                background: white;
-            }
-            
-            .page-break:last-child {
-                page-break-after: avoid !important;
-                break-after: avoid !important;
-            }
-            
-            .col-center {
-                text-align: center !important;
-                vertical-align: middle !important;
-            }
-            .col-left {
-                text-align: left !important;
-                padding-left: 6px !important;
-                vertical-align: middle !important;
-            }
-            .v-text {
-                writing-mode: vertical-rl;
-                transform: rotate(180deg);
-                white-space: nowrap;
-                margin: 0 auto;
-                display: block;
-            }
-            .print-table {
-                width: 100%;
-                border-collapse: collapse;
-                border: 1px solid #000;
-            }
-            .print-table th,
-            .print-table td {
-                border: 1px solid #000;
-                padding: 2px 4px;
-                font-size: 8pt;
-            }
-            .print-table-small {
-                font-size: 8pt;
-            }
-            
-            /* โลโก้ */
-            .logo-img {
-                max-height: 100px;
-                margin: 0 auto;
-                display: block;
-            }
-            
-            @media print {
-                body {
-                    margin: 0;
-                    padding: 0;
-                }
-                .no-print {
-                    display: none !important;
-                }
-            }
-        </style>
-    `;
+        }
+    </style>
+`;
 
     // ===== สร้าง HTML ฉบับสมบูรณ์สำหรับพิมพ์ =====
     const printHtml = `
