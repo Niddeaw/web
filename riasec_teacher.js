@@ -111,8 +111,10 @@ window.addEventListener('load', async () => {
 // สลับโหมด
 // ==========================================
 async function toggleMode() {
-    if (!isAdminMode) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
+    // ตรวจสอบสิทธิ์จริง: เป็น super_admin/admin หรือเป็น module admin ของ RIASEC
+    const canAdmin = isModuleAdmin || isAdminUser(currentUserRole, false);
+    if (!canAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถใช้โหมดผู้ดูแลระบบได้', 'warning');
         return;
     }
     isAdminMode = !isAdminMode;

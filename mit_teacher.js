@@ -133,8 +133,10 @@ window.addEventListener('load', async () => {
 // สลับโหมด (เฉพาะ admin เท่านั้น)
 // ==========================================
 async function toggleMode() {
-    if (!isAdminMode) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถสลับโหมดได้', 'warning');
+    // ตรวจสอบสิทธิ์จริง: เป็น super_admin/admin หรือเป็น module admin ของ MIT
+    const canAdmin = isModuleAdmin || isAdminUser(currentUserRole, false);
+    if (!canAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถใช้โหมดผู้ดูแลระบบได้', 'warning');
         return;
     }
     isAdminMode = !isAdminMode;
@@ -1848,7 +1850,7 @@ async function openDimStudentList(dimKey) {
 }
 
 // ==========================================
-// ประกาศฟังก์ชัน global สำหรับส่วนที่ 1
+// ประกาศฟังก์ชัน global
 // ==========================================
 window.logout = logout;
 window.toggleMode = toggleMode;
@@ -1858,11 +1860,6 @@ window.openEditForStudent = openEditForStudent;
 window.closeEditModal = closeEditModal;
 window.saveEdit = saveEdit;
 window.deleteResult = deleteResult;
-
-console.log('✅ mit_teacher.js (Part 1) loaded');
-// ==========================================
-// ประกาศฟังก์ชัน global สำหรับส่วนที่ 2
-// ==========================================
 window.exportExcel = exportExcel;
 window.printStudentPdf = printStudentPdf;
 window.openImportModal = openImportModal;
@@ -1880,4 +1877,4 @@ window.removeModuleAdmin = removeModuleAdmin;
 window.openDimStudentList = openDimStudentList;
 window.closeDimStudentModal = closeDimStudentModal;
 
-console.log('✅ mit_teacher.js (Part 2) loaded');
+console.log('✅ mit_teacher.js loaded - โหลดระบบ MIT เรียบร้อยแล้ว');
