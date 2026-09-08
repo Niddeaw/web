@@ -754,7 +754,7 @@ async function calculateEditDays() {
 
     const wrapper = document.getElementById('edit_evidence_upload_wrapper');
     const fileInput = document.getElementById('edit_evidence_file');
-    if (days >= 3) {
+    if (days >= 3 && type === 'ลาป่วย') {
         wrapper.classList.remove('hidden');
         fileInput.setAttribute('required', 'required');
     } else {
@@ -793,21 +793,20 @@ function editLeave(id) {
     const existingName = document.getElementById('edit_existing_evidence_name');
 
     const days = parseFloat($('#edit_calc_days').text());
-    if (days >= 3) {
+
+    if (days >= 3 && leave.type === 'ลาป่วย') {
         wrapper.classList.remove('hidden');
         fileInput.setAttribute('required', 'required');
         if (leave.attachment_file_id) {
             existingDiv.classList.remove('hidden');
             existingName.textContent = `ไฟล์หลักฐาน ID: ${leave.attachment_file_id}`;
             existingDiv.dataset.fileId = leave.attachment_file_id;
-        } else {
-            existingDiv.classList.add('hidden');
         }
     } else {
         wrapper.classList.add('hidden');
         fileInput.removeAttribute('required');
         fileInput.value = '';
-        existingDiv.classList.add('hidden');
+        document.getElementById('edit_existing_evidence').classList.add('hidden');
     }
 
     $('#editLeaveModal').removeClass('hidden');
@@ -832,7 +831,7 @@ $('#editLeaveForm').on('submit', async function (e) {
     const existingDiv = document.getElementById('edit_existing_evidence');
     const existingFileId = existingDiv.dataset.fileId || null;
 
-    if (days >= 3) {
+    if (days >= 3 && type === 'ลาป่วย') {
         if (fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             if (file.size > 5 * 1024 * 1024) {
@@ -1843,7 +1842,7 @@ window.adminCalculateDays = async function () {
 
     const wrapper = document.getElementById('admin_evidence_upload_wrapper');
     const fileInput = document.getElementById('admin_evidence_file');
-    if (days >= 3) {
+    if (days >= 3 && type === 'ลาป่วย') {
         wrapper.classList.remove('hidden');
         fileInput.setAttribute('required', 'required');
     } else {
@@ -1959,7 +1958,7 @@ window.saveLeaveForAdmin = async function (e) {
 
     let attachmentFileId = null;
     const fileInput = document.getElementById('admin_evidence_file');
-    if (totalDays >= 3) {
+    if (totalDays >= 3 && type === 'ลาป่วย') {
         if (fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             if (file.size > 5 * 1024 * 1024) {

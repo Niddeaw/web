@@ -156,7 +156,7 @@ window.calculateDays = async function () {
     const wrapper = $('#evidence_upload_wrapper');
     if (wrapper.length) {
         const fileInput = $('#evidence_file');
-        if (days >= 3) {
+        if (days >= 3 && type === 'ลาป่วย') {
             wrapper.removeClass('hidden');
             fileInput.prop('required', true);
         } else {
@@ -377,9 +377,10 @@ window.editLeave = function (id) {
     const existingName = $('#existing_evidence_name');
 
     if (wrapper.length) {
-        if (l.total_days >= 3) {
+        if (l.total_days >= 3 && l.type === 'ลาป่วย') {
             wrapper.removeClass('hidden');
             fileInput.prop('required', true);
+            // แสดงไฟล์เดิมถ้ามี
             if (l.attachment_file_id) {
                 existingDiv.removeClass('hidden');
                 existingName.text(`ไฟล์หลักฐาน ID: ${l.attachment_file_id}`);
@@ -423,7 +424,7 @@ window.saveLeave = async function (e) {
     const existingDiv = $('#existing_evidence');
     const existingFileId = existingDiv.data('fileId') || null;
 
-    if (totalDays >= 3) {
+    if (totalDays >= 3 && type === 'ลาป่วย') {
         if (fileInput && fileInput.files && fileInput.files.length > 0) {
             const file = fileInput.files[0];
             if (file.size > 5 * 1024 * 1024) {
