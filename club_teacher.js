@@ -2,8 +2,16 @@
 // System Module: Club Management (Unified Teacher/Admin)
 // ปรับปรุง: ใช้ฟังก์ชันตรวจสอบสิทธิ์จาก config.js มาตรฐานกลาง
 // แก้ไข: เพิ่ม logUserAction ในทุก CRUD และเปลี่ยน logout ให้เป็นมาตรฐาน
+// แก้ไขล่าสุด: เพิ่มสิทธิ์ "ผู้อำนวยการ (director)" ให้เทียบเท่า Super Admin
 // ==========================================
 const MODULE_ID = 'club_system';
+
+// ==========================================
+// Director Role Support (ผู้อำนวยการ)
+// ปรับชื่อ role ให้ตรงกับ core_personnel / auth ของคุณ
+// ==========================================
+const DIRECTOR_ROLE = 'director';
+const ALLOWED_ROLES = ['super_admin', 'admin', 'teacher', 'staff', DIRECTOR_ROLE];
 
 let currentUser = null;
 let userRole = 'teacher';
@@ -28,10 +36,28 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ==========================================
-// Helper: ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็น Admin (หลัก หรือ โมดูล)
+// Helper: ตรวจสอบสิทธิ์ผู้อำนวยการ / แอดมิน
+// ==========================================
+function isDirector() {
+    return userRole === DIRECTOR_ROLE;
+}
+
+// ตรวจสอบสิทธิ์แอดมิน (รองรับผู้อำนวยการ)
+function checkAdmin() {
+    return isDirector() || isAdminUser(userRole, isAdminMode);
+}
+
+// requireAdmin wrapper ที่ผ่านทันทีถ้าเป็นผู้อำนวยการ
+function checkRequireAdmin(msg) {
+    if (isDirector()) return true;
+    return requireAdmin(userRole, isAdminMode, msg);
+}
+
+// ==========================================
+// Helper: ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็น Admin (หลัก / โมดูล / ผู้อำนวยการ)
 // ==========================================
 function hasAdminAccess() {
-    return isAdminUser(userRole, isAdminMode) || isModuleAdmin;
+    return checkAdmin() || isModuleAdmin;
 }
 
 // ==========================================
@@ -41,22 +67,21 @@ async function initSystem() {
     Swal.fire({ title: 'ตรวจสอบข้อมูลส่วนกลาง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        // ✅ ใช้ checkSessionAndRole จาก config.js
-        const result = await checkSessionAndRole('ระบบชุมนุม (ครู)', ['super_admin', 'admin', 'teacher', 'staff']);
+        // ✅ ใช้ checkSessionAndRole จาก config.js (เพิ่ม director เข้าไปในรายการ role ที่อนุญาต)
+        const result = await checkSessionAndRole('ระบบชุมนุม (ครู)', ALLOWED_ROLES);
         if (!result) return;
 
         const { user, personnel, role, isAdmin, isTeacher } = result;
         currentUser = personnel;
         userRole = role;
-        isAdminMode = isAdmin;
+        isAdminMode = isAdmin || isDirector(); // ⬅️ ผู้อำนวยการถือเป็น admin mode ด้วย
         $('#user-display').text(`${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`);
 
         // ✅ ตรวจสอบ Module Admin ด้วย hasModuleAccess
         isModuleAdmin = await hasModuleAccess(role, MODULE_ID, user.id);
 
         // ✅ Unhide ปุ่มก่อน เพื่อให้ updateToggleModeUI (config.js) ทำงานได้
-        //    (config.js จะ return กลางคันถ้าปุ่มยัง hidden อยู่)
-        if (isAdminMode || isModuleAdmin) {
+        if (isAdminMode || isModuleAdmin || isDirector()) {
             document.getElementById('btnAdminMode')?.classList.remove('hidden');
             document.getElementById('btnAdminMode')?.classList.add('flex');
             document.getElementById('admin-settings-btn')?.classList.remove('hidden');
@@ -64,11 +89,10 @@ async function initSystem() {
         }
 
         // ✅ อัปเดตปุ่มสลับโหมด (ต้องเรียกหลัง unhide เท่านั้น)
-        updateToggleModeUI(role, isAdminMode, 'btnAdminMode');
+        updateToggleModeUI(role, isAdminMode || isDirector(), 'btnAdminMode');
 
-        // ✅ ใช้ applyVisibilityByRole จาก config.js (เรียกหลังสุด ห้ามซ่อนปุ่มที่เพิ่ง unhide)
-        //    ส่ง isAdminMode แทน role-based เพื่อให้ Module Admin ไม่ถูกซ่อนปุ่ม toggle
-        applyVisibilityByRole(role, isAdminMode || isModuleAdmin, {
+        // ✅ ใช้ applyVisibilityByRole จาก config.js
+        applyVisibilityByRole(role, isAdminMode || isModuleAdmin || isDirector(), {
             settingsBtn: 'admin-settings-btn',
             toggleBtn: 'btnAdminMode',
             adminManagerBtn: null
@@ -109,8 +133,8 @@ async function loadAllTeachers() {
 // 2. Role Switcher (ใช้ config.js)
 // ==========================================
 window.toggleRoleView = () => {
-    // ✅ ตรวจสอบสิทธิ์: Admin หลัก หรือ Module Admin เท่านั้นที่สลับได้
-    if (!isAdminUser(userRole, isAdminMode) && !isModuleAdmin) {
+    // ✅ ตรวจสอบสิทธิ์: Admin หลัก / Module Admin / ผู้อำนวยการ เท่านั้นที่สลับได้
+    if (!checkAdmin() && !isModuleAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
         return;
     }
@@ -155,8 +179,7 @@ window.toggleRoleView = () => {
     }
 
     // ✅ trueAdminAccess = สิทธิ์จริงของผู้ใช้ (ไม่ขึ้นกับโหมดที่กำลังดูอยู่)
-    //    ใช้ค่านี้แทน isAdminMode เพื่อไม่ให้ปุ่มหายหลังสลับกลับโหมดครู
-    const trueAdminAccess = WRK_ROLES.ADMIN.includes(userRole) || isModuleAdmin;
+    const trueAdminAccess = WRK_ROLES.ADMIN.includes(userRole) || isModuleAdmin || isDirector();
 
     updateToggleModeUI(userRole, isAdminMode, 'btnAdminMode');
     applyVisibilityByRole(userRole, trueAdminAccess, {
@@ -554,7 +577,7 @@ window.viewClubStudents = async (clubId, clubName) => {
             return;
         }
 
-        const hasAdminAccess = isAdminUser(userRole, isAdminMode);
+        const hasAdminAccess = checkAdmin(); // ⬅️ รองรับผู้อำนวยการ
 
         const rows = members.map(m => {
             const stu = m.core_students;
@@ -673,7 +696,7 @@ window.removeStudentFromClub = async (regId, studentName, clubId, clubName) => {
 // Admin: Load Clubs
 // ==========================================
 async function loadAdminClubs() {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     const { data: clubs, error } = await db.from('club_lists')
         .select(`*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name)`)
@@ -836,7 +859,7 @@ async function loadClubDashboardStats() {
 // Admin: Load All Students Report (ทั้งปี)
 // ==========================================
 async function loadAllStudentsReport() {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งโรงเรียน...', didOpen: () => Swal.showLoading() });
     try {
@@ -886,7 +909,7 @@ async function loadAllStudentsReport() {
             let badge = s.status === 'not_applied' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-slate-100 text-slate-500">ยังไม่เลือก</span>' : (s.status === 'approved' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-emerald-100 text-emerald-700">อนุมัติ</span>' : (s.status === 'rejected' ? '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-red-100 text-red-700">ไม่อนุมัติ</span>' : '<span class="px-2 py-1 text-[11px] font-bold rounded-full bg-amber-100 text-amber-700">รอตรวจ</span>'));
             
             let actionHtml = '<span class="text-slate-300">-</span>';
-            if (isAdminUser(userRole, isAdminMode)) { 
+            if (checkAdmin()) { // ⬅️ รองรับผู้อำนวยการ
                 if (s.reg_id) {
                     actionHtml = `
                     <div class="flex items-center justify-center gap-1">
@@ -928,7 +951,7 @@ async function loadAllStudentsReport() {
 // Super Admin Quick Actions
 // ==========================================
 window.saSetStatus = async (regId, status) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     const statusText = status === 'approved' ? 'อนุมัติ' : 'ไม่อนุมัติ';
     const { isConfirmed } = await Swal.fire({
@@ -959,7 +982,7 @@ window.saSetStatus = async (regId, status) => {
 };
 
 window.saDeleteReg = async (regId) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบข้อมูล?',
@@ -986,7 +1009,7 @@ window.saDeleteReg = async (regId) => {
 };
 
 window.saManageClub = async (regId, studentId, currentClubId, currentStatus, studentName) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     try {
         Swal.fire({ title: 'กำลังโหลดข้อมูลชุมนุม...', didOpen: () => Swal.showLoading() });
@@ -1079,7 +1102,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
 };
 
 window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     const actionText = isCurrentlyLocked ? 'ปลดล็อค' : 'ล็อค';
     const { isConfirmed } = await Swal.fire({
@@ -1110,7 +1133,7 @@ window.toggleLockAdminClub = async (id, isCurrentlyLocked, name) => {
 // Admin: Export Functions
 // ==========================================
 window.exportAllStudentsExcel = () => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
     if (allStudentsReportData.length === 0) return;
 
     const ws = XLSX.utils.json_to_sheet(allStudentsReportData.map(s => {
@@ -1151,7 +1174,7 @@ window.downloadClubTemplate = () => {
 };
 
 window.importClubsFromExcel = async (event) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     const file = event.target.files[0];
     if (!file) return;
@@ -1311,7 +1334,7 @@ window.importClubsFromExcel = async (event) => {
 };
 
 window.exportClubsToExcel = () => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
     if (allClubsData.length === 0) {
         return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลชุมนุมในภาคเรียนนี้ให้ส่งออก', 'info');
     }
@@ -1338,7 +1361,7 @@ window.exportClubsToExcel = () => {
 };
 
 window.importClubMembersExcel = (clubId, clubName) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     Swal.fire({
         title: `นำเข้าสมาชิก: ${clubName}`,
@@ -1363,7 +1386,7 @@ window.importClubMembersExcel = (clubId, clubName) => {
 };
 
 async function processExcelImport(file, clubId) {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
 
     Swal.fire({ title: 'กำลังประมวลผล...', didOpen: () => Swal.showLoading() });
 
@@ -1431,7 +1454,7 @@ async function processExcelImport(file, clubId) {
 }
 
 // ==========================================
-// Admin: Modals (Club & Settings) - ใช้ requireAdmin
+// Admin: Modals (Club & Settings) - ใช้ checkRequireAdmin
 // ==========================================
 function updateTeacherAvatarPreview(teacherId) {
     const container = document.getElementById('teacher-avatar-preview-container');
@@ -1490,7 +1513,7 @@ function initAdminTomSelect() {
 }
 
 window.openAdminClubModal = () => {
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     document.getElementById('admin-club-form').reset();
     document.getElementById('ac_id').value = '';
     document.getElementById('ac_capacity').value = 20;
@@ -1501,7 +1524,7 @@ window.openAdminClubModal = () => {
 };
 
 window.editAdminClub = (id, name, catName, tId, grades, cap, loc, desc) => {
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     document.getElementById('ac_id').value = id;
     document.getElementById('ac_name').value = name;
     document.getElementById('ac_capacity').value = cap;
@@ -1524,7 +1547,7 @@ window.closeAdminClubModal = () => {
 
 window.saveAdminClub = async (e) => {
     if (e) e.preventDefault();
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading() });
 
@@ -1571,7 +1594,7 @@ window.saveAdminClub = async (e) => {
 };
 
 window.deleteAdminClub = async (id, name) => {
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบ?',
@@ -1590,10 +1613,10 @@ window.deleteAdminClub = async (id, name) => {
 };
 
 // ==========================================
-// Admin: Module Settings (ใช้ requireAdmin)
+// Admin: Module Settings (ใช้ checkRequireAdmin)
 // ==========================================
 window.openAdminSettings = () => {
-    if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) return;
+    if (!checkRequireAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถตั้งค่าระบบได้')) return;
     document.getElementById('admin-settings-modal').classList.remove('hidden');
     document.getElementById('admin-settings-modal').classList.add('flex');
     loadModuleAdmins();
@@ -1668,7 +1691,7 @@ async function loadModuleAdmins() {
 }
 
 window.addModuleAdmin = async () => {
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     
     const uid = document.getElementById('sel-add-module-admin').value;
     if (!uid) return Swal.fire('เตือน', 'กรุณาเลือกครู', 'warning');
@@ -1709,7 +1732,7 @@ window.addModuleAdmin = async () => {
 };
 
 window.removeModuleAdmin = async (id) => {
-    if (!requireAdmin(userRole, isAdminMode)) return;
+    if (!checkRequireAdmin()) return;
     
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบสิทธิ์?',
@@ -1743,7 +1766,7 @@ window.removeModuleAdmin = async (id) => {
 // Dashboard Modals (Unassigned & Pending)
 // ==========================================
 window.exportDashboardToExcel = (dataType) => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
     
     let rawData = dataType === 'unassigned' ? [...unassignedStudentsData] : [...pendingStudentsData];
     let fileName = dataType === 'unassigned' ? 'รายชื่อนักเรียนตกหล่น_ยังไม่เลือกชุมนุม.xlsx' : 'รายชื่อนักเรียน_รอพิจารณาอนุมัติชุมนุม.xlsx';
@@ -1797,7 +1820,7 @@ window.exportDashboardToExcel = (dataType) => {
 };
 
 window.showUnassignedStudentsModal = () => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
     
     if (unassignedStudentsData.length === 0) {
         return Swal.fire({ icon: 'success', title: 'ยอดเยี่ยม!', text: 'นักเรียนทุกคนเลือกชุมนุมครบถ้วน' });
@@ -1871,7 +1894,7 @@ window.showUnassignedStudentsModal = () => {
 };
 
 window.showPendingStudentsModal = () => {
-    if (!isAdminUser(userRole, isAdminMode)) return;
+    if (!checkAdmin()) return; // ⬅️ รองรับผู้อำนวยการ
     
     if (pendingStudentsData.length === 0) {
         return Swal.fire({ icon: 'success', title: 'ไม่มีค้าง!', text: 'ไม่มีรายการนักเรียนที่รอการพิจารณาครับ' });
