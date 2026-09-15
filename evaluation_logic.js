@@ -1593,7 +1593,9 @@ function closeCommitteeReviewModal() {
 // ==========================================
 // โหลดชุดคณะกรรมการสำหรับ Modal ตรวจสอบ
 // ==========================================
-// ใน evaluation_logic.js
+// ==========================================
+// โหลดชุดคณะกรรมการสำหรับ Modal ตรวจสอบ (ฉบับแก้ไข)
+// ==========================================
 async function loadReviewCommitteeGroups() {
     try {
         if (!currentEvalRound) {
@@ -1606,63 +1608,89 @@ async function loadReviewCommitteeGroups() {
         select.innerHTML = '<option value="">-- เลือกชุด --</option>';
         deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
 
-        let mySubGroups;
-        // ✅ ผอ. และ Admin เห็นทุกชุด
-        if (['super_admin', 'admin', 'director'].includes(currentUser.role)) {
-            const { data: allSubs } = await db
-                .from('eval_committee_groups')
-                .select('*, eval_committee_targets(*)')
-                .eq('eval_round_id', currentEvalRound.id)
-                .eq('group_type', 'sub')
-                .eq('is_active', true);
-            mySubGroups = allSubs || [];
-        } else {
-            mySubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
-        }
+        // ✅ ใช้ loadCommitteeStructure เพื่อดึง main + sub + members + targets พร้อมกัน
+        const structure = await loadCommitteeStructure(currentEvalRound.id);
+        const mainGroups = structure.filter(g => g.group_type === 'main');
 
-        if (!mySubGroups || mySubGroups.length === 0) {
+        if (!mainGroups || mainGroups.length === 0) {
             select.innerHTML = '<option value="">ไม่มีชุดคณะกรรมการ</option>';
             return;
         }
 
-        const structure = await loadCommitteeStructure(currentEvalRound.id);
-        const mainGroups = structure.filter(g => g.group_type === 'main');
+        // ✅ สำหรับ ผอ./Admin/Super Admin เห็นทุกชุด
+        // สำหรับครู/รองผู้อำนวยการ เห็นเฉพาะที่ตัวเองเป็นสมาชิก
+        let allowedGroupIds = null;
+        const isPrivileged = ['super_admin', 'admin', 'director'].includes(currentUser.role);
+        if (!isPrivileged) {
+            const myMemberships = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
+            allowedGroupIds = new Set(myMemberships.map(sg => sg.id));
+        }
 
         for (const mainGroup of mainGroups) {
-            const subGroups = mySubGroups.filter(sg => sg.parent_group_id === mainGroup.id);
-            if (subGroups.length === 0) continue;
+            const subGroups = mainGroup.sub_groups || [];
+            const hasSubGroups = subGroups.length > 0;
+
+            // ✅ กรองสิทธิ์
+            const canSeeMain = !allowedGroupIds || allowedGroupIds.has(mainGroup.id);
+            const visibleSubGroups = allowedGroupIds
+                ? subGroups.filter(sub => allowedGroupIds.has(sub.id))
+                : subGroups;
+
+            // ถ้าไม่มีสิทธิ์ดูทั้ง Main และ Sub → ข้าม
+            if (!canSeeMain && visibleSubGroups.length === 0) continue;
+            // ถ้ามี Sub Groups แต่ไม่มีสิทธิ์ดู Sub ใดเลย และดู Main ไม่ได้ → ข้าม
+            if (hasSubGroups && visibleSubGroups.length === 0 && !canSeeMain) continue;
 
             const optgroup = document.createElement('optgroup');
             optgroup.label = mainGroup.group_name;
 
-            subGroups.forEach(sub => {
-                const option = document.createElement('option');
-                option.value = sub.id;
-                option.textContent = `${sub.group_name} (${sub.members?.length || 0} คน)`;
-                option.dataset.targets = JSON.stringify(sub.targets || []);
-                option.dataset.selectedSubItems = JSON.stringify(sub.selected_sub_items || []);
-                optgroup.appendChild(option);
-            });
+            if (!hasSubGroups) {
+                // ✅ Main Group ไม่มี Sub Group → เพิ่ม Main Group เป็น option
+                if (canSeeMain) {
+                    const option = document.createElement('option');
+                    option.value = mainGroup.id;
+                    option.textContent = `${mainGroup.group_name} (${mainGroup.members?.length || 0} คน)`;
+                    option.dataset.targets = JSON.stringify(mainGroup.targets || []);
+                    option.dataset.selectedSubItems = JSON.stringify(mainGroup.selected_sub_items || []);
+                    optgroup.appendChild(option);
+                }
+            } else {
+                // ✅ มี Sub Group → แสดงเฉพาะ Sub Groups
+                visibleSubGroups.forEach(sub => {
+                    const option = document.createElement('option');
+                    option.value = sub.id;
+                    option.textContent = `${sub.group_name} (${sub.members?.length || 0} คน)`;
+                    option.dataset.targets = JSON.stringify(sub.targets || []);
+                    option.dataset.selectedSubItems = JSON.stringify(sub.selected_sub_items || []);
+                    optgroup.appendChild(option);
+                });
+            }
 
-            select.appendChild(optgroup);
+            // เพิ่ม optgroup เฉพาะเมื่อมี option ข้างใน
+            if (optgroup.children.length > 0) {
+                select.appendChild(optgroup);
+            }
         }
 
-        // event listener เดิม
-        select.addEventListener('change', function () {
+        // ✅ ใช้ onchange (แทน addEventListener) เพื่อป้องกัน listener ซ้ำเมื่อเปิด Modal หลายครั้ง
+        select.onchange = function () {
             const selectedOption = this.options[this.selectedIndex];
-            if (selectedOption && selectedOption.dataset) {
-                const targets = JSON.parse(selectedOption.dataset.targets || '[]');
-                const deptSelect = document.getElementById('review_department');
-                deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
-                const departmentTargets = targets.filter(t => t.target_type === 'department');
-                departmentTargets.forEach(t => {
-                    deptSelect.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
-                });
-                if (departmentTargets.length === 1) {
-                    deptSelect.value = departmentTargets[0].target_value;
-                }
+            const deptSelectInner = document.getElementById('review_department');
+            deptSelectInner.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+            if (!selectedOption || !selectedOption.value) return;
+
+            const targets = JSON.parse(selectedOption.dataset.targets || '[]');
+            const departmentTargets = targets.filter(t => t.target_type === 'department');
+
+            departmentTargets.forEach(t => {
+                deptSelectInner.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
+            });
+
+            if (departmentTargets.length === 1) {
+                deptSelectInner.value = departmentTargets[0].target_value;
             }
-        });
+        };
 
     } catch (err) {
         console.error('Error loading review committee groups:', err);

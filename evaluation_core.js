@@ -652,11 +652,23 @@ async function loadCommitteeEvaluationTasks() {
             allSubGroups = structureSubGroups;
         } else if (['teacher', 'deputy'].includes(currentUser.role)) {
             allSubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
-            const subGroupParentIds = new Set(allSubGroups.map(sg => sg.parent_group_id));
-            // ✅ main.members มาจาก structure อยู่แล้ว (query เดียวกันเป๊ะกับที่เคย query ซ้ำตรงนี้)
-            //    ไม่ต้อง query DB ใหม่ — แค่ซ่อนรายชื่อกรรมการของชุดหลักที่ผู้ใช้ไม่มีส่วนเกี่ยวข้อง (privacy)
+
+            // ✅ แยกกลุ่มที่ผู้ใช้เป็นสมาชิกตรงๆ กับกลุ่มที่ผู้ใช้เป็นสมาชิกผ่าน sub group
+            const subGroupParentIds = new Set(
+                allSubGroups
+                    .filter(sg => sg.group_type === 'sub')
+                    .map(sg => sg.parent_group_id)
+                    .filter(id => id)
+            );
+            // ✅ Main Group ที่ผู้ใช้เป็นสมาชิกโดยตรง (ไม่มี parent_group_id)
+            const directMainGroupIds = new Set(
+                allSubGroups
+                    .filter(sg => sg.group_type === 'main')
+                    .map(sg => sg.id)
+            );
+
             for (const main of mainGroups) {
-                if (!subGroupParentIds.has(main.id)) {
+                if (!subGroupParentIds.has(main.id) && !directMainGroupIds.has(main.id)) {
                     main.members = [];
                 }
             }
@@ -703,8 +715,21 @@ async function loadCommitteeEvaluationTasks() {
             mainTabsContainer.innerHTML = '';
             let displayedMainGroups = mainGroups;
             if (!isSuperAdmin && !viewOnly) {
-                const subGroupParentIds = new Set(allSubGroups.map(sg => sg.parent_group_id));
-                displayedMainGroups = mainGroups.filter(m => subGroupParentIds.has(m.id));
+                const subGroupParentIds = new Set(
+                    allSubGroups
+                        .filter(sg => sg.group_type === 'sub')
+                        .map(sg => sg.parent_group_id)
+                        .filter(id => id)
+                );
+                // ✅ Main Group ที่ผู้ใช้เป็นสมาชิกโดยตรง
+                const directMainGroupIds = new Set(
+                    allSubGroups
+                        .filter(sg => sg.group_type === 'main')
+                        .map(sg => sg.id)
+                );
+                displayedMainGroups = mainGroups.filter(m =>
+                    subGroupParentIds.has(m.id) || directMainGroupIds.has(m.id)
+                );
             }
             if (displayedMainGroups.length === 0) {
                 if (alwaysShowCommittee) {
