@@ -296,19 +296,44 @@ function renderStatsCards(total, assessed, notAssessed, dimStats) {
 
     let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
     const mainCards = [
-        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue' },
-        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green' },
-        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber' }
+        {
+            label: 'นักเรียนทั้งหมด',
+            value: total,
+            icon: 'fa-users',
+            color: 'blue',
+            clickable: false,
+            status: null
+        },
+        {
+            label: 'สำรวจแล้ว',
+            value: assessed,
+            icon: 'fa-check-circle',
+            color: 'green',
+            clickable: true,
+            status: 'done'
+        },
+        {
+            label: 'ยังไม่สำรวจ',
+            value: notAssessed,
+            icon: 'fa-clock',
+            color: 'amber',
+            clickable: true,
+            status: 'pending'
+        }
     ];
     mainCards.forEach(card => {
+        const cursorCls = card.clickable ? ' cursor-pointer hover:shadow-md transition-shadow' : '';
+        const onclickAttr = card.clickable ? ` onclick="openStatusStudentList('${card.status}')"` : '';
+        const hint = card.clickable ? `<p class="text-xs text-${card.color}-600 font-bold mt-2"><i class="fas fa-hand-pointer mr-1"></i> คลิกเพื่อดูรายชื่อ</p>` : '';
         html += `
-            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden">
+            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden${cursorCls}"${onclickAttr}>
                 <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
                     <i class="fas ${card.icon}"></i>
                 </div>
                 <div class="relative z-10">
                     <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
                     <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
+                    ${hint}
                 </div>
             </div>
         `;
@@ -1069,9 +1094,9 @@ function buildRIASECPdfHtml(opts) {
             '<div class="stitle2">💼 อาชีพที่แนะนำตามบุคลิกภาพของคุณ</div>' +
             '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;">';
         var borderColors = ['#10b981', '#3b82f6', '#f59e0b'];
-        top3.forEach(function(d, idx) {
+        top3.forEach(function (d, idx) {
             var careers = RIASEC_CAREERS[d.key] || [];
-            var list = careers.slice(0, 5).map(function(c) {
+            var list = careers.slice(0, 5).map(function (c) {
                 return '<li style="font-size:10px;color:#374151;list-style-type:disc;margin-left:12px;">' + c + '</li>';
             }).join('');
             careerHtml +=
@@ -1850,6 +1875,153 @@ async function openDimStudentList(dimKey) {
 }
 
 // ==========================================
+// รายชื่อนักเรียนตามสถานะ (สำรวจแล้ว / ยังไม่สำรวจ)
+// ==========================================
+function closeStatusStudentModal() {
+    const modal = document.getElementById('status-student-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if (window.statusStudentTable) {
+        window.statusStudentTable.destroy();
+        window.statusStudentTable = null;
+    }
+}
+
+async function openStatusStudentList(status) {
+    // status = 'done' หรือ 'pending'
+    const isDone = status === 'done';
+    const titleText = isDone ? '✅ นักเรียนที่ทำแบบประเมินแล้ว' : '⏳ นักเรียนที่ยังไม่ทำแบบประเมิน';
+    const headerBg = isDone 
+        ? 'background:linear-gradient(to right, #10b981, #059669);' 
+        : 'background:linear-gradient(to right, #f59e0b, #d97706);';
+
+    document.getElementById('status-modal-title').textContent = titleText;
+    document.getElementById('status-modal-subtitle').textContent = 'กำลังโหลดข้อมูล...';
+    document.getElementById('status-modal-header').setAttribute('style', headerBg);
+
+    const tbody = document.getElementById('status-student-tbody');
+    if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400"><i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>`;
+
+    // เปิด modal
+    const modal = document.getElementById('status-student-modal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        // ดึงข้อมูล enrollment ของห้องที่ครูดูอยู่
+        let roomIds = [];
+        if (currentSelectedClassroomId) {
+            roomIds = [currentSelectedClassroomId];
+        } else {
+            roomIds = allClassrooms.map(r => r.id);
+        }
+
+        if (roomIds.length === 0) {
+            Swal.close();
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">ไม่พบห้องเรียนในระบบ</td></tr>`;
+            return;
+        }
+
+        // ดึง assessment ของเทอมนี้
+        const { data: riasecs, error: riasecErr } = await db.from('riasec_assessments')
+            .select('student_id')
+            .eq('academic_year', String(schoolInfo?.current_academic_year))
+            .eq('semester', String(schoolInfo?.current_semester))
+            .in('classroom_id', roomIds);
+
+        if (riasecErr) throw riasecErr;
+        const assessedIds = new Set((riasecs || []).map(r => r.student_id));
+
+        // ดึง enrollment + ข้อมูลนักเรียน
+        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .in('classroom_id', roomIds)
+            .order('student_number');
+
+        if (enrollErr) throw enrollErr;
+
+        // กรองตามสถานะ
+        const filtered = (enrolls || []).filter(e => {
+            const isAssessed = assessedIds.has(e.student_id);
+            return isDone ? isAssessed : !isAssessed;
+        });
+
+        // เรียงตามห้อง + เลขที่
+        filtered.sort((a, b) => {
+            const gA = String(a.core_classrooms?.grade_level || '') + String(a.core_classrooms?.room_number || '');
+            const gB = String(b.core_classrooms?.grade_level || '') + String(b.core_classrooms?.room_number || '');
+            if (gA !== gB) return gA.localeCompare(gB, undefined, { numeric: true });
+            return (a.student_number || 0) - (b.student_number || 0);
+        });
+
+        // แสดงผล
+        document.getElementById('status-modal-subtitle').textContent = `รวม ${filtered.length} คน`;
+
+        if (filtered.length === 0) {
+            if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500 font-medium">ไม่มีนักเรียนในกลุ่มนี้</td></tr>`;
+            Swal.close();
+            return;
+        }
+
+        let html = '';
+        filtered.forEach(r => {
+            const std = r.core_students;
+            const cls = r.core_classrooms;
+            const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+            const studentIdCard = std?.student_id_card || '-';
+            const gradeLevel = cls?.grade_level || '-';
+            const roomNumber = cls?.room_number || '-';
+            const roomText = gradeLevel !== '-' ? `ม.${gradeLevel}/${roomNumber}` : '-';
+
+            const statusBadge = isDone
+                ? '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-green-100 text-green-700"><i class="fas fa-check mr-1"></i>สำรวจแล้ว</span>'
+                : '<span class="text-xs font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"><i class="fas fa-clock mr-1"></i>ยังไม่สำรวจ</span>';
+
+            const viewBtn = isDone
+                ? `<button onclick="closeStatusStudentModal(); openViewResult('${r.student_id}')" class="h-8 w-8 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-sm"></i></button>`
+                : `<span class="text-slate-300">-</span>`;
+
+            html += `<tr>
+                <td class="text-center">${roomText}</td>
+                <td class="text-center font-bold text-slate-400">${r.student_number || '-'}</td>
+                <td class="text-center">${studentIdCard}</td>
+                <td class="font-semibold text-slate-700">${fullName}</td>
+                <td class="text-center">${statusBadge}</td>
+                <td class="text-center">${viewBtn}</td>
+            </tr>`;
+        });
+        tbody.innerHTML = html;
+
+        // สร้าง DataTable
+        if (window.statusStudentTable) {
+            window.statusStudentTable.destroy();
+            window.statusStudentTable = null;
+        }
+        setTimeout(() => {
+            window.statusStudentTable = new DataTable('#status-student-table', {
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                responsive: true,
+                scrollX: true,
+                pageLength: 50,
+                order: [],
+                columnDefs: [{ orderable: false, targets: [5] }]
+            });
+        }, 100);
+
+        Swal.close();
+    } catch (error) {
+        Swal.close();
+        console.error('openStatusStudentList error:', error);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-rose-500">ไม่สามารถโหลดข้อมูลได้: ${error.message}</td></tr>`;
+    }
+}
+
+// ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
 window.logout = logout;
@@ -1876,5 +2048,7 @@ window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.openDimStudentList = openDimStudentList;
 window.closeDimStudentModal = closeDimStudentModal;
+window.openStatusStudentList = openStatusStudentList;
+window.closeStatusStudentModal = closeStatusStudentModal;
 
 console.log('✅ riasec_teacher.js loaded');

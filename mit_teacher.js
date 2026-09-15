@@ -617,22 +617,30 @@ function renderStatsCards(total, assessed, notAssessed, dimStats) {
 
     let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
     const mainCards = [
-        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue' },
-        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green' },
-        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber' }
+        { label: 'นักเรียนทั้งหมด', value: total, icon: 'fa-users', color: 'blue', listType: null },
+        { label: 'สำรวจแล้ว', value: assessed, icon: 'fa-check-circle', color: 'green', listType: 'assessed' },
+        { label: 'ยังไม่สำรวจ', value: notAssessed, icon: 'fa-clock', color: 'amber', listType: 'notAssessed' }
     ];
     mainCards.forEach(card => {
+        const clickAttr = card.listType ? `onclick="openStatusStudentList('${card.listType}')"` : '';
+        const cursorClass = card.listType
+            ? 'cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 ring-1 ring-transparent hover:ring-' + card.color + '-200'
+            : '';
+        const hint = card.listType
+            ? `<p class="text-[10px] text-${card.color}-500 font-bold mt-2 flex items-center gap-1"><i class="fas fa-hand-pointer"></i> คลิกเพื่อดูรายชื่อ</p>`
+            : '';
         html += `
-            <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden">
-                <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
-                    <i class="fas ${card.icon}"></i>
-                </div>
-                <div class="relative z-10">
-                    <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
-                    <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
-                </div>
+        <div class="glass rounded-2xl p-6 shadow-sm relative overflow-hidden ${cursorClass}" ${clickAttr}>
+            <div class="absolute -right-4 -bottom-4 text-7xl opacity-10 text-${card.color}-500">
+                <i class="fas ${card.icon}"></i>
             </div>
-        `;
+            <div class="relative z-10">
+                <p class="text-slate-400 text-sm font-bold uppercase tracking-wider">${card.label}</p>
+                <p class="text-4xl font-black text-slate-800 mt-1">${card.value}</p>
+                ${hint}
+            </div>
+        </div>
+    `;
     });
     html += `</div>`;
 
@@ -1850,6 +1858,146 @@ async function openDimStudentList(dimKey) {
 }
 
 // ==========================================
+// รายชื่อนักเรียนตามสถานะการประเมิน (assessed / notAssessed)
+// ==========================================
+function closeStatusStudentModal() {
+    const modal = document.getElementById('status-student-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if (window.statusStudentTable) {
+        window.statusStudentTable.destroy();
+        window.statusStudentTable = null;
+    }
+}
+
+async function openStatusStudentList(type) {
+    const isAssessed = type === 'assessed';
+
+    // ตั้งค่าหัวข้อและสีตามประเภท
+    const titleEl = document.getElementById('status-modal-title');
+    const subtitleEl = document.getElementById('status-modal-subtitle');
+    const headerEl = document.getElementById('status-modal-header');
+
+    titleEl.textContent = isAssessed ? 'นักเรียนที่ทำแบบประเมินแล้ว' : 'นักเรียนที่ยังไม่ทำแบบประเมิน';
+    subtitleEl.textContent = isAssessed
+        ? 'รายชื่อนักเรียนที่ส่งผลการประเมินพหุปัญญาเรียบร้อยแล้ว'
+        : 'รายชื่อนักเรียนที่ยังไม่ได้ทำแบบประเมิน';
+
+    headerEl.className = `bg-gradient-to-r ${isAssessed ? 'from-emerald-500 to-teal-600' : 'from-amber-500 to-orange-600'} text-white px-6 py-4 flex justify-between items-start rounded-t-3xl flex-shrink-0`;
+
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        const academicYear = String(schoolInfo?.current_academic_year);
+        const semester = String(schoolInfo?.current_semester);
+
+        // กำหนดขอบเขตห้องเรียนตามบริบทปัจจุบัน
+        let roomIds = [];
+        if (currentSelectedClassroomId) {
+            roomIds = [currentSelectedClassroomId];
+        } else {
+            roomIds = allClassrooms.map(r => r.id);
+        }
+
+        if (roomIds.length === 0) {
+            Swal.close();
+            Swal.fire('ไม่มีข้อมูล', 'ไม่พบห้องเรียนในระบบ', 'info');
+            return;
+        }
+
+        // ดึงรายชื่อนักเรียนในขอบเขต
+        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .in('classroom_id', roomIds)
+            .order('student_number');
+        if (enrollErr) throw enrollErr;
+
+        // ดึงผลการประเมินในขอบเขต
+        const { data: mis, error: misErr } = await db.from('mi_assessments')
+            .select('student_id, score_total, level_total')
+            .eq('academic_year', academicYear)
+            .eq('semester', semester)
+            .in('classroom_id', roomIds);
+        if (misErr) throw misErr;
+
+        const assessedMap = {};
+        (mis || []).forEach(m => { assessedMap[m.student_id] = m; });
+
+        // กรองตามสถานะ
+        const filteredStudents = (enrolls || []).filter(e => {
+            const hasAssessment = !!assessedMap[e.student_id];
+            return isAssessed ? hasAssessment : !hasAssessment;
+        });
+
+        // เรนเดอร์ตาราง
+        const tbody = document.getElementById('status-student-tbody');
+        if (!tbody) return;
+
+        if (filteredStudents.length === 0) {
+            const emptyMsg = isAssessed
+                ? 'ยังไม่มีนักเรียนที่ทำแบบประเมินในขอบเขตนี้'
+                : '🎉 นักเรียนทุกคนทำแบบประเมินครบแล้ว';
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500 font-medium">${emptyMsg}</td></tr>`;
+        } else {
+            let html = '';
+            filteredStudents.forEach(r => {
+                const std = r.core_students;
+                const cls = r.core_classrooms;
+                const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+                const studentIdCard = std?.student_id_card || '-';
+                const gradeLevel = cls?.grade_level || '-';
+                const roomNumber = cls?.room_number || '-';
+                const assess = assessedMap[r.student_id];
+                const scoreDisplay = assess ? `${assess.score_total || 0}/200` : '<span class="text-slate-300">-</span>';
+
+                const actionBtn = assess
+                    ? `<button onclick="closeStatusStudentModal(); openViewResult('${r.student_id}')" class="h-8 w-8 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-sm"></i></button>`
+                    : `<button onclick="closeStatusStudentModal(); openEditForStudent('${r.student_id}')" class="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="ประเมิน"><i class="fas fa-pen text-sm"></i></button>`;
+
+                html += `<tr>
+                    <td class="text-center">${gradeLevel !== '-' ? 'ม.' + gradeLevel + '/' + roomNumber : '-'}</td>
+                    <td class="text-center">${r.student_number || '-'}</td>
+                    <td class="text-center">${studentIdCard}</td>
+                    <td class="font-semibold text-slate-700">${fullName}</td>
+                    <td class="text-center font-bold ${assess ? 'text-emerald-600' : 'text-slate-400'}">${scoreDisplay}</td>
+                    <td class="text-center">${actionBtn}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        Swal.close();
+        const modal = document.getElementById('status-student-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        if (window.statusStudentTable) {
+            window.statusStudentTable.destroy();
+            window.statusStudentTable = null;
+        }
+
+        setTimeout(() => {
+            window.statusStudentTable = new DataTable('#status-student-table', {
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                responsive: true,
+                scrollX: true,
+                pageLength: 50,
+                order: [],
+                columnDefs: [{ orderable: false, targets: [5] }]
+            });
+        }, 150);
+
+    } catch (error) {
+        Swal.close();
+        console.error('openStatusStudentList error:', error);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลรายชื่อได้', 'error');
+    }
+}
+
+// ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
 window.logout = logout;
@@ -1876,5 +2024,7 @@ window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.openDimStudentList = openDimStudentList;
 window.closeDimStudentModal = closeDimStudentModal;
+window.openStatusStudentList = openStatusStudentList;
+window.closeStatusStudentModal = closeStatusStudentModal;
 
 console.log('✅ mit_teacher.js loaded - โหลดระบบ MIT เรียบร้อยแล้ว');

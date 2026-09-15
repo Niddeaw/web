@@ -306,14 +306,19 @@ function renderStatsCards(totalStudents, assessed, high, mid, low) {
     const pct = totalStudents > 0 ? Math.round(assessed / totalStudents * 100) : 0;
 
     document.getElementById('stat-cards').innerHTML = [
-        { icon: 'fa-users', label: 'นักเรียนทั้งหมด', val: totalStudents, color: 'slate' },
-        { icon: 'fa-check-circle', label: 'ประเมินแล้ว', val: `${assessed} (${pct}%)`, color: 'indigo' },
-        { icon: 'fa-arrow-up', label: 'สูงกว่าเกณฑ์', val: high, color: 'green' },
-        { icon: 'fa-equals', label: 'เกณฑ์ปกติ', val: mid, color: 'blue' },
-        { icon: 'fa-arrow-down', label: 'ต่ำกว่าเกณฑ์', val: low, color: 'rose' },
-        { icon: 'fa-clock', label: 'ยังไม่ประเมิน', val: notAssessed, color: 'amber' },
-    ].map(s => `
-        <div class="glass rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+        { icon: 'fa-users', label: 'นักเรียนทั้งหมด', val: totalStudents, color: 'slate', listType: null },
+        { icon: 'fa-check-circle', label: 'ประเมินแล้ว', val: `${assessed} (${pct}%)`, color: 'indigo', listType: 'assessed' },
+        { icon: 'fa-arrow-up', label: 'สูงกว่าเกณฑ์', val: high, color: 'green', listType: null },
+        { icon: 'fa-equals', label: 'เกณฑ์ปกติ', val: mid, color: 'blue', listType: null },
+        { icon: 'fa-arrow-down', label: 'ต่ำกว่าเกณฑ์', val: low, color: 'rose', listType: null },
+        { icon: 'fa-clock', label: 'ยังไม่ประเมิน', val: notAssessed, color: 'amber', listType: 'notAssessed' },
+    ].map(s => {
+        const clickAttr = s.listType ? `onclick="openStatusStudentList('${s.listType}')"` : '';
+        const cursorClass = s.listType
+            ? 'cursor-pointer hover:shadow-md hover:ring-2 hover:ring-' + s.color + '-300 transition-all duration-200'
+            : '';
+        return `
+        <div class="glass rounded-2xl p-4 flex items-center gap-3 shadow-sm ${cursorClass}" ${clickAttr}>
             <div class="h-11 w-11 bg-${s.color}-100 text-${s.color}-600 rounded-xl flex items-center justify-center">
                 <i class="fas ${s.icon}"></i>
             </div>
@@ -322,7 +327,8 @@ function renderStatsCards(totalStudents, assessed, high, mid, low) {
                 <h3 class="text-2xl font-bold text-slate-800">${s.val}</h3>
             </div>
         </div>
-    `).join('');
+    `;
+    }).join('');
 }
 
 // ==========================================
@@ -1634,6 +1640,156 @@ ${subRows}
 }
 
 // ==========================================
+// รายชื่อนักเรียนตามสถานะการประเมิน (assessed / notAssessed)
+// ==========================================
+function closeStatusStudentModal() {
+    const modal = document.getElementById('status-student-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    if (window.statusStudentTable) {
+        window.statusStudentTable.destroy();
+        window.statusStudentTable = null;
+    }
+}
+
+async function openStatusStudentList(type) {
+    const isAssessed = type === 'assessed';
+
+    // ตั้งค่าหัวข้อและสีตามประเภท
+    const titleEl = document.getElementById('status-modal-title');
+    const subtitleEl = document.getElementById('status-modal-subtitle');
+    const headerEl = document.getElementById('status-modal-header');
+
+    titleEl.textContent = isAssessed ? 'นักเรียนที่ทำแบบประเมินแล้ว' : 'นักเรียนที่ยังไม่ทำแบบประเมิน';
+    subtitleEl.textContent = isAssessed
+        ? 'รายชื่อนักเรียนที่ส่งผลการประเมิน EQ เรียบร้อยแล้ว'
+        : 'รายชื่อนักเรียนที่ยังไม่ได้ทำแบบประเมิน';
+    headerEl.className = `bg-gradient-to-r ${isAssessed ? 'from-indigo-500 to-purple-600' : 'from-amber-500 to-orange-600'} text-white px-6 py-4 flex justify-between items-start rounded-t-3xl flex-shrink-0`;
+
+    Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        const academicYear = String(schoolInfo?.current_academic_year);
+        const semester = String(schoolInfo?.current_semester);
+
+        // กำหนดขอบเขตห้องเรียนตามบริบทปัจจุบัน
+        let roomIds = [];
+        if (currentSelectedClassroomId) {
+            roomIds = [currentSelectedClassroomId];
+        } else {
+            roomIds = allClassrooms.map(r => r.id);
+        }
+
+        if (roomIds.length === 0) {
+            Swal.close();
+            Swal.fire('ไม่มีข้อมูล', 'ไม่พบห้องเรียนในระบบ', 'info');
+            return;
+        }
+
+        // ดึงรายชื่อนักเรียนในขอบเขต
+        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .in('classroom_id', roomIds)
+            .order('student_number');
+        if (enrollErr) throw enrollErr;
+
+        // ดึงผลการประเมินในขอบเขต
+        const { data: eqs, error: eqsErr } = await db.from('eq_assessments')
+            .select('student_id, score_total, level_total')
+            .eq('academic_year', academicYear)
+            .eq('semester', semester)
+            .in('classroom_id', roomIds);
+        if (eqsErr) throw eqsErr;
+
+        const assessMap = {};
+        (eqs || []).forEach(e => { assessMap[e.student_id] = e; });
+
+        // กรองตามสถานะ
+        const filtered = (enrolls || []).filter(e => {
+            const has = !!assessMap[e.student_id];
+            return isAssessed ? has : !has;
+        });
+
+        // เรนเดอร์ตาราง
+        const tbody = document.getElementById('status-student-tbody');
+        if (!tbody) return;
+
+        const getLevelBadge = (level) => {
+            if (!level) return '<span class="text-slate-300">-</span>';
+            let cls = 'bg-slate-100 text-slate-600';
+            if (level === 'สูงกว่าเกณฑ์') cls = 'bg-green-100 text-green-700';
+            else if (level === 'เกณฑ์ปกติ') cls = 'bg-blue-100 text-blue-700';
+            else if (level === 'ต่ำกว่าเกณฑ์') cls = 'bg-amber-100 text-amber-700';
+            return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
+        };
+
+        if (filtered.length === 0) {
+            const emptyMsg = isAssessed
+                ? 'ยังไม่มีนักเรียนที่ทำแบบประเมินในขอบเขตนี้'
+                : '🎉 นักเรียนทุกคนทำแบบประเมินครบแล้ว';
+            tbody.innerHTML = `<tr><td colspan="7" class="text-center py-8 text-slate-500 font-medium">${emptyMsg}</td></tr>`;
+        } else {
+            let html = '';
+            filtered.forEach(r => {
+                const std = r.core_students;
+                const cls = r.core_classrooms;
+                const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
+                const studentIdCard = std?.student_id_card || '-';
+                const gradeLevel = cls?.grade_level || '-';
+                const roomNumber = cls?.room_number || '-';
+                const assess = assessMap[r.student_id];
+                const scoreDisplay = assess ? `${assess.score_total || 0}/208` : '<span class="text-slate-300">-</span>';
+                const levelDisplay = assess ? getLevelBadge(assess.level_total) : '<span class="text-slate-300">-</span>';
+
+                const actionBtn = assess
+                    ? `<button onclick="closeStatusStudentModal(); openViewResult('${r.student_id}')" class="h-8 w-8 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-sm"></i></button>`
+                    : `<button onclick="closeStatusStudentModal(); openEditForStudent('${r.student_id}')" class="h-8 w-8 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="ประเมิน"><i class="fas fa-pen text-sm"></i></button>`;
+
+                html += `<tr>
+                    <td class="text-center">${gradeLevel !== '-' ? 'ม.' + gradeLevel + '/' + roomNumber : '-'}</td>
+                    <td class="text-center">${r.student_number || '-'}</td>
+                    <td class="text-center">${studentIdCard}</td>
+                    <td class="font-semibold text-slate-700">${fullName}</td>
+                    <td class="text-center font-bold ${assess ? 'text-emerald-600' : 'text-slate-400'}">${scoreDisplay}</td>
+                    <td class="text-center">${levelDisplay}</td>
+                    <td class="text-center">${actionBtn}</td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+        }
+
+        Swal.close();
+        const modal = document.getElementById('status-student-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        if (window.statusStudentTable) {
+            window.statusStudentTable.destroy();
+            window.statusStudentTable = null;
+        }
+
+        setTimeout(() => {
+            window.statusStudentTable = new DataTable('#status-student-table', {
+                language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                responsive: true,
+                scrollX: true,
+                pageLength: 50,
+                order: [],
+                columnDefs: [{ orderable: false, targets: [6] }]
+            });
+        }, 150);
+
+    } catch (error) {
+        Swal.close();
+        console.error('openStatusStudentList error:', error);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลรายชื่อได้', 'error');
+    }
+}
+
+// ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
 window.toggleMode = toggleMode;
@@ -1658,3 +1814,5 @@ window.openAdminManager = openAdminManager;
 window.closeAdminManager = closeAdminManager;
 window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
+window.openStatusStudentList = openStatusStudentList;
+window.closeStatusStudentModal = closeStatusStudentModal;
