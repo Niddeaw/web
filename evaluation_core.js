@@ -48,6 +48,37 @@ function isAssistantTeacher(academic) {
 }
 
 // ==========================================
+// ✅ Helper: สร้าง Tom Select แบบใช้ซ้ำได้
+// ==========================================
+function createTomSelect(elId, options = {}) {
+    const el = document.getElementById(elId);
+    if (!el) return null;
+    if (el.tomselect) {
+        el.tomselect.destroy();
+    }
+    return new TomSelect(el, {
+        placeholder: options.placeholder || '-- พิมพ์เพื่อค้นหา --',
+        allowEmptyOption: options.allowEmptyOption !== false,
+        maxOptions: options.maxOptions || null,
+        searchField: options.searchField || ['text'],
+        sortField: options.sortField || [{ field: 'text', direction: 'asc' }],
+        render: options.render || {
+            option: function (data, escape) {
+                return `<div class="py-1 text-sm">${escape(data.text)}</div>`;
+            }
+        },
+        onChange: options.onChange || null
+    });
+}
+
+function destroyTomSelect(elId) {
+    const el = document.getElementById(elId);
+    if (el && el.tomselect) {
+        el.tomselect.destroy();
+    }
+}
+
+// ==========================================
 // ฐานข้อมูลข้อคำถาม (ครบทุกวิทยฐานะ)
 // ==========================================
 const evalCriteriaDB = {
@@ -500,6 +531,25 @@ async function loadEvaluationRound() {
 }
 
 // ==========================================
+// ✅ Helper: เรียงชื่อชุดคณะกรรมการตามตัวเลข
+// เช่น "ชุดที่ 1 - ภาษาไทย", "ชุดที่ 2 - คณิตศาสตร์", "ชุดที่ 10 - ภาษาจีน"
+// → เรียงเป็น 1, 2, 3, ..., 10, 11 (ไม่ใช่ 1, 10, 11, 2, ...)
+// ==========================================
+function compareGroupNameNatural(a, b) {
+    const nameA = a.group_name || '';
+    const nameB = b.group_name || '';
+
+    // ดึงตัวเลขแรกที่เจอในชื่อ
+    const numA = parseInt(nameA.match(/\d+/)?.[0] || '0', 10);
+    const numB = parseInt(nameB.match(/\d+/)?.[0] || '0', 10);
+
+    if (numA !== numB) return numA - numB;
+
+    // ถ้าเลขเท่ากัน → เทียบแบบ string ปกติ
+    return nameA.localeCompare(nameB, 'th');
+}
+
+// ==========================================
 // โหลดโครงสร้างคณะกรรมการ (รวม targets แล้ว) — batch query ลด roundtrip
 // ==========================================
 async function loadCommitteeStructure(evalRoundId) {
@@ -509,13 +559,15 @@ async function loadCommitteeStructure(evalRoundId) {
             .from('eval_committee_groups')
             .select('*')
             .eq('eval_round_id', evalRoundId)
-            .eq('is_active', true)
-            .order('group_name', { ascending: true });
+            .eq('is_active', true);
         if (groupError) throw groupError;
 
-        const mainGroups = (allGroups || []).filter(g => g.group_type === 'main');
-        const subGroupsAll = (allGroups || []).filter(g => g.group_type === 'sub');
-        const allGroupIds = (allGroups || []).map(g => g.id);
+        // ✅ เรียงตามตัวเลขในชื่อ (ชุดที่ 1, 2, 3, ..., 10, 11)
+        const sortedGroups = (allGroups || []).slice().sort(compareGroupNameNatural);
+
+        const mainGroups = sortedGroups.filter(g => g.group_type === 'main');
+        const subGroupsAll = sortedGroups.filter(g => g.group_type === 'sub');
+        const allGroupIds = sortedGroups.map(g => g.id);
 
         if (allGroupIds.length === 0) return [];
 
@@ -556,6 +608,11 @@ async function loadCommitteeStructure(evalRoundId) {
         subGroupsEnriched.forEach(sub => {
             if (!subByParent[sub.parent_group_id]) subByParent[sub.parent_group_id] = [];
             subByParent[sub.parent_group_id].push(sub);
+        });
+
+        // ✅ เรียง sub groups ภายในแต่ละ main group ตามตัวเลข
+        Object.keys(subByParent).forEach(parentId => {
+            subByParent[parentId].sort(compareGroupNameNatural);
         });
 
         // Build result
@@ -817,6 +874,12 @@ async function loadCommitteeEvaluationTasks() {
                     const subGroupsForMain = allSubGroups.filter(sg => sg.parent_group_id === mainId);
                     const mainGroup = mainGroups.find(m => m.id === mainId);
 
+                    // ✅ Destroy Tom Select เก่า (ถ้ามี)
+                    const oldMemberSelect = document.getElementById('sel_committee_member');
+                    if (oldMemberSelect && oldMemberSelect.tomselect) {
+                        oldMemberSelect.tomselect.destroy();
+                    }
+
                     await renderCommitteeSelection(mainGroup, subGroupsForMain, viewOnly, isSuperAdmin);
                 });
                 mainTabsContainer.appendChild(tabBtn);
@@ -914,6 +977,45 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
     html += `</div>`;
     container.innerHTML = html;
 
+    // ✅ Init Tom Select สำหรับกรรมการ (สวมรอย)
+    setTimeout(() => {
+        const memberSelect = document.getElementById('sel_committee_member');
+        if (memberSelect) {
+            // Destroy instance เก่า (ถ้ามี)
+            if (memberSelect.tomselect) {
+                memberSelect.tomselect.destroy();
+            }
+            new TomSelect(memberSelect, {
+                placeholder: '-- พิมพ์เพื่อค้นหาชื่อกรรมการ --',
+                allowEmptyOption: true,
+                maxOptions: null,
+                searchField: ['text'],
+                render: {
+                    option: function (data, escape) {
+                        return `<div class="py-1 text-sm">${escape(data.text)}</div>`;
+                    }
+                },
+                onChange: function (value) {
+                    const opt = this.options[value];
+                    if (opt && value) {
+                        _impersonatedEvaluatorId = value;
+                        _impersonatedEvaluatorName = opt.text.split(' (')[0] || '';
+                        _impersonationMode = true;
+                    } else {
+                        _impersonatedEvaluatorId = null;
+                        _impersonatedEvaluatorName = null;
+                        _impersonationMode = false;
+                        const banner = document.getElementById('impersonation-banner');
+                        if (banner) banner.style.display = 'none';
+                    }
+                    // ✅ Trigger การโหลดครู
+                    const subSelect = document.getElementById('sel_sub_group');
+                    if (subSelect) subSelect.dispatchEvent(new Event('change'));
+                }
+            });
+        }
+    }, 0);
+
     function _readSubGroupDataset(el) {
         if (!el) return null;
         if (el.tagName === 'SELECT') {
@@ -965,25 +1067,6 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
             }
             // เรียกโหลดครูตาม targets ที่ตั้งไว้
             loadTeachersForSubGroup();
-        });
-    }
-
-    const memSelect = document.getElementById('sel_committee_member');
-    if (memSelect) {
-        memSelect.addEventListener('change', function () {
-            const opt = this.options[this.selectedIndex];
-            if (opt && opt.value) {
-                _impersonatedEvaluatorId = opt.value;
-                _impersonatedEvaluatorName = opt.dataset.name || '';
-                _impersonationMode = true;
-            } else {
-                _impersonatedEvaluatorId = null;
-                _impersonatedEvaluatorName = null;
-                _impersonationMode = false;
-                const banner = document.getElementById('impersonation-banner');
-                if (banner) banner.style.display = 'none';
-            }
-            if (subSelect) subSelect.dispatchEvent(new Event('change'));
         });
     }
 
@@ -1418,9 +1501,9 @@ window.logout = logout;
 window.renderCommitteeSelection = renderCommitteeSelection;
 window.getSelectedSubGroupId = getSelectedSubGroupId;
 window.getSelectedSubGroupItems = getSelectedSubGroupItems;
-
-// ✅ Export Helper Functions
 window.getCriteriaByAcademic = getCriteriaByAcademic;
 window.isAssistantTeacher = isAssistantTeacher;
+window.createTomSelect = createTomSelect;
+window.destroyTomSelect = destroyTomSelect;
 
 console.log('✅ evaluation_core.js loaded successfully');

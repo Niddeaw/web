@@ -1,6 +1,65 @@
 // ==========================================
 // evaluation_logic.js - คำนวณคะแนน, สรุปผล, Export, PDF, Review
 // ==========================================
+// ==========================================
+// ✅ Helper: สร้าง Tom Select สำหรับ dropdown ครู
+// ==========================================
+let _evScoreEvaluateeTomSelect = null;
+let _evScoreSubGroupTomSelect = null;
+
+function initEvaluatorScoresTomSelects() {
+    // ✅ ครู: ค้นหาได้ + จัดกลุ่มตามกลุ่มสาระ
+    const evalSelect = document.getElementById('ev_score_evaluatee');
+    if (evalSelect && !_evScoreEvaluateeTomSelect) {
+        _evScoreEvaluateeTomSelect = new TomSelect(evalSelect, {
+            placeholder: '-- พิมพ์เพื่อค้นหาชื่อครู หรือเลือกกลุ่มสาระ --',
+            allowEmptyOption: true,
+            maxOptions: null,                    // แสดงทุก option (จะกรองด้วย search)
+            searchField: ['text', 'value'],       // ค้นหาจาก label
+            sortField: [
+                { field: 'department', direction: 'asc' },
+                { field: 'name', direction: 'asc' }
+            ],
+            render: {
+                option: function (data, escape) {
+                    return `<div class="py-1">
+                        <div class="font-medium text-gray-800">${escape(data.text)}</div>
+                        ${data.department ? `<div class="text-xs text-gray-500">${escape(data.department)}</div>` : ''}
+                    </div>`;
+                },
+                item: function (data, escape) {
+                    return `<div class="text-sm">${escape(data.text)}</div>`;
+                }
+            },
+            onChange: function (value) {
+                // เมื่อเปลี่ยนครู → ไม่ต้องทำอะไร
+                console.log('เลือกครู:', value);
+            }
+        });
+    }
+
+    // ✅ ชุดคณะกรรมการ: ค้นหาได้ + จัดกลุ่มด้วย optgroup
+    const subGroupSelect = document.getElementById('ev_score_subgroup');
+    if (subGroupSelect && !_evScoreSubGroupTomSelect) {
+        _evScoreSubGroupTomSelect = new TomSelect(subGroupSelect, {
+            placeholder: '-- พิมพ์เพื่อค้นหาชุดคณะกรรมการ --',
+            allowEmptyOption: true,
+            maxOptions: null,
+            searchField: ['text'],
+            render: {
+                option: function (data, escape) {
+                    return `<div class="py-1 text-sm">${escape(data.text)}</div>`;
+                }
+            },
+            onChange: function (value) {
+                // ✅ trigger การโหลดครูตามชุดย่อย
+                if (typeof onEvaluatorScoresSubGroupChange === 'function') {
+                    onEvaluatorScoresSubGroupChange(value);
+                }
+            }
+        });
+    }
+}
 
 // ==========================================
 // ฟังก์ชันหา Mode
@@ -1579,11 +1638,35 @@ let reviewDataTable = null;
 let reviewTeachers = [];
 
 // ==========================================
-// เปิด Modal ตรวจสอบการประเมิน
+// เปิด Modal ตรวจสอบการประเมิน (ใช้ Tom Select)
 // ==========================================
 async function openCommitteeReviewModal() {
     const modal = document.getElementById('committeeReviewModal');
     modal.classList.remove('hidden');
+
+    // ✅ Init Tom Select สำหรับชุดคณะกรรมการ
+    window._reviewGroupTomSelect = createTomSelect('review_committee_group', {
+        placeholder: '-- พิมพ์เพื่อค้นหาชุดคณะกรรมการ --',
+        sortField: [{ field: 'text', direction: 'asc' }],
+        render: {
+            option: function (data, escape) {
+                return `<div class="py-1 text-sm">${escape(data.text)}</div>`;
+            },
+            item: function (data, escape) {
+                return `<div class="text-sm">${escape(data.text)}</div>`;
+            }
+        },
+        onChange: function (value) {
+            if (typeof onReviewGroupChange === 'function') {
+                onReviewGroupChange(value);
+            }
+        }
+    });
+
+    // ✅ Init Tom Select สำหรับกลุ่มสาระ
+    window._reviewDeptTomSelect = createTomSelect('review_department', {
+        placeholder: '-- พิมพ์หรือเลือกกลุ่มสาระ --'
+    });
 
     await loadReviewCommitteeGroups();
 }
@@ -1595,7 +1678,16 @@ function closeCommitteeReviewModal() {
     const modal = document.getElementById('committeeReviewModal');
     modal.classList.add('hidden');
 
-    // ทำลาย DataTable
+    // ✅ Destroy Tom Select
+    if (window._reviewGroupTomSelect) {
+        window._reviewGroupTomSelect.destroy();
+        window._reviewGroupTomSelect = null;
+    }
+    if (window._reviewDeptTomSelect) {
+        window._reviewDeptTomSelect.destroy();
+        window._reviewDeptTomSelect = null;
+    }
+
     if (reviewDataTable) {
         reviewDataTable.destroy();
         reviewDataTable = null;
@@ -1603,10 +1695,7 @@ function closeCommitteeReviewModal() {
 }
 
 // ==========================================
-// โหลดชุดคณะกรรมการสำหรับ Modal ตรวจสอบ
-// ==========================================
-// ==========================================
-// โหลดชุดคณะกรรมการสำหรับ Modal ตรวจสอบ (ฉบับแก้ไข)
+// โหลดชุดคณะกรรมการเข้าสู่ Tom Select
 // ==========================================
 async function loadReviewCommitteeGroups() {
     try {
@@ -1614,23 +1703,27 @@ async function loadReviewCommitteeGroups() {
             return Swal.fire('แจ้งเตือน', 'ไม่พบรอบการประเมิน', 'warning');
         }
 
-        const select = document.getElementById('review_committee_group');
-        const deptSelect = document.getElementById('review_department');
+        if (!window._reviewGroupTomSelect) return;
 
-        select.innerHTML = '<option value="">-- เลือกชุด --</option>';
-        deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        // ✅ เคลียร์ options เก่า
+        window._reviewGroupTomSelect.clear();
+        window._reviewGroupTomSelect.clearOptions();
 
-        // ✅ ใช้ loadCommitteeStructure เพื่อดึง main + sub + members + targets พร้อมกัน
+        // ✅ เคลียร์กลุ่มสาระ
+        if (window._reviewDeptTomSelect) {
+            window._reviewDeptTomSelect.clear();
+            window._reviewDeptTomSelect.clearOptions();
+        }
+
+        // ✅ โหลด structure
         const structure = await loadCommitteeStructure(currentEvalRound.id);
         const mainGroups = structure.filter(g => g.group_type === 'main');
 
         if (!mainGroups || mainGroups.length === 0) {
-            select.innerHTML = '<option value="">ไม่มีชุดคณะกรรมการ</option>';
             return;
         }
 
-        // ✅ สำหรับ ผอ./Admin/Super Admin เห็นทุกชุด
-        // สำหรับครู/รองผู้อำนวยการ เห็นเฉพาะที่ตัวเองเป็นสมาชิก
+        // ✅ กรองสิทธิ์
         let allowedGroupIds = null;
         const isPrivileged = ['super_admin', 'admin', 'director'].includes(currentUser.role);
         if (!isPrivileged) {
@@ -1638,71 +1731,45 @@ async function loadReviewCommitteeGroups() {
             allowedGroupIds = new Set(myMemberships.map(sg => sg.id));
         }
 
-        for (const mainGroup of mainGroups) {
+        // ✅ เพิ่ม options เข้า Tom Select
+        mainGroups.forEach(mainGroup => {
             const subGroups = mainGroup.sub_groups || [];
             const hasSubGroups = subGroups.length > 0;
 
-            // ✅ กรองสิทธิ์
             const canSeeMain = !allowedGroupIds || allowedGroupIds.has(mainGroup.id);
             const visibleSubGroups = allowedGroupIds
                 ? subGroups.filter(sub => allowedGroupIds.has(sub.id))
                 : subGroups;
 
-            // ถ้าไม่มีสิทธิ์ดูทั้ง Main และ Sub → ข้าม
-            if (!canSeeMain && visibleSubGroups.length === 0) continue;
-            // ถ้ามี Sub Groups แต่ไม่มีสิทธิ์ดู Sub ใดเลย และดู Main ไม่ได้ → ข้าม
-            if (hasSubGroups && visibleSubGroups.length === 0 && !canSeeMain) continue;
-
-            const optgroup = document.createElement('optgroup');
-            optgroup.label = mainGroup.group_name;
+            if (!canSeeMain && visibleSubGroups.length === 0) return;
+            if (hasSubGroups && visibleSubGroups.length === 0 && !canSeeMain) return;
 
             if (!hasSubGroups) {
-                // ✅ Main Group ไม่มี Sub Group → เพิ่ม Main Group เป็น option
+                // ✅ Main Group ไม่มี Sub → เพิ่ม Main Group
                 if (canSeeMain) {
-                    const option = document.createElement('option');
-                    option.value = mainGroup.id;
-                    option.textContent = `${mainGroup.group_name} (${mainGroup.members?.length || 0} คน)`;
-                    option.dataset.targets = JSON.stringify(mainGroup.targets || []);
-                    option.dataset.selectedSubItems = JSON.stringify(mainGroup.selected_sub_items || []);
-                    optgroup.appendChild(option);
+                    window._reviewGroupTomSelect.addOption({
+                        value: mainGroup.id,
+                        text: `${mainGroup.group_name} (${mainGroup.members?.length || 0} คน)`,
+                        optgroup: mainGroup.group_name,
+                        targets: mainGroup.targets || [],
+                        selectedSubItems: mainGroup.selected_sub_items || []
+                    });
                 }
             } else {
-                // ✅ มี Sub Group → แสดงเฉพาะ Sub Groups
+                // ✅ มี Sub → เพิ่มแต่ละ Sub
                 visibleSubGroups.forEach(sub => {
-                    const option = document.createElement('option');
-                    option.value = sub.id;
-                    option.textContent = `${sub.group_name} (${sub.members?.length || 0} คน)`;
-                    option.dataset.targets = JSON.stringify(sub.targets || []);
-                    option.dataset.selectedSubItems = JSON.stringify(sub.selected_sub_items || []);
-                    optgroup.appendChild(option);
+                    window._reviewGroupTomSelect.addOption({
+                        value: sub.id,
+                        text: `${sub.group_name} (${sub.members?.length || 0} คน)`,
+                        optgroup: mainGroup.group_name,
+                        targets: sub.targets || [],
+                        selectedSubItems: sub.selected_sub_items || []
+                    });
                 });
             }
+        });
 
-            // เพิ่ม optgroup เฉพาะเมื่อมี option ข้างใน
-            if (optgroup.children.length > 0) {
-                select.appendChild(optgroup);
-            }
-        }
-
-        // ✅ ใช้ onchange (แทน addEventListener) เพื่อป้องกัน listener ซ้ำเมื่อเปิด Modal หลายครั้ง
-        select.onchange = function () {
-            const selectedOption = this.options[this.selectedIndex];
-            const deptSelectInner = document.getElementById('review_department');
-            deptSelectInner.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
-
-            if (!selectedOption || !selectedOption.value) return;
-
-            const targets = JSON.parse(selectedOption.dataset.targets || '[]');
-            const departmentTargets = targets.filter(t => t.target_type === 'department');
-
-            departmentTargets.forEach(t => {
-                deptSelectInner.innerHTML += `<option value="${t.target_value}">${t.target_value}</option>`;
-            });
-
-            if (departmentTargets.length === 1) {
-                deptSelectInner.value = departmentTargets[0].target_value;
-            }
-        };
+        window._reviewGroupTomSelect.refreshOptions(false);
 
     } catch (err) {
         console.error('Error loading review committee groups:', err);
@@ -1711,11 +1778,64 @@ async function loadReviewCommitteeGroups() {
 }
 
 // ==========================================
+// เมื่อเปลี่ยนชุดคณะกรรมการ → โหลดกลุ่มสาระ
+// ==========================================
+async function onReviewGroupChange(subGroupId) {
+    if (!window._reviewDeptTomSelect) return;
+
+    // ✅ เคลียร์กลุ่มสาระเก่า
+    window._reviewDeptTomSelect.clear();
+    window._reviewDeptTomSelect.clearOptions();
+
+    if (!subGroupId) return;
+
+    // ✅ อ่าน targets จาก option ที่เลือก
+    let targets = [];
+    if (window._reviewGroupTomSelect) {
+        const opt = window._reviewGroupTomSelect.options[subGroupId];
+        if (opt && opt.targets) {
+            targets = opt.targets;
+        }
+    }
+
+    // Fallback: query DB ถ้าไม่มี targets ใน option
+    if (targets.length === 0) {
+        const { data: sub } = await db
+            .from('eval_committee_groups')
+            .select('eval_committee_targets(target_type, target_value)')
+            .eq('id', subGroupId)
+            .single();
+        targets = sub?.eval_committee_targets || [];
+    }
+
+    const departmentTargets = targets.filter(t => t.target_type === 'department');
+
+    // ✅ เพิ่มกลุ่มสาระเข้า Tom Select
+    departmentTargets.forEach(t => {
+        window._reviewDeptTomSelect.addOption({
+            value: t.target_value,
+            text: t.target_value
+        });
+    });
+    window._reviewDeptTomSelect.refreshOptions(false);
+
+    // ✅ Auto-select ถ้ามีกลุ่มสาระเดียว
+    if (departmentTargets.length === 1) {
+        window._reviewDeptTomSelect.setValue(departmentTargets[0].target_value);
+    }
+}
+
+// ==========================================
 // โหลดข้อมูลสำหรับตรวจสอบ
 // ==========================================
 async function loadReviewData() {
-    const subGroupId = document.getElementById('review_committee_group').value;
-    const department = document.getElementById('review_department').value;
+    // ✅ อ่านค่าจาก Tom Select
+    const subGroupId = window._reviewGroupTomSelect
+        ? window._reviewGroupTomSelect.getValue()
+        : document.getElementById('review_committee_group').value;
+    const department = window._reviewDeptTomSelect
+        ? window._reviewDeptTomSelect.getValue()
+        : document.getElementById('review_department').value;
 
     if (!subGroupId) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกชุดคณะกรรมการ', 'warning');
@@ -2057,11 +2177,23 @@ async function viewTeacherEvalDetail(evaluateeId) {
 // ==========================================
 let selfReviewDataTable = null;
 
+// ==========================================
+// เปิด Modal ตรวจสอบการประเมินตนเอง (ใช้ Tom Select)
+// ==========================================
 async function openSelfReviewModal() {
     const modal = document.getElementById('selfReviewModal');
     modal.classList.remove('hidden');
 
-    // โหลดกลุ่มสาระลง dropdown
+    // ✅ Init Tom Select สำหรับกลุ่มสาระ
+    window._selfReviewDeptTomSelect = createTomSelect('self_review_department', {
+        placeholder: '-- พิมพ์หรือเลือกกลุ่มสาระ --',
+        onChange: function (value) {
+            if (value && typeof loadSelfReviewData === 'function') {
+                loadSelfReviewData();
+            }
+        }
+    });
+
     await loadSelfReviewDepartments();
 
     // Reset state
@@ -2079,6 +2211,12 @@ function closeSelfReviewModal() {
     const modal = document.getElementById('selfReviewModal');
     modal.classList.add('hidden');
 
+    // ✅ Destroy Tom Select
+    if (window._selfReviewDeptTomSelect) {
+        window._selfReviewDeptTomSelect.destroy();
+        window._selfReviewDeptTomSelect = null;
+    }
+
     if (selfReviewDataTable) {
         try { selfReviewDataTable.destroy(); } catch (e) { }
         selfReviewDataTable = null;
@@ -2087,8 +2225,10 @@ function closeSelfReviewModal() {
 
 async function loadSelfReviewDepartments() {
     try {
-        const select = document.getElementById('self_review_department');
-        select.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        if (!window._selfReviewDeptTomSelect) return;
+
+        window._selfReviewDeptTomSelect.clear();
+        window._selfReviewDeptTomSelect.clearOptions();
 
         const allowedDepartments = [
             'ภาษาไทย', 'คณิตศาสตร์',
@@ -2101,15 +2241,19 @@ async function loadSelfReviewDepartments() {
         ];
 
         allowedDepartments.forEach(d => {
-            select.innerHTML += `<option value="${d}">${d}</option>`;
+            window._selfReviewDeptTomSelect.addOption({ value: d, text: d });
         });
+        window._selfReviewDeptTomSelect.refreshOptions(false);
+
     } catch (err) {
         console.error('Error loading departments:', err);
     }
 }
 
 async function loadSelfReviewData(showAll = false) {
-    const department = document.getElementById('self_review_department').value;
+    const department = window._selfReviewDeptTomSelect
+        ? window._selfReviewDeptTomSelect.getValue()
+        : document.getElementById('self_review_department').value;
 
     if (!showAll && !department) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
@@ -2573,6 +2717,1327 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
 }
 
 // ==========================================
+// ✅ ตรวจสอบคะแนนรายกรรมการ - State
+// ==========================================
+let _evScoreState = {
+    evaluateeId: null,
+    subGroupId: null,
+    subGroupName: '',
+    evaluateeName: '',
+    academicStanding: '',
+    evaluators: [],       // [{ evaluator_id, name, detailed_scores, total_score, status }]
+    modeScores: {},       // { p1_s1: [...], p1_s2: [...], p2, p3: [...] }
+    requiredItems: [],    // selected_sub_items
+    activeTab: 'mode'     // 'mode' | 'evaluators' | 'items'
+};
+
+// ==========================================
+// เปิด Modal
+// ==========================================
+async function openEvaluatorScoresModal(evaluateeId = null, subGroupId = null) {
+    const modal = document.getElementById('evaluatorScoresModal');
+    modal.classList.remove('hidden');
+
+    await populateEvaluatorScoresFilters();
+
+    if (evaluateeId && _evScoreEvaluateeTomSelect) {
+        _evScoreEvaluateeTomSelect.setValue(evaluateeId);
+    }
+    if (subGroupId && _evScoreSubGroupTomSelect) {
+        _evScoreSubGroupTomSelect.setValue(subGroupId);
+        // ✅ trigger กรองครู
+        await onEvaluatorScoresSubGroupChange(subGroupId);
+    }
+
+    if (evaluateeId && subGroupId) {
+        await loadEvaluatorScores();
+    }
+}
+
+function closeEvaluatorScoresModal() {
+    document.getElementById('evaluatorScoresModal').classList.add('hidden');
+
+    // ✅ Destroy Tom Select เมื่อปิด
+    if (_evScoreEvaluateeTomSelect) {
+        _evScoreEvaluateeTomSelect.destroy();
+        _evScoreEvaluateeTomSelect = null;
+    }
+    if (_evScoreSubGroupTomSelect) {
+        _evScoreSubGroupTomSelect.destroy();
+        _evScoreSubGroupTomSelect = null;
+    }
+
+    _evScoreState = { /* reset */ };
+}
+
+// ==========================================
+// โหลด dropdown filters (ฉบับแก้ไข v2)
+// - ใช้ loadCommitteeStructure เพื่อดึง main + sub + members + targets ครบ
+// - รองรับทั้ง main group ที่มี sub group และไม่มี sub group
+// - ใช้ Tom Select
+// ==========================================
+async function populateEvaluatorScoresFilters() {
+    try {
+        // ✅ เริ่มต้น Tom Select (ถ้ายังไม่มี)
+        initEvaluatorScoresTomSelects();
+
+        const structure = await loadCommitteeStructure(currentEvalRound.id);
+        const mainGroups = structure.filter(g => g.group_type === 'main');
+
+        // ==========================================
+        // ✅ เพิ่มชุดคณะกรรมการใน Tom Select
+        // ==========================================
+        if (_evScoreSubGroupTomSelect) {
+            _evScoreSubGroupTomSelect.clear();
+            _evScoreSubGroupTomSelect.clearOptions();
+
+            // เพิ่ม optgroup แรก
+            mainGroups.forEach((main, mainIdx) => {
+                const subGroups = main.sub_groups || [];
+
+                if (subGroups.length === 0) {
+                    // ✅ Main Group ไม่มี Sub → เพิ่ม Main Group
+                    _evScoreSubGroupTomSelect.addOption({
+                        value: main.id,
+                        text: `${main.group_name} (${main.members?.length || 0} คน)`,
+                        optgroup: main.group_name,
+                        targets: main.targets || [],
+                        selectedSubItems: main.selected_sub_items || []
+                    });
+                } else {
+                    // ✅ มี Sub Groups → เพิ่มแต่ละ Sub
+                    subGroups.forEach(sub => {
+                        _evScoreSubGroupTomSelect.addOption({
+                            value: sub.id,
+                            text: `${sub.group_name} (${sub.members?.length || 0} คน)`,
+                            optgroup: main.group_name,
+                            targets: sub.targets || [],
+                            selectedSubItems: sub.selected_sub_items || []
+                        });
+                    });
+                }
+            });
+
+            _evScoreSubGroupTomSelect.refreshOptions(false);
+        }
+
+        // ==========================================
+        // ✅ เพิ่มครูทั้งหมด (ทุกกลุ่มสาระใน targets)
+        // ==========================================
+        const allDepartments = new Set();
+        mainGroups.forEach(main => {
+            (main.targets || [])
+                .filter(t => t.target_type === 'department')
+                .forEach(t => allDepartments.add(t.target_value));
+            (main.sub_groups || []).forEach(sub => {
+                (sub.targets || [])
+                    .filter(t => t.target_type === 'department')
+                    .forEach(t => allDepartments.add(t.target_value));
+            });
+        });
+
+        if (allDepartments.size === 0) return;
+
+        const { data: teachers } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .in('department', Array.from(allDepartments))
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+            .order('department', { ascending: true })
+            .order('first_name', { ascending: true });
+
+        if (_evScoreEvaluateeTomSelect) {
+            _evScoreEvaluateeTomSelect.clear();
+            _evScoreEvaluateeTomSelect.clearOptions();
+
+            (teachers || []).forEach(t => {
+                const name = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
+                _evScoreEvaluateeTomSelect.addOption({
+                    value: t.id,
+                    text: `${name} (${t.department || '-'})`,
+                    department: t.department,
+                    name: name,
+                    optgroup: t.department || 'ไม่ระบุ'
+                });
+            });
+
+            _evScoreEvaluateeTomSelect.refreshOptions(false);
+        }
+
+        console.log(`✅ โหลด ${(teachers || []).length} คน | ${mainGroups.length} ชุดหลัก`);
+
+    } catch (err) {
+        console.error('Error populating filters:', err);
+    }
+}
+
+// ==========================================
+// ✅ เมื่อเปลี่ยนชุดย่อย → กรองครูในกลุ่มเป้าหมาย
+// ==========================================
+async function onEvaluatorScoresSubGroupChange(subGroupId) {
+    if (!subGroupId) return;
+
+    // ✅ เคลียร์ครู
+    if (_evScoreEvaluateeTomSelect) {
+        _evScoreEvaluateeTomSelect.clear();
+        _evScoreEvaluateeTomSelect.clearOptions();
+    }
+
+    // ✅ หา option ที่เลือก เพื่ออ่าน targets
+    let targets = [];
+    if (_evScoreSubGroupTomSelect) {
+        const opt = _evScoreSubGroupTomSelect.options[subGroupId];
+        if (opt && opt.targets) {
+            targets = opt.targets;
+        }
+    }
+
+    // Fallback: ถ้า Tom Select ไม่มี targets → query DB
+    if (targets.length === 0) {
+        const { data: sub } = await db
+            .from('eval_committee_groups')
+            .select('eval_committee_targets(target_type, target_value)')
+            .eq('id', subGroupId)
+            .single();
+        targets = sub?.eval_committee_targets || [];
+    }
+
+    const departments = targets
+        .filter(t => t.target_type === 'department')
+        .map(t => t.target_value);
+
+    if (departments.length === 0) return;
+
+    // ✅ โหลดครูในกลุ่มเป้าหมาย
+    const { data: teachers } = await db
+        .from('core_personnel')
+        .select('id, prefix, first_name, last_name, academic_standing, department')
+        .in('department', departments)
+        .in('position', ['ครู', 'ครูผู้ช่วย'])
+        .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+        .order('first_name', { ascending: true });
+
+    if (_evScoreEvaluateeTomSelect) {
+        (teachers || []).forEach(t => {
+            const name = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
+            _evScoreEvaluateeTomSelect.addOption({
+                value: t.id,
+                text: `${name} (${t.department || '-'})`,
+                department: t.department,
+                name: name
+            });
+        });
+        _evScoreEvaluateeTomSelect.refreshOptions(false);
+    }
+
+    console.log(`✅ โหลด ${(teachers || []).length} คน สำหรับชุด ${subGroupId}`);
+}
+
+// ==========================================
+// โหลดคะแนนรายกรรมการ
+// ==========================================
+async function loadEvaluatorScores() {
+    const evaluateeId = document.getElementById('ev_score_evaluatee').value;
+    const subGroupId = document.getElementById('ev_score_subgroup').value;
+
+    if (!evaluateeId || !subGroupId) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกครูและชุดคณะกรรมการ', 'warning');
+    }
+
+    Swal.fire({
+        title: 'กำลังโหลด...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const content = document.getElementById('ev_score_content');
+        content.innerHTML = `
+            <div class="text-center py-12">
+                <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600 mx-auto"></div>
+                <p class="text-gray-400 mt-3">กำลังโหลดข้อมูล...</p>
+            </div>`;
+
+        // 1. ข้อมูลครู
+        const { data: teacher } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .eq('id', evaluateeId)
+            .single();
+
+        // 2. ข้อมูลชุดย่อย + members
+        const { data: subGroup } = await db
+            .from('eval_committee_groups')
+            .select('id, group_name, selected_sub_items, parent_group_id')
+            .eq('id', subGroupId)
+            .single();
+
+        const { data: members } = await db
+            .from('eval_committee_members')
+            .select('user_id, core_personnel(id, prefix, first_name, last_name)')
+            .eq('committee_group_id', subGroupId)
+            .eq('is_active', true);
+
+        const evaluatorIds = (members || []).map(m => m.user_id);
+
+        // 3. ดึงผลการประเมินของกรรมการทุกคนในชุดนี้
+        const { data: results } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'committee')
+            .in('evaluator_id', evaluatorIds)
+            .eq('status', 'submitted');
+
+        // 4. Map ข้อมูล
+        const evaluatorNameMap = {};
+        (members || []).forEach(m => {
+            if (m.core_personnel) {
+                evaluatorNameMap[m.user_id] = `${m.core_personnel.prefix || ''}${m.core_personnel.first_name} ${m.core_personnel.last_name}`;
+            } else {
+                evaluatorNameMap[m.user_id] = `ID: ${m.user_id.substring(0, 8)}`;
+            }
+        });
+
+        const evaluators = (results || []).map(r => ({
+            evaluator_id: r.evaluator_id,
+            name: evaluatorNameMap[r.evaluator_id] || 'ไม่ทราบชื่อ',
+            detailed_scores: r.detailed_scores || {},
+            total_score: r.total_score,
+            status: r.status,
+            eval_id: r.id
+        }));
+
+        // 5. คำนวณ Mode
+        const modeScores = _evScoreState.modeScores = calculateModeFromEvaluators(evaluators);
+
+        // 6. เก็บ state
+        _evScoreState.evaluateeId = evaluateeId;
+        _evScoreState.subGroupId = subGroupId;
+        _evScoreState.subGroupName = subGroup?.group_name || '';
+        _evScoreState.evaluateeName = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : '';
+        _evScoreState.academicStanding = teacher?.academic_standing || 'ครู';
+        _evScoreState.evaluators = evaluators;
+        _evScoreState.requiredItems = subGroup?.selected_sub_items || [];
+
+        // 7. Render
+        renderEvaluatorScoresModal();
+        Swal.close();
+
+    } catch (err) {
+        console.error('Error loading evaluator scores:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// คำนวณ Mode จากกรรมการทุกคน
+// ==========================================
+function calculateModeFromEvaluators(evaluators) {
+    if (!evaluators || evaluators.length === 0) return {};
+
+    const mode = { p1_s1: [], p1_s1_keys: [], p1_s2: [], p2: null, p3: [] };
+
+    // --- p1_s1 ---
+    const p1s1Arrays = evaluators.map(e => e.detailed_scores.p1_s1 || []);
+    const p1s1Keys = evaluators[0]?.detailed_scores.p1_s1_keys || [];
+    const maxP1s1Len = Math.max(...p1s1Arrays.map(a => a.length), 0);
+    for (let i = 0; i < maxP1s1Len; i++) {
+        const vals = p1s1Arrays.map(a => a[i]).filter(v => typeof v === 'number');
+        if (vals.length > 0) {
+            mode.p1_s1.push(findMode(vals));
+            if (p1s1Keys[i]) mode.p1_s1_keys.push(p1s1Keys[i]);
+        }
+    }
+
+    // --- p1_s2 ---
+    const p1s2Arrays = evaluators.map(e => e.detailed_scores.p1_s2 || []);
+    const maxP1s2Len = Math.max(...p1s2Arrays.map(a => a.length), 0);
+    for (let i = 0; i < maxP1s2Len; i++) {
+        const vals = p1s2Arrays.map(a => a[i]).filter(v => typeof v === 'number');
+        mode.p1_s2.push(vals.length > 0 ? findMode(vals) : null);
+    }
+
+    // --- p2 ---
+    const p2Vals = evaluators.map(e => e.detailed_scores.p2).filter(v => typeof v === 'number');
+    if (p2Vals.length > 0) mode.p2 = findMode(p2Vals);
+
+    // --- p3 ---
+    const p3Arrays = evaluators.map(e => e.detailed_scores.p3 || []);
+    const maxP3Len = Math.max(...p3Arrays.map(a => a.length), 0);
+    for (let i = 0; i < maxP3Len; i++) {
+        const vals = p3Arrays.map(a => a[i]).filter(v => typeof v === 'number');
+        mode.p3.push(vals.length > 0 ? findMode(vals) : null);
+    }
+
+    return mode;
+}
+
+// ==========================================
+// ✅ Helper: คำนวณความต่างจาก Mode
+// ==========================================
+function getScoreDiffColor(score, modeScore) {
+    if (score === null || score === undefined || modeScore === null || modeScore === undefined) {
+        return { color: 'gray', class: 'text-gray-400', bg: 'bg-gray-100', level: 'none' };
+    }
+
+    const diff = Math.abs(score - modeScore);
+
+    if (diff === 0) {
+        return {
+            color: 'green',
+            class: 'text-emerald-700',
+            bg: 'bg-emerald-50',
+            border: 'border-emerald-200',
+            level: 'match',
+            label: 'ตรงกับ Mode'
+        };
+    }
+    if (diff === 1) {
+        return {
+            color: 'yellow',
+            class: 'text-amber-700',
+            bg: 'bg-amber-50',
+            border: 'border-amber-200',
+            level: 'minor',
+            label: 'ต่าง ±1'
+        };
+    }
+    return {
+        color: 'red',
+        class: 'text-red-700',
+        bg: 'bg-red-50',
+        border: 'border-red-200',
+        level: 'major',
+        label: 'ต่าง ±2 ขึ้นไป'
+    };
+}
+
+// ==========================================
+// ✅ Helper: คำนวณสถิติความต่างของกรรมการแต่ละคน
+// ==========================================
+function calculateEvaluatorDivergence(evaluator, modeScores, requiredItems) {
+    let total = 0;
+    let matches = 0;
+    let minorDiffs = 0;   // ±1
+    let majorDiffs = 0;   // ±2 ขึ้นไป
+    const divergentItems = []; // เก็บรายการที่ต่างมาก เพื่อแสดงใน tooltip
+
+    const details = evaluator.detailed_scores || {};
+
+    // --- p1_s1 ---
+    (requiredItems || [])
+        .filter(i => i.element === '1' && i.part === '1')
+        .forEach(item => {
+            const key = item.value.replace('.', '_');
+            const keys = details.p1_s1_keys || [];
+            const arr = details.p1_s1 || [];
+            const idx = keys.indexOf(key);
+            const score = idx >= 0 ? arr[idx] : null;
+
+            const modeIdx = (modeScores.p1_s1_keys || []).indexOf(key);
+            const modeVal = modeIdx >= 0 ? modeScores.p1_s1[modeIdx] : null;
+
+            if (score === null || modeVal === null) return;
+            total++;
+            const diff = Math.abs(score - modeVal);
+            if (diff === 0) matches++;
+            else if (diff === 1) minorDiffs++;
+            else {
+                majorDiffs++;
+                divergentItems.push(`${item.value} (กรรมการ: ${score} / Mode: ${modeVal})`);
+            }
+        });
+
+    // --- p1_s2 ---
+    (requiredItems || [])
+        .filter(i => i.element === '1' && i.part === '2')
+        .forEach((item, i) => {
+            const score = (details.p1_s2 || [])[i];
+            const modeVal = (modeScores.p1_s2 || [])[i];
+            if (score === null || score === undefined || modeVal === null || modeVal === undefined) return;
+            total++;
+            const diff = Math.abs(score - modeVal);
+            if (diff === 0) matches++;
+            else if (diff === 1) minorDiffs++;
+            else {
+                majorDiffs++;
+                divergentItems.push(`ตอน 2 ข้อ ${item.value} (กรรมการ: ${score} / Mode: ${modeVal})`);
+            }
+        });
+
+    // --- p2 ---
+    if ((requiredItems || []).some(i => i.element === '2')) {
+        const score = details.p2;
+        const modeVal = modeScores.p2;
+        if (score !== null && score !== undefined && modeVal !== null && modeVal !== undefined) {
+            total++;
+            const diff = Math.abs(score - modeVal);
+            if (diff === 0) matches++;
+            else if (diff === 1) minorDiffs++;
+            else {
+                majorDiffs++;
+                divergentItems.push(`ป2 (กรรมการ: ${score} / Mode: ${modeVal})`);
+            }
+        }
+    }
+
+    // --- p3 ---
+    (requiredItems || [])
+        .filter(i => i.element === '3')
+        .forEach((item, i) => {
+            const score = (details.p3 || [])[i];
+            const modeVal = (modeScores.p3 || [])[i];
+            if (score === null || score === undefined || modeVal === null || modeVal === undefined) return;
+            total++;
+            const diff = Math.abs(score - modeVal);
+            if (diff === 0) matches++;
+            else if (diff === 1) minorDiffs++;
+            else {
+                majorDiffs++;
+                divergentItems.push(`ป3 ข้อ ${item.value} (กรรมการ: ${score} / Mode: ${modeVal})`);
+            }
+        });
+
+    const matchPercent = total > 0 ? (matches / total) * 100 : 0;
+
+    return {
+        total,
+        matches,
+        minorDiffs,
+        majorDiffs,
+        matchPercent,
+        divergentItems
+    };
+}
+
+// ==========================================
+// Render Modal
+// ==========================================
+function renderEvaluatorScoresModal() {
+    const s = _evScoreState;
+    const content = document.getElementById('ev_score_content');
+    const summary = document.getElementById('ev_score_summary');
+
+    // คำนวณคะแนน Mode รวม
+    const modeTotal = calculateTotalScoreFromModeDetails(
+        { p1_s1: findMode(s.modeScores.p1_s1 || []), p1_s2: s.modeScores.p1_s2, p2: s.modeScores.p2, p3: findMode(s.modeScores.p3 || []) },
+        s.academicStanding
+    );
+    const level = getLevelText(modeTotal);
+
+    // Header
+    let html = `
+        <div class="mb-4 p-4 bg-gradient-to-r from-indigo-50 to-blue-50 rounded-xl border border-indigo-200">
+            <div class="flex flex-wrap justify-between items-center gap-3">
+                <div>
+                    <p class="text-xs text-gray-500 font-bold">ครูที่ถูกประเมิน</p>
+                    <p class="font-bold text-gray-800 text-lg">${s.evaluateeName}</p>
+                    <p class="text-xs text-gray-500">
+                        <i class="fa-solid fa-building mr-1"></i> ${s.academicStanding} |
+                        <i class="fa-solid fa-users ml-2 mr-1"></i> ชุด: ${s.subGroupName} |
+                        <i class="fa-solid fa-user-check ml-2 mr-1"></i> กรรมการ ${s.evaluators.length} ท่าน
+                    </p>
+                </div>
+                <div class="text-right">
+                    <p class="text-xs text-gray-500">คะแนน Mode</p>
+                    <p class="text-3xl font-bold text-indigo-600">${modeTotal.toFixed(2)}</p>
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold ${level.color}">${level.text}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-4 border-b border-gray-200">
+            <button onclick="switchEvaluatorTab('mode')"
+                id="ev-tab-mode"
+                class="px-4 py-2 text-sm font-bold transition-colors border-b-2 ${s.activeTab === 'mode' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                <i class="fa-solid fa-chart-simple mr-1"></i> สรุป Mode
+            </button>
+            <button onclick="switchEvaluatorTab('evaluators')"
+                id="ev-tab-evaluators"
+                class="px-4 py-2 text-sm font-bold transition-colors border-b-2 ${s.activeTab === 'evaluators' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                <i class="fa-solid fa-user-group mr-1"></i> รายกรรมการ
+            </button>
+            <button onclick="switchEvaluatorTab('items')"
+                id="ev-tab-items"
+                class="px-4 py-2 text-sm font-bold transition-colors border-b-2 ${s.activeTab === 'items' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'}">
+                <i class="fa-solid fa-table-list mr-1"></i> ตารางไขว้
+            </button>
+        </div>
+
+        <div id="ev-tab-content"></div>
+    `;
+    content.innerHTML = html;
+
+    // Render tab content
+    renderEvaluatorTabContent();
+
+    // Summary footer
+    summary.innerHTML = `
+        <span class="text-gray-500">
+            <i class="fa-solid fa-users mr-1"></i> ${s.evaluators.length} กรรมการ |
+            <i class="fa-solid fa-chart-line ml-2 mr-1"></i> Mode: <b class="text-indigo-600">${modeTotal.toFixed(2)}</b>
+        </span>
+    `;
+}
+
+// ==========================================
+// สลับ Tab
+// ==========================================
+function switchEvaluatorTab(tab) {
+    _evScoreState.activeTab = tab;
+
+    ['mode', 'evaluators', 'items'].forEach(t => {
+        const btn = document.getElementById(`ev-tab-${t}`);
+        if (btn) {
+            if (t === tab) {
+                btn.className = 'px-4 py-2 text-sm font-bold transition-colors border-b-2 border-indigo-600 text-indigo-600';
+            } else {
+                btn.className = 'px-4 py-2 text-sm font-bold transition-colors border-b-2 border-transparent text-gray-500 hover:text-gray-700';
+            }
+        }
+    });
+
+    renderEvaluatorTabContent();
+}
+
+// ==========================================
+// Render เนื้อหา Tab
+// ==========================================
+function renderEvaluatorTabContent() {
+    const container = document.getElementById('ev-tab-content');
+    if (!container) return;
+
+    const s = _evScoreState;
+
+    if (s.activeTab === 'mode') {
+        container.innerHTML = renderModeTab();
+    } else if (s.activeTab === 'evaluators') {
+        container.innerHTML = renderEvaluatorsTab();
+    } else if (s.activeTab === 'items') {
+        container.innerHTML = renderItemsTab();
+    }
+}
+
+// ==========================================
+// TAB 1: สรุป Mode
+// ==========================================
+function renderModeTab() {
+    const s = _evScoreState;
+
+    if (s.evaluators.length === 0) {
+        return '<div class="text-center py-8 text-gray-400">ยังไม่มีการประเมินจากกรรมการ</div>';
+    }
+
+    // จัดกลุ่มข้อ
+    const p1s1Items = s.requiredItems.filter(i => i.element === '1' && i.part === '1');
+    const p1s2Items = s.requiredItems.filter(i => i.element === '1' && i.part === '2');
+    const p2Items = s.requiredItems.filter(i => i.element === '2');
+    const p3Items = s.requiredItems.filter(i => i.element === '3');
+
+    let html = '<div class="overflow-x-auto rounded-xl border border-gray-200">';
+    html += '<table class="w-full text-sm">';
+    html += `
+        <thead class="bg-indigo-50">
+            <tr>
+                <th class="p-2 text-left">หัวข้อ</th>
+                <th class="p-2 text-center w-32">Mode</th>
+            </tr>
+        </thead>
+        <tbody>`;
+
+    // p1_s1
+    if (p1s1Items.length > 0) {
+        html += `<tr class="bg-blue-50/50"><td colspan="2" class="p-2 font-bold text-blue-700 text-xs">📚 องค์ประกอบ 1 ตอนที่ 1</td></tr>`;
+        p1s1Items.forEach(item => {
+            const key = item.value.replace('.', '_');
+            const idx = (s.modeScores.p1_s1_keys || []).indexOf(key);
+            const val = idx >= 0 ? s.modeScores.p1_s1[idx] : '-';
+            html += `
+                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                    <td class="p-2 text-gray-700">${item.value}</td>
+                    <td class="p-2 text-center font-bold text-indigo-600">${val || '-'}</td>
+                </tr>`;
+        });
+    }
+
+    // p1_s2
+    if (p1s2Items.length > 0) {
+        html += `<tr class="bg-indigo-50/50"><td colspan="2" class="p-2 font-bold text-indigo-700 text-xs">🎯 องค์ประกอบ 1 ตอนที่ 2</td></tr>`;
+        p1s2Items.forEach((item, i) => {
+            const val = s.modeScores.p1_s2[i] || '-';
+            const label = item.value === '1' ? '1. วิธีดำเนินการ' :
+                item.value === '2.1' ? '2.1 เชิงปริมาณ' :
+                    item.value === '2.2' ? '2.2 เชิงคุณภาพ' : item.value;
+            html += `
+                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                    <td class="p-2 text-gray-700">${label}</td>
+                    <td class="p-2 text-center font-bold text-indigo-600">${val}</td>
+                </tr>`;
+        });
+    }
+
+    // p2
+    if (p2Items.length > 0) {
+        html += `<tr class="bg-emerald-50/50"><td colspan="2" class="p-2 font-bold text-emerald-700 text-xs">🤝 องค์ประกอบ 2</td></tr>`;
+        html += `
+            <tr class="border-t border-gray-100 hover:bg-gray-50">
+                <td class="p-2 text-gray-700">ระดับความสำเร็จ</td>
+                <td class="p-2 text-center font-bold text-emerald-600">${s.modeScores.p2 || '-'}</td>
+            </tr>`;
+    }
+
+    // p3
+    if (p3Items.length > 0) {
+        html += `<tr class="bg-purple-50/50"><td colspan="2" class="p-2 font-bold text-purple-700 text-xs">⚖️ องค์ประกอบ 3</td></tr>`;
+        p3Items.forEach((item, i) => {
+            const val = s.modeScores.p3[i] || '-';
+            html += `
+                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                    <td class="p-2 text-gray-700">ข้อ ${item.value}</td>
+                    <td class="p-2 text-center font-bold text-purple-600">${val}</td>
+                </tr>`;
+        });
+    }
+
+    html += '</tbody></table></div>';
+    return html;
+}
+
+// ==========================================
+// TAB 2: รายกรรมการ (แก้ไขได้) - พร้อมไฮไลต์ความต่าง
+// ==========================================
+function renderEvaluatorsTab() {
+    const s = _evScoreState;
+
+    if (s.evaluators.length === 0) {
+        return '<div class="text-center py-8 text-gray-400">ยังไม่มีการประเมินจากกรรมการ</div>';
+    }
+
+    // ✅ คำนวณสถิติความต่างของกรรมการแต่ละคน
+    const divergenceStats = s.evaluators.map(e =>
+        calculateEvaluatorDivergence(e, s.modeScores, s.requiredItems)
+    );
+
+    // ✅ คำนวณค่าเฉลี่ย % ตรง Mode ของทั้งชุด
+    const avgMatchPercent = divergenceStats.reduce((a, b) => a + b.matchPercent, 0) / divergenceStats.length;
+
+    let html = `
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-3 mb-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+            <span class="text-xs font-bold text-gray-600">
+                <i class="fa-solid fa-info-circle mr-1"></i> คำอธิบาย:
+            </span>
+            <span class="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                🟢 ตรงกับ Mode
+            </span>
+            <span class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                🟡 ต่าง ±1
+            </span>
+            <span class="text-xs px-2 py-1 rounded-full bg-red-50 text-red-700 border border-red-200">
+                🔴 ต่าง ±2 ขึ้นไป (ควรตรวจสอบ)
+            </span>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-gray-200">
+            <table class="w-full text-sm">
+                <thead class="bg-indigo-50">
+                    <tr>
+                        <th class="p-2 text-center w-12">#</th>
+                        <th class="p-2 text-left">กรรมการ</th>
+                        <th class="p-2 text-center w-24">คะแนนรวม</th>
+                        <th class="p-2 text-center w-20">ระดับ</th>
+                        <th class="p-2 text-center w-20">ตรง Mode</th>
+                        <th class="p-2 text-center w-20">ต่าง ±1</th>
+                        <th class="p-2 text-center w-20">ต่างมาก</th>
+                        <th class="p-2 text-center w-32">ดำเนินการ</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+    s.evaluators.forEach((e, idx) => {
+        const level = getLevelText(e.total_score);
+        const stats = divergenceStats[idx];
+
+        // ✅ สีพื้นแถวตามระดับความเห็นต่าง
+        let rowBg = '';
+        let rowIcon = '';
+        if (stats.majorDiffs >= 3) {
+            rowBg = 'bg-red-50/50';
+            rowIcon = '<i class="fa-solid fa-triangle-exclamation text-red-500 ml-1" title="มีคะแนนต่างจาก Mode มาก"></i>';
+        } else if (stats.majorDiffs >= 1) {
+            rowBg = 'bg-amber-50/30';
+            rowIcon = '<i class="fa-solid fa-circle-exclamation text-amber-500 ml-1" title="มีคะแนนต่างจาก Mode"></i>';
+        }
+
+        // ✅ ปุ่มดู divergent items (ถ้ามี)
+        const viewDivergentBtn = stats.majorDiffs > 0
+            ? `<button onclick="viewDivergentItems('${e.evaluator_id}')"
+                    class="text-xs bg-red-500 hover:bg-red-600 text-white px-2 py-0.5 rounded ml-1"
+                    title="ดูรายการที่ต่าง">
+                    <i class="fa-solid fa-list"></i>
+               </button>`
+            : '';
+
+        html += `
+            <tr class="border-t border-gray-100 hover:bg-gray-50 ${rowBg}">
+                <td class="p-2 text-center text-gray-400">${idx + 1}</td>
+                <td class="p-2 font-medium text-gray-700">${e.name}${rowIcon}</td>
+                <td class="p-2 text-center font-bold text-indigo-600">${e.total_score?.toFixed(2) || '-'}</td>
+                <td class="p-2 text-center">
+                    <span class="px-2 py-0.5 rounded-full text-xs font-bold ${level.color}">${level.text}</span>
+                </td>
+                <td class="p-2 text-center">
+                    <span class="text-emerald-600 font-bold">${stats.matches}</span>
+                </td>
+                <td class="p-2 text-center">
+                    <span class="text-amber-600 font-bold">${stats.minorDiffs}</span>
+                </td>
+                <td class="p-2 text-center">
+                    <span class="${stats.majorDiffs > 0 ? 'text-red-600 font-bold' : 'text-gray-400'}">${stats.majorDiffs}</span>
+                    ${viewDivergentBtn}
+                </td>
+                <td class="p-2 text-center whitespace-nowrap">
+                    <button onclick="viewEvaluatorDetail('${e.evaluator_id}')"
+                        class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-1">
+                        <i class="fa-solid fa-eye"></i> ดู
+                    </button>
+                    <button onclick="editEvaluatorScore('${e.evaluator_id}')"
+                        class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-xs font-bold">
+                        <i class="fa-solid fa-pen"></i> แก้ไข
+                    </button>
+                </td>
+            </tr>`;
+    });
+
+    html += `
+                </tbody>
+                <tfoot class="bg-indigo-50/50 font-bold">
+                    <tr>
+                        <td colspan="4" class="p-2 text-right text-xs text-gray-600">
+                            ค่าเฉลี่ยความตรงกับ Mode:
+                        </td>
+                        <td colspan="4" class="p-2 text-center">
+                            <span class="text-lg text-indigo-600">${avgMatchPercent.toFixed(1)}%</span>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>`;
+
+    return html;
+}
+
+// ==========================================
+// TAB 3: ตารางไขว้ (กรรมการ x ข้อ) - ไฮไลต์ความต่าง
+// ==========================================
+function renderItemsTab() {
+    const s = _evScoreState;
+
+    if (s.evaluators.length === 0) {
+        return '<div class="text-center py-8 text-gray-400">ยังไม่มีการประเมินจากกรรมการ</div>';
+    }
+
+    let html = `
+        <!-- Legend -->
+        <div class="flex flex-wrap items-center gap-3 mb-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+            <span class="text-xs font-bold text-gray-600">🎨 สีของคะแนน:</span>
+            <span class="text-xs px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">🟢 ตรงกับ Mode</span>
+            <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-700">🟡 ต่าง ±1</span>
+            <span class="text-xs px-2 py-1 rounded-full bg-red-100 text-red-700">🔴 ต่าง ±2 ขึ้นไป</span>
+        </div>
+
+        <div class="overflow-x-auto rounded-xl border border-gray-200">
+            <table class="w-full text-sm">
+                <thead class="bg-indigo-50">
+                    <tr>
+                        <th class="p-2 text-left sticky left-0 bg-indigo-50 z-10 min-w-[200px]">หัวข้อ</th>`;
+
+    s.evaluators.forEach((e, i) => {
+        html += `<th class="p-2 text-center w-20 text-xs" title="${e.name}">ก.${i + 1}</th>`;
+    });
+
+    html += `<th class="p-2 text-center w-20 bg-yellow-100 text-yellow-800 font-bold">Mode</th></tr></thead><tbody>`;
+
+    // Legend ของกรรมการ
+    html += '<tr class="bg-gray-50 text-xs"><td class="p-1 sticky left-0 bg-gray-50"></td>';
+    s.evaluators.forEach((e) => {
+        html += `<td class="p-1 text-center text-gray-500 font-medium" title="${e.name}">${e.name.split(' ')[0]}</td>`;
+    });
+    html += '<td></td></tr>';
+
+    // --- Helper: สร้างเซลล์ที่มีสี ---
+    const renderScoreCell = (score, modeVal) => {
+        if (score === null || score === undefined || score === '') {
+            return `<td class="p-2 text-center text-gray-300">-</td>`;
+        }
+        const diff = getScoreDiffColor(score, modeVal);
+        return `<td class="p-2 text-center font-bold ${diff.bg} ${diff.class} border ${diff.border}">${score}</td>`;
+    };
+
+    // --- p1_s1 ---
+    const p1s1Items = s.requiredItems.filter(i => i.element === '1' && i.part === '1');
+    if (p1s1Items.length > 0) {
+        html += `<tr class="bg-blue-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-blue-700 text-xs sticky left-0 bg-blue-50">📚 องค์ประกอบ 1 ตอนที่ 1</td></tr>`;
+        p1s1Items.forEach(item => {
+            const key = item.value.replace('.', '_');
+            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">${item.value}</td>`;
+
+            // ✅ Mode value
+            const modeIdx = (s.modeScores.p1_s1_keys || []).indexOf(key);
+            const modeVal = modeIdx >= 0 ? s.modeScores.p1_s1[modeIdx] : null;
+
+            s.evaluators.forEach(e => {
+                const keys = e.detailed_scores.p1_s1_keys || [];
+                const arr = e.detailed_scores.p1_s1 || [];
+                const idx = keys.indexOf(key);
+                const val = idx >= 0 ? arr[idx] : null;
+                html += renderScoreCell(val, modeVal);
+            });
+
+            html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
+            html += '</tr>';
+        });
+    }
+
+    // --- p1_s2 ---
+    const p1s2Items = s.requiredItems.filter(i => i.element === '1' && i.part === '2');
+    if (p1s2Items.length > 0) {
+        html += `<tr class="bg-indigo-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-indigo-700 text-xs sticky left-0 bg-indigo-50">🎯 องค์ประกอบ 1 ตอนที่ 2</td></tr>`;
+        p1s2Items.forEach((item, i) => {
+            const label = item.value === '1' ? '1. วิธีดำเนินการ' :
+                item.value === '2.1' ? '2.1 เชิงปริมาณ' :
+                    item.value === '2.2' ? '2.2 เชิงคุณภาพ' : item.value;
+
+            const modeVal = (s.modeScores.p1_s2 || [])[i] || null;
+
+            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">${label}</td>`;
+
+            s.evaluators.forEach(e => {
+                const val = (e.detailed_scores.p1_s2 || [])[i];
+                html += renderScoreCell(val, modeVal);
+            });
+
+            html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
+            html += '</tr>';
+        });
+    }
+
+    // --- p2 ---
+    if (s.requiredItems.some(i => i.element === '2')) {
+        const modeVal = s.modeScores.p2 || null;
+        html += `<tr class="bg-emerald-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-emerald-700 text-xs sticky left-0 bg-emerald-50">🤝 องค์ประกอบ 2</td></tr>`;
+        html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+        html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">ระดับความสำเร็จ</td>`;
+
+        s.evaluators.forEach(e => {
+            const val = e.detailed_scores.p2;
+            html += renderScoreCell(val, modeVal);
+        });
+
+        html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
+        html += '</tr>';
+    }
+
+    // --- p3 ---
+    const p3Items = s.requiredItems.filter(i => i.element === '3');
+    if (p3Items.length > 0) {
+        html += `<tr class="bg-purple-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-purple-700 text-xs sticky left-0 bg-purple-50">⚖️ องค์ประกอบ 3</td></tr>`;
+        p3Items.forEach((item, i) => {
+            const modeVal = (s.modeScores.p3 || [])[i] || null;
+            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">ข้อ ${item.value}</td>`;
+
+            s.evaluators.forEach(e => {
+                const val = (e.detailed_scores.p3 || [])[i];
+                html += renderScoreCell(val, modeVal);
+            });
+
+            html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
+            html += '</tr>';
+        });
+    }
+
+    html += '</tbody></table></div>';
+    return html;
+}
+
+// ==========================================
+// ดูรายการที่กรรมการให้คะแนนต่างจาก Mode
+// ==========================================
+async function viewDivergentItems(evaluatorId) {
+    const evaluator = _evScoreState.evaluators.find(e => e.evaluator_id === evaluatorId);
+    if (!evaluator) return;
+
+    const stats = calculateEvaluatorDivergence(evaluator, _evScoreState.modeScores, _evScoreState.requiredItems);
+
+    if (stats.divergentItems.length === 0) {
+        return Swal.fire({
+            icon: 'info',
+            title: 'ไม่พบความต่าง',
+            text: 'คะแนนของกรรมการท่านนี้สอดคล้องกับ Mode',
+            confirmButtonText: 'ปิด'
+        });
+    }
+
+    // ✅ แสดงรายการที่ต่าง พร้อมปุ่มไปแก้ไข
+    const itemsHtml = stats.divergentItems.map((item, i) =>
+        `<div class="flex justify-between items-center border-b border-red-100 py-2 text-sm">
+            <span class="text-gray-700">${i + 1}. ${item}</span>
+        </div>`
+    ).join('');
+
+    await Swal.fire({
+        icon: 'warning',
+        title: '⚠️ รายการที่ต่างจาก Mode',
+        html: `
+            <div class="text-left">
+                <div class="bg-yellow-50 p-3 rounded-lg mb-3">
+                    <p class="text-sm">
+                        <b>กรรมการ:</b> ${evaluator.name}<br>
+                        <b>คะแนนรวม:</b> ${evaluator.total_score?.toFixed(2)}
+                    </p>
+                    <div class="flex gap-3 mt-2 text-xs">
+                        <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700">
+                            🟢 ตรง: ${stats.matches}
+                        </span>
+                        <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                            🟡 ต่าง ±1: ${stats.minorDiffs}
+                        </span>
+                        <span class="px-2 py-1 rounded-full bg-red-100 text-red-700">
+                            🔴 ต่างมาก: ${stats.majorDiffs}
+                        </span>
+                    </div>
+                </div>
+
+                <p class="text-xs font-bold text-red-700 mb-1">
+                    รายการที่ต่างจาก Mode ตั้งแต่ ±2 ขึ้นไป:
+                </p>
+                <div class="max-h-72 overflow-y-auto bg-red-50/50 rounded-lg p-2">
+                    ${itemsHtml}
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '<i class="fa-solid fa-pen"></i> ไปแก้ไขคะแนน',
+        cancelButtonText: 'ปิด',
+        confirmButtonColor: '#f59e0b'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            editEvaluatorScore(evaluatorId);
+        }
+    });
+}
+
+// ==========================================
+// ดูรายละเอียดกรรมการแต่ละคน
+// ==========================================
+async function viewEvaluatorDetail(evaluatorId) {
+    const evaluator = _evScoreState.evaluators.find(e => e.evaluator_id === evaluatorId);
+    if (!evaluator) return;
+
+    const details = evaluator.detailed_scores;
+    const p1s1 = details.p1_s1 || [];
+    const p1s2 = details.p1_s2 || [];
+    const p2 = details.p2;
+    const p3 = details.p3 || [];
+
+    let html = `
+        <div class="text-left">
+            <p class="font-bold text-lg">${evaluator.name}</p>
+            <p class="text-sm text-gray-500">คะแนนรวม: <b class="text-indigo-600">${evaluator.total_score?.toFixed(2)}</b> / 100</p>
+            <hr class="my-3">
+            <p class="text-xs font-bold text-blue-700">📚 องค์ประกอบ 1 ตอนที่ 1: [${p1s1.join(', ')}]</p>
+            <p class="text-xs font-bold text-indigo-700 mt-1">🎯 องค์ประกอบ 1 ตอนที่ 2: [${p1s2.join(', ')}]</p>
+            <p class="text-xs font-bold text-emerald-700 mt-1">🤝 องค์ประกอบ 2: ระดับ ${p2 || '-'}</p>
+            <p class="text-xs font-bold text-purple-700 mt-1">⚖️ องค์ประกอบ 3: [${p3.join(', ')}]</p>
+        </div>
+    `;
+
+    await Swal.fire({
+        title: 'รายละเอียดการประเมิน',
+        html: html,
+        confirmButtonText: 'ปิด',
+        width: '600px'
+    });
+}
+
+// ==========================================
+// แก้ไขคะแนนกรรมการ
+// ==========================================
+async function editEvaluatorScore(evaluatorId) {
+    const evaluator = _evScoreState.evaluators.find(e => e.evaluator_id === evaluatorId);
+    if (!evaluator) return;
+
+    const confirm = await Swal.fire({
+        icon: 'warning',
+        title: 'ยืนยันการแก้ไข',
+        html: `
+            <p>คุณต้องการแก้ไขคะแนนของ <b>${evaluator.name}</b></p>
+            <p class="text-xs text-gray-500 mt-2">
+                ⚠️ การแก้ไขจะกระทบต่อคะแนน Mode และผลสรุป<br>
+                ระบบจะเปิดหน้าแก้ไขในนามของกรรมการท่านนี้
+            </p>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '✅ ยืนยัน',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#f59e0b'
+    });
+
+    if (!confirm.isConfirmed) return;
+
+    // ✅ ถ้าเป็น Super Admin → สวมรอยเปิด wizard แก้ไข
+    if (currentUser.role === 'super_admin') {
+        _impersonationMode = true;
+        _impersonatedEvaluatorId = evaluatorId;
+        _impersonatedEvaluatorName = evaluator.name;
+        window._currentSubGroupId = _evScoreState.subGroupId;
+
+        // โหลด selected_sub_items
+        const { data: sg } = await db
+            .from('eval_committee_groups')
+            .select('selected_sub_items')
+            .eq('id', _evScoreState.subGroupId)
+            .single();
+        window._currentSelectedItems = sg?.selected_sub_items || [];
+
+        // หา teacher data
+        const { data: teacher } = await db
+            .from('core_personnel')
+            .select('*')
+            .eq('id', _evScoreState.evaluateeId)
+            .single();
+
+        closeEvaluatorScoresModal();
+        _showImpersonationBanner(evaluator.name);
+        await startEvaluation('committee', teacher);
+    } else {
+        // ถ้าเป็น Admin ทั่วไป ต้องแก้ไขผ่าน DB โดยตรง
+        Swal.fire({
+            icon: 'info',
+            title: 'ไม่สามารถแก้ไขได้',
+            text: 'เฉพาะ Super Admin เท่านั้นที่สามารถแก้ไขคะแนนของกรรมการท่านอื่นได้',
+            confirmButtonText: 'ตกลง'
+        });
+    }
+}
+
+// ==========================================
+// Export Excel คะแนนรายกรรมการ
+// ==========================================
+async function exportEvaluatorScoresExcel() {
+    const s = _evScoreState;
+
+    if (!s.evaluateeId || s.evaluators.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาโหลดข้อมูลก่อน export', 'warning');
+    }
+
+    try {
+        const wb = XLSX.utils.book_new();
+
+        // ==========================================
+        // Sheet 1: สรุป Mode
+        // ==========================================
+        const modeData = [
+            ['คะแนน Mode - ' + s.evaluateeName],
+            ['ชุดคณะกรรมการ', s.subGroupName],
+            ['วิทยฐานะ', s.academicStanding],
+            ['จำนวนกรรมการ', s.evaluators.length],
+            ['วันที่ export', new Date().toLocaleString('th-TH')],
+            [],
+            ['หัวข้อ', 'Mode', 'คะแนนเต็ม']
+        ];
+
+        const p1s1Items = s.requiredItems.filter(i => i.element === '1' && i.part === '1');
+        const p1s2Items = s.requiredItems.filter(i => i.element === '1' && i.part === '2');
+        const p3Items = s.requiredItems.filter(i => i.element === '3');
+
+        if (p1s1Items.length > 0) {
+            modeData.push(['📚 องค์ประกอบ 1 ตอนที่ 1', '', '']);
+            p1s1Items.forEach(item => {
+                const key = item.value.replace('.', '_');
+                const idx = (s.modeScores.p1_s1_keys || []).indexOf(key);
+                const val = idx >= 0 ? s.modeScores.p1_s1[idx] : '';
+                modeData.push([item.value, val, 4]);
+            });
+        }
+
+        if (p1s2Items.length > 0) {
+            modeData.push(['🎯 องค์ประกอบ 1 ตอนที่ 2', '', '']);
+            p1s2Items.forEach((item, i) => {
+                modeData.push([item.value, s.modeScores.p1_s2[i] || '', 4]);
+            });
+        }
+
+        if (s.requiredItems.some(i => i.element === '2')) {
+            modeData.push(['🤝 องค์ประกอบ 2', s.modeScores.p2 || '', 5]);
+        }
+
+        if (p3Items.length > 0) {
+            modeData.push(['⚖️ องค์ประกอบ 3', '', '']);
+            p3Items.forEach((item, i) => {
+                modeData.push([item.value, s.modeScores.p3[i] || '', 4]);
+            });
+        }
+
+        const wsMode = XLSX.utils.aoa_to_sheet(modeData);
+        wsMode['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsMode, 'สรุป Mode');
+
+        // ==========================================
+        // Sheet 2: คะแนนรายกรรมการ
+        // ==========================================
+        const evalHeaders = ['ลำดับ', 'กรรมการ', 'คะแนนรวม', 'ระดับ'];
+        // เพิ่มคอลัมน์หัวข้อ
+        const allItemLabels = [];
+        if (p1s1Items.length > 0) {
+            p1s1Items.forEach(i => allItemLabels.push(`1.1-${i.value}`));
+        }
+        if (p1s2Items.length > 0) {
+            p1s2Items.forEach(i => allItemLabels.push(`1.2-${i.value}`));
+        }
+        if (s.requiredItems.some(i => i.element === '2')) {
+            allItemLabels.push('ป2');
+        }
+        if (p3Items.length > 0) {
+            p3Items.forEach(i => allItemLabels.push(`ป3-${i.value}`));
+        }
+
+        const evalData = [[...evalHeaders, ...allItemLabels]];
+
+        s.evaluators.forEach((e, idx) => {
+            const row = [idx + 1, e.name, e.total_score?.toFixed(2), getLevelText(e.total_score).text];
+
+            // เพิ่มคะแนนรายข้อ
+            if (p1s1Items.length > 0) {
+                p1s1Items.forEach(item => {
+                    const key = item.value.replace('.', '_');
+                    const keys = e.detailed_scores.p1_s1_keys || [];
+                    const arr = e.detailed_scores.p1_s1 || [];
+                    const i = keys.indexOf(key);
+                    row.push(i >= 0 ? arr[i] : '');
+                });
+            }
+            if (p1s2Items.length > 0) {
+                p1s2Items.forEach((item, i) => {
+                    row.push((e.detailed_scores.p1_s2 || [])[i] || '');
+                });
+            }
+            if (s.requiredItems.some(i => i.element === '2')) {
+                row.push(e.detailed_scores.p2 || '');
+            }
+            if (p3Items.length > 0) {
+                p3Items.forEach((item, i) => {
+                    row.push((e.detailed_scores.p3 || [])[i] || '');
+                });
+            }
+
+            evalData.push(row);
+        });
+
+        const wsEval = XLSX.utils.aoa_to_sheet(evalData);
+        wsEval['!cols'] = evalData[0].map((_, i) => ({ wch: i < 4 ? 15 : 10 }));
+        XLSX.utils.book_append_sheet(wb, wsEval, 'คะแนนรายกรรมการ');
+
+        // ==========================================
+        // Sheet 3: ตารางไขว้ (กรรมการ x ข้อ)
+        // ==========================================
+        const crossHeaders = ['หัวข้อ'];
+        s.evaluators.forEach((e, i) => crossHeaders.push(`ก.${i + 1}`));
+        crossHeaders.push('Mode');
+        const crossData = [crossHeaders];
+
+        // Legend
+        const legendRow = ['ชื่อกรรมการ:'];
+        s.evaluators.forEach((e, i) => legendRow.push(e.name.split(' ')[0]));
+        legendRow.push('');
+        crossData.push(legendRow);
+
+        // p1_s1
+        if (p1s1Items.length > 0) {
+            crossData.push(['📚 องค์ประกอบ 1 ตอนที่ 1']);
+            p1s1Items.forEach(item => {
+                const row = [item.value];
+                const key = item.value.replace('.', '_');
+                s.evaluators.forEach(e => {
+                    const keys = e.detailed_scores.p1_s1_keys || [];
+                    const arr = e.detailed_scores.p1_s1 || [];
+                    const i = keys.indexOf(key);
+                    row.push(i >= 0 ? arr[i] : '');
+                });
+                const idx = (s.modeScores.p1_s1_keys || []).indexOf(key);
+                row.push(idx >= 0 ? s.modeScores.p1_s1[idx] : '');
+                crossData.push(row);
+            });
+        }
+
+        // p1_s2
+        if (p1s2Items.length > 0) {
+            crossData.push(['🎯 องค์ประกอบ 1 ตอนที่ 2']);
+            p1s2Items.forEach((item, i) => {
+                const row = [item.value];
+                s.evaluators.forEach(e => {
+                    row.push((e.detailed_scores.p1_s2 || [])[i] || '');
+                });
+                row.push(s.modeScores.p1_s2[i] || '');
+                crossData.push(row);
+            });
+        }
+
+        // p2
+        if (s.requiredItems.some(i => i.element === '2')) {
+            crossData.push(['🤝 องค์ประกอบ 2']);
+            const row = ['ระดับ'];
+            s.evaluators.forEach(e => row.push(e.detailed_scores.p2 || ''));
+            row.push(s.modeScores.p2 || '');
+            crossData.push(row);
+        }
+
+        // p3
+        if (p3Items.length > 0) {
+            crossData.push(['⚖️ องค์ประกอบ 3']);
+            p3Items.forEach((item, i) => {
+                const row = [`ข้อ ${item.value}`];
+                s.evaluators.forEach(e => {
+                    row.push((e.detailed_scores.p3 || [])[i] || '');
+                });
+                row.push(s.modeScores.p3[i] || '');
+                crossData.push(row);
+            });
+        }
+
+        const wsCross = XLSX.utils.aoa_to_sheet(crossData);
+        wsCross['!cols'] = crossData[0].map((_, i) => ({ wch: i === 0 ? 20 : 12 }));
+        XLSX.utils.book_append_sheet(wb, wsCross, 'ตารางไขว้');
+
+        // ==========================================
+        // บันทึกไฟล์
+        // ==========================================
+        const fileName = `คะแนนรายกรรมการ_${s.evaluateeName.replace(/\s/g, '_')}_${s.subGroupName.replace(/\s/g, '_')}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ส่งออก Excel สำเร็จ',
+            text: fileName,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+    } catch (err) {
+        console.error('Export error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
 // Export Logic Functions
 // ==========================================
 window.findMode = findMode;
@@ -2595,10 +4060,19 @@ window.loadReviewData = loadReviewData;
 window.viewTeacherEvalDetail = viewTeacherEvalDetail;
 window.openSelfEvalDetailModal = openSelfEvalDetailModal;
 window.validateEvaluationCompleteness = validateEvaluationCompleteness;
-// ✅ Export
 window.openSelfReviewModal = openSelfReviewModal;
 window.closeSelfReviewModal = closeSelfReviewModal;
 window.loadSelfReviewData = loadSelfReviewData;
 window.viewSelfEvalDetail = viewSelfEvalDetail;
-
+window.openEvaluatorScoresModal = openEvaluatorScoresModal;
+window.closeEvaluatorScoresModal = closeEvaluatorScoresModal;
+window.loadEvaluatorScores = loadEvaluatorScores;
+window.switchEvaluatorTab = switchEvaluatorTab;
+window.viewEvaluatorDetail = viewEvaluatorDetail;
+window.editEvaluatorScore = editEvaluatorScore;
+window.exportEvaluatorScoresExcel = exportEvaluatorScoresExcel;
+window.onReviewGroupChange = onReviewGroupChange;
+window.viewDivergentItems = viewDivergentItems;
+window.calculateEvaluatorDivergence = calculateEvaluatorDivergence;
+window.getScoreDiffColor = getScoreDiffColor;
 console.log('✅ evaluation_logic.js loaded successfully');
