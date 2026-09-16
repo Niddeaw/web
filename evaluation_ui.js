@@ -758,11 +758,13 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 // ฟังก์ชันเริ่มการประเมิน (แก้ไขแล้ว)
 // ==========================================
 async function startEvaluation(type, teacherData = null) {
-    if (window._viewOnly) {
+    // ✅ เช็ค view-only เฉพาะกรณีประเมินแทนกรรมการเท่านั้น
+    //    (self evaluation ไม่ถูกบล็อก เพราะ _viewOnly มีไว้ควบคุมสิทธิ์โหมด committee)
+    if (type === 'committee' && window._viewOnly) {
         return Swal.fire({
             icon: 'info',
             title: 'โหมดดูข้อมูล',
-            text: 'คุณอยู่ในโหมดดูข้อมูลเท่านั้น ไม่สามารถประเมินได้',
+            text: 'คุณอยู่ในโหมดดูข้อมูลเท่านั้น ไม่สามารถประเมินในนามกรรมการได้',
             confirmButtonText: 'ตกลง'
         });
     }
