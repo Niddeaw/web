@@ -432,7 +432,9 @@ async function checkAuth() {
     document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
     document.getElementById('header_user_role').innerText = currentUser.role || '';
 
-    const selfEvalRoles = ['teacher', 'super_admin'];
+    // ✅ เพิ่ม 'admin' และ 'deputy' เข้าไปด้วย เพื่อให้ครูที่ถูกแต่งตั้งเป็นแอดมิน
+    //    หรือรองผู้อำนวยการที่ยังสอนอยู่ สามารถประเมินตนเองได้
+    const selfEvalRoles = ['teacher', 'super_admin', 'admin', 'deputy'];
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
     const showSelfEval = selfEvalRoles.includes(currentUser.role) && isAllowedAcademic;
 
