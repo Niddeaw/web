@@ -335,9 +335,12 @@ function updateSummary() {
 
     let grade = '';
     let statusIcon = '';
-    if (grandTotal >= 80) {
+    if (grandTotal >= 90) {
+        grade = 'ดีเด่น';
+        statusIcon = '<i class="fa-solid fa-trophy text-yellow-300"></i>';
+    } else if (grandTotal >= 80) {
         grade = 'ดีมาก';
-        statusIcon = '<i class="fa-solid fa-circle-check text-emerald-300"></i>';
+        statusIcon = '<i class="fa-solid fa-star text-emerald-300"></i>';
     } else if (grandTotal >= 70) {
         grade = 'ดี';
         statusIcon = '<i class="fa-solid fa-circle-check text-blue-300"></i>';
@@ -345,7 +348,7 @@ function updateSummary() {
         grade = 'พอใช้';
         statusIcon = '<i class="fa-solid fa-circle-exclamation text-yellow-300"></i>';
     } else if (grandTotal > 0) {
-        grade = 'ควรปรับปรุง';
+        grade = 'ปรับปรุง';
         statusIcon = '<i class="fa-solid fa-circle-xmark text-red-300"></i>';
     } else {
         grade = 'ยังไม่ประเมิน';

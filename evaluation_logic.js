@@ -598,10 +598,11 @@ async function displayFinalScoreSummary(evaluateeId, evalRoundId) {
         }
 
         const levelText = (score) => {
-            if (score >= 80) return { text: 'ดีมาก', color: 'emerald' };
+            if (score >= 90) return { text: 'ดีเด่น', color: 'emerald' };
+            if (score >= 80) return { text: 'ดีมาก', color: 'green' };
             if (score >= 70) return { text: 'ดี', color: 'blue' };
             if (score >= 60) return { text: 'พอใช้', color: 'yellow' };
-            return { text: 'ควรปรับปรุง', color: 'red' };
+            return { text: 'ปรับปรุง', color: 'red' };
         };
 
         const level = levelText(finalResult.average_score);
@@ -1116,7 +1117,7 @@ async function openSelfEvalDetailModal() {
                         <p class="text-sm opacity-80">ระดับคุณภาพ</p>
                         <p class="text-2xl font-bold">${level.text}</p>
                     </div>
-                    <div class="text-5xl opacity-50">${level.text === 'ดีมาก' ? '🌟' : level.text === 'ดี' ? '⭐' : level.text === 'พอใช้' ? '📊' : '📈'}</div>
+                    <div class="text-5xl opacity-50">${level.text === 'ดีเด่น' ? '🏆' : level.text === 'ดีมาก' ? '🌟' : level.text === 'ดี' ? '⭐' : level.text === 'พอใช้' ? '📊' : '📈'}</div>
                 </div>
             </div>
         `;
@@ -1531,30 +1532,41 @@ function calculatePart1FromDetails(details) {
 }
 
 // ==========================================
-// ฟังก์ชันแสดงระดับคุณภาพ
+// ฟังก์ชันแสดงระดับคุณภาพ (5 ระดับ ตามเกณฑ์ใหม่)
 // ==========================================
 function getLevelText(score) {
+    if (score >= 90) {
+        return {
+            text: 'ดีเด่น',
+            color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            icon: '🌟'
+        };
+    }
     if (score >= 80) {
         return {
             text: 'ดีมาก',
-            color: 'bg-emerald-100 text-emerald-700 border-emerald-200'
+            color: 'bg-green-100 text-green-700 border-green-200',
+            icon: '⭐'
         };
     }
     if (score >= 70) {
         return {
             text: 'ดี',
-            color: 'bg-blue-100 text-blue-700 border-blue-200'
+            color: 'bg-blue-100 text-blue-700 border-blue-200',
+            icon: '🔵'
         };
     }
     if (score >= 60) {
         return {
             text: 'พอใช้',
-            color: 'bg-yellow-100 text-yellow-700 border-yellow-200'
+            color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
+            icon: '🟡'
         };
     }
     return {
-        text: 'ควรปรับปรุง',
-        color: 'bg-red-100 text-red-700 border-red-200'
+        text: 'ปรับปรุง',
+        color: 'bg-red-100 text-red-700 border-red-200',
+        icon: '🔴'
     };
 }
 
