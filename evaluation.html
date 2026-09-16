@@ -557,81 +557,136 @@
                 <div id="committeeCard" class="hidden">
                     <div
                         class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 hover:shadow-md transition-shadow">
-                        <div class="flex flex-wrap justify-between items-center mb-4">
-                            <h3 class="font-bold text-lg">
-                                <i class="fa-solid fa-users text-blue-500 mr-2"></i>ประเมินครูในกลุ่มสาระ
-                            </h3>
 
-                            <!-- ✅ Badge สวมรอย -->
+                        <!-- ========================================== -->
+                        <!-- HEADER: ชื่อการ์ด + Badge สวมรอย -->
+                        <!-- ========================================== -->
+                        <div
+                            class="flex flex-wrap justify-between items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
+                                    <i class="fa-solid fa-users text-blue-600 text-lg"></i>
+                                </div>
+                                <div>
+                                    <h3 class="font-bold text-lg text-slate-800">ประเมินครูในกลุ่มสาระ</h3>
+                                    <p class="text-xs text-slate-400">ตรวจสอบและบันทึกผลการประเมินตามชุดคณะกรรมการ</p>
+                                </div>
+                            </div>
+
+                            <!-- ✅ Badge สวมรอย / View-only -->
                             <span id="adminImpersonationBadge"
-                                class="hidden px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold">
+                                class="hidden px-3 py-1.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-bold border border-yellow-200 shadow-sm">
                                 <i class="fa-solid fa-crown mr-1"></i> Super Admin โหมดสวมรอย
                             </span>
+                        </div>
 
-                            <!-- ✅ ปุ่มตรวจสอบการประเมิน -->
-                            <button onclick="openCommitteeReviewModal()"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                                <i class="fa-solid fa-magnifying-glass-chart mr-1"></i> ตรวจสอบการประเมิน
-                            </button>
+                        <!-- ========================================== -->
+                        <!-- ACTION BUTTONS: ตรวจสอบ / Excel -->
+                        <!-- ========================================== -->
+                        <div class="flex flex-wrap gap-2 mb-5">
+                            <!-- กลุ่มปุ่มตรวจสอบ -->
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="openCommitteeReviewModal()"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                    <span>ตรวจสอบการประเมิน (กรรมการ)</span>
+                                </button>
+                                <button onclick="openSelfReviewModal()"
+                                    class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-clipboard-user"></i>
+                                    <span>ตรวจสอบการประเมินตนเอง</span>
+                                </button>
+                            </div>
 
+                            <!-- เส้นแบ่ง (แสดงเฉพาะ desktop) -->
+                            <div class="hidden md:block w-px bg-slate-200 mx-1"></div>
 
-                            <!-- ✅ ปุ่มนำเข้า/ส่งออก Excel สำหรับกรรมการ -->
-                            <div class="flex flex-wrap gap-2 mt-2">
+                            <!-- กลุ่มปุ่ม Excel -->
+                            <div class="flex flex-wrap gap-2">
                                 <button onclick="exportCommitteeExcel()"
-                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                                    <i class="fa-solid fa-file-excel mr-1"></i> ส่งออก Excel (คะแนนของฉัน)
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-excel"></i>
+                                    <span>ส่งออก Excel</span>
                                 </button>
                                 <button onclick="document.getElementById('importExcelInput').click()"
-                                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                                    <i class="fa-solid fa-file-import mr-1"></i> นำเข้า Excel
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-import"></i>
+                                    <span>นำเข้า Excel</span>
                                 </button>
                                 <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden"
                                     onchange="importCommitteeExcel(event)">
                             </div>
                         </div>
 
-                        <!-- ✅ แท็บชุดหลัก (Main Groups 1-7) -->
-                        <div id="main_group_tabs" class="flex flex-wrap gap-2 mb-4">
+                        <!-- ========================================== -->
+                        <!-- TABS: ชุดหลัก (Main Groups 1-7) -->
+                        <!-- ========================================== -->
+                        <div id="main_group_tabs" class="flex flex-wrap gap-2 mb-4 p-1 bg-slate-50 rounded-xl">
                             <!-- จะถูกสร้างโดย JavaScript -->
                         </div>
 
-                        <!-- ✅ เลือกชุดย่อยภายใน Main Group -->
+                        <!-- ========================================== -->
+                        <!-- เลือกชุดย่อยภายใน Main Group -->
+                        <!-- ========================================== -->
                         <div id="sub_group_selection" class="mb-4">
                             <!-- จะถูกสร้างโดย JavaScript -->
                         </div>
 
-                        <!-- แสดงข้อมูลชุดที่เลือก -->
+                        <!-- ========================================== -->
+                        <!-- ข้อมูลชุดที่เลือก -->
+                        <!-- ========================================== -->
                         <div id="selectedGroupInfo"
-                            class="hidden mb-4 p-3 bg-blue-50 rounded-xl border border-blue-200">
-                            <div class="flex flex-wrap justify-between items-center gap-2">
-                                <div>
-                                    <p class="text-sm font-bold text-blue-700">
-                                        <i class="fa-solid fa-info-circle mr-1"></i> ชุดที่เลือก:
-                                        <span id="selectedGroupName" class="font-bold">-</span>
-                                    </p>
-                                    <p class="text-xs text-blue-500 mt-0.5" id="selectedGroupSubItems">หัวข้อย่อย: -</p>
+                            class="hidden mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                            <div class="flex flex-wrap justify-between items-center gap-3">
+                                <div class="flex items-center gap-3">
+                                    <div
+                                        class="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fa-solid fa-info-circle text-white text-sm"></i>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-bold text-blue-800">
+                                            ชุดที่เลือก: <span id="selectedGroupName" class="font-bold">-</span>
+                                        </p>
+                                        <p class="text-xs text-blue-500 mt-0.5" id="selectedGroupSubItems">หัวข้อย่อย: -
+                                        </p>
+                                    </div>
                                 </div>
-                                <span class="text-xs bg-blue-100 text-blue-600 px-2 py-1 rounded-full">
+                                <span
+                                    class="text-xs bg-white text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 font-bold shadow-sm">
+                                    <i class="fa-solid fa-user-group mr-1"></i>
                                     กรรมการ <span id="selectedGroupMemberCount">0</span> คน
                                 </span>
                             </div>
                         </div>
 
+                        <!-- ========================================== -->
                         <!-- ปุ่มสรุปผลทั้งหมด (Admin เท่านั้น) -->
-                        <div id="finalSummaryActions" class="hidden mb-4">
-                            <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
-                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-calculator mr-1"></i> สรุปผลคะแนนทั้งหมด
-                            </button>
-                            <button onclick="window.exportFinalScores()"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm ml-2">
-                                <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel (สรุปผลคะแนน)
-                            </button>
+                        <!-- ========================================== -->
+                        <div id="finalSummaryActions"
+                            class="hidden mb-5 p-3 bg-purple-50 rounded-xl border border-purple-200">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="text-xs font-bold text-purple-700 mr-2">
+                                    <i class="fa-solid fa-lock mr-1"></i> จัดการผลสรุป:
+                                </span>
+                                <button onclick="window.generateAllFinalScores(currentEvalRound?.id)"
+                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-calculator"></i>
+                                    <span>สรุปผลคะแนนทั้งหมด</span>
+                                </button>
+                                <button onclick="window.exportFinalScores()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                    <i class="fa-solid fa-file-export"></i>
+                                    <span>ส่งออก Excel (สรุปผล)</span>
+                                </button>
+                            </div>
                         </div>
 
-                        <div class="overflow-x-auto">
+                        <!-- ========================================== -->
+                        <!-- ตารางรายชื่อครู -->
+                        <!-- ========================================== -->
+                        <div class="overflow-x-auto rounded-xl border border-slate-200">
                             <table id="teacherEvalTable" class="display w-full text-sm">
-                                <thead>
+                                <thead class="bg-slate-50">
                                     <tr>
                                         <th class="text-left">ชื่อ-สกุล</th>
                                         <th class="text-left">วิทยฐานะ</th>
@@ -873,7 +928,7 @@
     <!-- ========================================== -->
     <div id="committeeReviewModal" class="fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-2xl max-w-6xl w-full max-h-[90vh] shadow-2xl modal-content">
+            <div class="bg-white rounded-2xl w-full max-h-[90vh] shadow-2xl modal-content" style="max-width: 80vw;">
                 <!-- Header -->
                 <div
                     class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
@@ -980,6 +1035,112 @@
         </div>
     </div>
 
+    <!-- ========================================== -->
+    <!-- MODAL: ตรวจสอบการประเมินตนเองของครูทุกคน -->
+    <!-- ========================================== -->
+    <div id="selfReviewModal" class="fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl w-full max-h-[90vh] shadow-2xl modal-content" style="max-width: 80vw;">
+                <!-- Header -->
+                <div
+                    class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl z-10">
+                    <h3 class="text-xl font-bold text-gray-800">
+                        <i class="fa-solid fa-clipboard-user text-teal-500 mr-2"></i>
+                        ตรวจสอบการประเมินตนเอง
+                    </h3>
+                    <button onclick="closeSelfReviewModal()"
+                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                        <i class="fa-solid fa-xmark text-2xl"></i>
+                    </button>
+                </div>
+
+                <!-- Body -->
+                <div class="p-6 modal-body-scroll">
+                    <!-- เลือกกลุ่มสาระ -->
+                    <div class="mb-4 flex flex-wrap items-center gap-4">
+                        <div class="w-full md:w-72">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">
+                                เลือกกลุ่มสาระ <span class="text-red-500">*</span>
+                            </label>
+                            <select id="self_review_department"
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-teal-500">
+                                <option value="">-- เลือกกลุ่มสาระ --</option>
+                            </select>
+                        </div>
+                        <button onclick="loadSelfReviewData()"
+                            class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2 mt-1">
+                            <i class="fa-solid fa-search"></i> แสดงข้อมูล
+                        </button>
+                        <button onclick="loadSelfReviewData(true)"
+                            class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2 mt-1"
+                            title="ดูทุกกลุ่มสาระ">
+                            <i class="fa-solid fa-list"></i> ดูทั้งหมด
+                        </button>
+                    </div>
+
+                    <!-- สรุปข้อมูล -->
+                    <div id="selfReviewSummary" class="mb-4 hidden">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                            <div
+                                class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                                <p class="text-xs text-gray-500">ครูทั้งหมด</p>
+                                <p class="text-2xl font-bold text-blue-600" id="selfReviewTotal">0</p>
+                            </div>
+                            <div
+                                class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                                <p class="text-xs text-gray-500">ประเมินแล้ว</p>
+                                <p class="text-2xl font-bold text-green-600" id="selfReviewDone">0</p>
+                            </div>
+                            <div
+                                class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                                <p class="text-xs text-gray-500">ยังไม่ประเมิน</p>
+                                <p class="text-2xl font-bold text-yellow-600" id="selfReviewPending">0</p>
+                            </div>
+                            <div
+                                class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                                <p class="text-xs text-gray-500">คะแนนเฉลี่ย</p>
+                                <p class="text-2xl font-bold text-purple-600" id="selfReviewAvg">0.00</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ตารางแสดงผล -->
+                    <div class="overflow-x-auto">
+                        <table id="selfReviewTable" class="display w-full text-sm">
+                            <thead>
+                                <tr>
+                                    <th>ลำดับ</th>
+                                    <th>ชื่อ-สกุล</th>
+                                    <th>กลุ่มสาระ</th>
+                                    <th>วิทยฐานะ</th>
+                                    <th>สถานะ</th>
+                                    <th>คะแนน</th>
+                                    <th>วันที่</th>
+                                    <th>ดำเนินการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-self-review">
+                                <tr>
+                                    <td colspan="8" class="text-center py-8 text-gray-400">
+                                        <i class="fa-solid fa-info-circle mr-2"></i>
+                                        กรุณาเลือกกลุ่มสาระเพื่อแสดงข้อมูล
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Footer -->
+                <div class="flex justify-end p-4 border-t border-gray-200 sticky bottom-0 bg-white rounded-b-2xl">
+                    <button onclick="closeSelfReviewModal()"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">
+                        ปิด
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- ========================================== -->
     <!-- SCRIPTS -->
     <!-- ========================================== -->

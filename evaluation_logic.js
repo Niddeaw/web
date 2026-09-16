@@ -2053,6 +2053,355 @@ async function viewTeacherEvalDetail(evaluateeId) {
 }
 
 // ==========================================
+// ✅ ตรวจสอบการประเมินตนเอง (สำหรับ Admin/ผอ.)
+// ==========================================
+let selfReviewDataTable = null;
+
+async function openSelfReviewModal() {
+    const modal = document.getElementById('selfReviewModal');
+    modal.classList.remove('hidden');
+
+    // โหลดกลุ่มสาระลง dropdown
+    await loadSelfReviewDepartments();
+
+    // Reset state
+    document.getElementById('tb-self-review').innerHTML = `
+        <tr>
+            <td colspan="8" class="text-center py-8 text-gray-400">
+                <i class="fa-solid fa-info-circle mr-2"></i>
+                กรุณาเลือกกลุ่มสาระเพื่อแสดงข้อมูล
+            </td>
+        </tr>`;
+    document.getElementById('selfReviewSummary').classList.add('hidden');
+}
+
+function closeSelfReviewModal() {
+    const modal = document.getElementById('selfReviewModal');
+    modal.classList.add('hidden');
+
+    if (selfReviewDataTable) {
+        try { selfReviewDataTable.destroy(); } catch (e) { }
+        selfReviewDataTable = null;
+    }
+}
+
+async function loadSelfReviewDepartments() {
+    try {
+        const select = document.getElementById('self_review_department');
+        select.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+
+        const allowedDepartments = [
+            'ภาษาไทย', 'คณิตศาสตร์',
+            'วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)',
+            'วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)',
+            'สังคมศึกษา ศาสนาและวัฒนธรรม',
+            'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
+            'ภาษาต่างประเทศ (ภาษาอังกฤษ)', 'ภาษาต่างประเทศ (ภาษาจีน)',
+            'แนะแนว'
+        ];
+
+        allowedDepartments.forEach(d => {
+            select.innerHTML += `<option value="${d}">${d}</option>`;
+        });
+    } catch (err) {
+        console.error('Error loading departments:', err);
+    }
+}
+
+async function loadSelfReviewData(showAll = false) {
+    const department = document.getElementById('self_review_department').value;
+
+    if (!showAll && !department) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกกลุ่มสาระ', 'warning');
+    }
+
+    Swal.fire({
+        title: 'กำลังโหลดข้อมูล...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // ทำลาย DataTable เก่า
+        if (selfReviewDataTable) {
+            try { selfReviewDataTable.destroy(); } catch (e) { }
+            selfReviewDataTable = null;
+        }
+
+        // ดึงรายชื่อครู
+        let query = db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+            .order('first_name', { ascending: true });
+
+        if (!showAll && department) {
+            query = query.eq('department', department);
+        }
+
+        const { data: teachers, error: tErr } = await query;
+        if (tErr) throw tErr;
+
+        if (!teachers || teachers.length === 0) {
+            Swal.close();
+            document.getElementById('tb-self-review').innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-user-slash mr-2"></i>
+                        ไม่พบบุคลากรในกลุ่มสาระ "${department || 'ทั้งหมด'}"
+                    </td>
+                </tr>`;
+            document.getElementById('selfReviewSummary').classList.add('hidden');
+            return;
+        }
+
+        // ดึงข้อมูลการประเมินตนเอง
+        const teacherIds = teachers.map(t => t.id);
+        const { data: evalResults, error: eErr } = await db
+            .from('eval_results')
+            .select('evaluatee_id, total_score, status, updated_at, detailed_scores')
+            .in('evaluatee_id', teacherIds)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'self');
+
+        if (eErr) throw eErr;
+
+        // Map ผลการประเมิน
+        const evalMap = {};
+        (evalResults || []).forEach(r => {
+            evalMap[r.evaluatee_id] = r;
+        });
+
+        // สร้างตาราง
+        let html = '';
+        let doneCount = 0;
+        let totalScore = 0;
+
+        teachers.forEach((teacher, index) => {
+            const fullName = teacher.prefix
+                ? `${teacher.prefix}${teacher.first_name} ${teacher.last_name}`
+                : `${teacher.first_name} ${teacher.last_name}`;
+            const standing = teacher.academic_standing || '-';
+            const dept = teacher.department || '-';
+            const evalResult = evalMap[teacher.id];
+
+            let statusBadge = '';
+            let scoreText = '-';
+            let dateText = '-';
+            let detailBtn = '-';
+
+            if (evalResult) {
+                const isSubmitted = evalResult.status === 'submitted';
+                statusBadge = isSubmitted
+                    ? '<span class="status-badge done">✅ ส่งแล้ว</span>'
+                    : '<span class="status-badge draft">📝 ร่าง</span>';
+
+                if (isSubmitted) {
+                    doneCount++;
+                    totalScore += evalResult.total_score || 0;
+                    const level = getLevelText(evalResult.total_score);
+                    scoreText = `<span class="font-bold text-indigo-700">${evalResult.total_score.toFixed(2)}</span>
+                                <span class="text-xs text-gray-400 block">${level.text}</span>`;
+                    dateText = evalResult.updated_at
+                        ? new Date(evalResult.updated_at).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })
+                        : '-';
+                    detailBtn = `<button onclick="viewSelfEvalDetail('${teacher.id}')"
+                                    class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                    <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด
+                                 </button>`;
+                } else {
+                    scoreText = '<span class="text-gray-400">-</span>';
+                    dateText = '-';
+                    detailBtn = '<span class="text-gray-400 text-xs">-</span>';
+                }
+            } else {
+                statusBadge = '<span class="status-badge pending">⏳ ยังไม่ประเมิน</span>';
+            }
+
+            html += `
+                <tr>
+                    <td class="text-center">${index + 1}</td>
+                    <td class="font-medium">${fullName}</td>
+                    <td class="text-xs">${dept}</td>
+                    <td>${standing}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center">${scoreText}</td>
+                    <td class="text-center text-xs">${dateText}</td>
+                    <td class="text-center">${detailBtn}</td>
+                </tr>
+            `;
+        });
+
+        document.getElementById('tb-self-review').innerHTML = html;
+
+        // อัปเดตสรุป
+        document.getElementById('selfReviewTotal').innerText = teachers.length;
+        document.getElementById('selfReviewDone').innerText = doneCount;
+        document.getElementById('selfReviewPending').innerText = teachers.length - doneCount;
+        document.getElementById('selfReviewAvg').innerText = doneCount > 0
+            ? (totalScore / doneCount).toFixed(2)
+            : '0.00';
+        document.getElementById('selfReviewSummary').classList.remove('hidden');
+
+        // สร้าง DataTable
+        setTimeout(() => {
+            try {
+                if ($.fn.DataTable.isDataTable('#selfReviewTable')) {
+                    $('#selfReviewTable').DataTable().destroy();
+                }
+                selfReviewDataTable = $('#selfReviewTable').DataTable({
+                    scrollX: true,
+                    language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+                    pageLength: 15,
+                    lengthMenu: [[10, 15, 25, -1], [10, 15, 25, 'ทั้งหมด']],
+                    columnDefs: [
+                        { targets: [0], width: '5%' },
+                        { targets: [1], width: '20%' },
+                        { targets: [2], width: '20%' },
+                        { targets: [3], width: '12%' },
+                        { targets: [4], width: '10%', orderable: false },
+                        { targets: [5], width: '12%' },
+                        { targets: [6], width: '11%' },
+                        { targets: [7], width: '10%', orderable: false }
+                    ],
+                    dom: '<"flex flex-wrap justify-between items-center gap-2 mb-3"lf>rt<"flex flex-wrap justify-between items-center gap-2 mt-3"ip>',
+                    order: [[0, 'asc']]
+                });
+            } catch (e) {
+                console.warn('DataTable init error:', e);
+            }
+        }, 300);
+
+        Swal.close();
+
+    } catch (err) {
+        console.error('Error loading self review data:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// ดูรายละเอียดการประเมินตนเองของครูแต่ละคน (สำหรับ Admin)
+// ==========================================
+async function viewSelfEvalDetail(evaluateeId) {
+    try {
+        const { data: evalResult, error } = await db
+            .from('eval_results')
+            .select('*')
+            .eq('evaluatee_id', evaluateeId)
+            .eq('eval_round_id', currentEvalRound.id)
+            .eq('eval_type', 'self')
+            .eq('status', 'submitted')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (error) throw error;
+        if (!evalResult) {
+            return Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลการประเมินตนเอง', 'info');
+        }
+
+        const { data: teacher } = await db
+            .from('core_personnel')
+            .select('prefix, first_name, last_name, academic_standing, department')
+            .eq('id', evaluateeId)
+            .single();
+
+        const name = teacher ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}` : '-';
+        const standing = teacher?.academic_standing || 'ไม่มีวิทยฐานะ';
+        const details = evalResult.detailed_scores || {};
+        const academicLevel = standing;
+
+        // ✅ ใช้ Helper Functions
+        const criteria = getCriteriaByAcademic(academicLevel);
+        const isAssistant = isAssistantTeacher(academicLevel);
+
+        // คำนวณคะแนน
+        const p1s1 = details.p1_s1 || [];
+        const p1s2 = details.p1_s2 || [];
+        const p2 = details.p2 || 0;
+        const p3 = details.p3 || [];
+
+        const p1s1Raw = p1s1.reduce((a, b) => a + b, 0);
+        let p1s1Total = isAssistant ? (p1s1Raw * 80) / 56 : p1s1Raw;
+
+        // p1_s2 (ระดับ 1-4 → คะแนนจริง)
+        function getP1S2Score(level, maxScore) {
+            if (!level || level < 1 || level > 4) return 0;
+            return (level / 4) * maxScore;
+        }
+        const p1s2Total = (
+            getP1S2Score(p1s2[0], 20) +
+            getP1S2Score(p1s2[1], 10) +
+            getP1S2Score(p1s2[2], 10)
+        ) / 2;
+
+        const p1Total = p1s1Total + p1s2Total;
+        const p2Score = p2 * 2;
+        const p3Total = p3.reduce((a, b) => a + b, 0) / 4;
+        const total = evalResult.total_score || (p1Total + p2Score + p3Total);
+        const level = getLevelText(total);
+
+        const detailHtml = `
+            <div class="text-left space-y-3">
+                <div class="bg-gray-50 p-4 rounded-xl">
+                    <p class="font-bold text-gray-800 text-lg">${name}</p>
+                    <p class="text-sm text-gray-500">วิทยฐานะ: ${standing} | กลุ่มสาระ: ${teacher?.department || '-'}</p>
+                    <p class="text-sm text-gray-500">วันที่ส่ง: ${new Date(evalResult.updated_at).toLocaleString('th-TH')}</p>
+                </div>
+
+                <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200">
+                    <div class="flex justify-between items-center">
+                        <div>
+                            <p class="text-sm text-gray-500">คะแนนรวม</p>
+                            <p class="text-3xl font-bold text-blue-600">${total.toFixed(2)}</p>
+                            <p class="text-xs text-gray-500">/ 100</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="px-3 py-1.5 rounded-full text-sm font-bold ${level.color}">
+                                ${level.text}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="bg-blue-50 p-3 rounded-xl text-center border border-blue-200">
+                        <p class="text-xs text-gray-500">องค์ประกอบ 1</p>
+                        <p class="text-xl font-bold text-blue-600">${p1Total.toFixed(2)}</p>
+                        <p class="text-[10px] text-gray-400">/ 80</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-xl text-center border border-emerald-200">
+                        <p class="text-xs text-gray-500">องค์ประกอบ 2</p>
+                        <p class="text-xl font-bold text-emerald-600">${p2Score.toFixed(2)}</p>
+                        <p class="text-[10px] text-gray-400">/ 10</p>
+                    </div>
+                    <div class="bg-purple-50 p-3 rounded-xl text-center border border-purple-200">
+                        <p class="text-xs text-gray-500">องค์ประกอบ 3</p>
+                        <p class="text-xl font-bold text-purple-600">${p3Total.toFixed(2)}</p>
+                        <p class="text-[10px] text-gray-400">/ 10</p>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        await Swal.fire({
+            title: '📊 รายละเอียดการประเมินตนเอง',
+            html: detailHtml,
+            width: '700px',
+            confirmButtonText: 'ปิด',
+            confirmButtonColor: '#14b8a6'
+        });
+
+    } catch (err) {
+        console.error('Error viewing self eval detail:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
 // ตรวจสอบความสมบูรณ์ก่อนสรุปผล (Mode)
 // ==========================================
 async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
@@ -2246,5 +2595,10 @@ window.loadReviewData = loadReviewData;
 window.viewTeacherEvalDetail = viewTeacherEvalDetail;
 window.openSelfEvalDetailModal = openSelfEvalDetailModal;
 window.validateEvaluationCompleteness = validateEvaluationCompleteness;
+// ✅ Export
+window.openSelfReviewModal = openSelfReviewModal;
+window.closeSelfReviewModal = closeSelfReviewModal;
+window.loadSelfReviewData = loadSelfReviewData;
+window.viewSelfEvalDetail = viewSelfEvalDetail;
 
 console.log('✅ evaluation_logic.js loaded successfully');
