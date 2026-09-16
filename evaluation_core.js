@@ -626,7 +626,8 @@ async function getUserCommitteeSubGroups(userId, evalRoundId) {
 }
 
 // ==========================================
-// ✅ ฟังก์ชัน loadCommitteeEvaluationTasks (ฉบับสมบูรณ์)
+// ✅ ฟังก์ชัน loadCommitteeEvaluationTasks (ฉบับแก้ไขสมบูรณ์ v2)
+// แก้ไข: Admin ที่เป็นกรรมการ → ประเมินได้ / Admin ที่ไม่ใช่กรรมการ → ดูได้อย่างเดียว
 // ==========================================
 async function loadCommitteeEvaluationTasks() {
     try {
@@ -641,28 +642,64 @@ async function loadCommitteeEvaluationTasks() {
         let viewOnly = false;
         let isSuperAdmin = false;
 
-        // ✅ ใช้ sub_groups ที่แนบมากับ structure โดยตรง (มี members + targets ครบแล้ว
-        //    จาก loadCommitteeStructure) แทนการ query ซ้ำแบบเดิมซึ่งไม่ได้ join
-        //    eval_committee_members ทำให้ sub.members เป็น undefined เสมอ
+        // ✅ ใช้ sub_groups ที่แนบมากับ structure โดยตรง (มี members + targets ครบแล้ว)
         const structureSubGroups = mainGroups.flatMap(m => m.sub_groups || []);
 
+        // ==========================================
+        // ✅ กำหนดสิทธิ์ตาม role
+        // ==========================================
         if (currentUser.role === 'super_admin') {
+            // ✅ Super Admin → สวมรอยได้ทุกชุด
             isSuperAdmin = true;
             allSubGroups = structureSubGroups;
-        } else if (['director', 'admin'].includes(currentUser.role)) {
+
+        } else if (currentUser.role === 'director') {
+            // ✅ ผอ. → ดูได้อย่างเดียวทุกชุด
             viewOnly = true;
             allSubGroups = structureSubGroups;
+
+        } else if (currentUser.role === 'admin') {
+            // ✅ Admin → ตรวจสอบก่อนว่าเป็นกรรมการหรือไม่
+            //    - เป็นกรรมการ → ประเมินได้ (เหมือนครู)
+            //    - ไม่เป็นกรรมการ → ดูได้อย่างเดียว (เห็นทุกชุด)
+            const myMemberships = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
+
+            if (myMemberships && myMemberships.length > 0) {
+                // ✅ เป็นกรรมการ → โหมดประเมินได้ เห็นเฉพาะชุดที่เป็นสมาชิก
+                allSubGroups = myMemberships;
+
+                const subGroupParentIds = new Set(
+                    myMemberships
+                        .filter(sg => sg.group_type === 'sub')
+                        .map(sg => sg.parent_group_id)
+                        .filter(id => id)
+                );
+                const directMainGroupIds = new Set(
+                    myMemberships
+                        .filter(sg => sg.group_type === 'main')
+                        .map(sg => sg.id)
+                );
+                for (const main of mainGroups) {
+                    if (!subGroupParentIds.has(main.id) && !directMainGroupIds.has(main.id)) {
+                        main.members = [];
+                    }
+                }
+            } else {
+                // ✅ ไม่เป็นกรรมการ → ดูได้อย่างเดียว (เห็นทุกชุด)
+                viewOnly = true;
+                allSubGroups = structureSubGroups;
+            }
+
         } else if (['teacher', 'deputy'].includes(currentUser.role)) {
+            // ✅ ครูและรอง ผอ. → เห็นเฉพาะชุดที่เป็นสมาชิก และประเมินได้
             allSubGroups = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
 
-            // ✅ แยกกลุ่มที่ผู้ใช้เป็นสมาชิกตรงๆ กับกลุ่มที่ผู้ใช้เป็นสมาชิกผ่าน sub group
             const subGroupParentIds = new Set(
                 allSubGroups
                     .filter(sg => sg.group_type === 'sub')
                     .map(sg => sg.parent_group_id)
                     .filter(id => id)
             );
-            // ✅ Main Group ที่ผู้ใช้เป็นสมาชิกโดยตรง (ไม่มี parent_group_id)
             const directMainGroupIds = new Set(
                 allSubGroups
                     .filter(sg => sg.group_type === 'main')
@@ -676,6 +713,9 @@ async function loadCommitteeEvaluationTasks() {
             }
         }
 
+        // ==========================================
+        // ✅ แสดง/ซ่อนการ์ด
+        // ==========================================
         const committeeCard = document.getElementById('committeeCard');
         const noPermissionCard = document.getElementById('noPermissionCard');
         const finalSummaryActions = document.getElementById('finalSummaryActions');
@@ -691,6 +731,7 @@ async function loadCommitteeEvaluationTasks() {
         if (committeeCard) committeeCard.classList.remove('hidden');
         if (noPermissionCard) noPermissionCard.classList.add('hidden');
 
+        // ✅ แสดงปุ่มสรุปผลเฉพาะ admin/super_admin
         if (finalSummaryActions) {
             if (['admin', 'super_admin'].includes(currentUser.role)) {
                 finalSummaryActions.classList.remove('hidden');
@@ -702,20 +743,35 @@ async function loadCommitteeEvaluationTasks() {
         window._viewOnly = viewOnly;
         window._isSuperAdmin = isSuperAdmin;
 
+        // ==========================================
+        // ✅ Badge แสดงสถานะ
+        // ==========================================
         const adminBadge = document.getElementById('adminImpersonationBadge');
         if (adminBadge) {
             if (isSuperAdmin) {
                 adminBadge.classList.remove('hidden');
                 adminBadge.innerHTML = '👑 Super Admin โหมดสวมรอย (เลือกแท็บชุดหลัก เพื่อเลือกกรรมการสวมรอย)';
+            } else if (viewOnly && currentUser.role === 'admin') {
+                // ✅ Admin ที่ไม่ใช่กรรมการ → แสดง badge view-only
+                adminBadge.classList.remove('hidden');
+                adminBadge.innerHTML = '👁️ Admin โหมดดูข้อมูล (คุณไม่ใช่กรรมการในรอบนี้)';
+            } else if (viewOnly && currentUser.role === 'director') {
+                adminBadge.classList.remove('hidden');
+                adminBadge.innerHTML = '👁️ ผู้อำนวยการ โหมดดูข้อมูล';
             } else {
                 adminBadge.classList.add('hidden');
             }
         }
 
+        // ==========================================
+        // ✅ สร้างแท็บ Main Groups
+        // ==========================================
         const mainTabsContainer = document.getElementById('main_group_tabs');
         if (mainTabsContainer) {
             mainTabsContainer.innerHTML = '';
             let displayedMainGroups = mainGroups;
+
+            // ✅ กรอง Main Groups ตามสิทธิ์ (เฉพาะ user ที่ไม่ใช่ privileged)
             if (!isSuperAdmin && !viewOnly) {
                 const subGroupParentIds = new Set(
                     allSubGroups
@@ -723,7 +779,6 @@ async function loadCommitteeEvaluationTasks() {
                         .map(sg => sg.parent_group_id)
                         .filter(id => id)
                 );
-                // ✅ Main Group ที่ผู้ใช้เป็นสมาชิกโดยตรง
                 const directMainGroupIds = new Set(
                     allSubGroups
                         .filter(sg => sg.group_type === 'main')
@@ -733,6 +788,7 @@ async function loadCommitteeEvaluationTasks() {
                     subGroupParentIds.has(m.id) || directMainGroupIds.has(m.id)
                 );
             }
+
             if (displayedMainGroups.length === 0) {
                 if (alwaysShowCommittee) {
                     mainTabsContainer.innerHTML = '<p class="text-sm text-gray-400"><i class="fa-solid fa-info-circle mr-1"></i>ยังไม่มีคณะกรรมการในรอบนี้</p>';
@@ -743,6 +799,7 @@ async function loadCommitteeEvaluationTasks() {
                 return;
             }
 
+            // ✅ สร้างปุ่มแท็บ
             displayedMainGroups.forEach((main, index) => {
                 const tabBtn = document.createElement('button');
                 tabBtn.className = `px-4 py-2 rounded-lg font-bold transition-colors ${index === 0 ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`;
@@ -765,6 +822,7 @@ async function loadCommitteeEvaluationTasks() {
                 mainTabsContainer.appendChild(tabBtn);
             });
 
+            // ✅ Auto-select แท็บแรก
             if (displayedMainGroups.length > 0) {
                 const firstMain = displayedMainGroups[0];
                 const firstSubs = allSubGroups.filter(sg => sg.parent_group_id === firstMain.id);
