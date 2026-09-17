@@ -821,6 +821,7 @@ $('#editLeaveForm').on('submit', async function (e) {
 
     const id = $('#edit_leave_id').val();
     const days = parseFloat($('#edit_calc_days').text());
+    const type = $('#edit_leave_type').val();   // ✅ เพิ่มบรรทัดนี้
     if (isNaN(days) || days <= 0) {
         Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0', 'warning');
         return;
