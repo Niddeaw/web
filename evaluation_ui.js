@@ -1,5 +1,6 @@
 // ==========================================
 // evaluation_ui.js - UI, Wizard, Form, Submit
+// ✅ แก้ไข: เพิ่ม sub_group_id สำหรับแยก record ตามชุดคณะกรรมการ
 // ==========================================
 
 // ==========================================
@@ -10,6 +11,7 @@ let evaluateeData = null;
 let evaluationMode = 'self'; // 'self' หรือ 'committee'
 let isEditingMode = false;
 window._existingEvalId = null; // เก็บ ID ของการประเมินที่กำลังแก้ไข
+window._wizardSubGroupId = null; // ✅ [ใหม่] Snapshot sub_group_id ระหว่างอยู่ใน Wizard
 
 // ==========================================
 // ฟังก์ชันตรวจสอบว่าขั้นตอนมีเนื้อหาหรือไม่
@@ -360,9 +362,6 @@ function updateSummary() {
 
 // ==========================================
 // ✅ ฟังก์ชันสร้าง UI แบบ Dynamic (ฉบับสมบูรณ์)
-// ==========================================
-// ==========================================
-// ✅ ฟังก์ชันสร้าง UI แบบ Dynamic (ฉบับสมบูรณ์ - แก้ไข)
 // ==========================================
 function generateDynamicForm(academicLevel, allowedSubItems = null) {
     console.log('📋 generateDynamicForm - academicLevel:', academicLevel);
@@ -762,7 +761,6 @@ function generateDynamicForm(academicLevel, allowedSubItems = null) {
 // ==========================================
 async function startEvaluation(type, teacherData = null) {
     // ✅ เช็ค view-only เฉพาะกรณีประเมินแทนกรรมการเท่านั้น
-    //    (self evaluation ไม่ถูกบล็อก เพราะ _viewOnly มีไว้ควบคุมสิทธิ์โหมด committee)
     if (type === 'committee' && window._viewOnly) {
         return Swal.fire({
             icon: 'info',
@@ -806,11 +804,10 @@ async function startEvaluation(type, teacherData = null) {
             return Swal.fire('แจ้งเตือน', 'ข้อมูลไม่ถูกต้อง กรุณาลองใหม่', 'warning');
         }
 
-        // ✅ โหลดข้อมูลเดิมก่อนสร้างฟอร์ม (จะตั้งค่า isEditingMode และ _existingEvalId)
+        // ✅ โหลดข้อมูลเดิมก่อนสร้างฟอร์ม
         let hasExisting = false;
         if (!window._existingEvalId && !isEditingMode) {
             hasExisting = await loadExistingEvaluation();
-            // ถ้าผู้ใช้ยกเลิก จะ return false และเราไม่ต้องทำต่อ
             if (hasExisting === false) {
                 return;
             }
@@ -850,6 +847,18 @@ async function startEvaluation(type, teacherData = null) {
 
             if (!allowedSubItems) allowedSubItems = [];
             console.log('📋 allowedSubItems สุดท้าย:', allowedSubItems);
+
+            // ✅ [ใหม่] Snapshot sub_group_id ไว้ใช้ตอน submit (ป้องกัน race condition)
+            if (subGroupId) {
+                window._wizardSubGroupId = subGroupId;
+                console.log('✅ Snapshot _wizardSubGroupId:', subGroupId);
+            } else {
+                console.warn('⚠️ ไม่พบ subGroupId — การบันทึกอาจล้มเหลว');
+                window._wizardSubGroupId = null;
+            }
+        } else {
+            // self mode → ไม่มี sub group
+            window._wizardSubGroupId = null;
         }
 
         const academic = evaluateeData.academic_standing || 'ครู';
@@ -861,12 +870,9 @@ async function startEvaluation(type, teacherData = null) {
         wizardCurrentStep = 1;
         updateWizardUI();
 
-        // ✅ ถ้ามีการโหลดข้อมูลเดิม (แก้ไข) ให้โหลดคะแนนลงฟอร์มและข้ามการตรวจสอบการส่งแล้ว
+        // ✅ ถ้ามีการโหลดข้อมูลเดิม (แก้ไข) ให้โหลดคะแนนลงฟอร์ม
         if (window._existingEvalId && isEditingMode) {
-            // โหลดข้อมูลเดิมที่เรามีอยู่แล้ว (loadExistingEvaluation ได้ตั้งค่า window._existingEvalId)
-            // แต่เรายังต้องโหลดคะแนน (ถ้าทำไม่ได้ ให้ดึงใหม่)
             if (!document.querySelector('input[name^="p1s1_"]:checked')) {
-                // ถ้ายังไม่มีคะแนนในฟอร์ม ให้ลองโหลดอีกครั้ง
                 const { data: existingEval } = await db
                     .from('eval_results')
                     .select('*')
@@ -876,25 +882,30 @@ async function startEvaluation(type, teacherData = null) {
                     loadScoresToForm(existingEval);
                 }
             }
-            // ไม่ต้องตรวจสอบ existingSubmitted
-        } else if (!window._existingEvalId) {
-            // ถ้ายังไม่มีข้อมูลเดิม (ไม่ใช่แก้ไข) ให้ตรวจสอบว่ามีการส่งแล้วหรือไม่
-            const { data: existingSubmitted, error } = await db
+        } else if (!window._existingEvalId && type !== 'self') {
+            // ✅ ตรวจสอบว่ามีการส่งแล้วหรือไม่ (เฉพาะ committee)
+            const subGroupIdForCheck = window._wizardSubGroupId;
+            let existingQuery = db
                 .from('eval_results')
                 .select('id, total_score, detailed_scores, status')
                 .eq('evaluatee_id', evaluateeData.id)
                 .eq('eval_round_id', currentEvalRound.id)
                 .eq('evaluator_id', currentUser.id)
                 .eq('eval_type', type)
-                .eq('status', 'submitted')
-                .maybeSingle();
+                .eq('status', 'submitted');
+
+            if (type === 'committee' && subGroupIdForCheck) {
+                existingQuery = existingQuery.eq('sub_group_id', subGroupIdForCheck);
+            }
+
+            const { data: existingSubmitted } = await existingQuery.maybeSingle();
 
             if (existingSubmitted && !window._existingEvalId) {
                 const result = await Swal.fire({
                     icon: 'info',
                     title: 'พบการประเมินที่ส่งแล้ว',
                     html: `
-                        <p>คุณได้ส่งการประเมินนี้แล้ว</p>
+                        <p>คุณได้ส่งการประเมินนี้แล้ว (ชุดที่เลือก)</p>
                         <p class="text-sm text-gray-500">คะแนน: <b>${existingSubmitted.total_score.toFixed(2)}</b> / 100</p>
                         <p class="text-sm text-gray-500 mt-2">ต้องการดำเนินการอย่างไร?</p>
                     `,
@@ -946,6 +957,8 @@ async function startEditEvaluation(evalId) {
 
         isEditingMode = true;
         window._existingEvalId = evalId;
+        // ✅ [ใหม่] snapshot sub_group_id จาก record ที่โหลด
+        window._wizardSubGroupId = existingEval.sub_group_id || null;
 
         const { data: evaluatee } = await db
             .from('core_personnel')
@@ -984,21 +997,32 @@ async function startEditEvaluation(evalId) {
 
 // ==========================================
 // ฟังก์ชันโหลดข้อมูลการประเมินเดิม
+// ✅ [แก้] ใช้ eval_round_id + filter sub_group_id สำหรับ committee
 // ==========================================
 async function loadExistingEvaluation() {
     try {
         if (!currentEvalRound?.id) return;
 
-        const { data: existingEval, error } = await db
+        // ✅ [แก้] ใช้ eval_round_id + filter sub_group_id สำหรับ committee
+        let query = db
             .from('eval_results')
             .select('*')
-            .eq('academic_year', currentTermData.current_academic_year)
-            .eq('semester', currentTermData.current_semester)
             .eq('eval_round_id', currentEvalRound.id)
             .eq('evaluatee_id', evaluateeData.id)
             .eq('evaluator_id', currentUser.id)
-            .eq('eval_type', evaluationMode)
-            .maybeSingle();
+            .eq('eval_type', evaluationMode);
+
+        if (evaluationMode === 'committee') {
+            const sgId = _selectedSubGroupId || window._currentSubGroupId || window._wizardSubGroupId;
+            if (sgId) {
+                query = query.eq('sub_group_id', sgId);
+            } else {
+                console.warn('⚠️ ไม่พบ subGroupId ใน loadExistingEvaluation');
+                return true;
+            }
+        }
+
+        const { data: existingEval, error } = await query.maybeSingle();
 
         if (error) return;
 
@@ -1024,7 +1048,7 @@ async function loadExistingEvaluation() {
                 icon: 'info',
                 title: 'พบการประเมินเดิม',
                 html: `
-                    <p>คุณเคยประเมินบุคลากรนี้แล้วในภาคเรียนนี้</p>
+                    <p>คุณเคยประเมินบุคลากรนี้แล้วในชุดคณะกรรมการนี้</p>
                     ${detailHtml}
                     <p class="mt-3">ต้องการดำเนินการอย่างไร?</p>
                 `,
@@ -1050,7 +1074,6 @@ async function loadExistingEvaluation() {
                 resetForm();
                 return false;
             } else {
-                // ยกเลิก
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
                 return false;
@@ -1070,7 +1093,6 @@ function loadScoresToForm(existingEval) {
     const detailedScores = existingEval.detailed_scores || {};
     console.log('📥 โหลดข้อมูลเดิม:', detailedScores);
 
-    // ✅ รอให้ DOM พร้อม แล้วโหลดคะแนน
     setTimeout(() => {
         // องค์ประกอบที่ 1 ตอนที่ 1
         if (detailedScores.p1_s1 && Array.isArray(detailedScores.p1_s1)) {
@@ -1145,16 +1167,16 @@ function loadScoresToForm(existingEval) {
         // ✅ อัปเดตคะแนนรวม live และ UI
         setTimeout(() => {
             calculateLiveTotal();
-            // ✅ อัปเดต UI เพื่อให้ปุ่มและขั้นตอนแสดงถูกต้อง
             updateWizardUI();
             console.log('✅ โหลดคะแนนเสร็จ, อัปเดต UI แล้ว');
         }, 50);
 
-    }, 150); // เพิ่มเวลาเล็กน้อยเพื่อให้ DOM พร้อม
+    }, 150);
 }
 
 // ==========================================
 // ฟังก์ชันรีเซ็ตฟอร์ม
+// ✅ [แก้] เพิ่มการล้าง _wizardSubGroupId
 // ==========================================
 function resetForm() {
     document.querySelectorAll('input[type="radio"]').forEach(el => {
@@ -1167,16 +1189,17 @@ function resetForm() {
     }
 
     window._existingEvalId = null;
+    window._wizardSubGroupId = null;   // ✅ [ใหม่] ล้าง snapshot
     isEditingMode = false;
 }
 
 // ==========================================
-// ✅ ฟังก์ชันรีเฟรชตารางรายชื่อครู (หลังบันทึก/ลบ/แก้ไข) - ฉบับปรับปรุง v2
+// ✅ ฟังก์ชันรีเฟรชตารางรายชื่อครู (หลังบันทึก/ลบ/แก้ไข)
 // ==========================================
 async function refreshCommitteeTeacherList() {
     if (evaluationMode !== 'committee') return;
 
-    let subGroupId = window._currentSubGroupId;
+    let subGroupId = window._currentSubGroupId || window._wizardSubGroupId;
     let selectedItems = window._currentSelectedItems;
     let deptTargets = window._selectedSubGroupTargets?.filter(t => t.target_type === 'department') || [];
 
@@ -1234,18 +1257,20 @@ async function refreshCommitteeTeacherList() {
             await loadTeachersForEvalBySubGroup(subGroupId, t.target_value, selectedItems, false);
         }
     } else {
-        // แสดงข้อความแบบไม่รบกวน (ไม่ใช่ warning)
-        console.log('ℹ️ ไม่พบกลุ่มเป้าหมายสำหรับรีเฟรชตารางครู (อาจไม่ได้อยู่ในหน้า committee)');
+        console.log('ℹ️ ไม่พบกลุ่มเป้าหมายสำหรับรีเฟรชตารางครู');
     }
 }
 
 // ==========================================
-// ✅ Submit Evaluation
+// ✅ Submit Evaluation (ฉบับแก้ไข - เก็บ keys + sub_group_id)
 // ==========================================
 async function submitEvaluation() {
     const evaluatorIdToUse = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
     const evaluatorNameToUse = _impersonationMode ? _impersonatedEvaluatorName : currentUser.first_name + ' ' + currentUser.last_name;
 
+    // ==========================================
+    // ✅ ตรวจสอบความครบถ้วนก่อนบันทึก
+    // ==========================================
     let missingP1 = false;
     const p1s1Groups = document.querySelectorAll('[name^="p1s1_"]');
     const p1s2Groups = document.querySelectorAll('[name^="p1s2_"]');
@@ -1301,45 +1326,136 @@ async function submitEvaluation() {
     updateSummary();
     const total = calculateLiveTotal();
 
+    // ==========================================
+    // ✅ สร้าง rawScores พร้อม keys ทุกองค์ประกอบ
+    // ==========================================
     const rawScores = {
-        p1_s1: Array.from(document.querySelectorAll('input[name^="p1s1_"]:checked')).map(el => parseInt(el.value) || 0),
-        p1_s2: Array.from(document.querySelectorAll('input[name^="p1s2_"]:checked')).map(el => parseInt(el.value) || 0),
+        p1_s1: [],
+        p1_s1_keys: [],
+        p1_s2: [],
+        p1_s2_keys: [],
+        p2: null,
+        p3: [],
+        p3_keys: []
     };
 
+    // ---------- p1_s1 ----------
+    const p1s1Checked = Array.from(document.querySelectorAll('input[name^="p1s1_"]:checked'));
+    const p1s1Pairs = p1s1Checked.map(el => {
+        const match = el.name.match(/^p1s1_(\d+_\d+)$/);
+        return match
+            ? { key: match[1], value: parseInt(el.value) || 0 }
+            : null;
+    }).filter(Boolean);
+
+    p1s1Pairs.sort((a, b) => {
+        const [a1, a2] = a.key.split('_').map(Number);
+        const [b1, b2] = b.key.split('_').map(Number);
+        return a1 - b1 || a2 - b2;
+    });
+
+    rawScores.p1_s1 = p1s1Pairs.map(p => p.value);
+    rawScores.p1_s1_keys = p1s1Pairs.map(p => p.key);
+
+    // ---------- p1_s2 ----------
+    const p1s2KeyMap = {
+        's2_1': '1',
+        's2_2_1': '2.1',
+        's2_2_2': '2.2'
+    };
+    const p1s2Checked = Array.from(document.querySelectorAll('input[name^="p1s2_"]:checked'));
+    const p1s2Pairs = p1s2Checked.map(el => {
+        const match = el.name.match(/^p1s2_(.+)$/);
+        if (!match) return null;
+        const inputId = match[1];
+        const key = p1s2KeyMap[inputId] || inputId;
+        return { key, value: parseInt(el.value) || 0 };
+    }).filter(Boolean);
+
+    const p1s2Order = { '1': 1, '2.1': 2, '2.2': 3 };
+    p1s2Pairs.sort((a, b) => (p1s2Order[a.key] || 99) - (p1s2Order[b.key] || 99));
+
+    rawScores.p1_s2 = p1s2Pairs.map(p => p.value);
+    rawScores.p1_s2_keys = p1s2Pairs.map(p => p.key);
+
+    // ---------- p2 ----------
     const p2Checked = document.querySelector('input[name="sc_part2"]:checked');
     if (p2Checked) {
         rawScores.p2 = parseInt(p2Checked.value) || 0;
     }
 
-    const p3Checked = document.querySelectorAll('input[name^="p3_"]:checked');
-    if (p3Checked.length > 0) {
-        rawScores.p3 = Array.from(p3Checked).map(el => parseInt(el.value) || 0);
-    }
+    // ---------- p3 ----------
+    const p3Checked = Array.from(document.querySelectorAll('input[name^="p3_"]:checked'));
+    const p3Pairs = p3Checked.map(el => {
+        const match = el.name.match(/^p3_(\d+)$/);
+        if (!match) return null;
+        const realIndex = parseInt(match[1]);
+        const key = String(realIndex + 1);
+        return { key, value: parseInt(el.value) || 0, realIndex };
+    }).filter(Boolean);
 
+    p3Pairs.sort((a, b) => a.realIndex - b.realIndex);
+
+    rawScores.p3 = p3Pairs.map(p => p.value);
+    rawScores.p3_keys = p3Pairs.map(p => p.key);
+
+    // ==========================================
+    // ✅ ตรวจสอบว่ามีคะแนนอย่างน้อย 1 ค่า
+    // ==========================================
     const hasScores = rawScores.p1_s1.length > 0 || rawScores.p1_s2.length > 0 ||
-        rawScores.p2 !== undefined || (rawScores.p3 && rawScores.p3.length > 0);
+        (rawScores.p2 !== null && rawScores.p2 !== undefined) ||
+        rawScores.p3.length > 0;
 
     if (!hasScores) {
         return Swal.fire('แจ้งเตือน', 'กรุณาให้คะแนนอย่างน้อย 1 องค์ประกอบ', 'warning');
     }
 
+    // ==========================================
+    // ✅ [ใหม่] กำหนด sub_group_id สำหรับ committee
+    // ==========================================
+    let subGroupIdToUse = null;
+    if (evaluationMode === 'committee') {
+        subGroupIdToUse = window._wizardSubGroupId
+            || _selectedSubGroupId
+            || window._currentSubGroupId
+            || null;
+
+        if (!subGroupIdToUse) {
+            return Swal.fire({
+                icon: 'warning',
+                title: 'ไม่พบชุดคณะกรรมการ',
+                text: 'กรุณากลับไปเลือกชุดคณะกรรมการก่อนประเมิน',
+                confirmButtonText: 'ตกลง'
+            });
+        }
+        console.log('✅ บันทึกใน sub_group:', subGroupIdToUse);
+    }
+
     Swal.fire({ title: 'กำลังบันทึกคะแนน...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        const { data: existingEval, error: checkError } = await db
+        // ==========================================
+        // ✅ [แก้] ตรวจสอบข้อมูลเดิมด้วย eval_round_id + sub_group_id
+        // ==========================================
+        let existingQuery = db
             .from('eval_results')
             .select('id')
-            .eq('academic_year', currentTermData.current_academic_year)
-            .eq('semester', currentTermData.current_semester)
+            .eq('eval_round_id', currentEvalRound?.id || null)
             .eq('evaluatee_id', evaluateeData.id)
             .eq('evaluator_id', evaluatorIdToUse)
-            .eq('eval_type', evaluationMode)
-            .maybeSingle();
+            .eq('eval_type', evaluationMode);
+
+        if (evaluationMode === 'committee' && subGroupIdToUse) {
+            existingQuery = existingQuery.eq('sub_group_id', subGroupIdToUse);
+        }
+
+        const { data: existingEval, error: checkError } = await existingQuery.maybeSingle();
 
         if (checkError) throw checkError;
 
         const payload = {
             eval_round_id: currentEvalRound?.id || null,
+            sub_group_id: subGroupIdToUse,   // ✅ [ใหม่]
             academic_year: currentTermData.current_academic_year,
             semester: currentTermData.current_semester,
             evaluatee_id: evaluateeData.id,
@@ -1347,7 +1463,8 @@ async function submitEvaluation() {
             eval_type: evaluationMode,
             total_score: total,
             detailed_scores: rawScores,
-            status: 'submitted'
+            status: 'submitted',
+            updated_at: new Date().toISOString()
         };
 
         if (existingEval) {
@@ -1362,6 +1479,9 @@ async function submitEvaluation() {
             if (insertError) throw insertError;
         }
 
+        // ==========================================
+        // ✅ บันทึก Audit Log กรณีสวมรอย
+        // ==========================================
         if (_impersonationMode) {
             await logUserAction(
                 `impersonate_submit: super_admin บันทึกคะแนน ${total.toFixed(2)} ในนาม ${evaluatorNameToUse} (${evaluatorIdToUse}) สำหรับ ${evaluateeData.first_name} ${evaluateeData.last_name}`,
@@ -1371,6 +1491,9 @@ async function submitEvaluation() {
 
         Swal.close();
 
+        // ==========================================
+        // ✅ แสดงผลสำเร็จ
+        // ==========================================
         await Swal.fire({
             icon: 'success',
             title: '✅ บันทึกผลสำเร็จ!',
@@ -1394,9 +1517,9 @@ async function submitEvaluation() {
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
 
-                // ✅ เก็บค่า subGroupId และ selectedItems ลง sessionStorage เพื่อใช้ตอนรีเฟรช
-                if (window._currentSubGroupId) {
-                    sessionStorage.setItem('lastCommitteeSubGroupId', window._currentSubGroupId);
+                // ✅ เก็บค่า subGroupId และ selectedItems ลง sessionStorage
+                if (subGroupIdToUse) {
+                    sessionStorage.setItem('lastCommitteeSubGroupId', subGroupIdToUse);
                 }
                 if (window._currentSelectedItems) {
                     sessionStorage.setItem('lastCommitteeSelectedItems', JSON.stringify(window._currentSelectedItems));

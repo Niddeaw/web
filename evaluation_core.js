@@ -1079,6 +1079,9 @@ async function renderCommitteeSelection(mainGroup, subGroups, viewOnly = false, 
 // ==========================================
 // ✅ ฟังก์ชัน loadTeachersForSubGroup (ฉบับสมบูรณ์)
 // ==========================================
+// ==========================================
+// ✅ ฟังก์ชัน loadTeachersForSubGroup (ฉบับแก้ไข - filter sub_group_id)
+// ==========================================
 async function loadTeachersForSubGroup() {
     if (_isLoadingTeachers) {
         console.log('⏳ กำลังโหลดอยู่ ข้ามการเรียกซ้ำ');
@@ -1155,7 +1158,7 @@ async function loadTeachersForSubGroup() {
                 .select('id, prefix, first_name, last_name, academic_standing, department')
                 .eq('department', dept)
                 .in('academic_standing', validStandings)
-                .in('position', ['ครู', 'ครูผู้ช่วย'])   // <- เพิ่มบรรทัดนี้
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
                 .order('first_name', { ascending: true })
         );
 
@@ -1187,13 +1190,25 @@ async function loadTeachersForSubGroup() {
         const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
 
         console.time('⏱️ Query ผลการประเมิน');
-        const { data: evalResults, error: eErr } = await db
+
+        // ✅ [แก้] filter ด้วย sub_group_id (สำคัญ!)
+        // เดิม: ไม่กรอง sub_group_id → ดึงผลของทุกชุดรวมกัน → ผิด
+        // ใหม่: กรองเฉพาะชุดที่เลือก → แสดงเฉพาะผลของชุดนี้
+        let evalQuery = db
             .from('eval_results')
             .select('evaluatee_id, total_score, status, updated_at')
             .in('evaluatee_id', teacherIds)
             .eq('eval_round_id', currentEvalRound.id)
             .eq('evaluator_id', evaluatorId)
             .eq('eval_type', 'committee');
+
+        if (subGroupId) {
+            evalQuery = evalQuery.eq('sub_group_id', subGroupId);
+        } else {
+            console.warn('⚠️ ไม่พบ subGroupId — จะไม่กรองผลตามชุด');
+        }
+
+        const { data: evalResults, error: eErr } = await evalQuery;
         console.timeEnd('⏱️ Query ผลการประเมิน');
 
         const evalMap = {};

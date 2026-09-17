@@ -112,7 +112,11 @@ async function calculateCommitteeGroupAverage(evaluateeId, evalRoundId, subGroup
         if (memError) throw memError;
 
         const evaluatorIds = members.map(m => m.user_id);
-        const groupResults = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+        // ✅ [แก้] filter ทั้ง evaluator_id และ sub_group_id
+        const groupResults = evalResults.filter(r =>
+            evaluatorIds.includes(r.evaluator_id) &&
+            r.sub_group_id === subGroupId
+        );
 
         if (groupResults.length === 0) return null;
 
@@ -301,7 +305,11 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId) {
             if (memError) throw memError;
 
             const evaluatorIds = members.map(m => m.user_id);
-            const groupEvals = evalResults.filter(r => evaluatorIds.includes(r.evaluator_id));
+            // ✅ [แก้] filter ทั้ง evaluator_id และ sub_group_id
+            const groupEvals = evalResults.filter(r =>
+                evaluatorIds.includes(r.evaluator_id) &&
+                r.sub_group_id === subGroup.id
+            );
 
             if (groupEvals.length === 0) continue;
 
@@ -765,7 +773,7 @@ async function generateAllFinalScores(evalRoundId) {
         // ✅ ตรวจสอบและสรุปทีละคน
         for (let i = 0; i < uniqueEvaluatees.length; i++) {
             const evaluateeId = uniqueEvaluatees[i];
-            
+
             // อัปเดต progress
             Swal.update({
                 html: `กำลังตรวจสอบ: <b>${i + 1}/${uniqueEvaluatees.length}</b>`
@@ -2550,7 +2558,7 @@ async function viewSelfEvalDetail(evaluateeId) {
 // ==========================================
 async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
     const errors = [];
-    
+
     // 1. ดึงข้อมูลชุดย่อยทั้งหมดที่เกี่ยวข้องกับผู้ถูกประเมิน
     const { data: subGroups, error: sgErr } = await db
         .from('eval_committee_groups')
@@ -2570,7 +2578,7 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
         errors.push('ไม่สามารถโหลดข้อมูลชุดคณะกรรมการได้');
         return { valid: false, errors };
     }
-    
+
     if (!subGroups || subGroups.length === 0) {
         errors.push('ไม่พบชุดย่อยคณะกรรมการในรอบนี้');
         return { valid: false, errors };
@@ -2598,7 +2606,7 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
         const departments = targets
             .filter(t => t.target_type === 'department')
             .map(t => t.target_value);
-        
+
         if (departments.includes(teacherDept)) {
             relevantSubGroups.push(sub);
         }
@@ -2622,7 +2630,7 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
         const departments = targets
             .filter(t => t.target_type === 'department')
             .map(t => t.target_value);
-        
+
         let allTeachers = [];
         for (const dept of departments) {
             const { data: teachers, error: qErr } = await db
@@ -2631,7 +2639,7 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
                 .eq('department', dept)
                 .in('position', ['ครู', 'ครูผู้ช่วย'])
                 .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-            
+
             if (!qErr && teachers) {
                 allTeachers = allTeachers.concat(teachers);
             }
@@ -2647,17 +2655,18 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
         // 5. ตรวจสอบกรรมการแต่ละคน
         for (const member of members) {
             const evaluatorId = member.user_id;
-            const evaluatorName = member.core_personnel 
+            const evaluatorName = member.core_personnel
                 ? `${member.core_personnel.first_name} ${member.core_personnel.last_name}`
                 : 'ไม่ทราบชื่อ';
 
-            // ดึงผลการประเมินของกรรมการคนนี้
+            // ดึงผลการประเมินของกรรมการคนนี้ (เฉพาะชุดที่กำลังตรวจสอบ)
             const { data: evalResults, error: eErr } = await db
                 .from('eval_results')
                 .select('evaluatee_id, detailed_scores, total_score')
                 .eq('evaluator_id', evaluatorId)
                 .eq('eval_round_id', evalRoundId)
                 .eq('eval_type', 'committee')
+                .eq('sub_group_id', sub.id)   // ✅ [ใหม่]
                 .eq('status', 'submitted')
                 .in('evaluatee_id', teacherIds);
 
@@ -2708,8 +2717,8 @@ async function validateEvaluationCompleteness(evalRoundId, evaluateeId) {
         }
     }
 
-    return { 
-        valid: errors.length === 0, 
+    return {
+        valid: errors.length === 0,
         errors,
         teacherName,
         teacherDept
@@ -2981,13 +2990,14 @@ async function loadEvaluatorScores() {
 
         const evaluatorIds = (members || []).map(m => m.user_id);
 
-        // 3. ดึงผลการประเมินของกรรมการทุกคนในชุดนี้
+        // 3. ดึงผลการประเมินของกรรมการทุกคนในชุดนี้ (เฉพาะชุดที่เลือก)
         const { data: results } = await db
             .from('eval_results')
             .select('*')
             .eq('evaluatee_id', evaluateeId)
             .eq('eval_round_id', currentEvalRound.id)
             .eq('eval_type', 'committee')
+            .eq('sub_group_id', subGroupId)   // ✅ [ใหม่]
             .in('evaluator_id', evaluatorIds)
             .eq('status', 'submitted');
 
@@ -3114,6 +3124,52 @@ function getScoreDiffColor(score, modeScore) {
         level: 'major',
         label: 'ต่าง ±2 ขึ้นไป'
     };
+}
+
+// ==========================================
+// ✅ Helper: หา Label ของหัวข้อ (อ่านง่าย)
+// ==========================================
+function getItemLabel(item, academicStanding) {
+    const criteria = getCriteriaByAcademic(academicStanding);
+
+    // p1_s1
+    if (item.element === '1' && item.part === '1') {
+        const targetId = item.value.replace('.', '_');
+        for (const group of criteria.part1_sec1 || []) {
+            const found = group.items.find(i =>
+                i.id === item.value || i.id === targetId
+            );
+            if (found) return found.label;
+        }
+    }
+
+    // p1_s2
+    if (item.element === '1' && item.part === '2') {
+        const found = criteria.part1_sec2?.find(i => {
+            const id = i.id === 's2_1' ? '1'
+                : i.id === 's2_2_1' ? '2.1'
+                : i.id === 's2_2_2' ? '2.2'
+                : i.id;
+            return id === item.value || id === item.value.replace('.', '_');
+        });
+        if (found) return found.label;
+    }
+
+    // p2
+    if (item.element === '2') {
+        return 'ความสำเร็จของงานที่ได้รับมอบหมาย';
+    }
+
+    // p3
+    if (item.element === '3') {
+        const idx = parseInt(item.value) - 1;
+        if (idx >= 0 && idx < PART3_ITEMS.length) {
+            const text = PART3_ITEMS[idx];
+            return `${idx + 1}. ${text.substring(0, 60)}${text.length > 60 ? '...' : ''}`;
+        }
+    }
+
+    return item.value;
 }
 
 // ==========================================
@@ -3325,6 +3381,7 @@ function renderEvaluatorTabContent() {
 
 // ==========================================
 // TAB 1: สรุป Mode
+// ✅ v2: ใช้ getItemLabel() แทน item.value/ternary → แสดง label อ่านง่าย
 // ==========================================
 function renderModeTab() {
     const s = _evScoreState;
@@ -3350,29 +3407,32 @@ function renderModeTab() {
         </thead>
         <tbody>`;
 
+    // ==========================================
     // p1_s1
+    // ==========================================
     if (p1s1Items.length > 0) {
         html += `<tr class="bg-blue-50/50"><td colspan="2" class="p-2 font-bold text-blue-700 text-xs">📚 องค์ประกอบ 1 ตอนที่ 1</td></tr>`;
         p1s1Items.forEach(item => {
             const key = item.value.replace('.', '_');
             const idx = (s.modeScores.p1_s1_keys || []).indexOf(key);
             const val = idx >= 0 ? s.modeScores.p1_s1[idx] : '-';
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
             html += `
                 <tr class="border-t border-gray-100 hover:bg-gray-50">
-                    <td class="p-2 text-gray-700">${item.value}</td>
+                    <td class="p-2 text-gray-700">${label}</td>
                     <td class="p-2 text-center font-bold text-indigo-600">${val || '-'}</td>
                 </tr>`;
         });
     }
 
+    // ==========================================
     // p1_s2
+    // ==========================================
     if (p1s2Items.length > 0) {
         html += `<tr class="bg-indigo-50/50"><td colspan="2" class="p-2 font-bold text-indigo-700 text-xs">🎯 องค์ประกอบ 1 ตอนที่ 2</td></tr>`;
         p1s2Items.forEach((item, i) => {
             const val = s.modeScores.p1_s2[i] || '-';
-            const label = item.value === '1' ? '1. วิธีดำเนินการ' :
-                item.value === '2.1' ? '2.1 เชิงปริมาณ' :
-                    item.value === '2.2' ? '2.2 เชิงคุณภาพ' : item.value;
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
             html += `
                 <tr class="border-t border-gray-100 hover:bg-gray-50">
                     <td class="p-2 text-gray-700">${label}</td>
@@ -3381,24 +3441,33 @@ function renderModeTab() {
         });
     }
 
+    // ==========================================
     // p2
+    // ==========================================
     if (p2Items.length > 0) {
         html += `<tr class="bg-emerald-50/50"><td colspan="2" class="p-2 font-bold text-emerald-700 text-xs">🤝 องค์ประกอบ 2</td></tr>`;
-        html += `
-            <tr class="border-t border-gray-100 hover:bg-gray-50">
-                <td class="p-2 text-gray-700">ระดับความสำเร็จ</td>
-                <td class="p-2 text-center font-bold text-emerald-600">${s.modeScores.p2 || '-'}</td>
-            </tr>`;
+        p2Items.forEach(item => {
+            const val = s.modeScores.p2 || '-';
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
+            html += `
+                <tr class="border-t border-gray-100 hover:bg-gray-50">
+                    <td class="p-2 text-gray-700">${label}</td>
+                    <td class="p-2 text-center font-bold text-emerald-600">${val}</td>
+                </tr>`;
+        });
     }
 
+    // ==========================================
     // p3
+    // ==========================================
     if (p3Items.length > 0) {
         html += `<tr class="bg-purple-50/50"><td colspan="2" class="p-2 font-bold text-purple-700 text-xs">⚖️ องค์ประกอบ 3</td></tr>`;
         p3Items.forEach((item, i) => {
             const val = s.modeScores.p3[i] || '-';
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
             html += `
                 <tr class="border-t border-gray-100 hover:bg-gray-50">
-                    <td class="p-2 text-gray-700">ข้อ ${item.value}</td>
+                    <td class="p-2 text-gray-700">${label}</td>
                     <td class="p-2 text-center font-bold text-purple-600">${val}</td>
                 </tr>`;
         });
@@ -3534,6 +3603,7 @@ function renderEvaluatorsTab() {
 
 // ==========================================
 // TAB 3: ตารางไขว้ (กรรมการ x ข้อ) - ไฮไลต์ความต่าง
+// ✅ v2: ใช้ getItemLabel() แทน item.value ตรงๆ → แสดง label อ่านง่าย
 // ==========================================
 function renderItemsTab() {
     const s = _evScoreState;
@@ -3555,22 +3625,27 @@ function renderItemsTab() {
             <table class="w-full text-sm">
                 <thead class="bg-indigo-50">
                     <tr>
-                        <th class="p-2 text-left sticky left-0 bg-indigo-50 z-10 min-w-[200px]">หัวข้อ</th>`;
+                        <th class="p-2 text-left sticky left-0 bg-indigo-50 z-10 min-w-[250px]">หัวข้อ</th>`;
 
+    // คอลัมน์กรรมการแต่ละคน
     s.evaluators.forEach((e, i) => {
         html += `<th class="p-2 text-center w-20 text-xs" title="${e.name}">ก.${i + 1}</th>`;
     });
 
-    html += `<th class="p-2 text-center w-20 bg-yellow-100 text-yellow-800 font-bold">Mode</th></tr></thead><tbody>`;
+    // คอลัมน์ Mode
+    html += `<th class="p-2 text-center w-20 bg-yellow-100 text-yellow-800 font-bold">Mode</th>`;
+    html += `</tr></thead><tbody>`;
 
-    // Legend ของกรรมการ
+    // Legend ของกรรมการ (ชื่อย่อ)
     html += '<tr class="bg-gray-50 text-xs"><td class="p-1 sticky left-0 bg-gray-50"></td>';
     s.evaluators.forEach((e) => {
         html += `<td class="p-1 text-center text-gray-500 font-medium" title="${e.name}">${e.name.split(' ')[0]}</td>`;
     });
     html += '<td></td></tr>';
 
-    // --- Helper: สร้างเซลล์ที่มีสี ---
+    // ==========================================
+    // ✅ Helper: สร้างเซลล์ที่มีสี
+    // ==========================================
     const renderScoreCell = (score, modeVal) => {
         if (score === null || score === undefined || score === '') {
             return `<td class="p-2 text-center text-gray-300">-</td>`;
@@ -3579,16 +3654,25 @@ function renderItemsTab() {
         return `<td class="p-2 text-center font-bold ${diff.bg} ${diff.class} border ${diff.border}">${score}</td>`;
     };
 
-    // --- p1_s1 ---
+    // ==========================================
+    // p1_s1 (องค์ประกอบ 1 ตอนที่ 1)
+    // ==========================================
     const p1s1Items = s.requiredItems.filter(i => i.element === '1' && i.part === '1');
     if (p1s1Items.length > 0) {
-        html += `<tr class="bg-blue-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-blue-700 text-xs sticky left-0 bg-blue-50">📚 องค์ประกอบ 1 ตอนที่ 1</td></tr>`;
+        html += `<tr class="bg-blue-50">
+            <td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-blue-700 text-xs sticky left-0 bg-blue-50">
+                📚 องค์ประกอบ 1 ตอนที่ 1
+            </td>
+        </tr>`;
+
         p1s1Items.forEach(item => {
             const key = item.value.replace('.', '_');
-            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
-            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">${item.value}</td>`;
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
 
-            // ✅ Mode value
+            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10 text-xs">${label}</td>`;
+
+            // Mode value
             const modeIdx = (s.modeScores.p1_s1_keys || []).indexOf(key);
             const modeVal = modeIdx >= 0 ? s.modeScores.p1_s1[modeIdx] : null;
 
@@ -3601,23 +3685,27 @@ function renderItemsTab() {
             });
 
             html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
-            html += '</tr>';
+            html += `</tr>`;
         });
     }
 
-    // --- p1_s2 ---
+    // ==========================================
+    // p1_s2 (องค์ประกอบ 1 ตอนที่ 2)
+    // ==========================================
     const p1s2Items = s.requiredItems.filter(i => i.element === '1' && i.part === '2');
     if (p1s2Items.length > 0) {
-        html += `<tr class="bg-indigo-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-indigo-700 text-xs sticky left-0 bg-indigo-50">🎯 องค์ประกอบ 1 ตอนที่ 2</td></tr>`;
-        p1s2Items.forEach((item, i) => {
-            const label = item.value === '1' ? '1. วิธีดำเนินการ' :
-                item.value === '2.1' ? '2.1 เชิงปริมาณ' :
-                    item.value === '2.2' ? '2.2 เชิงคุณภาพ' : item.value;
+        html += `<tr class="bg-indigo-50">
+            <td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-indigo-700 text-xs sticky left-0 bg-indigo-50">
+                🎯 องค์ประกอบ 1 ตอนที่ 2
+            </td>
+        </tr>`;
 
+        p1s2Items.forEach((item, i) => {
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
             const modeVal = (s.modeScores.p1_s2 || [])[i] || null;
 
             html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
-            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">${label}</td>`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10 text-xs">${label}</td>`;
 
             s.evaluators.forEach(e => {
                 const val = (e.detailed_scores.p1_s2 || [])[i];
@@ -3625,34 +3713,56 @@ function renderItemsTab() {
             });
 
             html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
-            html += '</tr>';
+            html += `</tr>`;
         });
     }
 
-    // --- p2 ---
+    // ==========================================
+    // p2 (องค์ประกอบ 2)
+    // ==========================================
     if (s.requiredItems.some(i => i.element === '2')) {
         const modeVal = s.modeScores.p2 || null;
-        html += `<tr class="bg-emerald-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-emerald-700 text-xs sticky left-0 bg-emerald-50">🤝 องค์ประกอบ 2</td></tr>`;
-        html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
-        html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">ระดับความสำเร็จ</td>`;
+        const p2Items = s.requiredItems.filter(i => i.element === '2');
 
-        s.evaluators.forEach(e => {
-            const val = e.detailed_scores.p2;
-            html += renderScoreCell(val, modeVal);
+        html += `<tr class="bg-emerald-50">
+            <td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-emerald-700 text-xs sticky left-0 bg-emerald-50">
+                🤝 องค์ประกอบ 2
+            </td>
+        </tr>`;
+
+        p2Items.forEach(item => {
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
+
+            html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10 text-xs">${label}</td>`;
+
+            s.evaluators.forEach(e => {
+                const val = e.detailed_scores.p2;
+                html += renderScoreCell(val, modeVal);
+            });
+
+            html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
+            html += `</tr>`;
         });
-
-        html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
-        html += '</tr>';
     }
 
-    // --- p3 ---
+    // ==========================================
+    // p3 (องค์ประกอบ 3)
+    // ==========================================
     const p3Items = s.requiredItems.filter(i => i.element === '3');
     if (p3Items.length > 0) {
-        html += `<tr class="bg-purple-50"><td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-purple-700 text-xs sticky left-0 bg-purple-50">⚖️ องค์ประกอบ 3</td></tr>`;
+        html += `<tr class="bg-purple-50">
+            <td colspan="${s.evaluators.length + 2}" class="p-2 font-bold text-purple-700 text-xs sticky left-0 bg-purple-50">
+                ⚖️ องค์ประกอบ 3
+            </td>
+        </tr>`;
+
         p3Items.forEach((item, i) => {
+            const label = getItemLabel(item, s.academicStanding);   // ✅ ใช้ helper
             const modeVal = (s.modeScores.p3 || [])[i] || null;
+
             html += `<tr class="border-t border-gray-100 hover:bg-gray-50">`;
-            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10">ข้อ ${item.value}</td>`;
+            html += `<td class="p-2 text-gray-700 sticky left-0 bg-white z-10 text-xs">${label}</td>`;
 
             s.evaluators.forEach(e => {
                 const val = (e.detailed_scores.p3 || [])[i];
@@ -3660,11 +3770,11 @@ function renderItemsTab() {
             });
 
             html += `<td class="p-2 text-center font-bold bg-yellow-50 text-yellow-800 border border-yellow-200">${modeVal !== null ? modeVal : '-'}</td>`;
-            html += '</tr>';
+            html += `</tr>`;
         });
     }
 
-    html += '</tbody></table></div>';
+    html += `</tbody></table></div>`;
     return html;
 }
 
@@ -4075,4 +4185,6 @@ window.onReviewGroupChange = onReviewGroupChange;
 window.viewDivergentItems = viewDivergentItems;
 window.calculateEvaluatorDivergence = calculateEvaluatorDivergence;
 window.getScoreDiffColor = getScoreDiffColor;
+window.getItemLabel = getItemLabel;
+
 console.log('✅ evaluation_logic.js loaded successfully');
