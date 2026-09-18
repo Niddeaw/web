@@ -791,6 +791,7 @@ async function startEvaluation(type, teacherData = null) {
 
         evaluationMode = type;
         isEditingMode = false;
+        window._existingEvalId = null;   // ✅ [FIX] Reset ค่าจากการแก้ไขครั้งก่อน
 
         if (type === 'self') {
             evaluateeData = currentUser;
