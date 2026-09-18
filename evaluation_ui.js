@@ -1556,6 +1556,10 @@ async function submitEvaluation() {
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
 
+                // ✅ [เพิ่ม] Reset ค่าหลังบันทึกสำเร็จ
+                window._existingEvalId = null;
+                isEditingMode = false;
+
                 // ✅ เก็บค่า subGroupId + selectedItems
                 if (subGroupIdToUse) {
                     sessionStorage.setItem('lastCommitteeSubGroupId', subGroupIdToUse);
