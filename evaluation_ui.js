@@ -867,6 +867,13 @@ async function startEvaluation(type, teacherData = null) {
         document.getElementById('dashboardView').classList.add('hidden');
         document.getElementById('wizardView').classList.remove('hidden');
 
+        // ✅ [FIX] Reset active class — ซ่อนทุก step แล้วแสดง step1
+        document.querySelectorAll('.wizard-step').forEach(el => el.classList.remove('active'));
+        document.getElementById('step1').classList.add('active');
+
+        // ✅ [FIX] Reset summary display ทันที (ค่าเป็น 0)
+        updateSummary();
+
         wizardCurrentStep = 1;
         updateWizardUI();
 
@@ -926,6 +933,13 @@ async function startEvaluation(type, teacherData = null) {
                     isEditingMode = false;
                     resetForm();
                     Swal.fire('เริ่มใหม่', 'ลบข้อมูลเดิมเรียบร้อย', 'success');
+
+                    // ✅ [ใหม่] รีเฟรชตารางหลังลบ
+                    setTimeout(() => {
+                        if (typeof refreshCommitteeTeacherList === 'function') {
+                            refreshCommitteeTeacherList();
+                        }
+                    }, 300);
                 } else {
                     document.getElementById('dashboardView').classList.remove('hidden');
                     document.getElementById('wizardView').classList.add('hidden');
@@ -1003,13 +1017,16 @@ async function loadExistingEvaluation() {
     try {
         if (!currentEvalRound?.id) return;
 
-        // ✅ [แก้] ใช้ eval_round_id + filter sub_group_id สำหรับ committee
+        // ✅ [แก้] ใช้ ID ของกรรมการ (ทั้งกรณีปกติและสวมรอย)
+        const evaluatorIdForQuery = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
+        console.log('📥 loadExistingEvaluation - evaluatorId:', evaluatorIdForQuery, '_impersonationMode:', _impersonationMode);
+
         let query = db
             .from('eval_results')
             .select('*')
             .eq('eval_round_id', currentEvalRound.id)
             .eq('evaluatee_id', evaluateeData.id)
-            .eq('evaluator_id', currentUser.id)
+            .eq('evaluator_id', evaluatorIdForQuery)   // ✅ [แก้]
             .eq('eval_type', evaluationMode);
 
         if (evaluationMode === 'committee') {
@@ -1072,6 +1089,14 @@ async function loadExistingEvaluation() {
                 window._existingEvalId = null;
                 isEditingMode = false;
                 resetForm();
+
+                // ✅ [ใหม่] รีเฟรชตารางหลังลบ (ดีเลย์ให้ DB commit ก่อน)
+                setTimeout(() => {
+                    if (typeof refreshCommitteeTeacherList === 'function') {
+                        refreshCommitteeTeacherList();
+                    }
+                }, 300);
+
                 return false;
             } else {
                 document.getElementById('dashboardView').classList.remove('hidden');
@@ -1194,16 +1219,22 @@ function resetForm() {
 }
 
 // ==========================================
-// ✅ ฟังก์ชันรีเฟรชตารางรายชื่อครู (หลังบันทึก/ลบ/แก้ไข)
+// ✅ ฟังก์ชันรีเฟรชตารางรายชื่อครู (v3 - Optimized)
+// ใช้ loadTeachersForSubGroup() โดยตรง — โหลดครั้งเดียว
 // ==========================================
 async function refreshCommitteeTeacherList() {
     if (evaluationMode !== 'committee') return;
 
+    // ✅ กันการเรียกซ้ำ
+    if (_isLoadingTeachers) {
+        console.log('⏳ กำลังโหลดอยู่ ข้ามการเรียกซ้ำ');
+        return;
+    }
+
     let subGroupId = window._currentSubGroupId || window._wizardSubGroupId;
     let selectedItems = window._currentSelectedItems;
-    let deptTargets = window._selectedSubGroupTargets?.filter(t => t.target_type === 'department') || [];
 
-    // ✅ Fallback 1: ดึงจาก sessionStorage
+    // Fallback 1: sessionStorage
     if (!subGroupId) {
         subGroupId = sessionStorage.getItem('lastCommitteeSubGroupId') || null;
     }
@@ -1215,13 +1246,13 @@ async function refreshCommitteeTeacherList() {
         }
     }
 
-    // ✅ Fallback 2: หา subGroupId จาก select ใน DOM
+    // Fallback 2: DOM
     if (!subGroupId) {
         const subGroupSelect = document.getElementById('subGroupSelect');
         if (subGroupSelect) subGroupId = subGroupSelect.value;
     }
 
-    // ✅ Fallback 3: ดึงจาก memberships ของกรรมการ
+    // Fallback 3: Memberships
     if (!subGroupId) {
         const evaluatorId = _impersonationMode ? _impersonatedEvaluatorId : currentUser.id;
         const { data: memberships } = await db
@@ -1234,31 +1265,39 @@ async function refreshCommitteeTeacherList() {
         }
     }
 
-    // ✅ ถ้าไม่มี deptTargets ให้ดึงจากฐานข้อมูลโดยใช้ subGroupId
-    if (deptTargets.length === 0 && subGroupId) {
-        try {
-            const { data: subGroup, error } = await db
-                .from('eval_committee_groups')
-                .select('*, eval_committee_targets(*)')
-                .eq('id', subGroupId)
-                .single();
-
-            if (!error && subGroup && subGroup.eval_committee_targets) {
-                deptTargets = subGroup.eval_committee_targets.filter(t => t.target_type === 'department');
-            }
-        } catch (err) {
-            console.error('Error fetching targets for refresh:', err);
-        }
+    if (!subGroupId) {
+        console.warn('⚠️ ไม่พบ subGroupId — ข้ามการรีเฟรช');
+        return;
     }
 
-    // ✅ ถ้าพบ deptTargets และ subGroupId ให้โหลดตารางครู
-    if (deptTargets.length > 0 && subGroupId) {
-        for (const t of deptTargets) {
-            await loadTeachersForEvalBySubGroup(subGroupId, t.target_value, selectedItems, false);
-        }
-    } else {
-        console.log('ℹ️ ไม่พบกลุ่มเป้าหมายสำหรับรีเฟรชตารางครู');
+    // ✅ Sync _selectedSubGroupId + targets + items
+    _selectedSubGroupId = subGroupId;
+
+    if (!_selectedSubGroupTargets || _selectedSubGroupTargets.length === 0) {
+        const { data: freshTargets } = await db
+            .from('eval_committee_targets')
+            .select('*')
+            .eq('committee_group_id', subGroupId)
+            .eq('is_active', true);
+        _selectedSubGroupTargets = freshTargets || [];
     }
+
+    if (!_selectedSubGroupItems || _selectedSubGroupItems.length === 0) {
+        const { data: freshSubGroup } = await db
+            .from('eval_committee_groups')
+            .select('selected_sub_items')
+            .eq('id', subGroupId)
+            .maybeSingle();
+        _selectedSubGroupItems = freshSubGroup?.selected_sub_items || [];
+    }
+
+    // ✅ Reset loading flag (ป้องกัน flag ค้าง)
+    _isLoadingTeachers = false;
+
+    // ✅ โหลดครั้งเดียว — loadTeachersForSubGroup() จัดการทุก department เอง
+    console.log('🔄 กำลังรีเฟรชตารางหลัง import/submit...');
+    await loadTeachersForSubGroup();
+    console.log('✅ รีเฟรชตารางเสร็จ');
 }
 
 // ==========================================
@@ -1510,14 +1549,13 @@ async function submitEvaluation() {
             `,
             confirmButtonText: 'กลับหน้าหลัก'
         }).then(() => {
-            if (_impersonationMode) {
-                cancelImpersonation();
-                window.location.reload();
-            } else if (evaluationMode === 'committee') {
+            // ✅ [แก้] ทั้งกรรมการปกติและสวมรอย — ทำเหมือนกัน
+            //     ไม่ reload ทั้งหน้า, ไม่ยกเลิกสวมรอย
+            if (evaluationMode === 'committee') {
                 document.getElementById('dashboardView').classList.remove('hidden');
                 document.getElementById('wizardView').classList.add('hidden');
 
-                // ✅ เก็บค่า subGroupId และ selectedItems ลง sessionStorage
+                // ✅ เก็บค่า subGroupId + selectedItems
                 if (subGroupIdToUse) {
                     sessionStorage.setItem('lastCommitteeSubGroupId', subGroupIdToUse);
                 }
@@ -1525,10 +1563,18 @@ async function submitEvaluation() {
                     sessionStorage.setItem('lastCommitteeSelectedItems', JSON.stringify(window._currentSelectedItems));
                 }
 
+                // ✅ รีเฟรชตารางรายชื่อครู
                 setTimeout(() => {
                     refreshCommitteeTeacherList();
-                }, 500);
+                }, 300);
+
+                // ✅ ถ้าสวมรอย → คงสถานะ banner ไว้ + memSelect ค่าเดิม
+                if (_impersonationMode) {
+                    console.log('👑 คงสถานะสวมรอย — พร้อมประเมินคนถัดไป');
+                    // ไม่ต้องทำอะไรเพิ่ม — banner ยังแสดงอยู่, _impersonatedEvaluatorId ยังมีค่า
+                }
             } else {
+                // self evaluation → reload หน้าเว็บ
                 window.location.reload();
             }
         });
