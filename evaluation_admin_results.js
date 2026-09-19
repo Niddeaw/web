@@ -170,8 +170,13 @@ async function triggerGenerateAllFinalScores() {
 }
 
 // ==========================================
-// ✅ [OPTIMIZED] ตรวจสอบการให้คะแนนรายบุคคลของกรรมการ
-// ลดจาก 125 queries → 4 queries (เร็วขึ้น ~50x)
+// ✅ [OPTIMIZED v3] ตรวจสอบการให้คะแนนรายบุคคลของกรรมการ
+// Features:
+//   1. เรียงชุดตามตัวเลข (1, 2, 3, ..., 10, 11)
+//   2. กรอง eval_results ตาม sub_group_id → ตัวเลขตรงกัน
+//   3. ✅ เพิ่มคอลัมน์ "ครูทั้งหมด" → เห็นผลรวมชัดเจน
+//   4. ✅ Badge "ชุดหลัก" / "ชุดย่อย"
+//   5. ✅ แยก Section Main Group / Sub Group
 // ==========================================
 async function checkEvaluatorAssignments() {
     const roundId = currentEvalRound?.id || document.getElementById('filter_round_for_results').value;
@@ -191,7 +196,7 @@ async function checkEvaluatorAssignments() {
         // ---- QUERY 1: groups + members ----
         const { data: groups, error: gErr } = await db
             .from('eval_committee_groups')
-            .select('id, group_name, eval_committee_members(user_id, role, core_personnel(first_name, last_name))')
+            .select('id, group_name, group_type, eval_committee_members(user_id, role, core_personnel(first_name, last_name))')
             .eq('eval_round_id', roundId)
             .eq('is_active', true);
 
@@ -213,7 +218,7 @@ async function checkEvaluatorAssignments() {
                 .eq('is_active', true),
 
             db.from('eval_results')
-                .select('evaluator_id, evaluatee_id')
+                .select('evaluator_id, evaluatee_id, sub_group_id')
                 .eq('eval_round_id', roundId)
                 .eq('eval_type', 'committee')
                 .eq('status', 'submitted'),
@@ -228,7 +233,7 @@ async function checkEvaluatorAssignments() {
         if (evalsRes.error) throw evalsRes.error;
         if (teachersRes.error) throw teachersRes.error;
 
-        // ---- สร้าง Index Maps (O(1) lookup) ----
+        // ---- สร้าง Index Maps ----
         const targetsByGroup = new Map();
         (targetsRes.data || []).forEach(t => {
             if (!targetsByGroup.has(t.committee_group_id)) targetsByGroup.set(t.committee_group_id, []);
@@ -241,100 +246,191 @@ async function checkEvaluatorAssignments() {
             teachersByDept.get(t.department).push(t);
         });
 
-        const evaluatorMap = new Map();  // evaluator_id → Set<evaluatee_id>
+        const evaluatorMap = new Map();
         (evalsRes.data || []).forEach(e => {
-            if (!evaluatorMap.has(e.evaluator_id)) evaluatorMap.set(e.evaluator_id, new Set());
-            evaluatorMap.get(e.evaluator_id).add(e.evaluatee_id);
+            const key = `${e.evaluator_id}::${e.sub_group_id}`;
+            if (!evaluatorMap.has(key)) evaluatorMap.set(key, new Set());
+            evaluatorMap.get(key).add(e.evaluatee_id);
         });
 
-        // ---- Loop in memory (ไม่มี query!) ----
-        let html = '';
+        // ==========================================
+        // ✅ [FEATURE 5] แยก Main / Sub Group
+        // ==========================================
+        const mainGroups = groups.filter(g => g.group_type === 'main');
+        const subGroups = groups.filter(g => g.group_type === 'sub');
+
+        // เรียงตามตัวเลข
+        mainGroups.sort(compareGroupNameNatural);
+        subGroups.sort(compareGroupNameNatural);
+
+        // ==========================================
+        // ตัวแปรสำหรับสะสมค่าสรุป
+        // ==========================================
         let totalEvaluated = 0;
         let totalPending = 0;
 
-        for (const group of groups) {
-            const members = group.eval_committee_members || [];
-            if (members.length === 0) continue;
+        // ==========================================
+        // ✅ [HELPER] สร้าง HTML ของแต่ละ section
+        // ==========================================
+        function buildGroupSection(groupList, sectionTitle, sectionIcon, sectionColor, sectionBg) {
+            if (groupList.length === 0) return '';
 
-            const departments = targetsByGroup.get(group.id) || [];
-            if (departments.length === 0) continue;
+            let sectionHtml = `
+                <div class="mb-6 p-4 ${sectionBg} border ${sectionColor} rounded-xl">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-bold text-lg ${sectionColor.replace('border-', 'text-').replace('-200', '-800')}">
+                            <i class="fa-solid ${sectionIcon} mr-2"></i>
+                            ${sectionTitle}
+                        </h3>
+                        <span class="text-xs px-3 py-1 ${sectionBg} border ${sectionColor} rounded-full font-bold">
+                            ${groupList.length} ชุด
+                        </span>
+                    </div>
+                    <div class="space-y-4">
+            `;
 
-            // รวมครูในทุก dept ของกลุ่มนี้ (unique by id)
-            const teacherSet = new Map();
-            for (const dept of departments) {
-                (teachersByDept.get(dept) || []).forEach(t => teacherSet.set(t.id, t));
-            }
-            const allTeachers = Array.from(teacherSet.values());
+            for (const group of groupList) {
+                const members = group.eval_committee_members || [];
+                if (members.length === 0) continue;
 
-            if (allTeachers.length === 0) continue;
+                const departments = targetsByGroup.get(group.id) || [];
+                if (departments.length === 0) continue;
 
-            // สร้างแถวตาราง
-            let tableRows = '';
-            for (const member of members) {
-                const evaluatorId = member.user_id;
-                const evaluatorName = member.core_personnel
-                    ? `${member.core_personnel.first_name} ${member.core_personnel.last_name}`
-                    : '-';
+                // รวมครูในทุก dept ของกลุ่มนี้ (unique by id)
+                const teacherSet = new Map();
+                for (const dept of departments) {
+                    (teachersByDept.get(dept) || []).forEach(t => teacherSet.set(t.id, t));
+                }
+                const allTeachers = Array.from(teacherSet.values());
+                const totalTeachersInGroup = allTeachers.length;
 
-                const evaluatedIds = evaluatorMap.get(evaluatorId) || new Set();
-                const notEvaluatedTeachers = allTeachers.filter(t => !evaluatedIds.has(t.id));
-                const notEvaluatedNames = notEvaluatedTeachers.map(t =>
-                    `${t.prefix || ''}${t.first_name} ${t.last_name}`
-                ).join(', ');
+                if (allTeachers.length === 0) continue;
 
-                totalEvaluated += evaluatedIds.size;
-                totalPending += notEvaluatedTeachers.length;
+                // สร้างแถวตาราง
+                let tableRows = '';
+                for (const member of members) {
+                    const evaluatorId = member.user_id;
+                    const evaluatorName = member.core_personnel
+                        ? `${member.core_personnel.first_name} ${member.core_personnel.last_name}`
+                        : '-';
 
-                tableRows += `
-                    <tr class="border-b border-gray-100 hover:bg-gray-50">
-                        <td class="p-2 font-medium">${evaluatorName}</td>
-                        <td class="p-2 text-center font-bold text-green-600">${evaluatedIds.size}</td>
-                        <td class="p-2 text-center font-bold text-red-500">${notEvaluatedTeachers.length}</td>
-                        <td class="p-2 text-xs text-gray-600 max-w-[300px] truncate" title="${notEvaluatedNames}">
-                            ${notEvaluatedTeachers.length > 0 ? notEvaluatedNames : '<span class="text-green-500">✅ ประเมินครบแล้ว</span>'}
-                        </td>
-                    </tr>
+                    const evaluatedIds = evaluatorMap.get(`${evaluatorId}::${group.id}`) || new Set();
+                    const notEvaluatedTeachers = allTeachers.filter(t => !evaluatedIds.has(t.id));
+                    const notEvaluatedNames = notEvaluatedTeachers.map(t =>
+                        `${t.prefix || ''}${t.first_name} ${t.last_name}`
+                    ).join(', ');
+
+                    totalEvaluated += evaluatedIds.size;
+                    totalPending += notEvaluatedTeachers.length;
+
+                    // แสดงสีตามสถานะ
+                    const evaluatedColor = evaluatedIds.size === totalTeachersInGroup
+                        ? 'text-emerald-600 font-bold'
+                        : 'text-blue-600 font-bold';
+                    const pendingColor = notEvaluatedTeachers.length === 0
+                        ? 'text-emerald-600'
+                        : 'text-red-500 font-bold';
+
+                    tableRows += `
+                        <tr class="border-b border-gray-100 hover:bg-gray-50">
+                            <td class="p-2 font-medium">${evaluatorName}</td>
+                            <td class="p-2 text-center font-bold text-gray-700">${totalTeachersInGroup}</td>
+                            <td class="p-2 text-center ${evaluatedColor}">${evaluatedIds.size}</td>
+                            <td class="p-2 text-center ${pendingColor}">${notEvaluatedTeachers.length}</td>
+                            <td class="p-2 text-xs text-gray-600 max-w-[300px] truncate" title="${notEvaluatedNames}">
+                                ${notEvaluatedTeachers.length > 0
+                                    ? notEvaluatedNames
+                                    : '<span class="text-emerald-500">✅ ประเมินครบแล้ว</span>'}
+                            </td>
+                        </tr>
+                    `;
+                }
+
+                // ✅ [FEATURE 2] Badge ชุดหลัก/ชุดย่อย
+                const isMain = group.group_type === 'main';
+                const badgeHtml = isMain
+                    ? '<span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">📋 ชุดหลัก</span>'
+                    : '<span class="ml-2 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700 border border-purple-200">📌 ชุดย่อย</span>';
+
+                sectionHtml += `
+                    <div class="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                        <div class="p-3 bg-gray-50 border-b border-gray-200">
+                            <div class="flex items-center flex-wrap gap-2">
+                                <h4 class="font-bold text-gray-800">${group.group_name || 'ไม่ระบุชื่อชุด'}</h4>
+                                ${badgeHtml}
+                                <span class="text-xs text-gray-500 ml-auto">
+                                    <i class="fa-solid fa-users mr-1"></i>กรรมการ ${members.length} คน
+                                </span>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="bg-gray-50 text-gray-600">
+                                    <tr>
+                                        <th class="p-2 text-left">กรรมการ</th>
+                                        <th class="p-2 text-center w-24">ครูทั้งหมด</th>
+                                        <th class="p-2 text-center w-24">ประเมินแล้ว</th>
+                                        <th class="p-2 text-center w-24">ยังไม่ประเมิน</th>
+                                        <th class="p-2 text-left">ครูที่ยังไม่ถูกประเมินจากท่านนี้</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${tableRows}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 `;
             }
 
-            html += `
-                <div class="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl">
-                    <div class="flex justify-between items-center mb-2">
-                        <h4 class="font-bold text-blue-800">${group.group_name || 'ไม่ระบุชื่อชุด'} (${members.length} คน)</h4>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm bg-white rounded-lg overflow-hidden shadow-sm">
-                            <thead class="bg-blue-100 text-blue-700">
-                                <tr>
-                                    <th class="p-2 text-left">กรรมการ</th>
-                                    <th class="p-2 text-center">ประเมินแล้ว (คน)</th>
-                                    <th class="p-2 text-center">ยังไม่ประเมิน (คน)</th>
-                                    <th class="p-2 text-left">ครูที่ยังไม่ถูกประเมินจากท่านนี้</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${tableRows}
-                            </tbody>
-                        </table>
+            sectionHtml += `
                     </div>
                 </div>
             `;
+            return sectionHtml;
         }
+
+        // ==========================================
+        // สร้าง HTML ทั้งหมด
+        // ==========================================
+        let html = '';
+
+        // ✅ Section 1: Main Groups
+        html += buildGroupSection(
+            mainGroups,
+            'ชุดหลัก (Main Groups)',
+            'fa-users-rectangle',
+            'border-indigo-200',
+            'bg-indigo-50'
+        );
+
+        // ✅ Section 2: Sub Groups
+        html += buildGroupSection(
+            subGroups,
+            'ชุดย่อย (Sub Groups)',
+            'fa-clipboard-check',
+            'border-blue-200',
+            'bg-blue-50'
+        );
 
         // ---- Summary ----
         const summaryHtml = `
-            <div class="mb-4 grid grid-cols-3 gap-3">
-                <div class="bg-green-50 p-3 rounded-lg text-center border border-green-200">
-                    <p class="text-xs text-gray-500">จำนวนครั้งที่ประเมินแล้ว</p>
-                    <p class="text-2xl font-bold text-green-600">${totalEvaluated}</p>
+            <div class="mb-4 grid grid-cols-4 gap-3">
+                <div class="bg-indigo-50 p-3 rounded-lg text-center border border-indigo-200">
+                    <p class="text-xs text-gray-500">ชุดหลัก</p>
+                    <p class="text-2xl font-bold text-indigo-600">${mainGroups.length}</p>
+                </div>
+                <div class="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                    <p class="text-xs text-gray-500">ชุดย่อย</p>
+                    <p class="text-2xl font-bold text-blue-600">${subGroups.length}</p>
+                </div>
+                <div class="bg-emerald-50 p-3 rounded-lg text-center border border-emerald-200">
+                    <p class="text-xs text-gray-500">ประเมินแล้ว</p>
+                    <p class="text-2xl font-bold text-emerald-600">${totalEvaluated}</p>
                 </div>
                 <div class="bg-red-50 p-3 rounded-lg text-center border border-red-200">
-                    <p class="text-xs text-gray-500">จำนวนครั้งที่ยังไม่ประเมิน</p>
+                    <p class="text-xs text-gray-500">ยังไม่ประเมิน</p>
                     <p class="text-2xl font-bold text-red-600">${totalPending}</p>
-                </div>
-                <div class="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
-                    <p class="text-xs text-gray-500">ชุดคณะกรรมการ</p>
-                    <p class="text-2xl font-bold text-gray-700">${groups.length}</p>
                 </div>
             </div>
         `;
