@@ -3,7 +3,8 @@
 // ==========================================
 
 // ==========================================
-// TAB 3: ผลการประเมิน (เดิม)
+// ✅ [IMPROVED] ผลการประเมิน — แสดงครูทั้งหมด
+// รวม + เพิ่มคอลัมน์ "ความสมบูรณ์"
 // ==========================================
 async function loadResultsTable() {
     const tbody = document.getElementById('tb-results');
@@ -15,77 +16,218 @@ async function loadResultsTable() {
     }
 
     const roundId = document.getElementById('filter_round_for_results').value;
-
-    let query = db.from('eval_final_results').select('*, core_personnel(first_name, last_name, academic_standing)');
-    if (roundId) {
-        query = query.eq('eval_round_id', roundId);
-    }
-    const { data, error } = await query.order('created_at', { ascending: false });
-
-    if (error) {
-        console.error('Error loading results:', error);
+    if (!roundId) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-8 text-red-400">
-                    <i class="fa-solid fa-circle-exclamation mr-2"></i>โหลดข้อมูลล้มเหลว
+                <td colspan="9" class="text-center py-8 text-gray-400">
+                    <i class="fa-solid fa-info-circle mr-2"></i>กรุณาเลือกรอบการประเมิน
                 </td>
             </tr>
         `;
         return;
     }
 
-    if (!data || data.length === 0) {
+    try {
+        // ---- Query 1: ครูทั้งหมดที่ต้องประเมินในรอบนี้ ----
+        const { data: targets, error: tErr } = await db
+            .from('eval_committee_targets')
+            .select('target_value, committee_group_id, eval_committee_groups!inner(eval_round_id, is_active)')
+            .eq('target_type', 'department')
+            .eq('is_active', true)
+            .eq('eval_committee_groups.eval_round_id', roundId)
+            .eq('eval_committee_groups.is_active', true);
+
+        if (tErr) throw tErr;
+
+        const deptSet = new Set((targets || []).map(t => t.target_value));
+        const deptArray = Array.from(deptSet);
+
+        if (deptArray.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-info-circle mr-2"></i>ไม่พบกลุ่มเป้าหมายในรอบนี้
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        // ---- Query 2: ครูในกลุ่มเป้าหมายทั้งหมด ----
+        const { data: teachers, error: tcErr } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name, academic_standing, department')
+            .in('department', deptArray)
+            .in('position', ['ครู', 'ครูผู้ช่วย'])
+            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+            .order('department')
+            .order('first_name');
+
+        if (tcErr) throw tcErr;
+
+        // ---- Query 3: ผลสรุปที่มีอยู่ ----
+        const { data: finalResults } = await db
+            .from('eval_final_results')
+            .select('*')
+            .eq('eval_round_id', roundId);
+
+        const finalMap = new Map();
+        (finalResults || []).forEach(r => finalMap.set(r.evaluatee_id, r));
+
+        // ---- Query 4: สรุปความสมบูรณ์ (นับ eval submissions) ----
+        const { data: allEvals } = await db
+            .from('eval_results')
+            .select('evaluatee_id, sub_group_id')
+            .eq('eval_round_id', roundId)
+            .eq('eval_type', 'committee')
+            .eq('status', 'submitted');
+
+        // Map: evaluatee_id → Set<sub_group_id>
+        const evalByTeacher = new Map();
+        (allEvals || []).forEach(e => {
+            if (!evalByTeacher.has(e.evaluatee_id)) evalByTeacher.set(e.evaluatee_id, new Set());
+            evalByTeacher.get(e.evaluatee_id).add(e.sub_group_id);
+        });
+
+        // ---- รวมข้อมูล: ครูทุกคน + ผลสรุป (ถ้ามี) ----
+        const combinedData = (teachers || []).map(t => ({
+            teacher: t,
+            final: finalMap.get(t.id) || null,
+            groupsEvaluated: evalByTeacher.get(t.id) || new Set()
+        }));
+
+        // ---- Render ----
+        if (combinedData.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="text-center py-8 text-gray-400">
+                        <i class="fa-solid fa-user-slash mr-2"></i>ไม่พบครูในกลุ่มเป้าหมาย
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        let html = '';
+        let stats = { total: 0, finalized: 0, pending: 0, noData: 0 };
+
+        combinedData.forEach(({ teacher, final, groupsEvaluated }) => {
+            stats.total++;
+
+            const name = `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`;
+            const standing = teacher.academic_standing || '-';
+
+            let score = 0;
+            let level = { text: '-', color: 'bg-gray-100 text-gray-500' };
+            let statusBadge = '';
+            let completeness = '';
+
+            if (final) {
+                // มีผลสรุปแล้ว
+                score = final.average_score || 0;
+                level = getLevelText(score);
+                statusBadge = '<span class="status-badge done">✅ สรุปแล้ว</span>';
+                stats.finalized++;
+
+                // ความสมบูรณ์
+                const groupCount = final.committee_group_count || 0;
+                if (groupCount >= 5) {
+                    completeness = `<span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full">ครบ ${groupCount} ชุด</span>`;
+                } else {
+                    completeness = `<span class="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full">ไม่ครบ (${groupCount} ชุด)</span>`;
+                }
+            } else {
+                // ยังไม่มีผลสรุป
+                score = 0;
+                level = { text: 'รอสรุป', color: 'bg-gray-100 text-gray-500' };
+                statusBadge = '<span class="status-badge pending">⏳ รอสรุป</span>';
+                stats.pending++;
+
+                const evaluatedCount = groupsEvaluated.size;
+                if (evaluatedCount === 0) {
+                    completeness = '<span class="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">ยังไม่ถูกประเมิน</span>';
+                    stats.noData++;
+                } else {
+                    completeness = `<span class="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">ประเมินแล้ว ${evaluatedCount} ชุด</span>`;
+                }
+            }
+
+            html += `
+                <tr>
+                    <td class="font-medium">${name}</td>
+                    <td class="text-xs">${standing}</td>
+                    <td class="text-center font-bold ${score > 0 ? 'text-blue-600' : 'text-gray-400'}">${score > 0 ? score.toFixed(2) : '-'}</td>
+                    <td class="text-center">${final?.evaluator_count || 0}</td>
+                    <td class="text-center">${final?.committee_group_count || 0}</td>
+                    <td class="text-center">
+                        <span class="px-3 py-1 rounded-full text-xs font-bold ${level.color}">
+                            ${level.text}
+                        </span>
+                    </td>
+                    <td class="text-center">${completeness}</td>
+                    <td class="text-center">${statusBadge}</td>
+                    <td class="text-center whitespace-nowrap">
+                        ${final ? `
+                            <button onclick="openEvalDetailModal('${teacher.id}', '${roundId}')" 
+                                    class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด
+                            </button>
+                            <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
+                                    class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ml-1">
+                                <i class="fa-solid fa-rotate mr-1"></i>คำนวณใหม่
+                            </button>
+                        ` : `
+                            <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                <i class="fa-solid fa-calculator mr-1"></i>สรุปผล
+                            </button>
+                        `}
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+
+        // ---- แสดง Summary ด้านบนตาราง ----
+        const summary = document.getElementById('resultsSummary');
+        if (summary) {
+            summary.innerHTML = `
+                <div class="grid grid-cols-4 gap-3 mb-4">
+                    <div class="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                        <p class="text-xs text-gray-500">ครูทั้งหมด</p>
+                        <p class="text-2xl font-bold text-blue-600">${stats.total}</p>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-lg text-center border border-emerald-200">
+                        <p class="text-xs text-gray-500">สรุปแล้ว</p>
+                        <p class="text-2xl font-bold text-emerald-600">${stats.finalized}</p>
+                    </div>
+                    <div class="bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                        <p class="text-xs text-gray-500">รอสรุป</p>
+                        <p class="text-2xl font-bold text-yellow-600">${stats.pending}</p>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-lg text-center border border-red-200">
+                        <p class="text-xs text-gray-500">ยังไม่ถูกประเมิน</p>
+                        <p class="text-2xl font-bold text-red-600">${stats.noData}</p>
+                    </div>
+                </div>
+            `;
+            summary.classList.remove('hidden');
+        }
+
+        console.log(`✅ โหลด ${stats.total} คน | สรุปแล้ว ${stats.finalized} | รอสรุป ${stats.pending}`);
+
+    } catch (err) {
+        console.error('Error loading results:', err);
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="text-center py-8 text-gray-400">
-                    <i class="fa-solid fa-info-circle mr-2"></i>ยังไม่มีผลการประเมิน${roundId ? ' ในรอบนี้' : ''}
+                <td colspan="9" class="text-center py-8 text-red-400">
+                    <i class="fa-solid fa-circle-exclamation mr-2"></i>โหลดข้อมูลล้มเหลว: ${err.message}
                 </td>
             </tr>
         `;
-        return;
     }
-
-    let html = '';
-    data.forEach(result => {
-        const user = result.core_personnel;
-        const name = user ? `${user.first_name || ''} ${user.last_name || ''}` : '-';
-        const standing = user ? user.academic_standing || '-' : '-';
-        const score = result.average_score || 0;
-        const level = getLevelText(score);
-        const status = result.status === 'finalized'
-            ? '<span class="status-badge done">✅ สรุปแล้ว</span>'
-            : '<span class="status-badge pending">⏳ รอสรุป</span>';
-
-        html += `
-            <tr>
-                <td class="font-medium">${name}</td>
-                <td>${standing}</td>
-                <td class="text-center font-bold text-blue-600">${score.toFixed(2)}</td>
-                <td class="text-center">${result.evaluator_count || 0}</td>
-                <td class="text-center">${result.committee_group_count || 0}</td>
-                <td class="text-center">
-                    <span class="px-3 py-1 rounded-full text-xs font-bold ${level.color}">
-                        ${level.text}
-                    </span>
-                </td>
-                <td class="text-center">${status}</td>
-                <td class="text-center">
-                    <button onclick="viewResultDetail('${result.evaluatee_id}', '${result.eval_round_id}')" 
-                            class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                        <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด
-                    </button>
-                    <button onclick="recalculateResult('${result.evaluatee_id}', '${result.eval_round_id}')" 
-                            class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ml-1">
-                        <i class="fa-solid fa-rotate mr-1"></i>คำนวณใหม่
-                    </button>
-                </td>
-            </tr>
-        `;
-    });
-
-    tbody.innerHTML = html;
 }
-
 
 // ==========================================
 // ฟังก์ชันแสดงระดับคุณภาพ (เดิม)
@@ -101,7 +243,8 @@ function getLevelText(score) {
 // ดูรายละเอียดผลการประเมิน (เดิม)
 // ==========================================
 async function viewResultDetail(evaluateeId, evalRoundId) {
-    window.open(`evaluation.html?view=${evaluateeId}&round=${evalRoundId}`, '_blank');
+    // ✅ เปลี่ยนเป็นเปิด modal แทนการ redirect
+    return openEvalDetailModal(evaluateeId, evalRoundId);
 }
 
 // ==========================================
