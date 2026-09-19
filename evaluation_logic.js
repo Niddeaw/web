@@ -578,6 +578,18 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId, context = nu
 //   - precomputedResult : ผลจาก calculateFinalAverageScore ที่คำนวณไว้แล้ว
 // ==========================================
 async function saveFinalScore(evaluateeId, evalRoundId, options = {}) {
+    // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์ — เฉพาะ admin/super_admin เท่านั้น
+    //    การสรุปผลคะแนนเป็น privileged operation
+    //    Bulk mode (silent=true) มาจาก generateAllFinalScores ซึ่ง admin เท่านั้นที่เรียกได้
+    if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+        console.error('[SECURITY] saveFinalScore: ปฏิเสธการเข้าถึงจาก', currentUser?.role);
+        return {
+            success: false,
+            reason: 'permission_denied',
+            message: 'เฉพาะ Admin หรือ Super Admin เท่านั้นที่สามารถสรุปผลคะแนนได้'
+        };
+    }
+
     const {
         context = null,
         skipValidation = false,
@@ -1796,6 +1808,59 @@ async function openCommitteeReviewModal() {
     const modal = document.getElementById('committeeReviewModal');
     modal.classList.remove('hidden');
 
+    // ==========================================
+    // ✅ [FIX] Clear ค่าเก่าทั้งหมดก่อนเปิด Modal
+    // ==========================================
+
+    // 1. Reset ตาราง tb-review
+    const tbody = document.getElementById('tb-review');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-8 text-gray-400">
+                    <i class="fa-solid fa-info-circle mr-2"></i>
+                    กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อแสดงข้อมูล
+                </td>
+            </tr>
+        `;
+    }
+
+    // 2. ซ่อน Summary
+    const summary = document.getElementById('reviewSummary');
+    if (summary) summary.classList.add('hidden');
+
+    // 3. Destroy DataTable เก่า
+    if (reviewDataTable) {
+        try { reviewDataTable.destroy(); } catch (e) { }
+        reviewDataTable = null;
+    }
+
+    // 4. Destroy Tom Select เก่า (ถ้ามี)
+    if (window._reviewGroupTomSelect) {
+        try { window._reviewGroupTomSelect.destroy(); } catch (e) { }
+        window._reviewGroupTomSelect = null;
+    }
+    if (window._reviewDeptTomSelect) {
+        try { window._reviewDeptTomSelect.destroy(); } catch (e) { }
+        window._reviewDeptTomSelect = null;
+    }
+
+    // 5. Reset <select> elements
+    const groupSelect = document.getElementById('review_committee_group');
+    const deptSelect = document.getElementById('review_department');
+    if (groupSelect) {
+        groupSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
+        groupSelect.value = '';
+    }
+    if (deptSelect) {
+        deptSelect.innerHTML = '<option value="">-- เลือกกลุ่มสาระ --</option>';
+        deptSelect.value = '';
+    }
+
+    // ==========================================
+    // ✅ Init Tom Select ใหม่ (สะอาด)
+    // ==========================================
+
     // ✅ Init Tom Select สำหรับชุดคณะกรรมการ
     window._reviewGroupTomSelect = createTomSelect('review_committee_group', {
         placeholder: '-- พิมพ์เพื่อค้นหาชุดคณะกรรมการ --',
@@ -1821,6 +1886,8 @@ async function openCommitteeReviewModal() {
     });
 
     await loadReviewCommitteeGroups();
+
+    console.log('✅ เปิด Modal ตรวจสอบการประเมิน + Clear ค่าเก่าแล้ว');
 }
 
 // ==========================================
@@ -1832,18 +1899,38 @@ function closeCommitteeReviewModal() {
 
     // ✅ Destroy Tom Select
     if (window._reviewGroupTomSelect) {
-        window._reviewGroupTomSelect.destroy();
+        try { window._reviewGroupTomSelect.destroy(); } catch (e) { }
         window._reviewGroupTomSelect = null;
     }
     if (window._reviewDeptTomSelect) {
-        window._reviewDeptTomSelect.destroy();
+        try { window._reviewDeptTomSelect.destroy(); } catch (e) { }
         window._reviewDeptTomSelect = null;
     }
 
+    // ✅ Destroy DataTable
     if (reviewDataTable) {
-        reviewDataTable.destroy();
+        try { reviewDataTable.destroy(); } catch (e) { }
         reviewDataTable = null;
     }
+
+    // ✅ [FIX] Clear ตาราง tb-review
+    const tbody = document.getElementById('tb-review');
+    if (tbody) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-8 text-gray-400">
+                    <i class="fa-solid fa-info-circle mr-2"></i>
+                    กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อแสดงข้อมูล
+                </td>
+            </tr>
+        `;
+    }
+
+    // ✅ [FIX] ซ่อน Summary
+    const summary = document.getElementById('reviewSummary');
+    if (summary) summary.classList.add('hidden');
+
+    console.log('✅ ปิด Modal + Clear ค่าทั้งหมดแล้ว');
 }
 
 // ==========================================
@@ -1875,12 +1962,16 @@ async function loadReviewCommitteeGroups() {
             return;
         }
 
-        // ✅ กรองสิทธิ์
+        // ✅ [FIX] กรองสิทธิ์: super_admin + admin + director เท่านั้นที่เห็นทุกชุด
+        //    กรรมการทั่วไปเห็นเฉพาะชุดของตนเอง
         let allowedGroupIds = null;
         const isPrivileged = ['super_admin', 'admin', 'director'].includes(currentUser.role);
         if (!isPrivileged) {
             const myMemberships = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
             allowedGroupIds = new Set(myMemberships.map(sg => sg.id));
+            console.log(`🔒 กรรมการ — เห็นเฉพาะ ${allowedGroupIds.size} ชุดที่เป็นสมาชิก`);
+        } else {
+            console.log(`✅ ${currentUser.role} — เห็นทุกชุด`);
         }
 
         // ✅ เพิ่ม options เข้า Tom Select
@@ -2842,35 +2933,78 @@ let _evScoreState = {
 };
 
 // ==========================================
-// เปิด Modal
+// ✅ [FIX] เปิด Modal พร้อมล้างค่าก่อนเสมอ
 // ==========================================
 async function openEvaluatorScoresModal(evaluateeId = null, subGroupId = null) {
     const modal = document.getElementById('evaluatorScoresModal');
     modal.classList.remove('hidden');
 
+    // ✅ [FIX] เคลียร์ค่าก่อนเสมอ (ป้องกันค่าเก่าค้าง)
+    const evalSelect = document.getElementById('ev_score_evaluatee');
+    const subSelect = document.getElementById('ev_score_subgroup');
+    if (evalSelect) {
+        evalSelect.innerHTML = '<option value="">-- เลือกครู --</option>';
+        evalSelect.value = '';
+    }
+    if (subSelect) {
+        subSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
+        subSelect.value = '';
+    }
+
+    // Clear Tom Select (ถ้ามี instance)
+    if (_evScoreEvaluateeTomSelect) {
+        _evScoreEvaluateeTomSelect.clear();
+    }
+    if (_evScoreSubGroupTomSelect) {
+        _evScoreSubGroupTomSelect.clear();
+    }
+
+    // ✅ [FIX] Reset state อย่างสมบูรณ์
+    _evScoreState = {
+        evaluateeId: null,
+        subGroupId: null,
+        subGroupName: '',
+        evaluateeName: '',
+        academicStanding: '',
+        evaluators: [],
+        modeScores: {},
+        requiredItems: [],
+        activeTab: 'mode'
+    };
+
+    // ✅ [FIX] Clear content + summary
+    const content = document.getElementById('ev_score_content');
+    if (content) {
+        content.innerHTML = `
+            <div class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-info-circle text-3xl mb-3"></i>
+                <p>กรุณาเลือกชุดคณะกรรมการและครู</p>
+            </div>
+        `;
+    }
+    const summary = document.getElementById('ev_score_summary');
+    if (summary) summary.innerHTML = '';
+
+    // ✅ โหลด filters (sub groups)
     await populateEvaluatorScoresFilters();
 
-    // ✅ [FIX] ตั้งค่า subGroupId ก่อน (จะ trigger การโหลดครู)
+    // ✅ ถ้ามี subGroupId ส่งมา → set value + โหลดครูของชุดนั้น
     if (subGroupId && _evScoreSubGroupTomSelect) {
         _evScoreSubGroupTomSelect.setValue(subGroupId);
         await onEvaluatorScoresSubGroupChange(subGroupId);
     }
 
-    // ✅ [FIX] แล้วค่อยตั้งค่า evaluateeId (หลังครูถูกโหลดเข้า options แล้ว)
+    // ✅ ถ้ามี evaluateeId ส่งมา → set value
     if (evaluateeId && _evScoreEvaluateeTomSelect) {
-        // ตรวจสอบว่า option นี้มีอยู่จริงใน Tom Select
         const hasOption = !!_evScoreEvaluateeTomSelect.options[evaluateeId];
         if (hasOption) {
             _evScoreEvaluateeTomSelect.setValue(evaluateeId);
-        } else {
-            console.warn('⚠️ ไม่พบ evaluatee option ใน Tom Select:', evaluateeId);
         }
     }
 
-    // ✅ โหลดข้อมูลเมื่อตั้งค่าครบทั้ง 2
+    // ✅ โหลดข้อมูลถ้ามีทั้งคู่
     if (evaluateeId && subGroupId) {
-        // รอให้ Tom Select render เสร็จก่อนโหลด
-        await new Promise(r => setTimeout(r, 100));
+        await new Promise(r => setTimeout(r, 150));
         await loadEvaluatorScores();
     }
 }
@@ -2878,7 +3012,7 @@ async function openEvaluatorScoresModal(evaluateeId = null, subGroupId = null) {
 function closeEvaluatorScoresModal() {
     document.getElementById('evaluatorScoresModal').classList.add('hidden');
 
-    // ✅ Destroy Tom Select เมื่อปิด
+    // ✅ Destroy Tom Select
     if (_evScoreEvaluateeTomSelect) {
         _evScoreEvaluateeTomSelect.destroy();
         _evScoreEvaluateeTomSelect = null;
@@ -2888,14 +3022,51 @@ function closeEvaluatorScoresModal() {
         _evScoreSubGroupTomSelect = null;
     }
 
-    _evScoreState = { /* reset */ };
+    // ✅ [FIX] ล้างค่า <select> ทั้งหมด (ป้องกันค่าเก่าค้าง)
+    const evalSelect = document.getElementById('ev_score_evaluatee');
+    const subSelect = document.getElementById('ev_score_subgroup');
+    if (evalSelect) {
+        evalSelect.innerHTML = '<option value="">-- เลือกครู --</option>';
+        evalSelect.value = '';
+    }
+    if (subSelect) {
+        subSelect.innerHTML = '<option value="">-- เลือกชุด --</option>';
+        subSelect.value = '';
+    }
+
+    // ✅ [FIX] ล้าง content + summary
+    const content = document.getElementById('ev_score_content');
+    if (content) {
+        content.innerHTML = `
+            <div class="text-center py-12 text-gray-400">
+                <i class="fa-solid fa-info-circle text-3xl mb-3"></i>
+                <p>กรุณาเลือกชุดคณะกรรมการและครู</p>
+            </div>
+        `;
+    }
+    const summary = document.getElementById('ev_score_summary');
+    if (summary) summary.innerHTML = '';
+
+    // ✅ Reset state อย่างสมบูรณ์
+    _evScoreState = {
+        evaluateeId: null,
+        subGroupId: null,
+        subGroupName: '',
+        evaluateeName: '',
+        academicStanding: '',
+        evaluators: [],
+        modeScores: {},
+        requiredItems: [],
+        activeTab: 'mode'
+    };
+
+    console.log('✅ ปิด Modal + ล้างค่าทั้งหมดเรียบร้อย');
 }
 
 // ==========================================
-// โหลด dropdown filters (ฉบับแก้ไข v2)
-// - ใช้ loadCommitteeStructure เพื่อดึง main + sub + members + targets ครบ
-// - รองรับทั้ง main group ที่มี sub group และไม่มี sub group
-// - ใช้ Tom Select
+// ✅ [FIX] โหลด dropdown filters
+//    - เลือกชุดคณะกรรมการก่อน → ครูจะโหลดเมื่อเลือกชุด
+//    - กรองสิทธิ์: super_admin + admin + director เห็นทุกชุด / กรรมการเห็นเฉพาะชุดตนเอง
 // ==========================================
 async function populateEvaluatorScoresFilters() {
     try {
@@ -2905,36 +3076,53 @@ async function populateEvaluatorScoresFilters() {
         const structure = await loadCommitteeStructure(currentEvalRound.id);
         const mainGroups = structure.filter(g => g.group_type === 'main');
 
+        // ✅ [FIX] ตรวจสอบสิทธิ์: super_admin + admin เท่านั้นที่เห็นทุกชุด
+        const isPrivileged = ['super_admin', 'admin', 'director'].includes(currentUser.role);
+        let allowedGroupIds = null;
+
+        if (!isPrivileged) {
+            const myMemberships = await getUserCommitteeSubGroups(currentUser.id, currentEvalRound.id);
+            allowedGroupIds = new Set(myMemberships.map(sg => sg.id));
+            console.log(`🔒 กรรมการ — เห็นเฉพาะ ${allowedGroupIds.size} ชุด`);
+        } else {
+            console.log(`✅ ${currentUser.role} — เห็นทุกชุด`);
+        }
+
         // ==========================================
-        // ✅ เพิ่มชุดคณะกรรมการใน Tom Select
+        // ✅ เพิ่มชุดคณะกรรมการใน Tom Select (พร้อมกรองสิทธิ์)
         // ==========================================
         if (_evScoreSubGroupTomSelect) {
             _evScoreSubGroupTomSelect.clear();
             _evScoreSubGroupTomSelect.clearOptions();
 
-            // เพิ่ม optgroup แรก
-            mainGroups.forEach((main, mainIdx) => {
+            mainGroups.forEach((main) => {
                 const subGroups = main.sub_groups || [];
+                const canSeeMain = !allowedGroupIds || allowedGroupIds.has(main.id);
 
                 if (subGroups.length === 0) {
-                    // ✅ Main Group ไม่มี Sub → เพิ่ม Main Group
-                    _evScoreSubGroupTomSelect.addOption({
-                        value: main.id,
-                        text: `${main.group_name} (${main.members?.length || 0} คน)`,
-                        optgroup: main.group_name,
-                        targets: main.targets || [],
-                        selectedSubItems: main.selected_sub_items || []
-                    });
-                } else {
-                    // ✅ มี Sub Groups → เพิ่มแต่ละ Sub
-                    subGroups.forEach(sub => {
+                    // Main Group ไม่มี sub → เพิ่ม Main
+                    if (canSeeMain) {
                         _evScoreSubGroupTomSelect.addOption({
-                            value: sub.id,
-                            text: `${sub.group_name} (${sub.members?.length || 0} คน)`,
+                            value: main.id,
+                            text: `${main.group_name} (${main.members?.length || 0} คน)`,
                             optgroup: main.group_name,
-                            targets: sub.targets || [],
-                            selectedSubItems: sub.selected_sub_items || []
+                            targets: main.targets || [],
+                            selectedSubItems: main.selected_sub_items || []
                         });
+                    }
+                } else {
+                    // มี sub → เพิ่มเฉพาะที่ user เห็น
+                    subGroups.forEach(sub => {
+                        const canSeeSub = !allowedGroupIds || allowedGroupIds.has(sub.id);
+                        if (canSeeSub) {
+                            _evScoreSubGroupTomSelect.addOption({
+                                value: sub.id,
+                                text: `${sub.group_name} (${sub.members?.length || 0} คน)`,
+                                optgroup: main.group_name,
+                                targets: sub.targets || [],
+                                selectedSubItems: sub.selected_sub_items || []
+                            });
+                        }
                     });
                 }
             });
@@ -2943,50 +3131,14 @@ async function populateEvaluatorScoresFilters() {
         }
 
         // ==========================================
-        // ✅ เพิ่มครูทั้งหมด (ทุกกลุ่มสาระใน targets)
+        // ✅ [FIX] ไม่ preload ครู — จะโหลดเมื่อเลือกชุดเท่านั้น
         // ==========================================
-        const allDepartments = new Set();
-        mainGroups.forEach(main => {
-            (main.targets || [])
-                .filter(t => t.target_type === 'department')
-                .forEach(t => allDepartments.add(t.target_value));
-            (main.sub_groups || []).forEach(sub => {
-                (sub.targets || [])
-                    .filter(t => t.target_type === 'department')
-                    .forEach(t => allDepartments.add(t.target_value));
-            });
-        });
-
-        if (allDepartments.size === 0) return;
-
-        const { data: teachers } = await db
-            .from('core_personnel')
-            .select('id, prefix, first_name, last_name, academic_standing, department')
-            .in('department', Array.from(allDepartments))
-            .in('position', ['ครู', 'ครูผู้ช่วย'])
-            .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
-            .order('department', { ascending: true })
-            .order('first_name', { ascending: true });
-
         if (_evScoreEvaluateeTomSelect) {
             _evScoreEvaluateeTomSelect.clear();
             _evScoreEvaluateeTomSelect.clearOptions();
-
-            (teachers || []).forEach(t => {
-                const name = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
-                _evScoreEvaluateeTomSelect.addOption({
-                    value: t.id,
-                    text: `${name} (${t.department || '-'})`,
-                    department: t.department,
-                    name: name,
-                    optgroup: t.department || 'ไม่ระบุ'
-                });
-            });
-
-            _evScoreEvaluateeTomSelect.refreshOptions(false);
         }
 
-        console.log(`✅ โหลด ${(teachers || []).length} คน | ${mainGroups.length} ชุดหลัก`);
+        console.log(`✅ โหลด ${mainGroups.length} ชุดหลัก`);
 
     } catch (err) {
         console.error('Error populating filters:', err);
@@ -3691,6 +3843,20 @@ function renderEvaluatorsTab() {
                </button>`
             : '';
 
+        // ✅ [SECURITY] แสดงปุ่ม "แก้ไข" เฉพาะ Super Admin เท่านั้น
+        const canEditScore = currentUser?.role === 'super_admin';
+        const editButtonHtml = canEditScore
+            ? `<button onclick="editEvaluatorScore('${e.evaluator_id}')"
+                    class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-xs font-bold"
+                    title="เฉพาะ Super Admin">
+                    <i class="fa-solid fa-pen"></i> แก้ไข
+               </button>`
+            : `<button disabled
+                    class="bg-gray-200 text-gray-400 px-2 py-1 rounded text-xs font-bold cursor-not-allowed"
+                    title="เฉพาะ Super Admin เท่านั้น">
+                    <i class="fa-solid fa-lock"></i> แก้ไข
+               </button>`;
+
         html += `
             <tr class="border-t border-gray-100 hover:bg-gray-50 ${rowBg}">
                 <td class="p-2 text-center text-gray-400">${idx + 1}</td>
@@ -3714,10 +3880,7 @@ function renderEvaluatorsTab() {
                         class="bg-blue-500 hover:bg-blue-600 text-white px-2 py-1 rounded text-xs font-bold mr-1">
                         <i class="fa-solid fa-eye"></i> ดู
                     </button>
-                    <button onclick="editEvaluatorScore('${e.evaluator_id}')"
-                        class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded text-xs font-bold">
-                        <i class="fa-solid fa-pen"></i> แก้ไข
-                    </button>
+                    ${editButtonHtml}
                 </td>
             </tr>`;
     });
@@ -4021,6 +4184,28 @@ async function viewEvaluatorDetail(evaluatorId) {
 // แก้ไขคะแนนกรรมการ
 // ==========================================
 async function editEvaluatorScore(evaluatorId) {
+    // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์ก่อน — เฉพาะ super_admin เท่านั้น
+    if (!currentUser || currentUser.role !== 'super_admin') {
+        return Swal.fire({
+            icon: 'error',
+            title: '🔒 ไม่มีสิทธิ์แก้ไข',
+            html: `
+                <div class="text-left text-sm">
+                    <p>คุณต้องเป็น <b>Super Admin</b> เท่านั้นจึงจะแก้ไขคะแนนของกรรมการท่านอื่นได้</p>
+                    <hr class="my-2">
+                    <p class="text-gray-500 text-xs">
+                        <b>บทบาทปัจจุบันของคุณ:</b> ${currentUser?.role || 'ไม่ทราบ'}<br>
+                        <b>หากคุณต้องการแก้ไขคะแนนตัวเอง:</b><br>
+                        → ไปที่หน้า "ประเมินตนเอง" หรือ "ประเมินครูในกลุ่มสาระ"<br>
+                        → ระบบจะบันทึกในนามของคุณเอง
+                    </p>
+                </div>
+            `,
+            confirmButtonText: 'เข้าใจแล้ว',
+            confirmButtonColor: '#dc2626'
+        });
+    }
+
     const evaluator = _evScoreState.evaluators.find(e => e.evaluator_id === evaluatorId);
     if (!evaluator) return;
 

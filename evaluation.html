@@ -580,95 +580,99 @@
                             </span>
                         </div>
 
-<!-- ========================================== -->
-<!-- ACTION BUTTONS: จัดกลุ่มตามฟังก์ชัน -->
-<!-- ========================================== -->
-<div class="space-y-3 mb-5">
+                        <!-- ========================================== -->
+                        <!-- ACTION BUTTONS: จัดกลุ่มตามฟังก์ชัน -->
+                        <!-- ========================================== -->
+                        <div class="space-y-3 mb-5">
 
-    <!-- ========================================== -->
-    <!-- กลุ่มที่ 1: เครื่องมือตรวจสอบ -->
-    <!-- ========================================== -->
-    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
-        <div class="flex items-center gap-2 mb-2">
-            <div class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fa-solid fa-magnifying-glass text-indigo-600 text-xs"></i>
-            </div>
-            <p class="text-xs font-bold text-slate-700">
-                เครื่องมือตรวจสอบ
-                <span class="text-slate-400 font-normal ml-1">— ดูภาพรวมการประเมิน</span>
-            </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <button onclick="openSelfReviewModal()"
-                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-clipboard-user"></i>
-                <span>ตรวจสอบการประเมินตนเอง</span>
-            </button>
-            <button onclick="openCommitteeReviewModal()"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-magnifying-glass-chart"></i>
-                <span>ตรวจสอบการประเมิน (กรรมการ)</span>
-            </button>
-        </div>
-    </div>
+                            <!-- ========================================== -->
+                            <!-- กลุ่มที่ 1: เครื่องมือตรวจสอบ -->
+                            <!-- ========================================== -->
+                            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div
+                                        class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fa-solid fa-magnifying-glass text-indigo-600 text-xs"></i>
+                                    </div>
+                                    <p class="text-xs font-bold text-slate-700">
+                                        เครื่องมือตรวจสอบ
+                                        <span class="text-slate-400 font-normal ml-1">— ดูภาพรวมการประเมิน</span>
+                                    </p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="openSelfReviewModal()"
+                                        class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-clipboard-user"></i>
+                                        <span>ตรวจสอบการประเมินตนเอง</span>
+                                    </button>
+                                    <button onclick="openCommitteeReviewModal()"
+                                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i>
+                                        <span>ตรวจสอบการประเมิน (กรรมการ)</span>
+                                    </button>
+                                </div>
+                            </div>
 
-    <!-- ========================================== -->
-    <!-- กลุ่มที่ 2: นำเข้า/ส่งออกคะแนนของฉัน -->
-    <!-- ========================================== -->
-    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
-        <div class="flex items-center gap-2 mb-2">
-            <div class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fa-solid fa-file-arrow-down text-blue-600 text-xs"></i>
-            </div>
-            <p class="text-xs font-bold text-slate-700">
-                นำเข้า/ส่งออกคะแนนของฉัน
-                <span class="text-slate-400 font-normal ml-1">— กรอกคะแนนผ่าน Excel</span>
-            </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <button onclick="exportCommitteeExcel()"
-                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-file-excel"></i>
-                <span>ส่งออก Excel (คะแนนของฉัน)</span>
-            </button>
-            <button onclick="document.getElementById('importExcelInput').click()"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-file-import"></i>
-                <span>นำเข้า Excel</span>
-            </button>
-            <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden"
-                onchange="importCommitteeExcel(event)">
-        </div>
-    </div>
+                            <!-- ========================================== -->
+                            <!-- กลุ่มที่ 2: นำเข้า/ส่งออกคะแนนของฉัน -->
+                            <!-- ========================================== -->
+                            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div
+                                        class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fa-solid fa-file-arrow-down text-blue-600 text-xs"></i>
+                                    </div>
+                                    <p class="text-xs font-bold text-slate-700">
+                                        นำเข้า/ส่งออกคะแนนของฉัน
+                                        <span class="text-slate-400 font-normal ml-1">— กรอกคะแนนผ่าน Excel</span>
+                                    </p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="exportCommitteeExcel()"
+                                        class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-file-excel"></i>
+                                        <span>ส่งออก Excel (คะแนนของฉัน)</span>
+                                    </button>
+                                    <button onclick="document.getElementById('importExcelInput').click()"
+                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-file-import"></i>
+                                        <span>นำเข้า Excel</span>
+                                    </button>
+                                    <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden"
+                                        onchange="importCommitteeExcel(event)">
+                                </div>
+                            </div>
 
-    <!-- ========================================== -->
-    <!-- กลุ่มที่ 3: จัดการคะแนน (Admin/ผอ.) -->
-    <!-- ========================================== -->
-    <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
-        <div class="flex items-center gap-2 mb-2">
-            <div class="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <i class="fa-solid fa-chart-bar text-rose-600 text-xs"></i>
-            </div>
-            <p class="text-xs font-bold text-slate-700">
-                จัดการคะแนน
-                <span class="text-slate-400 font-normal ml-1">— ตรวจสอบและส่งออกทุกกรรมการ</span>
-            </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-            <button onclick="openEvaluatorScoresModal()"
-                class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-users-viewfinder"></i>
-                <span>ตรวจสอบคะแนนรายกรรมการ</span>
-            </button>
-            <button onclick="exportAllCommitteeScoresExcel()"
-                class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                <i class="fa-solid fa-file-excel"></i>
-                <span>ส่งออก Excel (ทุกกรรมการในชุด)</span>
-            </button>
-        </div>
-    </div>
+                            <!-- ========================================== -->
+                            <!-- กลุ่มที่ 3: จัดการคะแนน (Admin/ผอ.) -->
+                            <!-- ========================================== -->
+                            <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
+                                <div class="flex items-center gap-2 mb-2">
+                                    <div
+                                        class="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                        <i class="fa-solid fa-chart-bar text-rose-600 text-xs"></i>
+                                    </div>
+                                    <p class="text-xs font-bold text-slate-700">
+                                        จัดการคะแนน
+                                        <span class="text-slate-400 font-normal ml-1">—
+                                            ตรวจสอบและส่งออกทุกกรรมการ</span>
+                                    </p>
+                                </div>
+                                <div class="flex flex-wrap gap-2">
+                                    <button onclick="openEvaluatorScoresModal()"
+                                        class="bg-rose-600 hover:bg-rose-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-users-viewfinder"></i>
+                                        <span>ตรวจสอบคะแนนรายกรรมการ</span>
+                                    </button>
+                                    <button onclick="exportAllCommitteeScoresExcel()"
+                                        class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
+                                        <i class="fa-solid fa-file-excel"></i>
+                                        <span>ส่งออก Excel (ทุกกรรมการในชุด)</span>
+                                    </button>
+                                </div>
+                            </div>
 
-</div>
+                        </div>
 
                         <!-- ========================================== -->
                         <!-- TABS: ชุดหลัก (Main Groups 1-7) -->
@@ -1223,20 +1227,20 @@
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div class="md:col-span-4">
                             <label class="block text-xs font-bold text-gray-600 mb-1">
-                                ครูที่ถูกประเมิน <span class="text-red-500">*</span>
-                            </label>
-                            <select id="ev_score_evaluatee"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
-                                <option value="">-- เลือกครู --</option>
-                            </select>
-                        </div>
-                        <div class="md:col-span-4">
-                            <label class="block text-xs font-bold text-gray-600 mb-1">
                                 ชุดคณะกรรมการ <span class="text-red-500">*</span>
                             </label>
                             <select id="ev_score_subgroup"
                                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
                                 <option value="">-- เลือกชุด --</option>
+                            </select>
+                        </div>
+                        <div class="md:col-span-4">
+                            <label class="block text-xs font-bold text-gray-600 mb-1">
+                                ครูที่ถูกประเมิน <span class="text-red-500">*</span>
+                            </label>
+                            <select id="ev_score_evaluatee"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                                <option value="">-- เลือกครู --</option>
                             </select>
                         </div>
                         <div class="md:col-span-4 flex gap-2">
@@ -1254,11 +1258,10 @@
 
                 <!-- Body -->
                 <div class="modal-body-scroll p-4" style="max-height: 70vh; overflow-y: auto;">
-                    <!-- Loading / Empty State -->
                     <div id="ev_score_content">
                         <div class="text-center py-12 text-gray-400">
                             <i class="fa-solid fa-info-circle text-3xl mb-3"></i>
-                            <p>กรุณาเลือกครูและชุดคณะกรรมการ</p>
+                            <p>กรุณาเลือกชุดคณะกรรมการและครู</p>
                         </div>
                     </div>
                 </div>

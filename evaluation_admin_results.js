@@ -110,7 +110,8 @@ async function loadResultsTable() {
 
         let html = '';
         let stats = { total: 0, finalized: 0, pending: 0, noData: 0 };
-
+        // ✅ [SECURITY] ตรวจสอบสิทธิ์สำหรับการจัดการคะแนน
+        const canManageScores = currentUser && ['admin', 'super_admin'].includes(currentUser.role);
         combinedData.forEach(({ teacher, final, groupsEvaluated }) => {
             stats.total++;
 
@@ -166,21 +167,27 @@ async function loadResultsTable() {
                     </td>
                     <td class="text-center">${completeness}</td>
                     <td class="text-center">${statusBadge}</td>
-                    <td class="text-center whitespace-nowrap">
+                                        <td class="text-center whitespace-nowrap">
                         ${final ? `
                             <button onclick="openEvalDetailModal('${teacher.id}', '${roundId}')" 
                                     class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
                                 <i class="fa-solid fa-eye mr-1"></i>ดูรายละเอียด
                             </button>
-                            <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
-                                    class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ml-1">
-                                <i class="fa-solid fa-rotate mr-1"></i>คำนวณใหม่
-                            </button>
+                            ${canManageScores ? `
+                                <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
+                                        class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ml-1">
+                                    <i class="fa-solid fa-rotate mr-1"></i>คำนวณใหม่
+                                </button>
+                            ` : ''}
                         ` : `
-                            <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
-                                    class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
-                                <i class="fa-solid fa-calculator mr-1"></i>สรุปผล
-                            </button>
+                            ${canManageScores ? `
+                                <button onclick="recalculateResult('${teacher.id}', '${roundId}')" 
+                                        class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold transition-colors">
+                                    <i class="fa-solid fa-calculator mr-1"></i>สรุปผล
+                                </button>
+                            ` : `
+                                <span class="text-xs text-gray-400">⏳ รอสรุปผล</span>
+                            `}
                         `}
                     </td>
                 </tr>
@@ -299,6 +306,16 @@ function calculateMode(arr) {
 // สรุปผลทั้งหมด (Wrapper) - เรียกใช้ฟังก์ชันจาก evaluation_logic.js
 // ==========================================
 async function triggerGenerateAllFinalScores() {
+    // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์
+    if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+        return Swal.fire({
+            icon: 'error',
+            title: '🔒 ไม่มีสิทธิ์',
+            text: 'เฉพาะ Admin หรือ Super Admin เท่านั้นที่สามารถสรุปผลคะแนนทั้งหมดได้',
+            confirmButtonText: 'ตกลง'
+        });
+    }
+
     const roundId = document.getElementById('filter_round_for_results').value;
     if (!roundId) {
         return Swal.fire('แจ้งเตือน', 'กรุณาเลือกรอบการประเมินก่อนสรุปผล', 'warning');
@@ -482,8 +499,8 @@ async function checkEvaluatorAssignments() {
                             <td class="p-2 text-center ${pendingColor}">${notEvaluatedTeachers.length}</td>
                             <td class="p-2 text-xs text-gray-600 max-w-[300px] truncate" title="${notEvaluatedNames}">
                                 ${notEvaluatedTeachers.length > 0
-                                    ? notEvaluatedNames
-                                    : '<span class="text-emerald-500">✅ ประเมินครบแล้ว</span>'}
+                            ? notEvaluatedNames
+                            : '<span class="text-emerald-500">✅ ประเมินครบแล้ว</span>'}
                             </td>
                         </tr>
                     `;
