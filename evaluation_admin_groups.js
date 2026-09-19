@@ -981,13 +981,15 @@ async function checkEvaluationCompleteness() {
     modal.classList.remove('hidden');
 
     try {
+        // ---- QUERY 1: groups + targets + members ----
         const { data: groups, error: gErr } = await db
             .from('eval_committee_groups')
-            .select('*, eval_committee_targets(*), eval_committee_members(user_id)')
+            .select('id, group_name, group_type, parent_group_id, selected_sub_items, eval_committee_targets(target_type, target_value, is_active), eval_committee_members(user_id, is_active)')
             .eq('eval_round_id', roundId)
             .eq('is_active', true);
 
         if (gErr) throw gErr;
+
         if (!groups || groups.length === 0) {
             document.getElementById('completenessModalBody').innerHTML = `
                 <div class="text-center py-8 text-gray-400">
@@ -998,16 +1000,46 @@ async function checkEvaluationCompleteness() {
             return;
         }
 
+        const groupIds = groups.map(g => g.id);
+
+        // ---- QUERY 2-3: teachers + evals พร้อมกัน ----
+        const [teachersRes, evalsRes] = await Promise.all([
+            db.from('core_personnel')
+                .select('id, prefix, first_name, last_name, academic_standing, department')
+                .in('position', ['ครู', 'ครูผู้ช่วย'])
+                .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']),
+
+            db.from('eval_results')
+                .select('evaluatee_id, evaluator_id, sub_group_id')
+                .eq('eval_round_id', roundId)
+                .eq('eval_type', 'committee')
+                .eq('status', 'submitted')
+        ]);
+
+        if (teachersRes.error) throw teachersRes.error;
+        if (evalsRes.error) throw evalsRes.error;
+
+        // ---- สร้าง Index Maps ----
+        const teachersByDept = new Map();
+        (teachersRes.data || []).forEach(t => {
+            if (!teachersByDept.has(t.department)) teachersByDept.set(t.department, []);
+            teachersByDept.get(t.department).push(t);
+        });
+
+        // evaluatedIds ต่อ sub_group: Map<sub_group_id, Set<evaluatee_id>>
+        const evaluatedBySubGroup = new Map();
+        (evalsRes.data || []).forEach(e => {
+            if (!evaluatedBySubGroup.has(e.sub_group_id)) evaluatedBySubGroup.set(e.sub_group_id, new Set());
+            evaluatedBySubGroup.get(e.sub_group_id).add(e.evaluatee_id);
+        });
+
+        // ---- แยก main/sub groups (in memory) ----
         const mainGroups = groups.filter(g => g.group_type === 'main');
         const subGroups = groups.filter(g => g.group_type === 'sub');
 
-        // ✅ สร้าง Map ของชุดหลัก เพื่อใช้หาหัวข้อมาตรฐานของชุดย่อย
         const mainGroupsMap = {};
-        mainGroups.forEach(main => {
-            mainGroupsMap[main.id] = main;
-        });
+        mainGroups.forEach(main => { mainGroupsMap[main.id] = main; });
 
-        // ✅ ตัวแปรสำหรับสรุปผลรวม (ไม่นับซ้ำ)
         let globalSelectedKeys = new Set();
 
         // ==========================================
@@ -1034,19 +1066,18 @@ async function checkEvaluationCompleteness() {
 
         mainGroups.forEach(main => {
             const subCount = subGroups.filter(s => s.parent_group_id === main.id).length;
-            const mainTargets = (main.eval_committee_targets || []).filter(t => t.target_type === 'department').map(t => t.target_value);
+            const mainTargets = (main.eval_committee_targets || [])
+                .filter(t => t.target_type === 'department' && t.is_active !== false)
+                .map(t => t.target_value);
             const mainSubItems = main.selected_sub_items || [];
 
-            // ✅ สร้าง Set ของหัวข้อที่ชุดหลักนี้เลือกไว้
-            const selectedKeys = new Set(mainSubItems.map(item => `${item.element}-${item.value}-${item.part || ''}`));
-
-            // ✅ คำนวณคะแนนรวมที่เลือกไว้ (ของชุดนี้)
             const selectedScore = mainSubItems.reduce((sum, item) => {
-                const standard = STANDARD_FULL_ITEMS.find(s => s.element === item.element && s.value === item.value && s.part === (item.part || ''));
+                const standard = STANDARD_FULL_ITEMS.find(s =>
+                    s.element === item.element && s.value === item.value && s.part === (item.part || '')
+                );
                 return sum + (standard ? standard.score : 0);
             }, 0);
 
-            // ✅ เก็บหัวข้อที่ชุดนี้เลือกไว้ลงใน "Global Set" เพื่อใช้เช็คภายหลัง
             mainSubItems.forEach(item => {
                 globalSelectedKeys.add(`${item.element}-${item.value}-${item.part || ''}`);
             });
@@ -1075,9 +1106,10 @@ async function checkEvaluationCompleteness() {
             `;
         }
 
-        // ✅ หาหัวข้อที่ขาดหายไปจริง (ไม่มีชุดหลักชุดไหนเลือก)
-        const actualMissingItems = STANDARD_FULL_ITEMS.filter(item => !globalSelectedKeys.has(`${item.element}-${item.value}-${item.part || ''}`));
-        const actualMissingText = actualMissingItems.length > 0 ? actualMissingItems.map(item => item.value).join(', ') : '';
+        const actualMissingItems = STANDARD_FULL_ITEMS.filter(item =>
+            !globalSelectedKeys.has(`${item.element}-${item.value}-${item.part || ''}`)
+        );
+        const actualMissingText = actualMissingItems.map(item => item.value).join(', ');
         const actualMissingScore = actualMissingItems.reduce((sum, item) => sum + item.score, 0);
         const actualScore = 100 - actualMissingScore;
 
@@ -1103,7 +1135,7 @@ async function checkEvaluationCompleteness() {
         </table></div></div>`;
 
         // ==========================================
-        // ส่วนที่ 2: Sub Groups (เทียบกับชุดหลัก)
+        // ส่วนที่ 2: Sub Groups
         // ==========================================
         let subTableHtml = `
             <div class="p-4 bg-blue-50 border border-blue-200 rounded-xl">
@@ -1134,60 +1166,30 @@ async function checkEvaluationCompleteness() {
         let totalNotEvaluated = 0;
 
         for (const group of subGroups) {
-            // ✅ หาชุดหลักของชุดย่อยนี้
             const parentGroup = mainGroupsMap[group.parent_group_id];
             const parentSubItems = parentGroup ? (parentGroup.selected_sub_items || []) : [];
-            const parentKeys = new Set(parentSubItems.map(item => `${item.element}-${item.value}-${item.part || ''}`));
-
-            // ✅ หัวข้อที่ชุดย่อยเลือกไว้
             const selectedItems = group.selected_sub_items || [];
             const selectedKeys = new Set(selectedItems.map(item => `${item.element}-${item.value}-${item.part || ''}`));
 
-            // ✅ ตรวจว่าชุดย่อยเลือกครบตามชุดหลักหรือไม่
-            const missingItems = parentSubItems.filter(item => !selectedKeys.has(`${item.element}-${item.value}-${item.part || ''}`));
+            const missingItems = parentSubItems.filter(item =>
+                !selectedKeys.has(`${item.element}-${item.value}-${item.part || ''}`)
+            );
             const isSubItemsComplete = missingItems.length === 0;
 
-            // ✅ กลุ่มเป้าหมาย
-            const targets = group.eval_committee_targets || [];
-            const departments = targets
-                .filter(t => t.target_type === 'department')
+            const departments = (group.eval_committee_targets || [])
+                .filter(t => t.target_type === 'department' && t.is_active !== false)
                 .map(t => t.target_value);
 
-            // ✅ ตรวจครู
-            let allTeachers = [];
-            let evalResults = [];
-
+            // รวมครู (in memory)
+            const teacherSet = new Map();
             for (const dept of departments) {
-                const { data: teachers, error: tErr } = await db
-                    .from('core_personnel')
-                    .select('id, prefix, first_name, last_name, academic_standing')
-                    .eq('department', dept)
-                    .in('position', ['ครู', 'ครูผู้ช่วย'])
-                    .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ']);
-
-                if (!tErr && teachers) {
-                    allTeachers = [...allTeachers, ...teachers];
-                }
+                (teachersByDept.get(dept) || []).forEach(t => teacherSet.set(t.id, t));
             }
-
-            if (allTeachers.length > 0) {
-                const teacherIds = allTeachers.map(t => t.id);
-                const { data: evals, error: eErr } = await db
-                    .from('eval_results')
-                    .select('evaluatee_id, status, total_score')
-                    .in('evaluatee_id', teacherIds)
-                    .eq('eval_round_id', roundId)
-                    .eq('eval_type', 'committee')
-                    .eq('status', 'submitted');
-
-                if (!eErr && evals) {
-                    evalResults = evals;
-                }
-            }
+            const allTeachers = Array.from(teacherSet.values());
 
             const teacherCount = allTeachers.length;
-            const evaluatedIds = new Set(evalResults.map(e => e.evaluatee_id));
-            const evaluatedCount = evaluatedIds.size;
+            const evaluatedIds = evaluatedBySubGroup.get(group.id) || new Set();
+            const evaluatedCount = allTeachers.filter(t => evaluatedIds.has(t.id)).length;
             const notEvaluatedCount = teacherCount - evaluatedCount;
             const isTeacherComplete = notEvaluatedCount === 0 && teacherCount > 0;
 
@@ -1195,7 +1197,6 @@ async function checkEvaluationCompleteness() {
             totalEvaluated += evaluatedCount;
             totalNotEvaluated += notEvaluatedCount;
 
-            // ✅ สถานะรวม
             let overallStatus;
             if (!parentGroup) {
                 overallStatus = '<span class="px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-700">❌ ไม่มีชุดหลัก</span>';
@@ -1212,7 +1213,6 @@ async function checkEvaluationCompleteness() {
             const missingItemsText = missingItems.length > 0
                 ? missingItems.map(item => item.value).join(', ')
                 : 'ครบถ้วน';
-
             const parentName = parentGroup ? parentGroup.group_name : '-';
             const parentItemsText = parentSubItems.map(item => item.value).join(', ') || '-';
             const selectedItemsText = selectedItems.map(item => item.value).join(', ') || '-';
@@ -1239,7 +1239,9 @@ async function checkEvaluationCompleteness() {
 
         subTableHtml += `</tbody></table></div></div>`;
 
-        // ✅ สรุปผลรวม
+        // ==========================================
+        // Summary
+        // ==========================================
         const summaryHtml = `
             <div class="mb-4 grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div class="bg-indigo-50 p-3 rounded-lg text-center border border-indigo-200">
