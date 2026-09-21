@@ -370,6 +370,7 @@ async function checkEvaluatorAssignments() {
         const groupIds = groups.map(g => g.id);
 
         // ---- QUERY 2-4: targets + evals + teachers พร้อมกัน ----
+        // ✅ [FIX] เพิ่ม .in('sub_group_id', groupIds) + .limit(50000) เพื่อกัน default limit 1,000 rows
         const [targetsRes, evalsRes, teachersRes] = await Promise.all([
             db.from('eval_committee_targets')
                 .select('committee_group_id, target_value')
@@ -379,14 +380,17 @@ async function checkEvaluatorAssignments() {
 
             db.from('eval_results')
                 .select('evaluator_id, evaluatee_id, sub_group_id')
+                .in('sub_group_id', groupIds)
                 .eq('eval_round_id', roundId)
                 .eq('eval_type', 'committee')
-                .eq('status', 'submitted'),
+                .eq('status', 'submitted')
+                .limit(50000),   // ✅ [FIX] กัน default limit
 
             db.from('core_personnel')
                 .select('id, prefix, first_name, last_name, academic_standing, department')
                 .in('position', ['ครู', 'ครูผู้ช่วย'])
                 .in('academic_standing', ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'])
+                .limit(5000)     // ✅ [FIX] เผื่อไว้
         ]);
 
         if (targetsRes.error) throw targetsRes.error;

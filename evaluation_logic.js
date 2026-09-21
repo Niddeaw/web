@@ -166,6 +166,7 @@ async function buildEvaluationContext(evalRoundId) {
                 .eq('eval_round_id', evalRoundId)
                 .eq('eval_type', 'committee')
                 .eq('status', 'submitted')
+                .limit(50000)   // ✅ [FIX] กัน default limit
             : Promise.resolve({ data: [], error: null }),
 
         // personnel ทั้งหมด (lookup evaluatee)
@@ -2134,7 +2135,8 @@ async function loadReviewData() {
             .in('evaluatee_id', teacherIds)
             .eq('eval_round_id', currentEvalRound.id)
             .eq('eval_type', 'committee')
-            .eq('status', 'submitted');
+            .eq('status', 'submitted')
+            .limit(50000);   // ✅ [FIX] กัน default limit
 
         if (eErr) throw eErr;
 
