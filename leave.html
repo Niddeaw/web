@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="th">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,34 +8,81 @@
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <style>
-        body { font-family: 'Anuphan', sans-serif; background: #f0f4f8; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .loader { border: 6px solid #f3f3f3; border-top: 6px solid #2563eb; border-radius: 50%; width: 60px; height: 60px; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        body {
+            font-family: 'Anuphan', sans-serif;
+            background: #f0f4f8;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .loader {
+            border: 6px solid #f3f3f3;
+            border-top: 6px solid #2563eb;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% {
+                transform: rotate(0deg);
+            }
+
+            100% {
+                transform: rotate(360deg);
+            }
+        }
     </style>
 </head>
+
 <body>
     <div class="text-center">
         <div class="loader mx-auto mb-4"></div>
         <p class="text-slate-600 font-medium">กำลังโหลดระบบการลา...</p>
     </div>
     <script>
-        (async function() {
+        (async function () {
             const { data: { session } } = await db.auth.getSession();
             if (!session) { window.location.href = 'login.html'; return; }
-            const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
+
+            const { data: profile } = await db.from('core_personnel')
+                .select('role, department')
+                .eq('id', session.user.id).single();
             if (!profile) { await db.auth.signOut(); window.location.href = 'login.html'; return; }
+
             const isAdmin = (profile.role === 'super_admin' || profile.role === 'admin');
             let isModuleAdmin = false;
             if (!isAdmin) {
-                const { data: mod } = await db.from('core_module_admins').select('id').eq('user_id', session.user.id).eq('module_id', 'leave').maybeSingle();
+                const { data: mod } = await db.from('core_module_admins')
+                    .select('id')
+                    .eq('user_id', session.user.id)
+                    .eq('module_id', 'leave')
+                    .maybeSingle();
                 isModuleAdmin = !!mod;
             }
+
+            // ✅ เพิ่ม: ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ หรือไม่ (dynamic)
+            let isDeptHead = false;
+            if (!isAdmin && !isModuleAdmin) {
+                const { data: headInfo } = await db.from('core_department_heads')
+                    .select('personnel_id')   // ✅ ใช้ personnel_id แทน id
+                    .eq('personnel_id', session.user.id)
+                    .maybeSingle();
+                isDeptHead = !!headInfo;
+            }
+
             if (isAdmin || isModuleAdmin) {
                 window.location.href = 'leave_admin.html';
+            } else if (isDeptHead) {
+                window.location.href = 'leave_dept_head.html';
             } else {
                 window.location.href = 'leave_teacher.html';
             }
         })();
     </script>
 </body>
+
 </html>

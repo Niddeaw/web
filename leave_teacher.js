@@ -72,11 +72,27 @@ window.checkAuth = async function () {
     window.isAdminMode = window.isAdminMode;
 
     $('#display-name').text(`${window.currentProfile.prefix || ''}${window.currentProfile.first_name} ${window.currentProfile.last_name}`);
+
+    // ✅ ตรวจสอบว่าเป็น Admin หรือ Module Admin
     if (window.isAdminMode || window.isModuleAdmin) {
         $('#btnAdminMode').removeClass('hidden').addClass('flex');
     } else {
         $('#btnAdminMode').addClass('hidden').removeClass('flex');
     }
+
+    // ✅ ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ (show ปุ่มโหมดหัวหน้า)
+    try {
+        const headInfo = await window.getDepartmentHeadInfo(user.id);
+        if (headInfo) {
+            $('#btnDeptHeadMode').removeClass('hidden').addClass('flex');
+        } else {
+            $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
+        }
+    } catch (err) {
+        console.warn('Check dept head failed:', err);
+        $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
+    }
+
     await window.logUserAction('เข้าสู่ระบบการลา (ครู)', 'leave');
 };
 
@@ -259,15 +275,34 @@ window.renderTable = function () {
             const isRejected = l.status === 'ไม่อนุมัติ';
             const displayDays = isRejected ? 0 : (l.is_half_day ? 0.5 : l.total_days);
             const displayTimes = isRejected ? 0 : 1;
+
+            // สถานะหัวหน้ากลุ่มฯ (คำนวณก่อน)
+            const headAckBadge = l.ack_head
+                ? `<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold" title="หัวหน้ากลุ่มฯ รับทราบแล้ว"><i class="fas fa-user-check mr-0.5"></i>หัวหน้ากลุ่มฯรับทราบ</span>`
+                : '';
+
+            // สถานะหลัก + badge
             let statusHtml = '';
             if (l.status === 'รออนุมัติ') {
-                statusHtml = '<span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200"><i class="fas fa-clock mr-1"></i> รออนุมัติ</span>';
+                statusHtml = `<div class="flex flex-col items-center gap-1">
+                    <span class="bg-amber-100 text-amber-700 px-3 py-1 rounded-full text-xs font-bold border border-amber-200"><i class="fas fa-clock mr-1"></i> รออนุมัติ</span>
+                    ${headAckBadge}
+                </div>`;
             } else if (l.status === 'อนุมัติ') {
-                statusHtml = '<span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200"><i class="fas fa-check-circle mr-1"></i> อนุมัติ</span>';
+                statusHtml = `<div class="flex flex-col items-center gap-1">
+                    <span class="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold border border-emerald-200"><i class="fas fa-check-circle mr-1"></i> อนุมัติ</span>
+                    ${headAckBadge}
+                </div>`;
             } else {
-                const safeComment = l.reject_comment ? l.reject_comment.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '<br>') : 'ไม่มีการระบุเหตุผล';
-                statusHtml = `<button onclick="window.showRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm hover:scale-105"><i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ <i class="fas fa-hand-pointer ml-1 animate-pulse"></i></button>`;
+                const safeComment = l.reject_comment
+                    ? l.reject_comment.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '<br>')
+                    : 'ไม่มีการระบุเหตุผล';
+                statusHtml = `<div class="flex flex-col items-center gap-1">
+                <button onclick="window.showRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm hover:scale-105"><i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ <i class="fas fa-hand-pointer ml-1 animate-pulse"></i></button>
+                ${headAckBadge}
+            </div>`;
             }
+
             let typeClass = l.type === 'ลาป่วย' ? 'text-blue-600' : (l.type === 'ลากิจส่วนตัว' ? 'text-orange-600' : 'text-rose-600');
             if (isRejected) typeClass = 'text-slate-400 line-through';
             let pdfHtml = '';

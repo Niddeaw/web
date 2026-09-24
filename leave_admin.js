@@ -20,6 +20,27 @@ let attendanceDataTable = null;
 let allAttendanceData = [];
 
 // ==========================================
+// Helper: ตรวจสอบการรับทราบของหัวหน้ากลุ่มสาระฯ
+// ==========================================
+function needsHeadAck(l) {
+    if (typeof window.needsHeadAckByDept === 'function') {
+        return window.needsHeadAckByDept(l, window.allDeptHeads);
+    }
+    const dept = l.core_personnel?.department;
+    if (!dept) return false;
+    const head = (window.allDeptHeads || []).find(h => h.department_name === dept);
+    if (!head) return false;
+    if (head.personnel_id === l.personnel_id) return false;
+    return true;
+}
+
+function getHeadAckStatus(l) {
+    if (l.ack_head) return { icon: '✅', color: 'emerald', label: 'รับทราบแล้ว' };
+    if (!needsHeadAck(l)) return { icon: '—', color: 'slate', label: 'ไม่ต้องรับทราบ' };
+    return { icon: '⏳', color: 'amber', label: 'รอรับทราบ' };
+}
+
+// ==========================================
 // LOGOUT (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
@@ -83,6 +104,15 @@ $(document).ready(async function () {
         await logUserAction('เข้าสู่ระบบจัดการการลา (Admin)', 'leave');
 
         await loadPersonnelSearch();
+        // หลัง await loadPersonnelSearch();
+        window.allDeptHeads = [];
+        try {
+            const { data: deptHeads } = await db.from('core_department_heads')
+                .select('personnel_id, department_id, department_name');
+            window.allDeptHeads = deptHeads || [];
+        } catch (err) {
+            console.warn('loadDeptHeads error:', err);
+        }
         await loadSystemSettings();
         updateUI();
         await loadDashboardStats();
@@ -337,7 +367,7 @@ async function loadDashboardStats() {
         }
 
         const { data: leaves, error } = await db.from('leave_requests')
-            .select('*, core_personnel(prefix, first_name, last_name, department, position)')
+            .select('*, core_personnel!personnel_id(prefix, first_name, last_name, department, position, role)')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round);
         if (error) { console.error(error); return; }
@@ -574,7 +604,7 @@ function renderTable() {
     let ackField = null;
     if (isAdmin) ackField = 'ack_admin';
     else if (isDeputy) ackField = 'ack_deputy';
-    else if (isDirector) ackField = 'ack_director';
+    // ✅ ผู้อำนวยการไม่ต้องรับทราบ — อนุมัติ/ไม่อนุมัติเท่านั้น
 
     if (allLeavesData.length > 0) {
         tbody.innerHTML = allLeavesData.map(l => {
@@ -604,13 +634,12 @@ function renderTable() {
 
             const ackAdmin = l.ack_admin ? '✅' : '⏳';
             const ackDeputy = l.ack_deputy ? '✅' : '⏳';
-            const ackDirector = l.ack_director ? '✅' : '⏳';
-
+            const headStatus = getHeadAckStatus(l);
             const ackStatusHtml = `
                 <div class="flex flex-col items-start text-xs space-y-0.5">
+                    <span class="font-medium text-${headStatus.color}-600">หัวหน้ากลุ่มฯ: ${headStatus.icon}</span>
                     <span class="font-medium text-slate-600">แอดมิน: ${ackAdmin}</span>
                     <span class="font-medium text-slate-600">รองผู้อำนวยการ: ${ackDeputy}</span>
-                    <span class="font-medium text-slate-600">ผู้อำนวยการ: ${ackDirector}</span>
                 </div>
             `;
 
@@ -631,11 +660,16 @@ function renderTable() {
             const viewBtn = `<button onclick="viewLeave('${l.id}')" class="btn-icon bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white" title="ดูรายละเอียด"><i class="fas fa-eye"></i></button>`;
 
             let ackBtn = '';
+
+            // ✅ รับทราบแทนหัวหน้ากลุ่มฯ (สำหรับ Super Admin)
+            if (isSuperAdmin && needsHeadAck(l) && !l.ack_head) {
+                ackBtn += `<button onclick="acknowledgeLeaveHead('${l.id}')" class="btn-icon bg-purple-50 text-purple-600 hover:bg-purple-500 hover:text-white" title="รับทราบแทนหัวหน้ากลุ่มฯ"><i class="fas fa-user-check"></i></button>`;
+            }
+
             if (isSuperAdmin) {
                 const superAckDefs = [
                     { field: 'ack_admin', label: 'รับทราบแทนแอดมิน' },
                     { field: 'ack_deputy', label: 'รับทราบแทนรองผู้อำนวยการ' },
-                    { field: 'ack_director', label: 'รับทราบแทนผู้อำนวยการ' }
                 ];
                 superAckDefs.forEach(def => {
                     if (!l[def.field]) {
@@ -924,7 +958,7 @@ async function updateStatus(id, newStatus) {
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const { data: leave, error: fetchError } = await db.from('leave_requests')
-        .select('ack_admin, ack_deputy, ack_director, status')
+        .select('ack_admin, ack_deputy, ack_director, ack_head, status, personnel_id')
         .eq('id', id)
         .single();
     if (fetchError) {
@@ -933,6 +967,15 @@ async function updateStatus(id, newStatus) {
     }
 
     if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
+        const leaveFull = allLeavesData.find(x => x.id === id);
+        if (leaveFull && needsHeadAck(leaveFull) && !leave.ack_head) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้หัวหน้ากลุ่มสาระฯ รับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
+            return;
+        }
         if (!leave.ack_admin) {
             Swal.fire({
                 icon: 'warning',
@@ -976,19 +1019,26 @@ async function updateStatus(id, newStatus) {
         approved_date: finalApprovedDate
     };
 
+    // ✅ Auto ack ที่ค้างอยู่ (หัวหน้ากลุ่มฯ / แอดมิน / รอง) เมื่อ Super Admin อนุมัติ
     if (currentUserRole === 'super_admin' && newStatus === 'อนุมัติ') {
         updateData.ack_admin = true;
         updateData.ack_admin_at = finalApprovedDateTime;
         updateData.ack_deputy = true;
         updateData.ack_deputy_at = finalApprovedDateTime;
-        updateData.ack_director = true;
-        updateData.ack_director_at = finalApprovedDateTime;
-    } else {
-        if (currentUserRole === 'director' || currentUserRole === 'super_admin') {
-            updateData.ack_director = true;
-            updateData.ack_director_at = finalApprovedDateTime;
+
+        const leaveFull = allLeavesData.find(x => x.id === id);
+        if (leaveFull && needsHeadAck(leaveFull) && !leaveFull.ack_head) {
+            updateData.ack_head = true;
+            updateData.ack_head_at = finalApprovedDateTime;
+            const dept = leaveFull.core_personnel?.department;
+            const head = (window.allDeptHeads || []).find(h => h.department_name === dept);
+            if (head) {
+                updateData.head_personnel_id = head.personnel_id;
+                updateData.head_department = head.department_name;
+            }
         }
     }
+    // ✅ ผู้อำนวยการ/Super Admin ไม่ต้อง set ack_director — อนุมัติคือการรับทราบในตัว
 
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
@@ -1006,7 +1056,7 @@ async function rejectLeave(id) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
     const { data: leave, error: fetchError } = await db.from('leave_requests')
-        .select('ack_admin, ack_deputy, ack_director, status')
+        .select('ack_admin, ack_deputy, ack_director, ack_head, status, personnel_id')
         .eq('id', id)
         .single();
     if (fetchError) {
@@ -1015,12 +1065,29 @@ async function rejectLeave(id) {
     }
 
     if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
+        const leaveFull = allLeavesData.find(x => x.id === id);
+        if (leaveFull && needsHeadAck(leaveFull) && !leave.ack_head) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้หัวหน้ากลุ่มสาระฯ รับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
+            return;
+        }
         if (!leave.ack_admin) {
-            Swal.fire({ icon: 'warning', title: 'ไม่สามารถไม่อนุมัติได้', text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถไม่อนุมัติได้' });
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้แอดมินรับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
             return;
         }
         if (!leave.ack_deputy) {
-            Swal.fire({ icon: 'warning', title: 'ไม่สามารถไม่อนุมัติได้', text: 'กรุณารอให้รองผู้อำนวยการรับทราบก่อน จึงจะสามารถไม่อนุมัติได้' });
+            Swal.fire({
+                icon: 'warning',
+                title: 'ไม่สามารถอนุมัติได้',
+                text: 'กรุณารอให้รองผู้อำนวยการรับทราบก่อน จึงจะสามารถอนุมัติได้'
+            });
             return;
         }
     }
@@ -1065,17 +1132,26 @@ async function rejectLeave(id) {
         approved_date: finalRejectDate
     };
 
+    // ✅ Auto ack ที่ค้างอยู่เมื่อ Super Admin ไม่อนุมัติ
     if (currentUserRole === 'super_admin') {
         updateData.ack_admin = true;
         updateData.ack_deputy = true;
-        updateData.ack_director = true;
         updateData.ack_admin_at = now;
         updateData.ack_deputy_at = now;
-        updateData.ack_director_at = now;
-    } else if (currentUserRole === 'director') {
-        updateData.ack_director = true;
-        updateData.ack_director_at = now;
+
+        const leaveFull = allLeavesData.find(x => x.id === id);
+        if (leaveFull && needsHeadAck(leaveFull) && !leaveFull.ack_head) {
+            updateData.ack_head = true;
+            updateData.ack_head_at = now;
+            const dept = leaveFull.core_personnel?.department;
+            const head = (window.allDeptHeads || []).find(h => h.department_name === dept);
+            if (head) {
+                updateData.head_personnel_id = head.personnel_id;
+                updateData.head_department = head.department_name;
+            }
+        }
     }
+    // ✅ ผู้อำนวยการ/Super Admin ไม่ต้อง set ack_director
 
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
     if (error) {
@@ -1125,7 +1201,7 @@ async function resetAllAcknowledge(id) {
 
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการยกเลิกรับทราบทั้งหมด',
-        html: 'คุณต้องการยกเลิกรับทราบทั้งหมด (แอดมิน, รองผู้อำนวยการ, ผู้อำนวยการ) และเปลี่ยนสถานะเป็น "รออนุมัติ" ใช่หรือไม่?',
+        html: 'คุณต้องการยกเลิกรับทราบทั้งหมด (หัวหน้ากลุ่มสาระฯ, แอดมิน, รองผู้อำนวยการ) และเปลี่ยนสถานะเป็น "รออนุมัติ" ใช่หรือไม่?',
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
@@ -1151,6 +1227,10 @@ async function resetAllAcknowledge(id) {
             ack_deputy_at: null,
             ack_director: false,
             ack_director_at: null,
+            ack_head: false,          // ✅ เพิ่ม
+            ack_head_at: null,        // ✅ เพิ่ม
+            head_personnel_id: null,  // ✅ เพิ่ม
+            head_department: null,    // ✅ เพิ่ม
             status: 'รออนุมัติ',
             reject_comment: null,
             approved_at: null,
@@ -1190,12 +1270,14 @@ function viewLeave(id) {
     const effectiveRole = currentUserRole === 'teacher' && (isAdminMode || isModuleAdmin) ? 'admin' : currentUserRole;
     const isSuperAdminView = effectiveRole === 'super_admin';
 
+    // ---------- Helper: แสดงวันที่แบบสั้น (dd/mm/yyyy) ----------
     function fmt(iso) {
         if (!iso) return '-';
         const p = iso.split('-');
         return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
     }
-    // ลบหรือแทนที่ฟังก์ชัน fmtDateTime เดิม
+
+    // ---------- Helper: แสดงวันที่แบบเต็ม (d เดือน yyyy) ----------
     function formatDateOnly(iso) {
         if (!iso) return '-';
         const d = new Date(iso);
@@ -1204,6 +1286,10 @@ function viewLeave(id) {
             'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
         return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
     }
+
+    // ============================================================
+    // ส่วนที่ 1: ข้อมูลการลา
+    // ============================================================
     const approvedDisplay = l.approved_date || l.approved_at;
     const leaveInfoHtml = `
         <div class="border border-slate-200 rounded-xl p-3 space-y-2 mb-4">
@@ -1217,7 +1303,7 @@ function viewLeave(id) {
             </div>
             <div class="flex justify-between items-center">
                 <span class="text-sm font-bold text-slate-600">จำนวนวัน</span>
-                <span class="font-bold text-slate-800">${l.total_days} วัน</span>
+                <span class="font-bold text-slate-800">${l.is_half_day ? '0.5 (ครึ่งวัน)' : l.total_days + ' วัน'}</span>
             </div>
             <div class="flex justify-between items-center">
                 <span class="text-sm font-bold text-slate-600">สาเหตุ</span>
@@ -1225,74 +1311,147 @@ function viewLeave(id) {
             </div>
             <div class="flex justify-between items-center">
                 <span class="text-sm font-bold text-slate-600">สถานะ</span>
-                <span>${l.status === 'รออนุมัติ' ? '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">รออนุมัติ</span>' :
-            l.status === 'อนุมัติ' ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">อนุมัติ</span>' :
-                '<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold">ไม่อนุมัติ</span>'}</span>
+                <span>${l.status === 'รออนุมัติ'
+                    ? '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">รออนุมัติ</span>'
+                    : l.status === 'อนุมัติ'
+                        ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">อนุมัติ</span>'
+                        : '<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold">ไม่อนุมัติ</span>'
+                }</span>
             </div>
-            <div class="flex justify-between items-center">
-    <span class="text-sm font-bold text-slate-600">ครึ่งวัน</span>
-    <span class="font-bold text-slate-800">${l.is_half_day ? '✅ ใช่' : '❌ ไม่'}</span>
-</div>
-<div class="flex justify-between items-center">
-    <span class="text-sm font-bold text-slate-600">จำนวนวัน</span>
-    <span class="font-bold text-slate-800">${l.is_half_day ? '0.5 (ครึ่งวัน)' : l.total_days + ' วัน'}</span>
-</div>
-            ${l.reject_comment ? `<div class="flex justify-between items-start"><span class="text-sm font-bold text-slate-600">เหตุผลที่ไม่อนุมัติ</span><span class="text-rose-700 text-sm">${l.reject_comment}</span></div>` : ''}
-            ${approvedDisplay ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span><span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span></div>` : ''}
-            ${l.submitted_date ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span><span class="text-slate-600 text-sm">${formatDateOnly(l.submitted_date)}</span></div>` : ''}
-            ${l.attachment_file_id ? `<div class="flex justify-between items-center"><span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span><a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
+            ${l.reject_comment
+                ? `<div class="flex justify-between items-start gap-2">
+                       <span class="text-sm font-bold text-slate-600 flex-shrink-0">เหตุผลที่ไม่อนุมัติ</span>
+                       <span class="text-rose-700 text-sm text-right">${l.reject_comment}</span>
+                   </div>`
+                : ''}
+            ${approvedDisplay
+                ? `<div class="flex justify-between items-center">
+                       <span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span>
+                       <span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span>
+                   </div>`
+                : ''}
+            ${l.submitted_date
+                ? `<div class="flex justify-between items-center">
+                       <span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span>
+                       <span class="text-slate-600 text-sm">${formatDateOnly(l.submitted_date)}</span>
+                   </div>`
+                : ''}
+            ${l.attachment_file_id
+                ? `<div class="flex justify-between items-center">
+                       <span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span>
+                       <a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a>
+                   </div>`
+                : ''}
         </div>
     `;
 
+    // ============================================================
+    // ส่วนที่ 2: Helper สร้างแถว ack (แอดมิน / รองผู้อำนวยการ)
+    // ============================================================
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
         const atValue = l[atField] ? formatDateOnly(l[atField]) : '';
+
         let buttonHtml = '';
         if (isSuperAdminView && !done) {
+            // Super Admin → รับทราบแทนได้ทุก role
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบแทน</button>`;
         } else if (effectiveRole === 'admin' && field === 'ack_admin' && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         } else if (effectiveRole === 'deputy' && field === 'ack_deputy' && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
-        } else if (effectiveRole === 'director' && field === 'ack_director' && !done) {
-            buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         }
+
         return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
             <span class="text-sm text-slate-600">${label}</span>
             <div class="flex items-center gap-2">
                 ${done
-                ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${atValue ? ' (' + atValue + ')' : ''}</span>`
-                : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
-            }
+                    ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${atValue ? ' (' + atValue + ')' : ''}</span>`
+                    : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
+                }
                 ${buttonHtml}
             </div>
         </div>`;
     }
 
-    const ackHtml = `
-        <div class="border border-slate-200 rounded-xl p-3">
-            <p class="text-xs font-bold text-slate-500 mb-2"><i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ</p>
-            ${buildAckRow('<i class="fas fa-user-tie text-slate-400 mr-1.5"></i>แอดมิน', 'ack_admin')}
-            ${buildAckRow('<i class="fas fa-user-shield text-slate-400 mr-1.5"></i>รองผู้อำนวยการ', 'ack_deputy')}
-            ${buildAckRow('<i class="fas fa-crown text-slate-400 mr-1.5"></i>ผู้อำนวยการ', 'ack_director')}
+    // ============================================================
+    // ส่วนที่ 3: แถวหัวหน้ากลุ่มสาระฯ (แยกออกมาเพราะมี logic พิเศษ)
+    // ============================================================
+    const headStatus = getHeadAckStatus(l);
+
+    let headAckBtn = '';
+    if (isSuperAdminView && needsHeadAck(l) && !l.ack_head) {
+        headAckBtn = `<button onclick="acknowledgeLeaveHead('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-check mr-1"></i>รับทราบแทน</button>`;
+    }
+
+    const headAckRow = `
+        <div class="flex items-center justify-between py-2 border-b border-slate-100">
+            <span class="text-sm text-slate-600"><i class="fas fa-users text-slate-400 mr-1.5"></i>หัวหน้ากลุ่มสาระฯ</span>
+            <div class="flex items-center gap-2">
+                ${l.ack_head
+                    ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${l.ack_head_at ? ' (' + formatDateOnly(l.ack_head_at) + ')' : ''}</span>`
+                    : (needsHeadAck(l)
+                        ? `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
+                        : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-minus mr-1"></i>ไม่ต้องรับทราบ</span>`
+                    )
+                }
+                ${headAckBtn}
+            </div>
         </div>
     `;
 
+    // ============================================================
+    // ส่วนที่ 4: รวมสถานะการรับทราบ (3 แถว — ไม่มี ผอ.)
+    // ============================================================
+    const ackHtml = `
+        <div class="border border-slate-200 rounded-xl p-3">
+            <p class="text-xs font-bold text-slate-500 mb-2">
+                <i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ
+            </p>
+            ${headAckRow}
+            ${buildAckRow('<i class="fas fa-user-tie text-slate-400 mr-1.5"></i>แอดมิน', 'ack_admin')}
+            ${buildAckRow('<i class="fas fa-user-shield text-slate-400 mr-1.5"></i>รองผู้อำนวยการ', 'ack_deputy')}
+        </div>
+    `;
+
+    // ============================================================
+    // ส่วนที่ 5: ปุ่มอนุมัติ/ไม่อนุมัติ (เฉพาะ ผอ./Super Admin + รออนุมัติ)
+    // ============================================================
     let actionHtml = '';
     if ((effectiveRole === 'super_admin' || effectiveRole === 'director') && l.status === 'รออนุมัติ') {
-        if (l.ack_admin && l.ack_deputy) {
+        const headOk = !needsHeadAck(l) || l.ack_head;
+
+        if (headOk && l.ack_admin && l.ack_deputy) {
+            // ครบเงื่อนไข → แสดงปุ่มอนุมัติ/ไม่อนุมัติ
             actionHtml = `
                 <div class="flex flex-wrap gap-2 pt-2">
-                    <button onclick="updateStatus('${l.id}', 'อนุมัติ'); closeViewModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-up"></i> อนุมัติ</button>
-                    <button onclick="rejectLeave('${l.id}'); closeViewModal()" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm"><i class="fas fa-thumbs-down"></i> ไม่อนุมัติ</button>
+                    <button onclick="updateStatus('${l.id}', 'อนุมัติ'); closeViewModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
+                        <i class="fas fa-thumbs-up"></i> อนุมัติ
+                    </button>
+                    <button onclick="rejectLeave('${l.id}'); closeViewModal()" class="px-4 py-2 bg-rose-500 hover:bg-rose-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
+                        <i class="fas fa-thumbs-down"></i> ไม่อนุมัติ
+                    </button>
                 </div>
             `;
         } else {
-            actionHtml = `<div class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg"><i class="fas fa-info-circle mr-1"></i> ต้องรอให้ <b>แอดมิน</b> และ <b>รองผู้อำนวยการ</b> รับทราบก่อน จึงจะสามารถอนุมัติ/ไม่อนุมัติได้</div>`;
+            // ยังไม่ครบ → แสดงข้อความรอ
+            const waitFor = [];
+            if (!headOk) waitFor.push('หัวหน้ากลุ่มสาระฯ');
+            if (!l.ack_admin) waitFor.push('แอดมิน');
+            if (!l.ack_deputy) waitFor.push('รองผู้อำนวยการ');
+
+            actionHtml = `
+                <div class="text-xs text-amber-600 bg-amber-50 border border-amber-200 p-2 rounded-lg">
+                    <i class="fas fa-info-circle mr-1"></i> ต้องรอให้ <b>${waitFor.join('</b>, <b>')}</b> รับทราบก่อน จึงจะสามารถอนุมัติ/ไม่อนุมัติได้
+                </div>
+            `;
         }
     }
 
+    // ============================================================
+    // ส่วนที่ 6: ประกอบ HTML ทั้งหมด & แสดง Modal
+    // ============================================================
     const fullHtml = `
         <div class="space-y-4">
             ${leaveInfoHtml}
@@ -1315,7 +1474,8 @@ function closeViewModal() {
 // รับทราบใบลา
 // ==========================================
 async function acknowledgeLeave(id, field) {
-    const allowedFields = { admin: 'ack_admin', deputy: 'ack_deputy', director: 'ack_director' };
+    // ✅ ผู้อำนวยการไม่ต้องรับทราบ — อนุญาตเฉพาะ admin/deputy
+    const allowedFields = { admin: 'ack_admin', deputy: 'ack_deputy' };
     if (!Object.values(allowedFields).includes(field)) return;
 
     const { data: leave, error: fetchError } = await db.from('leave_requests')
@@ -1334,16 +1494,6 @@ async function acknowledgeLeave(id, field) {
             icon: 'warning',
             title: 'ไม่สามารถรับทราบได้',
             text: 'กรุณารอให้แอดมินรับทราบก่อน แล้วจึงค่อยกดรับทราบ',
-            confirmButtonText: 'ตกลง'
-        });
-        return;
-    }
-
-    if (!isSuperAdminAck && field === 'ack_director' && !leave.ack_admin) {
-        Swal.fire({
-            icon: 'warning',
-            title: 'ไม่สามารถรับทราบได้',
-            text: 'กรุณารอให้แอดมินรับทราบก่อน',
             confirmButtonText: 'ตกลง'
         });
         return;
@@ -1377,7 +1527,7 @@ async function acknowledgeLeave(id, field) {
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
-        const labelMap = { ack_admin: 'แอดมิน', ack_deputy: 'รองผู้อำนวยการ', ack_director: 'ผู้อำนวยการ' };
+        const labelMap = { ack_admin: 'แอดมิน', ack_deputy: 'รองผู้อำนวยการ' };
         await logUserAction(`รับทราบใบลา ID: ${id} (${labelMap[field]})`, 'leave');
         Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 })
             .fire({ icon: 'success', title: `บันทึกการรับทราบเรียบร้อย` });
@@ -1659,7 +1809,7 @@ function initAttendanceFlatpickr() {
 async function loadAttendanceTable() {
     try {
         const { data, error } = await db.from('personnel_attendance')
-            .select('*, core_personnel(prefix, first_name, last_name, department)')
+            .select('*, core_personnel!personnel_id(prefix, first_name, last_name, department)')
             .eq('fiscal_year', systemSettings.fiscal_year)
             .eq('eval_round', systemSettings.eval_round)
             .order('record_date', { ascending: false });

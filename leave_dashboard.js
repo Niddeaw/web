@@ -32,7 +32,7 @@ async function loadSickLeaveWidget() {
         // ---- 1. ดึงข้อมูลการลาทุกประเภท (วันนี้) ----
         const { data: todayData, error: err1 } = await db
             .from('leave_requests')
-            .select('*, core_personnel(prefix, first_name, last_name, department)')
+                .select('*, core_personnel!personnel_id(prefix, first_name, last_name, department)')
             .in('status', ['อนุมัติ', 'รออนุมัติ'])
             .lte('start_date', todayStr)
             .gte('end_date', todayStr);
@@ -42,7 +42,7 @@ async function loadSickLeaveWidget() {
         // ---- 2. ดึงข้อมูลการลาทุกประเภท (สัปดาห์นี้) ----
         const { data: weekData, error: err2 } = await db
             .from('leave_requests')
-            .select('*, core_personnel(prefix, first_name, last_name, department)')
+                .select('*, core_personnel!personnel_id(prefix, first_name, last_name, department)')
             .in('status', ['อนุมัติ', 'รออนุมัติ'])
             .lte('start_date', endWeekStr)
             .gte('end_date', startWeekStr);
