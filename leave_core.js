@@ -143,17 +143,23 @@ window.switchToAdminMode = function () {
 // 7.1 สลับไปโหมดหัวหน้ากลุ่มสาระฯ (ตรวจสอบสิทธิ์)
 // ==========================================
 window.switchToDeptHeadMode = async function () {
-    // ตรวจสอบสิทธิ์
     const userId = window.currentUser?.id || window.currentUserId;
     if (!userId) {
         Swal.fire('ไม่มีสิทธิ์', 'กรุณาเข้าสู่ระบบใหม่', 'error');
         return;
     }
-    const headInfo = await window.getDepartmentHeadInfo(userId);
-    if (!headInfo) {
-        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้เป็นหัวหน้ากลุ่มสาระฯ ในระบบ', 'error');
-        return;
+
+    const isSuperAdmin = window.currentUserRole === 'super_admin';
+
+    // ✅ ถ้าไม่ใช่ Super Admin → ต้องเป็นหัวหน้ากลุ่มฯ จริง
+    if (!isSuperAdmin) {
+        const headInfo = await window.getDepartmentHeadInfo(userId);
+        if (!headInfo) {
+            Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้เป็นหัวหน้ากลุ่มสาระฯ ในระบบ', 'error');
+            return;
+        }
     }
+
     Swal.fire({
         toast: true,
         position: 'top-end',
@@ -744,6 +750,136 @@ window.acknowledgeLeaveHead = async function (id) {
     // Refresh ตามบริบท
     if (typeof window.loadDashboardStats === 'function') await window.loadDashboardStats();
     if (typeof window.loadDeptHeadLeaves === 'function') await window.loadDeptHeadLeaves();
+};
+
+// ==========================================
+// 11. แก้ไขวันที่รับทราบ (ใช้ได้ทุก role)
+// ==========================================
+window.editAckDate = async function (leaveId, field) {
+    const Swal = window.Swal;
+    const currentUser = window.currentUser;
+    const currentUserRole = window.currentUserRole;
+
+    // ✅ Whitelist fields
+    const ALLOWED_FIELDS = ['ack_head', 'ack_admin', 'ack_deputy'];
+    if (!ALLOWED_FIELDS.includes(field)) {
+        console.warn('editAckDate: field ไม่ถูกต้อง', field);
+        return;
+    }
+
+    if (!currentUser) {
+        Swal.fire('ไม่มีสิทธิ์', 'กรุณาเข้าสู่ระบบใหม่', 'error');
+        return;
+    }
+
+    // ป้ายชื่อแต่ละ field
+    const FIELD_LABELS = {
+        ack_head: 'หัวหน้ากลุ่มสาระฯ',
+        ack_admin: 'แอดมิน',
+        ack_deputy: 'รองผู้อำนวยการ'
+    };
+
+    // ---------- ดึงข้อมูลใบลา ----------
+    const { data: leave, error: fetchError } = await window.db
+        .from('leave_requests')
+        .select('id, ack_head, ack_head_at, ack_admin, ack_admin_at, ack_deputy, ack_deputy_at, head_personnel_id, personnel_id')
+        .eq('id', leaveId)
+        .single();
+
+    if (fetchError) {
+        Swal.fire('ผิดพลาด', fetchError.message, 'error');
+        return;
+    }
+
+    // ---------- ตรวจสอบว่ามีการรับทราบแล้วจริง ----------
+    const currentAck = leave[field];
+    const currentAckAt = leave[field + '_at'];
+
+    if (!currentAck) {
+        Swal.fire('แจ้งเตือน', `ใบลานี้ยังไม่ได้รับการรับทราบจาก ${FIELD_LABELS[field]}`, 'info');
+        return;
+    }
+
+    // ---------- ตรวจสอบสิทธิ์ ----------
+    const isSuperAdmin = currentUserRole === 'super_admin';
+    const isOwnerOfAck = (field === 'ack_head' && leave.head_personnel_id === currentUser.id);
+
+    // ถ้าไม่ใช่ Super Admin และไม่ใช่เจ้าของ field นั้น → block
+    // (แอดมิน/รอง ตรวจสอบฝั่ง UI — เพราะ DB ไม่มีคอลัมน์ admin_personnel_id / deputy_personnel_id)
+    if (!isSuperAdmin && !isOwnerOfAck) {
+        // ตรวจสอบว่า role ปัจจุบันตรงกับ field หรือไม่
+        const roleFieldMap = {
+            'admin': 'ack_admin',
+            'deputy': 'ack_deputy'
+        };
+        const myField = roleFieldMap[currentUserRole];
+        if (myField !== field) {
+            Swal.fire('ไม่มีสิทธิ์', `เฉพาะ ${FIELD_LABELS[field]} ที่รับทราบใบนี้ หรือ Super Admin เท่านั้น`, 'error');
+            return;
+        }
+    }
+
+    // ---------- แสดง Dialog ----------
+    const currentDateStr = currentAckAt
+        ? new Date(currentAckAt).toLocaleDateString('sv-SE')
+        : new Date().toLocaleDateString('sv-SE');
+
+    const { value: newDate } = await Swal.fire({
+        title: `แก้ไขวันที่รับทราบ`,
+        html: `<p class="text-sm text-slate-500 mb-2">แก้ไขวันที่ <b>${FIELD_LABELS[field]}</b> รับทราบใบลานี้</p>`,
+        input: 'date',
+        inputValue: currentDateStr,
+        showCancelButton: true,
+        confirmButtonColor: '#8b5cf6',
+        confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึก',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (newDate === undefined) return;
+
+    const finalDate = newDate || currentDateStr;
+    const finalDateTime = new Date(finalDate + 'T12:00:00+07:00').toISOString();
+
+    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    // ---------- อัปเดต DB ----------
+    const updateData = {
+        [field + '_at']: finalDateTime,
+        updated_at: new Date().toISOString()
+    };
+
+    const { error } = await window.db
+        .from('leave_requests')
+        .update(updateData)
+        .eq('id', leaveId);
+
+    if (error) {
+        Swal.fire('ผิดพลาด', error.message, 'error');
+        return;
+    }
+
+    if (typeof window.logUserAction === 'function') {
+        await window.logUserAction(`แก้ไขวันที่รับทราบ (${FIELD_LABELS[field]}) ID: ${leaveId}`, 'leave');
+    }
+
+    Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 })
+        .fire({ icon: 'success', title: `แก้ไขวันที่รับทราบ (${FIELD_LABELS[field]}) เรียบร้อย` });
+
+    // ---------- Refresh UI ----------
+    const viewModal = document.getElementById('viewLeaveModal');
+    const isViewModalOpen = viewModal && viewModal.classList.contains('flex');
+
+    if (typeof window.loadDashboardStats === 'function') await window.loadDashboardStats();
+    if (typeof window.loadDeptHeadLeaves === 'function') await window.loadDeptHeadLeaves();
+
+    if (isViewModalOpen && typeof window.viewLeave === 'function') {
+        setTimeout(() => window.viewLeave(leaveId), 200);
+    }
+};
+
+// ⚠️ Wrapper สำหรับโค้ดเก่าที่ยังเรียก editAckHeadDate
+window.editAckHeadDate = function (leaveId) {
+    return window.editAckDate(leaveId, 'ack_head');
 };
 
 console.log('✅ leave_core.js loaded (all functions registered globally) — using RPC for holiday calculation');

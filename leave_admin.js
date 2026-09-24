@@ -101,6 +101,13 @@ $(document).ready(async function () {
             $('#btnToggleMode').addClass('hidden').removeClass('inline-flex');
         }
 
+        // ✅ แสดงปุ่มสลับไปโหมดหัวหน้ากลุ่มสาระฯ เฉพาะ Super Admin
+        if (role === 'super_admin') {
+            $('#btnToggleDeptHead').removeClass('hidden').addClass('inline-flex');
+        } else {
+            $('#btnToggleDeptHead').addClass('hidden').removeClass('inline-flex');
+        }
+
         await logUserAction('เข้าสู่ระบบจัดการการลา (Admin)', 'leave');
 
         await loadPersonnelSearch();
@@ -1312,36 +1319,36 @@ function viewLeave(id) {
             <div class="flex justify-between items-center">
                 <span class="text-sm font-bold text-slate-600">สถานะ</span>
                 <span>${l.status === 'รออนุมัติ'
-                    ? '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">รออนุมัติ</span>'
-                    : l.status === 'อนุมัติ'
-                        ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">อนุมัติ</span>'
-                        : '<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold">ไม่อนุมัติ</span>'
-                }</span>
+            ? '<span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full text-xs font-bold">รออนุมัติ</span>'
+            : l.status === 'อนุมัติ'
+                ? '<span class="bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full text-xs font-bold">อนุมัติ</span>'
+                : '<span class="bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full text-xs font-bold">ไม่อนุมัติ</span>'
+        }</span>
             </div>
             ${l.reject_comment
-                ? `<div class="flex justify-between items-start gap-2">
+            ? `<div class="flex justify-between items-start gap-2">
                        <span class="text-sm font-bold text-slate-600 flex-shrink-0">เหตุผลที่ไม่อนุมัติ</span>
                        <span class="text-rose-700 text-sm text-right">${l.reject_comment}</span>
                    </div>`
-                : ''}
+            : ''}
             ${approvedDisplay
-                ? `<div class="flex justify-between items-center">
+            ? `<div class="flex justify-between items-center">
                        <span class="text-sm font-bold text-slate-600">อนุมัติเมื่อ</span>
                        <span class="text-slate-600 text-sm">${formatDateOnly(approvedDisplay)}</span>
                    </div>`
-                : ''}
+            : ''}
             ${l.submitted_date
-                ? `<div class="flex justify-between items-center">
+            ? `<div class="flex justify-between items-center">
                        <span class="text-sm font-bold text-slate-600">วันที่ส่งใบลา</span>
                        <span class="text-slate-600 text-sm">${formatDateOnly(l.submitted_date)}</span>
                    </div>`
-                : ''}
+            : ''}
             ${l.attachment_file_id
-                ? `<div class="flex justify-between items-center">
+            ? `<div class="flex justify-between items-center">
                        <span class="text-sm font-bold text-slate-600">ไฟล์หลักฐาน</span>
                        <a href="https://lh5.googleusercontent.com/d/${l.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a>
                    </div>`
-                : ''}
+            : ''}
         </div>
     `;
 
@@ -1355,7 +1362,6 @@ function viewLeave(id) {
 
         let buttonHtml = '';
         if (isSuperAdminView && !done) {
-            // Super Admin → รับทราบแทนได้ทุก role
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบแทน</button>`;
         } else if (effectiveRole === 'admin' && field === 'ack_admin' && !done) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
@@ -1363,16 +1369,28 @@ function viewLeave(id) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         }
 
+        // ✅ ปุ่มแก้ไขวันที่รับทราบ (เฉพาะที่ done แล้ว)
+        let editBtn = '';
+        if (done) {
+            const canEdit = isSuperAdminView
+                || (effectiveRole === 'admin' && field === 'ack_admin')
+                || (effectiveRole === 'deputy' && field === 'ack_deputy');
+            if (canEdit) {
+                editBtn = `<button onclick="editAckDate('${l.id}', '${field}')" class="ml-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm transition" title="แก้ไขวันที่รับทราบ"><i class="fas fa-edit mr-1"></i>แก้ไขวันที่</button>`;
+            }
+        }
+
         return `<div class="flex items-center justify-between py-2 border-b border-slate-100 last:border-0">
-            <span class="text-sm text-slate-600">${label}</span>
-            <div class="flex items-center gap-2">
-                ${done
-                    ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${atValue ? ' (' + atValue + ')' : ''}</span>`
-                    : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
-                }
-                ${buttonHtml}
-            </div>
-        </div>`;
+        <span class="text-sm text-slate-600">${label}</span>
+        <div class="flex items-center gap-2 flex-wrap justify-end">
+            ${done
+                ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${atValue ? ' (' + atValue + ')' : ''}</span>`
+                : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
+            }
+            ${buttonHtml}
+            ${editBtn}
+        </div>
+    </div>`;
     }
 
     // ============================================================
@@ -1385,18 +1403,25 @@ function viewLeave(id) {
         headAckBtn = `<button onclick="acknowledgeLeaveHead('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-check mr-1"></i>รับทราบแทน</button>`;
     }
 
+    // ✅ ปุ่มแก้ไขวันที่รับทราบ (เฉพาะ Super Admin + ใบที่รับทราบแล้ว)
+    let editAckHeadBtn = '';
+    if (isSuperAdminView && l.ack_head) {
+        editAckHeadBtn = `<button onclick="editAckHeadDate('${l.id}')" class="ml-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm transition" title="แก้ไขวันที่รับทราบ"><i class="fas fa-edit mr-1"></i>แก้ไขวันที่</button>`;
+    }
+
     const headAckRow = `
         <div class="flex items-center justify-between py-2 border-b border-slate-100">
             <span class="text-sm text-slate-600"><i class="fas fa-users text-slate-400 mr-1.5"></i>หัวหน้ากลุ่มสาระฯ</span>
-            <div class="flex items-center gap-2">
+            <div class="flex items-center gap-2 flex-wrap justify-end">
                 ${l.ack_head
-                    ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${l.ack_head_at ? ' (' + formatDateOnly(l.ack_head_at) + ')' : ''}</span>`
-                    : (needsHeadAck(l)
-                        ? `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
-                        : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-minus mr-1"></i>ไม่ต้องรับทราบ</span>`
-                    )
-                }
+            ? `<span class="text-xs font-bold text-teal-600 bg-teal-50 border border-teal-200 px-3 py-1 rounded-full"><i class="fas fa-check-double mr-1"></i>รับทราบแล้ว${l.ack_head_at ? ' (' + formatDateOnly(l.ack_head_at) + ')' : ''}</span>`
+            : (needsHeadAck(l)
+                ? `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-clock mr-1"></i>ยังไม่รับทราบ</span>`
+                : `<span class="text-xs font-bold text-slate-400 bg-slate-50 border border-slate-200 px-3 py-1 rounded-full"><i class="fas fa-minus mr-1"></i>ไม่ต้องรับทราบ</span>`
+            )
+        }
                 ${headAckBtn}
+                ${editAckHeadBtn}
             </div>
         </div>
     `;

@@ -80,10 +80,11 @@ window.checkAuth = async function () {
         $('#btnAdminMode').addClass('hidden').removeClass('flex');
     }
 
-    // ✅ ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ (show ปุ่มโหมดหัวหน้า)
+    // ✅ ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ หรือ Super Admin (แสดงปุ่มโหมดหัวหน้า)
     try {
+        const isSuperAdmin = (role === 'super_admin');
         const headInfo = await window.getDepartmentHeadInfo(user.id);
-        if (headInfo) {
+        if (headInfo || isSuperAdmin) {
             $('#btnDeptHeadMode').removeClass('hidden').addClass('flex');
         } else {
             $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');

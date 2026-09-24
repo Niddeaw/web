@@ -56,11 +56,25 @@
                     class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">กำลังโหลด...</span>
                 <span id="dept-badge"
                     class="hidden md:block text-xs font-bold text-purple-600 bg-purple-50 border border-purple-200 px-3 py-1.5 rounded-full shadow-sm">กลุ่ม...</span>
+                <!-- ✅ Dropdown เลือกกลุ่ม (แสดงเฉพาะ Super Admin) -->
+                <select id="deptHeadGroupFilter" onchange="onDeptHeadGroupChange()"
+                    class="hidden h-10 px-3 rounded-xl bg-white border border-purple-200 text-purple-700 font-bold text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-300">
+                </select>
+
                 <button id="btnToggleMode" onclick="switchToTeacherMode()"
                     class="h-10 px-3 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition font-bold text-sm flex items-center gap-2 shadow-sm border border-rose-200"
                     title="สลับไปยังโหมดครู">
                     <i class="fas fa-chalkboard-user"></i>
                     <span class="hidden sm:inline">สลับไปโหมดครู</span>
+                </button>
+
+                <!-- ✅ ปุ่มสลับไปโหมดแอดมิน (แสดงเฉพาะ Super Admin) -->
+                <button id="btnToggleAdmin" onclick="switchToAdminMode()"
+                    class="hidden h-10 px-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition font-bold text-sm items-center gap-2 shadow-sm border border-indigo-200"
+                    title="สลับไปยังโหมดแอดมิน">
+                    <i class="fas fa-user-shield"></i>
+                    <span class="hidden sm:inline">สลับไปโหมดแอดมิน</span>
+                </button>
                 </button>
                 <button onclick="window.location.href='index.html'"
                     class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
@@ -145,7 +159,7 @@
                                 <th>ประเภท</th>
                                 <th>ช่วงวันที่ลา</th>
                                 <th class="text-center">วัน</th>
-                                <th class="text-center">วันที่รับทราบ</th>
+                                <th class="text-center">วันที่รับทราบ (แก้ไขได้)</th>
                                 <th class="text-center">สถานะใบลา</th>
                             </tr>
                         </thead>
