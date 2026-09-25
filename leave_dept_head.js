@@ -48,6 +48,15 @@ $(document).ready(async function () {
         window.isSuperAdmin = isSuperAdmin;
         window.headInfo = headInfo;
         window.currentGroupFilter = headInfo?.department_name || null;
+        // ✅ โหลดรายชื่อหัวหน้ากลุ่มฯ ทั้งหมด (สำหรับจัดหมวดหมู่)
+        try {
+            const { data: deptHeads } = await db.from('core_department_heads')
+                .select('personnel_id, department_id, department_name');
+            window.allDeptHeads = deptHeads || [];
+        } catch (err) {
+            console.warn('loadAllDeptHeads error:', err);
+            window.allDeptHeads = [];
+        }
 
         // โหลด system settings
         const { data: sysData } = await db.from('core_system_modules')
@@ -95,10 +104,9 @@ $(document).ready(async function () {
 window.loadDeptHeadLeaves = async function () {
     try {
         let query = db.from('leave_requests')
-            .select('*, core_personnel!personnel_id!inner(id, prefix, first_name, last_name, department, role)')
+            .select('*, core_personnel!personnel_id!inner(id, prefix, first_name, last_name, department, role, position)')
             .eq('fiscal_year', window.systemSettings.fiscal_year)
             .eq('eval_round', window.systemSettings.eval_round)
-            .eq('core_personnel.role', 'teacher')
             .neq('personnel_id', window.currentUser.id)
             .order('created_at', { ascending: false });
 
@@ -116,12 +124,18 @@ window.loadDeptHeadLeaves = async function () {
         const { data, error } = await query;
         if (error) throw error;
 
-        const all = data || [];
-        window.pendingLeaves = all.filter(l => !l.ack_head && l.status !== 'ไม่อนุมัติ');
-        window.doneLeaves = all.filter(l => l.ack_head);
+        // ✅ กรองเฉพาะ teacher (ตัด staff ออก)
+        const filtered = (data || []).filter(l => {
+            if (typeof window.getPersonnelCategory !== 'function') return true;
+            const cat = window.getPersonnelCategory(l, window.allDeptHeads || []);
+            return cat === 'teacher';
+        });
+
+        window.pendingLeaves = filtered.filter(l => !l.ack_head && l.status !== 'ไม่อนุมัติ');
+        window.doneLeaves = filtered.filter(l => l.ack_head);
 
         window.renderDeptTables();
-        window.updateStats(all);
+        window.updateStats(filtered);
     } catch (err) {
         console.error('loadDeptHeadLeaves error:', err);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, 'error');

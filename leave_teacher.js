@@ -279,8 +279,10 @@ window.renderTable = function () {
 
             // สถานะหัวหน้ากลุ่มฯ (คำนวณก่อน)
             const headAckBadge = l.ack_head
-                ? `<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold" title="หัวหน้ากลุ่มฯ รับทราบแล้ว"><i class="fas fa-user-check mr-0.5"></i>หัวหน้ากลุ่มฯรับทราบ</span>`
-                : '';
+    ? `<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold" title="หัวหน้ากลุ่มฯ รับทราบแล้ว"><i class="fas fa-user-check mr-0.5"></i>หัวหน้ากลุ่มฯรับทราบ</span>`
+    : (l.ack_academic
+        ? `<span class="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-bold" title="รองวิชาการรับทราบแล้ว"><i class="fas fa-user-graduate mr-0.5"></i>รองวิชาการรับทราบ</span>`
+        : '');
 
             // สถานะหลัก + badge
             let statusHtml = '';

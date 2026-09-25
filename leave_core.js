@@ -627,31 +627,19 @@ window.shouldRequireHeadAck = function (leave, headInfo) {
     return leaveDept === headInfo.department_name;
 };
 
-// ตรวจสอบว่าใบลานี้ต้องการ ack_head จริงหรือไม่ (ใช้ที่หน้า admin)
-window.needsHeadAckByDept = function (leave, allDeptHeads) {
-    const dept = leave.core_personnel?.department || leave.department;
-    if (!dept) return false;
-    const leaverRole = leave.core_personnel?.role || leave.role;
-    if (leaverRole && leaverRole !== 'teacher') return false;
-    const head = (allDeptHeads || []).find(h => h.department_name === dept);
-    if (!head) return false;
-    if (head.personnel_id === leave.personnel_id) return false;
-    return true;
-};
-
 // รับทราบใบลาในฐานะหัวหน้ากลุ่มสาระฯ (ใช้ร่วมกันทั้ง admin/dept_head)
 window.acknowledgeLeaveHead = async function (id) {
     const Swal = window.Swal;
     const currentUser = window.currentUser;
     const currentUserRole = window.currentUserRole;
-    
+
     if (!currentUser) {
         Swal.fire('ไม่มีสิทธิ์', 'กรุณาเข้าสู่ระบบใหม่', 'error');
         return;
     }
-    
+
     const isSuperAdmin = currentUserRole === 'super_admin';
-    
+
     // ดึงข้อมูลใบลา
     const { data: leave, error: fetchError } = await window.db
         .from('leave_requests')
@@ -666,7 +654,7 @@ window.acknowledgeLeaveHead = async function (id) {
         Swal.fire('แจ้งเตือน', 'ใบลานี้ถูกรับทราบแล้ว', 'info');
         return;
     }
-    
+
     // ตรวจสอบสิทธิ์
     let headInfo = null;
     if (!isSuperAdmin) {
@@ -685,7 +673,7 @@ window.acknowledgeLeaveHead = async function (id) {
             return;
         }
     }
-    
+
     // ถามวันที่รับทราบ
     const today = new Date().toLocaleDateString('sv-SE');
     const { value: customDate } = await Swal.fire({
@@ -698,15 +686,15 @@ window.acknowledgeLeaveHead = async function (id) {
         cancelButtonText: 'ยกเลิก'
     });
     if (customDate === undefined) return;
-    
+
     const finalDate = customDate || today;
     const finalDateTime = new Date(finalDate + 'T12:00:00+07:00').toISOString();
     const now = new Date().toISOString();
-    
+
     // กำหนด head_personnel_id + head_department
     let headPersonnelId = currentUser.id;
     let headDept = headInfo?.department_name || null;
-    
+
     // Super Admin รับทราบแทน → หาหัวหน้ากลุ่มฯ ตัวจริงของกลุ่มนั้น
     if (isSuperAdmin) {
         const leaveDept = leave.core_personnel?.department;
@@ -722,9 +710,9 @@ window.acknowledgeLeaveHead = async function (id) {
             }
         }
     }
-    
+
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
-    
+
     const updateData = {
         ack_head: true,
         ack_head_at: finalDateTime,
@@ -732,21 +720,21 @@ window.acknowledgeLeaveHead = async function (id) {
         head_department: headDept,
         updated_at: now
     };
-    
+
     const { error } = await window.db.from('leave_requests').update(updateData).eq('id', id);
-    
+
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
         return;
     }
-    
+
     if (typeof window.logUserAction === 'function') {
         await window.logUserAction(`รับทราบใบลา (หัวหน้ากลุ่มฯ) ID: ${id}`, 'leave');
     }
-    
+
     Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 })
         .fire({ icon: 'success', title: 'บันทึกการรับทราบเรียบร้อย' });
-    
+
     // Refresh ตามบริบท
     if (typeof window.loadDashboardStats === 'function') await window.loadDashboardStats();
     if (typeof window.loadDeptHeadLeaves === 'function') await window.loadDeptHeadLeaves();
@@ -761,7 +749,7 @@ window.editAckDate = async function (leaveId, field) {
     const currentUserRole = window.currentUserRole;
 
     // ✅ Whitelist fields
-    const ALLOWED_FIELDS = ['ack_head', 'ack_admin', 'ack_deputy'];
+    const ALLOWED_FIELDS = ['ack_head', 'ack_academic', 'ack_admin', 'ack_deputy'];
     if (!ALLOWED_FIELDS.includes(field)) {
         console.warn('editAckDate: field ไม่ถูกต้อง', field);
         return;
@@ -775,6 +763,7 @@ window.editAckDate = async function (leaveId, field) {
     // ป้ายชื่อแต่ละ field
     const FIELD_LABELS = {
         ack_head: 'หัวหน้ากลุ่มสาระฯ',
+        ack_academic: 'รองผู้อำนวยการกลุ่มบริหารวิชาการ',
         ack_admin: 'แอดมิน',
         ack_deputy: 'รองผู้อำนวยการ'
     };
@@ -782,7 +771,7 @@ window.editAckDate = async function (leaveId, field) {
     // ---------- ดึงข้อมูลใบลา ----------
     const { data: leave, error: fetchError } = await window.db
         .from('leave_requests')
-        .select('id, ack_head, ack_head_at, ack_admin, ack_admin_at, ack_deputy, ack_deputy_at, head_personnel_id, personnel_id')
+        .select('id, ack_head, ack_head_at, ack_academic, ack_academic_at, ack_admin, ack_admin_at, ack_deputy, ack_deputy_at, head_personnel_id, academic_personnel_id, personnel_id')
         .eq('id', leaveId)
         .single();
 
@@ -802,7 +791,9 @@ window.editAckDate = async function (leaveId, field) {
 
     // ---------- ตรวจสอบสิทธิ์ ----------
     const isSuperAdmin = currentUserRole === 'super_admin';
-    const isOwnerOfAck = (field === 'ack_head' && leave.head_personnel_id === currentUser.id);
+    const isOwnerOfAck =
+        (field === 'ack_head' && leave.head_personnel_id === currentUser.id) ||
+        (field === 'ack_academic' && leave.academic_personnel_id === currentUser.id);
 
     // ถ้าไม่ใช่ Super Admin และไม่ใช่เจ้าของ field นั้น → block
     // (แอดมิน/รอง ตรวจสอบฝั่ง UI — เพราะ DB ไม่มีคอลัมน์ admin_personnel_id / deputy_personnel_id)
@@ -811,6 +802,7 @@ window.editAckDate = async function (leaveId, field) {
         const roleFieldMap = {
             'admin': 'ack_admin',
             'deputy': 'ack_deputy'
+            // ✅ ไม่ต้องมี academic เพราะตรวจจาก academic_personnel_id แล้ว (isOwnerOfAck)
         };
         const myField = roleFieldMap[currentUserRole];
         if (myField !== field) {
@@ -880,6 +872,143 @@ window.editAckDate = async function (leaveId, field) {
 // ⚠️ Wrapper สำหรับโค้ดเก่าที่ยังเรียก editAckHeadDate
 window.editAckHeadDate = function (leaveId) {
     return window.editAckDate(leaveId, 'ack_head');
+};
+
+// ==========================================
+// 12. ระบบรองวิชาการรับทราบ (Academic Ack)
+// ==========================================
+
+// ตรวจสอบหมวดหมู่บุคลากร
+window.getPersonnelCategory = function (leave, allDeptHeads) {
+    const pos = leave?.core_personnel?.position || leave?.position || '';
+    const personnelId = leave?.personnel_id;
+
+    // 1. ถ้าเป็นหัวหน้ากลุ่มสาระฯ → head
+    const isHead = (allDeptHeads || []).some(h => h.personnel_id === personnelId);
+    if (isHead) return 'head';
+
+    // 2. ตรวจ staff keywords ก่อน (ต้องเช็คก่อน "ครู" เพราะ "ครูพี่เลี้ยงเด็กพิการ" มีคำว่า "ครู")
+    const staffKeywords = [
+        'เจ้าหน้าที่',
+        'พนักงานขับรถ',
+        'พนักงานบริการ',
+        'พนักงานขับรถยนต์',
+        'พนักงานรักษาความปลอดภัย',
+        'ลูกจ้าง',
+        'ลูกจ้างชั่วคราว',
+        'ลูกจ้างประจำ',
+        'พนักงานธุรการ',
+        'พนักงานบริการทั่วไป',
+        'พนักงานบริการโรงเรียน',
+        'ครูพี่เลี้ยงเด็กพิการ'   // ✅ ไม่นับเป็นครู
+    ];
+    if (staffKeywords.some(kw => pos.includes(kw))) return 'staff';
+
+    // 3. ครู / ครูอัตราจ้าง / พนักงานราชการ → teacher
+    if (pos.includes('ครู') || pos.includes('พนักงานราชการ')) return 'teacher';
+
+    // 4. Default → staff
+    return 'staff';
+};
+
+// ตรวจสอบว่าใบลาต้องการ ack_academic ไหม
+window.needsAcademicAckByLeave = function (leave, allDeptHeads) {
+    return window.getPersonnelCategory(leave, allDeptHeads) === 'head';
+};
+
+// ตรวจสอบว่าใบลาต้องการ ack_head ไหม (เวอร์ชันใหม่)
+window.needsHeadAckByDept = function (leave, allDeptHeads) {
+    const category = window.getPersonnelCategory(leave, allDeptHeads);
+    if (category !== 'teacher') return false;
+
+    const dept = leave.core_personnel?.department || leave.department;
+    if (!dept) return false;
+
+    const head = (allDeptHeads || []).find(h => h.department_name === dept);
+    if (!head) return false;
+
+    // ถ้าคนลาเป็นหัวหน้ากลุ่มฯ ตัวเอง → ข้าม
+    if (head.personnel_id === leave.personnel_id) return false;
+
+    return true;
+};
+
+// รับทราบในฐานะรองวิชาการ (ใช้ร่วม admin)
+window.acknowledgeLeaveAcademic = async function (id) {
+    const Swal = window.Swal;
+    const currentUser = window.currentUser;
+    const currentUserRole = window.currentUserRole;
+
+    if (!currentUser) {
+        Swal.fire('ไม่มีสิทธิ์', 'กรุณาเข้าสู่ระบบใหม่', 'error');
+        return;
+    }
+
+    const isSuperAdmin = currentUserRole === 'super_admin';
+    const academicPersonnelId = window.academicPersonnelId; // set ตอน init
+
+    // ดึงข้อมูลใบลา
+    const { data: leave, error: fetchError } = await window.db
+        .from('leave_requests')
+        .select('id, ack_academic')
+        .eq('id', id)
+        .single();
+    if (fetchError) {
+        Swal.fire('ผิดพลาด', fetchError.message, 'error');
+        return;
+    }
+    if (leave.ack_academic) {
+        Swal.fire('แจ้งเตือน', 'ใบลานี้ถูกรับทราบแล้ว', 'info');
+        return;
+    }
+
+    // ตรวจสอบสิทธิ์
+    if (!isSuperAdmin && currentUser.id !== academicPersonnelId) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะรองผู้อำนวยการกลุ่มบริหารวิชาการ หรือ Super Admin เท่านั้น', 'error');
+        return;
+    }
+
+    // ถามวันที่รับทราบ
+    const today = new Date().toLocaleDateString('sv-SE');
+    const { value: customDate } = await Swal.fire({
+        title: 'วันที่รับทราบ',
+        text: 'ระบุวันที่รับทราบ (ถ้าต้องการย้อนหลัง) หรือกดตกลงเพื่อใช้วันนี้',
+        input: 'date',
+        inputValue: today,
+        showCancelButton: true,
+        confirmButtonText: 'ตกลง',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (customDate === undefined) return;
+
+    const finalDate = customDate || today;
+    const finalDateTime = new Date(finalDate + 'T12:00:00+07:00').toISOString();
+    const now = new Date().toISOString();
+
+    Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const updateData = {
+        ack_academic: true,
+        ack_academic_at: finalDateTime,
+        academic_personnel_id: academicPersonnelId || null,
+        updated_at: now
+    };
+
+    const { error } = await window.db.from('leave_requests').update(updateData).eq('id', id);
+
+    if (error) {
+        Swal.fire('ผิดพลาด', error.message, 'error');
+        return;
+    }
+
+    if (typeof window.logUserAction === 'function') {
+        await window.logUserAction(`รับทราบใบลา (รองวิชาการ) ID: ${id}`, 'leave');
+    }
+
+    Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1500 })
+        .fire({ icon: 'success', title: 'บันทึกการรับทราบเรียบร้อย' });
+
+    if (typeof window.loadDashboardStats === 'function') await window.loadDashboardStats();
 };
 
 console.log('✅ leave_core.js loaded (all functions registered globally) — using RPC for holiday calculation');
