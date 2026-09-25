@@ -85,6 +85,7 @@ $(document).ready(async function () {
         }
 
         await window.loadDeptHeadLeaves();
+        await window.loadDepartmentTeachersCount();   // ✅ เพิ่มบรรทัดนี้
 
         if (typeof window.logUserAction === 'function') {
             await window.logUserAction(`เข้าสู่ระบบ (หัวหน้ากลุ่มสาระฯ: ${headInfo?.department_name || 'ทุกกลุ่ม'})`, 'leave');
@@ -136,6 +137,7 @@ window.loadDeptHeadLeaves = async function () {
 
         window.renderDeptTables();
         window.updateStats(filtered);
+        window.loadDepartmentTeachersCount();   // ✅ โหลดแบบ non-blocking
     } catch (err) {
         console.error('loadDeptHeadLeaves error:', err);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, 'error');
@@ -145,11 +147,68 @@ window.loadDeptHeadLeaves = async function () {
 window.updateStats = function (all) {
     $('#stat-pending').text(window.pendingLeaves.length);
     $('#stat-done').text(window.doneLeaves.length);
-    const teachers = new Set(all.map(l => l.personnel_id));
-    $('#stat-teachers').text(teachers.size);
+    // ✅ ตัวเลขครูในกลุ่ม โหลดแยกจาก loadDepartmentTeachersCount()
     const today = new Date().toLocaleDateString('sv-SE');
     const todayCount = all.filter(l => l.start_date <= today && l.end_date >= today).length;
     $('#stat-today').text(todayCount);
+};
+
+// ==========================================
+// โหลดจำนวนครูในกลุ่ม (ทุกคน ไม่ใช่แค่ที่ลา)
+// รวม: ครู / ครูอัตราจ้าง / พนักงานราชการ / หัวหน้ากลุ่มฯ
+// ไม่รวม: ครูพี่เลี้ยงเด็กพิการ, เจ้าหน้าที่, พนักงาน, ลูกจ้าง
+// ==========================================
+window.loadDepartmentTeachersCount = async function () {
+    try {
+        // ✅ กำหนดขอบเขตกลุ่ม
+        const targetDept = window.isSuperAdmin
+            ? window.currentGroupFilter            // null = ทุกกลุ่ม
+            : window.headInfo.department_name;     // เฉพาะกลุ่มตัวเอง
+
+        let query = db.from('core_personnel')
+            .select('id, department, position');
+
+        if (targetDept) {
+            query = query.eq('department', targetDept);
+        }
+
+        const { data, error } = await query;
+        if (error) throw error;
+
+        // ✅ กรองด้วย logic เดียวกับ getPersonnelCategory
+        const staffKeywords = [
+            'เจ้าหน้าที่', 'พนักงานขับรถ', 'พนักงานบริการ',
+            'พนักงานขับรถยนต์', 'พนักงานรักษาความปลอดภัย',
+            'ลูกจ้าง', 'ลูกจ้างชั่วคราว', 'ลูกจ้างประจำ',
+            'พนักงานธุรการ', 'พนักงานบริการทั่วไป',
+            'พนักงานบริการโรงเรียน', 'ครูพี่เลี้ยงเด็กพิการ'
+        ];
+
+        const teachers = (data || []).filter(p => {
+            const pos = p.position || '';
+            // ตัด staff ออกก่อน (สำคัญ! ต้องเช็คก่อน "ครู")
+            if (staffKeywords.some(kw => pos.includes(kw))) return false;
+            // นับเฉพาะ "ครู" หรือ "พนักงานราชการ"
+            return pos.includes('ครู') || pos.includes('พนักงานราชการ');
+        });
+
+        // ✅ รวมหัวหน้ากลุ่มฯ ของกลุ่มนั้นด้วย (ถ้ามี)
+        const heads = (window.allDeptHeads || []).filter(h => {
+            if (targetDept && h.department_name !== targetDept) return false;
+            return true;
+        });
+        heads.forEach(h => {
+            if (!teachers.find(t => t.id === h.personnel_id)) {
+                // หัวหน้ากลุ่มฯ เป็นครูอยู่แล้ว → นับเป็น 1 คน
+                teachers.push({ id: h.personnel_id, position: 'หัวหน้ากลุ่มสาระฯ' });
+            }
+        });
+
+        $('#stat-teachers').text(teachers.length);
+    } catch (err) {
+        console.error('loadDepartmentTeachersCount error:', err);
+        $('#stat-teachers').text('-');
+    }
 };
 
 // ==========================================
@@ -373,6 +432,7 @@ window.onDeptHeadGroupChange = async function () {
     }
 
     await window.loadDeptHeadLeaves();
+    await window.loadDepartmentTeachersCount();   // ✅ เพิ่มบรรทัดนี้
 };
 
 console.log('✅ leave_dept_head.js loaded');
