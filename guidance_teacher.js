@@ -526,12 +526,15 @@ async function printPDF_v7() {
             if (val === 0) allPassed = false;
         });
 
-        const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
-        if (std.student_status === 'ปกติ') {
-            if (finalRes === 'ผ') passCount++;
-            else failCount++;
-        }
-        return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
+const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
+
+// ✅ นับนักเรียนที่ไม่ได้อยู่ในสถานะพิเศษ (ขาดนาน / พักการเรียน / ออก)
+const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ออก'].includes(std.student_status);
+if (!isSpecialStatus) {
+    if (finalRes === 'ผ') passCount++;
+    else failCount++;
+}
+return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
     });
 
     // ใน printPDF_v7() หลังจากคำนวณ subjectCode
