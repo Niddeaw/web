@@ -999,22 +999,61 @@ async function exportCommitteeEvaluation(roundId) {
  * @returns {Object|null} { headers, rows }
  */
 async function generateCommitteeSheetData(roundId, mainGroupId) {
-    // 1. ดึง sub groups ที่เกี่ยวข้อง
-    let subQuery = db.from('eval_committee_groups')
-        .select('*, eval_committee_targets(*), eval_committee_members(user_id, core_personnel(first_name, last_name))')
+    // ==========================================
+    // ✅ 1. ดึง sub_group_ids ที่ถูกใช้จริงใน eval_results
+    //    (ทั้ง main และ sub ที่กรรมการบันทึกไว้)
+    // ==========================================
+    const { data: usedSubGroupIds, error: usedErr } = await db
+        .from('eval_results')
+        .select('sub_group_id')
         .eq('eval_round_id', roundId)
-        .eq('group_type', 'sub')
+        .eq('eval_type', 'committee')
+        .eq('status', 'submitted')
+        .not('sub_group_id', 'is', null);
+
+    if (usedErr) throw usedErr;
+
+    const usedIds = [...new Set((usedSubGroupIds || []).map(e => e.sub_group_id))];
+
+    if (usedIds.length === 0) {
+        console.warn('⚠️ ไม่พบ sub_group_id ที่ถูกใช้จริง');
+        return null;
+    }
+
+    console.log(`📌 พบ ${usedIds.length} committee groups ที่ถูกใช้จริง`);
+
+    // ==========================================
+    // ✅ 2. ดึง committee_groups ตาม id (ทั้ง main + sub)
+    // ==========================================
+    let groupQuery = db.from('eval_committee_groups')
+        .select('*, eval_committee_targets(*), eval_committee_members(user_id, core_personnel(first_name, last_name))')
+        .in('id', usedIds)
         .eq('is_active', true);
 
     if (mainGroupId) {
-        subQuery = subQuery.eq('parent_group_id', mainGroupId);
+        // ถ้ากรองเฉพาะ main group เดียว → เอา main + sub ของ main นั้น
+        groupQuery = db.from('eval_committee_groups')
+            .select('*, eval_committee_targets(*), eval_committee_members(user_id, core_personnel(first_name, last_name))')
+            .or(`id.eq.${mainGroupId},parent_group_id.eq.${mainGroupId}`)
+            .in('id', usedIds)
+            .eq('is_active', true);
     }
-    const { data: subGroups, error: sgErr } = await subQuery;
+
+    const { data: subGroups, error: sgErr } = await groupQuery;
     if (sgErr) throw sgErr;
 
     if (!subGroups || subGroups.length === 0) return null;
 
-    // 2. รวบรวม department targets จากทุก sub group
+    console.log(`📦 พบ ${subGroups.length} groups (main + sub)`);
+    subGroups.forEach(g => {
+        console.log(`   • ${g.group_name} (${g.group_type}): ${(g.selected_sub_items || []).length} หัวข้อ`);
+    });
+
+    // ==========================================
+    // ✅ โค้ดที่เหลือ ใช้เหมือนเดิมทุกอย่าง
+    // ==========================================
+    
+    // 2. รวบรวม department targets จากทุก group
     const deptSet = new Set();
     subGroups.forEach(sub => {
         (sub.eval_committee_targets || []).forEach(t => {
@@ -1038,7 +1077,7 @@ async function generateCommitteeSheetData(roundId, mainGroupId) {
 
     const teacherIds = teachers.map(t => t.id);
 
-    // 4. ดึง eval_results ของครูทั้งหมดในรอบนี้ (committee)
+    // 4. ดึง eval_results ของครูทั้งหมด
     const { data: evalResults, error: eErr } = await db
         .from('eval_results')
         .select('*')
@@ -1049,35 +1088,65 @@ async function generateCommitteeSheetData(roundId, mainGroupId) {
 
     if (eErr) throw eErr;
 
-    // จัดกลุ่ม eval ตาม evaluatee_id
     const evalMap = {};
     (evalResults || []).forEach(ev => {
         if (!evalMap[ev.evaluatee_id]) evalMap[ev.evaluatee_id] = [];
         evalMap[ev.evaluatee_id].push(ev);
     });
 
-    // 5. สร้าง headers (ใช้ STANDARD_FULL_ITEMS)
+    // ==========================================
+    // ✅ 5. ใช้ STANDARD_FULL_ITEMS (29 รายการ)
+    // ==========================================
+    const requiredItems = STANDARD_FULL_ITEMS.map(item => ({
+        element: item.element,
+        value: item.value,
+        part: item.part || '',
+        label: item.label || ''
+    })).sort((a, b) => {
+        if (a.element !== b.element) return parseInt(a.element) - parseInt(b.element);
+        if ((a.part || '') !== (b.part || '')) return (a.part || '').localeCompare(b.part || '');
+        return parseFloat(a.value.replace('_', '.')) - parseFloat(b.value.replace('_', '.'));
+    });
+
+    // ==========================================
+    // ✅ 6. สร้าง headers
+    // ==========================================
+    function getCleanHeaderLabel(item) {
+        const rawLabel = item.label || '';
+        if (item.element === '1' && item.part === '1') {
+            return rawLabel || `1.${item.value.replace('_', '.')}`;
+        }
+        if (item.element === '1' && item.part === '2') {
+            return `[ตอน2] ${rawLabel || item.value}`;
+        }
+        if (item.element === '2') {
+            return `2.1 ${rawLabel}`;
+        }
+        if (item.element === '3') {
+            const cleanedText = rawLabel.replace(/^\d+\.\s*/, '');
+            return `3.${item.value} ${cleanedText}`;
+        }
+        return rawLabel || `${item.element}.${item.value}`;
+    }
+
     const headers = ['กลุ่มสาระ', 'ชื่อ-สกุล', 'วิทยฐานะ'];
-    const itemHeaders = STANDARD_FULL_ITEMS.map(item => `${item.element}.${item.value}`);
-    headers.push(...itemHeaders);
+    requiredItems.forEach(item => {
+        headers.push(getCleanHeaderLabel(item));
+    });
     headers.push('คะแนนรวม');
 
     const rows = [];
 
-    // 6. สำหรับครูแต่ละคน
+    // 7. สำหรับครูแต่ละคน
     for (const teacher of teachers) {
-        // หา sub groups ที่เกี่ยวข้องกับครูนี้ (department ตรง)
         const relevantSubGroups = subGroups.filter(sub => {
             const targets = sub.eval_committee_targets || [];
             return targets.some(t => t.target_type === 'department' && t.target_value === teacher.department);
         });
 
-        if (relevantSubGroups.length === 0) {
-            // ครูคนนี้ไม่อยู่ในกลุ่มเป้าหมายของ sub group ใด -> ข้าม
-            continue;
-        }
+        if (relevantSubGroups.length === 0) continue;
 
-        // รวบรวมกรรมการที่เกี่ยวข้อง (unique user_id)
+        // รวบรวมกรรมการ
         const memberSet = new Set();
         relevantSubGroups.forEach(sub => {
             (sub.eval_committee_members || []).forEach(m => {
@@ -1087,59 +1156,96 @@ async function generateCommitteeSheetData(roundId, mainGroupId) {
         const memberIds = Array.from(memberSet);
         if (memberIds.length === 0) continue;
 
-        // ดึง eval ของครูคนนี้
         const evals = evalMap[teacher.id] || [];
-        // กรองเฉพาะ eval ที่ evaluator อยู่ใน memberIds
         const relevantEvals = evals.filter(ev => memberIds.includes(ev.evaluator_id));
 
-        // สร้าง row เริ่มต้น
         const row = [
             teacher.department || '-',
             `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`,
             teacher.academic_standing || '-'
         ];
 
-        let allScoresComplete = true;
         const scoreValues = [];
 
-        // สำหรับแต่ละหัวข้อใน STANDARD_FULL_ITEMS
-        for (const item of STANDARD_FULL_ITEMS) {
-            // รวบรวมคะแนนจากกรรมการทุกคนที่มีคะแนนในหัวข้อนี้
+        for (const item of requiredItems) {
             const scores = [];
             for (const ev of relevantEvals) {
-                const score = extractScoreFromDetails(ev.detailed_scores || {}, item, teacher.academic_standing);
+                const score = extractScoreFromDetails(
+                    ev.detailed_scores || {},
+                    item,
+                    teacher.academic_standing
+                );
                 if (score !== null && score !== undefined && score !== '') {
                     scores.push(score);
                 }
             }
 
-            // ตรวจสอบว่ามีคะแนนครบตามจำนวนกรรมการหรือไม่
-            const isComplete = scores.length === memberIds.length;
             let modeValue = '-';
-            if (isComplete && scores.length > 0) {
+            if (scores.length > 0) {
                 const mode = calculateMode(scores);
                 modeValue = mode !== null ? mode : '-';
-            } else {
-                allScoresComplete = false;
             }
             row.push(modeValue);
             scoreValues.push(modeValue);
         }
 
-        // คำนวณคะแนนรวม (ถ้าครบทุกหัวข้อ)
+        // คำนวณคะแนนรวม
         let totalScore = '-';
-        if (allScoresComplete) {
-            // รวมคะแนนจาก mode ทั้งหมด (เฉพาะที่เป็นตัวเลข)
-            const numericScores = scoreValues.filter(v => typeof v === 'number' && !isNaN(v));
-            if (numericScores.length === scoreValues.length) {
-                totalScore = numericScores.reduce((a, b) => a + b, 0).toFixed(2);
-            }
-        }
-        row.push(totalScore);
+        try {
+            const modeDetails = {
+                p1_s1: null, p1_s2: [], p2: null, p3: []
+            };
+            let p1s1Sum = 0;
 
+            requiredItems.forEach((item, idx) => {
+                const modeVal = scoreValues[idx];
+                if (modeVal === '-' || modeVal === null || modeVal === undefined) return;
+
+                if (item.element === '1' && item.part === '1') {
+                    p1s1Sum += parseFloat(modeVal) || 0;
+                } else if (item.element === '1' && item.part === '2') {
+                    modeDetails.p1_s2.push(parseFloat(modeVal) || 0);
+                } else if (item.element === '2') {
+                    modeDetails.p2 = parseFloat(modeVal) || 0;
+                } else if (item.element === '3') {
+                    modeDetails.p3.push(parseFloat(modeVal) || 0);
+                }
+            });
+
+            if (p1s1Sum > 0) modeDetails.p1_s1 = p1s1Sum;
+
+            if (typeof calculateTotalScoreFromModeDetails === 'function') {
+                const total = calculateTotalScoreFromModeDetails(
+                    modeDetails,
+                    teacher.academic_standing
+                );
+                totalScore = total.toFixed(2);
+            } else {
+                const isAssistant = teacher.academic_standing === 'ครูผู้ช่วย';
+                let total = 0;
+                if (modeDetails.p1_s1) {
+                    total += isAssistant ? (modeDetails.p1_s1 * 80) / 56 : modeDetails.p1_s1;
+                }
+                if (modeDetails.p1_s2.length === 3) {
+                    const [m1, m2, m3] = modeDetails.p1_s2;
+                    total += ((m1 / 4) * 20 + (m2 / 4) * 10 + (m3 / 4) * 10) / 2;
+                }
+                if (modeDetails.p2 !== null) total += modeDetails.p2 * 2;
+                if (modeDetails.p3.length > 0) {
+                    total += modeDetails.p3.reduce((a, b) => a + b, 0) / 4;
+                }
+                totalScore = Math.min(Math.max(total, 0), 100).toFixed(2);
+            }
+        } catch (err) {
+            console.warn('Total calc error:', err);
+            totalScore = '-';
+        }
+
+        row.push(totalScore);
         rows.push(row);
     }
 
+    console.log(`✅ generateCommitteeSheetData: ${rows.length} rows, ${requiredItems.length} items`);
     return { headers, rows };
 }
 
@@ -1147,45 +1253,94 @@ async function generateCommitteeSheetData(roundId, mainGroupId) {
  * ดึงคะแนนจาก detailed_scores ตาม item ใน STANDARD_FULL_ITEMS
  */
 function extractScoreFromDetails(details, item, academicStanding) {
-    const criteria = getCriteriaByAcademic(academicStanding);
     const element = item.element;
     const part = item.part || '';
     const value = item.value;
 
-    if (element === '1') {
-        if (part === '1') {
-            // p1_s1
-            const p1s1 = details.p1_s1 || [];
+    // ✅ รองรับ 2 รูปแบบ: "1_1" (underscore) และ "11" (ไม่มี underscore)
+    const targetKeyUnderscore = value.replace('.', '_');          // "1_1"
+    const targetKeyNoUnderscore = value.replace(/[._]/g, '');     // "11"
+    const targetKeyDot = value.replace('_', '.');                 // "1.1"
+
+    // ==========================================
+    // องค์ประกอบ 1 ตอนที่ 1
+    // ==========================================
+    if (element === '1' && part === '1') {
+        const p1s1 = details.p1_s1 || [];
+        const keys = details.p1_s1_keys || [];
+
+        // ลองทั้ง 3 รูปแบบ
+        for (const tk of [targetKeyUnderscore, targetKeyNoUnderscore, targetKeyDot, value]) {
+            const idx = keys.indexOf(tk);
+            if (idx >= 0 && idx < p1s1.length) return p1s1[idx];
+        }
+
+        // Fallback: ถ้าเก่าไม่มี keys → ใช้ position ใน criteria
+        if (keys.length === 0) {
+            const criteria = getCriteriaByAcademic(academicStanding);
             const allItems = [];
             (criteria.part1_sec1 || []).forEach(group => {
                 group.items.forEach(it => allItems.push(it));
             });
-            const idx = allItems.findIndex(it => it.id === value || it.id === value.replace('.', '_'));
-            if (idx !== -1 && idx < p1s1.length) {
-                return p1s1[idx];
-            }
-        } else if (part === '2') {
-            // p1_s2
-            const p1s2 = details.p1_s2 || [];
-            const idMap = { '1': 0, '2.1': 1, '2.2': 2 };
-            const idx = idMap[value];
-            if (idx !== undefined && idx < p1s2.length) {
-                return p1s2[idx];
+            const fallbackIdx = allItems.findIndex(it =>
+                it.id === value ||
+                it.id === targetKeyUnderscore ||
+                it.id === targetKeyNoUnderscore
+            );
+            if (fallbackIdx !== -1 && fallbackIdx < p1s1.length) {
+                return p1s1[fallbackIdx];
             }
         }
-    } else if (element === '2') {
-        // p2
+    }
+
+    // ==========================================
+    // องค์ประกอบ 1 ตอนที่ 2
+    // ==========================================
+    else if (element === '1' && part === '2') {
+        const p1s2 = details.p1_s2 || [];
+        const keys = details.p1_s2_keys || [];
+
+        const idx = keys.indexOf(value);
+        if (idx >= 0 && idx < p1s2.length) return p1s2[idx];
+
+        // Fallback
+        if (keys.length === 0) {
+            const idMap = { '1': 0, '2.1': 1, '2.2': 2 };
+            const fallbackIdx = idMap[value];
+            if (fallbackIdx !== undefined && fallbackIdx < p1s2.length) {
+                return p1s2[fallbackIdx];
+            }
+        }
+    }
+
+    // ==========================================
+    // องค์ประกอบ 2
+    // ==========================================
+    else if (element === '2') {
         if (details.p2 !== undefined && details.p2 !== null) {
             return details.p2;
         }
-    } else if (element === '3') {
-        // p3
+    }
+
+    // ==========================================
+    // องค์ประกอบ 3
+    // ==========================================
+    else if (element === '3') {
         const p3 = details.p3 || [];
-        const idx = parseInt(value) - 1;
-        if (idx >= 0 && idx < p3.length) {
-            return p3[idx];
+        const keys = details.p3_keys || [];
+
+        const idx = keys.indexOf(value);
+        if (idx >= 0 && idx < p3.length) return p3[idx];
+
+        // Fallback
+        if (keys.length === 0) {
+            const fallbackIdx = parseInt(value) - 1;
+            if (fallbackIdx >= 0 && fallbackIdx < p3.length) {
+                return p3[fallbackIdx];
+            }
         }
     }
+
     return null;
 }
 
@@ -1195,30 +1350,23 @@ function extractScoreFromDetails(details, item, academicStanding) {
 function createWorksheetFromData({ headers, rows }) {
     const wsData = [headers, ...rows];
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [
-        { wch: 25 }, // กลุ่มสาระ
-        { wch: 35 }, // ชื่อ-สกุล
-        { wch: 20 }, // วิทยฐานะ
-        ...STANDARD_FULL_ITEMS.map(() => ({ wch: 12 }))
-    ];
+    ws['!cols'] = headers.map((_, i) => {
+        if (i === 0) return { wch: 25 };
+        if (i === 1) return { wch: 35 };
+        if (i === 2) return { wch: 20 };
+        if (i === headers.length - 1) return { wch: 12 };
+        return { wch: 15 };
+    });
     return ws;
 }
 
 // ==========================================
 // EXPOSE GLOBAL FUNCTIONS
 // ==========================================
-
-// ------------------------------------------
-// ฟังก์ชันส่งออก Excel (ใหม่)
-// ------------------------------------------
 window.showExportModal = showExportModal;
-window.exportAllResults = showExportModal;          // ตัวเดิมถูกแทนที่ด้วย showExportModal
+window.exportAllResults = showExportModal;
 window.exportSelfEvaluation = exportSelfEvaluation;
 window.exportCommitteeEvaluation = exportCommitteeEvaluation;
-
-// ------------------------------------------
-// ฟังก์ชันอื่น ๆ (ที่มีอยู่แล้ว)
-// ------------------------------------------
 window.checkEvaluatorAssignments = checkEvaluatorAssignments;
 window.closeEvaluatorAssignmentModal = closeEvaluatorAssignmentModal;
 window.loadResultsTable = loadResultsTable;

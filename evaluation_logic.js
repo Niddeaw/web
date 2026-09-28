@@ -408,21 +408,32 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId, context = nu
 
         const teacher = personnelById.get(evaluateeId);
         const academicStanding = teacher?.academic_standing || 'ครู';
+        const teacherDept = teacher?.department;
 
         if (!subGroups || subGroups.length === 0) return null;
 
-        // รวม eval ทั้งหมดของครูคนนี้
-        let allEvalsCount = 0;
-        subGroups.forEach(sg => {
-            const evs = evalsByKey.get(`${evaluateeId}::${sg.id}`);
-            if (evs) allEvalsCount += evs.length;
-        });
-
-        if (allEvalsCount === 0) return null;
-
-        const groupResults = [];
+        // ==========================================
+        // ✅ [FIX] รวบรวม evals ของครู จากกลุ่มที่ตรง target เท่านั้น
+        //    แล้วทำ Mode per-key (ไม่ใช้ Mode ของ mode_score)
+        // ==========================================
+        const p1s1ByKey = {};   // key → [scores]
+        const p1s2ByKey = {};   // key → [scores]
+        const p2All = [];       // [levels]
+        const p3ByKey = {};     // key → [scores]
+        
+        let validGroupCount = 0;
+        const usedEvaluatorIds = new Set();
+        const usedGroupIds = new Set();
 
         for (const subGroup of subGroups) {
+            // ✅ [FIX] กรองเฉพาะกลุ่มที่ครูคนนี้อยู่ใน target
+            const targetDepts = (subGroup.eval_committee_targets || [])
+                .filter(t => t.target_type === 'department')
+                .map(t => t.target_value);
+            if (targetDepts.length > 0 && teacherDept && !targetDepts.includes(teacherDept)) {
+                continue;
+            }
+
             const members = subGroup.eval_committee_members || [];
             if (members.length === 0) continue;
 
@@ -432,140 +443,105 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId, context = nu
 
             if (groupEvals.length === 0) continue;
 
-            // ----- คำนวณ Mode Details (logic เดิม) -----
-            const modeDetails = {};
+            validGroupCount++;
+            usedGroupIds.add(subGroup.id);
 
-            // ✅ [FIX] Mode ของ "ผลรวมต่อกรรมการ"
-            const p1s1SumPerEvaluator = [];
             groupEvals.forEach(r => {
-                const arr = r.detailed_scores?.p1_s1;
-                if (Array.isArray(arr) && arr.length > 0) {
-                    const sum = arr.reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-                    p1s1SumPerEvaluator.push(sum);
-                }
-            });
-            if (p1s1SumPerEvaluator.length > 0) {
-                const mode = findMode(p1s1SumPerEvaluator);
-                if (mode !== null) modeDetails.p1_s1 = mode;
-            }
+                usedEvaluatorIds.add(r.evaluator_id);
+                const ds = r.detailed_scores || {};
 
-            const p1s2Modes = [];
-            for (let i = 0; i < 3; i++) {
-                const scores = [];
-                groupEvals.forEach(r => {
-                    const arr = r.detailed_scores?.p1_s2;
-                    if (Array.isArray(arr) && arr.length > i) {
-                        const val = arr[i];
-                        if (typeof val === 'number' && !isNaN(val)) scores.push(val);
+                // ---- p1_s1 ----
+                const p1s1Keys = ds.p1_s1_keys || [];
+                const p1s1Vals = ds.p1_s1 || [];
+                p1s1Keys.forEach((k, i) => {
+                    const v = p1s1Vals[i];
+                    if (typeof v === 'number' && !isNaN(v)) {
+                        if (!p1s1ByKey[k]) p1s1ByKey[k] = [];
+                        p1s1ByKey[k].push(v);
                     }
                 });
-                if (scores.length > 0) {
-                    const mode = findMode(scores);
-                    p1s2Modes.push(mode !== null ? mode : null);
-                } else {
-                    p1s2Modes.push(null);
+
+                // ---- p1_s2 ----
+                const p1s2Keys = ds.p1_s2_keys || ['1', '2.1', '2.2'];
+                const p1s2Vals = ds.p1_s2 || [];
+                p1s2Vals.forEach((v, i) => {
+                    if (typeof v === 'number' && !isNaN(v)) {
+                        const k = p1s2Keys[i] || String(i);
+                        if (!p1s2ByKey[k]) p1s2ByKey[k] = [];
+                        p1s2ByKey[k].push(v);
+                    }
+                });
+
+                // ---- p2 ----
+                if (typeof ds.p2 === 'number' && !isNaN(ds.p2)) {
+                    p2All.push(ds.p2);
                 }
-            }
-            if (p1s2Modes.some(m => m !== null)) modeDetails.p1_s2 = p1s2Modes;
 
-            const allP2 = [];
-            groupEvals.forEach(r => {
-                const val = r.detailed_scores?.p2;
-                if (typeof val === 'number' && !isNaN(val)) allP2.push(val);
-            });
-            if (allP2.length > 0) {
-                const mode = findMode(allP2);
-                if (mode !== null) modeDetails.p2 = mode;
-            }
-
-            // ✅ [FIX] Mode ของ "ผลรวมต่อกรรมการ"
-            const p3SumPerEvaluator = [];
-            groupEvals.forEach(r => {
-                const arr = r.detailed_scores?.p3;
-                if (Array.isArray(arr) && arr.length > 0) {
-                    const sum = arr.reduce((a, b) => a + (typeof b === 'number' ? b : 0), 0);
-                    p3SumPerEvaluator.push(sum);
-                }
-            });
-            if (p3SumPerEvaluator.length > 0) {
-                const mode = findMode(p3SumPerEvaluator);
-                if (mode !== null) modeDetails.p3 = mode;
-            }
-
-            const totalScore = calculateTotalScoreFromModeDetails(modeDetails, academicStanding);
-
-            groupResults.push({
-                sub_group_id: subGroup.id,
-                group_name: subGroup.group_name,
-                evaluator_count: groupEvals.length,
-                mode_score: totalScore,
-                detailed_scores: modeDetails,
-                all_scores: groupEvals.map(r => r.total_score),
-                evaluators: groupEvals.map(r => r.evaluator_id)
+                // ---- p3 ----
+                const p3Keys = ds.p3_keys || [];
+                const p3Vals = ds.p3 || [];
+                p3Keys.forEach((k, i) => {
+                    const v = p3Vals[i];
+                    if (typeof v === 'number' && !isNaN(v)) {
+                        if (!p3ByKey[k]) p3ByKey[k] = [];
+                        p3ByKey[k].push(v);
+                    }
+                });
             });
         }
 
-        if (groupResults.length === 0) return null;
+        if (validGroupCount === 0 || usedEvaluatorIds.size === 0) return null;
 
-        // ----- รวม Mode ข้ามชุด -----
+        // ==========================================
+        // ✅ [FIX] Mode per-key + sum
+        // ==========================================
         const finalModeDetails = {};
 
-        const allModesP1S1 = groupResults
-            .map(g => g.detailed_scores?.p1_s1)
-            .filter(v => v !== undefined && v !== null);
-        if (allModesP1S1.length > 0) {
-            const mode = findMode(allModesP1S1);
-            if (mode !== null) finalModeDetails.p1_s1 = mode;
+        // p1_s1: sum ของ Mode ต่อ key
+        let p1s1Sum = 0;
+        Object.values(p1s1ByKey).forEach(vals => {
+            const mode = findMode(vals);
+            if (mode !== null) p1s1Sum += mode;
+        });
+        if (p1s1Sum > 0) finalModeDetails.p1_s1 = p1s1Sum;
+
+        // p1_s2: array ของ Mode ต่อ key (เรียงตาม 1, 2.1, 2.2)
+        const p1s2KeysOrder = ['1', '2.1', '2.2'];
+        const p1s2Modes = p1s2KeysOrder.map(k => {
+            const vals = p1s2ByKey[k] || [];
+            return vals.length > 0 ? findMode(vals) : null;
+        });
+        if (p1s2Modes.some(m => m !== null)) {
+            finalModeDetails.p1_s2 = p1s2Modes;
         }
 
-        const p1s2ModesByItem = [[], [], []];
-        groupResults.forEach(g => {
-            const arr = g.detailed_scores?.p1_s2;
-            if (Array.isArray(arr) && arr.length === 3) {
-                arr.forEach((val, idx) => {
-                    if (typeof val === 'number' && !isNaN(val)) p1s2ModesByItem[idx].push(val);
-                });
-            }
-        });
-        const finalP1S2Modes = p1s2ModesByItem.map(scores =>
-            scores.length === 0 ? null : findMode(scores)
-        );
-        if (finalP1S2Modes.some(m => m !== null)) finalModeDetails.p1_s2 = finalP1S2Modes;
-
-        const allModesP2 = groupResults
-            .map(g => g.detailed_scores?.p2)
-            .filter(v => v !== undefined && v !== null);
-        if (allModesP2.length > 0) {
-            const mode = findMode(allModesP2);
+        // p2
+        if (p2All.length > 0) {
+            const mode = findMode(p2All);
             if (mode !== null) finalModeDetails.p2 = mode;
         }
 
-        const allModesP3 = groupResults
-            .map(g => g.detailed_scores?.p3)
-            .filter(v => v !== undefined && v !== null);
-        if (allModesP3.length > 0) {
-            const mode = findMode(allModesP3);
-            if (mode !== null) finalModeDetails.p3 = mode;
-        }
+        // p3: sum ของ Mode ต่อ key
+        let p3Sum = 0;
+        Object.values(p3ByKey).forEach(vals => {
+            const mode = findMode(vals);
+            if (mode !== null) p3Sum += mode;
+        });
+        if (p3Sum > 0) finalModeDetails.p3 = p3Sum;
 
         const finalTotal = calculateTotalScoreFromModeDetails(finalModeDetails, academicStanding);
 
         return {
-            total_evaluators: allEvalsCount,
-            committee_groups: groupResults.length,
+            total_evaluators: usedEvaluatorIds.size,
+            committee_groups: validGroupCount,
             final_score: finalTotal,
-            group_averages: groupResults.map(g => ({
-                group_name: g.group_name,
-                mode_score: g.mode_score,
-                evaluator_count: g.evaluator_count,
-                detailed_scores: g.detailed_scores
-            })),
+            group_averages: [],  // optional
             detailed_scores: finalModeDetails,
             status: 'finalized'
         };
 
     } catch (err) {
-        console.error('Error calculating final average (Mode):', err);
+        console.error('Error calculating final average:', err);
         return null;
     }
 }
