@@ -438,10 +438,8 @@
             <div class="flex border-b border-gray-200/50 bg-white/50 overflow-x-auto px-2 pt-2 shrink-0">
                 <button onclick="switchAdminTab('tab-attendance', this)"
                     class="admin-tab-btn active tab-btn whitespace-nowrap">1. เวลาเรียน</button>
-                <button onclick="switchAdminTab('tab-scores', this)" class="admin-tab-btn tab-btn whitespace-nowrap">2.
-                    คะแนน</button>
                 <button onclick="switchAdminTab('tab-attributes', this)"
-                    class="admin-tab-btn tab-btn whitespace-nowrap">3. คุณลักษณะ</button>
+                    class="admin-tab-btn tab-btn whitespace-nowrap">2. คุณลักษณะ</button>
             </div>
 
             <!-- แท็บเวลาเรียน -->
@@ -460,30 +458,6 @@
                         <tr id="att-header-row-2" class="text-[11px] font-normal text-gray-600 tracking-tighter"></tr>
                     </thead>
                     <tbody id="tb-attendance"></tbody>
-                </table>
-            </div>
-
-            <!-- แท็บคะแนน -->
-            <div id="tab-scores" class="admin-tab-content p-3 hidden table-responsive flex-1">
-                <div class="mb-3 flex justify-between items-center px-2">
-                    <div class="text-sm font-bold text-gray-600">จัดการข้อมูลคะแนนระหว่างเรียน</div>
-                </div>
-                <table class="w-full text-center text-sm">
-                    <thead>
-                        <tr>
-                            <th class="col-no">เลขที่</th>
-                            <th class="col-name">ชื่อ-สกุล</th>
-                            <th>ครั้งที่ 1</th>
-                            <th>ครั้งที่ 2</th>
-                            <th>ครั้งที่ 3</th>
-                            <th>ครั้งที่ 4</th>
-                            <th>ครั้งที่ 5</th>
-                            <th class="bg-green-50 text-green-700 border-l-2 border-green-200">รวม</th>
-                            <th class="bg-orange-50 text-orange-700 border-l-2 border-orange-200">Pretest</th>
-                            <th class="bg-purple-50 text-purple-700 border-l-2 border-purple-200">Posttest</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-scores"></tbody>
                 </table>
             </div>
 

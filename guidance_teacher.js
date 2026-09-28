@@ -1,8 +1,6 @@
 // ==========================================
-// guidance_teacher.js — ระบบครูผู้สอนแนะแนว (ปรับใช้ config.js ฉบับสมบูรณ์)
-// - ใช้ checkSessionAndRole, isAdminUser, hasModuleAccess
-// - ใช้ logUserAction() ในทุก CRUD
-// - ใช้ logout() มาตรฐานกลาง
+// guidance_teacher.js — ระบบครูผู้สอนแนะแนว
+// - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
 // - ใช้ printPDF_v7() สำหรับพิมพ์ PDF ด้วย HTML (ไม่ใช้ GAS)
 // ==========================================
 
@@ -13,22 +11,20 @@ let myClasses = [];
 let globalSelectedClass = null;
 let globalStudents = [];
 let globalAttendance = [];
-let globalScores = [];
 let globalAttributes = [];
 let weekDatesArray = [];
 let globalIsSystemOpen = true;
 
 let classTomSelect = null;
 
-// ✅ ระบบ Cache
+// ✅ ระบบ Cache (ลบ scores ออก)
 let dataCache = {
     students: {},
     attendance: {},
-    scores: {},
     attributes: {}
 };
 let cacheTimestamp = {};
-const CACHE_EXPIRY = 5 * 60 * 1000; // 5 นาที
+const CACHE_EXPIRY = 5 * 60 * 1000;
 
 let currentUserRole = 'teacher';
 let isAdminMode = false;
@@ -36,10 +32,9 @@ let currentUserId = null;
 let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
-const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
+// LOGOUT
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -71,7 +66,6 @@ window.onload = async () => {
     currentUserRole = role;
     isAdminMode = isAdmin;
 
-    // ✅ ตรวจสอบ Module Admin
     isModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
 
     const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).single();
@@ -99,7 +93,6 @@ window.onload = async () => {
         window.updateToggleModeUI(role, isAdminMode, 'btnAdminMode');
     }
 
-    // ✅ บันทึก Log การเข้าใช้งาน
     await window.logUserAction('เข้าสู่ระบบแนะแนว (ครู)', 'guidance');
 
     await initDashboard(user.id, personnel);
@@ -164,7 +157,6 @@ async function initDashboard(userId, profile) {
                 const cacheKey = value;
                 delete dataCache.students[cacheKey];
                 delete dataCache.attendance[cacheKey];
-                delete dataCache.scores[cacheKey];
                 delete dataCache.attributes[cacheKey];
                 delete cacheTimestamp[cacheKey];
                 loadAllData(value);
@@ -226,7 +218,7 @@ async function updateClassStatusBadges() {
     }).join('');
 }
 
-// ========== loadAllData พร้อม Cache ==========
+// ========== loadAllData ==========
 async function loadAllData(classId = null) {
     if (!classId) classId = classTomSelect.getValue();
     if (!classId) return;
@@ -238,10 +230,8 @@ async function loadAllData(classId = null) {
         console.log('📦 ใช้ข้อมูลจาก Cache (', Math.round((now - cacheTimestamp[cacheKey]) / 1000), 'วินาทีที่แล้ว)');
         globalStudents = dataCache.students[cacheKey];
         globalAttendance = dataCache.attendance[cacheKey] || [];
-        globalScores = dataCache.scores[cacheKey] || [];
         globalAttributes = dataCache.attributes[cacheKey] || [];
         renderAttendanceTab();
-        renderScoresTab();
         renderAttributesTab();
         return;
     }
@@ -287,23 +277,18 @@ async function loadAllData(classId = null) {
         globalAttendance = att || [];
 
         if (stdIds.length > 0) {
-            const { data: scrs } = await db.from('guidance_scores').select('*').in('student_id', stdIds);
-            globalScores = scrs || [];
             const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
             globalAttributes = attrs || [];
         } else {
-            globalScores = [];
             globalAttributes = [];
         }
 
         dataCache.students[cacheKey] = globalStudents;
         dataCache.attendance[cacheKey] = globalAttendance;
-        dataCache.scores[cacheKey] = globalScores;
         dataCache.attributes[cacheKey] = globalAttributes;
         cacheTimestamp[cacheKey] = now;
 
         renderAttendanceTab();
-        renderScoresTab();
         renderAttributesTab();
         Swal.close();
     } catch (err) {
@@ -322,19 +307,6 @@ function calcAttTotal(stdId) {
     }
     document.getElementById(`att_total_${stdId}`).innerText = total;
     calcAttr(stdId, total);
-}
-
-function calcScoreTotal(stdId) {
-    let t = 0;
-    let hasValue = false;
-    for (let i = 1; i <= 5; i++) {
-        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value;
-        if (v && v.trim() !== '') {
-            const num = parseFloat(v);
-            if (!isNaN(num)) { t += num; hasValue = true; }
-        }
-    }
-    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
 
 function calcAttr(stdId, attTotal) {
@@ -375,21 +347,6 @@ function renderAttendanceTab() {
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
 
-function renderScoresTab() {
-    const tbody = document.getElementById('tb-scores'); if (!globalStudents.length) return;
-    const lockAttr = globalIsSystemOpen ? '' : 'disabled class="opacity-60 bg-gray-100"';
-    tbody.innerHTML = globalStudents.map(std => {
-        const mySc = globalScores.filter(s => s.student_id === std.id);
-        const inps = SCORE_COLS.map(c => {
-            const v = mySc.find(s => s.column_name === c)?.score_value ?? '';
-            return `<td><input type="number" id="sc_${std.id}_${c}" class="w-full text-center rounded-md border border-gray-200 p-1" value="${v}" oninput="calcScoreTotal('${std.id}')" ${lockAttr}></td>`;
-        });
-        inps.splice(5, 0, `<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="sc_total_${std.id}">0</td>`);
-        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${inps.join('')}</tr>`;
-    }).join('');
-    globalStudents.forEach(std => calcScoreTotal(std.id));
-}
-
 function renderAttributesTab() {
     const tbody = document.getElementById('tb-attributes'); if (!globalStudents.length) return;
     const lockAttr = globalIsSystemOpen ? '' : 'disabled class="opacity-60 bg-gray-100"';
@@ -404,36 +361,31 @@ function renderAttributesTab() {
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
 
-// ========== saveAllData (พร้อมเคลียร์ Cache และ Log) ==========
+// ========== saveAllData ==========
 async function saveAllData() {
     if (!globalIsSystemOpen) return Swal.fire('ผิดพลาด', 'ระบบถูกปิดการบันทึกแล้ว', 'error');
     if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียน', 'warning');
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         const classId = globalSelectedClass.id;
-        const attToUpsert = [], scToUpsert = [], atToUpsert = [];
+        const attToUpsert = [], atToUpsert = [];
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
                 if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
             }
-            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if (v && v.trim() !== '') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
 
-        // ✅ FIX: ลบ space ออกจาก onConflict (ต้องไม่มี space หลังเครื่องหมายจุลภาค)
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
-        if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id,column_name' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
         const cacheKey = classId;
         delete dataCache.students[cacheKey];
         delete dataCache.attendance[cacheKey];
-        delete dataCache.scores[cacheKey];
         delete dataCache.attributes[cacheKey];
         delete cacheTimestamp[cacheKey];
 
-        // ✅ บันทึก Log
         await window.logUserAction(`บันทึกข้อมูลห้อง ${classId}`, 'guidance');
 
         await updateClassStatusBadges();
@@ -459,7 +411,7 @@ function formatThaiDateFullStr(dateString) {
 }
 
 // ==========================================
-// Print PDF v7 - พิมพ์ด้วย HTML (ไม่ใช้ GAS)
+// Print PDF v7 - พิมพ์ด้วย HTML (ไม่ใช้ GAS, ไม่มีคะแนน)
 // ==========================================
 async function printPDF_v7() {
     if (!globalSelectedClass) {
@@ -472,12 +424,10 @@ async function printPDF_v7() {
         didOpen: () => Swal.showLoading()
     });
 
-    // ✅ ใช้ข้อมูลจาก globalSystemSettings และ globalGuidanceSettings
     const teacherFullName = currentUserProfile
         ? `${currentUserProfile.prefix || ''}${currentUserProfile.first_name} ${currentUserProfile.last_name}`.trim()
         : '-';
 
-    const t_subject = globalGuidanceSettings?.subject_name || 'กิจกรรมแนะแนว';
     const t_term = globalSystemSettings?.current_semester || '-';
     const t_year = globalSystemSettings?.current_academic_year || '-';
     const t_director = globalSystemSettings?.director_name || '(................................................)';
@@ -488,7 +438,6 @@ async function printPDF_v7() {
     const t_teacher = teacherFullName;
     const approvalDateStr = formatThaiDateFullStr(globalGuidanceSettings?.approval_date);
 
-    // คำนวณรหัสวิชา
     let subjectCode = "ก22901";
     const grade = globalSelectedClass.grade;
     if (grade === 1) subjectCode = t_term === "2" ? "ก21902" : "ก21901";
@@ -498,7 +447,6 @@ async function printPDF_v7() {
     else if (grade === 5) subjectCode = t_term === "2" ? "ก32903" : "ก32901";
     else if (grade === 6) subjectCode = t_term === "2" ? "ก33903" : "ก33901";
 
-    // สถิติ
     let totalStd = globalStudents.length;
     let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, dropCount = 0;
 
@@ -526,19 +474,15 @@ async function printPDF_v7() {
             if (val === 0) allPassed = false;
         });
 
-const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
-
-// ✅ นับนักเรียนที่ไม่ได้อยู่ในสถานะพิเศษ (ขาดนาน / พักการเรียน / ออก)
-const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ออก'].includes(std.student_status);
-if (!isSpecialStatus) {
-    if (finalRes === 'ผ') passCount++;
-    else failCount++;
-}
-return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
+        const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
+        const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ออก'].includes(std.student_status);
+        if (!isSpecialStatus) {
+            if (finalRes === 'ผ') passCount++;
+            else failCount++;
+        }
+        return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
     });
 
-    // ใน printPDF_v7() หลังจากคำนวณ subjectCode
-    const className = `ม.${grade}/${globalSelectedClass.room}`;
     const classNameFull = `ชั้นมัธยมศึกษาปีที่ ${grade}/${globalSelectedClass.room}`;
 
     const page1 = `
@@ -635,6 +579,7 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
         thDates += `<th class="col-center"><div class="v-text" style="height: 70px; font-size: 8pt;">${dStr}</div></th>`;
     }
 
+    // ✅ ตารางเวลาเรียน (ไม่มีคะแนน)
     let trRows3 = evaluatedStudents.map((std, i) => {
         if (std.id) {
             const sNum = std.student_number || (i + 1);
@@ -646,39 +591,21 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
                 const mark = (rec && rec.status !== 'มา') ? (rec.status === 'ขาด' ? 'ข' : (rec.status === 'ลา' ? 'ล' : (rec.status === 'ป่วย' ? 'ป' : '/'))) : '/';
                 cols += `<td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${mark}</td>`;
             }
-            const myScores = globalScores.filter(s => s.student_id === std.id);
-            let s1 = myScores.find(s => s.column_name === 'ครั้งที่ 1')?.score_value ?? '';
-            let s2 = myScores.find(s => s.column_name === 'ครั้งที่ 2')?.score_value ?? '';
-            let s3 = myScores.find(s => s.column_name === 'ครั้งที่ 3')?.score_value ?? '';
-            let s4 = myScores.find(s => s.column_name === 'ครั้งที่ 4')?.score_value ?? '';
-            let s5 = myScores.find(s => s.column_name === 'ครั้งที่ 5')?.score_value ?? '';
-            let pre = myScores.find(s => s.column_name === 'Pretest')?.score_value ?? '';
-            let post = myScores.find(s => s.column_name === 'Posttest')?.score_value ?? '';
-            let totalS = (Number(s1) + Number(s2) + Number(s3) + Number(s4) + Number(s5)) || '';
-
             return `<tr>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sNum}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sCode}</td>
-            <td class="col-left" style="font-size:6.5pt; padding:1px 2px; white-space:nowrap; overflow:hidden; max-width:120px; text-overflow:ellipsis;">${std.prefix}${std.first_name} ${std.last_name}</td>
-            ${cols}
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${std.attTotal}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s1}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s2}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s3}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s4}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${s5}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${totalS}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${pre}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${post}</td>
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px; font-weight:bold;">${std.finalRes}</td>
-        </tr>`;
+                <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sNum}</td>
+                <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${sCode}</td>
+                <td class="col-left" style="font-size:6.5pt; padding:1px 2px; white-space:nowrap; overflow:hidden; max-width:120px; text-overflow:ellipsis;">${std.prefix}${std.first_name} ${std.last_name}</td>
+                ${cols}
+                <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${std.attTotal}</td>
+                <td class="col-center" style="font-size:6.5pt; padding:1px 1px; font-weight:bold;">${std.finalRes}</td>
+            </tr>`;
         } else {
             return `<tr style="height:16px;">
-            <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${i + 1}</td>
-            <td></td><td></td>
-            ${'<td class="col-center" style="padding:1px 1px;"></td>'.repeat(20)}
-            <td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
-        </tr>`;
+                <td class="col-center" style="font-size:6.5pt; padding:1px 1px;">${i + 1}</td>
+                <td></td><td></td>
+                ${'<td class="col-center" style="padding:1px 1px;"></td>'.repeat(20)}
+                <td></td><td></td>
+            </tr>`;
         }
     }).join('');
 
@@ -692,23 +619,14 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
                 <tr>
                     <th rowspan="3" class="col-no" style="width:20px;"><div class="v-text" style="height:45px; font-size:6pt;">เลขที่</div></th>
                     <th rowspan="3" class="col-id" style="width:45px;"><div class="v-text" style="height:60px; font-size:6pt;">เลขประจำตัว</div></th>
-                    <th rowspan="3" class="col-name" style="width:120px; text-align:center !important; font-size:7pt;">ชื่อ-สกุล</th>
+                    <th rowspan="3" class="col-name" style="width:160px; text-align:center !important; font-size:7pt;">ชื่อ-สกุล</th>
                     <th colspan="20" style="font-size:7pt; padding:1px 2px;">วัน เดือน ปี ที่จัดการเรียนการสอน</th>
-                    <th rowspan="3" class="col-total" style="width:25px;"><div class="v-text" style="height:60px; font-size:6pt;">รวมเวลาเรียน</div></th>
-                    <th colspan="8" rowspan="2" style="vertical-align:middle; text-align:center; font-size:6pt; padding:1px 2px;">ผลการประเมินกิจกรรมแนะแนวตาม<br>มาตรฐานการแนะแนว 4 กลุ่ม</th>
-                    <th rowspan="3" class="col-result" style="width:25px;"><div class="v-text" style="height:70px; font-size:6pt;">สรุปผลการประเมิน</div></th>
+                    <th rowspan="3" class="col-total" style="width:35px;"><div class="v-text" style="height:60px; font-size:6pt;">รวมเวลาเรียน</div></th>
+                    <th rowspan="3" class="col-result" style="width:35px;"><div class="v-text" style="height:70px; font-size:6pt;">สรุปผลการประเมิน</div></th>
                 </tr>
                 <tr>${thDates}</tr>
                 <tr style="font-size:6.5pt;">
                     ${Array.from({ length: 20 }, (_, i) => `<th class="col-center" style="width:16px; padding:1px 1px;">${i + 1}</th>`).join('')}
-                    <th class="col-center" style="width:18px; padding:1px 1px;">1</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">2</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">3</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">4</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">5</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">รวม</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">PRE</th>
-                    <th class="col-center" style="width:18px; padding:1px 1px;">OST</th>
                 </tr>
             </thead>
             <tbody>${trRows3}</tbody>
@@ -741,7 +659,7 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
     const page4 = `
     <div style="padding: 20px 10px; position:relative; height: 297mm; box-sizing:border-box;">
         <h3 style="text-align:center; font-weight:bold; font-size:14pt; margin-bottom:10px;">
-            การประเมินคุณลักษณะอันพึงประสงค์ของกิจกรรมแนะแนว <br>${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
+            บันทึกการประเมินกิจกรรมแนะแนว <br>${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
         </h3>
         <table class="print-table print-table-small">
             <thead>
@@ -758,35 +676,18 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
         </table>
     </div>`;
 
-    // ===== CSS สำหรับพิมพ์ (ใช้กับหน้าต่างใหม่) =====
     const stylePrint = `
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap');
-        
-        @page {
-            size: A4 portrait;
-            margin: 0;
-        }
-        
+        @page { size: A4 portrait; margin: 0; }
         * {
             font-family: 'Sarabun', 'TH Sarabun New', sans-serif !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
             box-sizing: border-box;
         }
-        
-        body {
-            margin: 0;
-            padding: 0;
-            background: white;
-        }
-        
-        #print-wrapper {
-            background: white;
-            width: 100%;
-            height: auto;
-        }
-        
+        body { margin: 0; padding: 0; background: white; }
+        #print-wrapper { background: white; width: 100%; height: auto; }
         .page-break {
             page-break-after: always !important;
             break-after: page !important;
@@ -801,82 +702,23 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
             overflow: hidden;
             background: white;
         }
-        
-        /* ✅ เพิ่ม CSS สำหรับหน้า 3 โดยเฉพาะ (ลด padding และฟอนต์) */
-        .page-break-attendance {
-            padding: 8mm 5mm !important;   /* ลด padding ซ้าย-ขวา */
-        }
-        
-        .page-break:last-child {
-            page-break-after: avoid !important;
-            break-after: avoid !important;
-        }
-        
-        .col-center {
-            text-align: center !important;
-            vertical-align: middle !important;
-        }
-        .col-left {
-            text-align: left !important;
-            padding-left: 6px !important;
-            vertical-align: middle !important;
-        }
-        .v-text {
-            writing-mode: vertical-rl;
-            transform: rotate(180deg);
-            white-space: nowrap;
-            margin: 0 auto;
-            display: block;
-        }
-        .print-table {
-            width: 100%;
-            border-collapse: collapse;
-            border: 1px solid #000;
-        }
-        .print-table th,
-        .print-table td {
-            border: 1px solid #000;
-            padding: 2px 4px;
-            font-size: 8pt;
-        }
-        .print-table-small {
-            font-size: 7pt;   /* ✅ ลดจาก 8pt เป็น 7pt */
-        }
-        .print-table-small th,
-        .print-table-small td {
-            padding: 1px 2px;  /* ✅ ลด padding ในเซลล์ */
-            font-size: 7pt;
-        }
-        
-        /* ✅ ลดความกว้างของคอลัมน์ในตาราง (ใช้ class แทน style inline) */
+        .page-break-attendance { padding: 8mm 5mm !important; }
+        .page-break:last-child { page-break-after: avoid !important; break-after: avoid !important; }
+        .col-center { text-align: center !important; vertical-align: middle !important; }
+        .col-left { text-align: left !important; padding-left: 6px !important; vertical-align: middle !important; }
+        .v-text { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; margin: 0 auto; display: block; }
+        .print-table { width: 100%; border-collapse: collapse; border: 1px solid #000; }
+        .print-table th, .print-table td { border: 1px solid #000; padding: 2px 4px; font-size: 8pt; }
+        .print-table-small { font-size: 7pt; }
+        .print-table-small th, .print-table-small td { padding: 1px 2px; font-size: 7pt; }
         .print-table-small .col-no { width: 20px; min-width: 20px; }
         .print-table-small .col-id { width: 45px; min-width: 45px; }
-        .print-table-small .col-name { width: 120px; min-width: 120px; }
-        .print-table-small .col-week { width: 16px; min-width: 16px; }
-        .print-table-small .col-total { width: 25px; min-width: 25px; }
-        .print-table-small .col-score { width: 20px; min-width: 20px; }
-        .print-table-small .col-result { width: 25px; min-width: 25px; }
-        
-        /* โลโก้ */
-        .logo-img {
-            max-height: 100px;
-            margin: 0 auto;
-            display: block;
-        }
-        
-        @media print {
-            body {
-                margin: 0;
-                padding: 0;
-            }
-            .no-print {
-                display: none !important;
-            }
-        }
-    </style>
-`;
+        .print-table-small .col-name { width: 160px; min-width: 160px; }
+        .print-table-small .col-total { width: 35px; min-width: 35px; }
+        .print-table-small .col-result { width: 35px; min-width: 35px; }
+        @media print { body { margin: 0; padding: 0; } .no-print { display: none !important; } }
+    </style>`;
 
-    // ===== สร้าง HTML ฉบับสมบูรณ์สำหรับพิมพ์ =====
     const printHtml = `
         <!DOCTYPE html>
         <html>
@@ -887,33 +729,17 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
             ${stylePrint}
         </head>
         <body>
-            <div id="print-wrapper">
-                ${page1 + page2 + page3 + page4}
-            </div>
+            <div id="print-wrapper">${page1 + page2 + page3 + page4}</div>
             <script>
-                // เมื่อโหลดเสร็จให้พิมพ์
                 window.onload = function() {
-                    // รอให้ฟอนต์โหลด
                     document.fonts.load('16px "Sarabun"')
-                        .then(() => {
-                            setTimeout(() => {
-                                window.print();
-                                // หลังจากพิมพ์เสร็จให้ปิดหน้าต่าง (หรือไม่ปิดก็ได้)
-                                // window.close();
-                            }, 500);
-                        })
-                        .catch(() => {
-                            setTimeout(() => {
-                                window.print();
-                            }, 500);
-                        });
+                        .then(() => setTimeout(() => window.print(), 500))
+                        .catch(() => setTimeout(() => window.print(), 500));
                 };
             <\/script>
         </body>
-        </html>
-    `;
+        </html>`;
 
-    // ===== เปิดหน้าต่างใหม่และพิมพ์ =====
     const printWindow = window.open('', '_blank', 'width=800,height=600');
     if (!printWindow) {
         Swal.fire('แจ้งเตือน', 'กรุณาอนุญาตให้เปิดหน้าต่างป๊อปอัป (Pop-up) เพื่อพิมพ์', 'warning');
@@ -923,7 +749,6 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
     printWindow.document.write(printHtml);
     printWindow.document.close();
 
-    // ปิด Swal และแสดงข้อความ
     Swal.close();
     Swal.fire({
         icon: 'info',
@@ -935,23 +760,38 @@ return { ...std, attTotal, isAttPass, isAttrPass: allPassed, finalRes };
 }
 
 // ==========================================
-// ฟังก์ชันนำเข้า-ส่งออก Excel (ใช้งานได้ทุกสิทธิ์)
+// ฟังก์ชันนำเข้า-ส่งออก Excel (ลบส่วนคะแนนออก)
 // ==========================================
 function exportExcelAll() {
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
+
+    // ชีตเวลาเรียน
     const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`)]];
-    globalStudents.forEach(std => { const row = [std.student_number, std.student_id_card, std.first_name, std.last_name]; for (let w = 1; w <= 20; w++) { const el = document.getElementById(`att_${std.id}_w${w}`); row.push(el ? el.value : ''); } attData.push(row); });
+    globalStudents.forEach(std => {
+        const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
+        for (let w = 1; w <= 20; w++) {
+            const el = document.getElementById(`att_${std.id}_w${w}`);
+            row.push(el ? el.value : '');
+        }
+        attData.push(row);
+    });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attData), "เวลาเรียน");
-    const scData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...SCORE_COLS]];
-    globalStudents.forEach(std => { const row = [std.student_number, std.student_id_card, std.first_name, std.last_name]; SCORE_COLS.forEach(c => { const el = document.getElementById(`sc_${std.id}_${c}`); row.push(el ? el.value : ''); }); scData.push(row); });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(scData), "คะแนน");
+
+    // ชีตคุณลักษณะ (ลบชีตคะแนนออก)
     const attrData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...ATTR_COLS]];
-    globalStudents.forEach(std => { const row = [std.student_number, std.student_id_card, std.first_name, std.last_name]; ATTR_COLS.forEach(c => { const el = document.getElementById(`at_${std.id}_${c}`); row.push(el ? (el.value === '1' ? 'ผ' : 'มผ') : ''); }); attrData.push(row); });
+    globalStudents.forEach(std => {
+        const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
+        ATTR_COLS.forEach(c => {
+            const el = document.getElementById(`at_${std.id}_${c}`);
+            row.push(el ? (el.value === '1' ? 'ผ' : 'มผ') : '');
+        });
+        attrData.push(row);
+    });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attrData), "คุณลักษณะ");
+
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
 
-    // ✅ บันทึก Log
     window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }
 
@@ -962,9 +802,35 @@ async function importExcelAll(event) {
     reader.onload = function (e) {
         try {
             const data = new Uint8Array(e.target.result), workbook = XLSX.read(data, { type: 'array' });
-            if (workbook.Sheets["เวลาเรียน"]) { const rows = XLSX.utils.sheet_to_json(workbook.Sheets["เวลาเรียน"]); rows.forEach(row => { const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']); if (std) { for (let w = 1; w <= 20; w++) { const el = document.getElementById(`att_${std.id}_w${w}`); if (el && row[`ส.${w}`] !== undefined) { el.value = row[`ส.${w}`]; selectColor(el); } } calcAttTotal(std.id); } }); }
-            if (workbook.Sheets["คะแนน"]) { const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คะแนน"]); rows.forEach(row => { const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']); if (std) { SCORE_COLS.forEach(c => { const el = document.getElementById(`sc_${std.id}_${c}`); if (el && row[c] !== undefined) el.value = row[c]; }); calcScoreTotal(std.id); } }); }
-            if (workbook.Sheets["คุณลักษณะ"]) { const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คุณลักษณะ"]); rows.forEach(row => { const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']); if (std) { ATTR_COLS.forEach(c => { const el = document.getElementById(`at_${std.id}_${c}`); if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); } }); calcAttTotal(std.id); } }); }
+
+            if (workbook.Sheets["เวลาเรียน"]) {
+                const rows = XLSX.utils.sheet_to_json(workbook.Sheets["เวลาเรียน"]);
+                rows.forEach(row => {
+                    const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
+                    if (std) {
+                        for (let w = 1; w <= 20; w++) {
+                            const el = document.getElementById(`att_${std.id}_w${w}`);
+                            if (el && row[`ส.${w}`] !== undefined) { el.value = row[`ส.${w}`]; selectColor(el); }
+                        }
+                        calcAttTotal(std.id);
+                    }
+                });
+            }
+
+            if (workbook.Sheets["คุณลักษณะ"]) {
+                const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คุณลักษณะ"]);
+                rows.forEach(row => {
+                    const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
+                    if (std) {
+                        ATTR_COLS.forEach(c => {
+                            const el = document.getElementById(`at_${std.id}_${c}`);
+                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); }
+                        });
+                        calcAttTotal(std.id);
+                    }
+                });
+            }
+
             Swal.fire({ icon: 'success', title: 'นำเข้าสำเร็จ!', text: 'ข้อมูลอยู่บนหน้าจอแล้ว กรุณากด "บันทึกข้อมูล" เพื่อเก็บลงฐานข้อมูล' });
         } catch (err) { Swal.fire('ผิดพลาด', 'รูปแบบไฟล์ไม่ถูกต้อง หรือหาชีตข้อมูลไม่พบ', 'error'); }
         event.target.value = '';
@@ -973,7 +839,7 @@ async function importExcelAll(event) {
 }
 
 // ==========================================
-// TOGGLE MODE - ใช้ isAdminUser
+// TOGGLE MODE
 // ==========================================
 async function toggleRoleView() {
     if (!window.isAdminUser(currentUserRole, isAdminMode) && !isModuleAdmin) {
@@ -1002,7 +868,6 @@ window.importExcelAll = importExcelAll;
 window.saveAllData = saveAllData;
 window.selectColor = selectColor;
 window.calcAttTotal = calcAttTotal;
-window.calcScoreTotal = calcScoreTotal;
 window.calcAttr = calcAttr;
 
-console.log('✅ guidance_teacher.js loaded with config.js integration');
+console.log('✅ guidance_teacher.js loaded (ไม่มีคะแนน)');

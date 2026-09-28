@@ -1,5 +1,6 @@
 // ==========================================
-// guidance_admin.js — ระบบเครื่องมือผู้ดูแลระบบแนะแนว (ปรับใช้ config.js ฉบับสมบูรณ์)
+// guidance_admin.js — ระบบเครื่องมือผู้ดูแลระบบแนะแนว
+// - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
 // - ใช้ checkSessionAndRole, requireAdmin, isAdminUser, hasModuleAccess
 // - ใช้ logUserAction() ในทุก CRUD
 // - ใช้ logout() มาตรฐานกลาง
@@ -16,13 +17,12 @@ let monitorData = [];
 let globalSelectedClass = null;
 let globalStudents = [];
 let globalAttendance = [];
-let globalScores = [];
 let globalAttributes = [];
 let weekDatesArray = [];
 
 let currentTeacherId = null;
 let teacherModalData = [];
-let tomSelectInstances = []; // เก็บ TomSelect instances ใน modal
+let tomSelectInstances = [];
 
 let currentUserRole = 'admin';
 let isAdminMode = true;
@@ -30,7 +30,6 @@ let currentUserId = null;
 let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
-const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 'ครั้งที่ 3', 'ครั้งที่ 4', 'ครั้งที่ 5', 'Pretest', 'Posttest'];
 
 // ==========================================
 // ฟังก์ชันอัปเดต UI ตามสิทธิ์
@@ -38,11 +37,9 @@ const SCORE_COLS = ['ครั้งที่ 1', 'ครั้งที่ 2', 
 function applyAdminVisibility() {
     const isAdmin = window.isAdminUser(currentUserRole, isAdminMode);
 
-    // ปุ่มตั้งค่าระบบ - เฉพาะ Admin
     const btnSettings = document.getElementById('admin-settings-btn');
     if (btnSettings) btnSettings.classList.toggle('hidden', !isAdmin);
 
-    // ปุ่มสลับโหมด - เฉพาะ Admin
     const btnToggle = document.getElementById('btnAdminMode');
     if (btnToggle) {
         if (isAdmin) {
@@ -54,7 +51,6 @@ function applyAdminVisibility() {
         }
     }
 
-    // ✅ ปุ่มนำเข้าและส่งออก - แสดงทุกสิทธิ์ (ครูใช้ได้)
     document.querySelectorAll('#btn-import, #btn-export-excel, .btn-import, .btn-export').forEach(btn => {
         if (btn) {
             btn.classList.remove('hidden');
@@ -89,7 +85,6 @@ async function logout() {
 // INIT
 // ==========================================
 window.onload = async () => {
-    // ✅ ใช้ checkSessionAndRole จาก config.js
     const result = await window.checkSessionAndRole('guidance_admin');
     if (!result) return;
 
@@ -99,14 +94,12 @@ window.onload = async () => {
     currentUserRole = role;
     isAdminMode = isAdmin;
 
-    // ✅ ตรวจสอบสิทธิ์เพิ่มเติม (Module Admin)
     isModuleAdmin = await window.hasModuleAccess(role, 'guidance', user.id);
     if (!isAdmin && !isModuleAdmin) {
         window.location.replace('guidance_teacher.html');
         return;
     }
 
-    // ✅ ถ้าเป็น Admin หรือ Module Admin ให้แสดงปุ่มโหมด
     if (isAdmin || isModuleAdmin) {
         document.getElementById('btnAdminMode')?.classList.remove('hidden');
     }
@@ -114,13 +107,11 @@ window.onload = async () => {
     document.getElementById('adminNameDisplay').innerText = `แอดมิน: ${personnel.first_name} ${personnel.last_name}`;
     applyAdminVisibility();
 
-    // ✅ บันทึก Log การเข้าใช้งาน
     await window.logUserAction('เข้าสู่ระบบแนะแนว (Admin)', 'guidance');
 
     await loadSystemSettings();
     await loadMonitoringData();
 
-    // ตรวจสอบว่าเป็นครูแนะแนวด้วยหรือไม่ เพื่อแสดงปุ่มสลับโหมด (ถ้ามี)
     const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).single();
     if (isGui) {
         const btnAdmin = document.getElementById('btnAdminMode');
@@ -193,7 +184,6 @@ async function saveSystemSettings(e) {
     if (error) Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     else {
         globalGuidanceSettings = { ...globalGuidanceSettings, ...updates };
-        // ✅ บันทึก Log
         await window.logUserAction('บันทึกการตั้งค่าระบบแนะแนว', 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ!', timer: 1500, showConfirmButton: false });
     }
@@ -219,7 +209,6 @@ async function loadMonitoringData() {
     const currentSemester = globalSystemSettings.current_semester;
     const currentYear = globalSystemSettings.current_academic_year;
 
-    // ✅ FIX: ดึงห้องเรียนโดยไม่ใช้ student_enrollments(count) ซึ่งทำให้เกิด 500 Error
     const { data: classes } = await db.from('core_classrooms')
         .select('id, grade_level, room_number')
         .eq('semester', currentSemester)
@@ -229,7 +218,6 @@ async function loadMonitoringData() {
     allSystemClasses = classes || [];
     allSystemClasses.sort((a, b) => a.grade_level - b.grade_level || a.room_number - b.room_number);
 
-    // ✅ FIX: ดึงจำนวนนักเรียนโดยตรงจาก student_enrollments (ไม่ต้องพึ่ง RPC)
     const classroomIds = allSystemClasses.map(c => c.id);
     let studentCountMap = {};
 
@@ -250,21 +238,17 @@ async function loadMonitoringData() {
         });
     }
 
-    // แทรกจำนวนนักเรียนเข้า allSystemClasses
     allSystemClasses = allSystemClasses.map(c => ({
         ...c,
         _studentCount: studentCountMap[c.id] || 0
     }));
 
-    // 2. ดึงข้อมูลครูแนะแนว
     const { data: guiTeachers } = await db.from('guidance_teachers')
         .select('teacher_id, core_personnel(id, first_name, last_name, email)');
     guidanceTeachersList = guiTeachers ? guiTeachers.map(gt => gt.core_personnel) : [];
 
-    // 3. ดึง mapping ห้อง-ครู
     const { data: mappedClasses } = await db.from('guidance_classes').select('*');
 
-    // 4. ใช้ RPC เพื่อดึงสถิติ attendance และ attributes
     let attStats = {}, attrStats = {};
 
     if (classroomIds.length > 0) {
@@ -283,7 +267,6 @@ async function loadMonitoringData() {
         }
     }
 
-    // 5. สร้างข้อมูล monitoring
     monitorData = allSystemClasses.map(cls => {
         const mapping = (mappedClasses || []).find(m => m.classroom_id === cls.id);
         let teacherName = 'ไม่ระบุครู';
@@ -292,7 +275,6 @@ async function loadMonitoringData() {
             if (t) teacherName = `${t.first_name} ${t.last_name}`;
         }
 
-        // ✅ FIX: ใช้ _studentCount แทน student_enrollments?.[0]?.count
         const n_std = cls._studentCount || 0;
         let isComplete = false;
 
@@ -340,7 +322,7 @@ function renderMonitoringTable(dataArray) {
 }
 
 // -----------------------------------
-// 3. ระบบจัดการครูแนะแนว (พร้อม Tom Select) - ใช้ requireAdmin
+// 3. ระบบจัดการครูแนะแนว
 // -----------------------------------
 function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
@@ -482,7 +464,6 @@ async function openTeacherModal(teacherId, name) {
 
 function renderModalRows() {
     const container = document.getElementById('modalRowsBody');
-    // ทำลาย TomSelect instances เดิม
     if (tomSelectInstances.length) {
         tomSelectInstances.forEach(ts => ts.destroy());
         tomSelectInstances = [];
@@ -501,13 +482,13 @@ function renderModalRows() {
             <td class="p-4 align-top">
                 <div class="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-xl min-h-[80px] bg-gray-50 items-center" id="class-badge-container-${idx}">
                     ${row.classes.map((clsId, cIdx) => {
-        const cInfo = allSystemClasses.find(c => c.id === clsId);
-        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
-        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+                        const cInfo = allSystemClasses.find(c => c.id === clsId);
+                        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
+                        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
                                     ${cName}
                                     <button onclick="teacherModalData[${idx}].classes.splice(${cIdx}, 1); renderModalRows();" class="ml-2 text-red-400 hover:text-red-600">&times;</button>
                                 </span>`;
-    }).join('')}
+                    }).join('')}
                 </div>
                 <select id="class-select-${idx}" class="mt-2 w-full tom-selector" data-idx="${idx}">
                     <option value="">-- เลือกห้องเรียน --</option>
@@ -615,9 +596,11 @@ async function openAdminEditor(classId, classNameStr) {
     globalAttendance = att || [];
 
     if (stdIds.length > 0) {
-        const { data: scrs } = await db.from('guidance_scores').select('*').in('student_id', stdIds); globalScores = scrs || [];
-        const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds); globalAttributes = attrs || [];
-    } else { globalScores = []; globalAttributes = []; }
+        const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
+        globalAttributes = attrs || [];
+    } else {
+        globalAttributes = [];
+    }
 
     const mapping = (await db.from('guidance_classes').select('start_date').eq('classroom_id', classId).single()).data;
     if (mapping && mapping.start_date) {
@@ -625,7 +608,7 @@ async function openAdminEditor(classId, classNameStr) {
         weekDatesArray = Array.from({ length: 20 }, (_, i) => { let d = new Date(startObj); d.setDate(startObj.getDate() + (i * 7)); return d; });
     } else { weekDatesArray = Array.from({ length: 20 }, () => null); }
 
-    renderAttendanceTab(); renderScoresTab(); renderAttributesTab();
+    renderAttendanceTab(); renderAttributesTab();
     Swal.close();
 }
 
@@ -652,22 +635,6 @@ function calcAttTotal(stdId) {
     }
     document.getElementById(`att_total_${stdId}`).innerText = t;
     calcAttr(stdId, t);
-}
-
-function calcScoreTotal(stdId) {
-    let t = 0;
-    let hasValue = false;
-    for (let i = 1; i <= 5; i++) {
-        const v = document.getElementById(`sc_${stdId}_ครั้งที่ ${i}`)?.value;
-        if (v && v.trim() !== '') {
-            const num = parseFloat(v);
-            if (!isNaN(num)) {
-                t += num;
-                hasValue = true;
-            }
-        }
-    }
-    document.getElementById(`sc_total_${stdId}`).innerText = hasValue ? t.toFixed(2) : '';
 }
 
 function calcAttr(stdId, attTotal) {
@@ -704,20 +671,6 @@ function renderAttendanceTab() {
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
 
-function renderScoresTab() {
-    const tbody = document.getElementById('tb-scores'); if (!globalStudents.length) return;
-    tbody.innerHTML = globalStudents.map(std => {
-        const mySc = globalScores.filter(s => s.student_id === std.id);
-        const inps = SCORE_COLS.map(c => {
-            const v = mySc.find(s => s.column_name === c)?.score_value ?? '';
-            return `<td><input type="number" id="sc_${std.id}_${c}" class="w-full text-center rounded-md border border-gray-200 p-1" value="${v}" oninput="calcScoreTotal('${std.id}')"></td>`;
-        });
-        inps.splice(5, 0, `<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="sc_total_${std.id}">0</td>`);
-        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${inps.join('')}</tr>`;
-    }).join('');
-    globalStudents.forEach(std => calcScoreTotal(std.id));
-}
-
 function renderAttributesTab() {
     const tbody = document.getElementById('tb-attributes'); if (!globalStudents.length) return;
     tbody.innerHTML = globalStudents.map(std => {
@@ -737,19 +690,16 @@ async function adminSaveAllData() {
     const classId = globalSelectedClass.id;
     Swal.fire({ title: 'กำลังบังคับบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const attToUpsert = [], scToUpsert = [], atToUpsert = [];
+        const attToUpsert = [], atToUpsert = [];
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
                 if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
             }
-            SCORE_COLS.forEach(c => { const v = document.getElementById(`sc_${std.id}_${c}`)?.value; if (v && v.trim() !== '') scToUpsert.push({ student_id: std.id, column_name: c, score_value: parseFloat(v) }); });
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
         });
 
-        // ✅ FIX: ลบ space ออกจาก onConflict (ต้องไม่มี space หลังเครื่องหมายจุลภาค)
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
-        if (scToUpsert.length > 0) await db.from('guidance_scores').upsert(scToUpsert, { onConflict: 'student_id,column_name' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
         await window.logUserAction(`Admin บันทึกข้อมูลห้อง ${classId} (บังคับ)`, 'guidance');
@@ -758,10 +708,9 @@ async function adminSaveAllData() {
 }
 
 // ==========================================
-// 5. ระบบ นำเข้า/ส่งออก Excel - ใช้งานได้ทุกสิทธิ์
+// 5. ระบบ นำเข้า/ส่งออก Excel (ไม่มีคะแนน)
 // ==========================================
 function exportExcelAll() {
-    // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
@@ -776,17 +725,6 @@ function exportExcelAll() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attData), "เวลาเรียน");
 
-    const scData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...SCORE_COLS]];
-    globalStudents.forEach(std => {
-        const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
-        SCORE_COLS.forEach(c => {
-            const el = document.getElementById(`sc_${std.id}_${c}`);
-            row.push(el ? el.value : '');
-        });
-        scData.push(row);
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(scData), "คะแนน");
-
     const attrData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...ATTR_COLS]];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
@@ -800,12 +738,10 @@ function exportExcelAll() {
 
     XLSX.writeFile(wb, `ปพ5_แนะแนว_ม.${globalSelectedClass.grade}-${globalSelectedClass.room}.xlsx`);
 
-    // ✅ บันทึก Log
     window.logUserAction(`ส่งออก Excel ห้อง ${globalSelectedClass.grade}/${globalSelectedClass.room}`, 'guidance');
 }
 
 async function importExcelAll(event) {
-    // ✅ ไม่ตรวจสอบสิทธิ์ (ครูใช้งานได้)
     const file = event.target.files[0];
     if (!file) return;
     Swal.fire({ title: 'กำลังดึงข้อมูลจาก Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -826,20 +762,6 @@ async function importExcelAll(event) {
                             if (el && row[`ส.${w}`]) { el.value = row[`ส.${w}`]; selectColor(el); }
                         }
                         calcAttTotal(std.id);
-                    }
-                });
-            }
-
-            if (workbook.Sheets["คะแนน"]) {
-                const rows = XLSX.utils.sheet_to_json(workbook.Sheets["คะแนน"]);
-                rows.forEach(row => {
-                    const std = globalStudents.find(s => s.student_id_card == row['รหัสนักเรียน']);
-                    if (std) {
-                        SCORE_COLS.forEach(c => {
-                            const el = document.getElementById(`sc_${std.id}_${c}`);
-                            if (el && row[c] !== undefined) el.value = row[c];
-                        });
-                        calcScoreTotal(std.id);
                     }
                 });
             }
@@ -885,7 +807,6 @@ async function toggleRoleView() {
 // ==========================================
 function openSettings() {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
-    // ... (เปิด modal ตั้งค่า)
 }
 
 function closeSettings() {
@@ -913,4 +834,4 @@ window.addModalRow = addModalRow;
 window.saveTeacherClasses = saveTeacherClasses;
 window.loadMonitoringData = loadMonitoringData;
 
-console.log('✅ guidance_admin.js loaded with config.js integration');
+console.log('✅ guidance_admin.js loaded (ไม่มีคะแนน)');
