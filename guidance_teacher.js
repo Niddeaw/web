@@ -658,8 +658,8 @@ async function printPDF_v7() {
 
     const page4 = `
     <div style="padding: 20px 10px; position:relative; height: 297mm; box-sizing:border-box;">
-        <h3 style="text-align:center; font-weight:bold; font-size:14pt; margin-bottom:10px;">
-            บันทึกการประเมินกิจกรรมแนะแนว <br>${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
+        <h3 style="text-align:center; font-weight:bold; font-size:12pt; margin-bottom:10px;">
+            บันทึกการประเมินกิจกรรมแนะแนว ${classNameFull} ภาคเรียนที่ ${t_term} ปีการศึกษา ${t_year}
         </h3>
         <table class="print-table print-table-small">
             <thead>
