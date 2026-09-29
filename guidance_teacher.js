@@ -429,56 +429,144 @@ function renderAttributesTab() {
 // ========== saveAllData ==========
 async function saveAllData() {
     if (!globalIsSystemOpen) return Swal.fire('ผิดพลาด', 'ระบบถูกปิดการบันทึกแล้ว', 'error');
-    if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียน', 'warning');
+    if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือก classroom', 'warning');
+
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    const startTime = performance.now();
     try {
         const classId = globalSelectedClass.id;
-        const attToUpsert = [], atToUpsert = [], statusUpdates = [];
+        const attendancePayload = [];
+        const attributesPayload = [];
+        const statusesPayload = [];
+
+        // ✅ 1. เตรียมข้อมูลใน memory (เร็ว ไม่มี network)
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
-                if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
+                if (s && weekDatesArray[w - 1]) {
+                    attendancePayload.push({
+                        student_id: std.id,
+                        week_number: w,
+                        status: s.value,
+                        check_date: weekDatesArray[w - 1].toISOString().split('T')[0]
+                    });
+                }
             }
-            ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
+            ATTR_COLS.forEach(c => {
+                const s = document.getElementById(`at_${std.id}_${c}`);
+                if (s) attributesPayload.push({
+                    student_id: std.id,
+                    attribute_name: c,
+                    score: parseInt(s.value)
+                });
+            });
 
             const statusEl = document.getElementById(`status_${std.id}`);
             if (statusEl && std.enrollment_id) {
-                statusUpdates.push({ enrollment_id: std.enrollment_id, status: statusEl.value });
+                statusesPayload.push({
+                    enrollment_id: std.enrollment_id,
+                    status: statusEl.value
+                });
             }
         });
 
-        if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
-        if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
+        // ✅ 2. ยิง RPC เดียว!
+        const { data: result, error } = await db.rpc('save_guidance_all', {
+            p_classroom_id: classId,
+            p_attendance: attendancePayload,
+            p_attributes: attributesPayload,
+            p_statuses: statusesPayload
+        });
 
-        for (const upd of statusUpdates) {
-            await db.from('student_enrollments').update({ status: upd.status }).eq('id', upd.enrollment_id);
-        }
+        if (error) throw error;
+        if (result && result.success === false) throw new Error(result.error);
 
+        // ✅ 3. อัปเดต memory (ไม่ต้อง re-fetch)
         globalStudents = globalStudents.map(std => {
             const statusEl = document.getElementById(`status_${std.id}`);
             return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
         });
 
-        const stdIds = globalStudents.map(s => s.id);
-        const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
-        globalAttendance = att || [];
-        if (stdIds.length > 0) {
-            const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
-            globalAttributes = attrs || [];
-        } else {
-            globalAttributes = [];
-        }
+        // อัปเดต globalAttendance
+        attendancePayload.forEach(row => {
+            const existing = globalAttendance.find(a => a.student_id === row.student_id && a.week_number === row.week_number);
+            if (existing) {
+                existing.status = row.status;
+                existing.check_date = row.check_date;
+            } else {
+                globalAttendance.push({ ...row, classroom_id: classId });
+            }
+        });
 
+        // อัปเดต globalAttributes
+        attributesPayload.forEach(row => {
+            const existing = globalAttributes.find(a => a.student_id === row.student_id && a.attribute_name === row.attribute_name);
+            if (existing) {
+                existing.score = row.score;
+            } else {
+                globalAttributes.push(row);
+            }
+        });
+
+        // ✅ 4. อัปเดต Cache
         const cacheKey = classId;
-        delete dataCache.students[cacheKey];
-        delete dataCache.attendance[cacheKey];
-        delete dataCache.attributes[cacheKey];
-        delete cacheTimestamp[cacheKey];
+        dataCache.students[cacheKey] = globalStudents;
+        dataCache.attendance[cacheKey] = globalAttendance;
+        dataCache.attributes[cacheKey] = globalAttributes;
+        cacheTimestamp[cacheKey] = Date.now();
 
-        await window.logUserAction(`บันทึกข้อมูลห้อง ${classId}`, 'guidance');
-        await updateClassStatusBadges();
-        Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
-    } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
+        // ✅ 5. Log (fire-and-forget)
+        window.logUserAction(`บันทึกข้อมูลห้อง ${classId}`, 'guidance').catch(console.error);
+
+        // ✅ 6. อัปเดต badge แบบ local
+        updateClassStatusBadgesLight();
+
+        const elapsed = Math.round(performance.now() - startTime);
+        console.log(`⚡ บันทึกเสร็จใน ${elapsed}ms`, result);
+
+        Swal.fire({
+            icon: 'success',
+            title: 'บันทึกเรียบร้อย!',
+            text: `ใช้เวลา ${elapsed}ms`,
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('Save error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
+
+// ✅ ฟังก์ชันใหม่: อัปเดต badge แบบ local (ไม่ query DB)
+function updateClassStatusBadgesLight() {
+    if (!globalSelectedClass) return;
+    const classId = globalSelectedClass.id;
+    const studentCount = globalStudents.length;
+
+    let attCount = 0, attrCount = 0;
+    globalStudents.forEach(std => {
+        for (let w = 1; w <= 20; w++) {
+            const s = document.getElementById(`att_${std.id}_w${w}`);
+            if (s) attCount++;
+        }
+        ATTR_COLS.forEach(c => {
+            const s = document.getElementById(`at_${std.id}_${c}`);
+            if (s) attrCount++;
+        });
+    });
+
+    const isComplete = (attCount >= studentCount * 20) && (attrCount >= studentCount * 12);
+    const targetName = `ม.${globalSelectedClass.grade}/${globalSelectedClass.room}`;
+
+    document.querySelectorAll('#classStatusContainer .status-badge').forEach(badge => {
+        if (badge.innerText.includes(targetName)) {
+            const icon = isComplete ? '🟢' : '🔴';
+            const bgClass = isComplete ? 'bg-green-100 text-green-700' : 'bg-red-50 text-red-600';
+            badge.className = `status-badge px-3 py-1.5 rounded-lg text-sm font-bold border ${bgClass}`;
+            badge.innerHTML = `${icon} ${targetName}`;
+        }
+    });
 }
 
 // ========== ฟังก์ชันช่วยเหลือสำหรับพิมพ์ PDF ==========
