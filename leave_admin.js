@@ -785,9 +785,15 @@ function renderTable() {
                 ackBtn += `<button onclick="acknowledgeLeaveHead('${l.id}')" class="btn-icon bg-purple-50 text-purple-600 hover:bg-purple-500 hover:text-white" title="รับทราบแทนหัวหน้ากลุ่มฯ"><i class="fas fa-user-check"></i></button>`;
             }
 
-            // ✅ รับทราบแทนรองวิชาการ (เฉพาะ head)
-            if (isSuperAdmin && needsAcademicAck(l) && !l.ack_academic) {
-                ackBtn += `<button onclick="acknowledgeLeaveAcademic('${l.id}')" class="btn-icon bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white" title="รับทราบแทนรองวิชาการ"><i class="fas fa-user-graduate"></i></button>`;
+            // ✅ รับทราบรองวิชาการ (head leaves)
+            if (needsAcademicAck(l) && !l.ack_academic) {
+                const isAcademicUser = (currentUser?.id === window.academicPersonnelId);
+
+                if (isSuperAdmin) {
+                    ackBtn += `<button onclick="acknowledgeLeaveAcademic('${l.id}')" class="btn-icon bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white" title="รับทราบแทนรองวิชาการ"><i class="fas fa-user-graduate"></i></button>`;
+                } else if (isAcademicUser) {
+                    ackBtn += `<button onclick="acknowledgeLeaveAcademic('${l.id}')" class="btn-icon bg-rose-50 text-rose-600 hover:bg-rose-500 hover:text-white" title="รับทราบ"><i class="fas fa-check"></i></button>`;
+                }
             }
 
             if (isSuperAdmin) {
@@ -1581,15 +1587,27 @@ function viewLeave(id) {
     }
 
     // ✅ Academic Row (เฉพาะกรณีคนลาเป็นหัวหน้ากลุ่มฯ)
+    // ✅ Academic Row (เฉพาะกรณีคนลาเป็นหัวหน้ากลุ่มฯ)
     let academicAckRow = '';
     if (needsAcademicAck(l)) {
         const academicStatus = getAcademicAckStatus(l);
+
+        // ✅ ตรวจสอบสิทธิ์: เป็น Super Admin หรือเป็นรองวิชาการตัวจริง
+        const isAcademicUser = (currentUser?.id === window.academicPersonnelId);
+
         let academicBtn = '';
-        if (isSuperAdminView && !l.ack_academic) {
-            academicBtn = `<button onclick="acknowledgeLeaveAcademic('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-graduate mr-1"></i>รับทราบแทน</button>`;
+        if (!l.ack_academic) {
+            if (isSuperAdminView) {
+                // Super Admin → รับทราบแทน
+                academicBtn = `<button onclick="acknowledgeLeaveAcademic('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-graduate mr-1"></i>รับทราบแทน</button>`;
+            } else if (isAcademicUser) {
+                // รองวิชาการตัวจริง → รับทราบ
+                academicBtn = `<button onclick="acknowledgeLeaveAcademic('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i>รับทราบ</button>`;
+            }
         }
+
         let editAcademicBtn = '';
-        if (isSuperAdminView && l.ack_academic) {
+        if (l.ack_academic && (isSuperAdminView || isAcademicUser)) {
             editAcademicBtn = `<button onclick="editAckDate('${l.id}', 'ack_academic')" class="ml-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm transition" title="แก้ไขวันที่"><i class="fas fa-edit mr-1"></i>แก้ไขวันที่</button>`;
         }
         academicAckRow = `
