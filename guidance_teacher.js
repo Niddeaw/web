@@ -17,7 +17,7 @@ let globalIsSystemOpen = true;
 
 let classTomSelect = null;
 
-// ✅ ระบบ Cache (ลบ scores ออก)
+// ✅ ระบบ Cache (ไม่มี scores)
 let dataCache = {
     students: {},
     attendance: {},
@@ -411,7 +411,7 @@ function formatThaiDateFullStr(dateString) {
 }
 
 // ==========================================
-// Print PDF v7 - พิมพ์ด้วย HTML (ไม่ใช้ GAS, ไม่มีคะแนน)
+// Print PDF v7 - พิมพ์ด้วย HTML (ไม่มีคะแนน)
 // ==========================================
 async function printPDF_v7() {
     if (!globalSelectedClass) {
@@ -579,7 +579,6 @@ async function printPDF_v7() {
         thDates += `<th class="col-center"><div class="v-text" style="height: 70px; font-size: 8pt;">${dStr}</div></th>`;
     }
 
-    // ✅ ตารางเวลาเรียน (ไม่มีคะแนน)
     let trRows3 = evaluatedStudents.map((std, i) => {
         if (std.id) {
             const sNum = std.student_number || (i + 1);
@@ -760,13 +759,12 @@ async function printPDF_v7() {
 }
 
 // ==========================================
-// ฟังก์ชันนำเข้า-ส่งออก Excel (ลบส่วนคะแนนออก)
+// ฟังก์ชันนำเข้า-ส่งออก Excel (ไม่มีคะแนน)
 // ==========================================
 function exportExcelAll() {
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
-    // ชีตเวลาเรียน
     const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`)]];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
@@ -778,7 +776,6 @@ function exportExcelAll() {
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attData), "เวลาเรียน");
 
-    // ชีตคุณลักษณะ (ลบชีตคะแนนออก)
     const attrData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...ATTR_COLS]];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];

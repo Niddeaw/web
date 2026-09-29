@@ -64,22 +64,17 @@
             transform: translateY(-1px);
         }
 
-        /* ====== Responsive table & sticky columns (ตรึงเหมือนโหมดครู) ====== */
-
-        /* 1. คอนเทนเนอร์หลักของแท็บ ให้ใช้ flex เพื่อจัดการความสูง */
+        /* ====== Responsive table & sticky columns ====== */
         #adminEditorView .glass.rounded-3xl {
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            /* ป้องกัน scrollbar ซ้อนกันที่กรอบนอกสุด */
             max-height: 75vh;
         }
 
-        /* 2. แท็บเนื้อหา (ตาราง) ให้เป็นแบบเลื่อนได้ (มี scrollbar เดียวที่นี่) */
         .admin-tab-content.table-responsive {
             flex: 1;
             overflow: auto;
-            /* scrollbar หลักอยู่ที่นี่ */
             height: 100%;
             position: relative;
             scrollbar-width: thin;
@@ -94,7 +89,6 @@
             font-size: 0.8rem;
         }
 
-        /* ====== หัวตารางแนวนอน (Sticky Top) ====== */
         .table-responsive thead th {
             position: sticky !important;
             top: 0;
@@ -104,15 +98,11 @@
             box-shadow: 0 1px 0 #cbd5e1;
         }
 
-        /* สำหรับแถวที่ 2 ของหัวตาราง (แถววันที่) */
         .table-responsive thead tr:nth-child(2) th {
             top: 40px !important;
-            /* ปรับพิกเซลนี้ให้ชนกับขอบล่างของแถวแรก */
             z-index: 10;
         }
 
-        /* ====== คอลัมน์ที่ 1: เลขที่ (Sticky Left) ====== */
-        /* บังคับใช้เฉพาะคอลัมน์แรกของ thead แถวแรก และ tbody ทุกแถว */
         .table-responsive thead tr:first-child th:first-child,
         .table-responsive tbody td:first-child {
             width: 50px;
@@ -124,31 +114,23 @@
             box-shadow: inset -1px 0 0 #e2e8f0, 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
 
-        /* ====== คอลัมน์ที่ 2: ชื่อ-สกุล (Sticky Left) ====== */
-        /* บังคับใช้เฉพาะคอลัมน์ที่สองของ thead แถวแรก และ tbody ทุกแถว */
         .table-responsive thead tr:first-child th:nth-child(2),
         .table-responsive tbody td:nth-child(2) {
             width: 180px;
             min-width: 180px;
             position: sticky !important;
             left: 50px !important;
-            /* จุดเริ่มต้องเท่ากับความกว้างคอลัมน์แรก */
             background-color: #f8fafc;
             z-index: 20;
             box-shadow: inset -1px 0 0 #e2e8f0, 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
 
-        /* ====== จุดตัดซ้ายบน (Z-index สูงสุด) ====== */
-        /* เฉพาะหัวตาราง 2 คอลัมน์แรกเท่านั้น */
         .table-responsive thead tr:first-child th:first-child,
         .table-responsive thead tr:first-child th:nth-child(2) {
             z-index: 30 !important;
-            /* ต้องอยู่บนสุดกันโดนบังตอนเลื่อน */
             background-color: #e2e8f0;
-            /* สีเข้มขึ้นนิดนึงให้เป็นหัวตาราง */
         }
 
-        /* Hover Effect และเส้นขอบ */
         .table-responsive tbody tr {
             border-bottom: 1px solid #e2e8f0;
         }
@@ -158,7 +140,6 @@
             transition: background-color 0.1s;
         }
 
-        /* การตกแต่งเซลล์ทั่วไป */
         .table-responsive th.dynamic-th,
         .table-responsive td {
             padding: 6px 4px;
@@ -173,7 +154,6 @@
             border: 1px solid #cbd5e1;
         }
 
-        /* Scrollbar */
         .table-responsive::-webkit-scrollbar {
             height: 8px;
             width: 8px;
@@ -191,6 +171,17 @@
 
         .table-responsive::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
+        }
+
+        /* Dashboard card */
+        .dash-card {
+            border-radius: 1rem;
+            padding: 1rem;
+            transition: transform 0.2s;
+        }
+
+        .dash-card:hover {
+            transform: translateY(-2px);
         }
     </style>
 </head>
@@ -288,7 +279,6 @@
                         type="date" id="set_approval_date"
                         class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
                 </div>
-                <!-- เพิ่มหลังจากฟิลด์ approval_date -->
                 <div class="col-span-1 md:col-span-2 lg:col-span-1">
                     <label class="block text-sm font-bold text-gray-700 mb-1">GAS API URL</label>
                     <input type="text" id="set_gas_api_url"
@@ -317,6 +307,101 @@
             </form>
         </div>
 
+        <!-- ====== Dashboard สรุปความคืบหน้า ====== -->
+        <div class="glass rounded-[2rem] p-6">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
+                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <i class="fa-solid fa-chart-pie text-purple-600"></i> Dashboard สรุปความคืบหน้า
+                </h2>
+                <button onclick="loadDashboardData()"
+                    class="px-4 py-2 text-sm font-bold rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 btn-hover-lift">
+                    <i class="fa-solid fa-rotate-right"></i> รีเฟรช
+                </button>
+            </div>
+
+            <!-- การ์ดสรุป -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-blue-600 uppercase tracking-wider">ห้องทั้งหมด</div>
+                            <div id="dash-total" class="text-3xl font-bold text-blue-700 mt-1">-</div>
+                        </div>
+                        <i class="fa-solid fa-school text-3xl text-blue-300"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200 dash-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-green-600 uppercase tracking-wider">ครบถ้วน</div>
+                            <div id="dash-complete" class="text-3xl font-bold text-green-700 mt-1">-</div>
+                        </div>
+                        <i class="fa-solid fa-circle-check text-3xl text-green-300"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-4 border border-amber-200 dash-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-amber-600 uppercase tracking-wider">ยังไม่ครบ</div>
+                            <div id="dash-incomplete" class="text-3xl font-bold text-amber-700 mt-1">-</div>
+                        </div>
+                        <i class="fa-solid fa-clock text-3xl text-amber-300"></i>
+                    </div>
+                </div>
+                <div class="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-2xl p-4 border border-rose-200 dash-card">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <div class="text-xs font-bold text-rose-600 uppercase tracking-wider">ยังไม่เริ่ม</div>
+                            <div id="dash-empty" class="text-3xl font-bold text-rose-700 mt-1">-</div>
+                        </div>
+                        <i class="fa-solid fa-circle-exclamation text-3xl text-rose-300"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- แถบความคืบหน้ารวม -->
+            <div class="bg-white/60 rounded-2xl p-4 mb-6 border border-gray-200">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-bold text-gray-700">ความคืบหน้ารวม</span>
+                    <span id="dash-overall-percent" class="text-sm font-bold text-blue-600">-</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                    <div id="dash-overall-bar" class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <!-- ความคืบหน้าแยกตามระดับชั้น -->
+            <div class="mb-6">
+                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-layer-group text-indigo-600"></i> ความคืบหน้าแยกตามระดับชั้น
+                </h3>
+                <div id="dash-by-grade" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    <div class="text-center text-gray-400 py-4 col-span-full">กำลังโหลด...</div>
+                </div>
+            </div>
+
+            <!-- รายชื่อครูที่ยังไม่ครบ -->
+            <div>
+                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                    <i class="fa-solid fa-user-clock text-rose-600"></i> ครูที่ยังต้องกรอกข้อมูล
+                </h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left border border-gray-200 rounded-xl overflow-hidden">
+                        <thead class="text-xs text-gray-600 uppercase bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-4 py-3">ครูผู้สอน</th>
+                                <th class="px-4 py-3 text-center">ห้องที่ยังไม่ครบ</th>
+                                <th class="px-4 py-3 text-center">จำนวน</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dash-teachers-pending" class="divide-y divide-gray-100 bg-white/50">
+                            <tr><td colspan="3" class="p-6 text-center text-gray-400">กำลังโหลด...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
         <!-- จัดการครูแนะแนว -->
         <div class="glass rounded-[2rem] overflow-hidden mb-2">
             <div
@@ -330,8 +415,7 @@
             <div
                 class="p-4 bg-emerald-50/80 text-sm text-emerald-800 flex items-center gap-2 border-b border-emerald-100">
                 <i class="fa-solid fa-circle-info"></i> กดปุ่ม "จัดการห้องสอน" เพื่อเพิ่มชั้นเรียนให้ครูแต่ละท่าน
-                (ระบบจะดึงวันที่เริ่มสอนให้เป็นค่าเริ่มต้นโดยอัตโนมัติ)
-            </div>
+                (ระบบจะดึงวันที่เริ่มสอนให้เป็นค่าเริ่มต้นโดยอัตโนมัติ)</div>
             <div class="overflow-x-auto p-4">
                 <table
                     class="w-full text-sm text-left table-fixed min-w-[700px] border border-gray-200 rounded-xl overflow-hidden bg-white/50">
@@ -505,7 +589,7 @@
 
             <div
                 class="p-4 bg-white/60 border-t border-white rounded-b-3xl flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
-                <div class="flex gap-2">
+                <div class="flex gap-2 flex-wrap">
                     <button onclick="exportExcelAll()"
                         class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift"><i
                             class="fa-solid fa-file-export"></i> ส่งออก (Offline)</button>
@@ -514,6 +598,11 @@
                     <button onclick="document.getElementById('excelUploadAll').click()"
                         class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift"><i
                             class="fa-solid fa-file-import"></i> นำเข้า Excel</button>
+                    <!-- ✅ ปุ่มพิมพ์ PDF สำหรับ Admin -->
+                    <button onclick="printPDFAdmin()"
+                        class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift">
+                        <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
+                    </button>
                 </div>
                 <button onclick="adminSaveAllData()"
                     class="btn-save-override font-bold py-3 px-8 rounded-xl shadow-lg text-base flex items-center justify-center gap-2 transition-all">
