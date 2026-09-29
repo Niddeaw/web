@@ -5,7 +5,6 @@
     <title>ปพ.5 - แนะแนว | WRK System</title>
     <script src="core_head.js"></script>
     <script src="config.js"></script>
-    <!-- Tom Select CSS -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
     <script>
         tailwind.config = {
@@ -28,12 +27,10 @@
         }
     </script>
     <style>
-        /* ====== CSS ภายในระบบ ปพ.5 แนะแนว ====== */
         body {
             font-family: 'Anuphan', sans-serif;
         }
 
-        /* Glass effect */
         .glass {
             background: rgba(255, 255, 255, 0.7);
             backdrop-filter: blur(12px);
@@ -48,7 +45,6 @@
             box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
         }
 
-        /* Tom Select ปรับแต่ง */
         .ts-wrapper .ts-control {
             border-radius: 2rem;
             border: 2px solid #bfdbfe;
@@ -83,7 +79,6 @@
             background-color: #eff6ff;
         }
 
-        /* ===== แท็บ (Tabs) ===== */
         .tab-btn {
             padding: 0.6rem 1.4rem;
             font-weight: 700;
@@ -108,7 +103,6 @@
             box-shadow: 0 -4px 12px rgba(37, 99, 235, 0.4);
         }
 
-        /* แท็บ content */
         .tab-content {
             display: none;
             flex: 1;
@@ -121,7 +115,6 @@
             flex-direction: column;
         }
 
-        /* ตาราง responsive */
         .table-responsive {
             position: absolute;
             top: 0;
@@ -148,7 +141,6 @@
             border-radius: 10px;
         }
 
-        /* select เล็กในตาราง */
         .tiny-select {
             padding: 2px 4px;
             border-radius: 6px;
@@ -164,7 +156,18 @@
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
-        /* ปุ่ม */
+        /* ✅ สีพื้นหลังตามสถานะการเข้าเรียน */
+        #tb-attendance .tiny-select {
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        #tb-attendance .tiny-select:hover {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+
         .btn-hover-lift {
             transition: all 0.2s ease;
         }
@@ -190,7 +193,6 @@
             white-space: nowrap;
         }
 
-        /* สถานะห้อง badge */
         .status-badge {
             transition: all 0.2s;
         }
@@ -199,7 +201,6 @@
             transform: translateY(-2px);
         }
 
-        /* Print */
         @media print {
             body>*:not(#print-area) {
                 display: none !important;
@@ -220,14 +221,6 @@
 
             #print-area.visible {
                 display: block;
-            }
-
-            #print-area .page-break {
-                height: auto;
-                min-height: auto;
-                page-break-after: always;
-                margin-bottom: 20px;
-                border-bottom: 1px dashed #ccc;
             }
 
             @media print {
@@ -261,9 +254,6 @@
             }
         }
 
-        /* ====== ปรับปรุงการแสดงผลตารางให้กว้างเต็มหน้าจอ และ scroll ราบรื่น ====== */
-
-        /* ครอบ container ของตารางทุกตัว */
         .table-responsive {
             position: relative;
             width: 100%;
@@ -274,17 +264,14 @@
             border-radius: 1rem;
         }
 
-        /* กำหนด minimum width ของตารางหลัก */
         .table-responsive table {
             min-width: 1200px;
-            /* บังคับให้กว้างพอสำหรับ 20+ คอลัมน์ */
             width: 100%;
             border-collapse: separate;
             border-spacing: 0;
             font-size: 0.8rem;
         }
 
-        /* ปรับความกว้างของคอลัมน์แรก (เลขที่, ชื่อ) ให้คงที่ */
         .table-responsive .col-no {
             width: 50px;
             min-width: 50px;
@@ -305,7 +292,6 @@
             box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
 
-        /* ปรับแต่งคอลัมน์วันที่ (สัปดาห์) ให้กะทัดรัด */
         .table-responsive th.dynamic-th,
         .table-responsive td {
             padding: 6px 4px;
@@ -318,7 +304,6 @@
             width: 55px;
         }
 
-        /* ปรับหัวตารางให้ sticky */
         .table-responsive thead th {
             position: sticky;
             top: 0;
@@ -327,18 +312,15 @@
             border-bottom: 1px solid #cbd5e1;
         }
 
-        /* กำหนดความสูงของแถวให้เหมาะสม */
         .table-responsive tbody tr {
             border-bottom: 1px solid #e2e8f0;
         }
 
-        /* เพิ่ม hover effect */
         .table-responsive tbody tr:hover {
             background-color: #fef9c3;
             transition: 0.1s;
         }
 
-        /* ปรับแต่ง scrollbar ให้สวยงาม */
         .table-responsive::-webkit-scrollbar {
             height: 8px;
             width: 8px;
@@ -356,24 +338,6 @@
 
         .table-responsive::-webkit-scrollbar-thumb:hover {
             background: #3b82f6;
-        }
-
-        /* ✅ Dropdown สถานะการเข้าเรียน - สีพื้นหลัง */
-        .tiny-select option {
-            background: white;
-            color: #1e293b;
-            font-weight: 500;
-        }
-
-        #tb-attendance .tiny-select {
-            cursor: pointer;
-            font-weight: 600;
-            text-align: center;
-            transition: all 0.15s ease;
-        }
-
-        #tb-attendance .tiny-select:hover {
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
         }
     </style>
 </head>
@@ -432,7 +396,8 @@
             </div>
             <div class="flex items-center gap-3 w-full md:w-auto">
                 <select id="classSelect" placeholder="-- กรุณาเลือกห้อง --" autocomplete="off" class="hidden"></select>
-                <div id="startDateDisplay" class="hidden md:block"></div>
+                <!-- ✅ แสดงชื่อห้อง + วันที่เริ่มสอน (ใช้ inline-flex) -->
+                <div id="startDateDisplay" class="hidden md:flex flex-col items-end gap-1"></div>
             </div>
         </div>
 
@@ -454,36 +419,11 @@
                                 <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
                                 <th rowspan="2" class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">
                                     รวม<br>เวลาเรียน</th>
-                                <th rowspan="2" class="w-16 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
+                                <th rowspan="2" class="w-28 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
                             </tr>
-                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2">
-                            <tr>
+                            <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"></tr>
                         </thead>
                         <tbody id="tb-attendance" class="divide-y divide-gray-100"></tbody>
-                    </table>
-                </div>
-            </div>
-
-            <!-- Tab Scores -->
-            <div id="tab-scores" class="tab-content">
-                <div class="table-responsive">
-                    <table class="w-full text-center text-sm">
-                        <thead class="sticky top-0 z-10 bg-white shadow-sm">
-                            <tr class="text-gray-600 bg-gray-100">
-                                <th class="w-12 border-r border-gray-200 py-3">เลขที่</th>
-                                <th class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                <th class="w-16">ครั้งที่ 1</th>
-                                <th class="w-16">ครั้งที่ 2</th>
-                                <th class="w-16">ครั้งที่ 3</th>
-                                <th class="w-16">ครั้งที่ 4</th>
-                                <th class="w-16 border-r border-gray-200">ครั้งที่ 5</th>
-                                <th class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>คะแนน
-                                </th>
-                                <th class="w-16 bg-orange-50 text-orange-700 border-l-2 border-orange-200">Pretest</th>
-                                <th class="w-16 bg-purple-50 text-purple-700 border-l-2 border-purple-200">Posttest</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tb-scores" class="divide-y divide-gray-100"></tbody>
                     </table>
                 </div>
             </div>
@@ -568,7 +508,6 @@
 
     <div id="print-area" class="hidden"></div>
 
-    <!-- Tom Select JS -->
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="guidance_teacher.js"></script>
 </body>

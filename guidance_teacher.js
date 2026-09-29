@@ -3,6 +3,7 @@
 // - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
 // - สถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
 // - เพิ่มสีพื้นหลังตามสถานะการเข้าเรียน (ป่วย/ลา/ขาด)
+// - แสดง badge ชื่อห้องก่อนวันที่เริ่มสอน
 // - ใช้ printPDF_v7() พิมพ์ด้วย HTML
 // ==========================================
 
@@ -243,9 +244,18 @@ async function loadAllData(classId = null) {
     globalSelectedClass = myClasses.find(c => c.id === classId);
     const startDateDisplay = document.getElementById('startDateDisplay');
 
+    // ✅ ชื่อห้อง - ขนาดใหญ่ เด่นชัด
+    const classBadge = `<span class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-black text-xl shadow-md">
+    <i class="fa-solid fa-chalkboard text-lg"></i> ม.${globalSelectedClass.grade}/${globalSelectedClass.room}
+</span>`;
+
+    // ✅ วันที่เริ่มสอน - อยู่บรรทัดใหม่ ขนาดเล็กกว่า
     if (globalSelectedClass.start_date) {
-        startDateDisplay.innerHTML = `📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>`;
-        startDateDisplay.className = 'text-sm font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200';
+        const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
+        📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>
+    </span>`;
+        startDateDisplay.innerHTML = classBadge + dateLine;
+        startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
         const startObj = new Date(globalSelectedClass.start_date);
         weekDatesArray = Array.from({ length: 20 }, (_, i) => {
             let d = new Date(startObj);
@@ -253,8 +263,11 @@ async function loadAllData(classId = null) {
             return d;
         });
     } else {
-        startDateDisplay.innerHTML = `⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน`;
-        startDateDisplay.className = 'text-sm font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200';
+        const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-200">
+        ⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน
+    </span>`;
+        startDateDisplay.innerHTML = classBadge + dateLine;
+        startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
         weekDatesArray = Array.from({ length: 20 }, () => null);
     }
 
@@ -300,7 +313,7 @@ async function loadAllData(classId = null) {
 }
 
 // ========== ฟังก์ชันจัดการ UI ==========
-function selectColor(el) { 
+function selectColor(el) {
     if (!el) return;
     el.setAttribute('data-val', el.value);
     applyAttendanceColor(el);
@@ -960,4 +973,4 @@ window.applyAttendanceColor = applyAttendanceColor;
 window.calcAttTotal = calcAttTotal;
 window.calcAttr = calcAttr;
 
-console.log('✅ guidance_teacher.js loaded (มีสีสถานะ + ไม่มีคะแนน)');
+console.log('✅ guidance_teacher.js loaded (มี badge ชื่อห้อง + สีสถานะ)');
