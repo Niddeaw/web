@@ -380,6 +380,19 @@ async function saveAllData() {
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
+        // ✅ FIX: ดึงข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่
+        const stdIds = globalStudents.map(s => s.id);
+        const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
+        globalAttendance = att || [];
+
+        if (stdIds.length > 0) {
+            const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
+            globalAttributes = attrs || [];
+        } else {
+            globalAttributes = [];
+        }
+
+        // ล้าง cache
         const cacheKey = classId;
         delete dataCache.students[cacheKey];
         delete dataCache.attendance[cacheKey];

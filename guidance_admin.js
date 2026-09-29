@@ -836,6 +836,18 @@ async function adminSaveAllData() {
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
+        // ✅ FIX: ดึงข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่ เพื่อให้ PDF แสดงถูกต้องทันที
+        const stdIds = globalStudents.map(s => s.id);
+        const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
+        globalAttendance = att || [];
+
+        if (stdIds.length > 0) {
+            const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
+            globalAttributes = attrs || [];
+        } else {
+            globalAttributes = [];
+        }
+
         await window.logUserAction(`Admin บันทึกข้อมูลห้อง ${classId} (บังคับ)`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
