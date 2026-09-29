@@ -183,6 +183,24 @@
         .dash-card:hover {
             transform: translateY(-2px);
         }
+
+        /* ✅ Dropdown สถานะการเข้าเรียน - สีพื้นหลัง */
+        .tiny-select option {
+            background: white;
+            color: #1e293b;
+            font-weight: 500;
+        }
+
+        #tb-attendance .tiny-select {
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        #tb-attendance .tiny-select:hover {
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
     </style>
 </head>
 
@@ -309,7 +327,8 @@
 
         <!-- ====== Dashboard สรุปความคืบหน้า ====== -->
         <div class="glass rounded-[2rem] p-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
+            <div
+                class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
                 <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
                     <i class="fa-solid fa-chart-pie text-purple-600"></i> Dashboard สรุปความคืบหน้า
                 </h2>
@@ -321,7 +340,8 @@
 
             <!-- การ์ดสรุป -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
+                <div
+                    class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
                     <div class="flex items-center justify-between">
                         <div>
                             <div class="text-xs font-bold text-blue-600 uppercase tracking-wider">ห้องทั้งหมด</div>
@@ -330,7 +350,8 @@
                         <i class="fa-solid fa-school text-3xl text-blue-300"></i>
                     </div>
                 </div>
-                <div class="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200 dash-card">
+                <div
+                    class="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200 dash-card">
                     <div class="flex items-center justify-between">
                         <div>
                             <div class="text-xs font-bold text-green-600 uppercase tracking-wider">ครบถ้วน</div>
@@ -339,7 +360,8 @@
                         <i class="fa-solid fa-circle-check text-3xl text-green-300"></i>
                     </div>
                 </div>
-                <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-4 border border-amber-200 dash-card">
+                <div
+                    class="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-4 border border-amber-200 dash-card">
                     <div class="flex items-center justify-between">
                         <div>
                             <div class="text-xs font-bold text-amber-600 uppercase tracking-wider">ยังไม่ครบ</div>
@@ -348,7 +370,8 @@
                         <i class="fa-solid fa-clock text-3xl text-amber-300"></i>
                     </div>
                 </div>
-                <div class="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-2xl p-4 border border-rose-200 dash-card">
+                <div
+                    class="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-2xl p-4 border border-rose-200 dash-card">
                     <div class="flex items-center justify-between">
                         <div>
                             <div class="text-xs font-bold text-rose-600 uppercase tracking-wider">ยังไม่เริ่ม</div>
@@ -366,7 +389,9 @@
                     <span id="dash-overall-percent" class="text-sm font-bold text-blue-600">-</span>
                 </div>
                 <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                    <div id="dash-overall-bar" class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                    <div id="dash-overall-bar"
+                        class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500"
+                        style="width: 0%"></div>
                 </div>
             </div>
 
@@ -395,7 +420,9 @@
                             </tr>
                         </thead>
                         <tbody id="dash-teachers-pending" class="divide-y divide-gray-100 bg-white/50">
-                            <tr><td colspan="3" class="p-6 text-center text-gray-400">กำลังโหลด...</td></tr>
+                            <tr>
+                                <td colspan="3" class="p-6 text-center text-gray-400">กำลังโหลด...</td>
+                            </tr>
                         </tbody>
                     </table>
                 </div>
@@ -415,7 +442,8 @@
             <div
                 class="p-4 bg-emerald-50/80 text-sm text-emerald-800 flex items-center gap-2 border-b border-emerald-100">
                 <i class="fa-solid fa-circle-info"></i> กดปุ่ม "จัดการห้องสอน" เพื่อเพิ่มชั้นเรียนให้ครูแต่ละท่าน
-                (ระบบจะดึงวันที่เริ่มสอนให้เป็นค่าเริ่มต้นโดยอัตโนมัติ)</div>
+                (ระบบจะดึงวันที่เริ่มสอนให้เป็นค่าเริ่มต้นโดยอัตโนมัติ)
+            </div>
             <div class="overflow-x-auto p-4">
                 <table
                     class="w-full text-sm text-left table-fixed min-w-[700px] border border-gray-200 rounded-xl overflow-hidden bg-white/50">

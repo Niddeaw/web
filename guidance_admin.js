@@ -3,7 +3,8 @@
 // - ใช้ RPC get_guidance_progress (เร็ว)
 // - มี Dashboard สรุปความคืบหน้า
 // - มีปุ่มพิมพ์ PDF สำหรับ Admin
-// - มีสถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
+// - สถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
+// - เพิ่มสีพื้นหลังตามสถานะการเข้าเรียน (ป่วย/ลา/ขาด)
 // - เรียงป้ายห้องตามระดับชั้น
 // ==========================================
 
@@ -447,7 +448,6 @@ function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
     let html = '';
     guidanceTeachersList.forEach(teacher => {
-        // ✅ เรียงป้ายห้องตามระดับชั้น + ห้อง (น้อยไปมาก)
         const tMappings = mappedClasses
             .filter(m => m.teacher_id === teacher.id)
             .sort((a, b) => {
@@ -763,7 +763,37 @@ function switchAdminTab(tabId, btnElement) {
     document.getElementById(tabId).classList.remove('hidden');
 }
 
-function selectColor(el) { if (el) el.setAttribute('data-val', el.value); }
+function selectColor(el) { 
+    if (!el) return;
+    el.setAttribute('data-val', el.value);
+    applyAttendanceColor(el);
+}
+
+// ✅ ฟังก์ชันใหม่: ใส่สีพื้นหลังตามสถานะ
+function applyAttendanceColor(el) {
+    if (!el) return;
+    const v = el.value;
+    el.style.fontWeight = '600';
+    el.style.transition = 'background-color 0.15s, color 0.15s';
+
+    if (v === 'ป่วย') {
+        el.style.backgroundColor = '#ffedd5';
+        el.style.color = '#c2410c';
+        el.style.borderColor = '#fdba74';
+    } else if (v === 'ลา') {
+        el.style.backgroundColor = '#fef9c3';
+        el.style.color = '#a16207';
+        el.style.borderColor = '#fde047';
+    } else if (v === 'ขาด') {
+        el.style.backgroundColor = '#fee2e2';
+        el.style.color = '#b91c1c';
+        el.style.borderColor = '#fca5a5';
+    } else {
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+    }
+}
 
 function calcAttTotal(stdId) {
     let t = 0;
@@ -823,6 +853,9 @@ function renderAttendanceTab() {
         </tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
+
+    // ✅ ใส่สีพื้นหลังให้กับ dropdown ทุกตัวหลัง render
+    document.querySelectorAll('#tb-attendance .tiny-select').forEach(applyAttendanceColor);
 }
 
 function renderAttributesTab() {
@@ -865,13 +898,11 @@ async function adminSaveAllData() {
             await db.from('student_enrollments').update({ status: upd.status }).eq('id', upd.enrollment_id);
         }
 
-        // อัปเดต memory
         globalStudents = globalStudents.map(std => {
             const statusEl = document.getElementById(`status_${std.id}`);
             return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
         });
 
-        // Re-fetch ข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่ เพื่อให้ PDF แสดงผลทันที
         const stdIds = globalStudents.map(s => s.id);
         const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
         globalAttendance = att || [];
@@ -1395,5 +1426,9 @@ window.saveTeacherClasses = saveTeacherClasses;
 window.loadMonitoringData = loadMonitoringData;
 window.loadDashboardData = loadDashboardData;
 window.printPDFAdmin = printPDFAdmin;
+window.selectColor = selectColor;
+window.applyAttendanceColor = applyAttendanceColor;
+window.calcAttTotal = calcAttTotal;
+window.calcAttr = calcAttr;
 
-console.log('✅ guidance_admin.js loaded (มีสถานะ 5 แบบ + Dashboard + Print PDF)');
+console.log('✅ guidance_admin.js loaded (มีสีสถานะ + Dashboard + Print PDF)');
