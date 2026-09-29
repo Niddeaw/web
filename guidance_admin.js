@@ -1,9 +1,10 @@
 // ==========================================
 // guidance_admin.js — ระบบเครื่องมือผู้ดูแลระบบแนะแนว
-// - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
-// - ใช้ RPC get_guidance_progress (เร็วขึ้น 100 เท่า)
+// - ใช้ RPC get_guidance_progress (เร็ว)
 // - มี Dashboard สรุปความคืบหน้า
 // - มีปุ่มพิมพ์ PDF สำหรับ Admin
+// - มีสถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
+// - เรียงป้ายห้องตามระดับชั้น
 // ==========================================
 
 let currentUserProfile = null;
@@ -30,6 +31,7 @@ let currentUserId = null;
 let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
+const STUDENT_STATUS_OPTIONS = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
 
 // ==========================================
 // ฟังก์ชันอัปเดต UI ตามสิทธิ์
@@ -62,7 +64,7 @@ function applyAdminVisibility() {
 }
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
+// LOGOUT
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -202,7 +204,7 @@ async function toggleSystemStatus(el) {
 }
 
 // -----------------------------------
-// 2. Monitoring & Teacher Management (OPTIMIZED - ใช้ RPC เดียว)
+// 2. Monitoring & Teacher Management (OPTIMIZED)
 // -----------------------------------
 async function loadMonitoringData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -211,15 +213,12 @@ async function loadMonitoringData() {
     const currentYear = globalSystemSettings.current_academic_year;
 
     try {
-        // ✅ 1. ดึงทุกอย่างใน 1 RPC (ห้อง + นร. + att + attr)
         const { data: progress, error: rpcError } = await db.rpc('get_guidance_progress', {
             p_semester: currentSemester,
             p_year: currentYear
         });
-
         if (rpcError) throw rpcError;
 
-        // ✅ 2. แปลงข้อมูล
         allSystemClasses = (progress || []).map(r => ({
             id: r.classroom_id,
             grade_level: r.grade_level,
@@ -229,19 +228,16 @@ async function loadMonitoringData() {
             _attrCount: Number(r.attr_count)
         }));
 
-        // ✅ 3. ดึงครูแนะแนว + mapping (2 query)
         const [guiTeachersRes, mappedClassesRes] = await Promise.all([
-            db.from('guidance_teachers')
-                .select('teacher_id, core_personnel(id, first_name, last_name, email)'),
+            db.from('guidance_teachers').select('teacher_id, core_personnel(id, first_name, last_name, email)'),
             db.from('guidance_classes').select('*')
         ]);
 
-        guidanceTeachersList = guiTeachersRes.data 
-            ? guiTeachersRes.data.map(gt => gt.core_personnel).filter(Boolean) 
+        guidanceTeachersList = guiTeachersRes.data
+            ? guiTeachersRes.data.map(gt => gt.core_personnel).filter(Boolean)
             : [];
         const mappedClasses = mappedClassesRes.data || [];
 
-        // ✅ 4. สร้าง monitorData
         monitorData = allSystemClasses.map(cls => {
             const mapping = mappedClasses.find(m => m.classroom_id === cls.id);
             let teacherName = 'ไม่ระบุครู';
@@ -287,10 +283,10 @@ function renderMonitoringTable(dataArray) {
     if (dataArray.length === 0) { tbody.innerHTML = '<tr><td colspan="5" class="p-8 text-center text-gray-400">ยังไม่มีข้อมูลห้องเรียนในระบบส่วนกลาง</td></tr>'; return; }
 
     tbody.innerHTML = dataArray.map(item => {
-        let statusHtml = item.studentCount === 0 
-            ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-500">ไม่มีเด็ก</span>' 
-            : (item.isComplete 
-                ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">🟢 เรียบร้อย</span>' 
+        let statusHtml = item.studentCount === 0
+            ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-gray-100 text-gray-500">ไม่มีเด็ก</span>'
+            : (item.isComplete
+                ? '<span class="px-2 py-1 text-xs font-bold rounded-full bg-green-100 text-green-700">🟢 เรียบร้อย</span>'
                 : '<span class="px-2 py-1 text-xs font-bold rounded-full bg-red-100 text-red-600">🔴 ยังไม่ครบ</span>');
         return `
         <tr class="hover:bg-gray-50 transition">
@@ -306,7 +302,7 @@ function renderMonitoringTable(dataArray) {
 }
 
 // ==========================================
-// Dashboard สรุปความคืบหน้า (OPTIMIZED)
+// Dashboard สรุปความคืบหน้า
 // ==========================================
 async function loadDashboardData() {
     Swal.fire({ title: 'กำลังคำนวณข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -315,15 +311,12 @@ async function loadDashboardData() {
         const currentSemester = globalSystemSettings.current_semester;
         const currentYear = globalSystemSettings.current_academic_year;
 
-        // ✅ ใช้ RPC เดียวกัน (1 query)
         const { data: progress, error: rpcError } = await db.rpc('get_guidance_progress', {
             p_semester: currentSemester,
             p_year: currentYear
         });
-
         if (rpcError) throw rpcError;
 
-        // ดึงครู-ห้อง (1 query)
         const { data: mappedClasses } = await db.from('guidance_classes').select('*');
         const { data: guiTeachers } = await db.from('guidance_teachers')
             .select('teacher_id, core_personnel(id, first_name, last_name)');
@@ -333,7 +326,6 @@ async function loadDashboardData() {
             if (gt.core_personnel) teacherMap[gt.core_personnel.id] = gt.core_personnel;
         });
 
-        // คำนวณสถานะแต่ละห้อง
         const rooms = (progress || []).map(c => {
             const n_std = Number(c.n_std);
             const attCount = Number(c.att_count);
@@ -362,7 +354,6 @@ async function loadDashboardData() {
             };
         });
 
-        // สถิติรวม
         const total = rooms.length;
         const complete = rooms.filter(r => r.status === 'complete').length;
         const incomplete = rooms.filter(r => r.status === 'incomplete').length;
@@ -383,7 +374,6 @@ async function loadDashboardData() {
         if (elPercent) elPercent.innerText = `${percent}%`;
         if (elBar) elBar.style.width = `${percent}%`;
 
-        // แยกตามระดับชั้น
         const byGrade = {};
         rooms.forEach(r => {
             if (!byGrade[r.grade]) byGrade[r.grade] = { complete: 0, incomplete: 0, empty: 0, total: 0 };
@@ -414,7 +404,6 @@ async function loadDashboardData() {
         const elByGrade = document.getElementById('dash-by-grade');
         if (elByGrade) elByGrade.innerHTML = gradeHtml;
 
-        // ครูที่ยังต้องกรอก
         const teacherPending = {};
         rooms.forEach(r => {
             if (r.status !== 'complete' && r.teacherId) {
@@ -452,13 +441,22 @@ async function loadDashboardData() {
 }
 
 // -----------------------------------
-// 3. ระบบจัดการครูแนะแนว
+// 3. ระบบจัดการครูแนะแนว (เรียงป้ายห้องตามระดับชั้น)
 // -----------------------------------
 function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
     let html = '';
     guidanceTeachersList.forEach(teacher => {
-        const tMappings = mappedClasses.filter(m => m.teacher_id === teacher.id);
+        // ✅ เรียงป้ายห้องตามระดับชั้น + ห้อง (น้อยไปมาก)
+        const tMappings = mappedClasses
+            .filter(m => m.teacher_id === teacher.id)
+            .sort((a, b) => {
+                const clsA = allSystemClasses.find(c => c.id === a.classroom_id);
+                const clsB = allSystemClasses.find(c => c.id === b.classroom_id);
+                if (!clsA || !clsB) return 0;
+                return clsA.grade_level - clsB.grade_level || clsA.room_number - clsB.room_number;
+            });
+
         let badgesHtml = '<div class="flex flex-wrap gap-2">';
 
         tMappings.forEach(tm => {
@@ -720,8 +718,14 @@ async function openAdminEditor(classId, classNameStr) {
         .eq('classroom_id', classId).order('student_number');
 
     globalStudents = stds ? stds.map(s => ({
-        id: s.student_id, student_number: s.student_number, student_id_card: s.core_students.student_id_card,
-        prefix: s.core_students.prefix, first_name: s.core_students.first_name, last_name: s.core_students.last_name, student_status: s.status
+        id: s.student_id,
+        enrollment_id: s.id,
+        student_number: s.student_number,
+        student_id_card: s.core_students.student_id_card,
+        prefix: s.core_students.prefix,
+        first_name: s.core_students.first_name,
+        last_name: s.core_students.last_name,
+        student_status: s.status || 'ปกติ'
     })) : [];
 
     const stdIds = globalStudents.map(s => s.id);
@@ -800,7 +804,23 @@ function renderAttendanceTab() {
             const w = i + 1, v = myAtt.find(a => a.week_number === w)?.status || 'มา';
             return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')"><option value="มา" ${v === 'มา' ? 'selected' : ''}>มา</option><option value="ป่วย" ${v === 'ป่วย' ? 'selected' : ''}>ป่วย</option><option value="ลา" ${v === 'ลา' ? 'selected' : ''}>ลา</option><option value="ขาด" ${v === 'ขาด' ? 'selected' : ''}>ขาด</option></select></td>`;
         }).join('');
-        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td><td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm">${std.student_status}</td></tr>`;
+
+        const curStatus = std.student_status || 'ปกติ';
+        const statusOptions = STUDENT_STATUS_OPTIONS.map(opt =>
+            `<option value="${opt}" ${curStatus === opt ? 'selected' : ''}>${opt}</option>`
+        ).join('');
+
+        return `<tr>
+            <td class="col-no">${std.student_number}</td>
+            <td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>
+            ${drops}
+            <td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td>
+            <td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center">
+                <select id="status_${std.id}" class="tiny-select w-full">
+                    ${statusOptions}
+                </select>
+            </td>
+        </tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
@@ -824,23 +844,37 @@ async function adminSaveAllData() {
     const classId = globalSelectedClass.id;
     Swal.fire({ title: 'กำลังบังคับบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const attToUpsert = [], atToUpsert = [];
+        const attToUpsert = [], atToUpsert = [], statusUpdates = [];
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
                 if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
             }
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
+
+            const statusEl = document.getElementById(`status_${std.id}`);
+            if (statusEl && std.enrollment_id) {
+                statusUpdates.push({ enrollment_id: std.enrollment_id, status: statusEl.value });
+            }
         });
 
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
-        // ✅ FIX: ดึงข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่ เพื่อให้ PDF แสดงถูกต้องทันที
+        for (const upd of statusUpdates) {
+            await db.from('student_enrollments').update({ status: upd.status }).eq('id', upd.enrollment_id);
+        }
+
+        // อัปเดต memory
+        globalStudents = globalStudents.map(std => {
+            const statusEl = document.getElementById(`status_${std.id}`);
+            return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
+        });
+
+        // Re-fetch ข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่ เพื่อให้ PDF แสดงผลทันที
         const stdIds = globalStudents.map(s => s.id);
         const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
         globalAttendance = att || [];
-
         if (stdIds.length > 0) {
             const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
             globalAttributes = attrs || [];
@@ -854,19 +888,21 @@ async function adminSaveAllData() {
 }
 
 // ==========================================
-// 5. ระบบ นำเข้า/ส่งออก Excel (ไม่มีคะแนน)
+// 5. นำเข้า/ส่งออก Excel
 // ==========================================
 function exportExcelAll() {
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
-    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`)]];
+    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`), 'สถานะ']];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
         for (let w = 1; w <= 20; w++) {
             const el = document.getElementById(`att_${std.id}_w${w}`);
             row.push(el ? el.value : '');
         }
+        const statusEl = document.getElementById(`status_${std.id}`);
+        row.push(statusEl ? statusEl.value : 'ปกติ');
         attData.push(row);
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attData), "เวลาเรียน");
@@ -907,6 +943,8 @@ async function importExcelAll(event) {
                             const el = document.getElementById(`att_${std.id}_w${w}`);
                             if (el && row[`ส.${w}`]) { el.value = row[`ส.${w}`]; selectColor(el); }
                         }
+                        const statusEl = document.getElementById(`status_${std.id}`);
+                        if (statusEl && row['สถานะ']) statusEl.value = row['สถานะ'];
                         calcAttTotal(std.id);
                     }
                 });
@@ -987,16 +1025,19 @@ async function printPDFAdmin() {
     else if (grade === 6) subjectCode = t_term === "2" ? "ก33903" : "ก33901";
 
     let totalStd = globalStudents.length;
-    let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, dropCount = 0;
+    let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, leaveCount = 0, transferCount = 0;
 
     let students40 = [...globalStudents];
     while (students40.length < 40) students40.push({ id: null, student_number: '', student_id_card: '', prefix: '', first_name: '', last_name: '', student_status: '' });
 
     const evaluatedStudents = students40.map(std => {
         if (!std.id) return { ...std, attTotal: '', isAttPass: false, isAttrPass: false, finalRes: '' };
-        if (std.student_status === 'ขาดนาน') absentCount++;
-        else if (std.student_status === 'พักการเรียน') suspendCount++;
-        else if (std.student_status === 'ออก') dropCount++;
+
+        const st = std.student_status || 'ปกติ';
+        if (st === 'ขาดนาน') absentCount++;
+        else if (st === 'พักการเรียน') suspendCount++;
+        else if (st === 'ลาออก') leaveCount++;
+        else if (st === 'ย้ายสถานศึกษา') transferCount++;
 
         let attTotal = 0;
         const myAtt = globalAttendance.filter(a => a.student_id === std.id);
@@ -1014,7 +1055,7 @@ async function printPDFAdmin() {
         });
 
         const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
-        const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ออก'].includes(std.student_status);
+        const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ลาออก', 'ย้ายสถานศึกษา'].includes(st);
         if (!isSpecialStatus) {
             if (finalRes === 'ผ') passCount++;
             else failCount++;
@@ -1043,14 +1084,19 @@ async function printPDFAdmin() {
         </div>
         <div style="font-size: 14pt; margin-bottom: 10px; width: 95%; margin-left: auto; margin-right: auto; text-align: left; padding-left: 2.5%;">ครูผู้จัดกิจกรรมแนะแนว ${teacherFullName}</div>
         <div style="text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 5px;">สรุปผลการจัดการเรียนรู้กิจกรรมแนะแนว</div>
-        <table class="print-table" style="font-size: 13pt; margin-bottom: 15px; width: 95%; margin-left: auto; margin-right: auto;">
+        <table class="print-table" style="font-size: 12pt; margin-bottom: 15px; width: 95%; margin-left: auto; margin-right: auto;">
             <tr>
-                <th rowspan="2" style="width: 25%; font-weight: normal;">จำนวนนักเรียนทั้งหมด</th>
-                <th colspan="2" style="font-weight: normal;">สรุปผลการเรียนรู้กิจกรรมแนะแนว</th>
-                <th colspan="3" style="font-weight: normal;">หมายเหตุ</th>
+                <th rowspan="2" style="width: 18%; font-weight: normal;">จำนวนนักเรียนทั้งหมด</th>
+                <th colspan="2" style="font-weight: normal;">สรุปผลการเรียนรู้</th>
+                <th colspan="4" style="font-weight: normal;">หมายเหตุ</th>
             </tr>
             <tr>
-                <th style="font-weight: normal;">ผ่าน</th><th style="font-weight: normal;">ไม่ผ่าน</th><th style="font-weight: normal;">ขาดนาน</th><th style="font-weight: normal;">พักการเรียน</th><th style="font-weight: normal;">ออก</th>
+                <th style="font-weight: normal;">ผ่าน</th>
+                <th style="font-weight: normal;">ไม่ผ่าน</th>
+                <th style="font-weight: normal;">ขาดนาน</th>
+                <th style="font-weight: normal;">พักการเรียน</th>
+                <th style="font-weight: normal;">ลาออก</th>
+                <th style="font-weight: normal;">ย้ายสถานศึกษา</th>
             </tr>
             <tr style="height: 35px;">
                 <td style="text-align: center; font-size: 14pt">${totalStd}</td>
@@ -1058,7 +1104,8 @@ async function printPDFAdmin() {
                 <td style="text-align: center; font-size: 14pt">${failCount}</td>
                 <td style="text-align: center; font-size: 14pt">${absentCount === 0 ? '-' : absentCount}</td>
                 <td style="text-align: center; font-size: 14pt">${suspendCount === 0 ? '-' : suspendCount}</td>
-                <td style="text-align: center; font-size: 14pt">${dropCount === 0 ? '-' : dropCount}</td>
+                <td style="text-align: center; font-size: 14pt">${leaveCount === 0 ? '-' : leaveCount}</td>
+                <td style="text-align: center; font-size: 14pt">${transferCount === 0 ? '-' : transferCount}</td>
             </tr>
         </table>
         <div style="text-align: center; font-size: 14pt; margin-bottom: 5px;">การอนุมัติผลการจัดการเรียนรู้กิจกรรมแนะแนว</div>
@@ -1349,4 +1396,4 @@ window.loadMonitoringData = loadMonitoringData;
 window.loadDashboardData = loadDashboardData;
 window.printPDFAdmin = printPDFAdmin;
 
-console.log('✅ guidance_admin.js loaded (OPTIMIZED + Dashboard + Print PDF Admin)');
+console.log('✅ guidance_admin.js loaded (มีสถานะ 5 แบบ + Dashboard + Print PDF)');

@@ -1,7 +1,8 @@
 // ==========================================
 // guidance_teacher.js — ระบบครูผู้สอนแนะแนว
-// - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
-// - ใช้ printPDF_v7() สำหรับพิมพ์ PDF ด้วย HTML (ไม่ใช้ GAS)
+// - ไม่มีคะแนน/ผลการเรียน
+// - มีสถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
+// - ใช้ printPDF_v7() พิมพ์ด้วย HTML
 // ==========================================
 
 let currentUserProfile = null;
@@ -17,7 +18,6 @@ let globalIsSystemOpen = true;
 
 let classTomSelect = null;
 
-// ✅ ระบบ Cache (ไม่มี scores)
 let dataCache = {
     students: {},
     attendance: {},
@@ -32,6 +32,7 @@ let currentUserId = null;
 let isModuleAdmin = false;
 
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
+const STUDENT_STATUS_OPTIONS = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
 
 // ==========================================
 // LOGOUT
@@ -264,12 +265,13 @@ async function loadAllData(classId = null) {
 
         globalStudents = stds ? stds.map(s => ({
             id: s.student_id,
+            enrollment_id: s.id,
             student_number: s.student_number,
             student_id_card: s.core_students.student_id_card,
             prefix: s.core_students.prefix,
             first_name: s.core_students.first_name,
             last_name: s.core_students.last_name,
-            student_status: s.status
+            student_status: s.status || 'ปกติ'
         })) : [];
 
         const stdIds = globalStudents.map(s => s.id);
@@ -342,7 +344,23 @@ function renderAttendanceTab() {
             const w = i + 1, v = myAtt.find(a => a.week_number === w)?.status || 'มา';
             return `<td class="p-1"><select id="att_${std.id}_w${w}" class="tiny-select w-full" data-val="${v}" onchange="selectColor(this); calcAttTotal('${std.id}')" ${lockAttr}><option value="มา" ${v === 'มา' ? 'selected' : ''}>มา</option><option value="ป่วย" ${v === 'ป่วย' ? 'selected' : ''}>ป่วย</option><option value="ลา" ${v === 'ลา' ? 'selected' : ''}>ลา</option><option value="ขาด" ${v === 'ขาด' ? 'selected' : ''}>ขาด</option></select></td>`;
         }).join('');
-        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td><td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center font-bold text-sm">${std.student_status}</td></tr>`;
+
+        const curStatus = std.student_status || 'ปกติ';
+        const statusOptions = STUDENT_STATUS_OPTIONS.map(opt =>
+            `<option value="${opt}" ${curStatus === opt ? 'selected' : ''}>${opt}</option>`
+        ).join('');
+
+        return `<tr>
+            <td class="col-no">${std.student_number}</td>
+            <td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>
+            ${drops}
+            <td class="font-bold text-green-700 bg-green-50 border-l-2 border-green-200" id="att_total_${std.id}">0</td>
+            <td class="p-1 bg-gray-50 border-l-2 border-gray-300 text-center">
+                <select id="status_${std.id}" class="tiny-select w-full" ${lockAttr}>
+                    ${statusOptions}
+                </select>
+            </td>
+        </tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
 }
@@ -368,23 +386,37 @@ async function saveAllData() {
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         const classId = globalSelectedClass.id;
-        const attToUpsert = [], atToUpsert = [];
+        const attToUpsert = [], atToUpsert = [], statusUpdates = [];
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
                 if (s && weekDatesArray[w - 1]) attToUpsert.push({ student_id: std.id, classroom_id: classId, week_number: w, status: s.value, check_date: weekDatesArray[w - 1].toISOString().split('T')[0] });
             }
             ATTR_COLS.forEach(c => { const s = document.getElementById(`at_${std.id}_${c}`); if (s) atToUpsert.push({ student_id: std.id, attribute_name: c, score: parseInt(s.value) }); });
+
+            const statusEl = document.getElementById(`status_${std.id}`);
+            if (statusEl && std.enrollment_id) {
+                statusUpdates.push({ enrollment_id: std.enrollment_id, status: statusEl.value });
+            }
         });
 
         if (attToUpsert.length > 0) await db.from('guidance_attendance').upsert(attToUpsert, { onConflict: 'student_id,week_number' });
         if (atToUpsert.length > 0) await db.from('guidance_attributes').upsert(atToUpsert, { onConflict: 'student_id,attribute_name' });
 
-        // ✅ FIX: ดึงข้อมูลล่าสุดกลับมาเก็บใน memory ใหม่
+        for (const upd of statusUpdates) {
+            await db.from('student_enrollments').update({ status: upd.status }).eq('id', upd.enrollment_id);
+        }
+
+        // อัปเดต memory
+        globalStudents = globalStudents.map(std => {
+            const statusEl = document.getElementById(`status_${std.id}`);
+            return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
+        });
+
+        // Re-fetch ข้อมูลล่าสุด
         const stdIds = globalStudents.map(s => s.id);
         const { data: att } = await db.from('guidance_attendance').select('*').eq('classroom_id', classId);
         globalAttendance = att || [];
-
         if (stdIds.length > 0) {
             const { data: attrs } = await db.from('guidance_attributes').select('*').in('student_id', stdIds);
             globalAttributes = attrs || [];
@@ -392,7 +424,6 @@ async function saveAllData() {
             globalAttributes = [];
         }
 
-        // ล้าง cache
         const cacheKey = classId;
         delete dataCache.students[cacheKey];
         delete dataCache.attendance[cacheKey];
@@ -400,7 +431,6 @@ async function saveAllData() {
         delete cacheTimestamp[cacheKey];
 
         await window.logUserAction(`บันทึกข้อมูลห้อง ${classId}`, 'guidance');
-
         await updateClassStatusBadges();
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย!', timer: 1500, showConfirmButton: false });
     } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
@@ -424,7 +454,7 @@ function formatThaiDateFullStr(dateString) {
 }
 
 // ==========================================
-// Print PDF v7 - พิมพ์ด้วย HTML (ไม่มีคะแนน)
+// Print PDF v7 - พิมพ์ด้วย HTML
 // ==========================================
 async function printPDF_v7() {
     if (!globalSelectedClass) {
@@ -461,16 +491,19 @@ async function printPDF_v7() {
     else if (grade === 6) subjectCode = t_term === "2" ? "ก33903" : "ก33901";
 
     let totalStd = globalStudents.length;
-    let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, dropCount = 0;
+    let passCount = 0, failCount = 0, absentCount = 0, suspendCount = 0, leaveCount = 0, transferCount = 0;
 
     let students40 = [...globalStudents];
     while (students40.length < 40) students40.push({ id: null, student_number: '', student_id_card: '', prefix: '', first_name: '', last_name: '', student_status: '' });
 
     const evaluatedStudents = students40.map(std => {
         if (!std.id) return { ...std, attTotal: '', isAttPass: false, isAttrPass: false, finalRes: '' };
-        if (std.student_status === 'ขาดนาน') absentCount++;
-        else if (std.student_status === 'พักการเรียน') suspendCount++;
-        else if (std.student_status === 'ออก') dropCount++;
+
+        const st = std.student_status || 'ปกติ';
+        if (st === 'ขาดนาน') absentCount++;
+        else if (st === 'พักการเรียน') suspendCount++;
+        else if (st === 'ลาออก') leaveCount++;
+        else if (st === 'ย้ายสถานศึกษา') transferCount++;
 
         let attTotal = 0;
         const myAtt = globalAttendance.filter(a => a.student_id === std.id);
@@ -488,7 +521,7 @@ async function printPDF_v7() {
         });
 
         const finalRes = (isAttPass && allPassed) ? 'ผ' : 'มผ';
-        const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ออก'].includes(std.student_status);
+        const isSpecialStatus = ['ขาดนาน', 'พักการเรียน', 'ลาออก', 'ย้ายสถานศึกษา'].includes(st);
         if (!isSpecialStatus) {
             if (finalRes === 'ผ') passCount++;
             else failCount++;
@@ -517,18 +550,28 @@ async function printPDF_v7() {
         </div>
         <div style="font-size: 14pt; margin-bottom: 10px; width: 95%; margin-left: auto; margin-right: auto; text-align: left; padding-left: 2.5%;">ครูผู้จัดกิจกรรมแนะแนว ${t_teacher}</div>
         <div style="text-align: center; font-size: 14pt; font-weight: bold; margin-bottom: 5px;">สรุปผลการจัดการเรียนรู้กิจกรรมแนะแนว</div>
-        <table class="print-table" style="font-size: 13pt; margin-bottom: 15px; width: 95%; margin-left: auto; margin-right: auto;">
+        <table class="print-table" style="font-size: 12pt; margin-bottom: 15px; width: 95%; margin-left: auto; margin-right: auto;">
             <tr>
-                <th rowspan="2" style="width: 25%; font-weight: normal;">จำนวนนักเรียนทั้งหมด</th>
-                <th colspan="2" style="font-weight: normal;">สรุปผลการเรียนรู้กิจกรรมแนะแนว</th>
-                <th colspan="3" style="font-weight: normal;">หมายเหตุ</th>
+                <th rowspan="2" style="width: 18%; font-weight: normal;">จำนวนนักเรียนทั้งหมด</th>
+                <th colspan="2" style="font-weight: normal;">สรุปผลการเรียนรู้</th>
+                <th colspan="4" style="font-weight: normal;">หมายเหตุ</th>
             </tr>
             <tr>
-                <th style="font-weight: normal;">ผ่าน</th><th style="font-weight: normal;">ไม่ผ่าน</th><th style="font-weight: normal;">ขาดนาน</th><th style="font-weight: normal;">พักการเรียน</th><th style="font-weight: normal;">ออก</th>
+                <th style="font-weight: normal;">ผ่าน</th>
+                <th style="font-weight: normal;">ไม่ผ่าน</th>
+                <th style="font-weight: normal;">ขาดนาน</th>
+                <th style="font-weight: normal;">พักการเรียน</th>
+                <th style="font-weight: normal;">ลาออก</th>
+                <th style="font-weight: normal;">ย้ายสถานศึกษา</th>
             </tr>
             <tr style="height: 35px;">
-                <td style="text-align: center; font-size: 14pt">${totalStd}</td><td style="text-align: center; font-size: 14pt">${passCount}</td><td style="text-align: center; font-size: 14pt">${failCount}</td>
-                <td style="text-align: center; font-size: 14pt">${absentCount === 0 ? '-' : absentCount}</td><td style="text-align: center; font-size: 14pt">${suspendCount === 0 ? '-' : suspendCount}</td><td style="text-align: center;font-size: 14pt">${dropCount === 0 ? '-' : dropCount}</td>
+                <td style="text-align: center; font-size: 14pt">${totalStd}</td>
+                <td style="text-align: center; font-size: 14pt">${passCount}</td>
+                <td style="text-align: center; font-size: 14pt">${failCount}</td>
+                <td style="text-align: center; font-size: 14pt">${absentCount === 0 ? '-' : absentCount}</td>
+                <td style="text-align: center; font-size: 14pt">${suspendCount === 0 ? '-' : suspendCount}</td>
+                <td style="text-align: center; font-size: 14pt">${leaveCount === 0 ? '-' : leaveCount}</td>
+                <td style="text-align: center; font-size: 14pt">${transferCount === 0 ? '-' : transferCount}</td>
             </tr>
         </table>
         <div style="text-align: center; font-size: 14pt; margin-bottom: 5px;">การอนุมัติผลการจัดการเรียนรู้กิจกรรมแนะแนว</div>
@@ -772,19 +815,21 @@ async function printPDF_v7() {
 }
 
 // ==========================================
-// ฟังก์ชันนำเข้า-ส่งออก Excel (ไม่มีคะแนน)
+// ฟังก์ชันนำเข้า-ส่งออก Excel
 // ==========================================
 function exportExcelAll() {
     if (!globalSelectedClass || globalStudents.length === 0) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียนและต้องมีนักเรียนก่อนทำการส่งออก', 'warning');
     const wb = XLSX.utils.book_new();
 
-    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`)]];
+    const attData = [['เลขที่', 'รหัสนักเรียน', 'ชื่อ', 'นามสกุล', ...Array.from({ length: 20 }, (_, i) => `ส.${i + 1}`), 'สถานะ']];
     globalStudents.forEach(std => {
         const row = [std.student_number, std.student_id_card, std.first_name, std.last_name];
         for (let w = 1; w <= 20; w++) {
             const el = document.getElementById(`att_${std.id}_w${w}`);
             row.push(el ? el.value : '');
         }
+        const statusEl = document.getElementById(`status_${std.id}`);
+        row.push(statusEl ? statusEl.value : 'ปกติ');
         attData.push(row);
     });
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(attData), "เวลาเรียน");
@@ -822,6 +867,8 @@ async function importExcelAll(event) {
                             const el = document.getElementById(`att_${std.id}_w${w}`);
                             if (el && row[`ส.${w}`] !== undefined) { el.value = row[`ส.${w}`]; selectColor(el); }
                         }
+                        const statusEl = document.getElementById(`status_${std.id}`);
+                        if (statusEl && row['สถานะ']) statusEl.value = row['สถานะ'];
                         calcAttTotal(std.id);
                     }
                 });
@@ -880,4 +927,4 @@ window.selectColor = selectColor;
 window.calcAttTotal = calcAttTotal;
 window.calcAttr = calcAttr;
 
-console.log('✅ guidance_teacher.js loaded (ไม่มีคะแนน)');
+console.log('✅ guidance_teacher.js loaded (สถานะ 5 แบบ)');

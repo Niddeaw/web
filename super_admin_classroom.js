@@ -1,6 +1,7 @@
 // ==========================================
 // super_admin_classroom.js
 // จัดการห้องเรียน, นักเรียน, การนำเข้า-ส่งออก, คัดลอกเทอม, เลื่อนชั้น
+// สถานะนักเรียน 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
 // ==========================================
 
 // ==========================================
@@ -229,7 +230,6 @@ function getStudentAvatarHtml(avatarUrl, studentName) {
                 title="คลิกเพื่อดูรูปใหญ่" />`;
 }
 
-// ฟังก์ชันแสดงรูปขนาดใหญ่ (SweetAlert)
 window.viewStudentImage = function(imgUrl, studentName) {
     Swal.fire({
         title: studentName,
@@ -266,9 +266,10 @@ async function loadStudents() {
         if (data && data.length > 0) {
             tbody.innerHTML = data.map((enr) => {
                 let std = enr.core_students;
-                let stBadge = enr.status === 'เรียนปกติ'
-                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>'
-                    : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status}</span>`;
+                // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
+                let stBadge = enr.status === 'ปกติ'
+                    ? '<span class="px-2 py-1 text-[11px] font-bold rounded bg-green-100 text-green-700">ปกติ</span>'
+                    : `<span class="px-2 py-1 text-[11px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
                 const safeFname = std.first_name ? std.first_name.replace(/'/g, "\\'") : '';
                 const safeLname = std.last_name ? std.last_name.replace(/'/g, "\\'") : '';
                 const fullName = `${std.prefix || ''}${std.first_name} ${std.last_name}`;
@@ -289,7 +290,7 @@ async function loadStudents() {
                     <td class="py-3 px-4 text-gray-800 font-medium">${fullName}</td>
                     <td class="py-3 px-4 text-center">${stBadge}</td>
                     <td class="py-3 px-4 text-center whitespace-nowrap">
-                        <button onclick="editSingleStudent('${enr.id}', '${enr.student_number || ''}', '${std.student_id_card || ''}', '${std.national_id || ''}', '${std.prefix || ''}', '${safeFname}', '${safeLname}', '${enr.status || 'เรียนปกติ'}', '${std.avatar_students_url || ''}', '${std.id}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 rounded hover:bg-yellow-100"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
+                        <button onclick="editSingleStudent('${enr.id}', '${enr.student_number || ''}', '${std.student_id_card || ''}', '${std.national_id || ''}', '${std.prefix || ''}', '${safeFname}', '${safeLname}', '${enr.status || 'ปกติ'}', '${std.avatar_students_url || ''}', '${std.id}')" class="text-yellow-600 hover:text-yellow-800 text-sm font-bold px-2 rounded hover:bg-yellow-100"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
                         <button onclick="deleteSingleStudent('${enr.id}', '${safeFname}')" class="text-red-600 hover:text-red-800 text-sm font-bold px-2 ml-1 rounded hover:bg-red-100 transition-colors"><i class="fa-solid fa-trash-can"></i> ลบ</button>
                     </td>
                 </tr>`;
@@ -327,6 +328,8 @@ function openAddStudentModal() {
     _pendingStudentAvatarFile = null;
     const badge = document.getElementById('student-avatar-badge');
     if (badge) badge.classList.add('hidden');
+    // ✅ Set default status = 'ปกติ'
+    document.getElementById('s_status').value = 'ปกติ';
     document.getElementById('studentDetailModal').classList.remove('hidden');
     attachStudentFileInputEvent();
 }
@@ -341,7 +344,9 @@ function editSingleStudent(enrollId, studentNumber, studentIdCard, nationalId, p
     document.getElementById('s_prefix').value = prefix;
     document.getElementById('s_fname').value = fname;
     document.getElementById('s_lname').value = lname;
-    document.getElementById('s_status').value = status;
+    // ✅ ถ้าสถานะเดิมเป็น 'เรียนปกติ' หรือว่าง ให้เปลี่ยนเป็น 'ปกติ'
+    const normalizedStatus = (status === 'เรียนปกติ' || !status) ? 'ปกติ' : status;
+    document.getElementById('s_status').value = normalizedStatus;
     document.getElementById('s_avatar_url').value = avatarUrl || '';
 
     const fullName = `${prefix}${fname} ${lname}`;
@@ -400,7 +405,7 @@ async function saveSingleStudent(e) {
     const firstName = document.getElementById('s_fname').value.trim();
     const lastName = document.getElementById('s_lname').value.trim();
     const studentNumber = document.getElementById('s_number').value ? parseInt(document.getElementById('s_number').value) : null;
-    const status = document.getElementById('s_status').value;
+    const status = document.getElementById('s_status').value || 'ปกติ';
 
     // ตรวจสอบข้อมูลจำเป็น
     if (!studentIdCard || !firstName || !lastName) {
@@ -443,7 +448,6 @@ async function saveSingleStudent(e) {
             if (error) throw error;
             studentUpsertResult = data;
             finalCoreStudentId = data.id;
-            // เก็บ core student id ไว้ใน hidden field เพื่อใช้ในการอัปโหลดรูปครั้งต่อไป
             document.getElementById('s_core_id').value = finalCoreStudentId;
         }
 
@@ -581,9 +585,10 @@ async function bulkDeleteStudents() {
 
 // นำเข้า-ส่งออก
 function downloadStudentTemplate() {
-    const ws_data = [['เลขที่', 'เลขประจำตัวนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'สถานะ']];
+    // ✅ อัปเดต header ให้ระบุสถานะที่รองรับ
+    const ws_data = [['เลขที่', 'เลขประจำตัวนักเรียน', 'เลขประจำตัวประชาชน', 'คำนำหน้า', 'ชื่อ', 'นามสกุล', 'สถานะ (ปกติ/พักการเรียน/ขาดนาน/ลาออก/ย้ายสถานศึกษา)']];
     const ws = XLSX.utils.aoa_to_sheet(ws_data);
-    ws['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 15 }];
+    ws['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 20 }, { wch: 15 }, { wch: 25 }, { wch: 25 }, { wch: 40 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อนักเรียน");
     XLSX.writeFile(wb, "ต้นแบบรายชื่อนักเรียน.xlsx");
@@ -643,7 +648,7 @@ async function exportAllStudentsExcel() {
                 s.prefix || '',
                 s.first_name || '',
                 s.last_name || '',
-                row.status || 'เรียนปกติ'
+                row.status || 'ปกติ'  // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
             ]);
         });
 
@@ -813,7 +818,12 @@ async function insertStudentDataToDB(rows, classId) {
 
         const studentId = stdData.id;
         const studentNumber = parseInt(row['เลขที่']) || null;
-        const status = row['สถานะ']?.toString().trim() || 'เรียนปกติ';
+        // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
+        let status = row['สถานะ']?.toString().trim() || 'ปกติ';
+        // ปรับค่าที่ไม่ตรงมาตรฐานให้เป็น 'ปกติ'
+        if (status === 'เรียนปกติ') status = 'ปกติ';
+        const validStatuses = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
+        if (!validStatuses.includes(status)) status = 'ปกติ';
 
         if (existingMap.has(studentId)) {
             const enrollId = existingMap.get(studentId);
@@ -843,7 +853,7 @@ async function insertStudentDataToDB(rows, classId) {
     await loadStudents();
 }
 
-// ตรวจสอบนักเรียนซ้ำ (คงเดิม)
+// ตรวจสอบนักเรียนซ้ำ
 async function checkDuplicateStudents() {
     Swal.fire({ title: 'กำลังสแกนฐานข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     try {
@@ -967,10 +977,11 @@ function openGlobalStudentSearch() {
         confirmButtonText: '<i class="fas fa-search"></i> ค้นหา',
         cancelButtonText: 'ยกเลิก',
         inputValidator: (value) => {
-            if (!value) return 'กรุณาพิมพ์คำค้นหาด้วยครับ!';
+            if (!value || !value.trim()) return 'กรุณาพิมพ์คำค้นหาด้วยครับ!';
         }
     }).then((result) => {
         if (result.isConfirmed && result.value) {
+            // ✅ ล้างช่องว่างหน้า-หลังก่อนค้นหา
             searchGlobalStudents(result.value.trim());
         }
     });
@@ -978,39 +989,73 @@ function openGlobalStudentSearch() {
 
 async function searchGlobalStudents(keyword) {
     Swal.fire({ title: 'กำลังค้นหา...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+    
     try {
-        const { data: students, error: stuErr } = await db
-            .from('core_students')
-            .select(`
-                id,
-                student_id_card,
-                first_name,
-                last_name,
-                student_enrollments!student_id (
-                    id,
-                    student_number,
-                    classroom_id,
-                    core_classrooms (
-                        id,
-                        grade_level,
-                        room_number,
-                        academic_year,
-                        semester
-                    )
-                )
-            `)
-            .or(`student_id_card.ilike.%${keyword}%,first_name.ilike.%${keyword}%,last_name.ilike.%${keyword}%`)
-            .limit(50);
+        // ✅ 1. แยกคำค้นหาด้วยช่องว่าง (รองรับ "ชื่อ นามสกุล")
+        const keywords = keyword.trim().split(/\s+/).filter(k => k.length > 0);
+        if (keywords.length === 0) {
+            Swal.close();
+            return Swal.fire('แจ้งเตือน', 'กรุณาพิมพ์คำค้นหา', 'warning');
+        }
+        
+        // ✅ 2. ค้นหาจาก core_students (เพิ่ม avatar_students_url)
+        let query = db.from('core_students')
+            .select('id, student_id_card, national_id, prefix, first_name, last_name, avatar_students_url');
+        
+        const k1 = keywords[0].replace(/[%_]/g, '');
+        query = query.or(`student_id_card.ilike.%${k1}%,first_name.ilike.%${k1}%,last_name.ilike.%${k1}%`);
+        
+        const { data: studentsRaw, error: stuErr } = await query.limit(100);
         if (stuErr) throw stuErr;
-        if (!students || students.length === 0) {
-            Swal.fire('ไม่พบข้อมูล', `ไม่พบนักเรียนที่ตรงกับ "${keyword}"`, 'info');
-            return;
+        
+        // ✅ 3. กรองซ้ำใน JS
+        let students = (studentsRaw || []);
+        if (keywords.length > 1) {
+            students = students.filter(s => {
+                const fullText = `${s.student_id_card || ''} ${s.first_name || ''} ${s.last_name || ''}`.toLowerCase();
+                return keywords.every(k => fullText.includes(k.toLowerCase()));
+            });
+        }
+        
+        if (students.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่พบข้อมูล', `ไม่พบนักเรียนที่ตรงกับ "${keyword}"`, 'info');
         }
 
-        const { data: schoolInfo } = await db.from('core_school_info').select('current_academic_year').single();
+        // ✅ 4. ดึง enrollments แยกต่างหาก (เพิ่ม status)
+        const studentIds = students.map(s => s.id);
+        const { data: enrollments, error: enrErr } = await db.from('student_enrollments')
+            .select(`
+                id,
+                student_id,
+                student_number,
+                classroom_id,
+                status,
+                core_classrooms (
+                    id,
+                    grade_level,
+                    room_number,
+                    academic_year,
+                    semester
+                )
+            `)
+            .in('student_id', studentIds);
+        
+        if (enrErr) console.warn('Enrollment query warning:', enrErr);
+        
+        const enrollMap = {};
+        (enrollments || []).forEach(e => {
+            if (!enrollMap[e.student_id]) enrollMap[e.student_id] = [];
+            enrollMap[e.student_id].push(e);
+        });
+
+        // ✅ 5. ดึงข้อมูลโรงเรียนและห้องเรียนสำหรับ dropdown
+        const { data: schoolInfo } = await db.from('core_school_info')
+            .select('current_academic_year')
+            .single();
         const currentYear = schoolInfo?.current_academic_year || (new Date().getFullYear() + 543).toString();
-        const { data: classrooms } = await db
-            .from('core_classrooms')
+        
+        const { data: classrooms } = await db.from('core_classrooms')
             .select('id, grade_level, room_number, semester, academic_year')
             .eq('academic_year', currentYear)
             .order('grade_level')
@@ -1021,74 +1066,126 @@ async function searchGlobalStudents(keyword) {
             text: `ม.${c.grade_level}/${c.room_number} (เทอม ${c.semester}/${c.academic_year})`
         }));
 
+        // ✅ 6. สร้าง HTML
         let html = `<div class="overflow-x-auto max-h-[60vh] text-left">
+            <div class="bg-blue-50 border border-blue-200 text-blue-700 p-3 rounded-xl mb-3 text-xs">
+                <i class="fas fa-info-circle mr-1"></i> พบนักเรียน <b>${students.length}</b> คน
+            </div>
             <table class="w-full text-sm border-collapse">
                 <thead class="bg-gray-100 sticky top-0 z-10">
                     <tr>
+                        <th class="p-2 border border-gray-300 w-16 text-center">รูป</th>
                         <th class="p-2 border border-gray-300">รหัส</th>
                         <th class="p-2 border border-gray-300">ชื่อ - นามสกุล</th>
                         <th class="p-2 border border-gray-300 text-center">ห้องปัจจุบัน</th>
+                        <th class="p-2 border border-gray-300 text-center">สถานะ</th>
                         <th class="p-2 border border-gray-300 text-center">เปลี่ยนห้อง</th>
                         <th class="p-2 border border-gray-300 text-center">ลบ</th>
                     </tr>
                 </thead>
                 <tbody>`;
+        
         for (const s of students) {
-            const enroll = s.student_enrollments && s.student_enrollments.length > 0 ? s.student_enrollments[0] : null;
+            const studentEnrolls = enrollMap[s.id] || [];
+            const enroll = studentEnrolls.length > 0 ? studentEnrolls[0] : null;
             const currentRoomId = enroll?.classroom_id || '';
             const enrollId = enroll?.id || '';
+            const status = enroll?.status || 'ไม่มีห้อง';
+            
+            // ✅ รูปโปรไฟล์
+            const fullName = `${s.prefix || ''}${s.first_name || ''} ${s.last_name || ''}`.trim();
+            const avatarHtml = getStudentAvatarHtml(s.avatar_students_url, fullName);
+            
+            // ✅ สถานะ Badge
+            let statusBadge;
+            if (!enroll) {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-gray-100 text-gray-500">ไม่มีห้อง</span>';
+            } else if (status === 'ปกติ') {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-green-100 text-green-700">ปกติ</span>';
+            } else if (status === 'พักการเรียน') {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-orange-100 text-orange-700">พักการเรียน</span>';
+            } else if (status === 'ขาดนาน') {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-yellow-100 text-yellow-700">ขาดนาน</span>';
+            } else if (status === 'ลาออก') {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-rose-100 text-rose-700">ลาออก</span>';
+            } else if (status === 'ย้ายสถานศึกษา') {
+                statusBadge = '<span class="px-2 py-1 text-[10px] font-bold rounded bg-purple-100 text-purple-700">ย้ายสถานศึกษา</span>';
+            } else {
+                statusBadge = `<span class="px-2 py-1 text-[10px] font-bold rounded bg-gray-100 text-gray-600">${status}</span>`;
+            }
 
-            let roomText = '<span class="text-rose-500 font-bold">ไม่มีห้อง</span>';
+            let roomText = '<span class="text-rose-500 font-bold text-xs">ไม่มีห้อง</span>';
             if (enroll && enroll.core_classrooms) {
                 const cr = enroll.core_classrooms;
                 roomText = `<span class="font-bold text-indigo-700">ม.${cr.grade_level}/${cr.room_number}</span><br>
                             <span class="text-[10px] text-gray-500">(เทอม ${cr.semester}/${cr.academic_year})</span>`;
             }
+            
+            const safeFname = escapeHtml(s.first_name || '');
+            const safeLname = escapeHtml(s.last_name || '');
+            
             html += `
                 <tr class="hover:bg-purple-50 transition-colors">
+                    <td class="p-2 border border-gray-300 text-center">${avatarHtml}</td>
                     <td class="p-2 border border-gray-300 font-medium text-gray-700">${s.student_id_card || '-'}</td>
-                    <td class="p-2 border border-gray-300 min-w-[150px]">
-                        <input type="text" id="fname_${s.id}" value="${escapeHtml(s.first_name)}" class="border rounded p-1 w-full text-xs mb-1 outline-none focus:border-purple-500" placeholder="ชื่อ">
-                        <input type="text" id="lname_${s.id}" value="${escapeHtml(s.last_name)}" class="border rounded p-1 w-full text-xs outline-none focus:border-purple-500" placeholder="นามสกุล">
-                        <button onclick="saveGlobalStudentName('${s.id}')" class="w-full mt-1 text-[10px] bg-purple-100 text-purple-700 py-1 rounded hover:bg-purple-200 font-bold">บันทึกชื่อ</button>
+                    <td class="p-2 border border-gray-300 min-w-[180px]">
+                        <input type="text" id="fname_${s.id}" value="${safeFname}" 
+                            class="border rounded p-1 w-full text-xs mb-1 outline-none focus:border-purple-500" placeholder="ชื่อ">
+                        <input type="text" id="lname_${s.id}" value="${safeLname}" 
+                            class="border rounded p-1 w-full text-xs outline-none focus:border-purple-500" placeholder="นามสกุล">
+                        <button onclick="saveGlobalStudentName('${s.id}')" 
+                            class="w-full mt-1 text-[10px] bg-purple-100 text-purple-700 py-1 rounded hover:bg-purple-200 font-bold">
+                            <i class="fas fa-save mr-1"></i> บันทึกชื่อ
+                        </button>
                     </td>
                     <td class="p-2 border border-gray-300 text-center whitespace-nowrap">${roomText}</td>
-                    <td class="p-2 border border-gray-300 text-center min-w-[200px]">
+                    <td class="p-2 border border-gray-300 text-center">${statusBadge}</td>
+                    <td class="p-2 border border-gray-300 text-center min-w-[220px]">
                         <select class="room-select" data-student-id="${s.id}" data-enroll-id="${enrollId}" data-current-room="${currentRoomId}"></select>
                     </td>
                     <td class="p-2 border border-gray-300 text-center">
-                        <button onclick="deleteGlobalStudent('${s.id}', '${escapeHtml(s.first_name)}')" class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8 rounded-full transition-colors"><i class="fas fa-trash"></i></button>
+                        <button onclick="deleteGlobalStudent('${s.id}', '${safeFname}')" 
+                            class="bg-red-50 text-red-600 hover:bg-red-500 hover:text-white h-8 w-8 rounded-full transition-colors">
+                            <i class="fas fa-trash"></i>
+                        </button>
                     </td>
                 </tr>
             `;
         }
         html += `</tbody></table></div>`;
 
+        // ✅ 7. แสดงผล
+        Swal.close();
         Swal.fire({
             title: 'ผลการค้นหานักเรียน',
             html: html,
-            width: '1000px',
+            width: '1200px',
             showConfirmButton: false,
             showCancelButton: true,
-            cancelButtonText: 'ปิด',
+            cancelButtonText: '<i class="fas fa-times mr-1"></i> ปิด',
             didOpen: () => {
                 document.querySelectorAll('.room-select').forEach(select => {
                     const studentId = select.dataset.studentId;
                     const enrollId = select.dataset.enrollId;
                     const currentRoomId = select.dataset.currentRoom;
-                    new TomSelect(select, {
-                        options: roomOptions,
-                        valueField: 'value',
-                        labelField: 'text',
-                        searchField: ['text'],
-                        placeholder: currentRoomId ? '-- ถอดออกจากห้อง --' : '-- เลือกห้องเพื่อเพิ่ม --',
-                        allowEmptyOption: true,
-                        onChange: (value) => {
-                            changeStudentGlobalRoom(studentId, enrollId, value || '');
+                    
+                    try {
+                        const ts = new TomSelect(select, {
+                            options: roomOptions,
+                            valueField: 'value',
+                            labelField: 'text',
+                            searchField: ['text'],
+                            placeholder: currentRoomId ? '-- เลือกเพื่อย้ายห้อง --' : '-- เลือกห้องเพื่อเพิ่ม --',
+                            allowEmptyOption: true,
+                            onChange: (value) => {
+                                changeStudentGlobalRoom(studentId, enrollId, value || '');
+                            }
+                        });
+                        if (currentRoomId) {
+                            ts.setValue(currentRoomId, true); // silent
                         }
-                    });
-                    if (currentRoomId) {
-                        select.tomselect.setValue(currentRoomId);
+                    } catch (tsErr) {
+                        console.error('TomSelect init error:', tsErr);
                     }
                 });
             },
@@ -1098,9 +1195,18 @@ async function searchGlobalStudents(keyword) {
                 });
             }
         });
+        
     } catch (err) {
-        console.error(err);
-        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+        console.error('🔴 searchGlobalStudents Error:', err);
+        Swal.close();
+        Swal.fire({
+            icon: 'error',
+            title: 'เกิดข้อผิดพลาด',
+            html: `<div class="text-left text-sm">
+                <p><b>ข้อความ:</b> ${err.message || 'Unknown error'}</p>
+                <p class="text-xs text-gray-500 mt-2">กรุณาเปิด Console (F12) เพื่อดูรายละเอียด</p>
+            </div>`
+        });
     }
 }
 
@@ -1155,7 +1261,7 @@ async function checkUnassignedStudents() {
         const activeYear = sInfo?.current_academic_year;
         if (!activeYear) throw new Error("ไม่พบข้อมูลปีการศึกษาปัจจุบัน");
 
-        const { data: allStudents, error: allErr } = await db.from('core_students').select('id, student_id_card, first_name, last_name');
+        const { data: allStudents, error: allErr } = await db.from('core_students').select('id, student_id_card, national_id, prefix, first_name, last_name, avatar_students_url');
         if (allErr) throw allErr;
 
         const { data: enrolledData, error: enrErr } = await db
@@ -1167,38 +1273,80 @@ async function checkUnassignedStudents() {
         const enrolledIds = new Set(enrolledData ? enrolledData.map(e => e.student_id) : []);
         const unassignedStudents = allStudents.filter(s => !enrolledIds.has(s.id));
 
+        Swal.close();
+
         if (!unassignedStudents || unassignedStudents.length === 0) {
             return Swal.fire({ icon: 'success', title: 'ข้อมูลเรียบร้อย!', text: `นักเรียนทุกคนในปีการศึกษา ${activeYear} มีห้องเรียนครบถ้วนแล้ว`, confirmButtonColor: '#10b981' });
         }
 
-        let studentListHtml = `
-            <div class="overflow-x-auto max-h-[60vh] text-left border rounded-2xl shadow-sm bg-white">
+        // ✅ เรียงตามรหัส
+        unassignedStudents.sort((a, b) => (a.student_id_card || '').localeCompare(b.student_id_card || ''));
+
+        // ✅ สร้าง HTML พร้อมช่องค้นหา
+        let html = `
+            <div class="flex items-center gap-2 mb-3 bg-blue-50 border border-blue-200 p-3 rounded-xl">
+                <div class="relative flex-1">
+                    <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-blue-400 text-sm"></i>
+                    <input type="text" id="unassigned-search" 
+                        class="w-full border border-blue-200 rounded-lg pl-9 pr-3 py-2 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 text-sm bg-white"
+                        placeholder="พิมพ์ชื่อ, นามสกุล, หรือรหัสประจำตัว เพื่อค้นหา..."
+                        autocomplete="off">
+                </div>
+                <button onclick="clearUnassignedSearch()" 
+                    class="px-3 py-2 bg-white border border-blue-200 text-blue-600 rounded-lg hover:bg-blue-50 transition text-sm font-bold shrink-0"
+                    title="ล้างคำค้นหา">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="unassigned-count-info" class="text-xs text-gray-600 mb-2 px-1">
+                <i class="fas fa-users text-gray-400 mr-1"></i>
+                แสดง <b id="visible-count">${unassignedStudents.length}</b> จากทั้งหมด <b>${unassignedStudents.length}</b> คน
+            </div>
+
+            <div class="overflow-x-auto max-h-[55vh] text-left border rounded-2xl shadow-sm bg-white">
                 <table class="w-full text-sm border-collapse">
                     <thead class="bg-rose-50 sticky top-0 z-10">
                         <tr class="text-rose-700">
-                            <th class="p-3 border-b border-rose-100 w-20 text-center">ลำดับ</th>
+                            <th class="p-3 border-b border-rose-100 w-16 text-center">ลำดับ</th>
+                            <th class="p-3 border-b border-rose-100 w-16 text-center">รูป</th>
                             <th class="p-3 border-b border-rose-100">รหัสประจำตัว</th>
                             <th class="p-3 border-b border-rose-100">ชื่อ - นามสกุล</th>
-                            <th class="p-3 border-b border-rose-100 text-center w-40 whitespace-nowrap">จัดการ</th>
+                            <th class="p-3 border-b border-rose-100 text-center w-44 whitespace-nowrap">จัดการ</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        ${unassignedStudents.map((s, index) => `
-                            <tr class="hover:bg-rose-50/50 transition-colors">
-                                <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
-                                <td class="p-3 font-mono font-bold text-blue-600">${s.student_id_card || '-'}</td>
-                                <td class="p-3 font-bold text-slate-700">${s.first_name} ${s.last_name}</td>
+                    <tbody id="unassigned-tbody" class="divide-y divide-slate-100">
+                        ${unassignedStudents.map((s, index) => {
+                            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+                            const avatarHtml = getStudentAvatarHtml(s.avatar_students_url, fullName);
+                            const searchText = `${s.student_id_card || ''} ${s.national_id || ''} ${s.prefix || ''}${s.first_name} ${s.last_name}`.toLowerCase();
+                            
+                            return `
+                            <tr class="hover:bg-rose-50/50 transition-colors unassigned-row" data-search="${searchText}">
+                                <td class="p-3 text-center text-slate-400 font-medium row-index">${index + 1}</td>
+                                <td class="p-3 text-center">${avatarHtml}</td>
+                                <td class="p-3 font-mono font-bold text-blue-600">
+                                    <div>${s.student_id_card || '-'}</div>
+                                    ${s.national_id ? `<div class="text-[10px] text-gray-400 font-normal">ปชช: ${s.national_id}</div>` : ''}
+                                </td>
+                                <td class="p-3 font-bold text-slate-700">${fullName}</td>
                                 <td class="p-3 text-center">
                                     <button onclick="Swal.close(); searchGlobalStudents('${s.student_id_card}')" 
-                                        class="text-[10px] bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-black shadow-sm transition-all">
+                                        class="text-[11px] bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 font-black shadow-sm transition-all">
                                         <i class="fas fa-plus mr-1"></i> จัดเข้าห้อง
                                     </button>
                                 </td>
                             </tr>
-                        `).join('')}
+                            `;
+                        }).join('')}
                     </tbody>
                 </table>
+                <div id="unassigned-no-result" class="hidden text-center py-8 text-gray-400">
+                    <i class="fas fa-search-minus text-3xl mb-2 text-gray-300"></i>
+                    <p>ไม่พบนักเรียนที่ตรงกับคำค้นหา</p>
+                </div>
             </div>
+            
             <div class="mt-4 p-4 bg-rose-50 rounded-2xl border border-rose-100 flex items-center gap-3">
                 <div class="w-10 h-10 bg-white rounded-full flex items-center justify-center text-rose-500 shadow-sm shrink-0">
                     <i class="fas fa-user-slash"></i>
@@ -1209,10 +1357,77 @@ async function checkUnassignedStudents() {
                 </div>
             </div>
         `;
-        Swal.fire({ title: `นักเรียนตกหล่น (ปี ${activeYear})`, html: studentListHtml, width: '960px', showConfirmButton: false, showCancelButton: true, cancelButtonText: 'ปิดหน้าต่าง' });
+
+        Swal.fire({
+            title: `นักเรียนตกหล่น (ปี ${activeYear})`,
+            html: html,
+            width: '1000px',
+            showConfirmButton: false,
+            showCancelButton: true,
+            cancelButtonText: '<i class="fas fa-times mr-1"></i> ปิดหน้าต่าง',
+            didOpen: () => {
+                // ✅ ผูก event การค้นหา
+                const searchInput = document.getElementById('unassigned-search');
+                if (searchInput) {
+                    searchInput.addEventListener('input', filterUnassignedStudents);
+                    setTimeout(() => searchInput.focus(), 200);
+                }
+            }
+        });
+
     } catch (err) {
         console.error(err);
+        Swal.close();
         Swal.fire('ผิดพลาด', 'ไม่สามารถตรวจสอบได้: ' + err.message, 'error');
+    }
+}
+
+// ✅ ฟังก์ชันกรองรายชื่อ (real-time)
+function filterUnassignedStudents() {
+    const keyword = (document.getElementById('unassigned-search')?.value || '').toLowerCase().trim();
+    const keywords = keyword.split(/\s+/).filter(k => k.length > 0);
+    const rows = document.querySelectorAll('.unassigned-row');
+    let visibleCount = 0;
+    let visibleIndex = 0;
+
+    rows.forEach(row => {
+        const searchText = row.getAttribute('data-search') || '';
+        const matched = keywords.length === 0 || keywords.every(k => searchText.includes(k));
+        
+        if (matched) {
+            row.classList.remove('hidden');
+            visibleCount++;
+            visibleIndex++;
+            // อัปเดตลำดับใหม่
+            const idxCell = row.querySelector('.row-index');
+            if (idxCell) idxCell.textContent = visibleIndex;
+        } else {
+            row.classList.add('hidden');
+        }
+    });
+
+    // อัปเดตจำนวนที่แสดง
+    const visibleCountEl = document.getElementById('visible-count');
+    if (visibleCountEl) visibleCountEl.textContent = visibleCount;
+
+    // แสดงข้อความ "ไม่พบ" ถ้าไม่มีผลลัพธ์
+    const noResult = document.getElementById('unassigned-no-result');
+    if (noResult) {
+        if (visibleCount === 0 && keywords.length > 0) {
+            noResult.classList.remove('hidden');
+        } else {
+            noResult.classList.add('hidden');
+        }
+    }
+}
+
+// ✅ ฟังก์ชันล้างคำค้นหา
+function clearUnassignedSearch() {
+    const input = document.getElementById('unassigned-search');
+    if (input) {
+        input.value = '';
+        filterUnassignedStudents();
+        input.focus();
     }
 }
 
@@ -1254,7 +1469,7 @@ async function copyToTerm2() {
                                 classroom_id: destClass.id,
                                 student_id: std.student_id,
                                 student_number: std.student_number,
-                                status: std.status || 'ปกติ'
+                                status: std.status || 'ปกติ'  // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
                             });
                         }
                     });
@@ -1308,7 +1523,7 @@ async function promoteStudents() {
                                 classroom_id: destClass.id,
                                 student_id: std.student_id,
                                 student_number: std.student_number,
-                                status: std.status || 'ปกติ'
+                                status: std.status || 'ปกติ'  // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
                             });
                         }
                     });
@@ -1344,8 +1559,9 @@ async function openStudentNumberReorder() {
     enrollments.forEach((enr, idx) => {
         const s = enr.core_students;
         const num = enr.student_number ?? idx + 1;
-        const stBadge = enr.status === 'เรียนปกติ'
-            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-700">เรียนปกติ</span>'
+        // ✅ เปลี่ยนจาก 'เรียนปกติ' → 'ปกติ'
+        const stBadge = enr.status === 'ปกติ'
+            ? '<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-green-100 text-green-700">ปกติ</span>'
             : `<span class="px-2 py-0.5 text-[10px] font-bold rounded bg-red-100 text-red-700">${enr.status || '-'}</span>`;
         rowsHtml += `
       <tr data-enrollment-id="${enr.id}"
