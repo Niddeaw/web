@@ -245,22 +245,32 @@ async function loadAllData(classId = null) {
     globalSelectedClass = myClasses.find(c => c.id === classId);
     const startDateDisplay = document.getElementById('startDateDisplay');
 
-    const classBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-700 font-black text-[12px] mr-2 shadow-sm"><i class="fa-solid fa-chalkboard text-[10px]"></i> ม.${globalSelectedClass.grade}/${globalSelectedClass.room}</span>`;
+// ✅ ชื่อห้อง - ขนาดใหญ่ เด่นชัด
+const classBadge = `<span class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-black text-xl shadow-md">
+    <i class="fa-solid fa-chalkboard text-lg"></i> ม.${globalSelectedClass.grade}/${globalSelectedClass.room}
+</span>`;
 
-    if (globalSelectedClass.start_date) {
-        startDateDisplay.innerHTML = `${classBadge}📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>`;
-        startDateDisplay.className = 'text-sm font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 inline-flex items-center';
-        const startObj = new Date(globalSelectedClass.start_date);
-        weekDatesArray = Array.from({ length: 20 }, (_, i) => {
-            let d = new Date(startObj);
-            d.setDate(startObj.getDate() + (i * 7));
-            return d;
-        });
-    } else {
-        startDateDisplay.innerHTML = `${classBadge}⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน`;
-        startDateDisplay.className = 'text-sm font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 inline-flex items-center';
-        weekDatesArray = Array.from({ length: 20 }, () => null);
-    }
+// ✅ วันที่เริ่มสอน - อยู่บรรทัดใหม่ ขนาดเล็กกว่า
+if (globalSelectedClass.start_date) {
+    const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
+        📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>
+    </span>`;
+    startDateDisplay.innerHTML = classBadge + dateLine;
+    startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
+    const startObj = new Date(globalSelectedClass.start_date);
+    weekDatesArray = Array.from({ length: 20 }, (_, i) => {
+        let d = new Date(startObj);
+        d.setDate(startObj.getDate() + (i * 7));
+        return d;
+    });
+} else {
+    const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-200">
+        ⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน
+    </span>`;
+    startDateDisplay.innerHTML = classBadge + dateLine;
+    startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
+    weekDatesArray = Array.from({ length: 20 }, () => null);
+}
 
     try {
         const { data: stds } = await db.from('student_enrollments')
