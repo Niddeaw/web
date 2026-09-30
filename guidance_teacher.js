@@ -3,8 +3,9 @@
 // - ลบส่วนของคะแนน/ผลการเรียนออกทั้งหมด
 // - สถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
 // - เพิ่มสีพื้นหลังตามสถานะการเข้าเรียน (ป่วย/ลา/ขาด)
+// - เพิ่มสีพื้นหลังคุณลักษณะ (มผ = แดงเข้ม)
 // - แสดง badge ชื่อห้องก่อนวันที่เริ่มสอน
-// - ใช้ printPDF_v7() พิมพ์ด้วย HTML
+// - ใช้ RPC save_guidance_all (บันทึกใน 1 คำสั่ง)
 // ==========================================
 
 let currentUserProfile = null;
@@ -244,18 +245,11 @@ async function loadAllData(classId = null) {
     globalSelectedClass = myClasses.find(c => c.id === classId);
     const startDateDisplay = document.getElementById('startDateDisplay');
 
-    // ✅ ชื่อห้อง - ขนาดใหญ่ เด่นชัด
-    const classBadge = `<span class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 to-pink-500 text-white font-black text-xl shadow-md">
-    <i class="fa-solid fa-chalkboard text-lg"></i> ม.${globalSelectedClass.grade}/${globalSelectedClass.room}
-</span>`;
+    const classBadge = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-100 text-purple-700 font-black text-[12px] mr-2 shadow-sm"><i class="fa-solid fa-chalkboard text-[10px]"></i> ม.${globalSelectedClass.grade}/${globalSelectedClass.room}</span>`;
 
-    // ✅ วันที่เริ่มสอน - อยู่บรรทัดใหม่ ขนาดเล็กกว่า
     if (globalSelectedClass.start_date) {
-        const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-blue-700 bg-blue-50 px-3 py-1 rounded-lg border border-blue-200">
-        📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>
-    </span>`;
-        startDateDisplay.innerHTML = classBadge + dateLine;
-        startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
+        startDateDisplay.innerHTML = `${classBadge}📅 วันที่เริ่มสอน: <b>${new Date(globalSelectedClass.start_date).toLocaleDateString('th-TH', { dateStyle: 'full' })}</b>`;
+        startDateDisplay.className = 'text-sm font-bold text-blue-700 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-200 inline-flex items-center';
         const startObj = new Date(globalSelectedClass.start_date);
         weekDatesArray = Array.from({ length: 20 }, (_, i) => {
             let d = new Date(startObj);
@@ -263,11 +257,8 @@ async function loadAllData(classId = null) {
             return d;
         });
     } else {
-        const dateLine = `<span class="inline-flex items-center gap-1.5 text-[12px] font-bold text-red-600 bg-red-50 px-3 py-1 rounded-lg border border-red-200">
-        ⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน
-    </span>`;
-        startDateDisplay.innerHTML = classBadge + dateLine;
-        startDateDisplay.className = 'hidden md:flex flex-col items-end gap-1.5';
+        startDateDisplay.innerHTML = `${classBadge}⚠️ ยังไม่ได้กำหนดวันที่เริ่มสอน`;
+        startDateDisplay.className = 'text-sm font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 inline-flex items-center';
         weekDatesArray = Array.from({ length: 20 }, () => null);
     }
 
@@ -313,13 +304,20 @@ async function loadAllData(classId = null) {
 }
 
 // ========== ฟังก์ชันจัดการ UI ==========
-function selectColor(el) {
+function selectColor(el) { 
     if (!el) return;
     el.setAttribute('data-val', el.value);
     applyAttendanceColor(el);
 }
 
-// ✅ ฟังก์ชันใหม่: ใส่สีพื้นหลังตามสถานะ
+// ✅ onchange handler สำหรับ attributes
+function selectAttrColor(el) {
+    if (!el) return;
+    el.setAttribute('data-val', el.value);
+    applyAttributeColor(el);
+}
+
+// ✅ ฟังก์ชัน: ใส่สีพื้นหลังตามสถานะการเข้าเรียน
 function applyAttendanceColor(el) {
     if (!el) return;
     const v = el.value;
@@ -345,6 +343,26 @@ function applyAttendanceColor(el) {
     }
 }
 
+// ✅ ฟังก์ชัน: ใส่สีพื้นหลังให้ dropdown คุณลักษณะ (มผ = แดงเข้ม)
+function applyAttributeColor(el) {
+    if (!el) return;
+    const v = el.value;
+    el.style.fontWeight = '600';
+    el.style.transition = 'background-color 0.15s, color 0.15s';
+
+    if (v === '0') {
+        // 🔴 มผ - พื้นหลังสีแดงเข้ม
+        el.style.backgroundColor = '#fecaca';
+        el.style.color = '#991b1b';
+        el.style.borderColor = '#f87171';
+    } else {
+        // ⚪ ผ - ไม่มีสี
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+    }
+}
+
 function calcAttTotal(stdId) {
     let total = 0;
     for (let w = 1; w <= 20; w++) {
@@ -359,7 +377,12 @@ function calcAttr(stdId, attTotal) {
     let pass = true;
     ATTR_COLS.forEach(c => {
         const el = document.getElementById(`at_${stdId}_${c}`);
-        if (el) { selectColor(el); if (el.value === "0") pass = false; }
+        if (el) { 
+            // ✅ ใช้ applyAttributeColor แทน selectColor
+            el.setAttribute('data-val', el.value);
+            applyAttributeColor(el);
+            if (el.value === "0") pass = false; 
+        }
     });
     const p1 = document.getElementById(`at_sum1_${stdId}`);
     const p2 = document.getElementById(`at_sum2_${stdId}`);
@@ -419,17 +442,27 @@ function renderAttributesTab() {
         const myAt = globalAttributes.filter(a => a.student_id === std.id);
         const drops = ATTR_COLS.map(c => {
             const v = myAt.find(a => a.attribute_name === c)?.score ?? 1;
-            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="calcAttTotal('${std.id}')" ${lockAttr}><option value="1" ${v === 1 ? 'selected' : ''}>ผ</option><option value="0" ${v === 0 ? 'selected' : ''}>มผ</option></select></td>`;
+            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="selectAttrColor(this); calcAttTotal('${std.id}')" ${lockAttr}><option value="1" ${v === 1 ? 'selected' : ''}>ผ</option><option value="0" ${v === 0 ? 'selected' : ''}>มผ</option></select></td>`;
         }).join('');
-        return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="bg-blue-50/50 border-l-2 border-gray-300 text-center" id="at_sum1_${std.id}"></td><td class="bg-indigo-50/50 border-l border-gray-300 text-center" id="at_sum2_${std.id}"></td><td class="bg-emerald-50/50 border-l-2 border-emerald-300 text-center" id="at_sum3_${std.id}"></td></tr>`;
+        return `<tr>
+            <td class="col-no">${std.student_number}</td>
+            <td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>
+            ${drops}
+            <td class="bg-blue-50/50 border-l-2 border-gray-300 text-center" id="at_sum1_${std.id}"></td>
+            <td class="bg-indigo-50/50 border-l border-gray-300 text-center" id="at_sum2_${std.id}"></td>
+            <td class="bg-emerald-50/50 border-l-2 border-emerald-300 text-center" id="at_sum3_${std.id}"></td>
+        </tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
+
+    // ✅ ใส่สีพื้นหลังให้กับ dropdown ทุกตัวหลัง render
+    document.querySelectorAll('#tb-attributes .tiny-select').forEach(applyAttributeColor);
 }
 
-// ========== saveAllData ==========
+// ========== saveAllData - ใช้ RPC save_guidance_all ==========
 async function saveAllData() {
     if (!globalIsSystemOpen) return Swal.fire('ผิดพลาด', 'ระบบถูกปิดการบันทึกแล้ว', 'error');
-    if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือก classroom', 'warning');
+    if (!globalSelectedClass) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกห้องเรียน', 'warning');
 
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
@@ -440,7 +473,7 @@ async function saveAllData() {
         const attributesPayload = [];
         const statusesPayload = [];
 
-        // ✅ 1. เตรียมข้อมูลใน memory (เร็ว ไม่มี network)
+        // ✅ 1. เตรียมข้อมูลใน memory
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
@@ -482,13 +515,12 @@ async function saveAllData() {
         if (error) throw error;
         if (result && result.success === false) throw new Error(result.error);
 
-        // ✅ 3. อัปเดต memory (ไม่ต้อง re-fetch)
+        // ✅ 3. อัปเดต memory
         globalStudents = globalStudents.map(std => {
             const statusEl = document.getElementById(`status_${std.id}`);
             return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
         });
 
-        // อัปเดต globalAttendance
         attendancePayload.forEach(row => {
             const existing = globalAttendance.find(a => a.student_id === row.student_id && a.week_number === row.week_number);
             if (existing) {
@@ -499,7 +531,6 @@ async function saveAllData() {
             }
         });
 
-        // อัปเดต globalAttributes
         attributesPayload.forEach(row => {
             const existing = globalAttributes.find(a => a.student_id === row.student_id && a.attribute_name === row.attribute_name);
             if (existing) {
@@ -541,7 +572,6 @@ async function saveAllData() {
 // ✅ ฟังก์ชันใหม่: อัปเดต badge แบบ local (ไม่ query DB)
 function updateClassStatusBadgesLight() {
     if (!globalSelectedClass) return;
-    const classId = globalSelectedClass.id;
     const studentCount = globalStudents.length;
 
     let attCount = 0, attrCount = 0;
@@ -1014,7 +1044,7 @@ async function importExcelAll(event) {
                     if (std) {
                         ATTR_COLS.forEach(c => {
                             const el = document.getElementById(`at_${std.id}_${c}`);
-                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); }
+                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectAttrColor(el); }
                         });
                         calcAttTotal(std.id);
                     }
@@ -1057,8 +1087,10 @@ window.exportExcelAll = exportExcelAll;
 window.importExcelAll = importExcelAll;
 window.saveAllData = saveAllData;
 window.selectColor = selectColor;
+window.selectAttrColor = selectAttrColor;
 window.applyAttendanceColor = applyAttendanceColor;
+window.applyAttributeColor = applyAttributeColor;
 window.calcAttTotal = calcAttTotal;
 window.calcAttr = calcAttr;
 
-console.log('✅ guidance_teacher.js loaded (มี badge ชื่อห้อง + สีสถานะ)');
+console.log('✅ guidance_teacher.js loaded (สีสถานะ + สีคุณลักษณะ + RPC save)');

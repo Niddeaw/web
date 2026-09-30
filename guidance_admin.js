@@ -5,7 +5,8 @@
 // - มี Dashboard สรุปความคืบหน้า
 // - มีปุ่มพิมพ์ PDF สำหรับ Admin
 // - สถานะ 5 แบบ: ปกติ, พักการเรียน, ขาดนาน, ลาออก, ย้ายสถานศึกษา
-// - เพิ่มสีพื้นหลังตามสถานะการเข้าเรียน (ป่วย/ลา/ขาด)
+// - สีพื้นหลังสถานะการเข้าเรียน (ป่วย/ลา/ขาด)
+// - สีพื้นหลังคุณลักษณะ (มผ = แดงเข้ม)
 // - เรียงป้ายห้องตามระดับชั้น
 // ==========================================
 
@@ -206,7 +207,7 @@ async function toggleSystemStatus(el) {
 }
 
 // -----------------------------------
-// 2. Monitoring & Teacher Management (OPTIMIZED)
+// 2. Monitoring & Teacher Management
 // -----------------------------------
 async function loadMonitoringData() {
     Swal.fire({ title: 'กำลังดึงข้อมูลทั้งระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -443,7 +444,7 @@ async function loadDashboardData() {
 }
 
 // -----------------------------------
-// 3. ระบบจัดการครูแนะแนว (เรียงป้ายห้องตามระดับชั้น)
+// 3. ระบบจัดการครูแนะแนว
 // -----------------------------------
 function renderTeacherManageTable(mappedClasses) {
     const tbody = document.getElementById('tb-teachers-manage');
@@ -699,7 +700,7 @@ async function saveTeacherClasses() {
 }
 
 // -----------------------------------
-// 4. โหมดสวมรอยกรอกข้อมูล (Admin Editor)
+// 4. โหมด Admin Editor
 // -----------------------------------
 async function openAdminEditor(classId, classNameStr) {
     if (!window.isAdminUser(currentUserRole, isAdminMode) && !isModuleAdmin) {
@@ -770,7 +771,13 @@ function selectColor(el) {
     applyAttendanceColor(el);
 }
 
-// ✅ ฟังก์ชันใหม่: ใส่สีพื้นหลังตามสถานะ
+function selectAttrColor(el) {
+    if (!el) return;
+    el.setAttribute('data-val', el.value);
+    applyAttributeColor(el);
+}
+
+// ✅ สถานะการเข้าเรียน
 function applyAttendanceColor(el) {
     if (!el) return;
     const v = el.value;
@@ -796,6 +803,24 @@ function applyAttendanceColor(el) {
     }
 }
 
+// ✅ คุณลักษณะ (มผ = แดงเข้ม)
+function applyAttributeColor(el) {
+    if (!el) return;
+    const v = el.value;
+    el.style.fontWeight = '600';
+    el.style.transition = 'background-color 0.15s, color 0.15s';
+
+    if (v === '0') {
+        el.style.backgroundColor = '#fecaca';
+        el.style.color = '#991b1b';
+        el.style.borderColor = '#f87171';
+    } else {
+        el.style.backgroundColor = '';
+        el.style.color = '';
+        el.style.borderColor = '';
+    }
+}
+
 function calcAttTotal(stdId) {
     let t = 0;
     for (let w = 1; w <= 20; w++) {
@@ -811,7 +836,8 @@ function calcAttr(stdId, attTotal) {
     ATTR_COLS.forEach(c => {
         const el = document.getElementById(`at_${stdId}_${c}`);
         if (el) {
-            selectColor(el);
+            el.setAttribute('data-val', el.value);
+            applyAttributeColor(el);
             if (el.value === "0") pass = false;
         }
     });
@@ -855,7 +881,6 @@ function renderAttendanceTab() {
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
 
-    // ✅ ใส่สีพื้นหลังให้กับ dropdown ทุกตัวหลัง render
     document.querySelectorAll('#tb-attendance .tiny-select').forEach(applyAttendanceColor);
 }
 
@@ -865,15 +890,17 @@ function renderAttributesTab() {
         const myAt = globalAttributes.filter(a => a.student_id === std.id);
         const drops = ATTR_COLS.map(c => {
             const v = myAt.find(a => a.attribute_name === c)?.score ?? 1;
-            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="calcAttTotal('${std.id}')"><option value="1" ${v === 1 ? 'selected' : ''}>ผ</option><option value="0" ${v === 0 ? 'selected' : ''}>มผ</option></select></td>`;
+            return `<td class="p-1"><select id="at_${std.id}_${c}" class="tiny-select w-full" data-val="${v}" onchange="selectAttrColor(this); calcAttTotal('${std.id}')"><option value="1" ${v === 1 ? 'selected' : ''}>ผ</option><option value="0" ${v === 0 ? 'selected' : ''}>มผ</option></select></td>`;
         }).join('');
         return `<tr><td class="col-no">${std.student_number}</td><td class="col-name">${std.prefix}${std.first_name} ${std.last_name}</td>${drops}<td class="bg-blue-50/50 border-l-2 border-gray-300 text-center" id="at_sum1_${std.id}"></td><td class="bg-indigo-50/50 border-l border-gray-300 text-center" id="at_sum2_${std.id}"></td><td class="bg-emerald-50/50 border-l-2 border-emerald-300 text-center" id="at_sum3_${std.id}"></td></tr>`;
     }).join('');
     globalStudents.forEach(std => calcAttTotal(std.id));
+
+    document.querySelectorAll('#tb-attributes .tiny-select').forEach(applyAttributeColor);
 }
 
 // ==========================================
-// adminSaveAllData - ใช้ RPC save_guidance_all (เร็วมาก)
+// adminSaveAllData - ใช้ RPC save_guidance_all
 // ==========================================
 async function adminSaveAllData() {
     if (!window.requireAdmin(currentUserRole, isAdminMode)) return;
@@ -888,7 +915,6 @@ async function adminSaveAllData() {
         const attributesPayload = [];
         const statusesPayload = [];
 
-        // ✅ 1. เตรียมข้อมูลใน memory
         globalStudents.forEach(std => {
             for (let w = 1; w <= 20; w++) {
                 const s = document.getElementById(`att_${std.id}_w${w}`);
@@ -919,7 +945,6 @@ async function adminSaveAllData() {
             }
         });
 
-        // ✅ 2. ยิง RPC เดียว!
         const { data: result, error } = await db.rpc('save_guidance_all', {
             p_classroom_id: classId,
             p_attendance: attendancePayload,
@@ -930,7 +955,6 @@ async function adminSaveAllData() {
         if (error) throw error;
         if (result && result.success === false) throw new Error(result.error);
 
-        // ✅ 3. อัปเดต memory
         globalStudents = globalStudents.map(std => {
             const statusEl = document.getElementById(`status_${std.id}`);
             return { ...std, student_status: statusEl ? statusEl.value : std.student_status };
@@ -955,7 +979,6 @@ async function adminSaveAllData() {
             }
         });
 
-        // ✅ 4. Log (fire-and-forget)
         window.logUserAction(`Admin บันทึกข้อมูลห้อง ${classId} (บังคับ)`, 'guidance').catch(console.error);
 
         const elapsed = Math.round(performance.now() - startTime);
@@ -1044,7 +1067,7 @@ async function importExcelAll(event) {
                     if (std) {
                         ATTR_COLS.forEach(c => {
                             const el = document.getElementById(`at_${std.id}_${c}`);
-                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectColor(el); }
+                            if (el && row[c] !== undefined) { el.value = (row[c] === 'ผ' || row[c] == 1) ? '1' : '0'; selectAttrColor(el); }
                         });
                         calcAttTotal(std.id);
                     }
@@ -1483,8 +1506,10 @@ window.loadMonitoringData = loadMonitoringData;
 window.loadDashboardData = loadDashboardData;
 window.printPDFAdmin = printPDFAdmin;
 window.selectColor = selectColor;
+window.selectAttrColor = selectAttrColor;
 window.applyAttendanceColor = applyAttendanceColor;
+window.applyAttributeColor = applyAttributeColor;
 window.calcAttTotal = calcAttTotal;
 window.calcAttr = calcAttr;
 
-console.log('✅ guidance_admin.js loaded (RPC save + Dashboard + Print PDF + สีสถานะ)');
+console.log('✅ guidance_admin.js loaded (RPC save + Dashboard + Print PDF + สีสถานะ + สีคุณลักษณะ)');

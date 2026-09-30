@@ -164,6 +164,18 @@
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
         }
 
+        /* ✅ Dropdown คุณลักษณะ - สีพื้นหลัง */
+        #tb-attributes .tiny-select {
+            cursor: pointer;
+            font-weight: 600;
+            text-align: center;
+            transition: all 0.15s ease;
+        }
+
+        #tb-attributes .tiny-select:hover {
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+        }
+
         .table-responsive::-webkit-scrollbar {
             height: 8px;
             width: 8px;
@@ -183,7 +195,6 @@
             background: #94a3b8;
         }
 
-        /* Dashboard card */
         .dash-card {
             border-radius: 1rem;
             padding: 1rem;
@@ -317,7 +328,7 @@
             </form>
         </div>
 
-        <!-- ====== Dashboard สรุปความคืบหน้า ====== -->
+        <!-- Dashboard -->
         <div class="glass rounded-[2rem] p-6">
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
                 <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
@@ -329,7 +340,6 @@
                 </button>
             </div>
 
-            <!-- การ์ดสรุป -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
                     <div class="flex items-center justify-between">
@@ -369,7 +379,6 @@
                 </div>
             </div>
 
-            <!-- แถบความคืบหน้ารวม -->
             <div class="bg-white/60 rounded-2xl p-4 mb-6 border border-gray-200">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-sm font-bold text-gray-700">ความคืบหน้ารวม</span>
@@ -380,7 +389,6 @@
                 </div>
             </div>
 
-            <!-- ความคืบหน้าแยกตามระดับชั้น -->
             <div class="mb-6">
                 <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                     <i class="fa-solid fa-layer-group text-indigo-600"></i> ความคืบหน้าแยกตามระดับชั้น
@@ -390,7 +398,6 @@
                 </div>
             </div>
 
-            <!-- รายชื่อครูที่ยังไม่ครบ -->
             <div>
                 <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
                     <i class="fa-solid fa-user-clock text-rose-600"></i> ครูที่ยังต้องกรอกข้อมูล
@@ -608,7 +615,6 @@
                     <button onclick="document.getElementById('excelUploadAll').click()"
                         class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift"><i
                             class="fa-solid fa-file-import"></i> นำเข้า Excel</button>
-                    <!-- ✅ ปุ่มพิมพ์ PDF สำหรับ Admin -->
                     <button onclick="printPDFAdmin()"
                         class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift">
                         <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
