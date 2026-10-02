@@ -2,7 +2,7 @@
 <html lang="th">
 
 <head>
-    <title>Central Portal - ระบบบริหารจัดการสถานศึกษา</title>
+    <title>WRK - ระบบบริหารจัดการสถานศึกษา</title>
     <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
 
@@ -10,186 +10,316 @@
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 
+
+    <style>
+        /* ===== Layout ตามไฟล์ตัวอย่าง school_management_dashboard_template ===== */
+        :root{--d-primary:#2588e8;--d-bg:#f5f8fc;--d-text:#26364a;--d-muted:#8492a6;--d-line:#e9eef5;--d-green:#24b47e;--d-shadow:0 4px 18px rgba(50,90,130,.07);--d-radius:14px}
+        body#mainBody{background:var(--d-bg);color:var(--d-text);font-size:14px}
+        .d-app{display:flex}
+        .d-sidebar{width:218px;background:#fff;border-right:1px solid var(--d-line);position:fixed;left:0;top:0;bottom:0;z-index:50;display:flex;flex-direction:column;transition:transform .2s,width .2s}
+        .d-brand{height:88px;display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #f0f3f7}
+        .d-logo{width:45px;height:55px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#eef7ff,#dcecff);flex-shrink:0}
+        .d-logo img{width:32px;height:32px;object-fit:contain}
+        .d-brand b{display:block;font-size:15px}.d-brand span{font-size:10px;color:var(--d-muted)}
+        .d-nav{padding:12px 10px;overflow:auto;flex:1}
+        .d-nav-title{font-size:10px;color:#9ba8b7;margin:14px 12px 7px}
+        .d-nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;margin:3px 0;border-radius:9px;color:#526277;text-decoration:none;cursor:pointer}
+        .d-nav a:hover{background:#f1f7ff;color:var(--d-primary)}
+        .d-nav a.active{background:linear-gradient(90deg,#2d91ec,#4ba0ef);color:#fff;box-shadow:0 5px 12px #268be82a}
+        .d-nav a.hidden{display:none!important}
+        .d-nav a.logout{color:#e0505f}.d-nav a.logout:hover{background:#fff1f2;color:#dc2626}
+        .d-ico{width:21px;text-align:center;font-size:15px;flex-shrink:0}
+        .d-sidebar-bottom{padding:14px;color:#789;font-size:11px}
+
+        /* ✅ ปุ่ม Facebook */
+        .d-fb-btn{
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            gap:7px;
+            margin-top:10px;
+            padding:8px 10px;
+            background:linear-gradient(135deg,#1877f2,#0d65d9);
+            color:#fff;
+            border-radius:8px;
+            text-decoration:none;
+            font-size:11px;
+            font-weight:600;
+            transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+            box-shadow:0 3px 8px rgba(24,119,242,.25);
+        }
+        .d-fb-btn:hover{
+            background:linear-gradient(135deg,#0d65d9,#0a56bd);
+            transform:translateY(-1px);
+            box-shadow:0 6px 14px rgba(24,119,242,.35);
+            color:#fff;
+            text-decoration:none;
+        }
+        .d-fb-btn i{font-size:14px}
+
+        .d-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:45}
+        .d-overlay.open{display:block}
+        .d-main{margin-left:218px;width:calc(100% - 218px);padding:0 18px 12px;display:flex;flex-direction:column;transition:margin-left .2s,width .2s}
+        .d-main{padding-bottom:0!important}
+        .d-topbar{height:64px;background:#fff;border-bottom:1px solid var(--d-line);display:flex;align-items:center;gap:14px;margin:0 -18px 14px;padding:0 20px;position:sticky;top:0;z-index:15}
+        .d-menu{display:none;border:0;background:none;font-size:22px;cursor:pointer}
+        .d-search{height:38px;border:1px solid var(--d-line);border-radius:22px;background:#f7faff;display:flex;align-items:center;padding:0 15px;flex:1;max-width:560px;color:#9aa7b6}
+        .d-search input{border:0;background:transparent;outline:0;width:100%;padding-left:8px;color:var(--d-text);font:inherit}
+        .d-search input:focus{box-shadow:none!important;border-color:transparent!important}
+        .d-search:focus-within{border-color:var(--d-primary);box-shadow:0 0 0 3px rgba(37,136,232,.12)}
+        @media(min-width:761px){#wrk-global-footer{left:218px!important;width:calc(100% - 218px)!important;transition:left .2s,width .2s}}
+        .d-spacer{flex:1}
+        .d-chip{border:1px solid var(--d-line);border-radius:20px;padding:9px 13px;background:#fff;color:#526277;white-space:nowrap}
+        .d-profile{display:flex;align-items:center;gap:9px}
+        .d-avatar{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;background:#dcecff;font-weight:700;color:#2679c9;overflow:hidden;position:relative}
+        .d-avatar img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0}
+        .d-profile small{display:block;color:var(--d-muted);font-size:10px}
+        /* .d-hero{min-height:137px;border-radius:15px;overflow:hidden;position:relative;background:linear-gradient(110deg,#d9ecff,#fff 58%,#cfe9ff);box-shadow:var(--d-shadow);margin-bottom:12px}
+        .d-hero:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 13% 78%,#87c96a 0 7%,transparent 7.5%),radial-gradient(circle at 25% 75%,#67b75a 0 8%,transparent 8.5%),linear-gradient(0deg,#75b967 0 14%,transparent 14%),linear-gradient(170deg,transparent 60%,#d3e8f7 60% 66%,transparent 66%);opacity:.75} */
+        
+        /* ✅ Hero สูงเท่าเดิม แต่รูปย่อพอดีความสูง ไม่ซูม */
+        .d-hero{min-height:137px;border-radius:15px;overflow:hidden;position:relative;
+            background:
+                linear-gradient(90deg,#d9ecff 0%,#eaf4ff 45%,rgba(255,255,255,0) 70%),   /* ไล่สีโทนเดิมไว้ด้านซ้าย */
+                url('hero-banner.webp') right center / auto 100% no-repeat;        /* รูปย่อพอดีสูง ชิดขวา */
+            box-shadow:var(--d-shadow);margin-bottom:12px}
+
+        /* ลบลายเดิมออก */
+        .d-hero:before{content:none}
+
+        .d-hero-content{position:relative;padding:25px 30px}
+        .d-hero h1{margin:0 0 5px;font-size:22px;font-weight:700}.d-hero p{margin:0;color:#68798e}
+        .d-hero .quote{position:absolute;right:28px;top:42px;font-size:13px;font-style:italic;color:#35536e}
+        .d-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+        .d-stat{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);padding:13px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--d-shadow)}
+        .d-stat-icon{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;font-size:20px;color:#fff}
+        .d-blue{background:linear-gradient(145deg,#2596f0,#5daaf3)}.d-violet{background:linear-gradient(145deg,#8b5eea,#ad83f3)}.d-green{background:linear-gradient(145deg,#27bb88,#62d6aa)}.d-gold{background:linear-gradient(145deg,#f3a51d,#ffc35e)}
+        .d-stat h3{margin:0;font-size:23px;font-weight:700}.d-stat p{margin:0;color:#607188;font-size:12px}
+
+        /* ห่อ avatar ด้วย wrapper เพื่อให้ตำแหน่ง tooltip อ้างอิงถูกต้อง */
+        .d-avatar-wrap{position:relative;display:inline-block}
+
+        /* รูปตัวอย่างขนาดใหญ่ (ซ่อนไว้ก่อน) */
+        .d-avatar-preview{
+            position:absolute;
+            top:calc(100% + 6px);
+            right:0;
+            width:160px;height:200px;
+            max-width:none;
+            border-radius:14px;
+            /* border-radius:50%; */
+            object-fit:cover;
+            background:#fff;
+            box-shadow:0 12px 32px rgba(30,60,90,.22);
+            border:3px solid #fff;
+            opacity:0;
+            transform:translateY(-6px) scale(.95);
+            transition:opacity .22s ease, transform .22s ease;
+            pointer-events:none;
+            z-index:9999;
+        }
+        .d-avatar-wrap:hover .d-avatar-preview{
+            opacity:1;
+            transform:translateY(0) scale(1);
+        }
+
+        /* ปฏิทิน + การลา */
+        .d-layout{display:grid;grid-template-columns:3fr 1fr 1fr;gap:10px;margin-bottom:12px}
+        .d-card{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);box-shadow:var(--d-shadow);padding:13px;min-width:0}
+        .d-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+        .d-card-title{font-weight:700}
+        .d-sub{font-size:10px;color:var(--d-muted)}
+        .d-select{border:1px solid var(--d-line);background:#fff;border-radius:8px;padding:5px 8px;color:#607188;font-size:12px}
+        .d-btn{background:#2d91ec;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
+        .d-btn:hover{background:#2580d6}
+
+        .d-leave{border-left:4px solid;padding:10px 10px}
+        .d-leave .d-card-head{margin-bottom:6px}
+        .d-leave .d-card-title{font-size:13px}
+        #sick-leave-today ul,#sick-leave-week ul{max-height:190px!important;overflow-y:auto;padding-bottom:0!important;padding-right:4px}
+        #sick-leave-today li,#sick-leave-week li{flex-wrap:wrap;row-gap:2px;font-size:12px}
+        #sick-leave-today li>span,#sick-leave-week li>span{min-width:0}
+        #sick-leave-today li span[class*="rounded-full"],#sick-leave-week li span[class*="rounded-full"]{max-width:100%;line-height:1.35;white-space:normal}
+
+        .d-calendar-box{max-height:230px;overflow:auto;}
+
+        /* ================= ปุ่มย่อ/ขยาย Sidebar ================= */
+        .d-collapse{display:none;border:0;background:none;font-size:17px;cursor:pointer;color:#526277;padding:7px 9px;border-radius:8px;transition:background .2s,color .2s;align-items:center;justify-content:center}
+        .d-collapse:hover{background:#f1f7ff;color:var(--d-primary)}
+        @media(min-width:761px){.d-collapse{display:inline-flex}}
+
+        /* สถานะย่อ (เฉพาะ desktop) */
+        @media(min-width:761px){
+            .d-sidebar.collapsed{width:68px}
+            .d-sidebar.collapsed .d-brand{justify-content:center;padding:12px 8px}
+            .d-sidebar.collapsed .d-brand > div:last-child{display:none}
+            .d-sidebar.collapsed .d-nav{padding:12px 8px}
+            .d-sidebar.collapsed .d-nav-title{display:none}
+            .d-sidebar.collapsed .d-nav a{justify-content:center;padding:10px 0;gap:0}
+            .d-sidebar.collapsed .d-nav a .d-label{display:none}
+            .d-sidebar.collapsed .d-ico{width:auto}
+            .d-sidebar.collapsed .d-sidebar-bottom{display:none}
+
+            .d-main.collapsed{margin-left:68px;width:calc(100% - 68px)}
+            body.sb-collapsed #wrk-global-footer{left:68px!important;width:calc(100% - 68px)!important}
+        }
+
+        @media(max-width:1400px){.d-layout{grid-template-columns:2.5fr 1fr 1fr}}
+        @media(max-width:1100px){.d-grid4{grid-template-columns:repeat(2,1fr)}.d-layout{grid-template-columns:1fr 1fr}.d-layout .wide{grid-column:1/-1}}
+        @media(max-width:760px){.d-sidebar{transform:translateX(-100%)}.d-sidebar.open{transform:translateX(0)}.d-main{margin-left:0;width:100%;padding:0 10px}.d-topbar{margin:0 -10px 10px;padding:0 12px}.d-menu{display:block}.d-search{max-width:none}.d-chip,.d-profile>div:nth-child(2){display:none}.d-hero .quote{display:none}.d-grid4,.d-layout{grid-template-columns:1fr}.d-layout .wide{grid-column:auto}}
+    </style>
+
 </head>
 
-<body class="text-gray-800 min-h-screen flex flex-col relative opacity-0 transition-opacity duration-500" id="mainBody">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <div class="fixed inset-0 z-0 bg-gradient-to-br from-blue-50 via-white to-indigo-50 pointer-events-none">
-        <div
-            class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse">
+    <div id="portalView" class="hidden">
+        <div class="d-app">
+
+            <!-- ================= Sidebar ================= -->
+            <aside class="d-sidebar" id="dSidebar">
+                <div class="d-brand">
+                    <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                    <div><b>WRK</b><span>School Management System</span></div>
+                </div>
+                <nav class="d-nav">
+                    <div class="d-nav-title" style="margin-top:4px">กลุ่มบริหารงาน</div>
+                    <a class="main-tab-btn active" title="บริหารวิชาการ" onclick="switchMainTab('academic', this)"><span class="d-ico"><i class="fa-solid fa-book-open"></i></span><span class="d-label">บริหารวิชาการ</span></a>
+                    <a class="main-tab-btn" title="บริหารงบประมาณ" onclick="switchMainTab('budget', this)"><span class="d-ico"><i class="fa-solid fa-coins"></i></span><span class="d-label">บริหารงบประมาณ</span></a>
+                    <a class="main-tab-btn" title="บริหารงานบุคคล" onclick="switchMainTab('personnel', this)"><span class="d-ico"><i class="fa-solid fa-users"></i></span><span class="d-label">บริหารงานบุคคล</span></a>
+                    <a class="main-tab-btn" title="บริหารทั่วไป" onclick="switchMainTab('general', this)"><span class="d-ico"><i class="fa-solid fa-building"></i></span><span class="d-label">บริหารทั่วไป</span></a>
+
+                    <div class="d-nav-title">ระบบกลาง</div>
+                    <a id="btnSuperAdmin" class="hidden" href="super_admin.html" title="จัดการระบบส่วนกลาง"><span class="d-ico"><i class="fa-solid fa-server"></i></span><span class="d-label">จัดการระบบส่วนกลาง</span></a>
+                    <a id="calendarAdminBtn" class="hidden" href="calendar_admin.html" title="จัดการปฏิทิน"><span class="d-ico"><i class="fa-regular fa-calendar-alt"></i></span><span class="d-label">จัดการปฏิทิน</span></a>
+                    <a id="adminHelpdeskBtn" class="hidden" href="helpdesk_admin.html" title="ศูนย์ช่วยเหลือ"><span class="d-ico"><i class="fa-solid fa-headset"></i></span><span class="d-label">ศูนย์ช่วยเหลือ</span></a>
+                    <a onclick="changeMyPassword()" title="เปลี่ยนรหัสผ่าน"><span class="d-ico"><i class="fa-solid fa-key"></i></span><span class="d-label">เปลี่ยนรหัสผ่าน</span></a>
+                    <a class="logout" onclick="handleLogout()" title="ออกจากระบบ"><span class="d-ico"><i class="fa-solid fa-power-off"></i></span><span class="d-label">ออกจากระบบ</span></a>
+                </nav>
+                <div class="d-sidebar-bottom">
+                    <!-- <div>Smart School<br><b>Better Future</b></div> -->
+                    <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
+                        <i class="fa-brands fa-facebook"></i>
+                        <span>ติดตามเพจโรงเรียน</span>
+                    </a>
+                </div>
+            </aside>
+            <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
+
+            <main class="d-main" id="dMain">
+                <!-- ================= Topbar ================= -->
+                <header class="d-topbar">
+                    <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                    <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                        <i class="fa-solid fa-angles-left"></i>
+                    </button>
+                    <div class="d-search"><i class="fa-solid fa-magnifying-glass"></i>
+                        <input id="appSearch" placeholder="ค้นหาระบบงาน หรือเมนูต่างๆ..." oninput="if(currentUser) renderAppCards()">
+                    </div>
+                    <div class="d-spacer"></div>
+                    <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+                    <div class="d-profile">
+                        <div class="d-avatar-wrap">
+                            <div class="d-avatar" id="userAvatar">
+                                <span id="userAvatarInitial">?</span>
+                                <img id="userAvatarImg" src="" alt="" style="display:none;">
+                            </div>
+                            <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
+                        </div>
+                        <div>
+                            <b id="userName" class="text-sm">กำลังโหลด...</b>
+                            <small id="userRole">...</small>
+                        </div>
+                    </div>
+                </header>
+
+                <!-- ================= Hero ================= -->
+                <section class="d-hero">
+                    <div class="d-hero-content">
+                        <h1>ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h1>
+                        <p>กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน</p>
+                        <!-- <div class="quote">“การศึกษา คือ รากฐาน<br>ของอนาคตที่มั่นคง”</div> -->
+                    </div>
+                </section>
+
+                <!-- ================= Stat cards ================= -->
+                <section class="d-grid4">
+                    <div class="d-stat"><div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div><div><p>ระบบทั้งหมด</p><h3 id="statTotal">-</h3></div></div>
+                    <div class="d-stat"><div class="d-stat-icon d-green"><i class="fa-solid fa-circle-check"></i></div><div><p>ระบบที่เข้าใช้งานได้</p><h3 id="statActive">-</h3></div></div>
+                    <div class="d-stat"><div class="d-stat-icon d-gold"><i class="fa-solid fa-lock"></i></div><div><p>ระบบที่ถูกล็อก</p><h3 id="statLocked">-</h3></div></div>
+                    <div class="d-stat"><div class="d-stat-icon d-violet"><i class="fa-regular fa-calendar-check"></i></div><div><p>กิจกรรมในเดือนที่เลือก</p><h3 id="statEvents">-</h3></div></div>
+                </section>
+
+                <!-- ================= ปฏิทิน + การลา ================= -->
+                <section class="d-layout">
+                    <div class="d-card wide">
+                        <div class="d-card-head">
+                            <div class="d-card-title">📅 ปฏิทินกิจกรรม</div>
+                            <div class="flex gap-2 items-center flex-wrap">
+                                <select id="monthSelect" class="d-select">
+                                    <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
+                                    <option value="2">มีนาคม</option><option value="3">เมษายน</option>
+                                    <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
+                                    <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
+                                    <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
+                                    <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+                                </select>
+                                <select id="yearSelect" class="d-select"></select>
+                                <button id="btnLoadCalendar" class="d-btn"><i class="fa-solid fa-calendar-alt mr-1"></i> แสดง</button>
+                            </div>
+                        </div>
+                        <div class="d-calendar-box border border-gray-200 rounded-lg">
+                            <table class="w-full text-left text-sm border-collapse relative">
+                                <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
+                                    <tr>
+                                        <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
+                                        <th class="py-3 px-4 font-semibold whitespace-nowrap" style="min-width:120px;">กลุ่ม</th>
+                                        <th class="py-3 px-4 font-semibold">รายการ</th>
+                                        <th class="py-3 px-4 font-semibold">รายละเอียด</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="calendarEventsTableBody">
+                                    <tr><td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- การลาวันนี้ -->
+                    <div class="d-card d-leave" style="border-left-color:#f43f5e">
+                        <div class="d-card-head">
+                            <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋 การลาวันนี้</div>
+                            <span class="d-sub" id="sick-today-date"></span>
+                        </div>
+                        <div id="sick-leave-today" class="min-h-[40px]">
+                            <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                        </div>
+                    </div>
+
+                    <!-- การลาสัปดาห์นี้ -->
+                    <div class="d-card d-leave" style="border-left-color:#f97316">
+                        <div class="d-card-head">
+                            <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋 การลาสัปดาห์นี้</div>
+                            <span class="d-sub" id="sick-week-range"></span>
+                        </div>
+                        <div id="sick-leave-week" class="min-h-[40px]">
+                            <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- ================= ระบบงาน ================= -->
+                <section class="d-card" style="margin-bottom:12px">
+                    <div class="d-card-head">
+                        <div class="d-card-title"><span id="appSectionTitle">บริหารวิชาการ</span> <span class="d-sub">(ระบบงานที่ใช้งานได้)</span></div>
+                    </div>
+                    <div id="appGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                        <div class="col-span-full text-center py-10 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...</div>
+                    </div>
+                </section>
+
+            </main>
         </div>
-        <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-indigo-300 rounded-full mix-blend-multiply filter blur-3xl opacity-30 animate-pulse"
-            style="animation-delay: 2s;"></div>
-    </div>
-
-    <div id="portalView" class="hidden flex-1 flex flex-col z-10">
-        <header
-            class="glass-panel sticky top-0 z-20 px-6 py-4 shadow-sm border-b border-white/50 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <div class="bg-white p-1 rounded-full shadow-sm"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png"
-                        class="w-9 h-9 object-contain"></div>
-                <div>
-                    <h1
-                        class="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-700 to-indigo-700">
-                        Central Portal</h1>
-                    <div class="text-[11px] font-bold text-gray-500 uppercase tracking-widest">School Management System
-                    </div>
-                </div>
-            </div>
-            <div class="flex items-center gap-4">
-                <div class="hidden md:block text-right">
-                    <div id="userName" class="text-sm font-bold text-gray-800">กำลังโหลด...</div>
-                    <div id="userRole" class="text-xs text-gray-500">...</div>
-                </div>
-
-                <!-- ปุ่มจัดการปฏิทิน (แสดงเฉพาะผู้ที่มีสิทธิ์) -->
-                <button id="calendarAdminBtn" onclick="window.location.href='calendar_admin.html'"
-                    class="hidden bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 text-indigo-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
-                    <i class="fa-regular fa-calendar-alt"></i> <span class="hidden sm:inline">จัดการปฏิทิน</span>
-                </button>
-
-                <button onclick="changeMyPassword()"
-                    class="bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
-                    <i class="fa-solid fa-key"></i> <span class="hidden sm:inline">เปลี่ยนรหัส</span>
-                </button>
-
-                <button id="adminHelpdeskBtn" onclick="window.location.href='helpdesk_admin.html'"
-                    class="hidden bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
-                    <i class="fa-solid fa-headset"></i> <span class="hidden sm:inline">ศูนย์ช่วยเหลือ</span>
-                </button>
-
-                <button onclick="handleLogout()"
-                    class="bg-red-50 hover:bg-red-100 border border-red-200 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition-colors flex items-center gap-2">
-                    <i class="fa-solid fa-power-off"></i> <span class="hidden sm:inline">ออกจากระบบ</span>
-                </button>
-            </div>
-        </header>
-
-        <main class="flex-1 max-w-6xl mx-auto w-full p-6 py-10">
-            <div class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4 text-center md:text-left">
-                <div>
-                    <h2 class="text-2xl font-bold text-gray-800 mb-2">ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h2>
-                    <p class="text-gray-600 text-sm">กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน
-                    </p>
-                </div>
-                <button id="btnSuperAdmin" onclick="window.location.href='super_admin.html'"
-                    class="hidden bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 shrink-0">
-                    <i class="fa-solid fa-server"></i> จัดการระบบส่วนกลาง
-                </button>
-            </div>
-
-            <!-- ส่วนแสดงปฏิทินกิจกรรม (ปรับให้ความกว้างเท่ากับส่วนอื่น) -->
-            <section class="mb-8">
-                <div class="bg-white rounded-2xl shadow-sm p-6">
-                    <div class="flex flex-wrap justify-between items-center gap-4 mb-6">
-                        <h2 class="text-2xl font-bold text-gray-800 border-l-4 border-primary-600 pl-3">
-                            📅 ปฏิทินกิจกรรม
-                        </h2>
-                        <div class="flex gap-3 items-center bg-white p-2 rounded-xl shadow-sm border border-gray-200">
-                            <select id="monthSelect" class="border border-gray-300 rounded-lg px-3 py-2 text-sm">
-                                <option value="0">มกราคม</option>
-                                <option value="1">กุมภาพันธ์</option>
-                                <option value="2">มีนาคม</option>
-                                <option value="3">เมษายน</option>
-                                <option value="4">พฤษภาคม</option>
-                                <option value="5">มิถุนายน</option>
-                                <option value="6">กรกฎาคม</option>
-                                <option value="7">สิงหาคม</option>
-                                <option value="8">กันยายน</option>
-                                <option value="9">ตุลาคม</option>
-                                <option value="10">พฤศจิกายน</option>
-                                <option value="11">ธันวาคม</option>
-                            </select>
-                            <select id="yearSelect"
-                                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"></select>
-                            <button id="btnLoadCalendar"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition">
-                                <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto overflow-y-auto border border-gray-200 rounded-lg"
-                        style="max-height: 300px;">
-                        <table class="w-full text-left text-sm border-collapse relative">
-                            <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
-                                <tr>
-                                    <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
-                                    <th class="py-3 px-4 font-semibold">กลุ่ม</th>
-                                    <th class="py-3 px-4 font-semibold">รายการ</th>
-                                    <th class="py-3 px-4 font-semibold">รายละเอียด</th>
-                                </tr>
-                            </thead>
-                            <tbody id="calendarEventsTableBody">
-                                <tr>
-                                    <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-
-            <!-- ส่วนแสดงผู้ลาป่วย -->
-            <section class="mb-8">
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <!-- วันนี้ -->
-                    <div class="bg-white rounded-2xl shadow-sm p-5 border-l-4 border-l-rose-500">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fas fa-calendar-day text-rose-500 text-xl"></i>
-                            <h3 class="font-bold text-gray-800">📋 การลาวันนี้</h3>
-                            <span class="ml-auto text-xs text-gray-400" id="sick-today-date"></span>
-                        </div>
-                        <div id="sick-leave-today" class="min-h-[60px]">
-                            <p class="text-gray-400 text-sm flex items-center gap-2">
-                                <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
-                            </p>
-                        </div>
-                    </div>
-
-                    <!-- สัปดาห์นี้ -->
-                    <div class="bg-white rounded-2xl shadow-sm p-5 border-l-4 border-l-orange-500">
-                        <div class="flex items-center gap-2 mb-3">
-                            <i class="fas fa-calendar-week text-orange-500 text-xl"></i>
-                            <h3 class="font-bold text-gray-800">📋 การลาสัปดาห์นี้</h3>
-                            <span class="ml-auto text-xs text-gray-400" id="sick-week-range"></span>
-                        </div>
-                        <div id="sick-leave-week" class="min-h-[60px]">
-                            <p class="text-gray-400 text-sm flex items-center gap-2">
-                                <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
-                            </p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <div
-                class="flex flex-wrap gap-2 mb-8 bg-white/50 backdrop-blur-md p-2 rounded-2xl border border-white shadow-sm">
-                <button onclick="switchMainTab('academic', this)"
-                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md">
-                    <i class="fa-solid fa-book-open mr-2"></i> บริหารวิชาการ
-                </button>
-                <button onclick="switchMainTab('budget', this)"
-                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
-                    <i class="fa-solid fa-coins mr-2"></i> บริหารงบประมาณ
-                </button>
-                <button onclick="switchMainTab('personnel', this)"
-                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
-                    <i class="fa-solid fa-users mr-2"></i> บริหารงานบุคคล
-                </button>
-                <button onclick="switchMainTab('general', this)"
-                    class="main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm">
-                    <i class="fa-solid fa-building mr-2"></i> บริหารทั่วไป
-                </button>
-            </div>
-
-            <div id="appGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <div class="col-span-full text-center py-10 text-gray-400"><i
-                        class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...
-                </div>
-            </div>
-
-        </main>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
@@ -199,8 +329,50 @@
         // =======================================================
         // ส่วนแสดงปฏิทินกิจกรรม (ตาราง + ตัวกรองเดือน/ปี)
         // =======================================================
-        let currentYear = new Date().getFullYear() + 543;  // ปี พ.ศ.
-        let currentMonth = new Date().getMonth();  // 0-11
+        function setStat(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+        function toggleSidebar(force) {
+            const sb = document.getElementById('dSidebar'), ov = document.getElementById('dOverlay');
+            const open = typeof force === 'boolean' ? force : !sb.classList.contains('open');
+            sb.classList.toggle('open', open); ov.classList.toggle('open', open);
+        }
+
+        // ================= ปุ่มย่อ/ขยาย Sidebar (desktop) =================
+        function applySidebarCollapsed(collapsed) {
+            const sb = document.getElementById('dSidebar');
+            const main = document.getElementById('dMain');
+            const btn = document.getElementById('collapseBtn');
+            if (!sb || !main) return;
+            sb.classList.toggle('collapsed', collapsed);
+            main.classList.toggle('collapsed', collapsed);
+            document.body.classList.toggle('sb-collapsed', collapsed);
+            if (btn) {
+                const i = btn.querySelector('i');
+                if (i) i.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+                btn.title = collapsed ? 'ขยายเมนู' : 'ย่อเมนู';
+            }
+        }
+
+        function toggleSidebarCollapse() {
+            const sb = document.getElementById('dSidebar');
+            const next = !sb.classList.contains('collapsed');
+            applySidebarCollapsed(next);
+            try { localStorage.setItem('cp_sidebar_collapsed', next ? '1' : '0'); } catch (e) {}
+        }
+
+        function restoreSidebarCollapse() {
+            let saved = '0';
+            try { saved = localStorage.getItem('cp_sidebar_collapsed') || '0'; } catch (e) {}
+            // ใช้เฉพาะ desktop
+            if (window.innerWidth > 760 && saved === '1') {
+                applySidebarCollapsed(true);
+            }
+        }
+
+        // =======================================================
+        const CATEGORY_NAMES = { academic: 'บริหารวิชาการ', budget: 'บริหารงบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
+
+        let currentYear = new Date().getFullYear() + 543;
+        let currentMonth = new Date().getMonth();
 
         function populateYearSelect() {
             const yearSelect = document.getElementById('yearSelect');
@@ -229,6 +401,7 @@
 
             try {
                 const events = await getEventsByMonthYear(year, month);
+                setStat('statEvents', events.length);
 
                 if (!events.length) {
                     tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
@@ -236,10 +409,10 @@
                 }
 
                 const deptNames = {
-                    academic: 'กลุ่มวิชาการ',
-                    budget: 'กลุ่มแผนงานและงบประมาณ',
-                    personnel: 'กลุ่มบริหารงานบุคคล',
-                    general: 'กลุ่มบริหารทั่วไป'
+                    academic: 'วิชาการ',
+                    budget: 'แผนงานและงบประมาณ',
+                    personnel: 'บริหารงานบุคคล',
+                    general: 'บริหารทั่วไป'
                 };
 
                 tbody.innerHTML = events.map(ev => {
@@ -247,7 +420,7 @@
                     return `
                         <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
                             <td class="py-3 px-4 whitespace-nowrap">${formatThaiDate(startDate)}</td>
-                            <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full ${getDeptColorClass(ev.dept_key)}">${deptNames[ev.dept_key] || ev.dept_key}</span></td>
+                            <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full whitespace-nowrap ${getDeptColorClass(ev.dept_key)}">${deptNames[ev.dept_key] || ev.dept_key}</span></td>
                             <td class="py-3 px-4 font-medium text-gray-800">${escapeHtml(ev.title)}</td>
                             <td class="py-3 px-4 text-gray-600">${DOMPurify ? DOMPurify.sanitize(ev.description || '-') : (ev.description || '-')}</td>
                         </tr>
@@ -255,6 +428,7 @@
                 }).join('');
             } catch (err) {
                 console.error(err);
+                setStat('statEvents', '-');
                 tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
             }
         }
@@ -289,7 +463,7 @@
         }
 
         // =======================================================
-        // ส่วนหลักของระบบ (การแสดงแอป, สิทธิ์ ฯลฯ)
+        // ส่วนหลักของระบบ
         // =======================================================
         let currentUser = null;
         let activeModules = [];
@@ -308,26 +482,24 @@
 
         window.onload = async () => {
             await checkAuth();
+            restoreSidebarCollapse();
             document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         };
 
         async function checkAuth() {
-            // ✅ ใช้ checkSessionAndRole จาก config.js — มาตรฐานเดียวกับทุกโมดูล
             const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
-            if (!result) return; // checkSessionAndRole จัดการ redirect ให้แล้ว
+            if (!result) return;
 
             currentUser = result.personnel;
 
             document.getElementById('portalView').classList.remove('hidden');
 
-            // โหลด module admins ของ user นี้ (ใช้กับ app ที่ reqAdmin: true)
             const { data: moduleAdmins } = await db
                 .from('core_module_admins')
                 .select('module_id')
                 .eq('user_id', result.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
-            // โหลด core_system_modules สำหรับ override ไอคอน/ชื่อ/สถานะ
             const { data: allCustomModules } = await db
                 .from('core_system_modules')
                 .select('*')
@@ -338,7 +510,6 @@
             if (allCustomModules) {
                 allCustomModules.forEach(m => {
                     window.moduleOverrides[m.module_id] = m;
-                    // activeModules ใช้อ้างอิงได้ แต่ไม่ใช้เป็น gate หลักแล้ว (แก้ bug แล้ว)
                     activeModules.push({
                         module_id: m.module_id,
                         is_active: m.is_active,
@@ -349,7 +520,6 @@
 
             updateUI();
             await checkCalendarAdminAccess();
-            // ✅ โหลดข้อมูลผู้ลาป่วย
             await loadSickLeaveWidget();
             renderAppCards();
         }
@@ -368,7 +538,6 @@
         function updateUI() {
             if (!currentUser) return;
             document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-            // ✅ ใช้ WRK_ROLES จาก config.js แทนการ hardcode ทีละ role
             const roleTextMap = {
                 super_admin: 'ผู้ดูแลสูงสุด (Super Admin)',
                 admin: 'ผู้ดูแลระบบย่อย (Admin)',
@@ -380,32 +549,61 @@
             };
             const roleText = roleTextMap[currentUser.role] || currentUser.role;
 
-            // ปุ่ม Super Admin — เฉพาะ super_admin เท่านั้น
             const isSuperAdmin = currentUser.role === 'super_admin';
             document.getElementById('btnSuperAdmin').classList.toggle('hidden', !isSuperAdmin);
 
-            // ปุ่ม Helpdesk Admin — admin และ super_admin เท่านั้น
             const canSeeHelpdesk = WRK_ROLES.SETTINGS.includes(currentUser.role);
             document.getElementById('adminHelpdeskBtn').classList.toggle('hidden', !canSeeHelpdesk);
 
             document.getElementById('userRole').innerText = roleText;
+            // ✅ แสดงรูปโปรไฟล์ ถ้ามี — ถ้าไม่มีให้ใช้ตัวอักษรแรกแทน
+            const avatarImg = document.getElementById('userAvatarImg');
+            const avatarInitial = document.getElementById('userAvatarInitial');
+
+            // ลองหาชื่อ field ที่พบบ่อย (ปรับให้ตรงกับ DB ของคุณ)
+            const avatarUrl = currentUser.avatar_url 
+                        || currentUser.profile_image 
+                        || currentUser.photo_url 
+                        || currentUser.image_url 
+                        || currentUser.picture 
+                        || currentUser.avatar 
+                        || '';
+
+            if (avatarUrl) {
+                avatarImg.src = avatarUrl;
+                avatarImg.alt = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim();
+                avatarImg.style.display = 'block';
+                avatarInitial.style.display = 'none';
+                avatarImg.onerror = () => {
+                    avatarImg.style.display = 'none';
+                    avatarInitial.style.display = 'block';
+                };
+
+                // ✅ เพิ่ม: set รูป preview
+                const avatarPreview = document.getElementById('userAvatarPreview');
+                if (avatarPreview) {
+                    avatarPreview.src = avatarUrl;
+                    avatarPreview.style.display = 'block';
+                }
+            } else {
+                avatarImg.style.display = 'none';
+                avatarInitial.style.display = 'block';
+                avatarInitial.innerText = (currentUser.first_name || '?').charAt(0);
+            }
         }
 
-        // ตรวจสอบว่าผู้ใช้มีสิทธิ์เป็นแอดมินกลุ่มใด (แสดงปุ่มจัดการปฏิทิน)
         async function checkCalendarAdminAccess() {
             const { data: { session } } = await db.auth.getSession();
             if (!session) return;
             const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
             if (!profile) return;
 
-            // ใช้ canManageSettings จาก config.js เพื่อควบคุมปุ่มจัดการปฏิทิน
             const hasSettingsAccess = window.canManageSettings(profile.role);
             if (!hasSettingsAccess) {
                 document.getElementById('calendarAdminBtn').classList.add('hidden');
                 return;
             }
 
-            // ถ้ามีสิทธิ์ตั้งค่า ให้ตรวจสอบว่าเป็น admin ของกลุ่มใดกลุ่มหนึ่ง (หรือไม่ก็แสดง)
             const managedDepts = await getUserManagedDepts(session.user.id);
             const btn = document.getElementById('calendarAdminBtn');
             if (btn && managedDepts.length > 0) {
@@ -417,11 +615,17 @@
 
         function switchMainTab(category, btnElement) {
             currentCategory = category;
-            document.querySelectorAll('.main-tab-btn').forEach(btn => {
-                btn.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all text-gray-600 hover:bg-white hover:text-blue-600 hover:shadow-sm";
-            });
-            btnElement.className = "main-tab-btn flex-1 min-w-[120px] py-3 px-4 rounded-xl font-bold text-sm transition-all bg-blue-600 text-white shadow-md";
-            renderAppCards();
+            document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
+            if (btnElement) btnElement.classList.add('active');
+            const s = document.getElementById('appSearch'); if (s) s.value = '';
+            toggleSidebar(false);
+            if (currentUser) renderAppCards();
+        }
+
+        function getLockInfo(app) {
+            if (!app.isActive) return true;
+            if (app.reqAdmin) return !((currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId));
+            return false;
         }
 
         function renderAppCards() {
@@ -438,9 +642,6 @@
                     finalApp.icon = modOverride.icon || app.icon;
                     finalApp.iconBgColor = modOverride.icon_bg_color || '#e2e8f0';
                     finalApp.iconTextColor = modOverride.icon_text_color || '#4a5568';
-                    // ✅ แก้ Bug: ใช้ is_active จาก core_system_modules โดยตรง
-                    //    เดิมซ้ำกับ activeModules (ซึ่ง filter is_active=true มาแล้ว)
-                    //    ทำให้ค่าออกมาเป็น false เสมอแม้โมดูลจะเปิดอยู่
                     finalApp.isActive = modOverride.is_active !== false;
                     finalApp.target_blank = modOverride.target_blank || false;
                     if (app.id === app.moduleId) {
@@ -451,8 +652,6 @@
                 } else {
                     finalApp.iconBgColor = '#e2e8f0';
                     finalApp.iconTextColor = '#4a5568';
-                    // ✅ แก้ Bug: ถ้าโมดูลไม่มีใน core_system_modules → เปิดใช้งาน default
-                    //    เดิม: .some(...) หา match ไม่เจอ → false → ล็อกทุกแอปของครู
                     finalApp.isActive = true;
                     finalApp.target_blank = false;
                 }
@@ -479,9 +678,19 @@
                 appsToDisplay.push(newApp);
             });
 
-            const appsToShow = appsToDisplay.filter(app => app.category === currentCategory);
+            const total = appsToDisplay.length;
+            const locked = appsToDisplay.filter(getLockInfo).length;
+            setStat('statTotal', total);
+            setStat('statActive', total - locked);
+            setStat('statLocked', locked);
+
+            const q = ((document.getElementById('appSearch') || {}).value || '').trim().toLowerCase();
+            document.getElementById('appSectionTitle').textContent = q ? 'ผลการค้นหา' : (CATEGORY_NAMES[currentCategory] || '');
+            const appsToShow = q
+                ? appsToDisplay.filter(a => (a.title + ' ' + a.desc).toLowerCase().includes(q))
+                : appsToDisplay.filter(app => app.category === currentCategory);
             if (appsToShow.length === 0) {
-                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>ยังไม่มีระบบในกลุ่มบริหารงานนี้</div>`;
+                grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>${q ? 'ไม่พบระบบที่ตรงกับคำค้นหา' : 'ยังไม่มีระบบในกลุ่มบริหารงานนี้'}</div>`;
                 return;
             }
 
@@ -575,6 +784,7 @@
         // เริ่มต้นส่วนปฏิทิน
         document.addEventListener('DOMContentLoaded', () => {
             populateYearSelect();
+            document.getElementById('todayChip').textContent = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
             document.getElementById('monthSelect').value = currentMonth;
             document.getElementById('btnLoadCalendar').addEventListener('click', loadEventsByMonth);
             loadEventsByMonth();
