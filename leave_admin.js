@@ -866,8 +866,20 @@ function renderTable() {
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         order: [[3, 'desc']],
         columnDefs: [
-            { responsivePriority: 1, targets: -1 },
-            { orderable: false, targets: [8] }
+            { orderable: false, targets: [8] },
+
+            // ============================================================
+            // ✅ Mobile Priority — ลำดับ 1 = สำคัญสุด (แสดงเสมอ)
+            // ============================================================
+            { responsivePriority: 1, targets: 1 },   // ⭐ ชื่อบุคลากร (แสดงเสมอ)
+            { responsivePriority: 2, targets: 8 },   // ⭐ จัดการ/อนุมัติ (แสดงเสมอ)
+            { responsivePriority: 3, targets: 6 },   // สถานะ
+            { responsivePriority: 4, targets: 2 },   // ประเภทการลา
+            { responsivePriority: 5, targets: 3 },   // ช่วงวันที่ลา
+            { responsivePriority: 6, targets: 0 },   // วันที่ส่ง (ซ่อนก่อน)
+            { responsivePriority: 7, targets: 7 },   // สถานะรับทราบ
+            { responsivePriority: 8, targets: 4 },   // จำนวนวัน
+            { responsivePriority: 9, targets: 5 }    // จำนวนครั้ง
         ],
         pageLength: 20,
         lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "ทั้งหมด"]],
