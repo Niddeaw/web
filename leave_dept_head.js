@@ -247,8 +247,21 @@ window.renderDeptTables = function () {
     } else tbPending.innerHTML = '';
 
     window.pendingDT = $('#pendingTable').DataTable({
-        responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [6] }], pageLength: 15
+        responsive: true,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        order: [[0, 'desc']],
+        columnDefs: [
+            { orderable: false, targets: [6] },
+            // ✅ Mobile: แสดงเฉพาะ "ชื่อครู" + "จัดการ" เสมอ
+            { responsivePriority: 1, targets: 1 },   // ชื่อครู
+            { responsivePriority: 2, targets: 6 },   // จัดการ (ปุ่มรับทราบ)
+            { responsivePriority: 3, targets: 0 },   // วันที่ส่ง
+            { responsivePriority: 4, targets: 2 },   // ประเภท
+            { responsivePriority: 5, targets: 3 },   // ช่วงวันที่
+            { responsivePriority: 6, targets: 4 },   // วัน
+            { responsivePriority: 7, targets: 5 }    // สาเหตุ
+        ],
+        pageLength: 15
     });
 
     // Done
@@ -300,8 +313,21 @@ window.renderDeptTables = function () {
     } else tbDone.innerHTML = '';
 
     window.doneDT = $('#doneTable').DataTable({
-        responsive: true, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [5, 6] }], pageLength: 15
+        responsive: true,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        order: [[0, 'desc']],
+        columnDefs: [
+            { orderable: false, targets: [5, 6] },
+            // ✅ Mobile: แสดง "ชื่อครู" + "วันที่รับทราบ" ก่อน
+            { responsivePriority: 1, targets: 1 },   // ชื่อครู
+            { responsivePriority: 2, targets: 5 },   // วันที่รับทราบ (มีปุ่มแก้ไข)
+            { responsivePriority: 3, targets: 0 },   // วันที่ส่ง
+            { responsivePriority: 4, targets: 6 },   // สถานะ
+            { responsivePriority: 5, targets: 2 },   // ประเภท
+            { responsivePriority: 6, targets: 3 },   // ช่วงวันที่
+            { responsivePriority: 7, targets: 4 }    // วัน
+        ],
+        pageLength: 15
     });
 };
 
