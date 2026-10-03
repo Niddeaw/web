@@ -3,16 +3,11 @@
 
 <head>
     <title>WRK - ระบบบริหารจัดการสถานศึกษา</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 
-
     <style>
-        /* ===== Layout ตามไฟล์ตัวอย่าง school_management_dashboard_template ===== */
         :root{--d-primary:#2588e8;--d-bg:#f5f8fc;--d-text:#26364a;--d-muted:#8492a6;--d-line:#e9eef5;--d-green:#24b47e;--d-shadow:0 4px 18px rgba(50,90,130,.07);--d-radius:14px}
         body#mainBody{background:var(--d-bg);color:var(--d-text);font-size:14px}
         .d-app{display:flex}
@@ -31,30 +26,8 @@
         .d-ico{width:21px;text-align:center;font-size:15px;flex-shrink:0}
         .d-sidebar-bottom{padding:14px;color:#789;font-size:11px}
 
-        /* ✅ ปุ่ม Facebook */
-        .d-fb-btn{
-            display:flex;
-            align-items:center;
-            justify-content:center;
-            gap:7px;
-            margin-top:10px;
-            padding:8px 10px;
-            background:linear-gradient(135deg,#1877f2,#0d65d9);
-            color:#fff;
-            border-radius:8px;
-            text-decoration:none;
-            font-size:11px;
-            font-weight:600;
-            transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
-            box-shadow:0 3px 8px rgba(24,119,242,.25);
-        }
-        .d-fb-btn:hover{
-            background:linear-gradient(135deg,#0d65d9,#0a56bd);
-            transform:translateY(-1px);
-            box-shadow:0 6px 14px rgba(24,119,242,.35);
-            color:#fff;
-            text-decoration:none;
-        }
+        .d-fb-btn{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;padding:8px 10px;background:linear-gradient(135deg,#1877f2,#0d65d9);color:#fff;border-radius:8px;text-decoration:none;font-size:11px;font-weight:600;transition:transform .18s ease, box-shadow .18s ease, background .18s ease;box-shadow:0 3px 8px rgba(24,119,242,.25)}
+        .d-fb-btn:hover{background:linear-gradient(135deg,#0d65d9,#0a56bd);transform:translateY(-1px);box-shadow:0 6px 14px rgba(24,119,242,.35);color:#fff;text-decoration:none}
         .d-fb-btn i{font-size:14px}
 
         .d-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:45}
@@ -74,56 +47,31 @@
         .d-avatar{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;background:#dcecff;font-weight:700;color:#2679c9;overflow:hidden;position:relative}
         .d-avatar img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0}
         .d-profile small{display:block;color:var(--d-muted);font-size:10px}
-        /* .d-hero{min-height:137px;border-radius:15px;overflow:hidden;position:relative;background:linear-gradient(110deg,#d9ecff,#fff 58%,#cfe9ff);box-shadow:var(--d-shadow);margin-bottom:12px}
-        .d-hero:before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 13% 78%,#87c96a 0 7%,transparent 7.5%),radial-gradient(circle at 25% 75%,#67b75a 0 8%,transparent 8.5%),linear-gradient(0deg,#75b967 0 14%,transparent 14%),linear-gradient(170deg,transparent 60%,#d3e8f7 60% 66%,transparent 66%);opacity:.75} */
-        
-        /* ✅ Hero สูงเท่าเดิม แต่รูปย่อพอดีความสูง ไม่ซูม */
+
         .d-hero{min-height:137px;border-radius:15px;overflow:hidden;position:relative;
             background:
-                linear-gradient(90deg,#d9ecff 0%,#eaf4ff 45%,rgba(255,255,255,0) 70%),   /* ไล่สีโทนเดิมไว้ด้านซ้าย */
-                url('hero-banner.webp') right center / auto 100% no-repeat;        /* รูปย่อพอดีสูง ชิดขวา */
+                linear-gradient(90deg,#d9ecff 0%,#eaf4ff 45%,rgba(255,255,255,0) 70%),
+                url('hero-banner.webp') right center / auto 100% no-repeat;
             box-shadow:var(--d-shadow);margin-bottom:12px}
-
-        /* ลบลายเดิมออก */
         .d-hero:before{content:none}
-
         .d-hero-content{position:relative;padding:25px 30px}
         .d-hero h1{margin:0 0 5px;font-size:22px;font-weight:700}.d-hero p{margin:0;color:#68798e}
         .d-hero .quote{position:absolute;right:28px;top:42px;font-size:13px;font-style:italic;color:#35536e}
+
         .d-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
         .d-stat{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);padding:13px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--d-shadow)}
         .d-stat-icon{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;font-size:20px;color:#fff}
-        .d-blue{background:linear-gradient(145deg,#2596f0,#5daaf3)}.d-violet{background:linear-gradient(145deg,#8b5eea,#ad83f3)}.d-green{background:linear-gradient(145deg,#27bb88,#62d6aa)}.d-gold{background:linear-gradient(145deg,#f3a51d,#ffc35e)}
+        .d-blue{background:linear-gradient(145deg,#2596f0,#5daaf3)}.d-violet{background:linear-gradient(145deg,#8b5eea,#ad83f3)}.d-green{background:linear-gradient(145deg,#27bb88,#62d6aa)}.d-gold{background:linear-gradient(145deg,#f3a51d,#ffc35e)}.d-rose{background:linear-gradient(145deg,#f43f5e,#fb7185)}
         .d-stat h3{margin:0;font-size:23px;font-weight:700}.d-stat p{margin:0;color:#607188;font-size:12px}
 
-        /* ห่อ avatar ด้วย wrapper เพื่อให้ตำแหน่ง tooltip อ้างอิงถูกต้อง */
         .d-avatar-wrap{position:relative;display:inline-block}
+        .d-avatar-preview{position:absolute;top:calc(100% + 6px);right:0;width:160px;height:200px;max-width:none;border-radius:14px;object-fit:cover;background:#fff;box-shadow:0 12px 32px rgba(30,60,90,.22);border:3px solid #fff;opacity:0;transform:translateY(-6px) scale(.95);transition:opacity .22s ease, transform .22s ease;pointer-events:none;z-index:9999}
+        .d-avatar-wrap:hover .d-avatar-preview{opacity:1;transform:translateY(0) scale(1)}
 
-        /* รูปตัวอย่างขนาดใหญ่ (ซ่อนไว้ก่อน) */
-        .d-avatar-preview{
-            position:absolute;
-            top:calc(100% + 6px);
-            right:0;
-            width:160px;height:200px;
-            max-width:none;
-            border-radius:14px;
-            /* border-radius:50%; */
-            object-fit:cover;
-            background:#fff;
-            box-shadow:0 12px 32px rgba(30,60,90,.22);
-            border:3px solid #fff;
-            opacity:0;
-            transform:translateY(-6px) scale(.95);
-            transition:opacity .22s ease, transform .22s ease;
-            pointer-events:none;
-            z-index:9999;
-        }
-        .d-avatar-wrap:hover .d-avatar-preview{
-            opacity:1;
-            transform:translateY(0) scale(1);
-        }
+        /* ✅ Charts */
+        .d-charts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+        .d-chart-box{height:250px;position:relative}
 
-        /* ปฏิทิน + การลา */
         .d-layout{display:grid;grid-template-columns:3fr 1fr 1fr;gap:10px;margin-bottom:12px}
         .d-card{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);box-shadow:var(--d-shadow);padding:13px;min-width:0}
         .d-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
@@ -141,14 +89,13 @@
         #sick-leave-today li>span,#sick-leave-week li>span{min-width:0}
         #sick-leave-today li span[class*="rounded-full"],#sick-leave-week li span[class*="rounded-full"]{max-width:100%;line-height:1.35;white-space:normal}
 
+        #totalStudentsLabel{display:inline-block;margin-left:6px;padding:2px 8px;background:#eaf4ff;color:#2588e8;border-radius:20px;font-size:11px;font-weight:600;}
         .d-calendar-box{max-height:230px;overflow:auto;}
 
-        /* ================= ปุ่มย่อ/ขยาย Sidebar ================= */
         .d-collapse{display:none;border:0;background:none;font-size:17px;cursor:pointer;color:#526277;padding:7px 9px;border-radius:8px;transition:background .2s,color .2s;align-items:center;justify-content:center}
         .d-collapse:hover{background:#f1f7ff;color:var(--d-primary)}
         @media(min-width:761px){.d-collapse{display:inline-flex}}
 
-        /* สถานะย่อ (เฉพาะ desktop) */
         @media(min-width:761px){
             .d-sidebar.collapsed{width:68px}
             .d-sidebar.collapsed .d-brand{justify-content:center;padding:12px 8px}
@@ -159,14 +106,13 @@
             .d-sidebar.collapsed .d-nav a .d-label{display:none}
             .d-sidebar.collapsed .d-ico{width:auto}
             .d-sidebar.collapsed .d-sidebar-bottom{display:none}
-
             .d-main.collapsed{margin-left:68px;width:calc(100% - 68px)}
             body.sb-collapsed #wrk-global-footer{left:68px!important;width:calc(100% - 68px)!important}
         }
 
         @media(max-width:1400px){.d-layout{grid-template-columns:2.5fr 1fr 1fr}}
-        @media(max-width:1100px){.d-grid4{grid-template-columns:repeat(2,1fr)}.d-layout{grid-template-columns:1fr 1fr}.d-layout .wide{grid-column:1/-1}}
-        @media(max-width:760px){.d-sidebar{transform:translateX(-100%)}.d-sidebar.open{transform:translateX(0)}.d-main{margin-left:0;width:100%;padding:0 10px}.d-topbar{margin:0 -10px 10px;padding:0 12px}.d-menu{display:block}.d-search{max-width:none}.d-chip,.d-profile>div:nth-child(2){display:none}.d-hero .quote{display:none}.d-grid4,.d-layout{grid-template-columns:1fr}.d-layout .wide{grid-column:auto}}
+        @media(max-width:1100px){.d-grid4{grid-template-columns:repeat(2,1fr)}.d-layout{grid-template-columns:1fr 1fr}.d-layout .wide{grid-column:1/-1}.d-charts{grid-template-columns:1fr}}
+        @media(max-width:760px){.d-sidebar{transform:translateX(-100%)}.d-sidebar.open{transform:translateX(0)}.d-main{margin-left:0;width:100%;padding:0 10px}.d-topbar{margin:0 -10px 10px;padding:0 12px}.d-menu{display:block}.d-search{max-width:none}.d-chip,.d-profile>div:nth-child(2){display:none}.d-hero .quote{display:none}.d-grid4,.d-layout,.d-charts{grid-template-columns:1fr}.d-layout .wide{grid-column:auto}}
     </style>
 
 </head>
@@ -183,8 +129,11 @@
                     <div><b>WRK</b><span>School Management System</span></div>
                 </div>
                 <nav class="d-nav">
-                    <div class="d-nav-title" style="margin-top:4px">กลุ่มบริหารงาน</div>
-                    <a class="main-tab-btn active" title="บริหารวิชาการ" onclick="switchMainTab('academic', this)"><span class="d-ico"><i class="fa-solid fa-book-open"></i></span><span class="d-label">บริหารวิชาการ</span></a>
+                    <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                    <a id="homeTabBtn" class="active" title="หน้าหลัก" onclick="switchToHome(this)"><span class="d-ico"><i class="fa-solid fa-house"></i></span><span class="d-label">หน้าหลัก</span></a>
+
+                    <div class="d-nav-title">กลุ่มบริหารงาน</div>
+                    <a class="main-tab-btn" title="บริหารวิชาการ" onclick="switchMainTab('academic', this)"><span class="d-ico"><i class="fa-solid fa-book-open"></i></span><span class="d-label">บริหารวิชาการ</span></a>
                     <a class="main-tab-btn" title="บริหารงบประมาณ" onclick="switchMainTab('budget', this)"><span class="d-ico"><i class="fa-solid fa-coins"></i></span><span class="d-label">บริหารงบประมาณ</span></a>
                     <a class="main-tab-btn" title="บริหารงานบุคคล" onclick="switchMainTab('personnel', this)"><span class="d-ico"><i class="fa-solid fa-users"></i></span><span class="d-label">บริหารงานบุคคล</span></a>
                     <a class="main-tab-btn" title="บริหารทั่วไป" onclick="switchMainTab('general', this)"><span class="d-ico"><i class="fa-solid fa-building"></i></span><span class="d-label">บริหารทั่วไป</span></a>
@@ -197,7 +146,6 @@
                     <a class="logout" onclick="handleLogout()" title="ออกจากระบบ"><span class="d-ico"><i class="fa-solid fa-power-off"></i></span><span class="d-label">ออกจากระบบ</span></a>
                 </nav>
                 <div class="d-sidebar-bottom">
-                    <!-- <div>Smart School<br><b>Better Future</b></div> -->
                     <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
                         <i class="fa-brands fa-facebook"></i>
                         <span>ติดตามเพจโรงเรียน</span>
@@ -214,7 +162,7 @@
                         <i class="fa-solid fa-angles-left"></i>
                     </button>
                     <div class="d-search"><i class="fa-solid fa-magnifying-glass"></i>
-                        <input id="appSearch" placeholder="ค้นหาระบบงาน หรือเมนูต่างๆ..." oninput="if(currentUser) renderAppCards()">
+                        <input id="appSearch" placeholder="ค้นหาระบบงาน หรือเมนูต่างๆ..." oninput="handleSearchInput()">
                     </div>
                     <div class="d-spacer"></div>
                     <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
@@ -233,83 +181,103 @@
                     </div>
                 </header>
 
-                <!-- ================= Hero ================= -->
-                <section class="d-hero">
-                    <div class="d-hero-content">
-                        <h1>ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h1>
-                        <p>กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน</p>
-                        <!-- <div class="quote">“การศึกษา คือ รากฐาน<br>ของอนาคตที่มั่นคง”</div> -->
-                    </div>
-                </section>
+                <!-- ================= Dashboard Section ================= -->
+                <div id="dashboardSection">
+                    <!-- Hero -->
+                    <section class="d-hero">
+                        <div class="d-hero-content">
+                            <h1>ยินดีต้อนรับสู่ระบบส่วนกลาง 👋</h1>
+                            <p>กรุณาเลือกกลุ่มบริหารงาน และระบบปฏิบัติการที่คุณต้องการเข้าใช้งาน</p>
+                        </div>
+                    </section>
 
-                <!-- ================= Stat cards ================= -->
-                <section class="d-grid4">
-                    <div class="d-stat"><div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div><div><p>ระบบทั้งหมด</p><h3 id="statTotal">-</h3></div></div>
-                    <div class="d-stat"><div class="d-stat-icon d-green"><i class="fa-solid fa-circle-check"></i></div><div><p>ระบบที่เข้าใช้งานได้</p><h3 id="statActive">-</h3></div></div>
-                    <div class="d-stat"><div class="d-stat-icon d-gold"><i class="fa-solid fa-lock"></i></div><div><p>ระบบที่ถูกล็อก</p><h3 id="statLocked">-</h3></div></div>
-                    <div class="d-stat"><div class="d-stat-icon d-violet"><i class="fa-regular fa-calendar-check"></i></div><div><p>กิจกรรมในเดือนที่เลือก</p><h3 id="statEvents">-</h3></div></div>
-                </section>
+                    <!-- Stat cards -->
+                    <section class="d-grid4">
+                        <div class="d-stat"><div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div><div><p>ระบบทั้งหมด</p><h3 id="statTotal">-</h3></div></div>
+                        <div class="d-stat"><div class="d-stat-icon d-green"><i class="fa-solid fa-user-graduate"></i></div><div><p>นักเรียนทั้งหมด</p><h3 id="statStudents">-</h3></div></div>
+                        <div class="d-stat"><div class="d-stat-icon d-rose"><i class="fa-solid fa-users"></i></div><div><p>บุคลากรทั้งหมด</p><h3 id="statPersonnel">-</h3></div></div>
+                        <div class="d-stat"><div class="d-stat-icon d-violet"><i class="fa-regular fa-calendar-check"></i></div><div><p>กิจกรรมในเดือนที่เลือก</p><h3 id="statEvents">-</h3></div></div>
+                    </section>
 
-                <!-- ================= ปฏิทิน + การลา ================= -->
-                <section class="d-layout">
-                    <div class="d-card wide">
-                        <div class="d-card-head">
-                            <div class="d-card-title">📅 ปฏิทินกิจกรรม</div>
-                            <div class="flex gap-2 items-center flex-wrap">
-                                <select id="monthSelect" class="d-select">
-                                    <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
-                                    <option value="2">มีนาคม</option><option value="3">เมษายน</option>
-                                    <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
-                                    <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
-                                    <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
-                                    <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
-                                </select>
-                                <select id="yearSelect" class="d-select"></select>
-                                <button id="btnLoadCalendar" class="d-btn"><i class="fa-solid fa-calendar-alt mr-1"></i> แสดง</button>
+                    <!-- Charts -->
+                    <section class="d-charts">
+                        <div class="d-card">
+                            <div class="d-card-head">
+                                <div class="d-card-title">📊 จำนวนนักเรียนจำแนกตามระดับชั้น <span id="totalStudentsLabel" class="d-sub"></span></div>
+                            </div>
+                            <div class="d-chart-box">
+                                <canvas id="chartStudentsByLevel"></canvas>
                             </div>
                         </div>
-                        <div class="d-calendar-box border border-gray-200 rounded-lg">
-                            <table class="w-full text-left text-sm border-collapse relative">
-                                <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
-                                    <tr>
-                                        <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
-                                        <th class="py-3 px-4 font-semibold whitespace-nowrap" style="min-width:120px;">กลุ่ม</th>
-                                        <th class="py-3 px-4 font-semibold">รายการ</th>
-                                        <th class="py-3 px-4 font-semibold">รายละเอียด</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="calendarEventsTableBody">
-                                    <tr><td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td></tr>
-                                </tbody>
-                            </table>
+                        <div class="d-card">
+                            <div class="d-card-head">
+                                <div class="d-card-title">📊 จำนวนบุคลากรจำแนกตามประเภท</div>
+                            </div>
+                            <div class="d-chart-box">
+                                <canvas id="chartPersonnelByGroup"></canvas>
+                            </div>
                         </div>
-                    </div>
+                    </section>
 
-                    <!-- การลาวันนี้ -->
-                    <div class="d-card d-leave" style="border-left-color:#f43f5e">
-                        <div class="d-card-head">
-                            <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋 การลาวันนี้</div>
-                            <span class="d-sub" id="sick-today-date"></span>
+                    <!-- ปฏิทิน + การลา -->
+                    <section class="d-layout">
+                        <div class="d-card wide">
+                            <div class="d-card-head">
+                                <div class="d-card-title">📅 ปฏิทินกิจกรรม</div>
+                                <div class="flex gap-2 items-center flex-wrap">
+                                    <select id="monthSelect" class="d-select">
+                                        <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
+                                        <option value="2">มีนาคม</option><option value="3">เมษายน</option>
+                                        <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
+                                        <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
+                                        <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
+                                        <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+                                    </select>
+                                    <select id="yearSelect" class="d-select"></select>
+                                    <button id="btnLoadCalendar" class="d-btn"><i class="fa-solid fa-calendar-alt mr-1"></i> แสดง</button>
+                                </div>
+                            </div>
+                            <div class="d-calendar-box border border-gray-200 rounded-lg">
+                                <table class="w-full text-left text-sm border-collapse relative">
+                                    <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
+                                        <tr>
+                                            <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
+                                            <th class="py-3 px-4 font-semibold whitespace-nowrap" style="min-width:120px;">กลุ่ม</th>
+                                            <th class="py-3 px-4 font-semibold">รายการ</th>
+                                            <th class="py-3 px-4 font-semibold">รายละเอียด</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="calendarEventsTableBody">
+                                        <tr><td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
-                        <div id="sick-leave-today" class="min-h-[40px]">
-                            <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
-                        </div>
-                    </div>
 
-                    <!-- การลาสัปดาห์นี้ -->
-                    <div class="d-card d-leave" style="border-left-color:#f97316">
-                        <div class="d-card-head">
-                            <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋 การลาสัปดาห์นี้</div>
-                            <span class="d-sub" id="sick-week-range"></span>
+                        <div class="d-card d-leave" style="border-left-color:#f43f5e">
+                            <div class="d-card-head">
+                                <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋 การลาวันนี้</div>
+                                <span class="d-sub" id="sick-today-date"></span>
+                            </div>
+                            <div id="sick-leave-today" class="min-h-[40px]">
+                                <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                            </div>
                         </div>
-                        <div id="sick-leave-week" class="min-h-[40px]">
-                            <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
-                        </div>
-                    </div>
-                </section>
 
-                <!-- ================= ระบบงาน ================= -->
-                <section class="d-card" style="margin-bottom:12px">
+                        <div class="d-card d-leave" style="border-left-color:#f97316">
+                            <div class="d-card-head">
+                                <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋 การลาสัปดาห์นี้</div>
+                                <span class="d-sub" id="sick-week-range"></span>
+                            </div>
+                            <div id="sick-leave-week" class="min-h-[40px]">
+                                <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- ================= App Modules Section ================= -->
+                <section class="d-card hidden" id="appModuleSection" style="margin-bottom:12px">
                     <div class="d-card-head">
                         <div class="d-card-title"><span id="appSectionTitle">บริหารวิชาการ</span> <span class="d-sub">(ระบบงานที่ใช้งานได้)</span></div>
                     </div>
@@ -323,11 +291,64 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="leave_dashboard.js"></script>
     <script src="calendar_manager.js"></script>
     <script>
         // =======================================================
-        // ส่วนแสดงปฏิทินกิจกรรม (ตาราง + ตัวกรองเดือน/ปี)
+        // ✅ ตั้งค่าชื่อตาราง/ฟิลด์ (ปรับตาม DB จริง)
+        // =======================================================
+        const STUDENTS_TABLE = 'core_students';
+        const PERSONNEL_TABLE = 'core_personnel';
+        const STUDENT_LEVEL_FIELD = 'grade_level';
+        const PERSONNEL_GROUP_FIELD = 'department';
+
+        // ✅ ปีการศึกษา/ภาคเรียน/สถานะ ปัจจุบัน
+        const CURRENT_ACADEMIC_YEAR = '2569';
+        const CURRENT_SEMESTER = '1';
+        const ENROLLMENT_STATUS = 'ปกติ';
+
+        // =======================================================
+        // ✅ จำแนกบุคลากรตามประเภท (ใช้ position จาก DB)
+        // =======================================================
+        function personnelCategory(person) {
+            const pos = (person.position || '').trim();
+
+            // 1. ฝ่ายบริหาร
+            if (pos === 'ผู้อำนวยการสถานศึกษา' || pos === 'รองผู้อำนวยการสถานศึกษา') {
+                return 'ฝ่ายบริหาร';
+            }
+
+            // 2. ข้าราชการครู (position = "ครู")
+            if (pos === 'ครู') {
+                return 'ข้าราชการครู';
+            }
+
+            // 3. พนักงานราชการ / ครูอัตราจ้าง / ครูพี่เลี้ยง
+            if (pos === 'พนักงานราชการ'
+                || pos === 'ครูอัตราจ้าง'
+                || pos.startsWith('ครูพี่เลี้ยง')) {
+                return 'พนักงานราชการ/อัตราจ้าง';
+            }
+
+            // 4. เจ้าหน้าที่สำนักงาน
+            if (pos === 'เจ้าหน้าที่สำนักงาน') {
+                return 'เจ้าหน้าที่สำนักงาน';
+            }
+
+            // 5. ลูกจ้าง / พนักงานบริการ / รปภ. / ขับรถ
+            if (pos === 'พนักงานบริการ'
+                || pos === 'พนักงานขับรถยนต์'
+                || pos === 'พนักงานรักษาความปลอดภัย'
+                || pos === 'ลูกจ้าง') {
+                return 'ลูกจ้าง/พนักงานบริการ';
+            }
+
+            return 'อื่นๆ';
+        }
+
+        // =======================================================
+        // ส่วนแสดงปฏิทินกิจกรรม
         // =======================================================
         function setStat(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
         function toggleSidebar(force) {
@@ -336,7 +357,7 @@
             sb.classList.toggle('open', open); ov.classList.toggle('open', open);
         }
 
-        // ================= ปุ่มย่อ/ขยาย Sidebar (desktop) =================
+        // ================= ปุ่มย่อ/ขยาย Sidebar =================
         function applySidebarCollapsed(collapsed) {
             const sb = document.getElementById('dSidebar');
             const main = document.getElementById('dMain');
@@ -362,7 +383,6 @@
         function restoreSidebarCollapse() {
             let saved = '0';
             try { saved = localStorage.getItem('cp_sidebar_collapsed') || '0'; } catch (e) {}
-            // ใช้เฉพาะ desktop
             if (window.innerWidth > 760 && saved === '1') {
                 applySidebarCollapsed(true);
             }
@@ -463,12 +483,212 @@
         }
 
         // =======================================================
+        // ✅ Dashboard Charts
+        // =======================================================
+        let chartInstances = {};
+
+        // ✅ กราฟแท่งแนวตั้ง — รองรับทั้งสีเดียวและหลายสี
+        function renderBarChart(canvasId, labels, data, label, color) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+            chartInstances[canvasId] = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: color,   // string OR array
+                        borderRadius: 6,
+                        maxBarThickness: 46
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(30,50,80,.92)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            callbacks: { label: (c) => `${label}: ${c.parsed.y.toLocaleString()}` }
+                        }
+                    },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { precision: 0, color: '#8492a6' }, grid: { color: '#eef2f7' } },
+                        x: { ticks: { color: '#607188' }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        // ✅ กราฟแท่งแนวนอน — รองรับหลายสี
+        function renderHorizontalBarChart(canvasId, labels, data, label, color) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
+            chartInstances[canvasId] = new Chart(canvas, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: color,   // string OR array
+                        borderRadius: 6,
+                        maxBarThickness: 26
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',                 // ← แนวนอน
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(30,50,80,.92)',
+                            padding: 10,
+                            cornerRadius: 8,
+                            callbacks: { label: (c) => `${label}: ${c.parsed.x.toLocaleString()}` }
+                        }
+                    },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { precision: 0, color: '#8492a6' }, grid: { color: '#eef2f7' } },
+                        y: { ticks: { color: '#607188', font: { size: 12 } }, grid: { display: false } }
+                    }
+                }
+            });
+        }
+
+        function gradeLevelToLabel(lv) {
+            if (lv === null || lv === undefined || lv === '') return 'ไม่ระบุ';
+            const n = parseInt(lv, 10);
+            if (isNaN(n)) return String(lv);
+            return `ม.${n}`;
+        }
+
+        async function loadDashboardStats() {
+            try {
+                // ============ จำนวนนักเรียนทั้งหมด ============
+                const { count: studentCount, error: sErr } = await db
+                    .from('student_enrollments')
+                    .select('student_id', { count: 'exact', head: true })
+                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
+                    .eq('semester', CURRENT_SEMESTER)
+                    .eq('status', ENROLLMENT_STATUS);
+                if (!sErr) setStat('statStudents', (studentCount ?? 0).toLocaleString());
+                else console.warn('students count err:', sErr.message);
+
+                // ============ จำนวนบุคลากรทั้งหมด ============
+                const { count: personnelCount, error: pErr } = await db
+                    .from(PERSONNEL_TABLE)
+                    .select('*', { count: 'exact', head: true })
+                    .or('is_deleted.is.null,is_deleted.eq.false');
+                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
+                else console.warn('personnel count err:', pErr.message);
+
+                // ============ กราฟนักเรียนตามระดับชั้น ============
+                const { data: enrollments, error: sLevelErr } = await db
+                    .from('student_enrollments')
+                    .select(`
+                        student_id,
+                        core_classrooms ( grade_level )
+                    `)
+                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
+                    .eq('semester', CURRENT_SEMESTER)
+                    .eq('status', ENROLLMENT_STATUS);
+
+                if (!sLevelErr && enrollments) {
+                    const buckets = {};
+                    enrollments.forEach(e => {
+                        const lv = e.core_classrooms?.grade_level;
+                        const label = gradeLevelToLabel(lv);
+                        buckets[label] = (buckets[label] || 0) + 1;
+                    });
+                    const labels = Object.keys(buckets).sort((a, b) => {
+                        const na = parseInt(a.replace(/\D/g, ''), 10) || 0;
+                        const nb = parseInt(b.replace(/\D/g, ''), 10) || 0;
+                        return na - nb;
+                    });
+                    const values = labels.map(k => buckets[k]);
+
+                    // ✅ คำนวณยอดรวม และแสดงในหัวข้อ
+                    const totalStudents = values.reduce((sum, v) => sum + v, 0);
+                    const totalLabel = document.getElementById('totalStudentsLabel');
+                    if (totalLabel) {
+                        totalLabel.textContent = `(ทั้งหมด ${totalStudents.toLocaleString()} คน)`;
+                    }
+
+                    // ✅ สีต่างกันชัดเจนแต่ละระดับชั้น (ม.1–ม.6)
+                    const STUDENT_COLORS = [
+                        '#2588e8', '#24b47e', '#f3a51d', '#8b5eea', '#f43f5e', '#06b6d4'
+                    ];
+                    const colors = labels.map((_, i) => STUDENT_COLORS[i % STUDENT_COLORS.length]);
+
+                    renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
+                } else if (sLevelErr) {
+                    console.warn('students level err:', sLevelErr.message);
+                    renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
+                }
+
+                // ============ กราฟบุคลากรตามกลุ่มบริหารงาน (จัดกลุ่ม 4+1) ============
+                // ============ กราฟบุคลากรจำแนกตามประเภท ============
+                const { data: personnel, error: pGroupErr } = await db
+                    .from(PERSONNEL_TABLE)
+                    .select('position')
+                    .or('is_deleted.is.null,is_deleted.eq.false');
+
+                if (!pGroupErr && personnel) {
+                    const buckets = {};
+                    personnel.forEach(p => {
+                        const group = personnelCategory(p);
+                        buckets[group] = (buckets[group] || 0) + 1;
+                    });
+
+                    // ✅ ลำดับแท่ง
+                    const ORDER = [
+                        'ฝ่ายบริหาร',
+                        'ข้าราชการครู',
+                        'พนักงานราชการ/อัตราจ้าง',
+                        'เจ้าหน้าที่สำนักงาน',
+                        'ลูกจ้าง/พนักงานบริการ',
+                        'อื่นๆ'
+                    ];
+                    const labels = ORDER.filter(k => buckets[k] !== undefined);
+                    const values = labels.map(k => buckets[k]);
+
+                    // ✅ สีต่างกันแต่ละกลุ่ม
+                    const GROUP_COLORS = {
+                        'ฝ่ายบริหาร': '#8b5eea',                    // ม่วง
+                        'ข้าราชการครู': '#2588e8',                   // ฟ้า
+                        'พนักงานราชการ/อัตราจ้าง': '#24b47e',         // เขียว
+                        'เจ้าหน้าที่สำนักงาน': '#f3a51d',              // ทอง
+                        'ลูกจ้าง/พนักงานบริการ': '#f43f5e',            // แดง/ชมพู
+                        'อื่นๆ': '#94a3b8'                            // เทา
+                    };
+                    const colors = labels.map(k => GROUP_COLORS[k] || '#94a3b8');
+
+                    // ✅ เรียกแนวนอน
+                    renderHorizontalBarChart('chartPersonnelByGroup', labels, values, 'บุคลากร (คน)', colors);
+                } else if (pGroupErr) {
+                    console.warn('personnel group err:', pGroupErr.message);
+                    renderBarChart('chartPersonnelByGroup', ['ไม่สามารถโหลดข้อมูล'], [0], 'บุคลากร (คน)', '#cbd5e1');
+                }
+            } catch (err) {
+                console.error('loadDashboardStats error:', err);
+            }
+        }
+
+        // =======================================================
         // ส่วนหลักของระบบ
         // =======================================================
         let currentUser = null;
         let activeModules = [];
         let userAdminModules = [];
         let currentCategory = 'academic';
+        let currentView = 'home';
 
         const ALL_APPS = [
             { id: 'guidance_teacher', category: 'academic', moduleId: 'guidance', title: 'ปพ.5 กิจกรรมแนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ', icon: 'fa-solid fa-compass', url: 'guidance_teacher.html', reqAdmin: false },
@@ -521,7 +741,14 @@
             updateUI();
             await checkCalendarAdminAccess();
             await loadSickLeaveWidget();
-            renderAppCards();
+
+            // ✅ นับจำนวนระบบทั้งหมด
+            updateTotalAppStat();
+
+            // ✅ โหลดแดชบอร์ด
+            loadDashboardStats();
+
+            switchToHome();
         }
 
         function handleLogout() {
@@ -556,17 +783,16 @@
             document.getElementById('adminHelpdeskBtn').classList.toggle('hidden', !canSeeHelpdesk);
 
             document.getElementById('userRole').innerText = roleText;
-            // ✅ แสดงรูปโปรไฟล์ ถ้ามี — ถ้าไม่มีให้ใช้ตัวอักษรแรกแทน
+
             const avatarImg = document.getElementById('userAvatarImg');
             const avatarInitial = document.getElementById('userAvatarInitial');
 
-            // ลองหาชื่อ field ที่พบบ่อย (ปรับให้ตรงกับ DB ของคุณ)
-            const avatarUrl = currentUser.avatar_url 
-                        || currentUser.profile_image 
-                        || currentUser.photo_url 
-                        || currentUser.image_url 
-                        || currentUser.picture 
-                        || currentUser.avatar 
+            const avatarUrl = currentUser.avatar_url
+                        || currentUser.profile_image
+                        || currentUser.photo_url
+                        || currentUser.image_url
+                        || currentUser.picture
+                        || currentUser.avatar
                         || '';
 
             if (avatarUrl) {
@@ -579,7 +805,6 @@
                     avatarInitial.style.display = 'block';
                 };
 
-                // ✅ เพิ่ม: set รูป preview
                 const avatarPreview = document.getElementById('userAvatarPreview');
                 if (avatarPreview) {
                     avatarPreview.src = avatarUrl;
@@ -613,12 +838,68 @@
             }
         }
 
+        // ================= นับจำนวนระบบทั้งหมด =================
+        function updateTotalAppStat() {
+            const overrides = window.moduleOverrides || {};
+            let count = 0;
+            ALL_APPS.forEach(app => {
+                if (app.reqSuperAdmin && currentUser.role !== 'super_admin') return;
+                count++;
+            });
+            Object.values(overrides).forEach(mod => {
+                if (ALL_APPS.some(app => app.moduleId === mod.module_id)) return;
+                count++;
+            });
+            setStat('statTotal', count);
+        }
+
+        function switchToHome() {
+            currentView = 'home';
+
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            document.getElementById('appModuleSection').classList.add('hidden');
+
+            document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
+            const homeBtn = document.getElementById('homeTabBtn');
+            if (homeBtn) homeBtn.classList.add('active');
+
+            const s = document.getElementById('appSearch');
+            if (s) s.value = '';
+
+            toggleSidebar(false);
+        }
+
         function switchMainTab(category, btnElement) {
             currentCategory = category;
+            currentView = 'modules';
+
+            document.getElementById('dashboardSection').classList.add('hidden');
+            document.getElementById('appModuleSection').classList.remove('hidden');
+
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('#homeTabBtn').forEach(btn => btn.classList.remove('active'));
             if (btnElement) btnElement.classList.add('active');
-            const s = document.getElementById('appSearch'); if (s) s.value = '';
+
+            const s = document.getElementById('appSearch');
+            if (s) s.value = '';
+
             toggleSidebar(false);
+
+            if (currentUser) renderAppCards();
+        }
+
+        function handleSearchInput() {
+            const q = (document.getElementById('appSearch').value || '').trim();
+            if (q && currentView === 'home') {
+                currentView = 'modules';
+                document.getElementById('dashboardSection').classList.add('hidden');
+                document.getElementById('appModuleSection').classList.remove('hidden');
+                document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
+            }
+            if (!q && currentView === 'modules' && !document.querySelector('.main-tab-btn.active')) {
+                switchToHome();
+                return;
+            }
             if (currentUser) renderAppCards();
         }
 
@@ -677,12 +958,6 @@
                 };
                 appsToDisplay.push(newApp);
             });
-
-            const total = appsToDisplay.length;
-            const locked = appsToDisplay.filter(getLockInfo).length;
-            setStat('statTotal', total);
-            setStat('statActive', total - locked);
-            setStat('statLocked', locked);
 
             const q = ((document.getElementById('appSearch') || {}).value || '').trim().toLowerCase();
             document.getElementById('appSectionTitle').textContent = q ? 'ผลการค้นหา' : (CATEGORY_NAMES[currentCategory] || '');
@@ -781,7 +1056,6 @@
             }
         }
 
-        // เริ่มต้นส่วนปฏิทิน
         document.addEventListener('DOMContentLoaded', () => {
             populateYearSelect();
             document.getElementById('todayChip').textContent = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
