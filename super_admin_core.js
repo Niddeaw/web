@@ -1,80 +1,53 @@
 // ==========================================
-// super_admin_core.js
-// ส่วนกลาง: การตรวจสอบสิทธิ์, utilities, theme, sidebar
-// ปรับปรุงให้ใช้ config.js ตามมาตรฐาน
+// super_admin_core.js (เวอร์ชันปรับให้ใช้ dashboard_ui.js)
 // ==========================================
 
-// ตัวแปร global ที่ใช้ร่วมกัน
+// ตัวแปร global
 var globalPersonnelList = [];
 var currentEditClassId = null;
 var currentModuleAdminUserId = null;
 var currentEditServiceId = null;
 var currentEditPersonnelId = null;
-var isSidebarCollapsed = false;
-
-// สำหรับ Tom Select ใน modal ต่างๆ (ใช้ใน personnel)
 var tsGradeModal = null;
 var tsDiscModal = null;
 var _schoolInfoId = null;
 
 // ==========================================
-// Helper: แสดง Toast notification
+// Toast
 // ==========================================
 function showToast(icon, title, timer = 2000) {
     Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer }).fire({ icon, title });
 }
 
 // ==========================================
-// ระบบตรวจสอบสิทธิ์ (ใช้ config.js)
+// ตรวจสอบสิทธิ์ — ใช้ฟังก์ชันกลางจาก dashboard_ui.js
 // ==========================================
 async function checkAuth() {
-    // ✅ ใช้ checkSessionAndRole จาก config.js
-    // เฉพาะ Super Admin เท่านั้นที่เข้าได้
     const result = await checkSessionAndRole('super_admin', ['super_admin']);
-    if (!result) {
-        // checkSessionAndRole จะ redirect ไป login.html แล้ว
-        return;
-    }
+    if (!result) return;
 
-    // แสดงชื่อผู้ใช้ (ถ้าต้องการ)
     const userInfo = result.personnel;
     if (userInfo) {
-        // อัปเดตชื่อใน Sidebar
-        const nameEl = document.querySelector('#sidebar .group .text-xs.font-bold');
-        if (nameEl) {
-            nameEl.textContent = `${userInfo.prefix || ''}${userInfo.first_name} ${userInfo.last_name}`;
-        }
+        setUserDisplayName(userInfo);
+        updateUserRoleLabel(userInfo.role);
+        renderUserAvatar(userInfo);
     }
 
-    // ✅ ใช้ applyVisibilityByRole (ถ้ามีปุ่มที่ต้องควบคุม)
-    // สำหรับ Super Admin ทุกอย่างควรแสดงอยู่แล้ว
+    // Today chip
+    const todayChip = document.getElementById('todayChip');
+    if (todayChip) {
+        todayChip.textContent = new Date().toLocaleDateString('th-TH', {
+            day: 'numeric', month: 'long', year: 'numeric'
+        });
+    }
+
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 }
 
 // ==========================================
-// Logout (ไป login.html ตามมาตรฐาน)
-// ==========================================
-function logout() {
-    Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            await db.auth.signOut();
-            window.location.replace('login.html');
-        }
-    });
-}
-
-// ==========================================
-// requireAdmin (ใช้จาก config.js)
+// requireAdmin
 // ==========================================
 function requireAdmin() {
-    // ใช้ window.requireAdmin จาก config.js
     if (typeof window.requireAdmin === 'function') {
         return window.requireAdmin('super_admin', true, 'เฉพาะ Super Admin เท่านั้นที่สามารถดำเนินการนี้ได้');
     }
@@ -82,43 +55,34 @@ function requireAdmin() {
 }
 
 // ==========================================
-// ระบบจัดการเมนู (รองรับปฏิทินแล้ว)
+// switchMenu — ปรับให้ใช้ class .active ของ dashboard.css
 // ==========================================
 function switchMenu(menuId) {
-    if (window.innerWidth < 768) closeMobileSidebar();
+    // ปิด sidebar บน mobile
+    if (window.innerWidth < 761) toggleSidebar(false);
 
-    // ซ่อนทุกเมนู
-    document.getElementById('menu-school').classList.add('hidden');
-    document.getElementById('menu-personnel').classList.add('hidden');
-    document.getElementById('menu-students').classList.add('hidden');
-    document.getElementById('menu-student-portal').classList.add('hidden');
-    document.getElementById('menu-calendar')?.classList.add('hidden');
+    // ซ่อนทุกเมนู content
+    ['menu-school', 'menu-personnel', 'menu-students', 'menu-student-portal', 'menu-calendar']
+        .forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
-    // เปลี่ยนสถานะปุ่มเมนู
-    const btns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal', 'btn-menu-calendar'];
-    btns.forEach(id => {
-        const btn = document.getElementById(id);
-        if (btn) {
-            btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-700/50 font-medium transition-all";
-        }
-    });
+    // Reset active ของ sidebar buttons
+    ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal', 'btn-menu-calendar']
+        .forEach(id => document.getElementById(id)?.classList.remove('active'));
 
-    // แสดงเมนูที่เลือก และเปลี่ยนปุ่มให้ active
-    document.getElementById(menuId).classList.remove('hidden');
-    const activeBtn = document.getElementById('btn-' + menuId);
-    if (activeBtn) {
-        activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
-    }
+    // แสดงเมนูที่เลือก
+    document.getElementById(menuId)?.classList.remove('hidden');
+    document.getElementById('btn-' + menuId)?.classList.add('active');
 
-    // ตั้งชื่อหัวข้อ
+    // ชื่อหัวข้อใน topbar
     const titles = {
-        'menu-school': '<i class="fa-solid fa-gear text-gray-500 mr-2"></i>ข้อมูลโรงเรียนและการตั้งค่าระบบ',
-        'menu-personnel': '<i class="fa-solid fa-address-book text-gray-500 mr-2"></i>จัดการบุคลากรและข้าราชการครู',
-        'menu-students': '<i class="fa-solid fa-users-rectangle text-gray-500 mr-2"></i>จัดการห้องเรียนและรายชื่อนักเรียน',
-        'menu-student-portal': '<i class="fa-solid fa-graduation-cap text-gray-500 mr-2"></i>ตั้งค่าระบบสำหรับนักเรียน (Student Portal)',
-        'menu-calendar': '<i class="fa-regular fa-calendar-days mr-2"></i>จัดการปฏิทินกิจกรรม'
+        'menu-school': 'ภาพรวมระบบ (Dashboard)',
+        'menu-personnel': 'จัดการบุคลากรและข้าราชการครู',
+        'menu-students': 'จัดการห้องเรียนและรายชื่อนักเรียน',
+        'menu-student-portal': 'ตั้งค่าระบบสำหรับนักเรียน (Student Portal)',
+        'menu-calendar': 'จัดการปฏิทินกิจกรรม'
     };
-    document.getElementById('pageTitle').innerHTML = titles[menuId] || menuId;
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = titles[menuId] || menuId;
 
     // โหลดข้อมูลตามเมนู
     if (menuId === 'menu-school') {
@@ -136,78 +100,16 @@ function switchMenu(menuId) {
         if (typeof loadGasAvatarSettings === 'function') loadGasAvatarSettings();
     }
     if (menuId === 'menu-calendar') {
-        // เรียกฟังก์ชันโหลดปฏิทินจาก calendar_manager.js (ถ้ามี)
         if (typeof loadCalendarAdminUI === 'function') {
             loadCalendarAdminUI();
         } else {
-            console.warn('loadCalendarAdminUI not found. Make sure calendar_manager.js is loaded.');
-            // แสดงข้อความว่ากำลังพัฒนา
-            const calendarContent = document.getElementById('menu-calendar');
-            if (calendarContent) {
-                const existingHtml = calendarContent.innerHTML;
-                if (!existingHtml.includes('ระบบปฏิทินกิจกรรม')) {
-                    // ถ้ายังไม่มีเนื้อหา ให้แสดง placeholder
-                }
-            }
+            console.warn('loadCalendarAdminUI not found.');
         }
     }
 }
 
 // ==========================================
-// ระบบจัดการ Sidebar (ย่อ-ขยาย + Mobile Drawer)
-// ==========================================
-function toggleSidebar() {
-    const isMobile = window.innerWidth < 768;
-
-    if (isMobile) {
-        const sidebar = document.getElementById('sidebar');
-        const overlay = document.getElementById('sidebar-overlay');
-        const isOpen = sidebar.classList.contains('mobile-sidebar-open');
-
-        if (isOpen) {
-            closeMobileSidebar();
-        } else {
-            sidebar.classList.add('mobile-sidebar-open');
-            overlay.classList.remove('hidden');
-            document.querySelectorAll('.sidebar-text').forEach(t => t.classList.remove('hidden'));
-        }
-    } else {
-        // Desktop: ย่อ/ขยาย
-        const sidebar = document.getElementById('sidebar');
-        const texts = document.querySelectorAll('.sidebar-text');
-        isSidebarCollapsed = !isSidebarCollapsed;
-        if (isSidebarCollapsed) {
-            sidebar.classList.remove('w-64');
-            sidebar.classList.add('w-20');
-            texts.forEach(t => t.classList.add('hidden'));
-        } else {
-            sidebar.classList.remove('w-20');
-            sidebar.classList.add('w-64');
-            texts.forEach(t => t.classList.remove('hidden'));
-        }
-    }
-}
-
-function closeMobileSidebar() {
-    document.getElementById('sidebar').classList.remove('mobile-sidebar-open');
-    document.getElementById('sidebar-overlay').classList.add('hidden');
-}
-
-// ==========================================
-// Helper: Escape HTML
-// ==========================================
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
-}
-
-// ==========================================
-// อัปเดต badge นักเรียนไม่มีห้อง
+// อัปเดต badge นร. ไม่มีห้อง
 // ==========================================
 async function updateUnassignedBadge() {
     try {
@@ -242,19 +144,15 @@ async function updateUnassignedBadge() {
 }
 
 // ==========================================
-// เริ่มต้นเมื่อโหลดหน้า
+// onload
 // ==========================================
 window.onload = async () => {
     await checkAuth();
     await updateUnassignedBadge();
 
-    // ✅ ใช้ applyVisibilityByRole จาก config.js (ถ้าต้องการ)
     if (typeof applyVisibilityByRole === 'function') {
-        applyVisibilityByRole('super_admin', true, {
-            settingsBtn: 'admin-settings-btn'
-        });
+        applyVisibilityByRole('super_admin', true, { settingsBtn: 'admin-settings-btn' });
     }
 
-    // โหลดข้อมูลภาพรวมระบบ (เมนูแรก)
     switchMenu('menu-school');
 };

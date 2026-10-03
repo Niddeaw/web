@@ -4,1139 +4,783 @@
 <head>
     <meta charset="UTF-8">
     <title>Super Admin - จัดการข้อมูลส่วนกลาง</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
-    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <link rel="stylesheet" href="dashboard.css">
 </head>
 
-<body id="mainBody" class="text-gray-800 flex h-screen overflow-hidden opacity-0 transition-opacity duration-300">
-    <script>AOS.init();</script>
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
+    <div class="d-app">
 
-    <!-- Mobile Overlay -->
-    <div id="sidebar-overlay" class="fixed inset-0 bg-black/50 z-30 hidden" onclick="closeMobileSidebar()"></div>
-
-    <!-- Sidebar -->
-    <aside id="sidebar"
-        class="w-64 flex flex-col shadow-sm z-40 transition-all duration-300 border-r border-slate-200 bg-white fixed top-0 left-0 h-full md:relative md:h-auto md:flex">
-
-        <!-- ส่วนโลโก้ -->
-        <div class="p-6 flex items-center gap-3 overflow-hidden whitespace-nowrap mb-4">
-            <div class="rounded-xl p-1.5 shadow-sm shrink-0">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-8 h-8 object-contain">
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>WRK System</b><span>Super Admin Panel</span></div>
             </div>
-            <div class="sidebar-text">
-                <h1 class="text-lg font-bold leading-tight">WRK SYSTEM</h1>
-                <div class="text-[11px] opacity-70">ร.ร.วัดไร่ขิงวิทยา</div>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a id="btn-menu-school" class="active" title="ภาพรวมระบบ" onclick="switchMenu('menu-school')">
+                    <span class="d-ico"><i class="fa-solid fa-school"></i></span>
+                    <span class="d-label">ภาพรวมระบบ</span>
+                </a>
+
+                <div class="d-nav-title">จัดการระบบ</div>
+                <a id="btn-menu-personnel" title="จัดการบุคลากร/ครู" onclick="switchMenu('menu-personnel')">
+                    <span class="d-ico"><i class="fa-regular fa-address-card"></i></span>
+                    <span class="d-label">จัดการบุคลากร/ครู</span>
+                </a>
+                <a id="btn-menu-students" title="ห้องเรียน & นักเรียน" onclick="switchMenu('menu-students')">
+                    <span class="d-ico"><i class="fa-solid fa-users-viewfinder"></i></span>
+                    <span class="d-label">ห้องเรียน & นักเรียน</span>
+                </a>
+                <a id="btn-menu-student-portal" title="Student Portal" onclick="switchMenu('menu-student-portal')">
+                    <span class="d-ico"><i class="fa-solid fa-graduation-cap"></i></span>
+                    <span class="d-label">Student Portal</span>
+                </a>
+                <a id="btn-menu-calendar" title="ปฏิทินกิจกรรม" onclick="switchMenu('menu-calendar')">
+                    <span class="d-ico"><i class="fa-regular fa-calendar-days"></i></span>
+                    <span class="d-label">ปฏิทินกิจกรรม</span>
+                </a>
+                <a href="system_logs.html" title="ประวัติการเข้าใช้งาน">
+                    <span class="d-ico"><i class="fa-solid fa-clock-rotate-left"></i></span>
+                    <span class="d-label">ประวัติการเข้าใช้งาน</span>
+                </a>
+
+                <div class="d-nav-title">ระบบกลาง</div>
+                <a href="index.html" title="กลับหน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">กลับหน้าหลัก</span>
+                </a>
+                <a class="logout" onclick="handleLogout()" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
             </div>
-        </div>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-        <!-- เมนู -->
-        <div class="px-4 mb-2 sidebar-text">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider pl-2">เมนูหลัก</p>
-        </div>
-        <nav class="flex-1 px-4 space-y-1.5 overflow-y-auto">
-            <!-- ปุ่ม Active State (เมนูแรก) -->
-            <button onclick="switchMenu('menu-school')" id="btn-menu-school"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary-50 text-primary-600 font-bold border border-primary-200 transition-all whitespace-nowrap">
-                <i class="fa-solid fa-school w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">ภาพรวมระบบ</span>
-            </button>
+        <main class="d-main" id="dMain">
 
-            <!-- ปุ่ม Inactive State -->
-            <button onclick="switchMenu('menu-personnel')" id="btn-menu-personnel"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
-                <i class="fa-regular fa-address-card w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">จัดการบุคลากร/ครู</span>
-            </button>
-
-            <button onclick="switchMenu('menu-students')" id="btn-menu-students"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
-                <i class="fa-solid fa-users-viewfinder w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">ห้องเรียน & นักเรียน</span>
-            </button>
-
-            <button onclick="switchMenu('menu-student-portal')" id="btn-menu-student-portal"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
-                <i class="fa-solid fa-graduation-cap w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">Student Portal</span>
-            </button>
-            <!-- 🔽 ปฏิทินกิจกรรม -->
-            <button onclick="switchMenu('menu-calendar')" id="btn-menu-calendar"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
-                <i class="fa-regular fa-calendar-days w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">ปฏิทินกิจกรรม</span>
-            </button>
-            <!-- 🔽 Logs -->
-            <button onclick="window.location.href='system_logs.html'"
-                class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-50 font-medium transition-all whitespace-nowrap">
-                <i class="fa-solid fa-clock-rotate-left w-5 text-center text-lg shrink-0"></i>
-                <span class="sidebar-text">ประวัติการเข้าใช้งาน</span>
-            </button>
-        </nav>
-
-        <!-- โปรไฟล์ส่วนล่างของ Sidebar -->
-        <div class="p-4 border-t border-slate-100">
-            <button onclick="logout()"
-                class="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-rose-50 text-slate-600 hover:text-rose-600 transition-colors group">
-                <div
-                    class="bg-slate-100 rounded-full h-8 w-8 flex items-center justify-center shrink-0 group-hover:bg-rose-100 group-hover:text-rose-600 transition-colors">
-                    <i class="fa-solid fa-user text-sm"></i>
-                </div>
-                <div class="sidebar-text text-left flex-1 overflow-hidden">
-                    <p class="text-xs font-bold truncate">แอดมินระบบ</p>
-                    <p class="text-[9px] uppercase tracking-wider opacity-70">ผู้ดูแลสูงสุด</p>
-                </div>
-                <i class="fa-solid fa-arrow-right-from-bracket sidebar-text opacity-50 group-hover:opacity-100"></i>
-            </button>
-        </div>
-    </aside>
-
-    <main class="flex-1 flex flex-col h-full overflow-hidden bg-slate-50 transition-colors duration-300">
-        <header
-            class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 sticky top-0">
-            <div class="flex items-center gap-4">
-                <!-- ปุ่มแฮมเบอร์เกอร์ -->
-                <button onclick="toggleSidebar()"
-                    class="text-slate-500 hover:text-primary-600 h-10 w-10 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors">
-                    <i class="fa-solid fa-bars"></i>
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
                 </button>
-                <h2 id="pageTitle" class="text-xl font-bold text-slate-800">ภาพรวมระบบ (Dashboard)
+                <h2 id="pageTitle" style="margin:0;font-size:16px;font-weight:700;color:#26364a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ภาพรวมระบบ (Dashboard)
                 </h2>
-            </div>
 
-            <div class="flex items-center gap-3">
-                <!-- ปุ่มออกจากระบบ -->
-                <button onclick="window.location.replace('index.html')"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                    title="กลับหน้าแรก"><i class="fas fa-house text-sm"></i></button>
-                <button onclick="logout()"
-                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                    title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
-            </div>
-        </header>
+                <div class="d-spacer"></div>
 
-        <div class="p-6 overflow-y-auto flex-1">
-            <!-- เมนู school -->
-            <div id="menu-school" class="max-w-6xl mx-auto space-y-6">
-                <!-- กล่องข้อมูลโรงเรียน -->
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-colors">
-                    <h3
-                        class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-building-columns text-primary-600"></i>
-                        โครงสร้างการบริหารโรงเรียนและการตั้งค่าระบบ
-                    </h3>
-                    <form id="schoolInfoForm" class="grid grid-cols-1 md:grid-cols-2 gap-5"
-                        onsubmit="saveSchoolInfo(event)">
-
-                        <!-- กล่องสีเหลือง (ปรับเป็นโทนเข้มเมื่ออยู่ Dark Mode) -->
-                        <div
-                            class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50 p-5 rounded-xl border border-amber-200 mb-2 shadow-inner transition-colors">
-                            <div>
-                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
-                                        class="fa-solid fa-calendar-days text-amber-600 mr-1"></i>
-                                    ปีการศึกษาปัจจุบัน *</label>
-                                <input type="text" id="inp_current_year" required placeholder="เช่น 2569"
-                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
-                                        class="fa-solid fa-clock text-amber-600 mr-1"></i>
-                                    ภาคเรียนปัจจุบัน *</label>
-                                <select id="inp_current_term" required
-                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
-                                    <option value="1">ภาคเรียนที่ 1</option>
-                                    <option value="2">ภาคเรียนที่ 2</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-slate-800 mb-1"><i
-                                        class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i>
-                                    วันเปิดภาคเรียน *</label>
-                                <input type="date" id="inp_term_start_date" required
-                                    class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-emerald-700 text-lg transition-colors">
-                            </div>
+                <!-- ปุ่มตั้งค่าการแสดงผล -->
+                <div class="d-settings-wrap">
+                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>แสดงผล</span>
+                    </button>
+                    <div class="d-settings-menu" id="settingsMenu">
+                        <div class="d-settings-title">ขนาดตัวอักษร</div>
+                        <div class="d-settings-options">
+                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
+                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
+                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
                         </div>
-
-                        <!-- Input อื่นๆ -->
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-bold text-slate-700 mb-1">ชื่อโรงเรียน</label>
-                            <input type="text" id="inp_school"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-slate-50 text-slate-800 font-medium transition-colors">
+                        <div class="d-settings-title">ความหนาแน่น</div>
+                        <div class="d-settings-options cols-2">
+                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
+                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
                         </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">ผู้อำนวยการสถานศึกษา</label>
-                            <input type="text" id="inp_dir"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
-                                กลุ่มบริหารวิชาการ</label>
-                            <input type="text" id="inp_dep_acad"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
-                                กลุ่มบริหารงบประมาณ</label>
-                            <input type="text" id="inp_dep_budg"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
-                                กลุ่มบริหารงานบุคคล</label>
-                            <input type="text" id="inp_dep_hr"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ
-                                กลุ่มบริหารทั่วไป</label>
-                            <input type="text" id="inp_dep_gen"
-                                class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
-                        </div>
-
-                        <div class="md:col-span-2 flex justify-end mt-4">
-                            <button type="submit"
-                                class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md transition-all">
-                                <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึกข้อมูลโรงเรียน
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
 
-                <!-- ✅ ฟอร์ม + ตารางจัดการ Micro-services (ใหม่) -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-toggle-on text-emerald-600"></i> จัดการระบบย่อย (Micro‑services)
-                    </h3>
-                    <!-- ตารางแสดงระบบย่อย (ลาก-วางได้) -->
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left text-sm border-collapse">
-                            <thead>
-                                <tr class="bg-gray-50 text-gray-600 border-b">
-                                    <th class="py-3 px-2 w-8"></th> <!-- drag handle -->
-                                    <th class="py-3 px-4">ไอคอน</th>
-                                    <th class="py-3 px-4">ชื่อระบบ</th>
-                                    <th class="py-3 px-4">กลุ่มงาน</th>
-                                    <th class="py-3 px-4">คำอธิบาย</th>
-                                    <th class="py-3 px-4 text-center">สถานะ</th>
-                                    <th class="py-3 px-4 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="micro-modules-list" class="divide-y divide-gray-100">
-                                <tr>
-                                    <td colspan="7" class="text-center py-8 text-gray-400">กำลังโหลด...</td>
-                                </tr>
-                            </tbody>
-                        </table>
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
                     </div>
-                    <div class="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-6">
-                        <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i>
-                            เพิ่ม/แก้ไขระบบย่อย</h4>
-                        <form id="microServiceForm" onsubmit="saveMicroService(event)"
-                            class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="hidden" id="ms_id">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Module Key (ห้ามซ้ำ)
-                                    *</label>
-                                <input type="text" id="ms_module_key" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="เช่น attendance, guidance">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อระบบ *</label>
-                                <input type="text" id="ms_title" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="ชื่อที่แสดง">
-                            </div>
-                            <div class="md:col-span-2">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">คำอธิบาย</label>
-                                <input type="text" id="ms_description"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มงาน *</label>
-                                <select id="ms_category" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
-                                    <option value="academic">กลุ่มบริหารวิชาการ</option>
-                                    <option value="budget">กลุ่มบริหารงบประมาณ</option>
-                                    <option value="personnel">กลุ่มบริหารงานบุคคล</option>
-                                    <option value="general">กลุ่มบริหารทั่วไป</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Font Awesome
-                                    class)</label>
-                                <input type="text" id="ms_icon"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="fa-solid fa-gear">
-                            </div>
-                            <!-- สีไอคอน -->
-                            <div class="grid grid-cols-2 gap-4 md:col-span-2">
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
+                    </div>
+                </div>
+            </header>
+
+            <div style="padding:0 0 12px;">
+
+                <!-- ================ เมนู school ================ -->
+                <div id="menu-school" class="max-w-6xl mx-auto space-y-6">
+                    <!-- กล่องข้อมูลโรงเรียน -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-colors">
+                        <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-building-columns text-primary-600"></i>
+                            โครงสร้างการบริหารโรงเรียนและการตั้งค่าระบบ
+                        </h3>
+                        <form id="schoolInfoForm" class="grid grid-cols-1 md:grid-cols-2 gap-5" onsubmit="saveSchoolInfo(event)">
+                            <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50 p-5 rounded-xl border border-amber-200 mb-2 shadow-inner transition-colors">
                                 <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">สีพื้นหลังไอคอน</label>
-                                    <div class="flex items-center gap-2">
-                                        <input type="color" id="ms_icon_bg" value="#3b82f6"
-                                            class="h-10 w-10 border border-gray-300 rounded cursor-pointer p-0.5">
-                                        <input type="text" id="ms_icon_bg_text"
-                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                            placeholder="#3b82f6" value="#3b82f6">
-                                    </div>
+                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-days text-amber-600 mr-1"></i> ปีการศึกษาปัจจุบัน *</label>
+                                    <input type="text" id="inp_current_year" required placeholder="เช่น 2569"
+                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">สีตัวอักษรไอคอน</label>
-                                    <div class="flex items-center gap-2">
-                                        <input type="color" id="ms_icon_text" value="#ffffff"
-                                            class="h-10 w-10 border border-gray-300 rounded cursor-pointer p-0.5">
-                                        <input type="text" id="ms_icon_text_text"
-                                            class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                            placeholder="#ffffff" value="#ffffff">
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์ (URL)</label>
-                                <input type="text" id="ms_url"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="https://... หรือชื่อไฟล์">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ลำดับการแสดงผล</label>
-                                <input type="number" id="ms_display_order" value="0"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                            </div>
-                            <!-- ค้นหาส่วนนี้ในฟอร์ม แล้วเพิ่ม ms_target_blank เข้าไป -->
-                            <div class="flex items-center gap-4 mt-2">
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="ms_is_active" checked
-                                        class="w-4 h-4 text-blue-600 rounded">
-                                    <span class="text-sm font-bold text-gray-700">เปิดใช้งาน</span>
-                                </label>
-                                <!-- 🌟 เพิ่ม Checkbox เปิดแท็บใหม่ตรงนี้ -->
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="ms_target_blank" class="w-4 h-4 text-blue-600 rounded">
-                                    <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
-                                </label>
-                            </div>
-                            <div class="md:col-span-2 flex justify-end gap-2 mt-4">
-                                <button type="button" onclick="clearMicroServiceForm()"
-                                    class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
-                                <button type="submit"
-                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"><i
-                                        class="fa-solid fa-save mr-1"></i> บันทึก</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
-
-            <!-- เมนู personnel -->
-            <div id="menu-personnel" class="hidden max-w-7xl mx-auto space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-                    <div
-                        class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
-                        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            <i class="fa-solid fa-address-book text-indigo-600"></i> รายชื่อบุคลากรและข้าราชการครู
-                        </h3>
-                        <div class="flex flex-wrap gap-2">
-                            <!-- 🌟 เพิ่มปุ่มตั้งค่าหัวหน้ากลุ่มสาระ -->
-                            <button onclick="openDeptHeadModal()"
-                                class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
-                                <i class="fa-solid fa-crown"></i> ตั้งค่าหัวหน้ากลุ่มสาระฯ
-                            </button>
-
-                            <button onclick="openGradeHeadModal()"
-                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
-                                <i class="fa-solid fa-user-tie"></i> ตั้งค่าหัวหน้าระดับชั้น
-                            </button>
-
-                            <button onclick="openDisciplineHeadModal()"
-                                class="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
-                                <i class="fa-solid fa-shield-alt"></i> แต่งตั้งหัวหน้างานปกครอง
-                            </button>
-
-                        </div>
-                    </div>
-                    <div class="p-4 w-full">
-                        <table id="personnelTable" class="w-full text-left text-sm display nowrap" style="width:100%">
-                            <thead>
-                                <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
-                                    <th class="py-3 px-4 w-16 text-center">ลำดับ</th>
-                                    <th class="py-3 px-4">ชื่อ-สกุล / เลข ปชช.</th>
-                                    <th class="py-3 px-4">ตำแหน่ง / วิทยฐานะ</th>
-                                    <th class="py-3 px-4 text-blue-700">กลุ่มสาระการเรียนรู้</th>
-                                    <th class="py-3 px-4">อีเมล (บัญชี)</th>
-                                    <th class="py-3 px-4 text-center">ระดับสิทธิ์</th>
-                                    <th class="py-3 px-4 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-personnel" class="divide-y divide-gray-100"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- เมนู students (คงเดิม) -->
-            <div id="menu-students" class="hidden max-w-7xl mx-auto space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-
-                    <div
-                        class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
-                        <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                            <i class="fa-solid fa-chalkboard text-indigo-600"></i> โครงสร้างชั้นเรียน (Classrooms)
-                        </h3>
-                        <div class="flex flex-wrap gap-2">
-                            <!-- 🌟 เพิ่มปุ่มคัดลอกครูที่ปรึกษา -->
-                            <button onclick="copyAdvisersToTerm2()"
-                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
-                                <i class="fa-solid fa-copy"></i> คัดลอกครูที่ปรึกษา (เทอม 1 ➔ 2)
-                            </button>
-                            <button onclick="openClassModal()"
-                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
-                                <i class="fa-solid fa-plus"></i> เพิ่มห้องเรียน
-                            </button>
-                        </div>
-                    </div>
-                    <div class="p-4 w-full">
-                        <table id="classroomsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
-                            <thead>
-                                <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
-                                    <th class="py-3 px-4 text-center">ภาคเรียน/ปีการศึกษา</th>
-                                    <th class="py-3 px-4 text-center">ระดับชั้น/ห้อง</th>
-                                    <th class="py-3 px-4">แผนการเรียน</th>
-                                    <th class="py-3 px-4">ครูที่ปรึกษาคนที่ 1</th>
-                                    <th class="py-3 px-4">ครูที่ปรึกษาคนที่ 2</th>
-                                    <th class="py-3 px-4 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-classrooms"></tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
-                    <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
-                        <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
-                        </svg>
-                        เครื่องมือจัดการเลื่อนชั้นและคัดลอกรายชื่อนักเรียน (ส่วนกลาง)
-                    </h2>
-
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div
-                            class="border border-blue-200 bg-blue-50/50 p-5 rounded-xl hover:shadow-md transition-shadow">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="bg-blue-100 p-2 rounded-lg text-blue-600"><i class="fa-solid fa-copy"></i>
-                                </div>
-                                <h3 class="font-bold text-blue-800 text-base">1. คัดลอกรายชื่อขึ้นเทอม 2</h3>
-                            </div>
-                            <p class="text-sm text-gray-600 mb-5 pl-11">ดึงรายชื่อนักเรียนจาก เทอม 1 มายัง เทอม 2
-                                ของปีการศึกษาปัจจุบัน (อยู่ห้องเรียนเดิม เลขที่เดิม)</p>
-                            <button onclick="copyToTerm2()"
-                                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">
-                                ดำเนินการคัดลอก
-                            </button>
-                        </div>
-
-                        <div
-                            class="border border-purple-200 bg-purple-50/50 p-5 rounded-xl hover:shadow-md transition-shadow">
-                            <div class="flex items-center gap-3 mb-2">
-                                <div class="bg-purple-100 p-2 rounded-lg text-purple-600"><i
-                                        class="fa-solid fa-arrow-up-right-dots"></i></div>
-                                <h3 class="font-bold text-purple-800 text-base">2. เลื่อนชั้นปีการศึกษาใหม่</h3>
-                            </div>
-                            <p class="text-sm text-gray-600 mb-5 pl-11">ดึงรายชื่อจาก เทอม 2 ของปีที่แล้ว เลื่อนขึ้น 1
-                                ระดับชั้น (เช่น ม.1/1 ไปเป็น ม.2/1 อัตโนมัติ)</p>
-                            <button onclick="promoteStudents()"
-                                class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">
-                                ดำเนินการเลื่อนชั้น
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mt-6">
-
-                    <div class="p-5 border-b border-gray-200 bg-slate-50">
-                        <div class="flex flex-col xl:flex-row justify-between gap-5 items-start xl:items-center">
-
-                            <div
-                                class="flex items-center gap-3 w-full xl:w-auto bg-white p-2.5 rounded-xl border border-indigo-100 shadow-sm">
-                                <div
-                                    class="flex items-center justify-center bg-indigo-100 text-indigo-600 h-10 w-10 rounded-lg">
-                                    <i class="fa-solid fa-users text-lg"></i>
-                                </div>
-                                <div class="pr-2">
-                                    <label
-                                        class="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">รายชื่อแยกตามห้อง</label>
-                                    <select id="filterStudentClass" onchange="loadStudents()"
-                                        class="border-none bg-transparent outline-none font-bold text-blue-700 w-full md:w-56 cursor-pointer text-sm p-0 m-0">
-                                        <option value="">-- เลือกห้องเรียน --</option>
+                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-clock text-amber-600 mr-1"></i> ภาคเรียนปัจจุบัน *</label>
+                                    <select id="inp_current_term" required
+                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
+                                        <option value="1">ภาคเรียนที่ 1</option>
+                                        <option value="2">ภาคเรียนที่ 2</option>
                                     </select>
                                 </div>
-                            </div>
-
-                            <div class="flex flex-wrap gap-2 w-full xl:w-auto xl:justify-end">
-                                <div class="flex gap-2 w-full sm:w-auto border-r-0 sm:border-r border-gray-200 sm:pr-2">
-
-                                    <button onclick="downloadStudentTemplate()"
-                                        class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"
-                                        title="โหลดเทมเพลต Excel">
-                                        <i class="fa-solid fa-download text-gray-500"></i>
-                                    </button>
-                                    <input type="file" id="excelUploadStudents" accept=".xlsx, .xls" class="hidden"
-                                        onchange="processImportStudents(event)">
-                                    <button onclick="triggerImportStudents()"
-                                        class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-solid fa-file-excel"></i>
-                                    </button>
-                                    <button onclick="triggerImportGoogleSheet()"
-                                        class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors">
-                                        <i class="fa-brands fa-google"></i>
-                                    </button>
-                                    <button onclick="exportAllStudentsExcel()"
-                                        class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"
-                                        title="ส่งออกรายชื่อทั้งหมด Excel">
-                                        <i class="fa-solid fa-file-arrow-up text-gray-500"></i>
-                                    </button>
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> วันเปิดภาคเรียน *</label>
+                                    <input type="date" id="inp_term_start_date" required
+                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-emerald-700 text-lg transition-colors">
                                 </div>
-
-                                <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                                    <button onclick="openAddStudentModal()"
-                                        class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
-                                        <i class="fa-solid fa-user-plus text-xs"></i>
-                                        <!-- <span>เพิ่ม 1 คน</span> -->
-                                    </button>
-
-                                    <button onclick="openGlobalStudentSearch()"
-                                        class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
-                                        <i class="fa-solid fa-magnifying-glass text-xs"></i>
-                                        <!-- <span>ค้นหาอิสระ</span> -->
-                                    </button>
-
-                                    <button onclick="checkDuplicateStudents()"
-                                        class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
-                                        <i class="fas fa-users-slash text-xs"></i>
-                                        <!-- <span>เช็คชื่อซ้ำ</span> -->
-                                    </button>
-
-                                    <button onclick="checkUnassignedStudents()"
-                                        class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
-                                        <i class="fa-solid fa-user-slash text-xs"></i>
-                                        <!-- <span>นร. ที่ยังไม่มีห้อง</span> -->
-                                        <span id="unassigned_badge"
-                                            class="hidden bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full min-w-[18px]">0</span>
-                                    </button>
-
-                                    <button onclick="openStudentNumberReorder()"
-                                        class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95"
-                                        title="จัดลำดับเลขที่นักเรียน (ลาก-วาง)">
-                                        <i class="fa-solid fa-arrow-down-1-9 text-xs"></i>
-                                        <!-- <i class="fa-solid fa-arrow-up-down text-xs"></i> -->
-                                        <span class="hidden sm:inline text-xs">เลขที่</span>
-                                    </button>
-
-                                </div>
-
                             </div>
-                        </div>
-                    </div>
 
-                    <div class="p-4 w-full relative">
-
-                        <div id="bulk-action-bar"
-                            class="hidden flex flex-col sm:flex-row items-center justify-between mb-4 bg-yellow-50 border border-yellow-200 p-3 rounded-xl shadow-sm transition-all gap-3">
-                            <div class="text-sm font-bold text-gray-700 flex items-center">
-                                <i class="fa-solid fa-check-double text-green-600 mr-2 text-lg"></i>
-                                เลือกไว้ <span id="selected-count" class="text-blue-700 text-lg mx-1">0</span> คน
-                            </div>
-                            <div class="flex gap-2 w-full sm:w-auto">
-                                <button onclick="bulkMoveStudents()"
-                                    class="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
-                                    <i class="fa-solid fa-truck-arrow-right"></i> ย้ายห้อง
-                                </button>
-                                <button onclick="bulkDeleteStudents()"
-                                    class="flex-1 sm:flex-none justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors">
-                                    <i class="fa-solid fa-trash-can"></i> ลบที่เลือก
-                                </button>
-                            </div>
-                        </div>
-
-                        <table id="studentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
-                            <thead>
-                                <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
-                                    <th class="py-3 px-4 w-10 text-center">
-                                        <input type="checkbox" id="selectAll" onclick="toggleSelectAll()"
-                                            class="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded cursor-pointer focus:ring-blue-500">
-                                    </th>
-                                    <th class="py-3 px-4 w-16 text-center">รูป</th> <!-- ✅ เพิ่มบรรทัดนี้ -->
-                                    <th class="py-3 px-4 w-16 text-center">เลขที่</th>
-                                    <th class="py-3 px-4">เลขประจำตัว / เลข ปชช.</th>
-                                    <th class="py-3 px-4">ชื่อ-สกุล</th>
-                                    <th class="py-3 px-4 text-center">สถานะ</th>
-                                    <th class="py-3 px-4 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-students">
-                                <tr>
-                                    <td colspan="6" class="text-center py-8 text-gray-400">
-                                        กรุณาเลือกห้องเรียนเพื่อดูรายชื่อ</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- เมนู student-portal -->
-            <div id="menu-student-portal" class="hidden max-w-6xl mx-auto space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                    <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
-                        <i class="fa-solid fa-link text-indigo-600"></i> ลิงค์ระบบสำหรับนักเรียน (Student Portal)
-                    </h3>
-                    <p class="text-sm text-gray-600 mb-6">
-                        จัดการลิงก์และระบบที่นักเรียนจะเห็นในหน้า <code
-                            class="bg-gray-100 px-1.5 py-0.5 rounded">student_index.html</code>
-                        คุณสามารถเพิ่มระบบใหม่ เปลี่ยนชื่อ ไอคอน ลิงก์ และเปิด/ปิดการแสดงผลได้ทันที
-                    </p>
-
-                    <!-- ตารางแสดง module ปัจจุบัน -->
-                    <div class="overflow-x-auto mb-6">
-                        <table class="w-full text-left text-sm border-collapse">
-                            <thead>
-                                <tr class="bg-gray-50 text-gray-600 border-b">
-                                    <th class="py-3 px-2 w-8"></th> <!-- 🌟 เพิ่มบรรทัดนี้: ช่องสำหรับไอคอนลาก-วาง -->
-                                    <th class="py-3 px-4">ไอคอน (Font Awesome)</th>
-                                    <th class="py-3 px-4">ชื่อระบบ</th>
-                                    <th class="py-3 px-4">ลิงก์ (URL)</th>
-                                    <th class="py-3 px-4 text-center">สถานะ</th>
-                                    <th class="py-3 px-4 text-center">จัดการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="student-modules-list" class="divide-y divide-gray-100">
-                                <tr>
-                                    <td colspan="5" class="text-center py-8 text-gray-400">กำลังโหลด...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <!-- ฟอร์มเพิ่ม/แก้ไข module -->
-                    <div class="bg-blue-50 p-5 rounded-xl border border-blue-200">
-                        <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i>
-                            เพิ่ม/แก้ไขระบบ</h4>
-                        <form id="studentModuleForm" onsubmit="saveStudentModule(event)"
-                            class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <input type="hidden" id="sm_id">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">Module Key (ห้ามซ้ำ)
-                                    *</label>
-                                <input type="text" id="sm_module_key" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="เช่น behavior, scholarship">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อที่แสดง *</label>
-                                <input type="text" id="sm_title" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                            </div>
                             <div class="md:col-span-2">
-                                <label class="block text-sm font-bold text-gray-700 mb-1">คำอธิบาย</label>
-                                <input type="text" id="sm_description"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                <label class="block text-sm font-bold text-slate-700 mb-1">ชื่อโรงเรียน</label>
+                                <input type="text" id="inp_school" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-slate-50 text-slate-800 font-medium transition-colors">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Font Awesome class)
-                                    *</label>
-                                <input type="text" id="sm_icon" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="fa-solid fa-graduation-cap">
-                            </div>
-                            <!-- หลังจาก <input type="text" id="sm_icon" ...> -->
-                            <div class="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">สีพื้นหลังไอคอน</label>
-                                    <div class="flex items-center gap-2">
-                                        <input type="color" id="sm_icon_bg" value="#3b82f6"
-                                            class="w-10 h-10 border border-gray-300 rounded-lg cursor-pointer">
-                                        <input type="text" id="sm_icon_bg_text" value="#3b82f6"
-                                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 text-sm"
-                                            placeholder="#3b82f6">
-                                    </div>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-gray-700 mb-1">สีตัวอักษรไอคอน</label>
-                                    <div class="flex items-center gap-2">
-                                        <input type="color" id="sm_icon_text" value="#ffffff"
-                                            class="w-10 h-10 border border-gray-300 rounded-lg cursor-pointer">
-                                        <input type="text" id="sm_icon_text_text" value="#ffffff"
-                                            class="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 text-sm"
-                                            placeholder="#ffffff">
-                                    </div>
-                                </div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">ผู้อำนวยการสถานศึกษา</label>
+                                <input type="text" id="inp_dir" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์ (URL) *</label>
-                                <input type="text" id="sm_url" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"
-                                    placeholder="https://... หรือ behavior_student.html">
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="sm_is_active" checked
-                                        class="w-4 h-4 text-blue-600 rounded">
-                                    <span class="text-sm font-bold text-gray-700 ">เปิดใช้งาน</span>
-                                </label>
-                                <label class="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" id="sm_target_blank" class="w-4 h-4 text-blue-600 rounded">
-                                    <span class="text-sm font-bold text-gray-700 ">เปิดแท็บใหม่ (_blank)</span>
-                                </label>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ กลุ่มบริหารวิชาการ</label>
+                                <input type="text" id="inp_dep_acad" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                             </div>
                             <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ลำดับการแสดงผล
-                                    (ตัวเลข)</label>
-                                <input type="number" id="sm_display_order" value="0"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ กลุ่มบริหารงบประมาณ</label>
+                                <input type="text" id="inp_dep_budg" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
                             </div>
-                            <div class="md:col-span-2 flex justify-end gap-2">
-                                <button type="button" onclick="clearStudentModuleForm()"
-                                    class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
-                                <button type="submit"
-                                    class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"><i
-                                        class="fa-solid fa-save mr-1"></i> บันทึก</button>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ กลุ่มบริหารงานบุคคล</label>
+                                <input type="text" id="inp_dep_hr" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-slate-700 mb-1">รองผู้อำนวยการ กลุ่มบริหารทั่วไป</label>
+                                <input type="text" id="inp_dep_gen" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white text-slate-800 transition-colors">
+                            </div>
+
+                            <div class="md:col-span-2 flex justify-end mt-4">
+                                <button type="submit" class="bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md transition-all">
+                                    <i class="fa-solid fa-floppy-disk mr-2"></i> บันทึกข้อมูลโรงเรียน
+                                </button>
                             </div>
                         </form>
                     </div>
+
+                    <!-- Micro-services -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-toggle-on text-emerald-600"></i> จัดการระบบย่อย (Micro‑services)
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50 text-gray-600 border-b">
+                                        <th class="py-3 px-2 w-8"></th>
+                                        <th class="py-3 px-4">ไอคอน</th>
+                                        <th class="py-3 px-4">ชื่อระบบ</th>
+                                        <th class="py-3 px-4">กลุ่มงาน</th>
+                                        <th class="py-3 px-4">คำอธิบาย</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                        <th class="py-3 px-4 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="micro-modules-list" class="divide-y divide-gray-100">
+                                    <tr><td colspan="7" class="text-center py-8 text-gray-400">กำลังโหลด...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-6">
+                            <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i> เพิ่ม/แก้ไขระบบย่อย</h4>
+                            <form id="microServiceForm" onsubmit="saveMicroService(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="hidden" id="ms_id">
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">Module Key (ห้ามซ้ำ) *</label>
+                                    <input type="text" id="ms_module_key" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="เช่น attendance, guidance">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อระบบ *</label>
+                                    <input type="text" id="ms_title" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="ชื่อที่แสดง">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">คำอธิบาย</label>
+                                    <input type="text" id="ms_description" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มงาน *</label>
+                                    <select id="ms_category" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
+                                        <option value="academic">กลุ่มบริหารวิชาการ</option>
+                                        <option value="budget">กลุ่มบริหารงบประมาณ</option>
+                                        <option value="personnel">กลุ่มบริหารงานบุคคล</option>
+                                        <option value="general">กลุ่มบริหารทั่วไป</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Font Awesome class)</label>
+                                    <input type="text" id="ms_icon" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="fa-solid fa-gear">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4 md:col-span-2">
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">สีพื้นหลังไอคอน</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="color" id="ms_icon_bg" value="#3b82f6" class="h-10 w-10 border border-gray-300 rounded cursor-pointer p-0.5">
+                                            <input type="text" id="ms_icon_bg_text" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="#3b82f6" value="#3b82f6">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">สีตัวอักษรไอคอน</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="color" id="ms_icon_text" value="#ffffff" class="h-10 w-10 border border-gray-300 rounded cursor-pointer p-0.5">
+                                            <input type="text" id="ms_icon_text_text" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="#ffffff" value="#ffffff">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์ (URL)</label>
+                                    <input type="text" id="ms_url" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="https://... หรือชื่อไฟล์">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ลำดับการแสดงผล</label>
+                                    <input type="number" id="ms_display_order" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                </div>
+                                <div class="flex items-center gap-4 mt-2">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="ms_is_active" checked class="w-4 h-4 text-blue-600 rounded">
+                                        <span class="text-sm font-bold text-gray-700">เปิดใช้งาน</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="ms_target_blank" class="w-4 h-4 text-blue-600 rounded">
+                                        <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
+                                    </label>
+                                </div>
+                                <div class="md:col-span-2 flex justify-end gap-2 mt-4">
+                                    <button type="button" onclick="clearMicroServiceForm()" class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
+                                    <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"><i class="fa-solid fa-save mr-1"></i> บันทึก</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
                 </div>
 
-                <!-- ===== GAS Avatar Upload Settings ===== -->
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-                    <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
-                        <i class="fa-brands fa-google text-[#4285F4]"></i>
-                        ตั้งค่า API อัพโหลดรูปโปรไฟล์นักเรียน (Google Apps Script)
-                    </h3>
-                    <p class="text-sm text-gray-500 mb-5">
-                        ระบบจะใช้ GAS Web App รับไฟล์รูปและบันทึกลง Google Drive
-                        แล้วส่ง URL กลับมาเก็บใน <code
-                            class="bg-gray-100 px-1 rounded">core_students.avatar_students_url</code>
-                    </p>
+                <!-- ================ เมนู personnel ================ -->
+                <div id="menu-personnel" class="hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+                        <div class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fa-solid fa-address-book text-indigo-600"></i> รายชื่อบุคลากรและข้าราชการครู
+                            </h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="openDeptHeadModal()" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i class="fa-solid fa-crown"></i> ตั้งค่าหัวหน้ากลุ่มสาระฯ</button>
+                                <button onclick="openGradeHeadModal()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i class="fa-solid fa-user-tie"></i> ตั้งค่าหัวหน้าระดับชั้น</button>
+                                <button onclick="openDisciplineHeadModal()" class="bg-red-500 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><i class="fa-solid fa-shield-alt"></i> แต่งตั้งหัวหน้างานปกครอง</button>
+                            </div>
+                        </div>
+                        <div class="p-4 w-full overflow-x-auto">
+                            <table id="personnelTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                                <thead>
+                                    <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                                        <th class="py-3 px-4 w-16 text-center">ลำดับ</th>
+                                        <th class="py-3 px-4">ชื่อ-สกุล / เลข ปชช.</th>
+                                        <th class="py-3 px-4">ตำแหน่ง / วิทยฐานะ</th>
+                                        <th class="py-3 px-4 text-blue-700">กลุ่มสาระการเรียนรู้</th>
+                                        <th class="py-3 px-4">อีเมล (บัญชี)</th>
+                                        <th class="py-3 px-4 text-center">ระดับสิทธิ์</th>
+                                        <th class="py-3 px-4 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-personnel" class="divide-y divide-gray-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
-                    <!-- วิธีใช้งาน -->
-                    <div
-                        class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 space-y-1">
-                        <p class="font-bold flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> วิธีเตรียม
-                            GAS</p>
-                        <ol class="list-decimal list-inside space-y-1 pl-1 text-amber-700">
-                            <li>สร้าง Google Apps Script ใหม่ → วางโค้ดรับไฟล์และบันทึกลง Drive</li>
-                            <li>Deploy → New Deployment → Web App → Execute as: Me, Access: Anyone</li>
-                            <li>คัดลอก <strong>Deployment URL (/exec)</strong> มาวางด้านล่าง</li>
-                            <li>คัดลอก <strong>ID โฟลเดอร์ Drive</strong> ที่ต้องการเก็บรูปมาวาง</li>
-                        </ol>
+                <!-- ================ เมนู students ================ -->
+                <div id="menu-students" class="hidden max-w-7xl mx-auto space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
+                        <div class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
+                            <h3 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                                <i class="fa-solid fa-chalkboard text-indigo-600"></i> โครงสร้างชั้นเรียน (Classrooms)
+                            </h3>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="copyAdvisersToTerm2()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"><i class="fa-solid fa-copy"></i> คัดลอกครูที่ปรึกษา (เทอม 1 ➔ 2)</button>
+                                <button onclick="openClassModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"><i class="fa-solid fa-plus"></i> เพิ่มห้องเรียน</button>
+                            </div>
+                        </div>
+                        <div class="p-4 w-full overflow-x-auto">
+                            <table id="classroomsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                                <thead>
+                                    <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                                        <th class="py-3 px-4 text-center">ภาคเรียน/ปีการศึกษา</th>
+                                        <th class="py-3 px-4 text-center">ระดับชั้น/ห้อง</th>
+                                        <th class="py-3 px-4">แผนการเรียน</th>
+                                        <th class="py-3 px-4">ครูที่ปรึกษาคนที่ 1</th>
+                                        <th class="py-3 px-4">ครูที่ปรึกษาคนที่ 2</th>
+                                        <th class="py-3 px-4 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-classrooms"></tbody>
+                            </table>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">
-                                <i class="fa-solid fa-link text-indigo-500 mr-1"></i>
-                                GAS Deployment URL (exec)
-                            </label>
-                            <input type="url" id="inp_gas_avatar_url"
-                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm transition"
-                                placeholder="https://script.google.com/macros/s/AKfycb.../exec">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">
-                                <i class="fa-brands fa-google-drive text-[#0f9d58] mr-1"></i>
-                                ID โฟลเดอร์ Google Drive เก็บรูปโปรไฟล์
-                            </label>
-                            <input type="text" id="inp_gas_avatar_folder"
-                                class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm transition"
-                                placeholder="เช่น 1a2B3cDeFgHiJkLmNoPqRsTuV">
-                        </div>
-                        <div class="flex items-end">
-                            <div
-                                class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 w-full leading-relaxed">
-                                💡 ID โฟลเดอร์อยู่ใน URL ของ Google Drive<br>
-                                <code
-                                    class="text-slate-600">drive.google.com/drive/folders/<strong class="text-indigo-600">[ID ตรงนี้]</strong></code>
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6">
+                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2 mb-4">
+                            <svg class="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" />
+                            </svg>
+                            เครื่องมือจัดการเลื่อนชั้นและคัดลอกรายชื่อนักเรียน (ส่วนกลาง)
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div class="border border-blue-200 bg-blue-50/50 p-5 rounded-xl hover:shadow-md transition-shadow">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <div class="bg-blue-100 p-2 rounded-lg text-blue-600"><i class="fa-solid fa-copy"></i></div>
+                                    <h3 class="font-bold text-blue-800 text-base">1. คัดลอกรายชื่อขึ้นเทอม 2</h3>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-5 pl-11">ดึงรายชื่อนักเรียนจาก เทอม 1 มายัง เทอม 2 ของปีการศึกษาปัจจุบัน (อยู่ห้องเรียนเดิม เลขที่เดิม)</p>
+                                <button onclick="copyToTerm2()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">ดำเนินการคัดลอก</button>
+                            </div>
+                            <div class="border border-purple-200 bg-purple-50/50 p-5 rounded-xl hover:shadow-md transition-shadow">
+                                <div class="flex items-center gap-3 mb-2">
+                                    <div class="bg-purple-100 p-2 rounded-lg text-purple-600"><i class="fa-solid fa-arrow-up-right-dots"></i></div>
+                                    <h3 class="font-bold text-purple-800 text-base">2. เลื่อนชั้นปีการศึกษาใหม่</h3>
+                                </div>
+                                <p class="text-sm text-gray-600 mb-5 pl-11">ดึงรายชื่อจาก เทอม 2 ของปีที่แล้ว เลื่อนขึ้น 1 ระดับชั้น (เช่น ม.1/1 ไปเป็น ม.2/1 อัตโนมัติ)</p>
+                                <button onclick="promoteStudents()" class="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 rounded-lg shadow-sm transition-colors flex justify-center items-center gap-2">ดำเนินการเลื่อนชั้น</button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Test & Save -->
-                    <div class="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-gray-100">
-                        <button onclick="saveGasAvatarSettings()"
-                            class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">
-                            <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
-                        </button>
-                        <span id="gas-save-status" class="text-sm font-medium text-gray-400 hidden"></span>
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden mt-6">
+                        <div class="p-5 border-b border-gray-200 bg-slate-50">
+                            <div class="flex flex-col xl:flex-row justify-between gap-5 items-start xl:items-center">
+                                <div class="flex items-center gap-3 w-full xl:w-auto bg-white p-2.5 rounded-xl border border-indigo-100 shadow-sm">
+                                    <div class="flex items-center justify-center bg-indigo-100 text-indigo-600 h-10 w-10 rounded-lg"><i class="fa-solid fa-users text-lg"></i></div>
+                                    <div class="pr-2">
+                                        <label class="block text-[10px] font-bold text-gray-400 uppercase tracking-wide">รายชื่อแยกตามห้อง</label>
+                                        <select id="filterStudentClass" onchange="loadStudents()" class="border-none bg-transparent outline-none font-bold text-blue-700 w-full md:w-56 cursor-pointer text-sm p-0 m-0">
+                                            <option value="">-- เลือกห้องเรียน --</option>
+                                        </select>
+                                    </div>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2 w-full xl:w-auto xl:justify-end">
+                                    <div class="flex gap-2 w-full sm:w-auto border-r-0 sm:border-r border-gray-200 sm:pr-2">
+                                        <button onclick="downloadStudentTemplate()" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors" title="โหลดเทมเพลต Excel"><i class="fa-solid fa-download text-gray-500"></i></button>
+                                        <input type="file" id="excelUploadStudents" accept=".xlsx, .xls" class="hidden" onchange="processImportStudents(event)">
+                                        <button onclick="triggerImportStudents()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"><i class="fa-solid fa-file-excel"></i></button>
+                                        <button onclick="triggerImportGoogleSheet()" class="bg-[#0f9d58] hover:bg-[#0b8043] text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors"><i class="fa-brands fa-google"></i></button>
+                                        <button onclick="exportAllStudentsExcel()" class="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-gray-50 flex items-center gap-2 flex-1 sm:flex-none justify-center transition-colors" title="ส่งออกรายชื่อทั้งหมด Excel"><i class="fa-solid fa-file-arrow-up text-gray-500"></i></button>
+                                    </div>
+
+                                    <div class="flex flex-wrap gap-2 w-full sm:w-auto">
+                                        <button onclick="openAddStudentModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95"><i class="fa-solid fa-user-plus text-xs"></i></button>
+                                        <button onclick="openGlobalStudentSearch()" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95"><i class="fa-solid fa-magnifying-glass text-xs"></i></button>
+                                        <button onclick="checkDuplicateStudents()" class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95"><i class="fas fa-users-slash text-xs"></i></button>
+                                        <button onclick="checkUnassignedStudents()" class="bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95">
+                                            <i class="fa-solid fa-user-slash text-xs"></i>
+                                            <span id="unassigned_badge" class="hidden bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full min-w-[18px]">0</span>
+                                        </button>
+                                        <button onclick="openStudentNumberReorder()" class="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200 px-4 py-2.5 rounded-xl text-sm font-bold shadow-sm flex items-center gap-2 flex-1 sm:flex-none justify-center transition-all active:scale-95" title="จัดลำดับเลขที่นักเรียน (ลาก-วาง)">
+                                            <i class="fa-solid fa-arrow-down-1-9 text-xs"></i>
+                                            <span class="hidden sm:inline text-xs">เลขที่</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="p-4 w-full relative">
+                            <div id="bulk-action-bar" class="hidden flex flex-col sm:flex-row items-center justify-between mb-4 bg-yellow-50 border border-yellow-200 p-3 rounded-xl shadow-sm transition-all gap-3">
+                                <div class="text-sm font-bold text-gray-700 flex items-center">
+                                    <i class="fa-solid fa-check-double text-green-600 mr-2 text-lg"></i>
+                                    เลือกไว้ <span id="selected-count" class="text-blue-700 text-lg mx-1">0</span> คน
+                                </div>
+                                <div class="flex gap-2 w-full sm:w-auto">
+                                    <button onclick="bulkMoveStudents()" class="flex-1 sm:flex-none justify-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"><i class="fa-solid fa-truck-arrow-right"></i> ย้ายห้อง</button>
+                                    <button onclick="bulkDeleteStudents()" class="flex-1 sm:flex-none justify-center bg-red-600 hover:bg-red-700 text-white px-4 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 transition-colors"><i class="fa-solid fa-trash-can"></i> ลบที่เลือก</button>
+                                </div>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table id="studentsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                                    <thead>
+                                        <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                                            <th class="py-3 px-4 w-10 text-center">
+                                                <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="w-4 h-4 text-blue-600 bg-white border-gray-300 rounded cursor-pointer focus:ring-blue-500">
+                                            </th>
+                                            <th class="py-3 px-4 w-16 text-center">รูป</th>
+                                            <th class="py-3 px-4 w-16 text-center">เลขที่</th>
+                                            <th class="py-3 px-4">เลขประจำตัว / เลข ปชช.</th>
+                                            <th class="py-3 px-4">ชื่อ-สกุล</th>
+                                            <th class="py-3 px-4 text-center">สถานะ</th>
+                                            <th class="py-3 px-4 text-center">จัดการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tb-students">
+                                        <tr><td colspan="7" class="text-center py-8 text-gray-400">กรุณาเลือกห้องเรียนเพื่อดูรายชื่อ</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- ================ เมนู student-portal ================ -->
+                <div id="menu-student-portal" class="hidden max-w-6xl mx-auto space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-link text-indigo-600"></i> ลิงค์ระบบสำหรับนักเรียน (Student Portal)
+                        </h3>
+                        <p class="text-sm text-gray-600 mb-6">
+                            จัดการลิงก์และระบบที่นักเรียนจะเห็นในหน้า <code class="bg-gray-100 px-1.5 py-0.5 rounded">student_index.html</code>
+                            คุณสามารถเพิ่มระบบใหม่ เปลี่ยนชื่อ ไอคอน ลิงก์ และเปิด/ปิดการแสดงผลได้ทันที
+                        </p>
+
+                        <div class="overflow-x-auto mb-6">
+                            <table class="w-full text-left text-sm border-collapse">
+                                <thead>
+                                    <tr class="bg-gray-50 text-gray-600 border-b">
+                                        <th class="py-3 px-2 w-8"></th>
+                                        <th class="py-3 px-4">ไอคอน (Font Awesome)</th>
+                                        <th class="py-3 px-4">ชื่อระบบ</th>
+                                        <th class="py-3 px-4">ลิงก์ (URL)</th>
+                                        <th class="py-3 px-4 text-center">สถานะ</th>
+                                        <th class="py-3 px-4 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="student-modules-list" class="divide-y divide-gray-100">
+                                    <tr><td colspan="6" class="text-center py-8 text-gray-400">กำลังโหลด...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="bg-blue-50 p-5 rounded-xl border border-blue-200">
+                            <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i> เพิ่ม/แก้ไขระบบ</h4>
+                            <form id="studentModuleForm" onsubmit="saveStudentModule(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <input type="hidden" id="sm_id">
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">Module Key (ห้ามซ้ำ) *</label>
+                                    <input type="text" id="sm_module_key" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="เช่น behavior, scholarship">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อที่แสดง *</label>
+                                    <input type="text" id="sm_title" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                </div>
+                                <div class="md:col-span-2">
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">คำอธิบาย</label>
+                                    <input type="text" id="sm_description" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ไอคอน (Font Awesome class) *</label>
+                                    <input type="text" id="sm_icon" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="fa-solid fa-graduation-cap">
+                                </div>
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">สีพื้นหลังไอคอน</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="color" id="sm_icon_bg" value="#3b82f6" class="w-10 h-10 border border-gray-300 rounded-lg cursor-pointer">
+                                            <input type="text" id="sm_icon_bg_text" value="#3b82f6" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 text-sm" placeholder="#3b82f6">
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-bold text-gray-700 mb-1">สีตัวอักษรไอคอน</label>
+                                        <div class="flex items-center gap-2">
+                                            <input type="color" id="sm_icon_text" value="#ffffff" class="w-10 h-10 border border-gray-300 rounded-lg cursor-pointer">
+                                            <input type="text" id="sm_icon_text_text" value="#ffffff" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 text-sm" placeholder="#ffffff">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ลิงก์ (URL) *</label>
+                                    <input type="text" id="sm_url" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500" placeholder="https://... หรือ behavior_student.html">
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="sm_is_active" checked class="w-4 h-4 text-blue-600 rounded">
+                                        <span class="text-sm font-bold text-gray-700">เปิดใช้งาน</span>
+                                    </label>
+                                    <label class="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" id="sm_target_blank" class="w-4 h-4 text-blue-600 rounded">
+                                        <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
+                                    </label>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold text-gray-700 mb-1">ลำดับการแสดงผล (ตัวเลข)</label>
+                                    <input type="number" id="sm_display_order" value="0" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
+                                </div>
+                                <div class="md:col-span-2 flex justify-end gap-2">
+                                    <button type="button" onclick="clearStudentModuleForm()" class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
+                                    <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"><i class="fa-solid fa-save mr-1"></i> บันทึก</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- GAS Avatar Settings -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
+                        <h3 class="text-lg font-bold text-gray-800 mb-1 flex items-center gap-2">
+                            <i class="fa-brands fa-google text-[#4285F4]"></i>
+                            ตั้งค่า API อัพโหลดรูปโปรไฟล์นักเรียน (Google Apps Script)
+                        </h3>
+                        <p class="text-sm text-gray-500 mb-5">
+                            ระบบจะใช้ GAS Web App รับไฟล์รูปและบันทึกลง Google Drive
+                            แล้วส่ง URL กลับมาเก็บใน <code class="bg-gray-100 px-1 rounded">core_students.avatar_students_url</code>
+                        </p>
+
+                        <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-5 text-sm text-amber-800 space-y-1">
+                            <p class="font-bold flex items-center gap-2"><i class="fa-solid fa-circle-info"></i> วิธีเตรียม GAS</p>
+                            <ol class="list-decimal list-inside space-y-1 pl-1 text-amber-700">
+                                <li>สร้าง Google Apps Script ใหม่ → วางโค้ดรับไฟล์และบันทึกลง Drive</li>
+                                <li>Deploy → New Deployment → Web App → Execute as: Me, Access: Anyone</li>
+                                <li>คัดลอก <strong>Deployment URL (/exec)</strong> มาวางด้านล่าง</li>
+                                <li>คัดลอก <strong>ID โฟลเดอร์ Drive</strong> ที่ต้องการเก็บรูปมาวาง</li>
+                            </ol>
+                        </div>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="md:col-span-2">
+                                <label class="block text-sm font-bold text-gray-700 mb-1"><i class="fa-solid fa-link text-indigo-500 mr-1"></i> GAS Deployment URL (exec)</label>
+                                <input type="url" id="inp_gas_avatar_url" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 text-sm transition" placeholder="https://script.google.com/macros/s/AKfycb.../exec">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-bold text-gray-700 mb-1"><i class="fa-brands fa-google-drive text-[#0f9d58] mr-1"></i> ID โฟลเดอร์ Google Drive เก็บรูปโปรไฟล์</label>
+                                <input type="text" id="inp_gas_avatar_folder" class="w-full border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-green-500 focus:ring-2 focus:ring-green-100 text-sm transition" placeholder="เช่น 1a2B3cDeFgHiJkLmNoPqRsTuV">
+                            </div>
+                            <div class="flex items-end">
+                                <div class="bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-xs text-slate-500 w-full leading-relaxed">
+                                    💡 ID โฟลเดอร์อยู่ใน URL ของ Google Drive<br>
+                                    <code class="text-slate-600">drive.google.com/drive/folders/<strong class="text-indigo-600">[ID ตรงนี้]</strong></code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-3 mt-5 pt-4 border-t border-gray-100">
+                            <button onclick="saveGasAvatarSettings()" class="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-sm shadow-sm transition">
+                                <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+                            </button>
+                            <span id="gas-save-status" class="text-sm font-medium text-gray-400 hidden"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ================ เมนู calendar ================ -->
+                <div id="menu-calendar" class="hidden max-w-6xl mx-auto space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+                        <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
+                            <i class="fa-regular fa-calendar-check text-indigo-600"></i> ตั้งค่าระบบปฏิทินกิจกรรม
+                        </h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                            <div class="border rounded-xl p-4 bg-blue-50">
+                                <h3 class="font-bold text-blue-800 flex justify-between items-center">
+                                    <span><i class="fa-regular fa-calendar-alt mr-1"></i> กลุ่มวิชาการ</span>
+                                    <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input type="checkbox" id="cfg_academic_active" data-dept="academic" class="toggle-cfg"></label>
+                                </h3>
+                                <div class="mt-3 space-y-2">
+                                    <input type="text" id="cfg_academic_cal_id" placeholder="Google Calendar ID" class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                                    <input type="text" id="cfg_academic_api_key" placeholder="Google API Key" class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
+                                    <button onclick="saveCalendarConfig('academic')" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">บันทึกการตั้งค่า</button>
+                                </div>
+                            </div>
+                            <div class="border rounded-xl p-4 bg-green-50">
+                                <h3 class="font-bold text-green-800 flex justify-between items-center">
+                                    <span><i class="fa-solid fa-coins mr-1"></i> กลุ่มแผนงานและงบประมาณ</span>
+                                    <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input type="checkbox" id="cfg_budget_active" data-dept="budget" class="toggle-cfg"></label>
+                                </h3>
+                                <div class="mt-3">
+                                    <button onclick="openEventModal('budget')" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button>
+                                </div>
+                            </div>
+                            <div class="border rounded-xl p-4 bg-purple-50">
+                                <h3 class="font-bold text-purple-800 flex justify-between items-center">
+                                    <span><i class="fa-solid fa-users mr-1"></i> กลุ่มบริหารงานบุคคล</span>
+                                    <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input type="checkbox" id="cfg_personnel_active" data-dept="personnel" class="toggle-cfg"></label>
+                                </h3>
+                                <div class="mt-3">
+                                    <button onclick="openEventModal('personnel')" class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button>
+                                </div>
+                            </div>
+                            <div class="border rounded-xl p-4 bg-orange-50">
+                                <h3 class="font-bold text-orange-800 flex justify-between items-center">
+                                    <span><i class="fa-solid fa-building mr-1"></i> กลุ่มบริหารทั่วไป</span>
+                                    <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input type="checkbox" id="cfg_general_active" data-dept="general" class="toggle-cfg"></label>
+                                </h3>
+                                <div class="mt-3">
+                                    <button onclick="openEventModal('general')" class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i class="fa-solid fa-plus mr-1"></i> จัดกิจกรรม</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="border-t pt-6 mt-4">
+                            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-user-shield text-emerald-600"></i> แต่งตั้ง Admin ประจำกลุ่มงาน
+                            </h3>
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">กลุ่มวิชาการ</label>
+                                    <select id="admin_academic" class="w-full border rounded-lg p-2 text-sm"></select>
+                                    <button onclick="assignDeptAdmin('academic')" class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                    <div id="admin_list_academic" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">กลุ่มแผนงานฯ</label>
+                                    <select id="admin_budget" class="w-full border rounded-lg p-2 text-sm"></select>
+                                    <button onclick="assignDeptAdmin('budget')" class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                    <div id="admin_list_budget" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">กลุ่มบริหารงานบุคคล</label>
+                                    <select id="admin_personnel" class="w-full border rounded-lg p-2 text-sm"></select>
+                                    <button onclick="assignDeptAdmin('personnel')" class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                    <div id="admin_list_personnel" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto"></div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-bold mb-1">กลุ่มบริหารทั่วไป</label>
+                                    <select id="admin_general" class="w-full border rounded-lg p-2 text-sm"></select>
+                                    <button onclick="assignDeptAdmin('general')" class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
+                                    <div id="admin_list_general" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </main>
+    </div>
 
-            <!-- เมนูจัดการปฏิทินกิจกรรม -->
-            <div id="menu-calendar" class="hidden max-w-6xl mx-auto space-y-6">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
-                        <i class="fa-regular fa-calendar-check text-indigo-600"></i> ตั้งค่าระบบปฏิทินกิจกรรม
-                    </h2>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                        <!-- กลุ่มวิชาการ -->
-                        <div class="border rounded-xl p-4 bg-blue-50">
-                            <h3 class="font-bold text-blue-800 flex justify-between items-center">
-                                <span><i class="fa-regular fa-calendar-alt mr-1"></i> กลุ่มวิชาการ</span>
-                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
-                                        type="checkbox" id="cfg_academic_active" data-dept="academic"
-                                        class="toggle-cfg"></label>
-                            </h3>
-                            <div class="mt-3 space-y-2">
-                                <input type="text" id="cfg_academic_cal_id" placeholder="Google Calendar ID"
-                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
-                                <input type="text" id="cfg_academic_api_key" placeholder="Google API Key"
-                                    class="w-full border rounded-lg px-3 py-2 text-sm bg-white">
-                                <button onclick="saveCalendarConfig('academic')"
-                                    class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm">บันทึกการตั้งค่า</button>
-                            </div>
-                        </div>
-                        <!-- กลุ่มแผนงานและงบประมาณ -->
-                        <div class="border rounded-xl p-4 bg-green-50">
-                            <h3 class="font-bold text-green-800 flex justify-between items-center">
-                                <span><i class="fa-solid fa-coins mr-1"></i> กลุ่มแผนงานและงบประมาณ</span>
-                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
-                                        type="checkbox" id="cfg_budget_active" data-dept="budget"
-                                        class="toggle-cfg"></label>
-                            </h3>
-                            <div class="mt-3"><button onclick="openEventModal('budget')"
-                                    class="bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
-                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
-                        </div>
-                        <!-- กลุ่มบริหารงานบุคคล -->
-                        <div class="border rounded-xl p-4 bg-purple-50">
-                            <h3 class="font-bold text-purple-800 flex justify-between items-center">
-                                <span><i class="fa-solid fa-users mr-1"></i> กลุ่มบริหารงานบุคคล</span>
-                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
-                                        type="checkbox" id="cfg_personnel_active" data-dept="personnel"
-                                        class="toggle-cfg"></label>
-                            </h3>
-                            <div class="mt-3"><button onclick="openEventModal('personnel')"
-                                    class="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
-                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
-                        </div>
-                        <!-- กลุ่มบริหารทั่วไป -->
-                        <div class="border rounded-xl p-4 bg-orange-50">
-                            <h3 class="font-bold text-orange-800 flex justify-between items-center">
-                                <span><i class="fa-solid fa-building mr-1"></i> กลุ่มบริหารทั่วไป</span>
-                                <label class="flex items-center gap-2 text-sm font-normal"><span>เปิดใช้งาน</span><input
-                                        type="checkbox" id="cfg_general_active" data-dept="general"
-                                        class="toggle-cfg"></label>
-                            </h3>
-                            <div class="mt-3"><button onclick="openEventModal('general')"
-                                    class="bg-orange-600 hover:bg-orange-700 text-white px-3 py-1.5 rounded-lg text-sm w-full"><i
-                                        class="fa-solid fa-plus mr-1"></i> จัดการกิจกรรม</button></div>
-                        </div>
-                    </div>
-                    <div class="border-t pt-6 mt-4">
-                        <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2"><i
-                                class="fa-solid fa-user-shield text-emerald-600"></i> แต่งตั้ง Admin ประจำกลุ่มงาน</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                            <div><label class="block text-sm font-bold mb-1">กลุ่มวิชาการ</label><select
-                                    id="admin_academic" class="w-full border rounded-lg p-2 text-sm"></select><button
-                                    onclick="assignDeptAdmin('academic')"
-                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
-                                <div id="admin_list_academic" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
-                                </div>
-                            </div>
-                            <div><label class="block text-sm font-bold mb-1">กลุ่มแผนงานฯ</label><select
-                                    id="admin_budget" class="w-full border rounded-lg p-2 text-sm"></select><button
-                                    onclick="assignDeptAdmin('budget')"
-                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
-                                <div id="admin_list_budget" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
-                                </div>
-                            </div>
-                            <div><label class="block text-sm font-bold mb-1">กลุ่มบริหารงานบุคคล</label><select
-                                    id="admin_personnel" class="w-full border rounded-lg p-2 text-sm"></select><button
-                                    onclick="assignDeptAdmin('personnel')"
-                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
-                                <div id="admin_list_personnel" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
-                                </div>
-                            </div>
-                            <div><label class="block text-sm font-bold mb-1">กลุ่มบริหารทั่วไป</label><select
-                                    id="admin_general" class="w-full border rounded-lg p-2 text-sm"></select><button
-                                    onclick="assignDeptAdmin('general')"
-                                    class="mt-1 w-full bg-slate-200 hover:bg-slate-300 text-sm p-1.5 rounded">เพิ่ม</button>
-                                <div id="admin_list_general" class="text-xs mt-2 space-y-1 max-h-32 overflow-y-auto">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+    <!-- ================= Modals ================= -->
+    <!-- Event Modal -->
+    <div id="eventModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
+        <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
+            <button onclick="closeEventModal()" class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
+            <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม</h3>
+            <form id="eventForm" onsubmit="saveEvent(event)">
+                <input type="hidden" id="event_id"><input type="hidden" id="event_dept_key">
+                <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">ชื่อกิจกรรม</label>
+                    <input type="text" id="event_title" required class="w-full border rounded-lg px-3 py-2"></div>
+                <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">รายละเอียด</label>
+                    <textarea id="event_desc" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea></div>
+                <div class="grid grid-cols-2 gap-3 mb-3">
+                    <div><label class="block font-bold text-slate-700">วันที่เริ่ม</label>
+                        <input type="date" id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
+                    <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label>
+                        <input type="date" id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
                 </div>
-            </div>
-
-            <!-- Modal สำหรับเพิ่ม/แก้ไขกิจกรรม (internal) -->
-            <div id="eventModal"
-                class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
-                <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
-                    <button onclick="closeEventModal()"
-                        class="absolute top-3 right-3 text-gray-400 hover:text-red-500 text-2xl">&times;</button>
-                    <h3 id="eventModalTitle" class="text-xl font-bold mb-4 text-slate-800">เพิ่มกิจกรรม
-                    </h3>
-                    <form id="eventForm" onsubmit="saveEvent(event)">
-                        <input type="hidden" id="event_id"><input type="hidden" id="event_dept_key">
-                        <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">ชื่อกิจกรรม</label><input
-                                type="text" id="event_title" required class="w-full border rounded-lg px-3 py-2"></div>
-                        <div class="mb-3"><label class="block font-bold mb-1 text-slate-700">รายละเอียด</label><textarea
-                                id="event_desc" rows="3" class="w-full border rounded-lg px-3 py-2"></textarea></div>
-                        <div class="grid grid-cols-2 gap-3 mb-3">
-                            <div><label class="block font-bold text-slate-700">วันที่เริ่ม</label><input type="date"
-                                    id="event_start" required class="w-full border rounded-lg px-3 py-2"></div>
-                            <div><label class="block font-bold text-slate-700">วันที่สิ้นสุด</label><input type="date"
-                                    id="event_end" class="w-full border rounded-lg px-3 py-2"></div>
-                        </div>
-                        <div class="flex justify-end gap-2"><button type="button" onclick="closeEventModal()"
-                                class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button><button type="submit"
-                                class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i
-                                    class="fa-solid fa-save"></i> บันทึก</button></div>
-                    </form>
+                <div class="flex justify-end gap-2">
+                    <button type="button" onclick="closeEventModal()" class="px-4 py-2 bg-gray-200 rounded-lg font-bold">ยกเลิก</button>
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold"><i class="fa-solid fa-save"></i> บันทึก</button>
                 </div>
-            </div>
-
+            </form>
         </div>
-    </main>
+    </div>
 
-    <!-- Modals ต่าง ๆ (personnelModal, classroomModal, studentDetailModal, moduleAdminModal, modal-duplicates) คงเดิม -->
-    <div id="personnelModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <div class="bg-white  rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
-            <button onclick="closePersonnelModal()"
-                class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors">
-                <i class="fa-solid fa-xmark text-2xl"></i>
-            </button>
-            <h3 id="modalPersonnelTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i
-                    class="fa-solid fa-user-plus mr-2 text-blue-600"></i>เพิ่มบุคลากรใหม่</h3>
+    <!-- Personnel Modal -->
+    <div id="personnelModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
+            <button onclick="closePersonnelModal()" class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            <h3 id="modalPersonnelTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i class="fa-solid fa-user-plus mr-2 text-blue-600"></i>เพิ่มบุคลากรใหม่</h3>
             <form id="personnelForm" onsubmit="savePersonnel(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div id="p_auth_fields"
-                    class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-xl border border-blue-100 mb-2">
-                    <div><label class="block text-sm font-bold text-gray-700 mb-1">อีเมล (ใช้ล็อกอิน) *</label><input
-                            type="email" id="p_email"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                    </div>
-                    <div><label class="block text-sm font-bold text-gray-700 mb-1">รหัสผ่าน (ขั้นต่ำ 6 ตัว)
-                            *</label><input type="text" id="p_password"
-                            class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                    </div>
+                <div id="p_auth_fields" class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-4 rounded-xl border border-blue-100 mb-2">
+                    <div><label class="block text-sm font-bold text-gray-700 mb-1">อีเมล (ใช้ล็อกอิน) *</label><input type="email" id="p_email" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                    <div><label class="block text-sm font-bold text-gray-700 mb-1">รหัสผ่าน (ขั้นต่ำ 6 ตัว) *</label><input type="text" id="p_password" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                 </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวประชาชน</label><input
-                        type="text" id="p_national_id"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">คำนำหน้า</label><input type="text"
-                        id="p_prefix"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ชื่อ *</label><input type="text"
-                        id="p_first_name" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">นามสกุล *</label><input type="text"
-                        id="p_last_name" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ตำแหน่ง</label><input type="text"
-                        id="p_position"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">วิทยฐานะ</label><input type="text"
-                        id="p_academic"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มสาระการเรียนรู้</label><input
-                        type="text" id="p_department"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวประชาชน</label><input type="text" id="p_national_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">คำนำหน้า</label><input type="text" id="p_prefix" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">ชื่อ *</label><input type="text" id="p_first_name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">นามสกุล *</label><input type="text" id="p_last_name" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">ตำแหน่ง</label><input type="text" id="p_position" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">วิทยฐานะ</label><input type="text" id="p_academic" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มสาระการเรียนรู้</label><input type="text" id="p_department" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">ระดับสิทธิ์ในระบบ</label>
-                    <select id="p_role"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
+                    <select id="p_role" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
                         <option value="teacher">Teacher (ครูผู้สอน)</option>
                         <option value="admin">Admin (ผู้ดูแลระบบย่อย)</option>
                         <option value="super_admin">Super Admin (ผู้ดูแลสูงสุด)</option>
                     </select>
                 </div>
                 <div class="md:col-span-2 flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closePersonnelModal()"
-                        class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
-                    <button type="submit"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i
-                            class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
+                    <button type="button" onclick="closePersonnelModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="classroomModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <!-- 🌟 ขยายขนาด Modal เป็น max-w-4xl เพื่อให้พอสำหรับ 2 กล่อง -->
-        <div class="bg-white  rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
-            <button onclick="closeClassModal()"
-                class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors">
-                <i class="fa-solid fa-xmark text-2xl"></i>
-            </button>
-            <h3 id="modalClassTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i
-                    class="fa-solid fa-chalkboard text-blue-600 mr-2"></i>เพิ่มห้องเรียนใหม่</h3>
-
+    <!-- Classroom Modal -->
+    <div id="classroomModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
+            <button onclick="closeClassModal()" class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            <h3 id="modalClassTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i class="fa-solid fa-chalkboard text-blue-600 mr-2"></i>เพิ่มห้องเรียนใหม่</h3>
             <form id="classForm" onsubmit="saveClassroom(event)">
-                <!-- 🌟 ปรับเป็น Grid 2 คอลัมน์ (ซ้าย-ขวา) -->
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-
-                    <!-- 📦 กล่องซ้าย: ข้อมูลห้องเรียน -->
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ปีการศึกษา *</label>
-                                <input type="text" id="c_year" required placeholder="เช่น 2569"
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ภาคเรียน *</label>
-                                <select id="c_term" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
-                                    <option value="1">ภาคเรียนที่ 1</option>
-                                    <option value="2">ภาคเรียนที่ 2</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ระดับชั้น *</label>
-                                <select id="c_grade" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
-                                    <option value="1">มัธยมศึกษาปีที่ 1</option>
-                                    <option value="2">มัธยมศึกษาปีที่ 2</option>
-                                    <option value="3">มัธยมศึกษาปีที่ 3</option>
-                                    <option value="4">มัธยมศึกษาปีที่ 4</option>
-                                    <option value="5">มัธยมศึกษาปีที่ 5</option>
-                                    <option value="6">มัธยมศึกษาปีที่ 6</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ห้องที่ (1-15) *</label>
-                                <input type="number" id="c_room" min="1" max="20" required
-                                    class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                            </div>
+                            <div><label class="block text-sm font-bold text-gray-700 mb-1">ปีการศึกษา *</label><input type="text" id="c_year" required placeholder="เช่น 2569" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                            <div><label class="block text-sm font-bold text-gray-700 mb-1">ภาคเรียน *</label><select id="c_term" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white"><option value="1">ภาคเรียนที่ 1</option><option value="2">ภาคเรียนที่ 2</option></select></div>
+                            <div><label class="block text-sm font-bold text-gray-700 mb-1">ระดับชั้น *</label><select id="c_grade" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white"><option value="1">มัธยมศึกษาปีที่ 1</option><option value="2">มัธยมศึกษาปีที่ 2</option><option value="3">มัธยมศึกษาปีที่ 3</option><option value="4">มัธยมศึกษาปีที่ 4</option><option value="5">มัธยมศึกษาปีที่ 5</option><option value="6">มัธยมศึกษาปีที่ 6</option></select></div>
+                            <div><label class="block text-sm font-bold text-gray-700 mb-1">ห้องที่ (1-15) *</label><input type="number" id="c_room" min="1" max="20" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                         </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-1">แผนการเรียน (เฉพาะ
-                                ม.ปลาย)</label>
-                            <input type="text" id="c_plan" placeholder="เช่น วิทย์-คณิต"
-                                class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                        </div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">แผนการเรียน (เฉพาะ ม.ปลาย)</label><input type="text" id="c_plan" placeholder="เช่น วิทย์-คณิต" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                     </div>
-
-                    <!-- 📦 กล่องขวา: ครูที่ปรึกษา -->
                     <div class="p-5 bg-blue-50 rounded-xl border border-blue-100 flex flex-col h-full">
-                        <label class="block text-base font-bold text-blue-800 mb-4 border-b border-blue-200 pb-2"><i
-                                class="fa-solid fa-users mr-2"></i>ครูที่ปรึกษาประจำชั้น</label>
+                        <label class="block text-base font-bold text-blue-800 mb-4 border-b border-blue-200 pb-2"><i class="fa-solid fa-users mr-2"></i>ครูที่ปรึกษาประจำชั้น</label>
                         <div class="space-y-5 flex-1">
-                            <div>
-                                <label class="block text-sm font-bold text-blue-700 mb-1">ครูที่ปรึกษาคนที่ 1</label>
-                                <!-- เลือกให้กว้าง 100% ป้องกัน Select2 หดตัว -->
-                                <select id="c_adv1" style="width: 100%;"
-                                    class="border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
-                                    <option value="">-- ไม่ระบุครูที่ปรึกษาคนที่ 1 --</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label class="block text-sm font-bold text-blue-700 mb-1">ครูที่ปรึกษาคนที่ 2</label>
-                                <select id="c_adv2" style="width: 100%;"
-                                    class="border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
-                                    <option value="">-- ไม่ระบุครูที่ปรึกษาคนที่ 2 --</option>
-                                </select>
-                            </div>
+                            <div><label class="block text-sm font-bold text-blue-700 mb-1">ครูที่ปรึกษาคนที่ 1</label><select id="c_adv1" style="width: 100%;" class="border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white"><option value="">-- ไม่ระบุครูที่ปรึกษาคนที่ 1 --</option></select></div>
+                            <div><label class="block text-sm font-bold text-blue-700 mb-1">ครูที่ปรึกษาคนที่ 2</label><select id="c_adv2" style="width: 100%;" class="border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white"><option value="">-- ไม่ระบุครูที่ปรึกษาคนที่ 2 --</option></select></div>
                         </div>
                     </div>
-
                 </div>
-
-                <!-- ส่วนปุ่มบันทึก -->
                 <div class="flex justify-end gap-3 mt-8 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeClassModal()"
-                        class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
-                    <button type="submit"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i
-                            class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
+                    <button type="button" onclick="closeClassModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="studentDetailModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <!-- Student Detail Modal -->
+    <div id="studentDetailModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 relative shadow-2xl mx-4">
-            <button onclick="closeStudentModal()"
-                class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors">
-                <i class="fa-solid fa-xmark text-2xl"></i>
-            </button>
-            <h3 id="modalStudentTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3">
-                <i class="fa-solid fa-user-graduate text-blue-600 mr-2"></i>จัดการข้อมูลนักเรียน
-            </h3>
-            <form id="studentDetailForm" onsubmit="saveSingleStudent(event)"
-                class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <button onclick="closeStudentModal()" class="absolute top-5 right-5 text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
+            <h3 id="modalStudentTitle" class="text-xl font-bold mb-6 text-gray-800 border-b pb-3"><i class="fa-solid fa-user-graduate text-blue-600 mr-2"></i>จัดการข้อมูลนักเรียน</h3>
+            <form id="studentDetailForm" onsubmit="saveSingleStudent(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <input type="hidden" id="s_id">
-                <input type="hidden" id="s_id"> <!-- enrollment id -->
-                <input type="hidden" id="s_core_id"> <!-- student core id (UUID) -->
+                <input type="hidden" id="s_core_id">
                 <input type="hidden" id="s_avatar_url">
-
-                <!-- แสดงรูปโปรไฟล์และปุ่มอัปโหลด (เต็ม 2 คอลัมน์) -->
-                <div
-                    class="md:col-span-2 flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div id="student-avatar-preview"
-                        class="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-3xl shadow-sm">
-                        ?
-                    </div>
+                <div class="md:col-span-2 flex flex-col sm:flex-row items-center gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div id="student-avatar-preview" class="w-24 h-24 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500 font-bold text-3xl shadow-sm">?</div>
                     <div class="flex-1 space-y-2">
                         <div class="flex flex-wrap gap-2">
-                            <label
-                                class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer shadow-sm transition">
-                                <i class="fa-solid fa-upload mr-1"></i> เลือกรูป
-                                <input type="file" id="student-avatar-file" accept="image/*" class="hidden">
-                            </label>
-                            <button type="button" onclick="uploadStudentAvatarNow()"
-                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition">
-                                <i class="fa-solid fa-cloud-upload-alt"></i> อัปโหลดรูปทันที
-                            </button>
-                            <button type="button" onclick="clearStudentAvatar()"
-                                class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition">
-                                <i class="fa-solid fa-trash-alt"></i> ลบรูป
-                            </button>
+                            <label class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer shadow-sm transition"><i class="fa-solid fa-upload mr-1"></i> เลือกรูป<input type="file" id="student-avatar-file" accept="image/*" class="hidden"></label>
+                            <button type="button" onclick="uploadStudentAvatarNow()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition"><i class="fa-solid fa-cloud-upload-alt"></i> อัปโหลดรูปทันที</button>
+                            <button type="button" onclick="clearStudentAvatar()" class="bg-red-50 hover:bg-red-100 text-red-600 px-4 py-2 rounded-lg text-sm font-bold transition"><i class="fa-solid fa-trash-alt"></i> ลบรูป</button>
                         </div>
-                        <div id="student-avatar-badge"
-                            class="hidden text-xs text-amber-600 bg-amber-50 p-1.5 rounded-lg inline-block">
-                            <i class="fa-solid fa-image"></i> มีไฟล์รออัปโหลด (กด "อัปโหลดรูปทันที")
-                        </div>
+                        <div id="student-avatar-badge" class="hidden text-xs text-amber-600 bg-amber-50 p-1.5 rounded-lg inline-block"><i class="fa-solid fa-image"></i> มีไฟล์รออัปโหลด (กด "อัปโหลดรูปทันที")</div>
                         <p class="text-[11px] text-slate-400 mt-1">รองรับ .jpg, .png (จะถูกย่อเหลือ 600px)</p>
                     </div>
                 </div>
-
-                <!-- ฟิลด์อื่นๆ (คงเดิม) -->
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขที่</label><input type="number"
-                        id="s_number"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวนักเรียน *</label><input
-                        type="text" id="s_student_id" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div class="md:col-span-2"><label
-                        class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวประชาชน</label><input type="text"
-                        id="s_national_id"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขที่</label><input type="number" id="s_number" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวนักเรียน *</label><input type="text" id="s_student_id" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div class="md:col-span-2"><label class="block text-sm font-bold text-gray-700 mb-1">เลขประจำตัวประชาชน</label><input type="text" id="s_national_id" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700 mb-1">คำนำหน้า *</label>
-                    <select id="s_prefix" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
+                    <select id="s_prefix" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
                         <option value="เด็กชาย">เด็กชาย</option>
                         <option value="เด็กหญิง">เด็กหญิง</option>
                         <option value="นาย">นาย</option>
@@ -1144,159 +788,89 @@
                     </select>
                 </div>
                 <div></div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ชื่อ *</label><input type="text"
-                        id="s_fname" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">นามสกุล *</label><input type="text"
-                        id="s_lname" required
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500">
-                </div>
-
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">ชื่อ *</label><input type="text" id="s_fname" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
+                <div><label class="block text-sm font-bold text-gray-700 mb-1">นามสกุล *</label><input type="text" id="s_lname" required class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500"></div>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-bold text-gray-700 mb-1">สถานะ</label>
-                    <!-- ใหม่ -->
-                    <select id="s_status"
-                        class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
+                    <select id="s_status" class="w-full border border-gray-300 rounded-lg px-3 py-2 outline-none focus:border-blue-500 bg-white">
                         <option value="ปกติ">ปกติ</option>
                         <option value="พักการเรียน">พักการเรียน</option>
                         <option value="ลาออก">ลาออก</option>
                         <option value="ย้ายสถานศึกษา">ย้ายสถานศึกษา</option>
                     </select>
                 </div>
-
                 <div class="md:col-span-2 flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                    <button type="button" onclick="closeStudentModal()"
-                        class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
-                    <button type="submit"
-                        class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i
-                            class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
+                    <button type="button" onclick="closeStudentModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors"><i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
                 </div>
             </form>
         </div>
     </div>
 
-    <div id="moduleAdminModal"
-        class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white  rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
+    <!-- Module Admin Modal -->
+    <div id="moduleAdminModal" class="hidden fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div class="bg-emerald-600 text-white px-6 py-4 flex justify-between items-center">
-                <h2 class="text-xl font-bold flex items-center gap-2">
-                    <i class="fa-solid fa-user-shield"></i> กำหนดสิทธิ์ผู้ดูแลระบบย่อย (Module Admin)
-                </h2>
-                <button onclick="closeModuleAdminModal()" class="text-white hover:text-gray-200 transition-colors"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+                <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-user-shield"></i> กำหนดสิทธิ์ผู้ดูแลระบบย่อย (Module Admin)</h2>
+                <button onclick="closeModuleAdminModal()" class="text-white hover:text-gray-200 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1 bg-gray-50">
-                <div class="mb-4 text-lg font-bold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-3">
-                    <span class="text-emerald-600">บุคลากร:</span> <span id="ma_teacher_name">กำลังโหลด...</span>
-                </div>
-                <div class="text-sm text-gray-600 mb-4">
-                    เลือกเปิด-ปิดสิทธิ์ เพื่อมอบหมายให้บุคลากรท่านนี้เป็น "แอดมิน" ประจำระบบย่อยต่างๆ
-                    <br><span
-                        class="text-red-500 text-xs">*สิทธิ์นี้จะอนุญาตให้เข้าถึงหน้าจัดการส่วนหลังบ้านของระบบนั้นๆ
-                        ได้</span>
-                </div>
-                <div id="ma_modules_list" class="space-y-3">
-                </div>
+                <div class="mb-4 text-lg font-bold text-gray-800 flex items-center gap-2 border-b border-gray-200 pb-3"><span class="text-emerald-600">บุคลากร:</span> <span id="ma_teacher_name">กำลังโหลด...</span></div>
+                <div class="text-sm text-gray-600 mb-4">เลือกเปิด-ปิดสิทธิ์ เพื่อมอบหมายให้บุคลากรท่านนี้เป็น "แอดมิน" ประจำระบบย่อยต่างๆ<br><span class="text-red-500 text-xs">*สิทธิ์นี้จะอนุญาตให้เข้าถึงหน้าจัดการส่วนหลังบ้านของระบบนั้นๆ ได้</span></div>
+                <div id="ma_modules_list" class="space-y-3"></div>
             </div>
-            <div class="bg-gray-100 px-6 py-4 flex justify-end border-t border-gray-200">
-                <button onclick="closeModuleAdminModal()"
-                    class="px-6 py-2.5 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-lg shadow-sm transition-colors">ปิดหน้าต่าง</button>
-            </div>
+            <div class="bg-gray-100 px-6 py-4 flex justify-end border-t border-gray-200"><button onclick="closeModuleAdminModal()" class="px-6 py-2.5 bg-gray-500 hover:bg-gray-600 text-white font-bold rounded-lg shadow-sm transition-colors">ปิดหน้าต่าง</button></div>
         </div>
     </div>
 
+    <!-- Duplicates Modal -->
     <div id="modal-duplicates" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeDuplicateModal()"></div>
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-red-500 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users-slash"></i>
-                    ตรวจสอบนักเรียนซ้ำซ้อน</h3>
-                <button onclick="closeDuplicateModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-red-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users-slash"></i> ตรวจสอบนักเรียนซ้ำซ้อน</h3>
+                <button onclick="closeDuplicateModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50">
-                <div id="duplicate-content">กำลังตรวจสอบ...</div>
-            </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
-                <button onclick="closeDuplicateModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิดหน้าต่าง</button>
-            </div>
+            <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50"><div id="duplicate-content">กำลังตรวจสอบ...</div></div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end"><button onclick="closeDuplicateModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิดหน้าต่าง</button></div>
         </div>
     </div>
 
-    <!-- 🌟 Modal แต่งตั้งหัวหน้ากลุ่มสาระ -->
-    <div id="deptHeadModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <div class="bg-white  rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
+    <!-- Dept Head Modal -->
+    <div id="deptHeadModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+        <div class="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
             <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                <h3 class="text-xl font-bold text-gray-800 "><i
-                        class="fa-solid fa-crown text-yellow-500 mr-2"></i>ตั้งค่าหัวหน้ากลุ่มสาระการเรียนรู้</h3>
-                <button onclick="closeDeptHeadModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+                <h3 class="text-xl font-bold text-gray-800"><i class="fa-solid fa-crown text-yellow-500 mr-2"></i>ตั้งค่าหัวหน้ากลุ่มสาระการเรียนรู้</h3>
+                <button onclick="closeDeptHeadModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
                 <form id="deptHeadForm" onsubmit="saveDeptHeads(event)">
-                    <div id="dept_heads_container" class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <!-- รายชื่อกลุ่มสาระและ Dropdown จะถูกสร้างตรงนี้ด้วย JavaScript -->
-                    </div>
+                    <div id="dept_heads_container" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div>
                     <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100">
-                        <button type="button" onclick="closeDeptHeadModal()"
-                            class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
-                        <button type="submit"
-                            class="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-bold transition-colors"><i
-                                class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
+                        <button type="button" onclick="closeDeptHeadModal()" class="px-5 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-bold transition-colors">ยกเลิก</button>
+                        <button type="submit" class="px-5 py-2.5 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-bold transition-colors"><i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกข้อมูล</button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
 
-    <div id="gradeHeadModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <!-- Grade Head Modal -->
+    <div id="gradeHeadModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
-            <div
-                class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-purple-50 rounded-t-2xl">
-                <h3 class="text-xl font-bold text-purple-800"><i
-                        class="fa-solid fa-user-tie mr-2"></i>แต่งตั้งหัวหน้าระดับชั้น</h3>
-                <button onclick="closeGradeHeadModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-purple-50 rounded-t-2xl">
+                <h3 class="text-xl font-bold text-purple-800"><i class="fa-solid fa-user-tie mr-2"></i>แต่งตั้งหัวหน้าระดับชั้น</h3>
+                <button onclick="closeGradeHeadModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
                 <div class="flex flex-col sm:flex-row gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">เลือกคุณครู</label>
-                        <select id="modal_select_grade_head_user" class="w-full"></select>
-                    </div>
-                    <div class="w-full sm:w-1/4">
-                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">ระดับชั้น</label>
-                        <select id="modal_select_grade_level"
-                            class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold h-[38px]">
-                            <option value="1">ม.1</option>
-                            <option value="2">ม.2</option>
-                            <option value="3">ม.3</option>
-                            <option value="4">ม.4</option>
-                            <option value="5">ม.5</option>
-                            <option value="6">ม.6</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end">
-                        <button onclick="assignGradeHead()"
-                            class="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-purple-700 transition-all h-[38px]">เพิ่ม</button>
-                    </div>
+                    <div class="flex-1"><label class="block text-xs font-bold text-slate-500 mb-1 uppercase">เลือกคุณครู</label><select id="modal_select_grade_head_user" class="w-full"></select></div>
+                    <div class="w-full sm:w-1/4"><label class="block text-xs font-bold text-slate-500 mb-1 uppercase">ระดับชั้น</label><select id="modal_select_grade_level" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm font-bold h-[38px]"><option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option><option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option></select></div>
+                    <div class="flex items-end"><button onclick="assignGradeHead()" class="bg-purple-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-purple-700 transition-all h-[38px]">เพิ่ม</button></div>
                 </div>
                 <div class="border rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-100 text-slate-600 font-bold">
-                            <tr>
-                                <th class="p-3">ระดับชั้น</th>
-                                <th class="p-3">ชื่อ-นามสกุล</th>
-                                <th class="p-3 text-center">จัดการ</th>
-                            </tr>
-                        </thead>
+                        <thead class="bg-slate-100 text-slate-600 font-bold"><tr><th class="p-3">ระดับชั้น</th><th class="p-3">ชื่อ-นามสกุล</th><th class="p-3 text-center">จัดการ</th></tr></thead>
                         <tbody id="modal_list_grade_heads" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
@@ -1304,36 +878,21 @@
         </div>
     </div>
 
-    <div id="disciplineHeadModal"
-        class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <!-- Discipline Head Modal -->
+    <div id="disciplineHeadModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm transition-opacity">
         <div class="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl mx-4">
-            <div
-                class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-emerald-50 rounded-t-2xl">
-                <h3 class="text-xl font-bold text-emerald-800"><i
-                        class="fa-solid fa-shield-alt mr-2"></i>แต่งตั้งหัวหน้างานปกครอง</h3>
-                <button onclick="closeDisciplineHeadModal()"
-                    class="text-gray-400 hover:text-red-500 transition-colors"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-emerald-50 rounded-t-2xl">
+                <h3 class="text-xl font-bold text-emerald-800"><i class="fa-solid fa-shield-alt mr-2"></i>แต่งตั้งหัวหน้างานปกครอง</h3>
+                <button onclick="closeDisciplineHeadModal()" class="text-gray-400 hover:text-red-500 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
                 <div class="flex flex-col sm:flex-row gap-3 mb-6 bg-slate-50 p-4 rounded-2xl border border-slate-200">
-                    <div class="flex-1">
-                        <label class="block text-xs font-bold text-slate-500 mb-1 uppercase">เลือกคุณครู</label>
-                        <select id="modal_select_discipline_head_user" class="w-full"></select>
-                    </div>
-                    <div class="flex items-end">
-                        <button onclick="assignDisciplineHead()"
-                            class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-all h-[38px]">แต่งตั้ง</button>
-                    </div>
+                    <div class="flex-1"><label class="block text-xs font-bold text-slate-500 mb-1 uppercase">เลือกคุณครู</label><select id="modal_select_discipline_head_user" class="w-full"></select></div>
+                    <div class="flex items-end"><button onclick="assignDisciplineHead()" class="bg-emerald-600 text-white px-6 py-2 rounded-xl font-bold hover:bg-emerald-700 transition-all h-[38px]">แต่งตั้ง</button></div>
                 </div>
                 <div class="border rounded-2xl overflow-hidden shadow-sm">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-slate-100 text-slate-600 font-bold">
-                            <tr>
-                                <th class="p-3">ชื่อ-นามสกุล</th>
-                                <th class="p-3 text-center">จัดการ</th>
-                            </tr>
-                        </thead>
+                        <thead class="bg-slate-100 text-slate-600 font-bold"><tr><th class="p-3">ชื่อ-นามสกุล</th><th class="p-3 text-center">จัดการ</th></tr></thead>
                         <tbody id="modal_list_discipline_heads" class="divide-y divide-slate-100"></tbody>
                     </table>
                 </div>
@@ -1341,19 +900,30 @@
         </div>
     </div>
 
+    <!-- ================= Scripts ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
     <script src="calendar_manager.js"></script>
+    <script src="dashboard_ui.js"></script>
+
+    <script src="super_admin_core.js"></script>
+    <script src="super_admin_school.js"></script>
+    <script src="super_admin_personnel.js"></script>
+    <script src="super_admin_classroom.js"></script>
+    <script src="super_admin_portal.js"></script>
+
     <script>
-        // โหลดข้อมูล UI ของปฏิทิน
         async function loadCalendarAdminUI() {
             await loadCalendarConfigs();
             await loadPersonnelForSelects();
             await loadAllAdminLists();
             attachToggleEvents();
         }
-
         async function loadCalendarConfigs() {
             const configs = await getCalendarConfig();
-            configs.forEach(cfg => {
+            (configs || []).forEach(cfg => {
                 const chk = document.getElementById(`cfg_${cfg.dept_key}_active`);
                 if (chk) chk.checked = cfg.is_active;
                 if (cfg.dept_key === 'academic') {
@@ -1362,7 +932,6 @@
                 }
             });
         }
-
         async function loadPersonnelForSelects() {
             const { data } = await db.from('core_personnel').select('id, first_name, last_name').order('first_name');
             if (!data) return;
@@ -1372,26 +941,19 @@
                 if (sel) sel.innerHTML = '<option value="">-- เลือกบุคลากร --</option>' + options;
             });
         }
-
-        async function loadAllAdminLists() {
-            for (const dept of ['academic', 'budget', 'personnel', 'general']) {
-                await loadAdminList(dept);
-            }
-        }
-
+        async function loadAllAdminLists() { for (const dept of ['academic', 'budget', 'personnel', 'general']) await loadAdminList(dept); }
         async function loadAdminList(dept) {
             const admins = await getDeptAdmins(dept);
             const container = document.getElementById(`admin_list_${dept}`);
             if (!container) return;
             container.innerHTML = admins.map(a => `
-            <div class="flex justify-between items-center border-b py-1">
-                <span>${a.core_personnel?.first_name || ''} ${a.core_personnel?.last_name || ''}</span>
-                <button onclick="deleteDeptAdmin('${dept}','${a.user_id}')" class="text-red-500 text-xs hover:underline">ลบ</button>
-            </div>
-        `).join('');
+                <div class="flex justify-between items-center border-b py-1">
+                    <span>${a.core_personnel?.first_name || ''} ${a.core_personnel?.last_name || ''}</span>
+                    <button onclick="deleteDeptAdmin('${dept}','${a.user_id}')" class="text-red-500 text-xs hover:underline">ลบ</button>
+                </div>
+            `).join('');
             if (admins.length === 0) container.innerHTML = '<div class="text-gray-400 text-center text-xs">ยังไม่มีผู้ดูแล</div>';
         }
-
         async function assignDeptAdmin(dept) {
             const sel = document.getElementById(`admin_${dept}`);
             const userId = sel.value;
@@ -1401,14 +963,11 @@
             sel.value = '';
             Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มสำเร็จ', timer: 1500, showConfirmButton: false });
         }
-
         async function deleteDeptAdmin(dept, userId) {
-            // เรียกใช้ฟังก์ชันจาก calendar_manager.js โดยตรง (รับ userId, deptKey)
             await window.removeDeptAdmin(userId, dept);
             await loadAdminList(dept);
             Swal.fire({ toast: true, icon: 'info', title: 'ลบออกแล้ว', timer: 1500, showConfirmButton: false });
         }
-
         async function saveCalendarConfig(dept) {
             const isActive = document.getElementById(`cfg_${dept}_active`).checked;
             const updates = { is_active: isActive };
@@ -1420,7 +979,6 @@
             await updateCalendarConfig(dept, updates);
             Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเรียบร้อย', 'success');
         }
-
         function attachToggleEvents() {
             document.querySelectorAll('.toggle-cfg').forEach(chk => {
                 chk.removeEventListener('change', handleToggleChange);
@@ -1433,8 +991,6 @@
             await updateCalendarConfig(dept, { is_active: isActive });
             showToast('info', `กลุ่ม ${dept} ${isActive ? 'เปิดใช้งาน' : 'ปิดใช้งาน'} แล้ว`);
         }
-
-        // CRUD กิจกรรม
         let currentDeptForEvent = null;
         async function openEventModal(deptKey) {
             currentDeptForEvent = deptKey;
@@ -1447,7 +1003,6 @@
             document.getElementById('eventModalTitle').innerHTML = `<i class="fa-solid fa-calendar-plus mr-1"></i> เพิ่มกิจกรรม - ${getDeptName(deptKey)}`;
             document.getElementById('eventModal').classList.remove('hidden');
         }
-
         async function editEvent(eventId, deptKey, title, desc, startDate, endDate) {
             currentDeptForEvent = deptKey;
             document.getElementById('event_id').value = eventId;
@@ -1459,7 +1014,6 @@
             document.getElementById('eventModalTitle').innerHTML = `<i class="fa-solid fa-pen"></i> แก้ไขกิจกรรม - ${getDeptName(deptKey)}`;
             document.getElementById('eventModal').classList.remove('hidden');
         }
-
         async function saveEvent(e) {
             e.preventDefault();
             const deptKey = currentDeptForEvent;
@@ -1481,35 +1035,18 @@
                     Swal.fire({ toast: true, icon: 'success', title: 'เพิ่มกิจกรรมสำเร็จ', timer: 1500, showConfirmButton: false });
                 }
                 closeEventModal();
-                // รีเฟรชตารางกิจกรรมของกลุ่มนั้น (ถ้ามี)
                 if (typeof loadEventsTable === 'function') loadEventsTable(deptKey);
-            } catch (err) {
-                Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
-            }
+            } catch (err) { Swal.fire('เกิดข้อผิดพลาด', err.message, 'error'); }
         }
-
         function closeEventModal() {
             document.getElementById('eventModal').classList.add('hidden');
             document.getElementById('eventForm').reset();
         }
-
         function getDeptName(key) {
             const names = { academic: 'วิชาการ', budget: 'แผนงาน/งบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
             return names[key] || key;
         }
-
     </script>
-
-    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
-
-    <!-- <script src="super_admin.js"></script> -->
-
-    <!-- core ต้องมาก่อนเสมอ -->
-    <script src="super_admin_core.js"></script>
-    <script src="super_admin_school.js"></script>
-    <script src="super_admin_personnel.js"></script>
-    <script src="super_admin_classroom.js"></script>
-    <script src="super_admin_portal.js"></script>
 </body>
 
 </html>

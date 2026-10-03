@@ -67,48 +67,49 @@ async function initSystem() {
     Swal.fire({ title: 'ตรวจสอบข้อมูลส่วนกลาง...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        // ✅ ใช้ checkSessionAndRole จาก config.js (เพิ่ม director เข้าไปในรายการ role ที่อนุญาต)
+        // ✅ ใช้ checkSessionAndRole จาก config.js
         const result = await checkSessionAndRole('ระบบชุมนุม (ครู)', ALLOWED_ROLES);
         if (!result) return;
 
         const { user, personnel, role, isAdmin, isTeacher } = result;
         currentUser = personnel;
         userRole = role;
-        isAdminMode = isAdmin || isDirector(); // ⬅️ ผู้อำนวยการถือเป็น admin mode ด้วย
-        $('#user-display').text(`${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`);
+        isAdminMode = isAdmin || isDirector();
 
-        // ✅ ตรวจสอบ Module Admin ด้วย hasModuleAccess
+        // ✅ UI มาตรฐานจาก dashboard_ui.js (ใหม่)
+        setUserDisplayName(personnel);
+        updateUserRoleLabel(role);
+        renderUserAvatar(personnel);
+        // setTodayChip() และ restoreSidebarCollapse() ถูกเรียกโดย dashboard_ui.js เอง
+
+        // ✅ ตรวจสอบ Module Admin
         isModuleAdmin = await hasModuleAccess(role, MODULE_ID, user.id);
 
-        // ✅ Unhide ปุ่มก่อน เพื่อให้ updateToggleModeUI (config.js) ทำงานได้
-        if (isAdminMode || isModuleAdmin || isDirector()) {
-            document.getElementById('btnAdminMode')?.classList.remove('hidden');
-            document.getElementById('btnAdminMode')?.classList.add('flex');
-            document.getElementById('admin-settings-btn')?.classList.remove('hidden');
+        // ✅ โหลดข้อมูลพื้นฐาน
+        await fetchSchoolInfo();
+        await loadCategories();
+
+        // ✅ โหลดข้อมูลครูก่อน (สำหรับ Admin Settings)
+        if (isAdminMode || isModuleAdmin) {
             await loadAllTeachers();
         }
 
-        // ✅ อัปเดตปุ่มสลับโหมด (ต้องเรียกหลัง unhide เท่านั้น)
-        updateToggleModeUI(role, isAdminMode || isDirector(), 'btnAdminMode');
-
-        // ✅ ใช้ applyVisibilityByRole จาก config.js
-        applyVisibilityByRole(role, isAdminMode || isModuleAdmin || isDirector(), {
-            settingsBtn: 'admin-settings-btn',
-            toggleBtn: 'btnAdminMode',
-            adminManagerBtn: null
-        });
-
-        await fetchSchoolInfo();
-        await loadCategories();
+        // ✅ โหลดชุมนุมของครู
         await loadMyClub();
 
-        // ✅ บันทึก Log การเข้าใช้งาน
+        // ✅ อัปเดต sidebar nav (ใหม่)
+        updateSidebarNav();
+
+        // ✅ Log
         await logUserAction('เข้าสู่ระบบจัดการชุมนุม (ครู)', 'club');
 
         Swal.close();
     } catch (err) {
         console.error('Init error:', err);
         Swal.fire('Error', err.message, 'error').then(() => window.location.href = 'index.html');
+    } finally {
+        // ✅ สำคัญ: แสดงหน้าเว็บหลังโหลดเสร็จ
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     }
 }
 
@@ -133,7 +134,7 @@ async function loadAllTeachers() {
 // 2. Role Switcher (ใช้ config.js)
 // ==========================================
 window.toggleRoleView = () => {
-    // ✅ ตรวจสอบสิทธิ์: Admin หลัก / Module Admin / ผู้อำนวยการ เท่านั้นที่สลับได้
+    // ✅ ตรวจสอบสิทธิ์
     if (!checkAdmin() && !isModuleAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถสลับโหมดได้', 'error');
         return;
@@ -164,6 +165,7 @@ window.toggleRoleView = () => {
 
         loadAdminClubs();
         loadClubDashboardStats();
+        switchAdminTab('admin-tab-clubs'); // default tab
 
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ผู้ดูแลระบบ' });
     } else {
@@ -178,14 +180,12 @@ window.toggleRoleView = () => {
         Toast.fire({ icon: 'success', title: 'สลับเป็นโหมด ครูผู้สอน' });
     }
 
-    // ✅ trueAdminAccess = สิทธิ์จริงของผู้ใช้ (ไม่ขึ้นกับโหมดที่กำลังดูอยู่)
+    // ✅ อัปเดตปุ่มโหมด
     const trueAdminAccess = WRK_ROLES.ADMIN.includes(userRole) || isModuleAdmin || isDirector();
-
     updateToggleModeUI(userRole, isAdminMode, 'btnAdminMode');
-    applyVisibilityByRole(userRole, trueAdminAccess, {
-        settingsBtn: 'admin-settings-btn',
-        toggleBtn: 'btnAdminMode'
-    });
+
+    // ✅ อัปเดต sidebar nav (เพิ่มใหม่)
+    updateSidebarNav();
 };
 
 // ==========================================
@@ -199,6 +199,9 @@ window.switchAdminTab = (tabId) => {
     document.getElementById(tabId).classList.replace('hidden', 'block');
     document.getElementById(`btn-${tabId}`).className = "px-5 py-2.5 rounded-t-xl bg-purple-600 text-white font-bold transition-colors shadow-sm";
     if (tabId === 'admin-tab-students') loadAllStudentsReport();
+
+    // ✅ อัปเดต sidebar active state
+    updateSidebarNav();
 };
 
 // ==========================================
@@ -1981,5 +1984,115 @@ async function logout() {
     }
 }
 
+// ==========================================
+// 📌 Sidebar Navigation (เพิ่มใหม่)
+// ==========================================
+
+/**
+ * อัปเดต Sidebar nav ตามสถานะปัจจุบัน
+ */
+function updateSidebarNav() {
+    const $myClub = $('#nav-my-club');
+    const $manageClubs = $('#nav-manage-clubs');
+    const $checkStudents = $('#nav-check-students');
+    const $settings = $('#btn-settings');
+    const $adminBtn = $('#btnAdminMode');
+
+    // แสดง/ซ่อนตามสิทธิ์
+    if (hasAdminAccess()) {
+        $manageClubs.removeClass('hidden');
+        $checkStudents.removeClass('hidden');
+        $adminBtn.removeClass('hidden').addClass('flex');
+    } else {
+        $manageClubs.addClass('hidden');
+        $checkStudents.addClass('hidden');
+        $adminBtn.addClass('hidden').removeClass('flex');
+    }
+
+    // ตั้งค่า Settings button
+    if (checkAdmin()) {
+        $settings.removeClass('hidden');
+    }
+
+    // Active state
+    $myClub.removeClass('active');
+    $manageClubs.removeClass('active');
+    $checkStudents.removeClass('active');
+
+    if (currentMode === 'teacher') {
+        $myClub.addClass('active');
+    } else {
+        const activeTab = $('#admin-tab-clubs').hasClass('hidden') ? 'admin-tab-students' : 'admin-tab-clubs';
+        if (activeTab === 'admin-tab-clubs') {
+            $manageClubs.addClass('active');
+        } else {
+            $checkStudents.addClass('active');
+        }
+    }
+
+    // อัปเดต pageTitle
+    const titles = {
+        'teacher': 'ชุมนุมของฉัน',
+        'admin-clubs': 'จัดการชุมนุมทั้งหมด',
+        'admin-students': 'ตรวจสอบนักเรียน'
+    };
+    let titleKey = 'teacher';
+    if (currentMode === 'admin') {
+        titleKey = $('#admin-tab-clubs').hasClass('hidden') ? 'admin-students' : 'admin-clubs';
+    }
+    $('#pageTitle').html(`${titles[titleKey]} <span id="term-info" class="text-xs font-bold text-slate-400">${currentSchoolInfo ? `ปี ${currentSchoolInfo.current_academic_year} / เทอม ${currentSchoolInfo.current_semester}` : ''}</span>`);
+}
+
+/**
+ * เรียกจาก Sidebar link
+ * @param {string} view - 'teacher' | 'admin'
+ * @param {string} tab  - 'admin-tab-clubs' | 'admin-tab-students' (ถ้าเป็น admin)
+ */
+window.switchSidebarView = function (view, tab = null) {
+    // ต้องเป็น admin/module admin ถึงเข้า admin view ได้
+    if (view === 'admin' && !hasAdminAccess()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
+
+    const teacherView = document.getElementById('teacher-view');
+    const adminView = document.getElementById('admin-view');
+
+    if (view === 'teacher') {
+        currentMode = 'teacher';
+        isAdminMode = false;
+        teacherView.classList.replace('hidden', 'block');
+        adminView.classList.replace('block', 'hidden');
+        loadMyClub();
+        updateToggleModeUI(userRole, false, 'btnAdminMode');
+    } else {
+        currentMode = 'admin';
+        isAdminMode = true;
+        teacherView.classList.replace('block', 'hidden');
+        adminView.classList.replace('hidden', 'block');
+        loadAdminClubs();
+        loadClubDashboardStats();
+        updateToggleModeUI(userRole, true, 'btnAdminMode');
+
+        if (tab === 'admin-tab-students') {
+            switchAdminTab('admin-tab-students');
+        } else {
+            switchAdminTab('admin-tab-clubs');
+        }
+    }
+
+    // ปิด sidebar บนมือถือ
+    if (window.innerWidth < 761) toggleSidebar(false);
+
+    updateSidebarNav();
+};
+
+// ==========================================
+// Init UI มาตรฐาน (ใช้ dashboard_ui.js)
+// ==========================================
+// Note: dashboard_ui.js จะ call restoreSidebarCollapse, initDisplaySettings, setTodayChip
+// ให้อัตโนมัติเมื่อ DOMContentLoaded
+
 // ประกาศฟังก์ชัน global
 window.logout = logout;
+window.updateSidebarNav = updateSidebarNav;

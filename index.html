@@ -3,118 +3,33 @@
 
 <head>
     <title>WRK - ระบบบริหารจัดการสถานศึกษา</title>
+
+    <!-- Libraries + Config กลาง -->
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
+    <!-- CSS: utilities + dashboard -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
+    <!-- CSS เฉพาะ index: hero banner -->
     <style>
-        :root{--d-primary:#2588e8;--d-bg:#f5f8fc;--d-text:#26364a;--d-muted:#8492a6;--d-line:#e9eef5;--d-green:#24b47e;--d-shadow:0 4px 18px rgba(50,90,130,.07);--d-radius:14px}
-        body#mainBody{background:var(--d-bg);color:var(--d-text);font-size:14px}
-        .d-app{display:flex}
-        .d-sidebar{width:218px;background:#fff;border-right:1px solid var(--d-line);position:fixed;left:0;top:0;bottom:0;z-index:50;display:flex;flex-direction:column;transition:transform .2s,width .2s}
-        .d-brand{height:88px;display:flex;align-items:center;gap:10px;padding:12px 18px;border-bottom:1px solid #f0f3f7}
-        .d-logo{width:45px;height:55px;border-radius:10px;display:grid;place-items:center;background:linear-gradient(145deg,#eef7ff,#dcecff);flex-shrink:0}
-        .d-logo img{width:32px;height:32px;object-fit:contain}
-        .d-brand b{display:block;font-size:15px}.d-brand span{font-size:10px;color:var(--d-muted)}
-        .d-nav{padding:12px 10px;overflow:auto;flex:1}
-        .d-nav-title{font-size:10px;color:#9ba8b7;margin:14px 12px 7px}
-        .d-nav a{display:flex;align-items:center;gap:11px;padding:10px 12px;margin:3px 0;border-radius:9px;color:#526277;text-decoration:none;cursor:pointer}
-        .d-nav a:hover{background:#f1f7ff;color:var(--d-primary)}
-        .d-nav a.active{background:linear-gradient(90deg,#2d91ec,#4ba0ef);color:#fff;box-shadow:0 5px 12px #268be82a}
-        .d-nav a.hidden{display:none!important}
-        .d-nav a.logout{color:#e0505f}.d-nav a.logout:hover{background:#fff1f2;color:#dc2626}
-        .d-ico{width:21px;text-align:center;font-size:15px;flex-shrink:0}
-        .d-sidebar-bottom{padding:14px;color:#789;font-size:11px}
-
-        .d-fb-btn{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:10px;padding:8px 10px;background:linear-gradient(135deg,#1877f2,#0d65d9);color:#fff;border-radius:8px;text-decoration:none;font-size:11px;font-weight:600;transition:transform .18s ease, box-shadow .18s ease, background .18s ease;box-shadow:0 3px 8px rgba(24,119,242,.25)}
-        .d-fb-btn:hover{background:linear-gradient(135deg,#0d65d9,#0a56bd);transform:translateY(-1px);box-shadow:0 6px 14px rgba(24,119,242,.35);color:#fff;text-decoration:none}
-        .d-fb-btn i{font-size:14px}
-
-        .d-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:45}
-        .d-overlay.open{display:block}
-        .d-main{margin-left:218px;width:calc(100% - 218px);padding:0 18px 12px;display:flex;flex-direction:column;transition:margin-left .2s,width .2s}
-        .d-main{padding-bottom:0!important}
-        .d-topbar{height:64px;background:#fff;border-bottom:1px solid var(--d-line);display:flex;align-items:center;gap:14px;margin:0 -18px 14px;padding:0 20px;position:sticky;top:0;z-index:15}
-        .d-menu{display:none;border:0;background:none;font-size:22px;cursor:pointer}
-        .d-search{height:38px;border:1px solid var(--d-line);border-radius:22px;background:#f7faff;display:flex;align-items:center;padding:0 15px;flex:1;max-width:560px;color:#9aa7b6}
-        .d-search input{border:0;background:transparent;outline:0;width:100%;padding-left:8px;color:var(--d-text);font:inherit}
-        .d-search input:focus{box-shadow:none!important;border-color:transparent!important}
-        .d-search:focus-within{border-color:var(--d-primary);box-shadow:0 0 0 3px rgba(37,136,232,.12)}
-        @media(min-width:761px){#wrk-global-footer{left:218px!important;width:calc(100% - 218px)!important;transition:left .2s,width .2s}}
-        .d-spacer{flex:1}
-        .d-chip{border:1px solid var(--d-line);border-radius:20px;padding:9px 13px;background:#fff;color:#526277;white-space:nowrap}
-        .d-profile{display:flex;align-items:center;gap:9px}
-        .d-avatar{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;background:#dcecff;font-weight:700;color:#2679c9;overflow:hidden;position:relative}
-        .d-avatar img{width:100%;height:100%;object-fit:cover;display:block;position:absolute;inset:0}
-        .d-profile small{display:block;color:var(--d-muted);font-size:10px}
-
-        .d-hero{min-height:137px;border-radius:15px;overflow:hidden;position:relative;
+        .d-hero{
             background:
                 linear-gradient(90deg,#d9ecff 0%,#eaf4ff 45%,rgba(255,255,255,0) 70%),
                 url('hero-banner.webp') right center / auto 100% no-repeat;
-            box-shadow:var(--d-shadow);margin-bottom:12px}
-        .d-hero:before{content:none}
-        .d-hero-content{position:relative;padding:25px 30px}
-        .d-hero h1{margin:0 0 5px;font-size:22px;font-weight:700}.d-hero p{margin:0;color:#68798e}
-        .d-hero .quote{position:absolute;right:28px;top:42px;font-size:13px;font-style:italic;color:#35536e}
-
-        .d-grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
-        .d-stat{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);padding:13px 14px;display:flex;align-items:center;gap:12px;box-shadow:var(--d-shadow)}
-        .d-stat-icon{width:48px;height:48px;border-radius:13px;display:grid;place-items:center;font-size:20px;color:#fff}
-        .d-blue{background:linear-gradient(145deg,#2596f0,#5daaf3)}.d-violet{background:linear-gradient(145deg,#8b5eea,#ad83f3)}.d-green{background:linear-gradient(145deg,#27bb88,#62d6aa)}.d-gold{background:linear-gradient(145deg,#f3a51d,#ffc35e)}.d-rose{background:linear-gradient(145deg,#f43f5e,#fb7185)}
-        .d-stat h3{margin:0;font-size:23px;font-weight:700}.d-stat p{margin:0;color:#607188;font-size:12px}
-
-        .d-avatar-wrap{position:relative;display:inline-block}
-        .d-avatar-preview{position:absolute;top:calc(100% + 6px);right:0;width:160px;height:200px;max-width:none;border-radius:14px;object-fit:cover;background:#fff;box-shadow:0 12px 32px rgba(30,60,90,.22);border:3px solid #fff;opacity:0;transform:translateY(-6px) scale(.95);transition:opacity .22s ease, transform .22s ease;pointer-events:none;z-index:9999}
-        .d-avatar-wrap:hover .d-avatar-preview{opacity:1;transform:translateY(0) scale(1)}
-
-        /* ✅ Charts */
-        .d-charts{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
-        .d-chart-box{height:250px;position:relative}
-
-        .d-layout{display:grid;grid-template-columns:3fr 1fr 1fr;gap:10px;margin-bottom:12px}
-        .d-card{background:#fff;border:1px solid var(--d-line);border-radius:var(--d-radius);box-shadow:var(--d-shadow);padding:13px;min-width:0}
-        .d-card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
-        .d-card-title{font-weight:700}
-        .d-sub{font-size:10px;color:var(--d-muted)}
-        .d-select{border:1px solid var(--d-line);background:#fff;border-radius:8px;padding:5px 8px;color:#607188;font-size:12px}
-        .d-btn{background:#2d91ec;color:#fff;border:0;border-radius:8px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer}
-        .d-btn:hover{background:#2580d6}
-
-        .d-leave{border-left:4px solid;padding:10px 10px}
-        .d-leave .d-card-head{margin-bottom:6px}
-        .d-leave .d-card-title{font-size:13px}
-        #sick-leave-today ul,#sick-leave-week ul{max-height:190px!important;overflow-y:auto;padding-bottom:0!important;padding-right:4px}
-        #sick-leave-today li,#sick-leave-week li{flex-wrap:wrap;row-gap:2px;font-size:12px}
-        #sick-leave-today li>span,#sick-leave-week li>span{min-width:0}
-        #sick-leave-today li span[class*="rounded-full"],#sick-leave-week li span[class*="rounded-full"]{max-width:100%;line-height:1.35;white-space:normal}
-
-        #totalStudentsLabel{display:inline-block;margin-left:6px;padding:2px 8px;background:#eaf4ff;color:#2588e8;border-radius:20px;font-size:11px;font-weight:600;}
-        .d-calendar-box{max-height:230px;overflow:auto;}
-
-        .d-collapse{display:none;border:0;background:none;font-size:17px;cursor:pointer;color:#526277;padding:7px 9px;border-radius:8px;transition:background .2s,color .2s;align-items:center;justify-content:center}
-        .d-collapse:hover{background:#f1f7ff;color:var(--d-primary)}
-        @media(min-width:761px){.d-collapse{display:inline-flex}}
-
-        @media(min-width:761px){
-            .d-sidebar.collapsed{width:68px}
-            .d-sidebar.collapsed .d-brand{justify-content:center;padding:12px 8px}
-            .d-sidebar.collapsed .d-brand > div:last-child{display:none}
-            .d-sidebar.collapsed .d-nav{padding:12px 8px}
-            .d-sidebar.collapsed .d-nav-title{display:none}
-            .d-sidebar.collapsed .d-nav a{justify-content:center;padding:10px 0;gap:0}
-            .d-sidebar.collapsed .d-nav a .d-label{display:none}
-            .d-sidebar.collapsed .d-ico{width:auto}
-            .d-sidebar.collapsed .d-sidebar-bottom{display:none}
-            .d-main.collapsed{margin-left:68px;width:calc(100% - 68px)}
-            body.sb-collapsed #wrk-global-footer{left:68px!important;width:calc(100% - 68px)!important}
         }
-
-        @media(max-width:1400px){.d-layout{grid-template-columns:2.5fr 1fr 1fr}}
-        @media(max-width:1100px){.d-grid4{grid-template-columns:repeat(2,1fr)}.d-layout{grid-template-columns:1fr 1fr}.d-layout .wide{grid-column:1/-1}.d-charts{grid-template-columns:1fr}}
-        @media(max-width:760px){.d-sidebar{transform:translateX(-100%)}.d-sidebar.open{transform:translateX(0)}.d-main{margin-left:0;width:100%;padding:0 10px}.d-topbar{margin:0 -10px 10px;padding:0 12px}.d-menu{display:block}.d-search{max-width:none}.d-chip,.d-profile>div:nth-child(2){display:none}.d-hero .quote{display:none}.d-grid4,.d-layout,.d-charts{grid-template-columns:1fr}.d-layout .wide{grid-column:auto}}
+        #totalStudentsLabel{
+            display:inline-block;
+            margin-left:6px;
+            padding:2px 8px;
+            background:#eaf4ff;
+            color:#2588e8;
+            border-radius:20px;
+            font-size:11px;
+            font-weight:600;
+        }
     </style>
-
 </head>
 
 <body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
@@ -290,405 +205,45 @@
         </div>
     </div>
 
+    <!-- Libraries -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Module scripts (ที่ index ต้องใช้) -->
     <script src="leave_dashboard.js"></script>
     <script src="calendar_manager.js"></script>
+
+    <!-- ✅ ไฟล์กลาง -->
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_charts.js"></script>
+    <script src="dashboard_widgets.js"></script>
+
+    <!-- =======================================================
+         Script เฉพาะ index.html
+         ======================================================= -->
     <script>
-        // =======================================================
-        // ✅ ตั้งค่าชื่อตาราง/ฟิลด์ (ปรับตาม DB จริง)
-        // =======================================================
+        // ====== ตั้งค่าชื่อตาราง/ฟิลด์ ======
         const STUDENTS_TABLE = 'core_students';
         const PERSONNEL_TABLE = 'core_personnel';
-        const STUDENT_LEVEL_FIELD = 'grade_level';
-        const PERSONNEL_GROUP_FIELD = 'department';
-
-        // ✅ ปีการศึกษา/ภาคเรียน/สถานะ ปัจจุบัน
-        const CURRENT_ACADEMIC_YEAR = '2569';
-        const CURRENT_SEMESTER = '1';
         const ENROLLMENT_STATUS = 'ปกติ';
 
-        // =======================================================
-        // ✅ จำแนกบุคลากรตามประเภท (ใช้ position จาก DB)
-        // =======================================================
-        function personnelCategory(person) {
-            const pos = (person.position || '').trim();
+        // ✅ ปีการศึกษา/เทอม จาก core_school_info (โหลดตอน checkAuth)
+        let CURRENT_ACADEMIC_YEAR = '';
+        let CURRENT_SEMESTER = '';
 
-            // 1. ฝ่ายบริหาร
-            if (pos === 'ผู้อำนวยการสถานศึกษา' || pos === 'รองผู้อำนวยการสถานศึกษา') {
-                return 'ฝ่ายบริหาร';
-            }
-
-            // 2. ข้าราชการครู (position = "ครู")
-            if (pos === 'ครู') {
-                return 'ข้าราชการครู';
-            }
-
-            // 3. พนักงานราชการ / ครูอัตราจ้าง / ครูพี่เลี้ยง
-            if (pos === 'พนักงานราชการ'
-                || pos === 'ครูอัตราจ้าง'
-                || pos.startsWith('ครูพี่เลี้ยง')) {
-                return 'พนักงานราชการ/อัตราจ้าง';
-            }
-
-            // 4. เจ้าหน้าที่สำนักงาน
-            if (pos === 'เจ้าหน้าที่สำนักงาน') {
-                return 'เจ้าหน้าที่สำนักงาน';
-            }
-
-            // 5. ลูกจ้าง / พนักงานบริการ / รปภ. / ขับรถ
-            if (pos === 'พนักงานบริการ'
-                || pos === 'พนักงานขับรถยนต์'
-                || pos === 'พนักงานรักษาความปลอดภัย'
-                || pos === 'ลูกจ้าง') {
-                return 'ลูกจ้าง/พนักงานบริการ';
-            }
-
-            return 'อื่นๆ';
-        }
-
-        // =======================================================
-        // ส่วนแสดงปฏิทินกิจกรรม
-        // =======================================================
-        function setStat(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
-        function toggleSidebar(force) {
-            const sb = document.getElementById('dSidebar'), ov = document.getElementById('dOverlay');
-            const open = typeof force === 'boolean' ? force : !sb.classList.contains('open');
-            sb.classList.toggle('open', open); ov.classList.toggle('open', open);
-        }
-
-        // ================= ปุ่มย่อ/ขยาย Sidebar =================
-        function applySidebarCollapsed(collapsed) {
-            const sb = document.getElementById('dSidebar');
-            const main = document.getElementById('dMain');
-            const btn = document.getElementById('collapseBtn');
-            if (!sb || !main) return;
-            sb.classList.toggle('collapsed', collapsed);
-            main.classList.toggle('collapsed', collapsed);
-            document.body.classList.toggle('sb-collapsed', collapsed);
-            if (btn) {
-                const i = btn.querySelector('i');
-                if (i) i.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
-                btn.title = collapsed ? 'ขยายเมนู' : 'ย่อเมนู';
-            }
-        }
-
-        function toggleSidebarCollapse() {
-            const sb = document.getElementById('dSidebar');
-            const next = !sb.classList.contains('collapsed');
-            applySidebarCollapsed(next);
-            try { localStorage.setItem('cp_sidebar_collapsed', next ? '1' : '0'); } catch (e) {}
-        }
-
-        function restoreSidebarCollapse() {
-            let saved = '0';
-            try { saved = localStorage.getItem('cp_sidebar_collapsed') || '0'; } catch (e) {}
-            if (window.innerWidth > 760 && saved === '1') {
-                applySidebarCollapsed(true);
-            }
-        }
-
-        // =======================================================
-        const CATEGORY_NAMES = { academic: 'บริหารวิชาการ', budget: 'บริหารงบประมาณ', personnel: 'บริหารงานบุคคล', general: 'บริหารทั่วไป' };
-
-        let currentYear = new Date().getFullYear() + 543;
-        let currentMonth = new Date().getMonth();
-
-        function populateYearSelect() {
-            const yearSelect = document.getElementById('yearSelect');
-            if (!yearSelect) return;
-            const startYear = 2569;
-            const endYear = 2572;
-            yearSelect.innerHTML = '';
-            for (let y = startYear; y <= endYear; y++) {
-                const option = document.createElement('option');
-                option.value = y;
-                option.textContent = y;
-                if (y === currentYear) option.selected = true;
-                yearSelect.appendChild(option);
-            }
-        }
-
-        async function loadEventsByMonth() {
-            const year = parseInt(document.getElementById('yearSelect').value);
-            const month = parseInt(document.getElementById('monthSelect').value);
-            if (isNaN(year) || isNaN(month)) return;
-
-            const tbody = document.getElementById('calendarEventsTableBody');
-            if (!tbody) return;
-
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</td></tr>';
-
-            try {
-                const events = await getEventsByMonthYear(year, month);
-                setStat('statEvents', events.length);
-
-                if (!events.length) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-gray-500">ไม่มีกิจกรรมในเดือนนี้</td></tr>';
-                    return;
-                }
-
-                const deptNames = {
-                    academic: 'วิชาการ',
-                    budget: 'แผนงานและงบประมาณ',
-                    personnel: 'บริหารงานบุคคล',
-                    general: 'บริหารทั่วไป'
-                };
-
-                tbody.innerHTML = events.map(ev => {
-                    let startDate = new Date(ev.start_date);
-                    return `
-                        <tr class="border-b border-gray-100 hover:bg-gray-50 transition">
-                            <td class="py-3 px-4 whitespace-nowrap">${formatThaiDate(startDate)}</td>
-                            <td class="py-3 px-4"><span class="px-2 py-1 text-xs rounded-full whitespace-nowrap ${getDeptColorClass(ev.dept_key)}">${deptNames[ev.dept_key] || ev.dept_key}</span></td>
-                            <td class="py-3 px-4 font-medium text-gray-800">${escapeHtml(ev.title)}</td>
-                            <td class="py-3 px-4 text-gray-600">${DOMPurify ? DOMPurify.sanitize(ev.description || '-') : (ev.description || '-')}</td>
-                        </tr>
-                    `;
-                }).join('');
-            } catch (err) {
-                console.error(err);
-                setStat('statEvents', '-');
-                tbody.innerHTML = '<tr><td colspan="4" class="text-center py-8 text-red-500">ไม่สามารถโหลดข้อมูลได้</td></tr>';
-            }
-        }
-
-        function formatThaiDate(date) {
-            if (!date || isNaN(date.getTime())) return '-';
-            const day = date.getDate();
-            const monthNames = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-            const month = monthNames[date.getMonth()];
-            const year = date.getFullYear() + 543;
-            return `${day} ${month} ${year}`;
-        }
-
-        function getDeptColorClass(dept) {
-            const colors = {
-                academic: 'bg-blue-100 text-blue-700',
-                budget: 'bg-green-100 text-green-700',
-                personnel: 'bg-purple-100 text-purple-700',
-                general: 'bg-orange-100 text-orange-700'
-            };
-            return colors[dept] || 'bg-gray-100 text-gray-700';
-        }
-
-        function escapeHtml(str) {
-            if (!str) return '';
-            return str.replace(/[&<>]/g, function (m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        // =======================================================
-        // ✅ Dashboard Charts
-        // =======================================================
-        let chartInstances = {};
-
-        // ✅ กราฟแท่งแนวตั้ง — รองรับทั้งสีเดียวและหลายสี
-        function renderBarChart(canvasId, labels, data, label, color) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-            if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-            chartInstances[canvasId] = new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: label,
-                        data: data,
-                        backgroundColor: color,   // string OR array
-                        borderRadius: 6,
-                        maxBarThickness: 46
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(30,50,80,.92)',
-                            padding: 10,
-                            cornerRadius: 8,
-                            callbacks: { label: (c) => `${label}: ${c.parsed.y.toLocaleString()}` }
-                        }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { precision: 0, color: '#8492a6' }, grid: { color: '#eef2f7' } },
-                        x: { ticks: { color: '#607188' }, grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        // ✅ กราฟแท่งแนวนอน — รองรับหลายสี
-        function renderHorizontalBarChart(canvasId, labels, data, label, color) {
-            const canvas = document.getElementById(canvasId);
-            if (!canvas) return;
-            if (chartInstances[canvasId]) chartInstances[canvasId].destroy();
-            chartInstances[canvasId] = new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: label,
-                        data: data,
-                        backgroundColor: color,   // string OR array
-                        borderRadius: 6,
-                        maxBarThickness: 26
-                    }]
-                },
-                options: {
-                    indexAxis: 'y',                 // ← แนวนอน
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            backgroundColor: 'rgba(30,50,80,.92)',
-                            padding: 10,
-                            cornerRadius: 8,
-                            callbacks: { label: (c) => `${label}: ${c.parsed.x.toLocaleString()}` }
-                        }
-                    },
-                    scales: {
-                        x: { beginAtZero: true, ticks: { precision: 0, color: '#8492a6' }, grid: { color: '#eef2f7' } },
-                        y: { ticks: { color: '#607188', font: { size: 12 } }, grid: { display: false } }
-                    }
-                }
-            });
-        }
-
-        function gradeLevelToLabel(lv) {
-            if (lv === null || lv === undefined || lv === '') return 'ไม่ระบุ';
-            const n = parseInt(lv, 10);
-            if (isNaN(n)) return String(lv);
-            return `ม.${n}`;
-        }
-
-        async function loadDashboardStats() {
-            try {
-                // ============ จำนวนนักเรียนทั้งหมด ============
-                const { count: studentCount, error: sErr } = await db
-                    .from('student_enrollments')
-                    .select('student_id', { count: 'exact', head: true })
-                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
-                    .eq('semester', CURRENT_SEMESTER)
-                    .eq('status', ENROLLMENT_STATUS);
-                if (!sErr) setStat('statStudents', (studentCount ?? 0).toLocaleString());
-                else console.warn('students count err:', sErr.message);
-
-                // ============ จำนวนบุคลากรทั้งหมด ============
-                const { count: personnelCount, error: pErr } = await db
-                    .from(PERSONNEL_TABLE)
-                    .select('*', { count: 'exact', head: true })
-                    .or('is_deleted.is.null,is_deleted.eq.false');
-                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
-                else console.warn('personnel count err:', pErr.message);
-
-                // ============ กราฟนักเรียนตามระดับชั้น ============
-                const { data: enrollments, error: sLevelErr } = await db
-                    .from('student_enrollments')
-                    .select(`
-                        student_id,
-                        core_classrooms ( grade_level )
-                    `)
-                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
-                    .eq('semester', CURRENT_SEMESTER)
-                    .eq('status', ENROLLMENT_STATUS);
-
-                if (!sLevelErr && enrollments) {
-                    const buckets = {};
-                    enrollments.forEach(e => {
-                        const lv = e.core_classrooms?.grade_level;
-                        const label = gradeLevelToLabel(lv);
-                        buckets[label] = (buckets[label] || 0) + 1;
-                    });
-                    const labels = Object.keys(buckets).sort((a, b) => {
-                        const na = parseInt(a.replace(/\D/g, ''), 10) || 0;
-                        const nb = parseInt(b.replace(/\D/g, ''), 10) || 0;
-                        return na - nb;
-                    });
-                    const values = labels.map(k => buckets[k]);
-
-                    // ✅ คำนวณยอดรวม และแสดงในหัวข้อ
-                    const totalStudents = values.reduce((sum, v) => sum + v, 0);
-                    const totalLabel = document.getElementById('totalStudentsLabel');
-                    if (totalLabel) {
-                        totalLabel.textContent = `(ทั้งหมด ${totalStudents.toLocaleString()} คน)`;
-                    }
-
-                    // ✅ สีต่างกันชัดเจนแต่ละระดับชั้น (ม.1–ม.6)
-                    const STUDENT_COLORS = [
-                        '#2588e8', '#24b47e', '#f3a51d', '#8b5eea', '#f43f5e', '#06b6d4'
-                    ];
-                    const colors = labels.map((_, i) => STUDENT_COLORS[i % STUDENT_COLORS.length]);
-
-                    renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
-                } else if (sLevelErr) {
-                    console.warn('students level err:', sLevelErr.message);
-                    renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
-                }
-
-                // ============ กราฟบุคลากรตามกลุ่มบริหารงาน (จัดกลุ่ม 4+1) ============
-                // ============ กราฟบุคลากรจำแนกตามประเภท ============
-                const { data: personnel, error: pGroupErr } = await db
-                    .from(PERSONNEL_TABLE)
-                    .select('position')
-                    .or('is_deleted.is.null,is_deleted.eq.false');
-
-                if (!pGroupErr && personnel) {
-                    const buckets = {};
-                    personnel.forEach(p => {
-                        const group = personnelCategory(p);
-                        buckets[group] = (buckets[group] || 0) + 1;
-                    });
-
-                    // ✅ ลำดับแท่ง
-                    const ORDER = [
-                        'ฝ่ายบริหาร',
-                        'ข้าราชการครู',
-                        'พนักงานราชการ/อัตราจ้าง',
-                        'เจ้าหน้าที่สำนักงาน',
-                        'ลูกจ้าง/พนักงานบริการ',
-                        'อื่นๆ'
-                    ];
-                    const labels = ORDER.filter(k => buckets[k] !== undefined);
-                    const values = labels.map(k => buckets[k]);
-
-                    // ✅ สีต่างกันแต่ละกลุ่ม
-                    const GROUP_COLORS = {
-                        'ฝ่ายบริหาร': '#8b5eea',                    // ม่วง
-                        'ข้าราชการครู': '#2588e8',                   // ฟ้า
-                        'พนักงานราชการ/อัตราจ้าง': '#24b47e',         // เขียว
-                        'เจ้าหน้าที่สำนักงาน': '#f3a51d',              // ทอง
-                        'ลูกจ้าง/พนักงานบริการ': '#f43f5e',            // แดง/ชมพู
-                        'อื่นๆ': '#94a3b8'                            // เทา
-                    };
-                    const colors = labels.map(k => GROUP_COLORS[k] || '#94a3b8');
-
-                    // ✅ เรียกแนวนอน
-                    renderHorizontalBarChart('chartPersonnelByGroup', labels, values, 'บุคลากร (คน)', colors);
-                } else if (pGroupErr) {
-                    console.warn('personnel group err:', pGroupErr.message);
-                    renderBarChart('chartPersonnelByGroup', ['ไม่สามารถโหลดข้อมูล'], [0], 'บุคลากร (คน)', '#cbd5e1');
-                }
-            } catch (err) {
-                console.error('loadDashboardStats error:', err);
-            }
-        }
-
-        // =======================================================
-        // ส่วนหลักของระบบ
-        // =======================================================
+        // ====== State ======
         let currentUser = null;
         let activeModules = [];
         let userAdminModules = [];
         let currentCategory = 'academic';
         let currentView = 'home';
+
+        const CATEGORY_NAMES = {
+            academic:  'บริหารวิชาการ',
+            budget:    'บริหารงบประมาณ',
+            personnel: 'บริหารงานบุคคล',
+            general:   'บริหารทั่วไป'
+        };
 
         const ALL_APPS = [
             { id: 'guidance_teacher', category: 'academic', moduleId: 'guidance', title: 'ปพ.5 กิจกรรมแนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ', icon: 'fa-solid fa-compass', url: 'guidance_teacher.html', reqAdmin: false },
@@ -700,6 +255,28 @@
             { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
         ];
 
+        // ====== จำแนกประเภทบุคลากร ======
+        function personnelCategory(person) {
+            const pos = (person.position || '').trim();
+            if (pos === 'ผู้อำนวยการสถานศึกษา' || pos === 'รองผู้อำนวยการสถานศึกษา') return 'ฝ่ายบริหาร';
+            if (pos === 'ครู') return 'ข้าราชการครู';
+            if (pos === 'พนักงานราชการ' || pos === 'ครูอัตราจ้าง' || pos.startsWith('ครูพี่เลี้ยง')) return 'พนักงานราชการ/อัตราจ้าง';
+            if (pos === 'เจ้าหน้าที่สำนักงาน') return 'เจ้าหน้าที่สำนักงาน';
+            if (pos === 'พนักงานบริการ' || pos === 'พนักงานขับรถยนต์' || pos === 'พนักงานรักษาความปลอดภัย' || pos === 'ลูกจ้าง') return 'ลูกจ้าง/พนักงานบริการ';
+            return 'อื่นๆ';
+        }
+
+        // ====== แปลง grade_level → ชื่อชั้น ======
+        function gradeLevelToLabel(lv) {
+            if (lv === null || lv === undefined || lv === '') return 'ไม่ระบุ';
+            const n = parseInt(lv, 10);
+            if (isNaN(n)) return String(lv);
+            return `ม.${n}`;
+        }
+
+        // =======================================================
+        // Init
+        // =======================================================
         window.onload = async () => {
             await checkAuth();
             restoreSidebarCollapse();
@@ -709,17 +286,18 @@
         async function checkAuth() {
             const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
             if (!result) return;
-
             currentUser = result.personnel;
 
             document.getElementById('portalView').classList.remove('hidden');
 
+            // โหลด module admins
             const { data: moduleAdmins } = await db
                 .from('core_module_admins')
                 .select('module_id')
                 .eq('user_id', result.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
+            // โหลด module overrides
             const { data: allCustomModules } = await db
                 .from('core_system_modules')
                 .select('*')
@@ -742,79 +320,34 @@
             await checkCalendarAdminAccess();
             await loadSickLeaveWidget();
 
-            // ✅ นับจำนวนระบบทั้งหมด
             updateTotalAppStat();
 
-            // ✅ โหลดแดชบอร์ด
+            // ✅ โหลดปีการศึกษา/เทอม จากส่วนกลางก่อน แล้วค่อยดึงแดชบอร์ด
+            await loadSchoolSettings();
             loadDashboardStats();
+
+            initDashboardWidgets();
 
             switchToHome();
         }
 
-        function handleLogout() {
-            Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626' })
-                .then(async (result) => {
-                    if (result.isConfirmed) {
-                        localStorage.removeItem('activeMode');
-                        await db.auth.signOut();
-                        window.location.replace('login.html');
-                    }
-                });
-        }
-
+        // =======================================================
+        // UI: ต่อยอดจาก dashboard_ui.js
+        // =======================================================
         function updateUI() {
             if (!currentUser) return;
-            document.getElementById('userName').innerText = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-            const roleTextMap = {
-                super_admin: 'ผู้ดูแลสูงสุด (Super Admin)',
-                admin: 'ผู้ดูแลระบบย่อย (Admin)',
-                director: 'ผู้อำนวยการ',
-                deputy: 'รองผู้อำนวยการ',
-                teacher: 'ครูผู้สอน (Teacher)',
-                staff: 'เจ้าหน้าที่ (Staff)',
-                office: 'เจ้าหน้าที่สำนักงาน (Office)',
-            };
-            const roleText = roleTextMap[currentUser.role] || currentUser.role;
 
+            // ✅ จากไฟล์กลาง
+            setUserDisplayName(currentUser);
+            updateUserRoleLabel(currentUser.role);
+            renderUserAvatar(currentUser);
+
+            // ✅ เฉพาะ index: ซ่อน/แสดงปุ่ม admin
             const isSuperAdmin = currentUser.role === 'super_admin';
             document.getElementById('btnSuperAdmin').classList.toggle('hidden', !isSuperAdmin);
 
             const canSeeHelpdesk = WRK_ROLES.SETTINGS.includes(currentUser.role);
             document.getElementById('adminHelpdeskBtn').classList.toggle('hidden', !canSeeHelpdesk);
-
-            document.getElementById('userRole').innerText = roleText;
-
-            const avatarImg = document.getElementById('userAvatarImg');
-            const avatarInitial = document.getElementById('userAvatarInitial');
-
-            const avatarUrl = currentUser.avatar_url
-                        || currentUser.profile_image
-                        || currentUser.photo_url
-                        || currentUser.image_url
-                        || currentUser.picture
-                        || currentUser.avatar
-                        || '';
-
-            if (avatarUrl) {
-                avatarImg.src = avatarUrl;
-                avatarImg.alt = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim();
-                avatarImg.style.display = 'block';
-                avatarInitial.style.display = 'none';
-                avatarImg.onerror = () => {
-                    avatarImg.style.display = 'none';
-                    avatarInitial.style.display = 'block';
-                };
-
-                const avatarPreview = document.getElementById('userAvatarPreview');
-                if (avatarPreview) {
-                    avatarPreview.src = avatarUrl;
-                    avatarPreview.style.display = 'block';
-                }
-            } else {
-                avatarImg.style.display = 'none';
-                avatarInitial.style.display = 'block';
-                avatarInitial.innerText = (currentUser.first_name || '?').charAt(0);
-            }
         }
 
         async function checkCalendarAdminAccess() {
@@ -838,7 +371,6 @@
             }
         }
 
-        // ================= นับจำนวนระบบทั้งหมด =================
         function updateTotalAppStat() {
             const overrides = window.moduleOverrides || {};
             let count = 0;
@@ -853,6 +385,9 @@
             setStat('statTotal', count);
         }
 
+        // =======================================================
+        // View Switching: Home ↔ Modules
+        // =======================================================
         function switchToHome() {
             currentView = 'home';
 
@@ -903,6 +438,9 @@
             if (currentUser) renderAppCards();
         }
 
+        // =======================================================
+        // Module Cards
+        // =======================================================
         function getLockInfo(app) {
             if (!app.isActive) return true;
             if (app.reqAdmin) return !((currentUser.role === 'super_admin') || userAdminModules.includes(app.moduleId));
@@ -941,7 +479,7 @@
 
             Object.values(overrides).forEach(mod => {
                 if (ALL_APPS.some(app => app.moduleId === mod.module_id)) return;
-                const newApp = {
+                appsToDisplay.push({
                     id: mod.module_id,
                     category: mod.category || 'general',
                     moduleId: mod.module_id,
@@ -955,8 +493,7 @@
                     reqAdmin: false,
                     reqSuperAdmin: false,
                     target_blank: mod.target_blank || false
-                };
-                appsToDisplay.push(newApp);
+                });
             });
 
             const q = ((document.getElementById('appSearch') || {}).value || '').trim().toLowerCase();
@@ -984,7 +521,7 @@
                 }
 
                 const card = document.createElement('div');
-                card.className = `app-card glass-panel rounded-2xl p-6 border ${isLocked ? 'locked border-gray-200 bg-gray-50' : 'border-gray-200 bg-white hover:border-blue-300 cursor-pointer'} flex flex-col h-full`;
+                card.className = `app-card rounded-2xl p-6 border ${isLocked ? 'locked border-gray-200 bg-gray-50' : 'border-gray-200 bg-white hover:border-blue-300 cursor-pointer'} flex flex-col h-full`;
                 if (isLocked) {
                     card.onclick = () => Swal.fire('ไม่สามารถเข้าใช้งานได้', lockReason, 'warning');
                 } else {
@@ -997,12 +534,10 @@
                     };
                 }
 
-                let badgeHtml = '';
-                if (isLocked) {
-                    badgeHtml = `<span class="px-2.5 py-1 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full border border-gray-300 flex items-center gap-1"><i class="fa-solid fa-lock"></i> ${lockReason}</span>`;
-                } else {
-                    badgeHtml = `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-200 flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> เปิดใช้งาน</span>`;
-                }
+                let badgeHtml = isLocked
+                    ? `<span class="px-2.5 py-1 bg-gray-200 text-gray-600 text-[10px] font-bold rounded-full border border-gray-300 flex items-center gap-1"><i class="fa-solid fa-lock"></i> ${lockReason}</span>`
+                    : `<span class="px-2.5 py-1 bg-green-50 text-green-600 text-[10px] font-bold rounded-full border border-green-200 flex items-center gap-1"><i class="fa-solid fa-circle text-[8px]"></i> เปิดใช้งาน</span>`;
+
                 const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-4">
@@ -1023,6 +558,148 @@
             });
         }
 
+        // =======================================================
+        // ✅ ดึงค่าปีการศึกษา/เทอม จาก core_school_info (ส่วนกลาง)
+        // =======================================================
+        async function loadSchoolSettings() {
+            try {
+                const { data, error } = await db
+                    .from('core_school_info')
+                    .select('current_academic_year, current_semester')
+                    .eq('id', 1)
+                    .single();
+
+                if (error) {
+                    console.warn('ไม่สามารถโหลดการตั้งค่าปีการศึกษาได้:', error.message);
+                    return;
+                }
+
+                CURRENT_ACADEMIC_YEAR = (data?.current_academic_year || '').toString();
+                CURRENT_SEMESTER = (data?.current_semester || '').toString();
+
+                console.log(`📅 ตั้งค่าปัจจุบัน: ปี ${CURRENT_ACADEMIC_YEAR} เทอม ${CURRENT_SEMESTER}`);
+            } catch (err) {
+                console.warn('loadSchoolSettings error:', err);
+            }
+        }
+
+        // =======================================================
+        // Dashboard Stats + Charts
+        // =======================================================
+        async function loadDashboardStats() {
+            try {
+                // ✅ ถ้ายังไม่ได้ตั้งค่าปีการศึกษา → แสดงข้อความเตือน
+                if (!CURRENT_ACADEMIC_YEAR || !CURRENT_SEMESTER) {
+                    console.warn('ยังไม่ได้ตั้งค่าปีการศึกษา/เทอม ใน core_school_info');
+                    setStat('statStudents', '—');
+                    setStat('statPersonnel', '—');
+                    renderBarChart('chartStudentsByLevel', ['ยังไม่ตั้งค่าปีการศึกษา'], [0], 'นักเรียน (คน)', '#cbd5e1');
+                    renderBarChart('chartPersonnelByGroup', ['ไม่สามารถโหลดข้อมูล'], [0], 'บุคลากร (คน)', '#cbd5e1');
+                    return;
+                }
+
+                // ============ นับนักเรียน ============
+                const { count: studentCount, error: sErr } = await db
+                    .from('student_enrollments')
+                    .select('student_id', { count: 'exact', head: true })
+                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
+                    .eq('semester', CURRENT_SEMESTER)
+                    .eq('status', ENROLLMENT_STATUS);
+                if (!sErr) setStat('statStudents', (studentCount ?? 0).toLocaleString());
+                else console.warn('students count err:', sErr.message);
+
+                // ============ นับบุคลากร ============
+                const { count: personnelCount, error: pErr } = await db
+                    .from(PERSONNEL_TABLE)
+                    .select('*', { count: 'exact', head: true })
+                    .or('is_deleted.is.null,is_deleted.eq.false');
+                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
+                else console.warn('personnel count err:', pErr.message);
+
+                // ============ กราฟนักเรียนตามระดับชั้น ============
+                const { data: enrollments, error: sLevelErr } = await db
+                    .from('student_enrollments')
+                    .select(`student_id, core_classrooms ( grade_level )`)
+                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
+                    .eq('semester', CURRENT_SEMESTER)
+                    .eq('status', ENROLLMENT_STATUS);
+
+                if (!sLevelErr && enrollments) {
+                    const buckets = {};
+                    enrollments.forEach(e => {
+                        const lv = e.core_classrooms?.grade_level;
+                        const label = gradeLevelToLabel(lv);
+                        buckets[label] = (buckets[label] || 0) + 1;
+                    });
+                    const labels = Object.keys(buckets).sort((a, b) => {
+                        const na = parseInt(a.replace(/\D/g, ''), 10) || 0;
+                        const nb = parseInt(b.replace(/\D/g, ''), 10) || 0;
+                        return na - nb;
+                    });
+                    const values = labels.map(k => buckets[k]);
+
+                    // ยอดรวมนักเรียน
+                    const totalStudents = values.reduce((s, v) => s + v, 0);
+                    const totalLabel = document.getElementById('totalStudentsLabel');
+                    if (totalLabel) totalLabel.textContent = `(ทั้งหมด ${totalStudents.toLocaleString()} คน)`;
+
+                    // ✅ ใช้ palette จาก dashboard_charts.js
+                    const colors = buildColorArray(labels, CHART_PALETTES.primary);
+                    renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
+                } else if (sLevelErr) {
+                    console.warn('students level err:', sLevelErr.message);
+                    renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
+                }
+
+                // ============ กราฟบุคลากรตามประเภท ============
+                const { data: personnel, error: pGroupErr } = await db
+                    .from(PERSONNEL_TABLE)
+                    .select('position')
+                    .or('is_deleted.is.null,is_deleted.eq.false');
+
+                if (!pGroupErr && personnel) {
+                    const buckets = {};
+                    personnel.forEach(p => {
+                        const group = personnelCategory(p);
+                        buckets[group] = (buckets[group] || 0) + 1;
+                    });
+
+                    const ORDER = [
+                        'ฝ่ายบริหาร',
+                        'ข้าราชการครู',
+                        'พนักงานราชการ/อัตราจ้าง',
+                        'เจ้าหน้าที่สำนักงาน',
+                        'ลูกจ้าง/พนักงานบริการ',
+                        'อื่นๆ'
+                    ];
+                    const labels = ORDER.filter(k => buckets[k] !== undefined);
+                    const values = labels.map(k => buckets[k]);
+
+                    // ✅ สีเฉพาะแต่ละกลุ่ม
+                    const GROUP_COLORS = {
+                        'ฝ่ายบริหาร': '#8b5eea',
+                        'ข้าราชการครู': '#2588e8',
+                        'พนักงานราชการ/อัตราจ้าง': '#24b47e',
+                        'เจ้าหน้าที่สำนักงาน': '#f3a51d',
+                        'ลูกจ้าง/พนักงานบริการ': '#f43f5e',
+                        'อื่นๆ': '#94a3b8'
+                    };
+                    const colors = labels.map(k => GROUP_COLORS[k] || '#94a3b8');
+
+                    // ✅ ใช้แนวนอน
+                    renderHorizontalBarChart('chartPersonnelByGroup', labels, values, 'บุคลากร (คน)', colors);
+                } else if (pGroupErr) {
+                    console.warn('personnel group err:', pGroupErr.message);
+                    renderHorizontalBarChart('chartPersonnelByGroup', ['ไม่สามารถโหลดข้อมูล'], [0], 'บุคลากร (คน)', '#cbd5e1');
+                }
+            } catch (err) {
+                console.error('loadDashboardStats error:', err);
+            }
+        }
+
+        // =======================================================
+        // เปลี่ยนรหัสผ่าน
+        // =======================================================
         async function changeMyPassword() {
             const { value: formValues } = await Swal.fire({
                 title: 'เปลี่ยนรหัสผ่าน',
@@ -1055,14 +732,6 @@
                 }
             }
         }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            populateYearSelect();
-            document.getElementById('todayChip').textContent = new Date().toLocaleDateString('th-TH', { day: 'numeric', month: 'long', year: 'numeric' });
-            document.getElementById('monthSelect').value = currentMonth;
-            document.getElementById('btnLoadCalendar').addEventListener('click', loadEventsByMonth);
-            loadEventsByMonth();
-        });
     </script>
 
 </body>

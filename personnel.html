@@ -3,37 +3,20 @@
 
 <head>
     <title>ระบบบริหารจัดการบุคลากร | WRK System</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
-    <script src="core_head.js"></script>
 
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
+    <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
     <style>
+        /* Birthday notification */
         @keyframes wiggle-blink {
-
-            0%,
-            100% {
-                transform: rotate(0deg);
-                opacity: 1;
-            }
-
-            25% {
-                transform: rotate(-8deg);
-                opacity: 0.7;
-            }
-
-            50% {
-                transform: rotate(0deg);
-                opacity: 0.4;
-            }
-
-            75% {
-                transform: rotate(8deg);
-                opacity: 0.7;
-            }
+            0%, 100% { transform: rotate(0deg); opacity: 1; }
+            25% { transform: rotate(-8deg); opacity: 0.7; }
+            50% { transform: rotate(0deg); opacity: 0.4; }
+            75% { transform: rotate(8deg); opacity: 0.7; }
         }
-
         .birthday-notification-badge {
             display: inline-flex;
             align-items: center;
@@ -48,255 +31,187 @@
             font-size: 0.85rem;
             cursor: default;
             transition: all 0.2s;
+            white-space: nowrap;
         }
-
-        .birthday-notification-badge.animated {
-            animation: wiggle-blink 1.2s ease-in-out 3;
-        }
-
-        .birthday-notification-badge:hover {
-            transform: scale(1.05);
-            background: #fce4ec;
-        }
+        .birthday-notification-badge.animated { animation: wiggle-blink 1.2s ease-in-out 3; }
+        .birthday-notification-badge:hover { transform: scale(1.05); background: #fce4ec; }
+        #birthday-notification.hidden { display: none !important; }
     </style>
 </head>
 
-<body class="min-h-screen opacity-0 transition-opacity duration-300" id="mainBody">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <nav class="bg-white/85 backdrop-blur-md sticky top-0 z-40 border-b border-slate-200 shadow-sm">
-        <div class="max-w-screen-2xl mx-auto px-4 sm:px-6 flex justify-between h-16 items-center">
-            <div class="flex items-center gap-3">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10 w-auto" alt="Logo">
-                <div>
-                    <span
-                        class="text-xl font-bold bg-gradient-to-r from-indigo-700 to-blue-600 bg-clip-text text-transparent">WRK
-                        Personnel</span>
-                    <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold hidden sm:block">
-                        ระบบบริหารจัดการบุคลากร</p>
-                </div>
+    <div class="d-app">
+
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>WRK Personnel</b><span>ระบบบริหารจัดการบุคลากร</span></div>
             </div>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a href="index.html" title="หน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">หน้าหลัก</span>
+                </a>
+                <a class="active" title="ทะเบียนบุคลากร" onclick="window.scrollTo({top:0,behavior:'smooth'})">
+                    <span class="d-ico"><i class="fa-solid fa-address-book"></i></span>
+                    <span class="d-label">ทะเบียนบุคลากร</span>
+                </a>
 
-            <div class="flex items-center gap-2 md:gap-3">
-                <span id="display-name"
-                    class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full"></span>
-                <span id="role-badge"
-                    class="hidden md:block text-xs font-bold text-slate-500 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm"></span>
+                <div class="d-nav-title">การตั้งค่า</div>
+                <a id="btn-settings" class="hidden" onclick="openSettings()" title="ตั้งค่าระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
+                    <span class="d-label">ตั้งค่าระบบ</span>
+                </a>
+                <a onclick="handleLogout()" class="logout" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
+            </div>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-                <!-- ✅ เพิ่มตรงนี้ -->
-                <span id="birthday-notification"
-                    class="hidden md:flex items-center gap-1 text-sm font-medium text-slate-700 bg-pink-50 px-3 py-1.5 rounded-full border border-pink-200 shadow-sm"></span>
+        <main class="d-main" id="dMain">
 
-                <button id="btn-settings" onclick="openSettings()"
-                    class="hidden h-10 px-3 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                    title="ตั้งค่าระบบ">
-                    <i class="fas fa-gear sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">ตั้งค่า</span>
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
                 </button>
 
-                <button id="btnAdminMode" onclick="toggleRoleView()"
-                    class="hidden h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm"
-                    title="สลับโหมด">
-                    <i class="fa-solid fa-user-shield sm:mr-1"></i> <span
-                        class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
-                </button>
-
-                <button onclick="window.location.href='index.html'"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                    title="กลับหน้าหลัก">
-                    <i class="fas fa-house text-sm"></i>
-                </button>
-
-                <button onclick="logout()"
-                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                    title="ออกจากระบบ">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
-            </div>
-        </div>
-    </nav>
-
-    <div class="max-w-screen-2xl mx-auto px-4 py-6 space-y-6">
-
-        <!-- ===== การ์ดสถิติ 4 ใบ (แก้ไขแล้ว) ===== -->
-        <div class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <!-- การ์ดที่ 1: บุคลากรทั้งหมด (คลิกได้) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
-                onclick="openStatsModal()">
-                <div
-                    class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-users"></i>
-                </div>
-                <div>
-                    <p class="text-slate-400 text-[10px] font-bold uppercase">บุคลากรทั้งหมด</p>
-                    <h3 id="stat-total" class="text-2xl font-bold text-slate-800">0</h3>
-                </div>
-            </div>
-            <!-- การ์ดที่ 2: เกษียณปีนี้ (คลิกได้) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition"
-                onclick="openRetireModal()">
-                <div
-                    class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-user-clock"></i>
-                </div>
-                <div>
-                    <p class="text-slate-400 text-[10px] font-bold uppercase">เกษียณปีนี้</p>
-                    <h3 id="stat-retire" class="text-2xl font-bold text-orange-500">0</h3>
-                </div>
-            </div>
-            <!-- การ์ดที่ 3: ใบอนุญาตใกล้หมด (ไม่คลิก) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
-                <div
-                    class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-id-card"></i>
-                </div>
-                <div>
-                    <p class="text-slate-400 text-[10px] font-bold uppercase">ใบอนุญาตใกล้หมด</p>
-                    <h3 id="stat-license" class="text-2xl font-bold text-red-500">0</h3>
-                </div>
-            </div>
-            <!-- การ์ดที่ 4: สิทธิ์ขอวิทยฐานะ (ไม่คลิก) -->
-            <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
-                <div
-                    class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <i class="fas fa-medal"></i>
-                </div>
-                <div>
-                    <p class="text-slate-400 text-[10px] font-bold uppercase">สิทธิ์ขอวิทยฐานะ</p>
-                    <h3 id="stat-eligible" class="text-2xl font-bold text-green-600">0</h3>
-                </div>
-            </div>
-        </div>
-
-        <div id="info-blocks-section" class="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
-            <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white">
-                    <i class="fas fa-graduation-cap"></i>
-                    <h3 class="font-bold text-sm">จำนวนครูจำแนกตามวิทยฐานะ</h3>
-                </div>
-                <div id="block-academic" class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2 min-h-[80px]">
-                    <div class="text-slate-400 text-sm col-span-full text-center py-4"><i
-                            class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
-                </div>
-            </div>
-
-            <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                <div class="px-5 py-4 bg-orange-500 flex items-center gap-2 text-white">
-                    <i class="fas fa-user-clock"></i>
-                    <h3 class="font-bold text-sm">ผู้ที่จะเกษียณอายุราชการภายใน 10 ปี</h3>
-                </div>
-                <div id="block-retire" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                    <div class="text-slate-400 text-sm text-center py-4"><i
-                            class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
-                </div>
-            </div>
-
-            <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                <div class="px-5 py-4 bg-red-500 flex items-center gap-2 text-white">
-                    <i class="fas fa-id-card"></i>
-                    <h3 class="font-bold text-sm">ใบอนุญาตหมดภายใน 3 เดือน</h3>
-                </div>
-                <div id="block-license" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                    <div class="text-slate-400 text-sm text-center py-4"><i
-                            class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
-                </div>
-            </div>
-
-            <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
-                <div class="px-5 py-4 bg-green-600 flex items-center gap-2 text-white">
-                    <i class="fas fa-medal"></i>
-                    <h3 class="font-bold text-sm">ผู้มีสิทธิ์ขอยื่นวิทยฐานะ (ครบ 4 ปี)</h3>
-                </div>
-                <div id="block-eligible" class="divide-y divide-slate-50 max-h-64 overflow-y-auto">
-                    <div class="text-slate-400 text-sm text-center py-4"><i
-                            class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="glass rounded-3xl shadow-xl overflow-hidden border border-white/80">
-            <div class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
-                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-database text-indigo-600"></i> ทะเบียนประวัติบุคลากร
+                <h2 id="pageTitle" style="margin:0;font-size:16px;font-weight:700;color:#26364a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+                    ทะเบียนประวัติบุคลากร
                 </h2>
-                <div class="flex flex-wrap gap-2">
-                    <button id="btn-template" onclick="downloadTemplate()"
-                        class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm">
-                        <i class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ
-                    </button>
-                    <input type="file" id="excel-import-input" accept=".xlsx,.xls,.csv" class="hidden"
-                        onchange="importFromExcel(event)">
-                    <button id="btn-import" onclick="document.getElementById('excel-import-input').click()"
-                        class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100">
-                        <i class="fas fa-file-import"></i> นำเข้า Excel/CSV
-                    </button>
-                    <button id="btn-import-sheets" onclick="importFromGoogleSheets()"
-                        class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-green-100">
-                        <i class="fab fa-google-drive"></i> นำเข้า Google Sheets
-                    </button>
-                    <button onclick="exportToExcel()"
-                        class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-emerald-100">
-                        <i class="fas fa-file-export"></i> ส่งออก Excel
-                    </button>
-                    <button id="btn-add" onclick="openModal('add')"
-                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-200">
-                        <i class="fas fa-user-plus"></i> เพิ่มข้อมูล
-                    </button>
+
+                <div class="d-spacer"></div>
+
+                <span id="birthday-notification" class="hidden"></span>
+
+                <!-- ✅ ปุ่มโหมด มาตรฐาน -->
+                <button id="btnAdminMode" onclick="toggleRoleView()" class="hidden d-btn-mode admin" title="สลับโหมดมุมมอง">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span>โหมดแอดมิน</span>
+                </button>
+
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
+                    </div>
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
+                    </div>
                 </div>
+            </header>
+
+            <div style="padding:0 0 12px;" class="space-y-4">
+
+                <section class="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="openStatsModal()">
+                        <div class="h-11 w-11 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-users"></i></div>
+                        <div><p class="text-slate-400 text-[10px] font-bold uppercase">บุคลากรทั้งหมด</p><h3 id="stat-total" class="text-2xl font-bold text-slate-800">0</h3></div>
+                    </div>
+                    <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md transition" onclick="openRetireModal()">
+                        <div class="h-11 w-11 bg-orange-100 text-orange-500 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-user-clock"></i></div>
+                        <div><p class="text-slate-400 text-[10px] font-bold uppercase">เกษียณปีนี้</p><h3 id="stat-retire" class="text-2xl font-bold text-orange-500">0</h3></div>
+                    </div>
+                    <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div class="h-11 w-11 bg-red-100 text-red-500 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-id-card"></i></div>
+                        <div><p class="text-slate-400 text-[10px] font-bold uppercase">ใบอนุญาตใกล้หมด</p><h3 id="stat-license" class="text-2xl font-bold text-red-500">0</h3></div>
+                    </div>
+                    <div class="glass p-4 rounded-2xl shadow-sm flex items-center gap-3">
+                        <div class="h-11 w-11 bg-green-100 text-green-600 rounded-xl flex items-center justify-center flex-shrink-0"><i class="fas fa-medal"></i></div>
+                        <div><p class="text-slate-400 text-[10px] font-bold uppercase">สิทธิ์ขอวิทยฐานะ</p><h3 id="stat-eligible" class="text-2xl font-bold text-green-600">0</h3></div>
+                    </div>
+                </section>
+
+                <section id="info-blocks-section" class="grid grid-cols-1 lg:grid-cols-2 gap-4 hidden">
+                    <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+                        <div class="px-5 py-4 bg-indigo-600 flex items-center gap-2 text-white"><i class="fas fa-graduation-cap"></i><h3 class="font-bold text-sm">จำนวนครูจำแนกตามวิทยฐานะ</h3></div>
+                        <div id="block-academic" class="p-4 grid grid-cols-2 sm:grid-cols-3 gap-2 min-h-[80px]"><div class="text-slate-400 text-sm col-span-full text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div></div>
+                    </div>
+                    <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+                        <div class="px-5 py-4 bg-orange-500 flex items-center gap-2 text-white"><i class="fas fa-user-clock"></i><h3 class="font-bold text-sm">ผู้ที่จะเกษียณอายุราชการภายใน 10 ปี</h3></div>
+                        <div id="block-retire" class="divide-y divide-slate-50 max-h-64 overflow-y-auto"><div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div></div>
+                    </div>
+                    <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+                        <div class="px-5 py-4 bg-red-500 flex items-center gap-2 text-white"><i class="fas fa-id-card"></i><h3 class="font-bold text-sm">ใบอนุญาตหมดภายใน 3 เดือน</h3></div>
+                        <div id="block-license" class="divide-y divide-slate-50 max-h-64 overflow-y-auto"><div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div></div>
+                    </div>
+                    <div class="glass rounded-3xl shadow-sm border border-white/80 overflow-hidden">
+                        <div class="px-5 py-4 bg-green-600 flex items-center gap-2 text-white"><i class="fas fa-medal"></i><h3 class="font-bold text-sm">ผู้มีสิทธิ์ขอยื่นวิทยฐานะ (ครบ 4 ปี)</h3></div>
+                        <div id="block-eligible" class="divide-y divide-slate-50 max-h-64 overflow-y-auto"><div class="text-slate-400 text-sm text-center py-4"><i class="fas fa-circle-notch fa-spin mr-1"></i> กำลังโหลด...</div></div>
+                    </div>
+                </section>
+
+                <section class="glass rounded-3xl shadow-xl overflow-hidden border border-white/80">
+                    <div class="p-5 border-b border-slate-100 bg-white/60 flex flex-wrap justify-between items-center gap-3">
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-database text-indigo-600"></i> ทะเบียนประวัติบุคลากร</h2>
+                        <div class="flex flex-wrap gap-2">
+                            <button id="btn-template" onclick="downloadTemplate()" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-600 px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-sm"><i class="fas fa-download text-slate-400"></i> ไฟล์ต้นแบบ</button>
+                            <input type="file" id="excel-import-input" accept=".xlsx,.xls,.csv" class="hidden" onchange="importFromExcel(event)">
+                            <button id="btn-import" onclick="document.getElementById('excel-import-input').click()" class="bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-amber-100"><i class="fas fa-file-import"></i> นำเข้า Excel/CSV</button>
+                            <button id="btn-import-sheets" onclick="importFromGoogleSheets()" class="bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-green-100"><i class="fab fa-google-drive"></i> นำเข้า Google Sheets</button>
+                            <button onclick="exportToExcel()" class="bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-emerald-100"><i class="fas fa-file-export"></i> ส่งออก Excel</button>
+                            <button id="btn-add" onclick="openModal('add')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold transition flex items-center gap-2 shadow-md shadow-indigo-200"><i class="fas fa-user-plus"></i> เพิ่มข้อมูล</button>
+                        </div>
+                    </div>
+                    <div class="p-5 bg-white/40 overflow-x-auto">
+                        <table id="personnelTable" class="w-full display nowrap" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th class="text-left py-3 px-3">บุคลากร</th>
+                                    <th class="text-left">ตำแหน่ง / วิทยฐานะ</th>
+                                    <th class="text-left">กลุ่มสาระฯ</th>
+                                    <th class="text-center">อายุ</th>
+                                    <th class="text-center">เกษียณ พ.ศ.</th>
+                                    <th class="text-center">อายุราชการ</th>
+                                    <th class="text-center">ใบอนุญาต</th>
+                                    <th class="text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="main-tbody"></tbody>
+                        </table>
+                    </div>
+                </section>
             </div>
-            <div class="p-5 bg-white/40 overflow-x-auto">
-                <table id="personnelTable" class="w-full display nowrap" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th class="text-left py-3 px-3">บุคลากร</th>
-                            <th class="text-left">ตำแหน่ง / วิทยฐานะ</th>
-                            <th class="text-left">กลุ่มสาระฯ</th>
-                            <th class="text-center">อายุ</th>
-                            <th class="text-center">เกษียณ พ.ศ.</th>
-                            <th class="text-center">อายุราชการ</th>
-                            <th class="text-center">ใบอนุญาต</th>
-                            <th class="text-center">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="main-tbody"></tbody>
-                </table>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- ===== Modal แก้ไขข้อมูลบุคลากร (เดิม) ===== -->
+    <!-- Modal แก้ไขข้อมูลบุคลากร -->
     <div id="modal-container" class="fixed inset-0 z-50 hidden items-end md:items-center justify-center">
         <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeModal()"></div>
-
-        <div class="relative bg-white w-full md:rounded-3xl shadow-2xl z-10 flex flex-col
-                md:max-w-6xl md:max-h-[96vh] h-full md:h-auto md:mx-4 overflow-hidden">
-
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex-shrink-0">
+        <div class="relative bg-white w-full md:rounded-3xl shadow-2xl z-10 flex flex-col md:max-w-6xl md:max-h-[96vh] h-full md:h-auto md:mx-4 overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white flex-shrink-0">
                 <div class="flex items-center gap-3">
-                    <div id="modal-avatar-display"
-                        class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold overflow-hidden flex-shrink-0">
-                        ?</div>
+                    <div id="modal-avatar-display" class="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-xl font-bold overflow-hidden flex-shrink-0">?</div>
                     <div>
                         <h3 class="text-lg font-bold" id="modal-title">บันทึกข้อมูลบุคลากร</h3>
                         <p id="modal-subtitle" class="text-indigo-200 text-xs">กรอกข้อมูลให้ครบถ้วน</p>
                     </div>
                 </div>
-                <button onclick="closeModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
-                    <i class="fas fa-times"></i>
-                </button>
+                <button onclick="closeModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
 
-            <div class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0">
-                <button class="tab-pill active" onclick="switchTab('tab-personal', this)"><i
-                        class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว</button>
-                <button class="tab-pill" onclick="switchTab('tab-position', this)"><i
-                        class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ</button>
-                <button class="tab-pill" onclick="switchTab('tab-service', this)"><i
-                        class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ</button>
-                <button class="tab-pill" onclick="switchTab('tab-license', this)"><i
-                        class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA</button>
-                <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)"><i
-                        class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
+            <div class="px-6 py-3 border-b border-slate-100 bg-white flex gap-2 overflow-x-auto flex-shrink-0 hide-scrollbar">
+                <button class="tab-pill active" onclick="switchTab('tab-personal', this)"><i class="fas fa-user mr-1.5"></i>ข้อมูลส่วนตัว</button>
+                <button class="tab-pill" onclick="switchTab('tab-position', this)"><i class="fas fa-briefcase mr-1.5"></i>ตำแหน่ง & วิทยฐานะ</button>
+                <button class="tab-pill" onclick="switchTab('tab-service', this)"><i class="fas fa-calendar-days mr-1.5"></i>ประวัติราชการ</button>
+                <button class="tab-pill" onclick="switchTab('tab-license', this)"><i class="fas fa-id-card mr-1.5"></i>ใบอนุญาต & PA</button>
+                <button class="tab-pill" onclick="switchTab('tab-pa-docs', this)"><i class="fas fa-folder-open mr-1.5"></i>เอกสาร PA3</button>
             </div>
 
             <form id="main-form" onsubmit="savePersonnel(event)" class="flex-1 overflow-y-auto" novalidate>
@@ -306,7 +221,6 @@
                 <input type="hidden" id="inp-gov-start-iso">
                 <input type="hidden" id="inp-appoint-iso">
                 <input type="hidden" id="inp-license-exp-iso">
-
                 <div class="p-6">
                     <div id="tab-personal" class="tab-panel active">
                         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -314,102 +228,54 @@
                                 <div class="section-header w-full"><i class="fas fa-image"></i> รูปประจำตัว</div>
                                 <div class="relative inline-block">
                                     <div id="avatar-display" class="avatar-ring">?</div>
-                                    <div id="avatar-upload-badge"
-                                        class="hidden absolute -top-2 -right-2 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
+                                    <div id="avatar-upload-badge" class="hidden absolute -top-2 -right-2 flex items-center gap-1 bg-amber-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-full shadow-md whitespace-nowrap">
                                         <span>รอ Upload</span>
-                                        <button type="button" onclick="uploadAvatarNow()"
-                                            class="hover:text-yellow-200 transition focus:outline-none"
-                                            title="อัปโหลดไปยัง Google Drive เดี๋ยวนี้">
-                                            <i class="fas fa-cloud-upload-alt"></i>
-                                        </button>
+                                        <button type="button" onclick="uploadAvatarNow()" class="hover:text-yellow-200 transition focus:outline-none" title="อัปโหลดเดี๋ยวนี้"><i class="fas fa-cloud-upload-alt"></i></button>
                                     </div>
-                                    <label
-                                        class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition"
-                                        title="อัปโหลดจากเครื่อง">
+                                    <label class="absolute -bottom-2 -right-2 bg-indigo-600 text-white h-8 w-8 rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:bg-indigo-700 transition" title="อัปโหลดจากเครื่อง">
                                         <i class="fas fa-camera text-xs"></i>
-                                        <input type="file" id="inp-avatar" accept="image/*" class="hidden"
-                                            onchange="previewAvatar(this)">
+                                        <input type="file" id="inp-avatar" accept="image/*" class="hidden" onchange="previewAvatar(this)">
                                     </label>
                                 </div>
                                 <div class="w-full space-y-1.5">
-                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                        วางลิงค์รูปภาพ</p>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider">วางลิงค์รูปภาพ</p>
                                     <div class="flex gap-1.5">
-                                        <input type="text" id="inp-avatar-url" placeholder="https://... หรือ Drive link"
-                                            class="field-input flex-1 text-xs min-w-0"
-                                            oninput="applyAvatarUrl(this.value)">
-                                        <button type="button"
-                                            onclick="applyAvatarUrl(document.getElementById('inp-avatar-url').value)"
-                                            class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition"
-                                            title="ใช้ลิงค์นี้">
-                                            <i class="fas fa-check text-xs"></i>
-                                        </button>
+                                        <input type="text" id="inp-avatar-url" placeholder="https://... หรือ Drive link" class="field-input flex-1 text-xs min-w-0" oninput="applyAvatarUrl(this.value)">
+                                        <button type="button" onclick="applyAvatarUrl(document.getElementById('inp-avatar-url').value)" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition" title="ใช้ลิงค์นี้"><i class="fas fa-check text-xs"></i></button>
                                     </div>
-                                    <p class="text-[9px] text-slate-400 italic leading-tight">รองรับ URL ตรง, Google
-                                        Drive Share Link<br>หรืออัปโหลดไฟล์ผ่านปุ่มกล้อง</p>
                                 </div>
-                                <p class="text-[9px] text-slate-400 italic text-center leading-tight">
-                                    <i class="fas fa-info-circle text-indigo-400"></i> รูปจะถูกย่อขนาดและอัปโหลดไป
-                                    Google Drive<br>อัตโนมัติเมื่อกด "บันทึกข้อมูล"
-                                </p>
-                                <button type="button" onclick="clearAvatar()"
-                                    class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1"><i
-                                        class="fas fa-trash-alt"></i> ลบรูป</button>
+                                <button type="button" onclick="clearAvatar()" class="text-xs text-red-400 hover:text-red-600 transition flex items-center gap-1"><i class="fas fa-trash-alt"></i> ลบรูป</button>
                             </div>
                             <div class="lg:col-span-3 space-y-5">
                                 <div class="section-header"><i class="fas fa-address-card"></i> ข้อมูลพื้นฐาน</div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                                     <div class="field-group sm:col-span-2 lg:col-span-2">
                                         <label class="field-label required">ชื่อ - สกุล (ดึงจากระบบกลาง)</label>
-                                        <select id="inp-personnel-id" required onchange="onNameSelect()"
-                                            class="field-input">
-                                            <option value="">-- กรุณาเลือก --</option>
-                                        </select>
+                                        <select id="inp-personnel-id" required onchange="onNameSelect()" class="field-input"><option value="">-- กรุณาเลือก --</option></select>
                                     </div>
-                                    <div class="field-group">
-                                        <label class="field-label">เบอร์โทรศัพท์</label>
-                                        <input type="tel" id="inp-phone" placeholder="08x-xxx-xxxx" class="field-input">
-                                    </div>
-                                    <div class="field-group">
-                                        <label class="field-label">เลขประจำตัวประชาชน</label>
-                                        <input type="text" id="inp-cid" maxlength="13" placeholder="x-xxxx-xxxxx-xx-x"
-                                            class="field-input">
-                                    </div>
+                                    <div class="field-group"><label class="field-label">เบอร์โทรศัพท์</label><input type="tel" id="inp-phone" placeholder="08x-xxx-xxxx" class="field-input"></div>
+                                    <div class="field-group"><label class="field-label">เลขประจำตัวประชาชน</label><input type="text" id="inp-cid" maxlength="13" placeholder="x-xxxx-xxxxx-xx-x" class="field-input"></div>
                                     <div class="field-group sm:col-span-2">
                                         <label class="field-label">กลุ่มสาระการเรียนรู้</label>
                                         <select id="sel-learning-area" class="field-input">
                                             <option value="">-- เลือกกลุ่มสาระฯ / หน่วยงาน --</option>
                                             <optgroup label="8 กลุ่มสาระการเรียนรู้">
-                                                <option>ภาษาไทย</option>
-                                                <option>คณิตศาสตร์</option>
+                                                <option>ภาษาไทย</option><option>คณิตศาสตร์</option>
                                                 <option>วิทยาศาสตร์และเทคโนโลยี (วิทยาศาสตร์)</option>
                                                 <option>วิทยาศาสตร์และเทคโนโลยี (เทคโนโลยี)</option>
-                                                <option>สังคมศึกษา ศาสนาและวัฒนธรรม</option>
-                                                <option>สุขศึกษาและพลศึกษา</option>
-                                                <option>ศิลปะ</option>
-                                                <option>การงานอาชีพ</option>
-                                                <option>ภาษาต่างประเทศ (ภาษาอังกฤษ)</option>
-                                                <option>ภาษาต่างประเทศ (ภาษาจีน)</option>
+                                                <option>สังคมศึกษา ศาสนาและวัฒนธรรม</option><option>สุขศึกษาและพลศึกษา</option>
+                                                <option>ศิลปะ</option><option>การงานอาชีพ</option>
+                                                <option>ภาษาต่างประเทศ (ภาษาอังกฤษ)</option><option>ภาษาต่างประเทศ (ภาษาจีน)</option>
                                             </optgroup>
-                                            <optgroup label="กิจกรรมพัฒนาผู้เรียน">
-                                                <option>แนะแนว</option>
-                                                <option>กิจกรรมนักเรียน</option>
-                                                <option>กิจกรรมเพื่อสังคมและสาธารณประโยชน์</option>
-                                            </optgroup>
+                                            <optgroup label="กิจกรรมพัฒนาผู้เรียน"><option>แนะแนว</option><option>กิจกรรมนักเรียน</option><option>กิจกรรมเพื่อสังคมและสาธารณประโยชน์</option></optgroup>
                                             <optgroup label="ฝ่ายบริหาร / สนับสนุน">
-                                                <option>ผู้อำนวยการสถานศึกษา</option>
-                                                <option>รองผู้อำนวยการกลุ่มบริหารวิชาการ</option>
-                                                <option>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</option>
-                                                <option>รองผู้อำนวยการกลุ่มบริหารงานบุคคล</option>
-                                                <option>รองผู้อำนวยการกลุ่มบริหารทั่วไป</option>
-                                                <option>งานสนับสนุนการสอน</option>
+                                                <option>ผู้อำนวยการสถานศึกษา</option><option>รองผู้อำนวยการกลุ่มบริหารวิชาการ</option>
+                                                <option>รองผู้อำนวยการกลุ่มบริหารงบประมาณ</option><option>รองผู้อำนวยการกลุ่มบริหารงานบุคคล</option>
+                                                <option>รองผู้อำนวยการกลุ่มบริหารทั่วไป</option><option>งานสนับสนุนการสอน</option>
                                             </optgroup>
                                             <optgroup label="เจ้าหน้าที่/พนักงาน/ลูกจ้าง">
-                                                <option>เจ้าหน้าที่สำนักงาน</option>
-                                                <option>พนักงานบริการ</option>
-                                                <option>พนักงานขับรถยนต์</option>
-                                                <option>พนักงานรักษาความปลอดภัย</option>
-                                                <option>ลูกจ้าง</option>
+                                                <option>เจ้าหน้าที่สำนักงาน</option><option>พนักงานบริการ</option>
+                                                <option>พนักงานขับรถยนต์</option><option>พนักงานรักษาความปลอดภัย</option><option>ลูกจ้าง</option>
                                             </optgroup>
                                         </select>
                                     </div>
@@ -424,7 +290,6 @@
                             <div class="field-group">
                                 <label class="field-label required">ตำแหน่ง</label>
                                 <select id="sel-pos" required onchange="updatePositionLogic()" class="field-input">
-                                    <!-- ✅ เพิ่มใหม่ -->
                                     <option value="เจ้าหน้าที่สำนักงาน">เจ้าหน้าที่สำนักงาน</option>
                                     <option value="พนักงานบริการ">พนักงานบริการ</option>
                                     <option value="พนักงานขับรถยนต์">พนักงานขับรถยนต์</option>
@@ -439,40 +304,19 @@
                                     <option value="ผู้อำนวยการสถานศึกษา">ผู้อำนวยการสถานศึกษา</option>
                                 </select>
                             </div>
-                            <div class="field-group">
-                                <label class="field-label">เลขที่ตำแหน่ง</label>
-                                <input type="text" id="inp-position-number" placeholder="เช่น 4301" class="field-input">
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">วิทยฐานะ</label>
-                                <select id="sel-academic" onchange="updateRankCalc()" class="field-input"></select>
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">อันดับ (คำนวณอัตโนมัติ)</label>
-                                <input type="text" id="inp-rank" readonly class="field-input auto-blue">
-                            </div>
+                            <div class="field-group"><label class="field-label">เลขที่ตำแหน่ง</label><input type="text" id="inp-position-number" placeholder="เช่น 4301" class="field-input"></div>
+                            <div class="field-group"><label class="field-label">วิทยฐานะ</label><select id="sel-academic" onchange="updateRankCalc()" class="field-input"></select></div>
+                            <div class="field-group"><label class="field-label">อันดับ (คำนวณอัตโนมัติ)</label><input type="text" id="inp-rank" readonly class="field-input auto-blue"></div>
                             <div class="field-group">
                                 <label class="field-label">วันที่แต่งตั้งตำแหน่งปัจจุบัน</label>
                                 <div class="flex gap-1.5 items-center">
-                                    <input type="text" id="inp-appoint" placeholder="เลือกวันที่..." autocomplete="off"
-                                        class="field-input cursor-pointer flex-1 min-w-0">
-                                    <button type="button" onclick="clearDate('inp-appoint','inp-appoint-iso')"
-                                        class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition"
-                                        title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
+                                    <input type="text" id="inp-appoint" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                    <button type="button" onclick="clearDate('inp-appoint','inp-appoint-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                                 </div>
                             </div>
-                            <div class="field-group">
-                                <label class="field-label">ดำรงตำแหน่งมาแล้ว (คำนวณ)</label>
-                                <input type="text" id="out-pos-duration" readonly class="field-input auto-blue">
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">วันครบคุณสมบัติ (คำนวณ)</label>
-                                <input type="text" id="out-eligible" readonly class="field-input auto-green">
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">เหลือเวลาอีก (คำนวณ)</label>
-                                <input type="text" id="out-pa-countdown" readonly class="field-input auto-green">
-                            </div>
+                            <div class="field-group"><label class="field-label">ดำรงตำแหน่งมาแล้ว (คำนวณ)</label><input type="text" id="out-pos-duration" readonly class="field-input auto-blue"></div>
+                            <div class="field-group"><label class="field-label">วันครบคุณสมบัติ (คำนวณ)</label><input type="text" id="out-eligible" readonly class="field-input auto-green"></div>
+                            <div class="field-group"><label class="field-label">เหลือเวลาอีก (คำนวณ)</label><input type="text" id="out-pa-countdown" readonly class="field-input auto-green"></div>
                         </div>
                     </div>
 
@@ -482,39 +326,21 @@
                             <div class="field-group">
                                 <label class="field-label">วันเดือนปีเกิด (พ.ศ.)</label>
                                 <div class="flex gap-1.5 items-center">
-                                    <input type="text" id="inp-birth" placeholder="เลือกวันที่..." autocomplete="off"
-                                        class="field-input cursor-pointer flex-1 min-w-0">
-                                    <button type="button" onclick="clearDate('inp-birth','inp-birth-iso')"
-                                        class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition"
-                                        title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
+                                    <input type="text" id="inp-birth" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                    <button type="button" onclick="clearDate('inp-birth','inp-birth-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                                 </div>
                             </div>
-                            <div class="field-group">
-                                <label class="field-label">อายุ (คำนวณ)</label>
-                                <input type="text" id="out-age" readonly class="field-input auto-blue">
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">ปีเกษียณ พ.ศ. (คำนวณ)</label>
-                                <input type="text" id="out-retire" readonly class="field-input auto-orange">
-                            </div>
-                            <div class="field-group">
-                                <label class="field-label">อายุราชการเหลืออีก (คำนวณ)</label>
-                                <input type="text" id="out-service-left" readonly class="field-input auto-orange">
-                            </div>
+                            <div class="field-group"><label class="field-label">อายุ (คำนวณ)</label><input type="text" id="out-age" readonly class="field-input auto-blue"></div>
+                            <div class="field-group"><label class="field-label">ปีเกษียณ พ.ศ. (คำนวณ)</label><input type="text" id="out-retire" readonly class="field-input auto-orange"></div>
+                            <div class="field-group"><label class="field-label">อายุราชการเหลืออีก (คำนวณ)</label><input type="text" id="out-service-left" readonly class="field-input auto-orange"></div>
                             <div class="field-group">
                                 <label class="field-label">วันบรรจุรับราชการ (พ.ศ.)</label>
                                 <div class="flex gap-1.5 items-center">
-                                    <input type="text" id="inp-gov-start" placeholder="เลือกวันที่..."
-                                        autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                    <button type="button" onclick="clearDate('inp-gov-start','inp-gov-start-iso')"
-                                        class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition"
-                                        title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
+                                    <input type="text" id="inp-gov-start" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                    <button type="button" onclick="clearDate('inp-gov-start','inp-gov-start-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                                 </div>
                             </div>
-                            <div class="field-group">
-                                <label class="field-label">รับราชการมาแล้ว (คำนวณ)</label>
-                                <input type="text" id="out-gov-service" readonly class="field-input auto-blue">
-                            </div>
+                            <div class="field-group"><label class="field-label">รับราชการมาแล้ว (คำนวณ)</label><input type="text" id="out-gov-service" readonly class="field-input auto-blue"></div>
                         </div>
                     </div>
 
@@ -526,35 +352,22 @@
                                     <div class="field-group">
                                         <label class="field-label">เลขที่ใบอนุญาต</label>
                                         <div class="flex gap-2">
-                                            <input type="text" id="inp-license-number" placeholder="เช่น ค.12345"
-                                                class="field-input">
-                                            <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP"
-                                                class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0"><i
-                                                    class="fas fa-magnifying-glass text-sm"></i></button>
+                                            <input type="text" id="inp-license-number" placeholder="เช่น ค.12345" class="field-input">
+                                            <button type="button" onclick="checkLicense()" title="ตรวจสอบใบอนุญาต KSP" class="px-3 py-2 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition flex-shrink-0"><i class="fas fa-magnifying-glass text-sm"></i></button>
                                         </div>
                                     </div>
                                     <div class="field-group">
-                                        <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต
-                                            (พ.ศ.)</label>
+                                        <label class="field-label" style="color:#ef4444">วันหมดอายุใบอนุญาต (พ.ศ.)</label>
                                         <div class="flex gap-1.5 items-center">
-                                            <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..."
-                                                autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
-                                            <button type="button"
-                                                onclick="clearDate('inp-license-exp','inp-license-exp-iso')"
-                                                class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition"
-                                                title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
+                                            <input type="text" id="inp-license-exp" placeholder="เลือกวันที่..." autocomplete="off" class="field-input cursor-pointer flex-1 min-w-0">
+                                            <button type="button" onclick="clearDate('inp-license-exp','inp-license-exp-iso')" class="flex-shrink-0 h-9 w-9 flex items-center justify-center rounded-xl bg-red-50 text-red-400 hover:bg-red-100 hover:text-red-600 border border-red-100 transition" title="เคลียร์วันที่"><i class="fas fa-trash-can text-xs"></i></button>
                                         </div>
                                     </div>
-                                    <div class="field-group sm:col-span-2">
-                                        <label class="field-label">สถานะใบอนุญาต (คำนวณ)</label>
-                                        <input type="text" id="out-license-status" readonly
-                                            class="field-input auto-green">
-                                    </div>
+                                    <div class="field-group sm:col-span-2"><label class="field-label">สถานะใบอนุญาต (คำนวณ)</label><input type="text" id="out-license-status" readonly class="field-input auto-green"></div>
                                 </div>
                             </div>
                             <div>
-                                <div class="section-header"><i class="fas fa-file-circle-check"></i> สถานะ PA
-                                    (Performance Agreement)</div>
+                                <div class="section-header"><i class="fas fa-file-circle-check"></i> สถานะ PA (Performance Agreement)</div>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div class="field-group sm:col-span-2">
                                         <label class="field-label">สถานะ PA ปัจจุบัน</label>
@@ -566,17 +379,12 @@
                                             <option value="ไม่ผ่าน">ไม่ผ่าน</option>
                                         </select>
                                     </div>
-                                    <div
-                                        class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
-                                        <p class="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2">
-                                            สรุปข้อมูล PA (คำนวณจากวันแต่งตั้ง)</p>
+                                    <div class="sm:col-span-2 p-4 bg-indigo-50/60 rounded-2xl border border-indigo-100 text-sm text-indigo-700 space-y-1">
+                                        <p class="font-bold text-xs uppercase tracking-wider text-indigo-400 mb-2">สรุปข้อมูล PA (คำนวณจากวันแต่งตั้ง)</p>
                                         <div class="grid grid-cols-2 gap-2 text-xs">
-                                            <span class="text-slate-500">วันครบคุณสมบัติ:</span><span
-                                                id="pa-info-eligible" class="font-bold">-</span>
-                                            <span class="text-slate-500">เหลือเวลาอีก:</span><span
-                                                id="pa-info-countdown" class="font-bold">-</span>
-                                            <span class="text-slate-500">ดำรงตำแหน่งมาแล้ว:</span><span
-                                                id="pa-info-duration" class="font-bold">-</span>
+                                            <span class="text-slate-500">วันครบคุณสมบัติ:</span><span id="pa-info-eligible" class="font-bold">-</span>
+                                            <span class="text-slate-500">เหลือเวลาอีก:</span><span id="pa-info-countdown" class="font-bold">-</span>
+                                            <span class="text-slate-500">ดำรงตำแหน่งมาแล้ว:</span><span id="pa-info-duration" class="font-bold">-</span>
                                         </div>
                                     </div>
                                 </div>
@@ -585,164 +393,99 @@
                     </div>
 
                     <div id="tab-pa-docs" class="tab-panel">
-                        <div class="section-header"><i class="fas fa-folder-open"></i> ไฟล์เอกสาร PA3 (Link หรือ Google
-                            Drive)</div>
+                        <div class="section-header"><i class="fas fa-folder-open"></i> ไฟล์เอกสาร PA3 (Link หรือ Google Drive)</div>
                         <div id="pa-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"></div>
                     </div>
-
                 </div>
             </form>
 
-            <div
-                class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
-                <div class="text-xs text-slate-400 flex items-center gap-1"><i
-                        class="fas fa-circle-info"></i><span>ช่องที่มีเครื่องหมาย <span
-                            class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span></div>
+            <div class="flex-shrink-0 bg-white/90 border-t border-slate-100 px-6 py-4 flex flex-wrap justify-between items-center gap-3">
+                <div class="text-xs text-slate-400 flex items-center gap-1"><i class="fas fa-circle-info"></i><span>ช่องที่มีเครื่องหมาย <span class="text-red-500 font-bold">*</span> จำเป็นต้องกรอก</span></div>
                 <div class="flex gap-3">
-                    <button type="button" onclick="closeModal()"
-                        class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">ยกเลิก</button>
-                    <button type="submit" form="main-form" id="btn-submit"
-                        class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2">
-                        <i class="fas fa-floppy-disk"></i> บันทึกข้อมูล
-                    </button>
+                    <button type="button" onclick="closeModal()" class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold transition">ยกเลิก</button>
+                    <button type="submit" form="main-form" id="btn-submit" class="px-8 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold shadow-lg shadow-indigo-200 transition flex items-center gap-2"><i class="fas fa-floppy-disk"></i> บันทึกข้อมูล</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- ===== Modal สถิติบุคลากร (ใหม่) ===== -->
+    <!-- Modal สถิติบุคลากร -->
     <div id="stats-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeStatsModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด
-                </h3>
-                <button onclick="closeStatsModal()"
-                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-users"></i> สถิติบุคลากรทั้งหมด</h3>
+                <button onclick="closeStatsModal()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto max-h-[60vh]">
-                <div id="stats-content" class="space-y-4"></div>
-            </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeStatsModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
-            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh]"><div id="stats-content" class="space-y-4"></div></div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onclick="closeStatsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button></div>
         </div>
     </div>
 
-    <!-- ===== Modal รายชื่อเกษียณ (ใหม่) ===== -->
+    <!-- Modal รายชื่อเกษียณ -->
     <div id="retire-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeRetireModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[80vh] overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i>
-                    รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
-                <button onclick="closeRetireModal()"
-                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-clock"></i> รายชื่อผู้ใกล้เกษียณ (ภายใน 10 ปี)</h3>
+                <button onclick="closeRetireModal()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-6 overflow-y-auto max-h-[60vh]">
-                <div id="retire-content" class="space-y-2"></div>
-            </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeRetireModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
-            </div>
+            <div class="p-6 overflow-y-auto max-h-[60vh]"><div id="retire-content" class="space-y-2"></div></div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onclick="closeRetireModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button></div>
         </div>
     </div>
 
+    <!-- Modal ตั้งค่าระบบ -->
     <div id="settings-modal" class="fixed inset-0 z-[60] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettings()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-xl overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-700 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-gear"></i> ตั้งค่าระบบบุคลากร
-                </h3>
-                <button onclick="closeSettings()"
-                    class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-800 to-slate-700 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-gear"></i> ตั้งค่าระบบบุคลากร</h3>
+                <button onclick="closeSettings()" class="h-9 w-9 rounded-xl bg-white/10 hover:bg-white/20 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-
                 <div class="bg-slate-50 rounded-2xl p-4">
                     <div class="flex justify-between items-center">
-                        <div>
-                            <p class="font-bold text-slate-700 text-sm">สถานะระบบบุคลากร</p>
-                            <p class="text-xs text-slate-400">ปิดระบบเพื่อป้องกันการแก้ไขข้อมูลชั่วคราว</p>
-                        </div>
+                        <div><p class="font-bold text-slate-700 text-sm">สถานะระบบบุคลากร</p><p class="text-xs text-slate-400">ปิดระบบเพื่อป้องกันการแก้ไขข้อมูลชั่วคราว</p></div>
                         <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="set-sys-active" class="sr-only peer"
-                                onchange="saveSetting('is_active', this.checked)">
-                            <div
-                                class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500">
-                            </div>
+                            <input type="checkbox" id="set-sys-active" class="sr-only peer" onchange="saveSetting('is_active', this.checked)">
+                            <div class="w-11 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                         </label>
                     </div>
                 </div>
-
                 <div class="space-y-2 pt-4 border-t border-slate-100">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fab fa-google-drive text-emerald-600"></i> Google Drive Folder ID (ที่เก็บรูป)
-                    </label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><i class="fab fa-google-drive text-emerald-600"></i> Google Drive Folder ID (ที่เก็บรูป)</label>
                     <div class="flex gap-2">
-                        <input type="text" id="set-drive-folder-id"
-                            placeholder="เช่น 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74" class="field-input flex-1 text-sm">
-                        <button
-                            onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)"
-                            class="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-emerald-200">
-                            <i class="fas fa-floppy-disk"></i> บันทึก
-                        </button>
+                        <input type="text" id="set-drive-folder-id" placeholder="เช่น 1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74" class="field-input flex-1 text-sm">
+                        <button onclick="saveSetting('drive_folder_id', document.getElementById('set-drive-folder-id').value)" class="px-4 h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-emerald-200"><i class="fas fa-floppy-disk"></i> บันทึก</button>
                     </div>
-                    <p class="text-[10px] text-slate-400">Folder ID อยู่ใน URL:
-                        drive.google.com/drive/folders/<b>FOLDER_ID</b></p>
                 </div>
-
                 <div class="space-y-2">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-cloud-upload-alt text-blue-600"></i> Google Apps Script URL (Web App)
-                    </label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-cloud-upload-alt text-blue-600"></i> Google Apps Script URL (Web App)</label>
                     <div class="flex gap-2">
-                        <input type="text" id="set-gas-url" placeholder="https://script.google.com/macros/s/..."
-                            class="field-input flex-1 text-sm">
-                        <button onclick="saveSetting('gas_url', document.getElementById('set-gas-url').value)"
-                            class="px-4 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-blue-200">
-                            <i class="fas fa-floppy-disk"></i> บันทึก
-                        </button>
+                        <input type="text" id="set-gas-url" placeholder="https://script.google.com/macros/s/..." class="field-input flex-1 text-sm">
+                        <button onclick="saveSetting('gas_url', document.getElementById('set-gas-url').value)" class="px-4 h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-blue-200"><i class="fas fa-floppy-disk"></i> บันทึก</button>
                     </div>
-                    <p class="text-[10px] text-slate-400">นำ URL จากการ Deploy Web App ของ Google Apps Script มาใส่</p>
                 </div>
-
                 <div class="space-y-2 pt-4 border-t border-slate-100">
-                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                        <i class="fas fa-user-shield text-purple-600"></i> กำหนดแอดมินจัดการระบบบุคลากร (เฉพาะระบบนี้)
-                    </label>
+                    <label class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5"><i class="fas fa-user-shield text-purple-600"></i> กำหนดแอดมินจัดการระบบบุคลากร (เฉพาะระบบนี้)</label>
                     <div class="flex gap-2">
-                        <select id="sel-add-local-admin" class="field-input flex-1 text-sm">
-                            <option value="">-- เลือกครู / บุคลากร --</option>
-                        </select>
-                        <button onclick="addLocalAdmin()"
-                            class="px-4 h-10 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-purple-200"><i
-                                class="fas fa-plus"></i> เพิ่ม</button>
+                        <select id="sel-add-local-admin" class="field-input flex-1 text-sm"><option value="">-- เลือกครู / บุคลากร --</option></select>
+                        <button onclick="addLocalAdmin()" class="px-4 h-10 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-bold transition flex items-center gap-1.5 flex-shrink-0 shadow-md shadow-purple-200"><i class="fas fa-plus"></i> เพิ่ม</button>
                     </div>
                     <div id="list-local-admins" class="mt-3 space-y-2 max-h-40 overflow-y-auto"></div>
                 </div>
-
                 <div id="settings-status" class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 hidden">
-                    <p class="text-xs font-bold text-indigo-600 mb-2"><i class="fas fa-circle-info mr-1"></i>
-                        ค่าที่บันทึกในระบบ</p>
+                    <p class="text-xs font-bold text-indigo-600 mb-2"><i class="fas fa-circle-info mr-1"></i> ค่าที่บันทึกในระบบ</p>
                     <div id="settings-status-content" class="text-xs text-indigo-700 space-y-1"></div>
                 </div>
             </div>
-            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeSettings()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button>
-            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end"><button onclick="closeSettings()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ปิด</button></div>
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="dashboard_ui.js"></script>
     <script src="personnel.js"></script>
 
 </body>

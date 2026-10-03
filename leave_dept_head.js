@@ -28,6 +28,8 @@ $(document).ready(async function () {
         if (!profile) { await db.auth.signOut(); window.location.href = 'login.html'; return; }
         window.currentProfile = profile;
         window.currentUserRole = profile.role || 'teacher';
+        // ✅ เพิ่ม avatar + today chip
+        if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
 
         const isSuperAdmin = (profile.role === 'super_admin');
 
@@ -337,8 +339,10 @@ window.renderDeptTables = function () {
 window.switchTab = function (tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
-    $('.tab-btn').removeClass('bg-amber-50 text-amber-700 border-amber-200').addClass('text-slate-500 border-transparent');
-    $(`#btn-${tabId}`).removeClass('text-slate-500 border-transparent').addClass('bg-amber-50 text-amber-700 border-amber-200');
+    $('.tab-nav-btn').removeClass('active');
+    $(`#btn-${tabId}`).addClass('active');
+    // ปิด sidebar บนมือถือ
+    if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
     setTimeout(() => {
         if (tabId === 'pending' && window.pendingDT) window.pendingDT.columns.adjust().draw();
         if (tabId === 'done' && window.doneDT) window.doneDT.columns.adjust().draw();
@@ -393,20 +397,9 @@ window.closeViewModal = function () {
 // LOGOUT
 // ==========================================
 window.logout = async function () {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        text: "คุณต้องการออกจากระบบใช่หรือไม่",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace("login.html");
-    }
+    if (typeof handleLogout === 'function') return handleLogout();
+    const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' });
+    if (isConfirmed) { await db.auth.signOut(); window.location.replace("login.html"); }
 };
 
 // ==========================================

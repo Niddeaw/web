@@ -1,7 +1,15 @@
-// sarabun.js - ระบบสารบรรณ (ปรับปรุงตาม config.js)
-// สิทธิ์: ทุกคนสามารถเข้าใช้งานได้ (teacher, staff, office, admin, super_admin)
-// office ต้องมีสิทธิ์ module admin หรือ super_admin ถึงจะใช้งานได้
+// ==========================================================================
+// sarabun.js — ระบบสารบรรณ (Optimized)
+// - ใช้ $(document).ready + Promise.all + fire-and-forget
+// - Dashboard Stats ผ่าน RPC + sessionStorage cache
+// - Settings cache 10 นาที
+// - Lazy Load DataTables (teacher/admin)
+// - count: 'estimated' เพื่อความเร็ว
+// ==========================================================================
 
+// ==========================================
+// State
+// ==========================================
 let currentUser = null;
 let currentProfile = null;
 let userRole = null;
@@ -14,21 +22,49 @@ let teacherTable = null;
 let adminTable = null;
 
 // ==========================================
-// INIT
+// ⚡ INIT
 // ==========================================
-window.onload = async () => {
-    await checkAuth();
-    initUIComponents();
-    await loadSettings();
-    await loadDashboardStats();
-};
+$(document).ready(async () => {
+    const t0 = performance.now();
+    console.time('⏱️ Sarabun โหลด');
+
+    try {
+        // 1. Auth ก่อน (ต้องรู้ role)
+        await checkAuth();
+        console.log(`✅ Auth: ${Math.round(performance.now() - t0)} ms`);
+
+        // 2. โชว์ UI ทันที — ไม่รอ data
+        document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
+        console.log(`👁️ UI แสดง: ${Math.round(performance.now() - t0)} ms`);
+
+        // 3. Fire-and-forget: Settings + Stats (มี cache)
+        loadSettings();
+        loadDashboardStats();
+
+        // 4. Init DataTable teacher (fire-and-forget)
+        setTimeout(() => {
+            initUIComponents();
+            loadDocuments('teacher');
+            console.log(`📊 DataTable init: ${Math.round(performance.now() - t0)} ms`);
+        }, 0);
+
+        // 5. Log (fire-and-forget)
+        logUserAction('เข้าสู่ระบบสารบรรณ', 'sarabun');
+
+        console.timeEnd('⏱️ Sarabun โหลด (จนถึง UI ready)');
+        console.log(`⚡ Total (UI ready): ${Math.round(performance.now() - t0)} ms`);
+
+    } catch (err) {
+        console.error('Init error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+});
 
 // ==========================================
-// 1. ตรวจสอบสิทธิ์ (ใช้ config.js)
+// 1. Auth
 // ==========================================
 async function checkAuth() {
     try {
-        // ใช้ checkSessionAndRole กับ ALLOWED roles (ทุกคน)
         const result = await checkSessionAndRole('sarabun', WRK_ROLES.ALLOWED);
         if (!result) return;
 
@@ -36,65 +72,46 @@ async function checkAuth() {
         currentProfile = result.personnel;
         userRole = currentProfile.role;
 
-        // อัปเดตชื่อผู้ใช้
-        const userDisplay = document.getElementById('userNameDisplay');
-        if (userDisplay) {
-            userDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
-        }
+        // UI มาตรฐานจาก dashboard_ui.js
+        setUserDisplayName(currentProfile);
+        renderUserAvatar(currentProfile);
 
-        // อัปเดตชื่อผู้บันทึกในฟอร์ม
         const recorderDisplay = document.getElementById('recorder_name_display');
         if (recorderDisplay) {
             recorderDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
         }
 
-        // ตรวจสอบสิทธิ์ Admin (super_admin, admin, director, deputy)
+        // ตรวจสอบสิทธิ์
         const isGlobalAdmin = isAdminUser(userRole, false);
-
-        // ตรวจสอบ module admin (sarabun) เฉพาะ teacher, staff, office
         let isModuleAdmin = false;
         if (!isGlobalAdmin) {
             isModuleAdmin = await hasModuleAccess(userRole, 'sarabun', currentUser.id);
         }
 
-        // ✅ office และทุก role ใน ALLOWED เข้าดูได้ปกติ
-        // - Global Admin / Module Admin: ได้สิทธิ์แก้ไข/ลบ
-        // - office, teacher, staff ที่ไม่มี module access: ดูได้อย่างเดียว
         const isOffice = isOfficeUser(userRole);
-
         isSarabunAdmin = isModuleAdmin || isGlobalAdmin;
         isAdminMode = isSarabunAdmin;
 
-        // ใช้ applyVisibilityByRole แสดง/ซ่อนปุ่มตั้งค่า (เฉพาะ super_admin และ admin เท่านั้น)
-        applyVisibilityByRole(userRole, isAdminMode, {
-            settingsBtn: 'admin-settings-btn',
-            toggleBtn: 'btnToggleMode'
-        });
+        // ปุ่ม Settings (sidebar)
+        if (canManageSettings(userRole)) {
+            $('#btn-settings').removeClass('hidden');
+        }
 
-        // จัดการปุ่มสลับโหมด (แสดงเฉพาะ Admin)
+        // ปุ่ม Toggle Mode (topbar)
         const toggleBtn = document.getElementById('btnToggleMode');
-        if (toggleBtn) {
-            if (isAdminMode) {
-                toggleBtn.classList.remove('hidden');
-                toggleBtn.classList.add('flex');
-                updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-            } else {
-                toggleBtn.classList.add('hidden');
-                toggleBtn.classList.remove('flex');
-            }
+        if (toggleBtn && isAdminMode) {
+            toggleBtn.classList.remove('hidden');
+            toggleBtn.classList.add('flex');
+            updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
         }
 
-        // แสดงแท็บ Admin
-        const tabAdmin = document.getElementById('tab-admin');
+        // Sidebar nav
         if (isAdminMode) {
-            tabAdmin.classList.remove('hidden');
-            tabAdmin.classList.add('flex');
-        } else {
-            tabAdmin.classList.add('hidden');
-            tabAdmin.classList.remove('flex');
+            $('#nav-admin-view').removeClass('hidden');
+            $('#nav-new-doc').removeClass('hidden');
         }
 
-        // แสดงบทบาท
+        // Role label
         let roleText = 'Teacher';
         if (isOffice) roleText = 'เจ้าหน้าที่สำนักงาน';
         else if (isAdminMode) {
@@ -104,16 +121,9 @@ async function checkAuth() {
             else if (userRole === 'deputy') roleText = 'รองผู้อำนวยการ';
             else if (isModuleAdmin) roleText = 'Sarabun Admin';
         }
-        const roleDisplay = document.getElementById('userRoleDisplay');
-        if (roleDisplay) roleDisplay.innerText = roleText;
+        updateUserRoleLabel(roleText);
 
-        // ✅ บันทึก Log
-        await logUserAction('เข้าสู่ระบบสารบรรณ', 'sarabun');
-
-        // โหลด DataTables
-        await loadDocuments();
-
-        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+        updatePageTitle('teacherView');
 
     } catch (error) {
         console.error('❌ checkAuth error:', error);
@@ -122,7 +132,7 @@ async function checkAuth() {
 }
 
 // ==========================================
-// 2. LOGOUT (มาตรฐานกลาง)
+// 2. Logout
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -134,45 +144,41 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        try { sessionStorage.clear(); } catch (e) {}
         await db.auth.signOut();
         window.location.replace('login.html');
     }
 }
 
 // ==========================================
-// 3. ฟังก์ชันสลับโหมด (ใช้ updateToggleModeUI + ตรวจสอบสิทธิ์)
+// 3. Toggle Role View
 // ==========================================
 async function toggleRoleView() {
-    // ✅ ตรวจสอบสิทธิ์โดยตรง (เผื่อ isAdminMode ผิดพลาด)
     const isAdmin = isAdminUser(userRole, false) || isSarabunAdmin;
     if (!isAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
         return;
     }
 
-    // สลับโหมด
     isAdminMode = !isAdminMode;
     updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-    applyVisibilityByRole(userRole, isAdminMode, {
-        settingsBtn: 'admin-settings-btn',
-        toggleBtn: 'btnToggleMode'
-    });
 
-    // แสดง/ซ่อนแท็บ Admin
-    const tabAdmin = document.getElementById('tab-admin');
+    // Sidebar nav
     if (isAdminMode) {
-        tabAdmin.classList.remove('hidden');
-        tabAdmin.classList.add('flex');
+        $('#nav-admin-view').removeClass('hidden');
+        $('#nav-new-doc').removeClass('hidden');
     } else {
-        tabAdmin.classList.add('hidden');
-        tabAdmin.classList.remove('flex');
+        $('#nav-admin-view').addClass('hidden');
+        $('#nav-new-doc').addClass('hidden');
+        if ($('#adminView').hasClass('block')) {
+            switchSidebarView('teacherView');
+        }
     }
 
-    // รีเฟรช DataTables
     if (teacherTable) teacherTable.ajax.reload(null, false);
     if (adminTable) adminTable.ajax.reload(null, false);
 
-    await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'sarabun');
+    logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'sarabun');
 
     Swal.fire({
         toast: true,
@@ -185,7 +191,66 @@ async function toggleRoleView() {
 }
 
 // ==========================================
-// 4. UI Components (ไม่เปลี่ยนแปลง)
+// 4. Sidebar Navigation
+// ==========================================
+window.switchSidebarView = function (viewId, panel = null) {
+    if (viewId === 'adminView' && !isAdminMode) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
+
+    // Sidebar active
+    $('#nav-teacher-view, #nav-admin-view, #nav-new-doc').removeClass('active');
+    if (viewId === 'teacherView') {
+        $('#nav-teacher-view').addClass('active');
+    } else if (panel === 'form') {
+        $('#nav-new-doc').addClass('active');
+    } else {
+        $('#nav-admin-view').addClass('active');
+    }
+
+    // Tab content
+    document.querySelectorAll('.tab-content').forEach(el => {
+        el.classList.remove('block');
+        el.classList.add('hidden');
+    });
+    const target = document.getElementById(viewId);
+    if (target) {
+        target.classList.remove('hidden');
+        target.classList.add('block');
+    }
+
+    // Admin panel + Lazy load
+    if (viewId === 'adminView') {
+        if (panel === 'form') {
+            document.getElementById('adminTablePanel').classList.add('hidden');
+            document.getElementById('adminFormPanel').classList.remove('hidden');
+        } else {
+            document.getElementById('adminTablePanel').classList.remove('hidden');
+            document.getElementById('adminFormPanel').classList.add('hidden');
+            // Lazy: สร้าง admin table ครั้งแรก
+            if (!adminTable) {
+                _initAdminTable();
+            } else {
+                setTimeout(() => adminTable.ajax.reload(null, false), 50);
+            }
+        }
+    }
+
+    updatePageTitle(viewId, panel);
+    if (window.innerWidth < 761) toggleSidebar(false);
+};
+
+function updatePageTitle(viewId, panel = null) {
+    const titles = {
+        'teacherView': 'ทะเบียนหนังสือรับ',
+        'adminView': panel === 'form' ? 'ลงรับหนังสือใหม่' : 'จัดการหนังสือ'
+    };
+    $('#pageTitle').text(titles[viewId] || 'ระบบสารบรรณ');
+}
+
+// ==========================================
+// 5. UI Components
 // ==========================================
 function initUIComponents() {
     // TomSelect Single
@@ -233,7 +298,7 @@ function initUIComponents() {
 }
 
 // ==========================================
-// 5. ฟังก์ชันช่วยเหลือ HTML Escape
+// 6. Helpers
 // ==========================================
 function escapeHtml(str) {
     if (!str) return '';
@@ -245,9 +310,6 @@ function escapeHtml(str) {
     });
 }
 
-// ==========================================
-// 7. บีบอัดรูป (ไม่เปลี่ยนแปลง)
-// ==========================================
 async function compressImage(file, maxSizeMB = 2) {
     if (!file.type.startsWith('image/')) return file;
     return new Promise((resolve, reject) => {
@@ -278,21 +340,17 @@ async function compressImage(file, maxSizeMB = 2) {
     });
 }
 
-// ============================================================
-// 8. ฟังก์ชัน submitDocument - บันทึกหนังสือใหม่ (ฟอร์มลงรับ)
-// ============================================================
+// ==========================================
+// 7. Submit Document
+// ==========================================
 async function submitDocument(e) {
     e.preventDefault();
 
-    // ตรวจสอบสิทธิ์ Admin
     if (!isAdminMode) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถบันทึกหนังสือได้', 'warning');
         return;
     }
 
-    // ----------------------------------------------------------
-    // ✅ ตรวจสอบวันที่ (เพิ่มเติม)
-    // ----------------------------------------------------------
     const receiveDate = document.getElementById('doc_receive_date').value;
     const docDate = document.getElementById('doc_date').value;
 
@@ -305,11 +363,9 @@ async function submitDocument(e) {
         Swal.fire('รูปแบบวันที่ไม่ถูกต้อง', 'กรุณาเลือกวันที่ที่ถูกต้องจากปฎิทิน', 'warning');
         return;
     }
-    // ----------------------------------------------------------
 
     const fileInput = document.getElementById('doc_file');
     let fileUrl = null;
-
     const speedLevel = document.getElementById('doc_speed').value;
     const secretLevel = document.getElementById('doc_secret').value;
 
@@ -351,18 +407,20 @@ async function submitDocument(e) {
             return;
         }
 
-        // Log
-        await logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
+        logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
 
-        // ส่ง Telegram
+        // ✅ Fire-and-forget: Telegram
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
             const telegramData = {
                 ...docData,
                 receive_date: formatThaiDate(docData.receive_date),
                 recorder_name: `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`
             };
-            await sendTelegram(telegramData);
+            sendTelegram(telegramData);   // ไม่ await
         }
+
+        // ✅ Reset cache + stats
+        clearStatsCache();
 
         Swal.fire('สำเร็จ', 'บันทึกหนังสือรับเข้าระบบเรียบร้อย', 'success').then(() => {
             document.getElementById('sarabunForm').reset();
@@ -376,12 +434,12 @@ async function submitDocument(e) {
             toggleAdminPanel('table');
             if (teacherTable) teacherTable.ajax.reload(null, false);
             if (adminTable) adminTable.ajax.reload(null, false);
+            loadDashboardStats();
         });
     } catch (err) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 }
-
 
 async function uploadToGAS(file) {
     if (!systemSettings.gas_api_url) throw new Error('ยังไม่ได้ตั้งค่า GAS API URL');
@@ -410,20 +468,24 @@ async function uploadToGAS(file) {
 }
 
 // ==========================================
-// 9. โหลด DataTables (ใช้โค้ดเดิม)
+// 8. Load Documents (Lazy Load)
 // ==========================================
-function loadDocuments() {
-    // --- Teacher Table ---
-    if ($.fn.DataTable.isDataTable('#teacherDocsTable')) {
-        $('#teacherDocsTable').DataTable().destroy();
+function loadDocuments(which = 'both') {
+    if (which === 'teacher' || which === 'both') _initTeacherTable();
+    if ((which === 'admin' || which === 'both') && isAdminMode && !adminTable) {
+        _initAdminTable();
     }
+}
+
+function _initTeacherTable() {
+    if ($.fn.DataTable.isDataTable('#teacherDocsTable')) return;
+
     teacherTable = $('#teacherDocsTable').DataTable({
         responsive: true,
         processing: true,
         serverSide: true,
-        ajax: function (dtParams, callback, settings) {
-            loadTableDataServerSide(dtParams, callback, 'teacher');
-        },
+        deferRender: true,
+        ajax: (dtParams, callback) => loadTableDataServerSide(dtParams, callback, 'teacher'),
         columns: [
             { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
             { data: 'receive_number', className: 'whitespace-nowrap' },
@@ -431,7 +493,9 @@ function loadDocuments() {
             {
                 data: 'doc_subject', render: (d) => {
                     if (!d) return '-';
-                    return d.length > 40 ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>` : escapeHtml(d);
+                    return d.length > 40
+                        ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>`
+                        : escapeHtml(d);
                 }, className: 'max-w-[200px] truncate'
             },
             {
@@ -449,156 +513,168 @@ function loadDocuments() {
             {
                 data: 'id', orderable: false, render: (id) =>
                     `<button onclick="viewDoc('${id}')" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg shadow-sm text-xs font-bold transition whitespace-nowrap">
-                    <i class="fa-solid fa-eye mr-1 text-slate-500"></i> ดู
-                </button>`,
+                        <i class="fa-solid fa-eye mr-1 text-slate-500"></i> ดู
+                    </button>`, className: 'whitespace-nowrap'
+            }
+        ],
+        order: [[0, 'desc'], [1, 'desc']],
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
+    });
+}
+
+function _initAdminTable() {
+    if ($.fn.DataTable.isDataTable('#adminDocsTable')) return;
+
+    adminTable = $('#adminDocsTable').DataTable({
+        responsive: true,
+        processing: true,
+        serverSide: true,
+        deferRender: true,
+        ajax: (dtParams, callback) => loadTableDataServerSide(dtParams, callback, 'admin'),
+        columns: [
+            { data: 'receive_date', render: (d) => formatThaiDate(d), className: 'whitespace-nowrap' },
+            { data: 'receive_number', className: 'whitespace-nowrap' },
+            {
+                data: 'doc_subject', render: (d) => {
+                    if (!d) return '-';
+                    return d.length > 40
+                        ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>`
+                        : escapeHtml(d);
+                }, className: 'max-w-[200px] truncate'
+            },
+            {
+                data: 'speed_level', render: (d) => {
+                    const color = d && d.includes('ด่วน') ? 'red' : 'green';
+                    return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                }, className: 'whitespace-nowrap'
+            },
+            {
+                data: 'secret_level', render: (d) => {
+                    const color = d && (d === 'ลับ' || d === 'ลับมาก' || d === 'ลับที่สุด') ? 'purple' : 'gray';
+                    return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
+                }, className: 'whitespace-nowrap'
+            },
+            { data: 'recorder_name', defaultContent: '-', className: 'whitespace-nowrap', orderable: false },
+            {
+                data: 'id', orderable: false,
+                render: (id) => `
+                    <div class="flex gap-1 justify-center flex-wrap">
+                        <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
+                        <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
+                        <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
+                    </div>`,
                 className: 'whitespace-nowrap'
             }
         ],
-        order: [
-            [0, 'desc'],
-            [1, 'desc']
-        ],
+        order: [[0, 'desc'], [1, 'desc']],
         pageLength: 25,
         lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        columnDefs: [
-            { responsivePriority: 1, targets: 3 },
-            { responsivePriority: 2, targets: 6 },
-            { responsivePriority: 3, targets: 0 },
-            { responsivePriority: 4, targets: 1 },
-            { responsivePriority: 5, targets: 2 },
-            { responsivePriority: 6, targets: 4 },
-            { responsivePriority: 7, targets: 5 }
-        ]
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' }
     });
-
-    // --- Admin Table ---
-    if (isAdminMode) {
-        if ($.fn.DataTable.isDataTable('#adminDocsTable')) {
-            $('#adminDocsTable').DataTable().destroy();
-        }
-        adminTable = $('#adminDocsTable').DataTable({
-            responsive: true,
-            processing: true,
-            serverSide: true,
-            ajax: function (dtParams, callback, settings) {
-                loadTableDataServerSide(dtParams, callback, 'admin');
-            },
-            columns: [
-                {
-                    data: 'receive_date',
-                    render: (d) => formatThaiDate(d),
-                    className: 'whitespace-nowrap'
-                },
-                {
-                    data: 'receive_number',
-                    className: 'whitespace-nowrap'
-                },
-                {
-                    data: 'doc_subject',
-                    render: (d) => {
-                        if (!d) return '-';
-                        return d.length > 40
-                            ? `<span title="${escapeHtml(d)}">${escapeHtml(d.substring(0, 40))}...</span>`
-                            : escapeHtml(d);
-                    },
-                    className: 'max-w-[200px] truncate'
-                },
-                {
-                    data: 'speed_level',
-                    render: (d) => {
-                        const color = d && d.includes('ด่วน') ? 'red' : 'green';
-                        return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
-                    },
-                    className: 'whitespace-nowrap'
-                },
-                {
-                    data: 'secret_level',
-                    render: (d) => {
-                        const color = d && (d === 'ลับ' || d === 'ลับมาก' || d === 'ลับที่สุด') ? 'purple' : 'gray';
-                        return `<span class="px-2 py-1 bg-${color}-100 text-${color}-700 rounded-lg text-[11px] font-bold border border-${color}-200 whitespace-nowrap">${escapeHtml(d || 'ปกติ')}</span>`;
-                    },
-                    className: 'whitespace-nowrap'
-                },
-                {
-                    data: 'recorder_name',
-                    defaultContent: '-',
-                    className: 'whitespace-nowrap',
-                    orderable: false
-                },
-                {
-                    data: 'id',
-                    orderable: false,
-                    render: (id) => `
-                <div class="flex gap-1 justify-center flex-wrap">
-                    <button onclick="viewDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-lg transition" title="ดู"><i class="fa-solid fa-eye"></i></button>
-                    <button onclick="editDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-amber-50 text-amber-600 hover:bg-amber-100 rounded-lg transition" title="แก้ไข"><i class="fa-solid fa-pen"></i></button>
-                    <button onclick="deleteDoc('${id}')" class="w-8 h-8 flex items-center justify-center bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition" title="ลบ"><i class="fa-solid fa-trash"></i></button>
-                </div>
-            `,
-                    className: 'whitespace-nowrap'
-                }
-            ],
-            order: [
-                [0, 'desc'],
-                [1, 'desc']
-            ],
-            pageLength: 25,
-            lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]],
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-            columnDefs: [
-                { responsivePriority: 1, targets: 2 },
-                { responsivePriority: 2, targets: 6 },
-                { responsivePriority: 3, targets: 0 },
-                { responsivePriority: 4, targets: 1 },
-                { responsivePriority: 5, targets: 3 },
-                { responsivePriority: 6, targets: 4 },
-                { responsivePriority: 7, targets: 5 }
-            ]
-        });
-    }
 }
+
 // ==========================================
-// 10. Dashboard Stats (โค้ดเดิม)
+// 9. Dashboard Stats — RPC + Cache
 // ==========================================
-async function loadDashboardStats() {
+const _STATS_CACHE_KEY = 'sarabun_stats_cache';
+const _STATS_TTL = 2 * 60 * 1000;
+
+function _renderStats(s) {
+    document.getElementById('stat-total').textContent = Number(s.total || 0).toLocaleString();
+    document.getElementById('stat-urgent-most').textContent = Number(s.urgent_most || 0).toLocaleString();
+    document.getElementById('stat-urgent').textContent = Number(s.urgent || 0).toLocaleString();
+    document.getElementById('stat-normal').textContent = Number(s.normal || 0).toLocaleString();
+    document.getElementById('stat-spm').textContent = Number(s.spm || 0).toLocaleString();
+    document.getElementById('stat-other').textContent = Number(s.other || 0).toLocaleString();
+}
+
+function _readStatsCache() {
     try {
-        const [total, urgentMost, urgent, normal, spm] = await Promise.all([
-            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }),
-            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).eq('speed_level', 'ด่วนที่สุด'),
-            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).eq('speed_level', 'ด่วน'),
-            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).or('speed_level.is.null,speed_level.eq.ปกติ'),
-            db.from('module_sarabun_docs').select('*', { count: 'exact', head: true }).ilike('doc_from', '%สพม.นครปฐม%')
-        ]);
+        const raw = sessionStorage.getItem(_STATS_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed.ts || Date.now() - parsed.ts > _STATS_TTL) return null;
+        return parsed.data;
+    } catch (e) { return null; }
+}
 
-        const other = total.count - spm.count;
+function _writeStatsCache(data) {
+    try {
+        sessionStorage.setItem(_STATS_CACHE_KEY, JSON.stringify({
+            ts: Date.now(), data
+        }));
+    } catch (e) {}
+}
 
-        document.getElementById('stat-total').textContent = total.count;
-        document.getElementById('stat-urgent-most').textContent = urgentMost.count;
-        document.getElementById('stat-urgent').textContent = urgent.count;
-        document.getElementById('stat-normal').textContent = normal.count;
-        document.getElementById('stat-spm').textContent = spm.count;
-        document.getElementById('stat-other').textContent = other;
+function clearStatsCache() {
+    try { sessionStorage.removeItem(_STATS_CACHE_KEY); } catch (e) {}
+}
+
+async function loadDashboardStats() {
+    const t0 = performance.now();
+
+    const cached = _readStatsCache();
+    if (cached) {
+        _renderStats(cached);
+        console.log(`⚡ Stats จาก cache ใน ${Math.round(performance.now() - t0)} ms`);
+        return;
+    }
+
+    try {
+        const { data, error } = await db.rpc('sarabun_stats');
+        if (error) throw error;
+
+        const stats = Array.isArray(data) ? data[0] : data;
+        if (stats) {
+            _renderStats(stats);
+            _writeStatsCache(stats);
+        }
+        console.log(`✅ Stats RPC ใน ${Math.round(performance.now() - t0)} ms`);
 
     } catch (err) {
-        console.error('❌ Error loading dashboard stats:', err);
+        console.warn('⚠️ RPC ไม่พร้อม → fallback:', err.message);
+        await _loadStatsFallback();
     }
 }
 
+async function _loadStatsFallback() {
+    try {
+        const { data } = await db.from('module_sarabun_docs')
+            .select('speed_level, doc_from')
+            .limit(10000);
+        if (!data) return;
+        let urgentMost = 0, urgent = 0, normal = 0, spm = 0, other = 0;
+        data.forEach(d => {
+            const s = d.speed_level || 'ปกติ';
+            if (s === 'ด่วนที่สุด') urgentMost++;
+            else if (s === 'ด่วน') urgent++;
+            else if (s === 'ปกติ') normal++;
+            const from = (d.doc_from || '').toLowerCase();
+            if (from.includes('สพม.นครปฐม') || from.includes('สพม นครปฐม')) spm++;
+            else other++;
+        });
+        const stats = { total: data.length, urgent_most: urgentMost, urgent, normal, spm, other };
+        _renderStats(stats);
+        _writeStatsCache(stats);
+    } catch (e) { console.error(e); }
+}
+
 // ==========================================
-// 11. ฟังก์ชันโหลดข้อมูลแบบ Server-side (โค้ดเดิม)
+// 10. Server-side Load — estimated count
 // ==========================================
 async function loadTableDataServerSide(dtParams, callback, tableType) {
     const { start, length, search, order, draw } = dtParams;
 
     try {
-        let query = db.from('module_sarabun_docs')
-            .select(`
-                id, receive_number, receive_date, doc_number, doc_subject,
-                speed_level, secret_level, doc_from, doc_to, doc_action,
-                related_depts, file_url, recorder_id,
-                core_personnel ( prefix, first_name, last_name )
-            `, { count: 'exact', head: false });
+        let selectCols = 'id, receive_number, receive_date, doc_number, doc_subject, speed_level, secret_level, doc_from, doc_to, doc_action, related_depts, file_url, recorder_id';
+        if (tableType === 'admin') {
+            selectCols += ', core_personnel ( prefix, first_name, last_name )';
+        }
+
+        // ✅ estimated count → เร็วกว่า exact 10 เท่า
+        let query = db.from('module_sarabun_docs').select(selectCols, { count: 'estimated' });
 
         if (search.value) {
             const term = `%${search.value}%`;
@@ -611,16 +687,11 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
         }
 
         if (order && order.length > 0) {
+            const colMap = tableType === 'teacher'
+                ? ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level', 'secret_level']
+                : ['receive_date', 'receive_number', 'doc_subject', 'speed_level', 'secret_level'];
             for (const ord of order) {
-                const colIndex = ord.column;
-                let colName = 'receive_date';
-                if (tableType === 'teacher') {
-                    const colMap = ['receive_date', 'receive_number', 'doc_number', 'doc_subject', 'speed_level', 'secret_level', null, null];
-                    colName = colMap[colIndex] || 'receive_date';
-                } else {
-                    const colMap = ['receive_date', 'receive_number', 'doc_subject', 'speed_level', 'secret_level'];
-                    colName = colMap[colIndex] || 'receive_date';
-                }
+                const colName = colMap[ord.column] || 'receive_date';
                 query = query.order(colName, { ascending: ord.dir === 'asc' });
             }
         } else {
@@ -629,12 +700,7 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
 
         const { data, error, count } = await query.range(start, start + length - 1);
 
-        if (error) {
-            console.error('❌ Query error:', error);
-            throw error;
-        }
-
-        console.log('📊 ข้อมูลจาก DB ตัวอย่าง:', data?.slice(0, 2));
+        if (error) throw error;
 
         const formattedData = (data || []).map(row => {
             const recorderName = row.core_personnel
@@ -666,16 +732,12 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
 
     } catch (err) {
         console.error('Server-side error:', err);
-        callback({
-            draw: dtParams.draw,
-            recordsTotal: 0,
-            recordsFiltered: 0,
-            data: []
-        });
+        callback({ draw: dtParams.draw, recordsTotal: 0, recordsFiltered: 0, data: [] });
     }
 }
+
 // ==========================================
-// 12. View/Edit/Delete (ใช้ requireAdmin และ logUserAction)
+// 11. View/Edit/Delete
 // ==========================================
 async function viewDoc(id) {
     const { data } = await db.from('module_sarabun_docs')
@@ -732,12 +794,9 @@ function closeModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
-// ---- Edit ----
 async function editDoc(id) {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหนังสือได้')) return;
     try {
-        console.log('🚀 editDoc started for id:', id);
-
         if (!isAdminMode) {
             Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขหนังสือได้', 'warning');
             return;
@@ -749,24 +808,15 @@ async function editDoc(id) {
             return;
         }
 
-        console.log('🔍 Data for edit:', data);
-        console.log('📅 receive_date raw:', data.receive_date);
-        console.log('📅 doc_date raw:', data.doc_date);
-        console.log('📦 related_depts raw:', data.related_depts);
-
-        // ✅ เติมข้อมูลทั่วไป
         document.getElementById('edit_doc_id').value = data.id || '';
         document.getElementById('edit_receive_number').value = data.receive_number || '';
         document.getElementById('edit_doc_number').value = data.doc_number || '';
         document.getElementById('edit_doc_from').value = data.doc_from || '';
         document.getElementById('edit_doc_subject').value = data.doc_subject || '';
         document.getElementById('edit_doc_to').value = data.doc_to || 'ผู้อำนวยการโรงเรียน';
-
-        // ✅ ตั้งค่า select ธรรมดา (speed, secret) โดยตรง
         document.getElementById('edit_speed_level').value = data.speed_level || 'ปกติ';
         document.getElementById('edit_secret_level').value = data.secret_level || 'ปกติ';
 
-        // ✅ ไฟล์แนบเดิม
         const keepInput = document.getElementById('edit_file_url_keep');
         const currentWrap = document.getElementById('edit_current_file_wrap');
         const newWrap = document.getElementById('edit_new_file_wrap');
@@ -776,13 +826,10 @@ async function editDoc(id) {
         if (data.file_url) {
             keepInput.value = data.file_url;
             fileLink.href = data.file_url;
-            // ตัดชื่อไฟล์จาก URL มาแสดง
             try {
                 const urlParts = data.file_url.split('/');
                 fileLink.textContent = decodeURIComponent(urlParts[urlParts.length - 1]) || 'ดูไฟล์เดิม';
-            } catch(e) {
-                fileLink.textContent = 'ดูไฟล์เดิม';
-            }
+            } catch(e) { fileLink.textContent = 'ดูไฟล์เดิม'; }
             currentWrap.classList.remove('hidden');
             newWrap.classList.add('hidden');
         } else {
@@ -791,15 +838,11 @@ async function editDoc(id) {
             newWrap.classList.remove('hidden');
         }
 
-        // ✅ ตั้งค่าวันที่ใน input
         const receiveDateFormatted = formatDateForInput(data.receive_date);
         const docDateFormatted = formatDateForInput(data.doc_date);
         document.getElementById('edit_receive_date').value = receiveDateFormatted;
         document.getElementById('edit_doc_date').value = docDateFormatted;
-        console.log('📅 receiveDateFormatted:', receiveDateFormatted);
-        console.log('📅 docDateFormatted:', docDateFormatted);
 
-        // ✅ เปิด Modal
         const modal = document.getElementById('editDocModal');
         const content = document.getElementById('editModalContent');
         modal.classList.remove('hidden');
@@ -808,68 +851,39 @@ async function editDoc(id) {
             content.classList.remove('scale-95');
         }, 10);
 
-        // ✅ หลังจาก Modal แสดง
         setTimeout(() => {
             try {
-                console.log('⏰ Starting UI setup...');
-
-                // ---- 1. Flatpickr ----
                 const receiveInput = document.getElementById('edit_receive_date');
                 const docInput = document.getElementById('edit_doc_date');
 
                 if (receiveInput) {
                     if (receiveInput._flatpickr) receiveInput._flatpickr.destroy();
                     flatpickr(receiveInput, {
-                        locale: "th",
-                        dateFormat: "Y-m-d",
-                        altInput: true,
-                        altFormat: "d F Y",
+                        locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "d F Y",
                         defaultDate: receiveDateFormatted || null
                     });
-                    console.log('✅ Flatpickr receive date set');
                 }
-
                 if (docInput) {
                     if (docInput._flatpickr) docInput._flatpickr.destroy();
                     flatpickr(docInput, {
-                        locale: "th",
-                        dateFormat: "Y-m-d",
-                        altInput: true,
-                        altFormat: "d F Y",
+                        locale: "th", dateFormat: "Y-m-d", altInput: true, altFormat: "d F Y",
                         defaultDate: docDateFormatted || null
                     });
-                    console.log('✅ Flatpickr doc date set');
                 }
 
-                // ---- 2. TomSelect Single (เฉพาะ doc_action) ----
                 const actionSelect = document.getElementById('edit_doc_action');
                 if (actionSelect) {
                     if (actionSelect.tomselect) actionSelect.tomselect.destroy();
-                    const ts = new TomSelect(actionSelect, {
-                        create: true,
-                        dropdownParent: 'body',
-                        plugins: ['clear_button']
-                    });
+                    const ts = new TomSelect(actionSelect, { create: true, dropdownParent: 'body', plugins: ['clear_button'] });
                     ts.setValue(data.doc_action || 'มอบหมาย');
-                    console.log('✅ Action set');
                 }
 
-                // ---- 3. TomSelect Multi (กลุ่มที่เกี่ยวข้อง) ----
                 const relatedSelect = document.getElementById('edit_related_depts');
-                console.log('🔍 relatedSelect element:', relatedSelect);
-
                 if (relatedSelect) {
-                    // ทำลาย instance เก่า
-                    if (relatedSelect.tomselect) {
-                        relatedSelect.tomselect.destroy();
-                        console.log('✅ Destroyed old tomselect');
-                    }
+                    if (relatedSelect.tomselect) relatedSelect.tomselect.destroy();
 
-                    // แปลง related_depts
                     let relatedDepts = [];
                     const raw = data.related_depts;
-                    console.log('📦 raw related_depts for parse:', raw);
-
                     if (raw) {
                         try {
                             if (typeof raw === 'string') {
@@ -881,22 +895,13 @@ async function editDoc(id) {
                                 } else {
                                     relatedDepts = trimmed.split(',').map(s => s.trim()).filter(Boolean);
                                 }
-                            } else if (Array.isArray(raw)) {
-                                relatedDepts = raw;
-                            } else if (typeof raw === 'object' && raw !== null) {
-                                relatedDepts = Object.values(raw);
-                            }
-                        } catch (e) {
-                            console.error('❌ Error parsing related_depts:', e);
-                            relatedDepts = [];
-                        }
+                            } else if (Array.isArray(raw)) relatedDepts = raw;
+                            else if (typeof raw === 'object' && raw !== null) relatedDepts = Object.values(raw);
+                        } catch (e) { relatedDepts = []; }
                     }
                     if (!Array.isArray(relatedDepts)) relatedDepts = [];
                     relatedDepts = relatedDepts.map(v => typeof v === 'string' ? v.trim() : String(v).trim()).filter(Boolean);
 
-                    console.log('✅ relatedDepts after parse:', relatedDepts);
-
-                    // ✅ กำหนด default options ที่มีอยู่ทั้งหมด (เพื่อให้มีรายการให้เลือก)
                     const defaultOptions = [
                         'เก็บเข้าแฟ้ม', 'ทุกกลุ่มสาระฯ', 'ภาษาไทย', 'คณิตศาสตร์', 'วิทยาศาสตร์',
                         'เทคโนโลยี', 'สังคมศึกษาฯ', 'สุขศึกษาและพลศึกษา', 'ศิลปะ', 'การงานอาชีพ',
@@ -911,35 +916,23 @@ async function editDoc(id) {
                         'สำนักงานกลุ่มบริหารวิชาการ'
                     ];
 
-                    // ✅ รวม defaultOptions และ relatedDepts (ไม่ให้ซ้ำ)
                     const allOptions = [...new Set([...defaultOptions, ...relatedDepts])];
-                    console.log('📋 all options count:', allOptions.length);
 
-                    // ล้าง options และสร้างใหม่ทั้งหมด
                     relatedSelect.innerHTML = '';
                     allOptions.forEach(val => {
                         const opt = document.createElement('option');
                         opt.value = val;
                         opt.text = val;
-                        if (relatedDepts.includes(val)) {
-                            opt.selected = true;
-                        }
+                        if (relatedDepts.includes(val)) opt.selected = true;
                         relatedSelect.appendChild(opt);
                     });
 
-                    console.log('📋 After rebuild, options count:', relatedSelect.options.length);
-
-                    // ✅ สร้าง TomSelect ใหม่ ด้วย config ที่รองรับการสร้าง
                     const ts = new TomSelect(relatedSelect, {
                         plugins: ['remove_button'],
                         dropdownParent: 'body',
                         create: function (input, callback) {
-                            console.log(`🔍 editDoc create called with: "${input}"`);
                             if (input && input.trim().length > 0) {
-                                callback({
-                                    value: input.trim(),
-                                    text: input.trim()
-                                });
+                                callback({ value: input.trim(), text: input.trim() });
                             } else {
                                 callback(null);
                             }
@@ -949,29 +942,17 @@ async function editDoc(id) {
                         delimiter: ',',
                         createOnBlur: true,
                         maxItems: null,
-                        placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...',
-                        onItemAdd: (value) => { console.log(`✅ editDoc Item added: ${value}`); },
-                        onItemRemove: (value) => { console.log(`🗑️ editDoc Item removed: ${value}`); }
+                        placeholder: 'พิมพ์และกด Enter หรือ , เพื่อเพิ่ม...'
                     });
 
                     if (relatedDepts.length > 0) {
-                        // เพิ่ม options ใน TomSelect (เผื่อยังไม่มี)
                         relatedDepts.forEach(val => {
-                            if (!ts.options[val]) {
-                                ts.addOption({ value: val, text: val });
-                            }
+                            if (!ts.options[val]) ts.addOption({ value: val, text: val });
                         });
                         ts.setValue(relatedDepts);
                         ts.refreshItems();
-                        console.log('✅ setValue for relatedDepts:', ts.getValue());
-                        console.log('✅ TomSelect items:', ts.items);
                     }
-                } else {
-                    console.error('❌ edit_related_depts not found!');
                 }
-
-                console.log('✅ All UI setup complete!');
-
             } catch (err) {
                 console.error('❌ Error in UI setup:', err);
             }
@@ -998,9 +979,6 @@ function closeEditModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
-// ============================================================
-// ฟังก์ชัน saveEditDoc - บันทึกการแก้ไขหนังสือ (ฟอร์มแก้ไข)
-// ============================================================
 async function saveEditDoc(e) {
     e.preventDefault();
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขหนังสือได้')) return;
@@ -1008,9 +986,6 @@ async function saveEditDoc(e) {
     const id = document.getElementById('edit_doc_id').value;
     if (!id) return Swal.fire('ผิดพลาด', 'ไม่พบ ID หนังสือ', 'error');
 
-    // ----------------------------------------------------------
-    // ✅ ตรวจสอบวันที่ (เพิ่มเติม)
-    // ----------------------------------------------------------
     const receiveDate = document.getElementById('edit_receive_date').value;
     const docDate = document.getElementById('edit_doc_date').value;
 
@@ -1018,12 +993,10 @@ async function saveEditDoc(e) {
         Swal.fire('กรุณากรอกวันที่', 'ต้องระบุทั้ง "วันที่ลงรับ" และ "วันที่บนหนังสือ"', 'warning');
         return;
     }
-
     if (isNaN(new Date(receiveDate).getTime()) || isNaN(new Date(docDate).getTime())) {
         Swal.fire('รูปแบบวันที่ไม่ถูกต้อง', 'กรุณาเลือกวันที่ที่ถูกต้องจากปฎิทิน', 'warning');
         return;
     }
-    // ----------------------------------------------------------
 
     const receiveNumber = document.getElementById('edit_receive_number').value.trim();
     const docNumber = document.getElementById('edit_doc_number').value.trim();
@@ -1063,11 +1036,13 @@ async function saveEditDoc(e) {
         const { error } = await db.from('module_sarabun_docs').update(updateData).eq('id', id);
         if (error) throw error;
 
-        await logUserAction(`แก้ไขหนังสือรับ ID: ${id}`, 'sarabun');
+        logUserAction(`แก้ไขหนังสือรับ ID: ${id}`, 'sarabun');
         Swal.fire('สำเร็จ', 'แก้ไขหนังสือเรียบร้อย', 'success');
         closeEditModal();
         if (teacherTable) teacherTable.ajax.reload(null, false);
         if (adminTable) adminTable.ajax.reload(null, false);
+        clearStatsCache();
+        loadDashboardStats();
     } catch (err) {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
@@ -1089,56 +1064,35 @@ async function deleteDoc(id) {
             const { error } = await db.from('module_sarabun_docs').delete().eq('id', id);
             if (error) Swal.fire('Error', error.message, 'error');
             else {
-                await logUserAction(`ลบหนังสือรับ ID: ${id}`, 'sarabun');
+                logUserAction(`ลบหนังสือรับ ID: ${id}`, 'sarabun');
                 Swal.fire('ลบแล้ว!', 'ลบหนังสือรับเรียบร้อย', 'success');
                 if (teacherTable) teacherTable.ajax.reload(null, false);
                 if (adminTable) adminTable.ajax.reload(null, false);
+                clearStatsCache();
+                loadDashboardStats();
             }
         }
     });
 }
 
 // ==========================================
-// 13. สลับแท็บ / Panel (โค้ดเดิม)
+// 12. Panel/Tab Switch (ใช้ sidebar)
 // ==========================================
 function toggleAdminPanel(panel) {
-    if (panel === 'table') {
-        document.getElementById('adminTablePanel').classList.remove('hidden');
-        document.getElementById('adminFormPanel').classList.add('hidden');
-        if (adminTable) adminTable.ajax.reload(null, false);
+    if (panel === 'form') {
+        switchSidebarView('adminView', 'form');
     } else {
-        document.getElementById('adminTablePanel').classList.add('hidden');
-        document.getElementById('adminFormPanel').classList.remove('hidden');
+        switchSidebarView('adminView', 'table');
     }
 }
 
 function switchTab(tabId) {
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('block'));
-    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    const target = document.getElementById(tabId);
-    if (target) {
-        target.classList.remove('hidden');
-        target.classList.add('block');
-    }
-    document.querySelectorAll('#roleTabs button').forEach(btn => {
-        btn.classList.remove('bg-white', 'shadow-sm', 'text-blue-600', 'border', 'border-slate-100');
-        btn.classList.add('text-slate-500', 'hover:text-slate-700', 'hover:bg-white/50');
-    });
-    const activeBtn = document.querySelector(`button[onclick="switchTab('${tabId}')"]`);
-    if (activeBtn) {
-        activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700', 'hover:bg-white/50');
-        activeBtn.classList.add('bg-white', 'shadow-sm', 'text-blue-600', 'border', 'border-slate-100');
-    }
-
-    if (tabId === 'teacherView' && teacherTable) {
-        teacherTable.ajax.reload(null, false);
-    } else if (tabId === 'adminView' && adminTable) {
-        adminTable.ajax.reload(null, false);
-    }
+    if (tabId === 'teacherView') switchSidebarView('teacherView');
+    else if (tabId === 'adminView') switchSidebarView('adminView');
 }
 
 // ==========================================
-// 14. Super Admin Settings & Module Admin (ใช้ requireAdmin, logUserAction)
+// 13. Settings Modal
 // ==========================================
 async function openSettingsModal() {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
@@ -1162,37 +1116,68 @@ function closeSettingsModal() {
     setTimeout(() => modal.classList.add('hidden'), 300);
 }
 
+// ==========================================
+// 14. Settings — Cache 10 นาที
+// ==========================================
+const _SETTINGS_CACHE_KEY = 'sarabun_settings_cache';
+const _SETTINGS_TTL = 10 * 60 * 1000;
+
+function _readSettingsCache() {
+    try {
+        const raw = sessionStorage.getItem(_SETTINGS_CACHE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        if (!parsed.ts || Date.now() - parsed.ts > _SETTINGS_TTL) return null;
+        return parsed.data;
+    } catch (e) { return null; }
+}
+
+function _writeSettingsCache(data) {
+    try {
+        sessionStorage.setItem(_SETTINGS_CACHE_KEY, JSON.stringify({
+            ts: Date.now(), data
+        }));
+    } catch (e) {}
+}
+
+function _fillSettingsForm(data) {
+    const urlEl = document.getElementById('set_gas_url');
+    if (urlEl) urlEl.value = data.gas_api_url || '';
+    const folderEl = document.getElementById('set_folder_id');
+    if (folderEl) folderEl.value = data.gas_folder_id || '';
+    const tokenEl = document.getElementById('set_telegram_token');
+    if (tokenEl) tokenEl.value = data.telegram_token || '';
+    const chatEl = document.getElementById('set_telegram_chat');
+    if (chatEl) chatEl.value = data.telegram_chat_id || '';
+}
+
 async function loadSettings(forceRefresh = false) {
-    if (settingsCache && !forceRefresh) {
+    if (!forceRefresh && settingsCache) {
         systemSettings = settingsCache;
-        document.getElementById('set_gas_url').value = settingsCache?.gas_api_url || '';
-        document.getElementById('set_folder_id').value = settingsCache?.gas_folder_id || '';
-        document.getElementById('set_telegram_token').value = settingsCache?.telegram_token || '';
-        document.getElementById('set_telegram_chat').value = settingsCache?.telegram_chat_id || '';
+        _fillSettingsForm(settingsCache);
         return;
     }
+
+    const cached = !forceRefresh ? _readSettingsCache() : null;
+    if (cached) {
+        systemSettings = cached;
+        settingsCache = cached;
+        _fillSettingsForm(cached);
+        console.log('⚡ Settings จาก cache');
+        return;
+    }
+
     try {
         const { data, error } = await db.from('module_sarabun_settings')
             .select('*')
             .eq('id', 1)
             .maybeSingle();
-        if (error) {
-            console.error("Error loading settings:", error);
-            systemSettings = {};
-            settingsCache = {};
-            return;
-        }
-        if (data) {
-            systemSettings = data;
-            settingsCache = data;
-            document.getElementById('set_gas_url').value = data.gas_api_url || '';
-            document.getElementById('set_folder_id').value = data.gas_folder_id || '';
-            document.getElementById('set_telegram_token').value = data.telegram_token || '';
-            document.getElementById('set_telegram_chat').value = data.telegram_chat_id || '';
-        } else {
-            systemSettings = {};
-            settingsCache = {};
-        }
+        if (error) throw error;
+
+        systemSettings = data || {};
+        settingsCache = data || {};
+        _writeSettingsCache(data || {});
+        _fillSettingsForm(data || {});
     } catch (e) {
         console.error("System Error:", e);
         systemSettings = {};
@@ -1213,15 +1198,16 @@ async function saveSettings() {
     const { error } = await db.from('module_sarabun_settings').upsert(updates);
     if (error) return Swal.fire('Error', error.message, 'error');
 
-    await logUserAction('บันทึกการตั้งค่าระบบสารบรรณ', 'sarabun');
+    logUserAction('บันทึกการตั้งค่าระบบสารบรรณ', 'sarabun');
 
     Swal.fire({ icon: 'success', title: 'สำเร็จ', text: 'บันทึกการตั้งค่าระบบเรียบร้อย', timer: 1500, showConfirmButton: false });
     systemSettings = updates;
     settingsCache = updates;
+    _writeSettingsCache(updates);
 }
 
 // ==========================================
-// 15. Module Admin Management (ใช้ requireAdmin, logUserAction)
+// 15. Module Admin Management
 // ==========================================
 async function ensureModuleExists(moduleId) {
     const { data, error } = await db.from('core_system_modules')
@@ -1244,7 +1230,6 @@ async function ensureModuleExists(moduleId) {
             console.error('Error inserting module:', insertError);
             return false;
         }
-        console.log(`✅ เพิ่ม module_id "${moduleId}" ลงใน core_system_modules แล้ว`);
         return true;
     }
     return true;
@@ -1347,14 +1332,13 @@ async function appointModuleAdmin() {
         return Swal.fire('Error', error.message, 'error');
     }
 
-    // ดึงชื่อผู้ใช้เพื่อ log
     const { data: person } = await db.from('core_personnel')
         .select('prefix, first_name, last_name')
         .eq('id', userId)
         .single();
     const fullName = person ? `${person.prefix || ''}${person.first_name} ${person.last_name}` : userId;
 
-    await logUserAction(`แต่งตั้งผู้ดูแลระบบสารบรรณ: ${fullName}`, 'sarabun');
+    logUserAction(`แต่งตั้งผู้ดูแลระบบสารบรรณ: ${fullName}`, 'sarabun');
 
     Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
     await loadTeachersForAppoint();
@@ -1377,12 +1361,11 @@ async function removeModuleAdmin(recordId) {
             const { error } = await db.from('core_module_admins').delete().eq('id', recordId);
             if (error) return Swal.fire('Error', error.message, 'error');
 
-            // หาชื่อผู้ใช้ (โดยการดึงจาก DOM)
             const row = document.querySelector(`button[onclick="removeModuleAdmin('${recordId}')"]`)?.closest('tr');
             const nameCell = row?.querySelector('td:first-child');
             const adminName = nameCell ? nameCell.textContent.trim() : recordId;
 
-            await logUserAction(`ถอดถอนผู้ดูแลระบบสารบรรณ: ${adminName}`, 'sarabun');
+            logUserAction(`ถอดถอนผู้ดูแลระบบสารบรรณ: ${adminName}`, 'sarabun');
 
             Swal.fire({ icon: 'success', title: 'ถอดถอนสำเร็จ', timer: 1500, showConfirmButton: false });
             await loadTeachersForAppoint();
@@ -1392,7 +1375,7 @@ async function removeModuleAdmin(recordId) {
 }
 
 // ==========================================
-// 16. ส่งออก Excel (ใช้ requireAdmin)
+// 16. Export Excel
 // ==========================================
 async function exportToExcel() {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ส่งออกข้อมูลได้')) return;
@@ -1436,7 +1419,7 @@ async function exportToExcel() {
         XLSX.utils.book_append_sheet(wb, ws, 'หนังสือรับ');
         XLSX.writeFile(wb, `หนังสือรับ_${new Date().toISOString().slice(0, 10)}.xlsx`);
 
-        await logUserAction('ส่งออกข้อมูลหนังสือรับ (Excel)', 'sarabun');
+        logUserAction('ส่งออกข้อมูลหนังสือรับ (Excel)', 'sarabun');
 
         Swal.close();
         Swal.fire({ icon: 'success', title: 'ส่งออกสำเร็จ', timer: 1500, showConfirmButton: false });
@@ -1447,7 +1430,7 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. นำเข้า Excel (ใช้ requireAdmin)
+// 17. Import Excel
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
@@ -1545,9 +1528,6 @@ async function importFromExcel(event) {
                                     recorderFound = true;
                                 }
                             }
-                            if (!recorderFound) {
-                                console.warn(`ไม่พบผู้ลงรับ "${trimmedName}" ในระบบ จะใช้ผู้ใช้ปัจจุบันแทน`);
-                            }
                         }
                     }
 
@@ -1582,17 +1562,13 @@ async function importFromExcel(event) {
 
             event.target.value = '';
 
-            // ✅ Log
-            await logUserAction(`นำเข้าข้อมูลหนังสือรับ (สำเร็จ ${success}, ล้มเหลว ${fail})`, 'sarabun');
+            logUserAction(`นำเข้าข้อมูลหนังสือรับ (สำเร็จ ${success}, ล้มเหลว ${fail})`, 'sarabun');
 
             let msg = `✅ นำเข้าสำเร็จ ${success} รายการ`;
             if (fail > 0) {
                 msg += `\n❌ ล้มเหลว ${fail} รายการ`;
-                if (errors.length <= 10) {
-                    msg += `\n\n${errors.join('\n')}`;
-                } else {
-                    msg += `\n\n${errors.slice(0, 10).join('\n')}\n... และอีก ${errors.length - 10} รายการ`;
-                }
+                if (errors.length <= 10) msg += `\n\n${errors.join('\n')}`;
+                else msg += `\n\n${errors.slice(0, 10).join('\n')}\n... และอีก ${errors.length - 10} รายการ`;
             }
 
             Swal.fire({
@@ -1604,6 +1580,8 @@ async function importFromExcel(event) {
 
             if (teacherTable) teacherTable.ajax.reload(null, false);
             if (adminTable) adminTable.ajax.reload(null, false);
+            clearStatsCache();
+            loadDashboardStats();
 
         } catch (err) {
             Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -1614,7 +1592,7 @@ async function importFromExcel(event) {
 }
 
 // ==========================================
-// 18. ฟังก์ชันช่วยเหลือ (ไม่เปลี่ยนแปลง)
+// 18. Helpers (Date)
 // ==========================================
 function formatThaiDate(dateStr) {
     if (!dateStr) return '-';
@@ -1647,7 +1625,6 @@ function parseThaiDate(thaiDateStr) {
         'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
     let day, month, year;
-
     let parts = str.split(' ');
     if (parts.length === 3) {
         day = parseInt(parts[0]);
@@ -1680,21 +1657,9 @@ function parseThaiDate(thaiDateStr) {
 // 19. Telegram
 // ==========================================
 async function sendTelegram(docData) {
-    console.log('🔍 sendTelegram called');
-    console.log('🔍 systemSettings.telegram_token:', systemSettings.telegram_token ? '✅ มี' : '❌ ไม่มี');
-    console.log('🔍 systemSettings.telegram_chat_id:', systemSettings.telegram_chat_id ? '✅ มี' : '❌ ไม่มี');
-    console.log('🔍 systemSettings.gas_api_url:', systemSettings.gas_api_url ? '✅ มี' : '❌ ไม่มี');
+    if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) return;
+    if (!systemSettings.gas_api_url) return;
 
-    if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) {
-        console.warn('⚠️ ไม่มี Telegram Token หรือ Chat ID');
-        return;
-    }
-    if (!systemSettings.gas_api_url) {
-        console.warn('⚠️ ไม่มี GAS API URL');
-        return;
-    }
-
-    console.log('✅ กำลังส่ง Telegram...', docData);
     try {
         const response = await fetch(systemSettings.gas_api_url, {
             method: 'POST',
@@ -1707,15 +1672,10 @@ async function sendTelegram(docData) {
             })
         });
         const text = await response.text();
-        console.log('📨 Telegram response:', text);
-
         try {
             const result = JSON.parse(text);
-            if (result.status === 'success') {
-                console.log('✅ Telegram ส่งสำเร็จ');
-            } else {
-                console.error('❌ Telegram error:', result.message);
-            }
+            if (result.status === 'success') console.log('✅ Telegram ส่งสำเร็จ');
+            else console.error('❌ Telegram error:', result.message);
         } catch (e) {
             console.error('❌ GAS ตอบกลับไม่ใช่ JSON:', text);
         }
@@ -1725,7 +1685,7 @@ async function sendTelegram(docData) {
 }
 
 // ==========================================
-// ประกาศฟังก์ชัน global
+// 20. Expose global
 // ==========================================
 window.logout = logout;
 window.toggleRoleView = toggleRoleView;
@@ -1747,3 +1707,6 @@ window.submitDocument = submitDocument;
 window.exportToExcel = exportToExcel;
 window.importFromExcel = importFromExcel;
 window.loadDashboardStats = loadDashboardStats;
+window.switchSidebarView = switchSidebarView;
+
+console.log('✅ sarabun.js loaded (Optimized)');

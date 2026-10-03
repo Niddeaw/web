@@ -42,24 +42,6 @@ const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
 // ✅ ตรวจสอบสิทธิ์ลบ (เฉพาะ Super Admin เท่านั้น)
 const canDelete = () => isSuperAdmin();
 
-// ==========================================
-// LOGOUT (มาตรฐานกลาง)
-// ==========================================
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ใช่, ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace('login.html');
-    }
-}
-
 /* ── Position Logic ─────────── */
 const posLogic = {
     "ครูพี่เลี้ยงเด็กพิการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
@@ -78,7 +60,7 @@ const posLogic = {
         academic: ["ผู้อำนวยการชำนาญการพิเศษ"],
         map: { "ผู้อำนวยการชำนาญการพิเศษ": "คศ.3" }
     },
-        // ✅ เพิ่มใหม่
+    // ✅ เพิ่มใหม่
     "เจ้าหน้าที่สำนักงาน": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "พนักงานบริการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "พนักงานขับรถยนต์": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
@@ -121,8 +103,9 @@ window.onload = async () => {
         currentUser = result.user;
         currentProfile = result.personnel;
 
-        document.getElementById('display-name').textContent =
-            `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+        setUserDisplayName(currentProfile);
+        updateUserRoleLabel(currentProfile.role);
+        renderUserAvatar(currentProfile);
 
         // ✅ ตรวจสอบ Module Admin
         moduleAdminChecked = true;
@@ -217,7 +200,7 @@ function applyRoleUI() {
     else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
     if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
 
-    const badge = document.getElementById('role-badge');
+    const badge = document.getElementById('userRole');
     if (badge) badge.textContent = roleLabel;
 
     const sel = document.getElementById('inp-personnel-id');
@@ -935,9 +918,9 @@ function populateForm(p) {
 async function savePersonnel(e) {
     e.preventDefault();
 
-        // ✅ Validate ด้วยตัวเอง (แทน browser native เพื่อหลีกเลี่ยง hidden-tab error)
+    // ✅ Validate ด้วยตัวเอง (แทน browser native เพื่อหลีกเลี่ยง hidden-tab error)
     const userId = document.getElementById('inp-personnel-id').tomselect?.getValue()
-                   || document.getElementById('inp-personnel-id').value;
+        || document.getElementById('inp-personnel-id').value;
     const posValue = document.getElementById('sel-pos').value;
 
     if (!userId) {
@@ -1213,7 +1196,7 @@ function updateDashboard(data) {
             const dl = dayjs(p.license_expiry).diff(today, 'day');
             if (dl <= 90) lic++;
         }
-        if (p.appointment_date && !['ครูพี่เลี้ยงเด็กพิการ','ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
+        if (p.appointment_date && !['ครูพี่เลี้ยงเด็กพิการ', 'ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position)) {
             if (today.diff(dayjs(p.appointment_date), 'year') >= 4) eligible++;
         }
     });
@@ -1319,7 +1302,7 @@ function renderInfoBlocks(data) {
 
     const eligList = data.filter(p => {
         if (!p.appointment_date) return false;
-        const posOk = !['ครูพี่เลี้ยงเด็กพิการ','ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position);
+        const posOk = !['ครูพี่เลี้ยงเด็กพิการ', 'ครูอัตราจ้าง', 'พนักงานราชการ'].includes(p.position);
         const yearsIn = today.diff(dayjs(p.appointment_date), 'year');
         return posOk && yearsIn >= 4;
     }).sort((a, b) => dayjs(a.appointment_date).diff(dayjs(b.appointment_date), 'day'));
@@ -1531,7 +1514,7 @@ async function processImportRows(rows, foundHeaders) {
         let position = '', academic_standing = '', position_number = '', rank = '';
         const posRaw = gv(row, 'ตำแหน่งวิทยฐานะตำแหน่งเลขที่อันดับ', 'ตำแหน่ง/วิทยฐานะ');
         if (posRaw) {
-            const posMap = ['ผู้อำนวยการสถานศึกษา', 'รองผู้อำนวยการสถานศึกษา', 'ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ครูอัตราจ้าง','ครูพี่เลี้ยงเด็กพิการ'];
+            const posMap = ['ผู้อำนวยการสถานศึกษา', 'รองผู้อำนวยการสถานศึกษา', 'ครู', 'ครูผู้ช่วย', 'พนักงานราชการ', 'ครูอัตราจ้าง', 'ครูพี่เลี้ยงเด็กพิการ'];
             for (const p of posMap) { if (posRaw.includes(p)) { position = p; break; } }
             if (!position) position = posRaw;
             const acadMap = ['ครูชำนาญการพิเศษ', 'ครูชำนาญการ', 'ครูเชี่ยวชาญพิเศษ', 'ครูเชี่ยวชาญ', 'ผู้อำนวยการชำนาญการพิเศษ', 'รองผู้อำนวยการชำนาญการพิเศษ', 'รองผู้อำนวยการชำนาญการ'];
@@ -1868,7 +1851,6 @@ function closeRetireModal() {
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
-window.logout = logout;
 window.toggleRoleView = toggleRoleView;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;

@@ -372,16 +372,20 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
             return false;
         }
 
-        // ปรับปรุง UI แสดงชื่อและบทบาท
-        let userDisplayText = `<i class="fas fa-user-tie mr-1"></i> ครู${currentUser.first_name} ${currentUser.last_name}`;
-        if (actualUserRole === 'super_admin') {
-            userDisplayText += `<span class="block text-[10px] text-rose-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-crown mr-1"></i> ผู้ดูแลระบบสูงสุด</span>`;
-        } else if (localDisciplineHead) {
-            userDisplayText += `<span class="block text-[10px] text-emerald-600 font-black mt-1 uppercase tracking-wider"><i class="fas fa-shield-alt mr-1"></i> หัวหน้างานปกครอง (ดูอย่างเดียว)</span>`;
+        // ปรับปรุง UI แสดงชื่อและบทบาท (ใช้ dashboard_ui.js)
+        if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
+        if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
+
+        let roleText = (typeof getRoleText === 'function') ? getRoleText(actualUserRole) : actualUserRole;
+        if (localDisciplineHead) {
+            roleText = 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
         } else if (localManagedGrades.length > 0) {
-            userDisplayText += `<span class="block text-[10px] text-indigo-600 font-black mt-1 uppercase tracking-wider">หัวหน้าระดับ: ม.${localManagedGrades.join(', ')} (ดูอย่างเดียว)</span>`;
+            roleText = `หัวหน้าระดับ ม.${localManagedGrades.join(', ')} (ดูอย่างเดียว)`;
+        } else if (actualUserRole === 'super_admin') {
+            roleText = 'ผู้ดูแลระบบสูงสุด (Super Admin)';
         }
-        $('#user-display').html(userDisplayText);
+        const roleEl = document.getElementById('userRole');
+        if (roleEl) roleEl.textContent = roleText;
 
         // เติม dropdown ห้องเรียน
         await populateClassroomSelect(userId, localDisciplineHead, localManagedGrades);
@@ -409,47 +413,6 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         console.error('Error loading classroom data:', err);
         throw err;
     }
-}
-
-// ==========================================
-// ✅ ฟังก์ชันใช้โหมดอ่านอย่างเดียว (ปรับปรุงสำหรับหัวหน้าระดับ)
-// ==========================================
-function applyReadOnlyState() {
-    if (!isReadOnly) return;
-
-    // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
-    // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
-    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
-        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
-            && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
-            $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
-        }
-    });
-
-    // 2. ปิดการเลือกสถานะ (dropdown ในตาราง)
-    $('select.tiny-select').prop('disabled', true).addClass('opacity-60');
-
-    // 3. ปิดปุ่มเปิด modal
-    $('#openRecordModal, #btn-mark-all, #btn-clear-day, #btn-clear-all').prop('disabled', true).addClass('opacity-50');
-
-    // 4. ซ่อนปุ่มที่ใช้ในการแก้ไข
-    $('#action-bar .btn-primary, #action-bar .btn-danger, #action-bar .btn-warning').hide();
-
-    // 5. ✅ แสดงข้อความแจ้งเตือนว่าเป็นโหมดอ่านอย่างเดียว (ปรับข้อความตามบทบาท)
-    let roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)';
-    if (isHead && managedGrades.length > 0) {
-        roleText = `คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้าระดับ ม.${managedGrades.join(', ')}) ไม่สามารถแก้ไขข้อมูลได้`;
-    } else if (isHead && isDisciplineHead) {
-        roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
-    }
-
-    const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
-        <i class="fas fa-eye text-amber-600"></i>
-        <span class="font-bold">${roleText}</span>
-    </div>`;
-    $('.glass-card:first').prepend(alertHtml);
-
-    console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
 
 // ==================== POPULATE CLASSROOM SELECT ====================
@@ -778,73 +741,65 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
  * อัปเดต UI ตามสิทธิ์ (เพิ่มเติมจาก applyVisibilityByRole)
  */
 function updateUIBasedOnRole() {
-    // ปุ่ม settings: ใช้ canManageSettings
+    // ปุ่ม settings (sidebar) — แสดงเมื่อ canManageSettings
     const settingsBtn = document.getElementById('admin-settings-btn');
     if (settingsBtn) {
         settingsBtn.classList.toggle('hidden', !canManageSettings(actualUserRole));
     }
 
-    // ปุ่ม super admin (ถ้ามี)
-    if (actualUserRole === 'super_admin') {
-        $('#super-admin-section').removeClass('hidden');
-    } else {
-        $('#super-admin-section').addClass('hidden');
-    }
-
-    // ปุ่ม toggle mode แสดงเฉพาะ admin
+    // ปุ่ม toggle mode — เฉพาะ admin
     const toggleBtn = document.getElementById('btnAdminMode');
     if (toggleBtn) {
         const isAdmin = isAdminUser(actualUserRole, currentViewRole === 'admin');
         toggleBtn.classList.toggle('hidden', !isAdmin);
         toggleBtn.classList.toggle('flex', isAdmin);
     }
-
-    // ✅ ถ้าเป็นโหมดอ่านอย่างเดียว ให้ซ่อนปุ่มแก้ไขอื่นๆ เพิ่มเติม
-    if (isReadOnly) {
-        $('#btn-mark-all').hide();
-        $('#btn-clear-day').hide();
-        $('#btn-clear-all').hide();
-        $('.btn-save-override').hide();
-    }
 }
 
 // ==========================================
 // ✅ ฟังก์ชันใช้โหมดอ่านอย่างเดียว (ปรับปรุงสำหรับหัวหน้าระดับ)
 // ==========================================
+// ==========================================
+// ✅ ฟังก์ชันใช้โหมดอ่านอย่างเดียว
+// ==========================================
 function applyReadOnlyState() {
     if (!isReadOnly) return;
 
-    // 1. ปิดปุ่มบันทึกและแก้ไขทั้งหมด
-    // ยกเว้น: btn-grade-overview และ btn-stats-report (หัวหน้าต้องกดได้)
-    $('.action-btn, .status-btn, #btnSaveAll, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
-        if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings'
-            && this.id !== 'btn-grade-overview' && this.id !== 'btn-stats-report') {
-            $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
-        }
+    // 1. ปิดปุ่มแก้ไข/บันทึกในตารางนักเรียน (สถานะ มา/ขาด/สาย/ลา/ป่วย)
+    document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
     });
 
-    // 2. ปิดการเลือกสถานะ (dropdown ในตาราง)
-    $('select.tiny-select').prop('disabled', true).addClass('opacity-60');
+    // 2. ปิดปุ่ม action หลัก (มาครบทุกคน, ล้างข้อมูล)
+    document.querySelectorAll(
+        'button[onclick*="markAllAs"], button[onclick*="clearDailyData"], button[onclick*="clearAttendanceData"]'
+    ).forEach(btn => {
+        btn.disabled = true;
+        btn.classList.add('opacity-50', 'cursor-not-allowed');
+    });
 
-    // 3. ปิดปุ่มเปิด modal
-    $('#openRecordModal, #btn-mark-all, #btn-clear-day, #btn-clear-all').prop('disabled', true).addClass('opacity-50');
+    // 3. ปิด Select เปลี่ยนสถานะ (ถ้ามี)
+    document.querySelectorAll('select.tiny-select').forEach(sel => {
+        sel.disabled = true;
+        sel.classList.add('opacity-60');
+    });
 
-    // 4. ซ่อนปุ่มที่ใช้ในการแก้ไข
-    $('#action-bar .btn-primary, #action-bar .btn-danger, #action-bar .btn-warning').hide();
-
-    // 5. ✅ แสดงข้อความแจ้งเตือนว่าเป็นโหมดอ่านอย่างเดียว (ปรับข้อความตามบทบาท)
+    // 4. แสดงข้อความแจ้งเตือนในส่วน readonly-warning
     let roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถแก้ไขได้)';
-    if (isHead && managedGrades.length > 0) {
-        roleText = `คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้าระดับ ม.${managedGrades.join(', ')}) ไม่สามารถแก้ไขข้อมูลได้`;
-    } else if (isHead && isDisciplineHead) {
+    if (isHead && isDisciplineHead) {
         roleText = 'คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้างานปกครอง) ไม่สามารถแก้ไขข้อมูลได้';
+    } else if (isHead && managedGrades.length > 0) {
+        roleText = `คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (หัวหน้าระดับ ม.${managedGrades.join(', ')}) ไม่สามารถแก้ไขข้อมูลได้`;
     }
 
-    const alertHtml = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl mb-4 flex items-center gap-2">
-        <i class="fas fa-eye text-amber-600"></i>
-        <span class="font-bold">${roleText}</span>
-    </div>`;
-    $('.glass-card:first').prepend(alertHtml);
+    const warningEl = document.getElementById('readonly-warning');
+    if (warningEl) {
+        warningEl.innerHTML = `<div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-center gap-2">
+            <i class="fas fa-eye text-amber-600"></i>
+            <span class="font-bold">${roleText}</span>
+        </div>`;
+    }
 
     console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
@@ -2796,6 +2751,8 @@ function applyDateConstraints() {
 // Logout
 // ==========================================
 async function logout() {
+    if (typeof handleLogout === 'function') return handleLogout();
+    // fallback (กรณี dashboard_ui.js โหลดไม่สำเร็จ)
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         text: "คุณต้องการออกจากระบบใช่หรือไม่",

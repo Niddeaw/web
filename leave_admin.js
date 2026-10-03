@@ -60,26 +60,6 @@ function getAcademicAckStatus(l) {
 }
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
-// ==========================================
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        text: "คุณต้องการออกจากระบบใช่หรือไม่",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace("login.html");
-    }
-}
-
-// ==========================================
 // INIT
 // ==========================================
 $(document).ready(async function () {
@@ -195,6 +175,9 @@ $(document).ready(async function () {
 function updateUI() {
     $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
 
+    // ✅ เพิ่ม avatar + today chip (จาก dashboard_ui.js)
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentProfile);
+
     const isSuperAdmin = canManageSettings(currentUserRole);
 
     if (isSuperAdmin) {
@@ -206,6 +189,13 @@ function updateUI() {
         $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin, #sign_hr_deputy, #sign_director').prop('disabled', true);
         $('#superadmin-only-section table').addClass('opacity-50 pointer-events-none');
     }
+
+    // ✅ ปุ่ม Super Admin link ใน sidebar
+    if (currentUserRole === 'super_admin') {
+        $('#btnSuperAdmin').removeClass('hidden');
+    } else {
+        $('#btnSuperAdmin').addClass('hidden');
+    }
 }
 
 // ==========================================
@@ -214,8 +204,8 @@ function updateUI() {
 function switchTab(tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
-    $('.sidebar-item').removeClass('sidebar-active');
-    $(`#btn-${tabId}`).addClass('sidebar-active');
+    $('.tab-nav-btn').removeClass('active');
+    $(`#btn-${tabId}`).addClass('active');
     const titles = {
         'dashboard': 'แดชบอร์ดสรุปผล',
         'manage-leave': 'จัดการรายการลา',
@@ -223,12 +213,11 @@ function switchTab(tabId) {
         'settings': 'ตั้งค่าระบบ & แอดมิน'
     };
     $('#page-title').text(titles[tabId] || 'แดชบอร์ดสรุปผล');
+    // ปิด sidebar บนมือถือ
+    if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
     if (tabId === 'manage-leave' && dataTable) dataTable.columns.adjust().draw();
     if (tabId === 'attendance' && attendanceDataTable) attendanceDataTable.columns.adjust().draw();
-    // ✅ โหลดส่วนตั้งค่าวันหยุดเมื่อเปิดแท็บ Settings
-    if (tabId === 'settings') {
-        showHolidaySettingsAdmin();
-    }
+    if (tabId === 'settings') showHolidaySettingsAdmin();
 }
 
 // ==========================================

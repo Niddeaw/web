@@ -1,0 +1,790 @@
+/* =======================================================
+   dashboard.css — Layout กลางของทุกโมดูล
+   ======================================================= */
+
+/* ================= Variables ================= */
+:root{
+    --d-primary:#2588e8;
+    --d-bg:#f5f8fc;
+    --d-text:#26364a;
+    --d-muted:#8492a6;
+    --d-line:#e9eef5;
+    --d-green:#24b47e;
+    --d-shadow:0 4px 18px rgba(50,90,130,.07);
+    --d-radius:14px;
+
+    /* Display Settings */
+    --d-font-scale: 1;
+    --d-density-scale: 1;
+}
+
+html{
+    font-size: calc(16px * var(--d-font-scale));
+    transition: font-size .2s ease;
+}
+
+body#mainBody{
+    background: var(--d-bg);
+    color: var(--d-text);
+    font-size: calc(14px * var(--d-font-scale));
+}
+
+.d-app{ display:flex; }
+
+/* ================= Sidebar ================= */
+.d-sidebar{
+    width:218px;
+    background:#fff;
+    border-right:1px solid var(--d-line);
+    position:fixed;
+    left:0; top:0; bottom:0;
+    z-index:50;
+    display:flex;
+    flex-direction:column;
+    transition:transform .2s, width .2s;
+}
+
+.d-brand{
+    height:88px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+    padding:12px 18px;
+    border-bottom:1px solid #f0f3f7;
+}
+.d-logo{
+    width:45px; height:55px;
+    border-radius:10px;
+    display:grid;
+    place-items:center;
+    background:linear-gradient(145deg,#eef7ff,#dcecff);
+    flex-shrink:0;
+}
+.d-logo img{ width:32px; height:32px; object-fit:contain; }
+.d-brand b{ display:block; font-size:15px; }
+.d-brand span{ font-size:10px; color:var(--d-muted); }
+
+.d-nav{ padding:12px 10px; overflow:auto; flex:1; }
+.d-nav-title{ font-size:10px; color:#9ba8b7; margin:14px 12px 7px; }
+
+.d-nav a{
+    display:flex;
+    align-items:center;
+    gap:11px;
+    padding:10px 12px;
+    margin:3px 0;
+    border-radius:9px;
+    color:#526277;
+    text-decoration:none;
+    cursor:pointer;
+    transition:background .15s, color .15s;
+}
+.d-nav a:hover{ background:#f1f7ff; color:var(--d-primary); }
+.d-nav a.active{
+    background:linear-gradient(90deg,#2d91ec,#4ba0ef);
+    color:#fff;
+    box-shadow:0 5px 12px #268be82a;
+}
+.d-nav a.hidden{ display:none!important; }
+.d-nav a.logout{ color:#e0505f; }
+.d-nav a.logout:hover{ background:#fff1f2; color:#dc2626; }
+.d-ico{ width:21px; text-align:center; font-size:15px; flex-shrink:0; }
+
+.d-sidebar-bottom{ padding:14px; color:#789; font-size:11px; }
+
+/* ปุ่ม Facebook */
+.d-fb-btn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    margin-top:10px;
+    padding:8px 10px;
+    background:linear-gradient(135deg,#1877f2,#0d65d9);
+    color:#fff;
+    border-radius:8px;
+    text-decoration:none;
+    font-size:11px;
+    font-weight:600;
+    transition:transform .18s ease, box-shadow .18s ease, background .18s ease;
+    box-shadow:0 3px 8px rgba(24,119,242,.25);
+}
+.d-fb-btn:hover{
+    background:linear-gradient(135deg,#0d65d9,#0a56bd);
+    transform:translateY(-1px);
+    box-shadow:0 6px 14px rgba(24,119,242,.35);
+    color:#fff;
+    text-decoration:none;
+}
+.d-fb-btn i{ font-size:14px; }
+
+/* ================= Overlay / Main ================= */
+.d-overlay{
+    display:none;
+    position:fixed;
+    inset:0;
+    background:rgba(0,0,0,.35);
+    z-index:45;
+}
+.d-overlay.open{ display:block; }
+
+.d-main{
+    margin-left:218px;
+    width:calc(100% - 218px);
+    padding:0 18px 12px;
+    display:flex;
+    flex-direction:column;
+    transition:margin-left .2s, width .2s;
+    padding-bottom:0!important;
+}
+
+/* ================= Topbar ================= */
+.d-topbar{
+    height:64px;
+    background:#fff;
+    border-bottom:1px solid var(--d-line);
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin:0 -18px 14px;
+    padding:0 20px;
+    position:sticky;
+    top:0;
+    z-index:15;
+}
+
+.d-menu{
+    display:none;
+    border:0;
+    background:none;
+    font-size:22px;
+    cursor:pointer;
+    padding:4px 8px;
+    color:#526277;
+}
+
+.d-search{
+    height:38px;
+    border:1px solid var(--d-line);
+    border-radius:22px;
+    background:#f7faff;
+    display:flex;
+    align-items:center;
+    padding:0 15px;
+    flex:1;
+    max-width:560px;
+    color:#9aa7b6;
+}
+.d-search input{
+    border:0;
+    background:transparent;
+    outline:0;
+    width:100%;
+    padding-left:8px;
+    color:var(--d-text);
+    font:inherit;
+}
+.d-search input:focus{ box-shadow:none!important; border-color:transparent!important; }
+.d-search:focus-within{
+    border-color:var(--d-primary);
+    box-shadow:0 0 0 3px rgba(37,136,232,.12);
+}
+
+@media(min-width:761px){
+    #wrk-global-footer{
+        left:218px!important;
+        width:calc(100% - 218px)!important;
+        transition:left .2s, width .2s;
+    }
+}
+
+.d-spacer{ flex:1; }
+
+.d-chip{
+    border:1px solid var(--d-line);
+    border-radius:20px;
+    padding:9px 13px;
+    background:#fff;
+    color:#526277;
+    white-space:nowrap;
+}
+
+/* ================= Profile / Avatar ================= */
+.d-profile{ display:flex; align-items:center; gap:9px; }
+
+.d-avatar{
+    width:35px; height:35px;
+    border-radius:50%;
+    display:grid;
+    place-items:center;
+    background:#dcecff;
+    font-weight:700;
+    color:#2679c9;
+    overflow:hidden;
+    position:relative;
+}
+.d-avatar img{
+    width:100%; height:100%;
+    object-fit:cover;
+    display:block;
+    position:absolute;
+    inset:0;
+}
+.d-profile small{
+    display:block;
+    color:var(--d-muted);
+    font-size:10px;
+}
+
+.d-avatar-wrap{ position:relative; display:inline-block; }
+.d-avatar-preview{
+    position:absolute;
+    top:calc(100% + 6px);
+    right:0;
+    width:160px; height:200px;
+    max-width:none;
+    border-radius:14px;
+    object-fit:cover;
+    background:#fff;
+    box-shadow:0 12px 32px rgba(30,60,90,.22);
+    border:3px solid #fff;
+    opacity:0;
+    transform:translateY(-6px) scale(.95);
+    transition:opacity .22s ease, transform .22s ease;
+    pointer-events:none;
+    z-index:9999;
+}
+.d-avatar-wrap:hover .d-avatar-preview{
+    opacity:1;
+    transform:translateY(0) scale(1);
+}
+
+/* ================= Hero ================= */
+.d-hero{
+    min-height:137px;
+    border-radius:15px;
+    overflow:hidden;
+    position:relative;
+    background:linear-gradient(110deg,#d9ecff,#fff 58%,#cfe9ff);
+    box-shadow:var(--d-shadow);
+    margin-bottom:12px;
+}
+.d-hero:before{ content:none; }
+.d-hero-content{ position:relative; padding:25px 30px; }
+.d-hero h1{ margin:0 0 5px; font-size:22px; font-weight:700; }
+.d-hero p{ margin:0; color:#68798e; }
+.d-hero .quote{
+    position:absolute;
+    right:28px; top:42px;
+    font-size:13px;
+    font-style:italic;
+    color:#35536e;
+}
+
+/* ================= Stat Cards ================= */
+.d-grid4{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    margin-bottom:12px;
+}
+.d-stat{
+    background:#fff;
+    border:1px solid var(--d-line);
+    border-radius:var(--d-radius);
+    padding:13px 14px;
+    display:flex;
+    align-items:center;
+    gap:12px;
+    box-shadow:var(--d-shadow);
+}
+.d-stat-icon{
+    width:48px; height:48px;
+    border-radius:13px;
+    display:grid;
+    place-items:center;
+    font-size:20px;
+    color:#fff;
+}
+.d-blue{ background:linear-gradient(145deg,#2596f0,#5daaf3); }
+.d-violet{ background:linear-gradient(145deg,#8b5eea,#ad83f3); }
+.d-green{ background:linear-gradient(145deg,#27bb88,#62d6aa); }
+.d-gold{ background:linear-gradient(145deg,#f3a51d,#ffc35e); }
+.d-rose{ background:linear-gradient(145deg,#f43f5e,#fb7185); }
+.d-stat h3{ margin:0; font-size:23px; font-weight:700; }
+.d-stat p{ margin:0; color:#607188; font-size:12px; }
+
+/* ================= Charts ================= */
+.d-charts{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:10px;
+    margin-bottom:12px;
+}
+.d-chart-box{ height:250px; position:relative; }
+
+/* ================= Layout / Cards ================= */
+.d-layout{
+    display:grid;
+    grid-template-columns:3fr 1fr 1fr;
+    gap:10px;
+    margin-bottom:12px;
+}
+.d-card{
+    background:#fff;
+    border:1px solid var(--d-line);
+    border-radius:var(--d-radius);
+    box-shadow:var(--d-shadow);
+    padding:13px;
+    min-width:0;
+}
+.d-card-head{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+    margin-bottom:10px;
+}
+.d-card-title{ font-weight:700; }
+.d-sub{ font-size:10px; color:var(--d-muted); }
+
+.d-select{
+    border:1px solid var(--d-line);
+    background:#fff;
+    border-radius:8px;
+    padding:5px 8px;
+    color:#607188;
+    font-size:12px;
+}
+.d-btn{
+    background:#2d91ec;
+    color:#fff;
+    border:0;
+    border-radius:8px;
+    padding:6px 12px;
+    font-size:12px;
+    font-weight:700;
+    cursor:pointer;
+    transition:background .15s;
+}
+.d-btn:hover{ background:#2580d6; }
+
+/* ================= Leave Widget ================= */
+.d-leave{ border-left:4px solid; padding:10px 10px; }
+.d-leave .d-card-head{ margin-bottom:6px; }
+.d-leave .d-card-title{ font-size:13px; }
+#sick-leave-today ul,
+#sick-leave-week ul{
+    max-height:190px!important;
+    overflow-y:auto;
+    padding-bottom:0!important;
+    padding-right:4px;
+}
+#sick-leave-today li,
+#sick-leave-week li{
+    flex-wrap:wrap;
+    row-gap:2px;
+    font-size:12px;
+}
+#sick-leave-today li>span,
+#sick-leave-week li>span{ min-width:0; }
+#sick-leave-today li span[class*="rounded-full"],
+#sick-leave-week li span[class*="rounded-full"]{
+    max-width:100%;
+    line-height:1.35;
+    white-space:normal;
+}
+
+/* ================= Calendar ================= */
+.d-calendar-box{ max-height:230px; overflow:auto; }
+
+/* ================= Collapse Button ================= */
+.d-collapse{
+    display:none;
+    border:0;
+    background:none;
+    font-size:17px;
+    cursor:pointer;
+    color:#526277;
+    padding:7px 9px;
+    border-radius:8px;
+    transition:background .2s, color .2s;
+    align-items:center;
+    justify-content:center;
+}
+.d-collapse:hover{ background:#f1f7ff; color:var(--d-primary); }
+@media(min-width:761px){ .d-collapse{ display:inline-flex; } }
+
+/* ================= Collapsed Sidebar (desktop) ================= */
+@media(min-width:761px){
+    .d-sidebar.collapsed{ width:68px; }
+    .d-sidebar.collapsed .d-brand{
+        justify-content:center;
+        padding:12px 8px;
+    }
+    .d-sidebar.collapsed .d-brand > div:last-child{ display:none; }
+    .d-sidebar.collapsed .d-nav{ padding:12px 8px; }
+    .d-sidebar.collapsed .d-nav-title{ display:none; }
+    .d-sidebar.collapsed .d-nav a{
+        justify-content:center;
+        padding:10px 0;
+        gap:0;
+    }
+    .d-sidebar.collapsed .d-nav a .d-label{ display:none; }
+    .d-sidebar.collapsed .d-ico{ width:auto; }
+    .d-sidebar.collapsed .d-sidebar-bottom{ display:none; }
+    .d-main.collapsed{
+        margin-left:68px;
+        width:calc(100% - 68px);
+    }
+    body.sb-collapsed #wrk-global-footer{
+        left:68px!important;
+        width:calc(100% - 68px)!important;
+    }
+}
+
+/* =======================================================
+   Display Settings (Font Size + Density)
+   ======================================================= */
+
+/* ---------- Compact Mode ---------- */
+body.d-compact .d-card{ padding:9px 10px; }
+body.d-compact .d-card-head{ margin-bottom:6px; }
+body.d-compact .d-stat{ padding:9px 11px; gap:9px; }
+body.d-compact .d-stat-icon{ width:40px; height:40px; font-size:17px; }
+body.d-compact .d-stat h3{ font-size:20px; }
+body.d-compact .d-stat p{ font-size:11px; }
+body.d-compact .d-nav a{ padding:7px 10px; margin:2px 0; }
+body.d-compact .d-nav-title{ margin:10px 12px 5px; }
+body.d-compact .d-topbar{ height:56px; }
+body.d-compact .d-btn{ padding:5px 10px; }
+body.d-compact table th,
+body.d-compact table td{
+    padding-top:7px !important;
+    padding-bottom:7px !important;
+}
+body.d-compact .d-grid4{ gap:8px; margin-bottom:9px; }
+body.d-compact .d-charts,
+body.d-compact .d-layout{ gap:8px; margin-bottom:9px; }
+
+/* ---------- Settings Button ---------- */
+.d-settings-wrap{ position:relative; display:inline-block; }
+.d-settings-btn{
+    border:1px solid var(--d-line);
+    border-radius:20px;
+    padding:9px 13px;
+    background:#fff;
+    color:#526277;
+    cursor:pointer;
+    font:inherit;
+    transition:background .18s, color .18s, border-color .18s;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+}
+.d-settings-btn:hover{
+    background:#f1f7ff;
+    color:var(--d-primary);
+    border-color:#c8e0fb;
+}
+.d-settings-btn.active{
+    background:#f1f7ff;
+    color:var(--d-primary);
+    border-color:var(--d-primary);
+}
+
+/* ---------- Settings Dropdown ---------- */
+.d-settings-menu{
+    position:absolute;
+    top:calc(100% + 10px);
+    right:0;
+    width:260px;
+    background:#fff;
+    border:1px solid var(--d-line);
+    border-radius:14px;
+    box-shadow:0 12px 32px rgba(30,60,90,.18);
+    padding:14px;
+    opacity:0;
+    visibility:hidden;
+    transform:translateY(-6px);
+    transition:opacity .2s ease, transform .2s ease, visibility .2s;
+    z-index:9999;
+}
+.d-settings-menu.open{
+    opacity:1;
+    visibility:visible;
+    transform:translateY(0);
+}
+.d-settings-title{
+    font-size:11px;
+    color:#8492a6;
+    font-weight:700;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    margin:0 0 8px;
+}
+.d-settings-title:not(:first-child){ margin-top:14px; }
+.d-settings-options{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:6px;
+}
+.d-settings-options.cols-2{ grid-template-columns:repeat(2,1fr); }
+.d-settings-options button{
+    padding:9px 6px;
+    border:1px solid var(--d-line);
+    border-radius:8px;
+    background:#fff;
+    color:#526277;
+    font:inherit;
+    font-size:12px;
+    font-weight:600;
+    cursor:pointer;
+    transition:background .15s, color .15s, border-color .15s;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+}
+.d-settings-options button:hover{ background:#f7faff; }
+.d-settings-options button.active{
+    background:var(--d-primary);
+    color:#fff;
+    border-color:var(--d-primary);
+    box-shadow:0 3px 8px rgba(37,136,232,.25);
+}
+
+/* =======================================================
+   RESPONSIVE
+   ======================================================= */
+
+/* Tablet */
+@media(max-width:1400px){
+    .d-layout{ grid-template-columns:2.5fr 1fr 1fr; }
+}
+
+@media(max-width:1100px){
+    .d-grid4{ grid-template-columns:repeat(2,1fr); }
+    .d-layout{ grid-template-columns:1fr 1fr; }
+    .d-layout .wide{ grid-column:1/-1; }
+    .d-charts{ grid-template-columns:1fr; }
+}
+
+/* =======================================================
+   MOBILE (≤760px)
+   ======================================================= */
+@media(max-width:760px){
+
+    /* ---------- Sidebar ---------- */
+    .d-sidebar{ transform:translateX(-100%); }
+    .d-sidebar.open{ transform:translateX(0); }
+
+    /* ---------- Main ---------- */
+    .d-main{ margin-left:0; width:100%; padding:0 10px; }
+    .d-topbar{ margin:0 -10px 10px; padding:0 10px; gap:8px; }
+
+    /* ---------- Topbar Controls ---------- */
+    .d-menu{ display:block; }
+    .d-search{ max-width:none; }
+
+    /* Title: ตัดสั้น */
+    .d-topbar > h2,
+    .d-topbar #pageTitle{
+        font-size:13px !important;
+        max-width:80px;
+        overflow:hidden;
+        text-overflow:ellipsis;
+        white-space:nowrap;
+        flex-shrink:1;
+    }
+
+    /* Chip วันที่: ย่อ */
+    .d-chip{
+        padding:7px 10px !important;
+        font-size:11px !important;
+    }
+
+    /* Profile: ซ่อนชื่อ-สกุล */
+    .d-profile > div:nth-child(2){ display:none; }
+
+    /* Hero */
+    .d-hero .quote{ display:none; }
+
+    /* Layout stack */
+    .d-grid4,
+    .d-layout,
+    .d-charts{ grid-template-columns:1fr; }
+    .d-layout .wide{ grid-column:auto; }
+
+    /* Avatar preview: ปิดบนมือถือ */
+    .d-avatar-preview{ display:none !important; }
+
+    /* Settings menu */
+    .d-settings-btn{ padding:9px 11px; }
+    .d-settings-menu{ right:-8px; width:240px; }
+
+    /* ===================================================
+       ✅ ปุ่มที่มีข้อความ (icon + label)
+       - บนมือถือ: ซ่อนข้อความ (เหลือแค่ icon)
+       - Desktop: แสดงปกติ
+       =================================================== */
+
+    /* 1) ปุ่มใน topbar ที่ใช้ .d-settings-btn */
+    .d-topbar .d-settings-btn{
+        padding:8px 10px !important;
+        min-width:auto !important;
+        width:auto !important;
+        gap:0 !important;
+    }
+    .d-topbar .d-settings-btn > span,
+    .d-topbar .d-settings-btn span{
+        display:none !important;
+    }
+
+    /* ===================================================
+       2) UNIVERSAL: ซ่อนข้อความบนปุ่มทุกปุ่มใน topbar
+       - ใช้ multi-property ไม่พึ่ง display เพียงอย่างเดียว
+       =================================================== */
+
+    /* ซ่อน span ทุกแบบในปุ่ม topbar */
+    .d-topbar button > span,
+    .d-topbar button span.d-btn-label,
+    .d-topbar .d-settings-btn > span,
+    .d-topbar .d-settings-btn span,
+    .d-topbar #btnAdminMode > span,
+    .d-topbar #btnAdminMode span,
+    .d-topbar #settingsBtn > span,
+    .d-topbar #settingsBtn span,
+    .d-topbar #btn-settings > span,
+    .d-topbar #btn-settings span {
+        display: none !important;
+        visibility: hidden !important;
+        width: 0 !important;
+        height: 0 !important;
+        overflow: hidden !important;
+        position: absolute !important;
+        left: -9999px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        pointer-events: none !important;
+    }
+
+    /* บีบปุ่มให้เหลือแค่ icon */
+    .d-topbar button.d-settings-btn,
+    .d-topbar #btnAdminMode,
+    .d-topbar #settingsBtn,
+    .d-topbar #btn-settings {
+        padding: 8px 10px !important;
+        min-width: auto !important;
+        width: auto !important;
+        gap: 0 !important;
+        font-size: 0 !important;
+    }
+
+    /* คืนค่า font-size ให้ icon กลับมาแสดง */
+    .d-topbar button.d-settings-btn > i,
+    .d-topbar #btnAdminMode > i,
+    .d-topbar #settingsBtn > i,
+    .d-topbar #btn-settings > i {
+        font-size: 14px !important;
+        display: inline-block !important;
+    }
+
+    /* 3) Utility class สำหรับใช้งานเองในอนาคต */
+    /*    <button><i class="fa-..."></i><span class="d-btn-text">ข้อความ</span></button> */
+    .d-topbar .d-btn-text{ display:none !important; }
+
+    /* 4) Birthday notification: เหลือแค่ 🎂 */
+    #birthday-notification{
+        font-size:0 !important;
+        padding:8px 10px !important;
+        min-width:36px;
+        justify-content:center !important;
+        gap:0 !important;
+    }
+    #birthday-notification::before{
+        content:'🎂';
+        font-size:1rem;
+        line-height:1;
+    }
+}
+
+/* =======================================================
+   TABLET (761px - 900px)
+   - แสดงข้อความ แต่ลดขนาดลง
+   ======================================================= */
+@media(min-width:761px) and (max-width:900px){
+    .d-topbar .d-settings-btn{
+        padding:8px 11px;
+        font-size:12px;
+    }
+    .d-topbar .d-settings-btn > span{
+        display:inline !important;
+    }
+}
+
+/* =======================================================
+   Mode Toggle Buttons (Topbar) — มาตรฐานกลาง
+   ใช้สำหรับปุ่มสลับโหมด: ครู / แอดมิน / หัวหน้ากลุ่มฯ
+   ======================================================= */
+.d-btn-mode{
+    border:1px solid var(--d-line);
+    border-radius:20px;
+    padding:9px 13px;
+    background:#fff;
+    color:#526277;
+    cursor:pointer;
+    font:inherit;
+    font-size:13px;
+    font-weight:600;
+    transition:background .18s, color .18s, border-color .18s, transform .18s;
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    height:38px;
+    white-space:nowrap;
+}
+.d-btn-mode i{ font-size:14px; }
+.d-btn-mode:hover{ transform:translateY(-1px); }
+.d-btn-mode.hidden{ display:none !important; }
+
+/* ---------- Variants: ครู (rose) ---------- */
+.d-btn-mode.teacher{
+    border-color:#fecdd3;
+    color:#e11d48;
+    background:#fff1f2;
+}
+.d-btn-mode.teacher:hover{ background:#ffe4e6; border-color:#fda4af; }
+
+/* ---------- Variants: แอดมิน (indigo) ---------- */
+.d-btn-mode.admin{
+    border-color:#c7d2fe;
+    color:#4f46e5;
+    background:#eef2ff;
+}
+.d-btn-mode.admin:hover{ background:#e0e7ff; border-color:#a5b4fc; }
+
+/* ---------- Variants: หัวหน้ากลุ่มฯ (purple) ---------- */
+.d-btn-mode.depthead{
+    border-color:#e9d5ff;
+    color:#9333ea;
+    background:#faf5ff;
+}
+.d-btn-mode.depthead:hover{ background:#f3e8ff; border-color:#d8b4fe; }
+
+/* ---------- Variants: จัดการ / ตั้งค่า (slate) ---------- */
+.d-btn-mode.settings{
+    border-color:var(--d-line);
+    color:#526277;
+    background:#fff;
+}
+.d-btn-mode.settings:hover{ background:#f1f7ff; color:var(--d-primary); border-color:#c8e0fb; }
+
+/* ---------- Mobile: เหลือแค่ icon ---------- */
+@media(max-width: 760px){
+    .d-btn-mode{ padding:8px 10px; gap:0; }
+    .d-btn-mode > span{ display:none !important; }
+}

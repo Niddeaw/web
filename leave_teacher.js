@@ -19,20 +19,9 @@ window.editingOriginalLeaveType = null;
 // LOGOUT
 // ==========================================
 window.logout = async function () {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        text: "คุณต้องการออกจากระบบใช่หรือไม่",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace("login.html");
-    }
+    if (typeof handleLogout === 'function') return handleLogout();
+    const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' });
+    if (isConfirmed) { await db.auth.signOut(); window.location.replace("login.html"); }
 };
 
 // ==========================================
@@ -66,21 +55,21 @@ window.checkAuth = async function () {
     window.currentUserRole = role;
     window.isAdminMode = isAdmin;
     window.isModuleAdmin = await window.hasModuleAccess(role, 'leave', user.id);
-    window.currentProfile = window.currentProfile;
-    window.currentUserRole = window.currentUserRole;
-    window.isModuleAdmin = window.isModuleAdmin;
-    window.isAdminMode = window.isAdminMode;
 
-    $('#display-name').text(`${window.currentProfile.prefix || ''}${window.currentProfile.first_name} ${window.currentProfile.last_name}`);
+    $('#display-name').text(`${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`);
 
-    // ✅ ตรวจสอบว่าเป็น Admin หรือ Module Admin
+    // ✅ เพิ่ม avatar (จาก dashboard_ui.js)
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(personnel);
+    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(role);
+
+    // ปุ่มโหมดแอดมิน
     if (window.isAdminMode || window.isModuleAdmin) {
         $('#btnAdminMode').removeClass('hidden').addClass('flex');
     } else {
         $('#btnAdminMode').addClass('hidden').removeClass('flex');
     }
 
-    // ✅ ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ หรือ Super Admin (แสดงปุ่มโหมดหัวหน้า)
+    // ปุ่มโหมดหัวหน้ากลุ่มฯ
     try {
         const isSuperAdmin = (role === 'super_admin');
         const headInfo = await window.getDepartmentHeadInfo(user.id);
@@ -90,7 +79,6 @@ window.checkAuth = async function () {
             $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
         }
     } catch (err) {
-        console.warn('Check dept head failed:', err);
         $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
     }
 

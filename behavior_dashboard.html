@@ -2,262 +2,339 @@
 <html lang="th">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ภาพรวม | ระบบงานปกครอง</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
-    <style>
-        .glass-card {
-            background: #fff;
-            border-radius: 1.5rem;
-            box-shadow: 0 4px 6px -2px rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.03);
-            border: 1px solid #f1f5f9;
-        }
-        .stat-card {
-            transition: all 0.2s ease;
-        }
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
-        }
-        .dashboard-badge {
-            background: rgba(255,255,255,0.6);
-            backdrop-filter: blur(8px);
-            border: 1px solid rgba(255,255,255,0.3);
-        }
-    </style>
+    <link rel="stylesheet" href="dashboard.css">
 </head>
 
-<body class="min-h-screen text-slate-800 pb-10 bg-slate-50">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <!-- Navbar -->
-    <nav class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-red-100 px-6 py-3 shadow-sm flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain">
-            <div>
-                <h1 class="font-bold text-red-900 leading-tight text-lg flex items-center gap-2">
-                    <i class="fa-solid fa-chart-pie text-emerald-500"></i> ภาพรวมงานปกครอง
-                </h1>
-                <p class="text-[10px] text-red-600 uppercase tracking-widest" id="role_label">Dashboard</p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2 md:gap-3">
-            <span id="user_display" class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
-            
-            <!-- ปุ่มไปหน้า Admin Management -->
-            <button id="btnGoToAdmin" onclick="window.location.href='behavior_admin.html'" 
-                    class="hidden h-10 px-4 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm">
-                <i class="fa-solid fa-users-cog sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">จัดการนักเรียน</span>
-            </button>
+    <div class="d-app">
 
-            <!-- ปุ่มตั้งค่า (เฉพาะ super_admin/admin) -->
-            <button id="btn_settings" onclick="location.href='behavior_settings.html'"
-                    class="hidden h-10 px-3 items-center justify-center rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 transition border border-slate-200 shadow-sm"
-                    title="ตั้งค่าระบบ">
-                <i class="fas fa-cog sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">ตั้งค่า</span>
-            </button>
+        <!-- ================= Sidebar ================= -->
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>งานปกครอง</b><span>ภาพรวม</span></div>
+            </div>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a href="index.html" title="หน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">หน้าหลัก</span>
+                </a>
 
-            <button onclick="window.location.href='index.html'"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-            <button onclick="logout()"
-                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors shadow-sm">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
-        </div>
-    </nav>
+                <div class="d-nav-title">ระบบงานปกครอง</div>
+                <a id="navDashboard" class="hidden active" href="behavior_dashboard.html" title="ภาพรวม">
+                    <span class="d-ico"><i class="fa-solid fa-chart-pie"></i></span>
+                    <span class="d-label">ภาพรวม</span>
+                </a>
+                <a id="navAdmin" class="hidden" href="behavior_admin.html" title="จัดการนักเรียน">
+                    <span class="d-ico"><i class="fa-solid fa-users-cog"></i></span>
+                    <span class="d-label">จัดการนักเรียน</span>
+                </a>
+                <a id="navTeacher" class="hidden" href="behavior_teacher.html" title="ครูที่ปรึกษา">
+                    <span class="d-ico"><i class="fa-solid fa-user-tie"></i></span>
+                    <span class="d-label">ครูที่ปรึกษา</span>
+                </a>
 
-    <main class="container mx-auto px-4 mt-8 pb-12">
+                <div class="d-nav-title">การตั้งค่า</div>
+                <a id="navSettings" class="hidden" href="behavior_settings.html" title="ตั้งค่าระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
+                    <span class="d-label">ตั้งค่าระบบ</span>
+                </a>
+                <a class="logout" onclick="logout()" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
+            </div>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-        <!-- 🔹 ส่วนหัว -->
-        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
-            <div>
-                <h2 class="text-2xl font-black text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-chart-line text-emerald-500"></i> ภาพรวมความประพฤติ
-                    <span id="schoolYearBadge" class="text-xs font-bold text-slate-400 bg-slate-100 px-3 py-1 rounded-full">ปีการศึกษา 2568</span>
-                </h2>
-                <p class="text-sm text-slate-500 mt-1">สถิติและภาพรวมของนักเรียนทั้งโรงเรียน</p>
-            </div>
-            <button onclick="refreshDashboard()" 
-                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md transition-colors flex items-center gap-2">
-                <i class="fas fa-sync-alt"></i> รีเฟรชข้อมูล
-            </button>
-        </div>
+        <!-- ================= Main ================= -->
+        <main class="d-main" id="dMain">
 
-        <!-- 🔹 4 การ์ดหลัก -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6 mb-8">
-            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-green-500 cursor-pointer" onclick="window.location.href='behavior_admin.html?filter=positive'">
-                <p class="text-gray-500 text-sm font-bold">นักเรียนทำความดี</p>
-                <h3 id="stat_positive" class="text-3xl font-black text-green-600 mt-2">0</h3>
-            </div>
-            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-red-500 cursor-pointer" onclick="window.location.href='behavior_admin.html?filter=negative'">
-                <p class="text-gray-500 text-sm font-bold">ผิดระเบียบ</p>
-                <h3 id="stat_negative" class="text-3xl font-black text-red-600 mt-2">0</h3>
-            </div>
-            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-blue-500 cursor-pointer" onclick="window.location.href='behavior_admin.html?filter=high'">
-                <p class="text-gray-500 text-sm font-bold">คะแนน > 100</p>
-                <h3 id="stat_high" class="text-3xl font-black text-blue-600 mt-2">0</h3>
-            </div>
-            <div class="glass-card stat-card p-6 rounded-3xl border-l-4 border-orange-500 cursor-pointer" onclick="window.location.href='behavior_admin.html?filter=low'">
-                <p class="text-gray-500 text-sm font-bold">คะแนน < 50 (เสี่ยง)</p>
-                <h3 id="stat_low" class="text-3xl font-black text-orange-600 mt-2">0</h3>
-            </div>
-        </div>
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
 
-        <!-- 🔹 4 การ์ดระดับความผิด (กลุ่มคะแนน) -->
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-amber-400 cursor-pointer relative overflow-hidden" onclick="window.location.href='behavior_admin.html?filter=sev_light'">
-                <div class="absolute text-8xl text-amber-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i class="fas fa-star"></i></div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-amber-500 bg-amber-50 px-2 py-0.5 rounded-full">90 คะแนนขึ้นไป</span>
-                </div>
-                <p class="text-gray-500 text-sm font-bold">⭐ กลุ่ม 1</p>
-                <h3 id="stat_sev_light" class="text-3xl font-black text-amber-500 mt-1">0</h3>
-                <p class="text-[10px] text-slate-400 mt-1">คน</p>
-            </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-orange-500 cursor-pointer relative overflow-hidden" onclick="window.location.href='behavior_admin.html?filter=sev_medium'">
-                <div class="absolute text-8xl text-orange-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i class="fas fa-circle"></i></div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded-full">60–89 คะแนน</span>
-                </div>
-                <p class="text-gray-500 text-sm font-bold">🔶 กลุ่ม 2</p>
-                <h3 id="stat_sev_medium" class="text-3xl font-black text-orange-500 mt-1">0</h3>
-                <p class="text-[10px] text-slate-400 mt-1">คน</p>
-            </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-red-500 cursor-pointer relative overflow-hidden" onclick="window.location.href='behavior_admin.html?filter=sev_heavy'">
-                <div class="absolute text-8xl text-red-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i class="fas fa-exclamation-triangle"></i></div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-red-500 bg-red-50 px-2 py-0.5 rounded-full">30–59 คะแนน</span>
-                </div>
-                <p class="text-gray-500 text-sm font-bold">🔴 กลุ่ม 3</p>
-                <h3 id="stat_sev_heavy" class="text-3xl font-black text-red-600 mt-1">0</h3>
-                <p class="text-[10px] text-slate-400 mt-1">คน</p>
-            </div>
-            <div class="glass-card stat-card p-5 rounded-3xl border-l-4 border-purple-600 cursor-pointer relative overflow-hidden" onclick="window.location.href='behavior_admin.html?filter=sev_very_heavy'">
-                <div class="absolute text-8xl text-purple-200/30 -right-4 -bottom-4 select-none pointer-events-none"><i class="fas fa-skull"></i></div>
-                <div class="flex items-center gap-2 mb-1">
-                    <span class="text-xs font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full">ต่ำกว่า 30 คะแนน</span>
-                </div>
-                <p class="text-gray-500 text-sm font-bold">🚨 กลุ่ม 4</p>
-                <h3 id="stat_sev_very_heavy" class="text-3xl font-black text-purple-700 mt-1">0</h3>
-                <p class="text-[10px] text-slate-400 mt-1">คน</p>
-            </div>
-        </div>
+                <h2 id="pageTitle">ภาพรวมความประพฤติ <span id="schoolYearBadge" class="text-xs font-bold text-slate-400">(ปี 2568)</span></h2>
 
-        <!-- 🔹 กราฟ 2 รายการ -->
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <div class="glass-card rounded-3xl p-5">
-                <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-                    <h2 class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                        <i class="fas fa-chart-line text-green-500"></i> สถิติการทำความดีแยกชั้นเรียน
-                    </h2>
-                    <div class="flex flex-wrap gap-1">
-                        <button class="pos-grade-btn bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="all" onclick="renderPositiveChartForGrade('all')">ทั้งหมด</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="1" onclick="renderPositiveChartForGrade(1)">ม.1</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="2" onclick="renderPositiveChartForGrade(2)">ม.2</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="3" onclick="renderPositiveChartForGrade(3)">ม.3</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="4" onclick="renderPositiveChartForGrade(4)">ม.4</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="5" onclick="renderPositiveChartForGrade(5)">ม.5</button>
-                        <button class="pos-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-pos-grade="6" onclick="renderPositiveChartForGrade(6)">ม.6</button>
+                <div class="d-spacer"></div>
+
+                <button id="btnModeTeacher" onclick="window.location.href='behavior_teacher.html'"
+                        class="hidden d-btn-mode teacher" title="โหมดครู">
+                    <i class="fas fa-chalkboard-user"></i>
+                    <span>โหมดครู</span>
+                </button>
+                <button id="btnModeAdmin" onclick="window.location.href='behavior_admin.html'"
+                        class="hidden d-btn-mode admin" title="โหมดแอดมิน">
+                    <i class="fas fa-user-shield"></i>
+                    <span>โหมดแอดมิน</span>
+                </button>
+
+                <div class="d-settings-wrap">
+                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>แสดงผล</span>
+                    </button>
+                    <div class="d-settings-menu" id="settingsMenu">
+                        <div class="d-settings-title">ขนาดตัวอักษร</div>
+                        <div class="d-settings-options">
+                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
+                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
+                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
+                        </div>
+                        <div class="d-settings-title">ความหนาแน่น</div>
+                        <div class="d-settings-options cols-2">
+                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
+                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
+                        </div>
                     </div>
                 </div>
-                <div style="height:220px;"><canvas id="positiveChart"></canvas></div>
-                <p class="text-[10px] text-slate-400 mt-2 text-center">จำนวนครั้งทำความดีรวม (แยกตามระดับชั้น)</p>
-            </div>
 
-            <div class="glass-card rounded-3xl p-5">
-                <div class="flex justify-between items-center mb-3 flex-wrap gap-2">
-                    <h2 class="font-bold text-slate-700 text-sm flex items-center gap-2">
-                        <i class="fas fa-chart-bar text-red-500"></i> สถิติระดับความผิดแยกชั้นเรียน
-                    </h2>
-                    <div class="flex flex-wrap gap-1">
-                        <button class="sev-grade-btn bg-blue-600 text-white text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="all" onclick="renderSeverityChartForGrade('all')">ทั้งหมด</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="1" onclick="renderSeverityChartForGrade(1)">ม.1</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="2" onclick="renderSeverityChartForGrade(2)">ม.2</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="3" onclick="renderSeverityChartForGrade(3)">ม.3</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="4" onclick="renderSeverityChartForGrade(4)">ม.4</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="5" onclick="renderSeverityChartForGrade(5)">ม.5</button>
-                        <button class="sev-grade-btn bg-slate-100 text-xs font-bold px-2 py-1 rounded-lg transition" data-sev-grade="6" onclick="renderSeverityChartForGrade(6)">ม.6</button>
+                <button onclick="refreshDashboard()" class="d-btn-mode settings" title="รีเฟรช">
+                    <i class="fa-solid fa-sync-alt"></i>
+                    <span>รีเฟรช</span>
+                </button>
+
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
+                    </div>
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
                     </div>
                 </div>
-                <div style="height:220px;"><canvas id="severityChart"></canvas></div>
-                <p class="text-[10px] text-slate-400 mt-2 text-center">จำนวนนักเรียนตามกลุ่มคะแนน (แยกตามระดับชั้น)</p>
-            </div>
-        </div>
+            </header>
 
-        <!-- 🔹 ตารางบันทึกล่าสุด 2 คอลัมน์ -->
-        <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            <div class="glass-card rounded-3xl p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="w-3 h-3 rounded-full bg-green-500"></span>
-                    <h2 class="font-bold text-slate-700 text-sm">บันทึกทำความดีล่าสุด</h2>
-                    <span class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span>
-                    <button onclick="openLogsModal('positive')" class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม
+            <!-- ================= Content ================= -->
+            <div style="padding:0 0 12px;" class="space-y-4">
+
+                <!-- Hero -->
+                <div class="d-hero">
+                    <div class="d-hero-content">
+                        <h1>📊 ภาพรวมความประพฤติ</h1>
+                        <p>สถิติและภาพรวมของนักเรียนทั้งโรงเรียน · คลิกการ์ดเพื่อดูรายชื่อ</p>
+                    </div>
+                </div>
+
+                <!-- 4 การ์ดหลัก -->
+                <div class="d-grid4">
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('positive')">
+                        <div class="d-stat-icon d-green"><i class="fa-solid fa-star"></i></div>
+                        <div><p>นักเรียนทำความดี</p><h3 id="stat_positive">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('negative')">
+                        <div class="d-stat-icon d-rose"><i class="fa-solid fa-exclamation"></i></div>
+                        <div><p>ผิดระเบียบ</p><h3 id="stat_negative">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('high')">
+                        <div class="d-stat-icon d-blue"><i class="fa-solid fa-arrow-up"></i></div>
+                        <div><p>คะแนน &gt; 100</p><h3 id="stat_high">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('low')">
+                        <div class="d-stat-icon d-gold"><i class="fa-solid fa-arrow-down"></i></div>
+                        <div><p>คะแนน &lt; 50 (เสี่ยง)</p><h3 id="stat_low">0</h3></div>
+                    </div>
+                </div>
+
+                <!-- 4 การ์ดกลุ่มคะแนน -->
+                <div class="d-grid4">
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('sev_light')">
+                        <div class="d-stat-icon d-gold"><i class="fa-solid fa-star"></i></div>
+                        <div><p>⭐ กลุ่ม 1 (90+)</p><h3 id="stat_sev_light">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('sev_medium')">
+                        <div class="d-stat-icon d-gold" style="background:linear-gradient(145deg,#f97316,#fb923c)"><i class="fa-solid fa-circle"></i></div>
+                        <div><p>🔶 กลุ่ม 2 (60-89)</p><h3 id="stat_sev_medium">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('sev_heavy')">
+                        <div class="d-stat-icon d-rose"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                        <div><p>🔴 กลุ่ม 3 (30-59)</p><h3 id="stat_sev_heavy">0</h3></div>
+                    </div>
+                    <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('sev_very_heavy')">
+                        <div class="d-stat-icon d-violet"><i class="fa-solid fa-skull"></i></div>
+                        <div><p>🚨 กลุ่ม 4 (&lt;30)</p><h3 id="stat_sev_very_heavy">0</h3></div>
+                    </div>
+                </div>
+
+                <!-- Charts -->
+                <div class="d-charts">
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">📈 สถิติการทำความดี</div>
+                            <select id="posGradeSelect" class="d-select" onchange="renderPositiveChartForGrade(this.value)">
+                                <option value="all">ทั้งหมด</option>
+                                <option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option>
+                                <option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option>
+                            </select>
+                        </div>
+                        <div class="d-chart-box"><canvas id="positiveChart"></canvas></div>
+                    </div>
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">📊 สถิติระดับความผิด</div>
+                            <select id="sevGradeSelect" class="d-select" onchange="renderSeverityChartForGrade(this.value)">
+                                <option value="all">ทั้งหมด</option>
+                                <option value="1">ม.1</option><option value="2">ม.2</option><option value="3">ม.3</option>
+                                <option value="4">ม.4</option><option value="5">ม.5</option><option value="6">ม.6</option>
+                            </select>
+                        </div>
+                        <div class="d-chart-box"><canvas id="severityChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- Recent logs -->
+                <div class="d-charts">
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">✅ บันทึกทำความดีล่าสุด</div>
+                            <button onclick="openLogsModal('positive')" class="d-btn">ดูเพิ่มเติม</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-slate-400 uppercase border-b border-slate-100">
+                                        <th class="pb-2 text-center font-bold w-10"></th>
+                                        <th class="pb-2 text-left font-bold">วันที่/เวลา</th>
+                                        <th class="pb-2 text-left font-bold">ชั้น</th>
+                                        <th class="pb-2 text-left font-bold">เลขประจำตัว</th>
+                                        <th class="pb-2 text-left font-bold">ชื่อ-สกุล</th>
+                                        <th class="pb-2 text-left font-bold">รายการ</th>
+                                        <th class="pb-2 text-center font-bold">คะแนน</th>
+                                        <th class="pb-2 text-left font-bold">ผู้บันทึก</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent_positive_body">
+                                    <tr><td colspan="8" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">⚠️ บันทึกผิดระเบียบล่าสุด</div>
+                            <button onclick="openLogsModal('negative')" class="d-btn">ดูเพิ่มเติม</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="text-slate-400 uppercase border-b border-slate-100">
+                                        <th class="pb-2 text-center font-bold w-10"></th>
+                                        <th class="pb-2 text-left font-bold">วันที่/เวลา</th>
+                                        <th class="pb-2 text-left font-bold">ชั้น</th>
+                                        <th class="pb-2 text-left font-bold">เลขประจำตัว</th>
+                                        <th class="pb-2 text-left font-bold">ชื่อ-สกุล</th>
+                                        <th class="pb-2 text-left font-bold">รายการ</th>
+                                        <th class="pb-2 text-center font-bold">คะแนน</th>
+                                        <th class="pb-2 text-left font-bold">ผู้บันทึก</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recent_negative_body">
+                                    <tr><td colspan="8" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="text-center text-[10px] text-slate-400 mt-4 pt-4 border-t border-slate-200">
+                    ระบบงานปกครอง WRK School Management System v2.0 — ข้อมูล ณ วันที่ <span id="dashboardDate"></span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ================= Modal Filtered Students ================= -->
+    <div id="filteredStudentsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-0">
+        <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeFilteredStudentsModal()"></div>
+        <div class="relative bg-white w-full h-full flex flex-col overflow-hidden z-10">
+            <!-- Header -->
+            <div class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0">
+                <div id="filteredStudentsModalIcon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
+                <div class="flex-1 min-w-0">
+                    <h2 id="filteredStudentsTitle" class="text-lg font-black text-slate-800 truncate"></h2>
+                    <p id="filteredStudentsSub" class="text-xs text-slate-400 font-medium mt-0.5"></p>
+                </div>
+                <button onclick="closeFilteredStudentsModal()" class="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Toolbar -->
+            <div class="px-6 py-3 bg-slate-50 border-b border-slate-100 flex-shrink-0">
+                <div class="flex flex-wrap gap-3 items-center">
+                    <div class="flex-1 min-w-[200px] max-w-md relative">
+                        <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+                        <input type="text" id="filteredStudentsSearch" onkeyup="searchFilteredStudents()"
+                               placeholder="ค้นหาเลขประจำตัว / ชื่อ-สกุล / ชั้น..."
+                               class="w-full pl-9 pr-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition bg-white">
+                    </div>
+                    <button onclick="exportFilteredStudents()"
+                            class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
+                        <i class="fas fa-file-excel"></i> ส่งออก Excel
+                    </button>
+                    <button onclick="goToAdminWithFilter()"
+                            class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition shadow-sm">
+                        <i class="fas fa-external-link-alt"></i> ไปหน้าจัดการ
                     </button>
                 </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-xs">
-                        <thead>
-                            <tr class="text-slate-400 uppercase border-b border-slate-100">
-                                <th class="pb-2 text-left font-bold">วันที่/เวลา</th>
-                                <th class="pb-2 text-left font-bold">ชั้น</th>
-                                <th class="pb-2 text-left font-bold">เลขประจำตัว</th>
-                                <th class="pb-2 text-left font-bold">ชื่อ-สกุล</th>
-                                <th class="pb-2 text-left font-bold">รายการ</th>
-                                <th class="pb-2 text-center font-bold">คะแนน</th>
-                                <th class="pb-2 text-left font-bold">ผู้บันทึก</th>
+            </div>
+
+            <!-- Table -->
+            <div class="flex-1 overflow-auto p-4 md:p-6">
+                <div class="rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                    <table id="filteredStudentsTable" class="w-full text-sm display">
+                        <thead class="bg-slate-50">
+                            <tr class="text-slate-500 text-xs uppercase">
+                                <th class="py-3 px-3 text-center w-14"></th>
+                                <th class="py-3 px-3 text-center">ชั้น</th>
+                                <th class="py-3 px-3 text-center">เลขที่</th>
+                                <th class="py-3 px-3 text-left">เลขประจำตัว</th>
+                                <th class="py-3 px-3 text-left">ชื่อ-สกุล</th>
+                                <th class="py-3 px-3 text-center">คะแนน</th>
+                                <th class="py-3 px-3 text-center w-32">จัดการ</th>
                             </tr>
                         </thead>
-                        <tbody id="recent_positive_body">
-                            <tr><td colspan="7" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td></tr>
-                        </tbody>
+                        <tbody id="filteredStudentsBody"></tbody>
                     </table>
                 </div>
             </div>
-            <div class="glass-card rounded-3xl p-5">
-                <div class="flex items-center gap-2 mb-4">
-                    <span class="w-3 h-3 rounded-full bg-red-500"></span>
-                    <h2 class="font-bold text-slate-700 text-sm">บันทึกผิดระเบียบล่าสุด</h2>
-                    <span class="text-[10px] text-slate-400 font-medium">10 รายการล่าสุด</span>
-                    <button onclick="openLogsModal('negative')" class="ml-auto flex items-center gap-1.5 text-[11px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition">
-                        <i class="fas fa-expand-alt text-[10px]"></i> ดูเพิ่มเติม
-                    </button>
-                </div>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-xs">
-                        <thead>
-                            <tr class="text-slate-400 uppercase border-b border-slate-100">
-                                <th class="pb-2 text-left font-bold">วันที่/เวลา</th>
-                                <th class="pb-2 text-left font-bold">ชั้น</th>
-                                <th class="pb-2 text-left font-bold">เลขประจำตัว</th>
-                                <th class="pb-2 text-left font-bold">ชื่อ-สกุล</th>
-                                <th class="pb-2 text-left font-bold">รายการ</th>
-                                <th class="pb-2 text-center font-bold">คะแนน</th>
-                                <th class="pb-2 text-left font-bold">ผู้บันทึก</th>
-                            </tr>
-                        </thead>
-                        <tbody id="recent_negative_body">
-                            <tr><td colspan="7" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex-shrink-0 flex justify-end">
+                <button onclick="closeFilteredStudentsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm">
+                    <i class="fas fa-times mr-1.5"></i> ปิด
+                </button>
             </div>
         </div>
+    </div>
 
-        <!-- 🔹 Footer -->
-        <div class="text-center text-[10px] text-slate-400 mt-8 pt-4 border-t border-slate-200">
-            ระบบงานปกครอง WRK School Management System v2.0 — ข้อมูล ณ วันที่ <span id="dashboardDate"></span>
-        </div>
-
-    </main>
-
-    <!-- ========================================= -->
-    <!-- Modal ดูบันทึกพฤติกรรม (เต็มหน้าจอ)        -->
-    <!-- ========================================= -->
+    <!-- ================= Modal Logs (fullscreen) ================= -->
     <div id="logsModal" class="fixed inset-0 bg-slate-900/70 hidden items-center justify-center z-50 backdrop-blur-sm p-0">
-        <div class="bg-white w-full h-full flex flex-col overflow-hidden md:rounded-none">
+        <div class="bg-white w-full h-full flex flex-col overflow-hidden">
             <div id="logsModalHeader" class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0">
                 <div id="logsModalIcon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
                 <div>
@@ -298,9 +375,7 @@
                     <p class="text-slate-400 text-sm font-medium">กำลังโหลดข้อมูล...</p>
                 </div>
                 <div id="logsEmpty" class="hidden flex-col items-center justify-center py-20 gap-3 text-center flex-1">
-                    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2">
-                        <i class="fas fa-inbox"></i>
-                    </div>
+                    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2"><i class="fas fa-inbox"></i></div>
                     <p class="text-slate-500 font-bold">ไม่พบรายการในช่วงเวลานี้</p>
                     <p class="text-slate-400 text-xs">ลองเลือกช่วงเวลาอื่น</p>
                 </div>
@@ -308,25 +383,40 @@
                     <div class="flex-shrink-0 bg-slate-50 rounded-t-2xl overflow-hidden">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
-                                <col class="w-[145px]"><col class="w-[70px]"><col class="w-[100px]">
-                                <col class="w-[160px]"><col class="w-[180px]"><col class="w-[72px]"><col class="w-[130px]">
+                                <col class="w-[44px]">
+                                <col class="w-[135px]">
+                                <col class="w-[70px]">
+                                <col class="w-[100px]">
+                                <col class="w-[160px]">
+                                <col class="w-[180px]">
+                                <col class="w-[72px]">
+                                <col class="w-[130px]">
                             </colgroup>
-                            <thead><tr class="text-slate-500 text-xs uppercase">
-                                <th class="py-3 px-4 text-left font-bold">วันที่/เวลา</th>
-                                <th class="py-3 px-4 text-left font-bold">ชั้น</th>
-                                <th class="py-3 px-4 text-left font-bold">เลขประจำตัว</th>
-                                <th class="py-3 px-4 text-left font-bold">ชื่อ-สกุล</th>
-                                <th class="py-3 px-4 text-left font-bold">รายการ</th>
-                                <th class="py-3 px-4 text-center font-bold">คะแนน</th>
-                                <th class="py-3 px-4 text-left font-bold">ผู้บันทึก</th>
-                            </tr></thead>
+                            <thead>
+                                <tr class="text-slate-500 text-xs uppercase">
+                                    <th class="py-3 px-2 text-center font-bold"></th>
+                                    <th class="py-3 px-4 text-left font-bold">วันที่/เวลา</th>
+                                    <th class="py-3 px-4 text-left font-bold">ชั้น</th>
+                                    <th class="py-3 px-4 text-left font-bold">เลขประจำตัว</th>
+                                    <th class="py-3 px-4 text-left font-bold">ชื่อ-สกุล</th>
+                                    <th class="py-3 px-4 text-left font-bold">รายการ</th>
+                                    <th class="py-3 px-4 text-center font-bold">คะแนน</th>
+                                    <th class="py-3 px-4 text-left font-bold">ผู้บันทึก</th>
+                                </tr>
+                            </thead>
                         </table>
                     </div>
                     <div class="flex-1 overflow-y-auto">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
-                                <col class="w-[145px]"><col class="w-[70px]"><col class="w-[100px]">
-                                <col class="w-[160px]"><col class="w-[180px]"><col class="w-[72px]"><col class="w-[130px]">
+                                <col class="w-[44px]">
+                                <col class="w-[135px]">
+                                <col class="w-[70px]">
+                                <col class="w-[100px]">
+                                <col class="w-[160px]">
+                                <col class="w-[180px]">
+                                <col class="w-[72px]">
+                                <col class="w-[130px]">
                             </colgroup>
                             <tbody id="logsTableBody"></tbody>
                         </table>
@@ -342,6 +432,10 @@
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_ui.js"></script>
     <script src="behavior_dashboard.js"></script>
 </body>
+
 </html>
