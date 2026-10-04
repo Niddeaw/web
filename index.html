@@ -4,30 +4,27 @@
 <head>
     <title>WRK - ระบบบริหารจัดการสถานศึกษา</title>
 
-    <!-- Libraries + Config กลาง -->
     <script src="core_head.js"></script>
     <script src="config.js"></script>
 
-    <!-- CSS: utilities + dashboard -->
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
 
-    <!-- CSS เฉพาะ index: hero banner -->
     <style>
-        .d-hero{
+        .d-hero {
             background:
-                linear-gradient(90deg,#d9ecff 0%,#eaf4ff 45%,rgba(255,255,255,0) 70%),
+                linear-gradient(90deg, #d9ecff 0%, #eaf4ff 45%, rgba(255, 255, 255, 0) 70%),
                 url('hero-banner.webp') right center / auto 100% no-repeat;
         }
-        #totalStudentsLabel{
-            display:inline-block;
-            margin-left:6px;
-            padding:2px 8px;
-            background:#eaf4ff;
-            color:#2588e8;
-            border-radius:20px;
-            font-size:11px;
-            font-weight:600;
+        #totalStudentsLabel {
+            display: inline-block;
+            margin-left: 6px;
+            padding: 2px 8px;
+            background: #eaf4ff;
+            color: #2588e8;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
         }
     </style>
 </head>
@@ -37,64 +34,15 @@
     <div id="portalView" class="hidden">
         <div class="d-app">
 
-            <!-- ================= Sidebar ================= -->
-            <aside class="d-sidebar" id="dSidebar">
-                <div class="d-brand">
-                    <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
-                    <div><b>WRK</b><span>School Management System</span></div>
-                </div>
-                <nav class="d-nav">
-                    <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
-                    <a id="homeTabBtn" class="active" title="หน้าหลัก" onclick="switchToHome(this)"><span class="d-ico"><i class="fa-solid fa-house"></i></span><span class="d-label">หน้าหลัก</span></a>
-
-                    <div class="d-nav-title">กลุ่มบริหารงาน</div>
-                    <a class="main-tab-btn" title="บริหารวิชาการ" onclick="switchMainTab('academic', this)"><span class="d-ico"><i class="fa-solid fa-book-open"></i></span><span class="d-label">บริหารวิชาการ</span></a>
-                    <a class="main-tab-btn" title="บริหารงบประมาณ" onclick="switchMainTab('budget', this)"><span class="d-ico"><i class="fa-solid fa-coins"></i></span><span class="d-label">บริหารงบประมาณ</span></a>
-                    <a class="main-tab-btn" title="บริหารงานบุคคล" onclick="switchMainTab('personnel', this)"><span class="d-ico"><i class="fa-solid fa-users"></i></span><span class="d-label">บริหารงานบุคคล</span></a>
-                    <a class="main-tab-btn" title="บริหารทั่วไป" onclick="switchMainTab('general', this)"><span class="d-ico"><i class="fa-solid fa-building"></i></span><span class="d-label">บริหารทั่วไป</span></a>
-
-                    <div class="d-nav-title">ระบบกลาง</div>
-                    <a id="btnSuperAdmin" class="hidden" href="super_admin.html" title="จัดการระบบส่วนกลาง"><span class="d-ico"><i class="fa-solid fa-server"></i></span><span class="d-label">จัดการระบบส่วนกลาง</span></a>
-                    <a id="calendarAdminBtn" class="hidden" href="calendar_admin.html" title="จัดการปฏิทิน"><span class="d-ico"><i class="fa-regular fa-calendar-alt"></i></span><span class="d-label">จัดการปฏิทิน</span></a>
-                    <a id="adminHelpdeskBtn" class="hidden" href="helpdesk_admin.html" title="ศูนย์ช่วยเหลือ"><span class="d-ico"><i class="fa-solid fa-headset"></i></span><span class="d-label">ศูนย์ช่วยเหลือ</span></a>
-                    <a onclick="changeMyPassword()" title="เปลี่ยนรหัสผ่าน"><span class="d-ico"><i class="fa-solid fa-key"></i></span><span class="d-label">เปลี่ยนรหัสผ่าน</span></a>
-                    <a class="logout" onclick="handleLogout()" title="ออกจากระบบ"><span class="d-ico"><i class="fa-solid fa-power-off"></i></span><span class="d-label">ออกจากระบบ</span></a>
-                </nav>
-                <div class="d-sidebar-bottom">
-                    <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
-                        <i class="fa-brands fa-facebook"></i>
-                        <span>ติดตามเพจโรงเรียน</span>
-                    </a>
-                </div>
-            </aside>
+            <!-- ================= Sidebar (placeholder) ================= -->
+            <aside class="d-sidebar" id="dSidebar"></aside>
             <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
+            <!-- ================= Main ================= -->
             <main class="d-main" id="dMain">
-                <!-- ================= Topbar ================= -->
-                <header class="d-topbar">
-                    <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-                    <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-                        <i class="fa-solid fa-angles-left"></i>
-                    </button>
-                    <div class="d-search"><i class="fa-solid fa-magnifying-glass"></i>
-                        <input id="appSearch" placeholder="ค้นหาระบบงาน หรือเมนูต่างๆ..." oninput="handleSearchInput()">
-                    </div>
-                    <div class="d-spacer"></div>
-                    <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
-                    <div class="d-profile">
-                        <div class="d-avatar-wrap">
-                            <div class="d-avatar" id="userAvatar">
-                                <span id="userAvatarInitial">?</span>
-                                <img id="userAvatarImg" src="" alt="" style="display:none;">
-                            </div>
-                            <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
-                        </div>
-                        <div>
-                            <b id="userName" class="text-sm">กำลังโหลด...</b>
-                            <small id="userRole">...</small>
-                        </div>
-                    </div>
-                </header>
+
+                <!-- ================= Topbar (placeholder) ================= -->
+                <header class="d-topbar" id="dTopbar"></header>
 
                 <!-- ================= Dashboard Section ================= -->
                 <div id="dashboardSection">
@@ -108,10 +56,34 @@
 
                     <!-- Stat cards -->
                     <section class="d-grid4">
-                        <div class="d-stat"><div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div><div><p>ระบบทั้งหมด</p><h3 id="statTotal">-</h3></div></div>
-                        <div class="d-stat"><div class="d-stat-icon d-green"><i class="fa-solid fa-user-graduate"></i></div><div><p>นักเรียนทั้งหมด</p><h3 id="statStudents">-</h3></div></div>
-                        <div class="d-stat"><div class="d-stat-icon d-rose"><i class="fa-solid fa-users"></i></div><div><p>บุคลากรทั้งหมด</p><h3 id="statPersonnel">-</h3></div></div>
-                        <div class="d-stat"><div class="d-stat-icon d-violet"><i class="fa-regular fa-calendar-check"></i></div><div><p>กิจกรรมในเดือนที่เลือก</p><h3 id="statEvents">-</h3></div></div>
+                        <div class="d-stat">
+                            <div class="d-stat-icon d-blue"><i class="fa-solid fa-layer-group"></i></div>
+                            <div>
+                                <p>ระบบทั้งหมด</p>
+                                <h3 id="statTotal">-</h3>
+                            </div>
+                        </div>
+                        <div class="d-stat">
+                            <div class="d-stat-icon d-green"><i class="fa-solid fa-user-graduate"></i></div>
+                            <div>
+                                <p>นักเรียนทั้งหมด</p>
+                                <h3 id="statStudents">-</h3>
+                            </div>
+                        </div>
+                        <div class="d-stat">
+                            <div class="d-stat-icon d-rose"><i class="fa-solid fa-users"></i></div>
+                            <div>
+                                <p>บุคลากรทั้งหมด</p>
+                                <h3 id="statPersonnel">-</h3>
+                            </div>
+                        </div>
+                        <div class="d-stat">
+                            <div class="d-stat-icon d-violet"><i class="fa-regular fa-calendar-check"></i></div>
+                            <div>
+                                <p>กิจกรรมในเดือนที่เลือก</p>
+                                <h3 id="statEvents">-</h3>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- Charts -->
@@ -141,15 +113,23 @@
                                 <div class="d-card-title">📅 ปฏิทินกิจกรรม</div>
                                 <div class="flex gap-2 items-center flex-wrap">
                                     <select id="monthSelect" class="d-select">
-                                        <option value="0">มกราคม</option><option value="1">กุมภาพันธ์</option>
-                                        <option value="2">มีนาคม</option><option value="3">เมษายน</option>
-                                        <option value="4">พฤษภาคม</option><option value="5">มิถุนายน</option>
-                                        <option value="6">กรกฎาคม</option><option value="7">สิงหาคม</option>
-                                        <option value="8">กันยายน</option><option value="9">ตุลาคม</option>
-                                        <option value="10">พฤศจิกายน</option><option value="11">ธันวาคม</option>
+                                        <option value="0">มกราคม</option>
+                                        <option value="1">กุมภาพันธ์</option>
+                                        <option value="2">มีนาคม</option>
+                                        <option value="3">เมษายน</option>
+                                        <option value="4">พฤษภาคม</option>
+                                        <option value="5">มิถุนายน</option>
+                                        <option value="6">กรกฎาคม</option>
+                                        <option value="7">สิงหาคม</option>
+                                        <option value="8">กันยายน</option>
+                                        <option value="9">ตุลาคม</option>
+                                        <option value="10">พฤศจิกายน</option>
+                                        <option value="11">ธันวาคม</option>
                                     </select>
                                     <select id="yearSelect" class="d-select"></select>
-                                    <button id="btnLoadCalendar" class="d-btn"><i class="fa-solid fa-calendar-alt mr-1"></i> แสดง</button>
+                                    <button id="btnLoadCalendar" class="d-btn">
+                                        <i class="fa-solid fa-calendar-alt mr-1"></i> แสดง
+                                    </button>
                                 </div>
                             </div>
                             <div class="d-calendar-box border border-gray-200 rounded-lg">
@@ -163,7 +143,9 @@
                                         </tr>
                                     </thead>
                                     <tbody id="calendarEventsTableBody">
-                                        <tr><td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td></tr>
+                                        <tr>
+                                            <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
@@ -175,7 +157,9 @@
                                 <span class="d-sub" id="sick-today-date"></span>
                             </div>
                             <div id="sick-leave-today" class="min-h-[40px]">
-                                <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                                <p class="text-gray-400 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                                </p>
                             </div>
                         </div>
 
@@ -185,7 +169,9 @@
                                 <span class="d-sub" id="sick-week-range"></span>
                             </div>
                             <div id="sick-leave-week" class="min-h-[40px]">
-                                <p class="text-gray-400 text-sm flex items-center gap-2"><i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...</p>
+                                <p class="text-gray-400 text-sm flex items-center gap-2">
+                                    <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                                </p>
                             </div>
                         </div>
                     </section>
@@ -194,10 +180,16 @@
                 <!-- ================= App Modules Section ================= -->
                 <section class="d-card hidden" id="appModuleSection" style="margin-bottom:12px">
                     <div class="d-card-head">
-                        <div class="d-card-title"><span id="appSectionTitle">บริหารวิชาการ</span> <span class="d-sub">(ระบบงานที่ใช้งานได้)</span></div>
+                        <div class="d-card-title">
+                            <span id="appSectionTitle">บริหารวิชาการ</span>
+                            <span class="d-sub">(ระบบงานที่ใช้งานได้)</span>
+                        </div>
                     </div>
                     <div id="appGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                        <div class="col-span-full text-center py-10 text-gray-400"><i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i><br>กำลังดึงข้อมูลระบบ...</div>
+                        <div class="col-span-full text-center py-10 text-gray-400">
+                            <i class="fa-solid fa-circle-notch fa-spin text-3xl mb-3 text-blue-500"></i>
+                            <br>กำลังดึงข้อมูลระบบ...
+                        </div>
                     </div>
                 </section>
 
@@ -205,16 +197,17 @@
         </div>
     </div>
 
-    <!-- Libraries -->
+    <!-- ================= Libraries ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
-    <!-- Module scripts (ที่ index ต้องใช้) -->
+    <!-- ================= Module scripts ================= -->
     <script src="leave_dashboard.js"></script>
     <script src="calendar_manager.js"></script>
 
-    <!-- ✅ ไฟล์กลาง -->
+    <!-- ================= Core scripts ================= -->
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="dashboard_charts.js"></script>
     <script src="dashboard_widgets.js"></script>
 
@@ -227,7 +220,7 @@
         const PERSONNEL_TABLE = 'core_personnel';
         const ENROLLMENT_STATUS = 'ปกติ';
 
-        // ✅ ปีการศึกษา/เทอม จาก core_school_info (โหลดตอน checkAuth)
+        // ✅ ปีการศึกษา/เทอม
         let CURRENT_ACADEMIC_YEAR = '';
         let CURRENT_SEMESTER = '';
 
@@ -239,10 +232,10 @@
         let currentView = 'home';
 
         const CATEGORY_NAMES = {
-            academic:  'บริหารวิชาการ',
-            budget:    'บริหารงบประมาณ',
+            academic: 'บริหารวิชาการ',
+            budget: 'บริหารงบประมาณ',
             personnel: 'บริหารงานบุคคล',
-            general:   'บริหารทั่วไป'
+            general: 'บริหารทั่วไป'
         };
 
         const ALL_APPS = [
@@ -255,7 +248,7 @@
             { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
         ];
 
-        // ====== จำแนกประเภทบุคลากร ======
+        // ====== Helpers ======
         function personnelCategory(person) {
             const pos = (person.position || '').trim();
             if (pos === 'ผู้อำนวยการสถานศึกษา' || pos === 'รองผู้อำนวยการสถานศึกษา') return 'ฝ่ายบริหาร';
@@ -266,7 +259,6 @@
             return 'อื่นๆ';
         }
 
-        // ====== แปลง grade_level → ชื่อชั้น ======
         function gradeLevelToLabel(lv) {
             if (lv === null || lv === undefined || lv === '') return 'ไม่ระบุ';
             const n = parseInt(lv, 10);
@@ -275,9 +267,53 @@
         }
 
         // =======================================================
+        // ✅ Render Sidebar + Topbar (NEW)
+        // =======================================================
+        function buildSidebarAndTopbar() {
+            renderSidebar({
+                brand: { subtitle: 'School Management System' },
+                mainMenu: [
+                    { id: 'homeTabBtn', icon: 'fa-house', label: 'หน้าหลัก', onclick: 'switchToHome()', class: 'active' }
+                ],
+                moduleMenus: [
+                    {
+                        title: 'กลุ่มบริหารงาน',
+                        items: [
+                            { icon: 'fa-book-open', label: 'บริหารวิชาการ', onclick: "switchMainTab('academic', this)", class: 'main-tab-btn' },
+                            { icon: 'fa-coins', label: 'บริหารงบประมาณ', onclick: "switchMainTab('budget', this)", class: 'main-tab-btn' },
+                            { icon: 'fa-users', label: 'บริหารงานบุคคล', onclick: "switchMainTab('personnel', this)", class: 'main-tab-btn' },
+                            { icon: 'fa-building', label: 'บริหารทั่วไป', onclick: "switchMainTab('general', this)", class: 'main-tab-btn' }
+                        ]
+                    },
+                    {
+                        title: 'ระบบกลาง',
+                        items: [
+                            { id: 'btnSuperAdmin', icon: 'fa-server', label: 'จัดการระบบส่วนกลาง', href: 'super_admin.html', hidden: true },
+                            { id: 'calendarAdminBtn', icon: 'fa-regular fa-calendar-alt', label: 'จัดการปฏิทิน', href: 'calendar_admin.html', hidden: true },
+                            { id: 'adminHelpdeskBtn', icon: 'fa-headset', label: 'ศูนย์ช่วยเหลือ', href: 'helpdesk_admin.html', hidden: true }
+                        ]
+                    }
+                ],
+                footerMenu: [
+                    { icon: 'fa-key', label: 'เปลี่ยนรหัสผ่าน', onclick: 'changeMyPassword()' }
+                ],
+                autoActivate: false  // ไม่ auto activate (ให้ switchToHome/switchMainTab จัดการ)
+            });
+
+            renderTopbar({
+                search: {
+                    id: 'appSearch',
+                    placeholder: 'ค้นหาระบบงาน หรือเมนูต่างๆ...',
+                    oninput: 'handleSearchInput()'
+                }
+            });
+        }
+
+        // =======================================================
         // Init
         // =======================================================
         window.onload = async () => {
+            buildSidebarAndTopbar();   // ✅ สร้าง sidebar/topbar ก่อน
             await checkAuth();
             restoreSidebarCollapse();
             document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
@@ -290,14 +326,12 @@
 
             document.getElementById('portalView').classList.remove('hidden');
 
-            // โหลด module admins
             const { data: moduleAdmins } = await db
                 .from('core_module_admins')
                 .select('module_id')
                 .eq('user_id', result.user.id);
             userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
 
-            // โหลด module overrides
             const { data: allCustomModules } = await db
                 .from('core_system_modules')
                 .select('*')
@@ -322,7 +356,6 @@
 
             updateTotalAppStat();
 
-            // ✅ โหลดปีการศึกษา/เทอม จากส่วนกลางก่อน แล้วค่อยดึงแดชบอร์ด
             await loadSchoolSettings();
             loadDashboardStats();
 
@@ -332,17 +365,15 @@
         }
 
         // =======================================================
-        // UI: ต่อยอดจาก dashboard_ui.js
+        // UI
         // =======================================================
         function updateUI() {
             if (!currentUser) return;
 
-            // ✅ จากไฟล์กลาง
             setUserDisplayName(currentUser);
             updateUserRoleLabel(currentUser.role);
             renderUserAvatar(currentUser);
 
-            // ✅ เฉพาะ index: ซ่อน/แสดงปุ่ม admin
             const isSuperAdmin = currentUser.role === 'super_admin';
             document.getElementById('btnSuperAdmin').classList.toggle('hidden', !isSuperAdmin);
 
@@ -386,7 +417,7 @@
         }
 
         // =======================================================
-        // View Switching: Home ↔ Modules
+        // View Switching
         // =======================================================
         function switchToHome() {
             currentView = 'home';
@@ -394,6 +425,7 @@
             document.getElementById('dashboardSection').classList.remove('hidden');
             document.getElementById('appModuleSection').classList.add('hidden');
 
+            // ✅ ลบ active ทั้งหมด แล้วเพิ่ม home
             document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
             const homeBtn = document.getElementById('homeTabBtn');
             if (homeBtn) homeBtn.classList.add('active');
@@ -412,7 +444,8 @@
             document.getElementById('appModuleSection').classList.remove('hidden');
 
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
-            document.querySelectorAll('#homeTabBtn').forEach(btn => btn.classList.remove('active'));
+            const homeBtn = document.getElementById('homeTabBtn');
+            if (homeBtn) homeBtn.classList.remove('active');
             if (btnElement) btnElement.classList.add('active');
 
             const s = document.getElementById('appSearch');
@@ -501,6 +534,7 @@
             const appsToShow = q
                 ? appsToDisplay.filter(a => (a.title + ' ' + a.desc).toLowerCase().includes(q))
                 : appsToDisplay.filter(app => app.category === currentCategory);
+
             if (appsToShow.length === 0) {
                 grid.innerHTML = `<div class="col-span-full py-16 text-center text-gray-400 font-medium border-2 border-dashed border-gray-200 rounded-2xl"><i class="fa-solid fa-box-open text-4xl mb-3 text-gray-300"></i><br>${q ? 'ไม่พบระบบที่ตรงกับคำค้นหา' : 'ยังไม่มีระบบในกลุ่มบริหารงานนี้'}</div>`;
                 return;
@@ -559,7 +593,7 @@
         }
 
         // =======================================================
-        // ✅ ดึงค่าปีการศึกษา/เทอม จาก core_school_info (ส่วนกลาง)
+        // School Settings
         // =======================================================
         async function loadSchoolSettings() {
             try {
@@ -588,7 +622,6 @@
         // =======================================================
         async function loadDashboardStats() {
             try {
-                // ✅ ถ้ายังไม่ได้ตั้งค่าปีการศึกษา → แสดงข้อความเตือน
                 if (!CURRENT_ACADEMIC_YEAR || !CURRENT_SEMESTER) {
                     console.warn('ยังไม่ได้ตั้งค่าปีการศึกษา/เทอม ใน core_school_info');
                     setStat('statStudents', '—');
@@ -598,7 +631,6 @@
                     return;
                 }
 
-                // ============ นับนักเรียน ============
                 const { count: studentCount, error: sErr } = await db
                     .from('student_enrollments')
                     .select('student_id', { count: 'exact', head: true })
@@ -608,7 +640,6 @@
                 if (!sErr) setStat('statStudents', (studentCount ?? 0).toLocaleString());
                 else console.warn('students count err:', sErr.message);
 
-                // ============ นับบุคลากร ============
                 const { count: personnelCount, error: pErr } = await db
                     .from(PERSONNEL_TABLE)
                     .select('*', { count: 'exact', head: true })
@@ -616,7 +647,6 @@
                 if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
                 else console.warn('personnel count err:', pErr.message);
 
-                // ============ กราฟนักเรียนตามระดับชั้น ============
                 const { data: enrollments, error: sLevelErr } = await db
                     .from('student_enrollments')
                     .select(`student_id, core_classrooms ( grade_level )`)
@@ -638,12 +668,10 @@
                     });
                     const values = labels.map(k => buckets[k]);
 
-                    // ยอดรวมนักเรียน
                     const totalStudents = values.reduce((s, v) => s + v, 0);
                     const totalLabel = document.getElementById('totalStudentsLabel');
                     if (totalLabel) totalLabel.textContent = `(ทั้งหมด ${totalStudents.toLocaleString()} คน)`;
 
-                    // ✅ ใช้ palette จาก dashboard_charts.js
                     const colors = buildColorArray(labels, CHART_PALETTES.primary);
                     renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
                 } else if (sLevelErr) {
@@ -651,7 +679,6 @@
                     renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
                 }
 
-                // ============ กราฟบุคลากรตามประเภท ============
                 const { data: personnel, error: pGroupErr } = await db
                     .from(PERSONNEL_TABLE)
                     .select('position')
@@ -675,7 +702,6 @@
                     const labels = ORDER.filter(k => buckets[k] !== undefined);
                     const values = labels.map(k => buckets[k]);
 
-                    // ✅ สีเฉพาะแต่ละกลุ่ม
                     const GROUP_COLORS = {
                         'ฝ่ายบริหาร': '#8b5eea',
                         'ข้าราชการครู': '#2588e8',
@@ -686,7 +712,6 @@
                     };
                     const colors = labels.map(k => GROUP_COLORS[k] || '#94a3b8');
 
-                    // ✅ ใช้แนวนอน
                     renderHorizontalBarChart('chartPersonnelByGroup', labels, values, 'บุคลากร (คน)', colors);
                 } else if (pGroupErr) {
                     console.warn('personnel group err:', pGroupErr.message);
