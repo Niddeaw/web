@@ -31,6 +31,50 @@
         }
         #editDocModal { overflow: visible !important; }
         #editDocModal .modal-body, #editDocModal .overflow-y-auto { overflow: visible !important; }
+        
+        /* ===================================================
+        ⚡ Responsive Grid สำหรับ Stats 6 การ์ด
+        - Desktop (≥1281px): 6 คอลัมน์
+        - Tablet ใหญ่ (1024-1280px): 3 คอลัมน์
+        - Tablet เล็ก (641-1023px): 2 คอลัมน์
+        - Mobile (≤640px): 2 คอลัมน์ (กระชับ)
+        =================================================== */
+        .d-grid-stats {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 1280px) {
+            .d-grid-stats { grid-template-columns: repeat(3, 1fr); }
+        }
+
+        @media (max-width: 1023px) {
+            .d-grid-stats { grid-template-columns: repeat(2, 1fr); }
+        }
+
+        @media (max-width: 640px) {
+            .d-grid-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+            .d-grid-stats .d-stat {
+                padding: 10px 11px;
+                gap: 9px;
+            }
+            .d-grid-stats .d-stat-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 17px;
+            }
+            .d-grid-stats .d-stat h3 {
+                font-size: 20px;
+            }
+            .d-grid-stats .d-stat p {
+                font-size: 11px;
+            }
+        }
     </style>
 </head>
 
@@ -145,7 +189,7 @@
             <div style="padding:0 0 12px;" class="space-y-4">
 
                 <!-- Dashboard Stats: 6 Cards -->
-                <div class="d-grid4" style="grid-template-columns:repeat(6,1fr)">
+                <div class="d-grid-stats">
                     <div class="d-stat" style="border-left:4px solid #3b82f6">
                         <div class="d-stat-icon d-blue"><i class="fas fa-file-alt"></i></div>
                         <div><p>ทั้งหมด</p><h3 id="stat-total">0</h3></div>

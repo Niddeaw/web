@@ -271,9 +271,15 @@ const PART3_ITEMS = [
 // ==========================================
 // ฟังก์ชันเริ่มต้น
 // ==========================================
-window.onload = async () => {
-    await checkAuth();
-};
+$(document).ready(async () => {
+    const t0 = performance.now();
+    try {
+        await checkAuth();
+        console.log(`⚡ Evaluation init: ${Math.round(performance.now() - t0)} ms`);
+    } catch (err) {
+        console.error('Init error:', err);
+    }
+});
 
 // ==========================================
 // ✅ ฟังก์ชัน Format Date
@@ -422,7 +428,7 @@ function canEvaluate(type) {
 }
 
 // ==========================================
-// ✅ ฟังก์ชัน checkAuth (แก้ไข)
+// ✅ ฟังก์ชัน checkAuth (แก้ไข — ใช้เทมเพลตใหม่)
 // ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -443,7 +449,6 @@ async function checkAuth() {
 
     // ✅ จำกัดสิทธิ์เข้าระบบประเมินนี้
     const allowedRoles = ['teacher', 'deputy', 'director', 'admin', 'super_admin'];
-    // ✅ แก้ไข: เพิ่ม 'ไม่มีวิทยฐานะ' เข้าไปในรายการที่อนุญาต
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
     const blockedAcademicStanding = ['ครูอัตราจ้าง', 'ครูพี่เลี้ยง', 'พนักงานราชการ'];
 
@@ -459,34 +464,23 @@ async function checkAuth() {
         return;
     }
 
-    document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
-    document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('header_user_role').innerText = currentUser.role || '';
+    // ⛔ ลบบรรทัด header_* เก่าออกแล้ว (ไม่มีในเทมเพลตใหม่)
 
-    // ✅ เพิ่ม 'admin' และ 'deputy' เข้าไปด้วย เพื่อให้ครูที่ถูกแต่งตั้งเป็นแอดมิน
-    //    หรือรองผู้อำนวยการที่ยังสอนอยู่ สามารถประเมินตนเองได้
+    // ✅ กำหนดสิทธิ์ประเมินตนเอง
     const selfEvalRoles = ['teacher', 'super_admin', 'admin', 'deputy'];
     const isAllowedAcademic = allowedAcademicStanding.includes(currentUser.academic_standing);
     const showSelfEval = selfEvalRoles.includes(currentUser.role) && isAllowedAcademic;
 
     const selfEvalCard = document.getElementById('selfEvalCard');
-    if (showSelfEval) {
-        selfEvalCard.classList.remove('hidden');
-    } else {
-        selfEvalCard.classList.add('hidden');
+    if (selfEvalCard) {
+        if (showSelfEval) {
+            selfEvalCard.classList.remove('hidden');
+        } else {
+            selfEvalCard.classList.add('hidden');
+        }
     }
 
-    // ✅ แสดงปุ่ม "ตั้งค่ากรรมการ" (admin, super_admin)
-    const btnGoToAdmin = document.getElementById('btnGoToAdmin');
-    if (btnGoToAdmin && ['admin', 'super_admin'].includes(currentUser.role)) {
-        btnGoToAdmin.classList.remove('hidden');
-    }
-
-    // ✅ แสดงปุ่ม "ตั้งค่าระบบ" (เฉพาะ super_admin)
-    const btnGoToSettings = document.getElementById('btnGoToSettings');
-    if (btnGoToSettings && currentUser.role === 'super_admin') {
-        btnGoToSettings.classList.remove('hidden');
-    }
+    // ⛔ ลบปุ่ม btnGoToAdmin / btnGoToSettings เก่าออกแล้ว (ใช้ Sidebar แทน)
 
     await Promise.all([
         loadEvaluationRound(),
@@ -501,32 +495,89 @@ async function checkAuth() {
     ]);
 
     if (currentEvalRound) {
-        document.getElementById('eval_round_display_big').innerText = currentEvalRound.round_name || '-';
-        document.getElementById('eval_period_display').innerText = `${formatDate(currentEvalRound.start_date)} - ${formatDate(currentEvalRound.end_date)}`;
+        const el1 = document.getElementById('eval_round_display_big');
+        if (el1) el1.innerText = currentEvalRound.round_name || '-';
+        const el2 = document.getElementById('eval_period_display');
+        if (el2) el2.innerText = `${formatDate(currentEvalRound.start_date)} - ${formatDate(currentEvalRound.end_date)}`;
     }
 
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    // ==========================================
+    // ✅ UI มาตรฐานจาก dashboard_ui.js
+    // ==========================================
+    setUserDisplayName(currentUser);
+    updateUserRoleLabel(currentUser.role);
+    renderUserAvatar(currentUser);
+
+    // ✅ Sidebar nav — แสดงปุ่มตามสิทธิ์
+    if (['admin', 'super_admin'].includes(currentUser.role)) {
+        $('#nav-admin').removeClass('hidden');
+    }
+    if (currentUser.role === 'super_admin') {
+        $('#nav-settings').removeClass('hidden');
+    }
+
+    // ✅ PDF button
+    const btnPDF = document.getElementById('btnViewPDF');
+    if (btnPDF && currentUser) {
+        const pdfUrl = localStorage.getItem('pdf_url_' + currentUser.id);
+        if (pdfUrl) {
+            btnPDF.classList.remove('hidden');
+            btnPDF.onclick = () => window.open(pdfUrl, '_blank');
+        }
+    }
+
     Swal.close();
+    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
 }
+
 
 // ==========================================
 // โหลดรอบการประเมินที่ Active
 // ==========================================
 async function loadEvaluationRound() {
     try {
-        const { data, error } = await db.from('eval_rounds').select('*').eq('is_active', true).order('created_at', { ascending: false }).limit(1).single();
+        const { data, error } = await db.from('eval_rounds')
+            .select('*')
+            .eq('is_active', true)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
         if (error) throw error;
+
+        if (!data) {
+            // ⚠️ ไม่มีรอบที่ active — แสดงข้อความแต่ไม่ error
+            const el1 = document.getElementById('eval_round_display');
+            if (el1) el1.innerText = 'ไม่พบรอบที่เปิดใช้งาน';
+            const el2 = document.getElementById('eval_round_display_big');
+            if (el2) el2.innerText = '❌ ไม่พบรอบการประเมิน';
+            const el3 = document.getElementById('eval_period_display');
+            if (el3) el3.innerText = 'กรุณาติดต่อผู้ดูแลระบบ';
+            const badge = document.getElementById('eval_round_badge');
+            if (badge) badge.classList.add('hidden');
+            return;
+        }
+
         currentEvalRound = data;
-        document.getElementById('eval_round_display').innerText = `${data.round_name} (ครั้งที่ ${data.round_number})`;
-        document.getElementById('eval_round_display_big').innerText = data.round_name || '-';
-        document.getElementById('eval_period_display').innerText = `${formatDate(data.start_date)} - ${formatDate(data.end_date)}`;
-        document.getElementById('eval_round_badge').classList.remove('hidden');
+        const el1 = document.getElementById('eval_round_display');
+        if (el1) el1.innerText = `${data.round_name} (ครั้งที่ ${data.round_number})`;
+        const el2 = document.getElementById('eval_round_display_big');
+        if (el2) el2.innerText = data.round_name || '-';
+        const el3 = document.getElementById('eval_period_display');
+        if (el3) el3.innerText = `${formatDate(data.start_date)} - ${formatDate(data.end_date)}`;
+        const badge = document.getElementById('eval_round_badge');
+        if (badge) badge.classList.remove('hidden');
+
     } catch (err) {
         console.error('Error loading eval round:', err);
-        document.getElementById('eval_round_display').innerText = 'ไม่พบรอบการประเมินที่ active';
-        document.getElementById('eval_round_display_big').innerText = '❌ ไม่พบรอบการประเมิน';
-        document.getElementById('eval_period_display').innerText = 'กรุณาติดต่อผู้ดูแลระบบ';
-        document.getElementById('eval_round_badge').classList.add('hidden');
+        const el1 = document.getElementById('eval_round_display');
+        if (el1) el1.innerText = 'ไม่พบรอบการประเมินที่ active';
+        const el2 = document.getElementById('eval_round_display_big');
+        if (el2) el2.innerText = '❌ ไม่พบรอบการประเมิน';
+        const el3 = document.getElementById('eval_period_display');
+        if (el3) el3.innerText = 'กรุณาติดต่อผู้ดูแลระบบ';
+        const badge = document.getElementById('eval_round_badge');
+        if (badge) badge.classList.add('hidden');
     }
 }
 

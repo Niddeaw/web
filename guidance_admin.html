@@ -2,12 +2,19 @@
 <html lang="th">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ผู้ดูแลระบบ ปพ.5 | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
-    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
+
     <style>
+        /* Glass card */
         .glass {
             background: rgba(255, 255, 255, 0.8);
             backdrop-filter: blur(12px);
@@ -15,61 +22,32 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s, box-shadow 0.2s;
         }
-
         .glass:hover {
             transform: translateY(-2px);
             box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
         }
 
-        button,
-        .btn-hover-lift {
-            transition: all 0.2s ease;
-        }
-
-        button:active,
-        .btn-hover-lift:active {
-            transform: scale(0.97);
-        }
-
+        /* Tom Select */
         .ts-wrapper .ts-control {
             border-radius: 0.75rem;
             border: 1px solid #e2e8f0;
             background: white;
-            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
             font-weight: 500;
             transition: all 0.2s;
         }
-
-        .ts-wrapper .ts-control:hover {
-            border-color: #94a3b8;
-        }
-
+        .ts-wrapper .ts-control:hover { border-color: #94a3b8; }
         .ts-wrapper.focus .ts-control {
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
 
-        table.dataTable tbody tr:hover {
-            background-color: #f8fafc;
-            transition: background 0.15s;
-        }
-
-        .status-badge {
-            transition: all 0.2s;
-        }
-
-        .status-badge:hover {
-            transform: translateY(-1px);
-        }
-
-        /* ====== Responsive table & sticky columns ====== */
+        /* Sticky columns table */
         #adminEditorView .glass.rounded-3xl {
             display: flex;
             flex-direction: column;
             overflow: hidden;
             max-height: 75vh;
         }
-
         .admin-tab-content.table-responsive {
             flex: 1;
             overflow: auto;
@@ -78,7 +56,6 @@
             scrollbar-width: thin;
             background-color: #ffffff;
         }
-
         .table-responsive table {
             min-width: 1200px;
             width: 100%;
@@ -86,7 +63,6 @@
             border-spacing: 0;
             font-size: 0.8rem;
         }
-
         .table-responsive thead th {
             position: sticky !important;
             top: 0;
@@ -95,12 +71,10 @@
             border-bottom: 1px solid #cbd5e1;
             box-shadow: 0 1px 0 #cbd5e1;
         }
-
         .table-responsive thead tr:nth-child(2) th {
             top: 40px !important;
             z-index: 10;
         }
-
         .table-responsive thead tr:first-child th:first-child,
         .table-responsive tbody td:first-child {
             width: 50px;
@@ -111,7 +85,6 @@
             z-index: 20;
             box-shadow: inset -1px 0 0 #e2e8f0, 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
-
         .table-responsive thead tr:first-child th:nth-child(2),
         .table-responsive tbody td:nth-child(2) {
             width: 180px;
@@ -122,28 +95,18 @@
             z-index: 20;
             box-shadow: inset -1px 0 0 #e2e8f0, 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
-
         .table-responsive thead tr:first-child th:first-child,
         .table-responsive thead tr:first-child th:nth-child(2) {
             z-index: 30 !important;
             background-color: #e2e8f0;
         }
-
-        .table-responsive tbody tr {
-            border-bottom: 1px solid #e2e8f0;
-        }
-
+        .table-responsive tbody tr { border-bottom: 1px solid #e2e8f0; }
         .table-responsive tbody tr:hover td {
             background-color: #fef9c3 !important;
             transition: background-color 0.1s;
         }
-
         .table-responsive th.dynamic-th,
-        .table-responsive td {
-            padding: 6px 4px;
-            white-space: nowrap;
-        }
-
+        .table-responsive td { padding: 6px 4px; white-space: nowrap; }
         .table-responsive select.tiny-select {
             font-size: 0.7rem;
             padding: 2px 2px;
@@ -151,20 +114,7 @@
             border-radius: 4px;
             border: 1px solid #cbd5e1;
         }
-
-        /* ✅ Dropdown สถานะการเข้าเรียน - สีพื้นหลัง */
-        #tb-attendance .tiny-select {
-            cursor: pointer;
-            font-weight: 600;
-            text-align: center;
-            transition: all 0.15s ease;
-        }
-
-        #tb-attendance .tiny-select:hover {
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
-        }
-
-        /* ✅ Dropdown คุณลักษณะ - สีพื้นหลัง */
+        #tb-attendance .tiny-select,
         #tb-attributes .tiny-select {
             cursor: pointer;
             font-weight: 600;
@@ -172,333 +122,435 @@
             transition: all 0.15s ease;
         }
 
-        #tb-attributes .tiny-select:hover {
-            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.15);
+        /* Tabs */
+        .admin-tab-btn {
+            padding: 0.6rem 1.4rem;
+            font-weight: 700;
+            font-size: 0.9rem;
+            border-radius: 0.75rem 0.75rem 0 0;
+            background: transparent;
+            color: #64748b;
+            transition: all 0.25s ease;
+            border: none;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .admin-tab-btn:hover { color: #1e293b; background: #f1f5f9; }
+        .admin-tab-btn.active {
+            color: #2563eb;
+            border-bottom-color: #2563eb;
+            background: white;
         }
 
-        .table-responsive::-webkit-scrollbar {
-            height: 8px;
-            width: 8px;
-        }
-
-        .table-responsive::-webkit-scrollbar-track {
-            background: #f1f5f9;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
-        }
-
-        .table-responsive::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
-        }
-
+        /* Dashboard cards */
         .dash-card {
             border-radius: 1rem;
             padding: 1rem;
             transition: transform 0.2s;
         }
-
-        .dash-card:hover {
-            transform: translateY(-2px);
-        }
+        .dash-card:hover { transform: translateY(-2px); }
     </style>
 </head>
 
-<body class="text-slate-800 flex flex-col min-h-screen pb-10">
+<body class="text-slate-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <nav
-        class="sticky top-0 z-50 bg-white/80 backdrop-blur-md border-b border-blue-100 px-6 py-3 shadow-sm flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="Logo" class="w-10 h-10 object-contain">
-            <div>
-                <h1 class="font-bold text-blue-900 leading-tight text-lg">ส่วนผู้ดูแลระบบ (Admin)</h1>
-                <p class="text-[10px] text-blue-600 uppercase tracking-widest">Guidance Module</p>
+    <div class="d-app">
+
+        <!-- ================= Sidebar ================= -->
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>WRK System</b><span>ปพ.5 แนะแนว</span></div>
             </div>
-        </div>
-        <div class="flex items-center gap-2 md:gap-3">
-            <span id="adminNameDisplay"
-                class="font-medium hidden md:inline text-sm text-slate-600 bg-slate-100 px-3 py-1 rounded-full">กำลังโหลด...</span>
-            <button id="btnAdminMode"
-                onclick="localStorage.setItem('activeMode', 'teacher'); window.location.href='guidance_teacher.html'"
-                class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm">
-                <i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span
-                    class="hidden sm:inline text-sm font-bold">โหมดครู</span>
-            </button>
-            <button onclick="window.location.href='index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
-        </div>
-    </nav>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a href="index.html" title="หน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">หน้าหลัก</span>
+                </a>
 
-    <div id="mainAdminView" class="p-6 max-w-[1400px] mx-auto w-full flex-1 flex flex-col gap-6">
-        <!-- ตั้งค่าระบบ -->
-        <div class="glass rounded-[2rem] p-6">
-            <div
-                class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
-                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fa-solid fa-gear text-brand-600"></i> การตั้งค่าระบบ และข้อมูลพื้นฐาน ปพ.5
-                </h2>
-                <div class="flex items-center gap-3 bg-white/60 px-4 py-2 rounded-2xl border border-white shadow-sm">
-                    <span class="text-sm font-bold text-gray-700">สถานะการบันทึก:</span>
-                    <label class="relative inline-flex items-center cursor-pointer">
-                        <input type="checkbox" id="toggleSystemOpen" class="sr-only peer"
-                            onchange="toggleSystemStatus(this)">
-                        <div
-                            class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500">
+                <div class="d-nav-title">ระบบ ปพ.5 แนะแนว</div>
+                <a id="nav-teacher" href="javascript:void(0)" onclick="switchToTeacherMode()" title="ครูผู้สอน">
+                    <span class="d-ico"><i class="fa-solid fa-chalkboard-user"></i></span>
+                    <span class="d-label">ครูผู้สอน</span>
+                </a>
+                <a id="nav-admin" class="active" title="ผู้ดูแลระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-user-shield"></i></span>
+                    <span class="d-label">ผู้ดูแลระบบ</span>
+                </a>
+
+                <div class="d-nav-title">การตั้งค่า</div>
+                <a class="logout" onclick="logout()" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
+            </div>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
+
+        <!-- ================= Main ================= -->
+        <main class="d-main" id="dMain">
+
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+
+                <h2 id="pageTitle">ระบบ ปพ.5 แนะแนว (Admin)</h2>
+
+                <div class="d-spacer"></div>
+
+                <button onclick="switchToTeacherMode()"
+                        class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm d-btn-mode teacher"
+                        id="btnModeTeacher" title="โหมดครู">
+                    <i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>
+                </button>
+
+                <div class="d-settings-wrap">
+                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>แสดงผล</span>
+                    </button>
+                    <div class="d-settings-menu" id="settingsMenu">
+                        <div class="d-settings-title">ขนาดตัวอักษร</div>
+                        <div class="d-settings-options">
+                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
+                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
+                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
                         </div>
-                        <span id="systemStatusLabel" class="ml-3 text-sm font-bold text-gray-500">ปิดอยู่</span>
-                    </label>
+                        <div class="d-settings-title">ความหนาแน่น</div>
+                        <div class="d-settings-options cols-2">
+                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
+                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
+                    </div>
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
+                    </div>
+                </div>
+            </header>
+
+            <!-- ================= Content ================= -->
+            <div id="mainAdminView" style="padding:0 0 12px;" class="space-y-4">
+
+                <!-- ========== ตั้งค่าระบบ ========== -->
+                <div class="glass rounded-3xl p-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
+                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fa-solid fa-gear text-blue-600"></i> การตั้งค่าระบบ และข้อมูลพื้นฐาน ปพ.5
+                        </h2>
+                        <div class="flex items-center gap-3 bg-white/60 px-4 py-2 rounded-2xl border border-white shadow-sm">
+                            <span class="text-sm font-bold text-gray-700">สถานะการบันทึก:</span>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="toggleSystemOpen" class="sr-only peer" onchange="toggleSystemStatus(this)">
+                                <div class="w-11 h-6 bg-gray-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-green-500"></div>
+                                <span id="systemStatusLabel" class="ml-3 text-sm font-bold text-gray-500">ปิดอยู่</span>
+                            </label>
+                        </div>
+                    </div>
+                    <form id="systemSettingsForm" onsubmit="saveSystemSettings(event)" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">รายวิชา</label><input type="text" id="set_subject" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-white/80"></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">ภาคเรียน</label><input type="text" id="set_semester" class="w-full border border-gray-300 rounded-xl px-4 py-2 bg-gray-100/50 text-gray-500 cursor-not-allowed" readonly></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">ปีการศึกษา</label><input type="text" id="set_year" class="w-full border border-gray-300 rounded-xl px-4 py-2 bg-gray-100/50 text-gray-500 cursor-not-allowed" readonly></div>
+                        <div><label class="block text-sm font-bold text-emerald-700 mb-1">วันเริ่มสอน</label><input type="date" id="set_term_start" class="w-full border border-gray-300 rounded-xl px-4 py-2 bg-gray-100/50 text-gray-500 cursor-not-allowed" readonly></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">ผู้อำนวยการโรงเรียน</label><input type="text" id="set_director" class="w-full border border-gray-300 rounded-xl px-4 py-2 bg-gray-100/50 text-gray-500 cursor-not-allowed" readonly></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">รองผู้อำนวยการ ฝ่ายวิชาการ</label><input type="text" id="set_deputy" class="w-full border border-gray-300 rounded-xl px-4 py-2 bg-gray-100/50 text-gray-500 cursor-not-allowed" readonly></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้างานวัดผลฯ</label><input type="text" id="set_eval" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80"></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้ากิจกรรมพัฒนาผู้เรียน</label><input type="text" id="set_student_dev" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80"></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้างานแนะแนว</label><input type="text" id="set_guidance" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80"></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-1">วันที่อนุมัติผล (ปพ.5)</label><input type="date" id="set_approval_date" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80"></div>
+                        <div class="col-span-1 md:col-span-2 lg:col-span-1">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">GAS API URL</label>
+                            <input type="text" id="set_gas_api_url" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80" placeholder="https://script.google.com/macros/s/.../exec">
+                        </div>
+                        <div class="col-span-1 md:col-span-2 lg:col-span-1">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ID Folder เก็บไฟล์ PDF</label>
+                            <input type="text" id="set_pdf_folder_id" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80" placeholder="1abc...">
+                        </div>
+                        <div class="col-span-1 md:col-span-2 lg:col-span-1">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ID Slide Template</label>
+                            <input type="text" id="set_slide_template_id" class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-blue-500 bg-white/80" placeholder="1xyz...">
+                        </div>
+                        <div class="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end mt-2 pt-4 border-t border-gray-200/50">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-sm transition-all flex items-center gap-2">
+                                <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- ========== Dashboard ========== -->
+                <div class="glass rounded-3xl p-6">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
+                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-pie text-purple-600"></i> Dashboard สรุปความคืบหน้า
+                        </h2>
+                        <button onclick="loadDashboardData()" class="px-4 py-2 text-sm font-bold rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
+                            <i class="fa-solid fa-rotate-right"></i> รีเฟรช
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-blue-600 uppercase tracking-wider">ห้องทั้งหมด</div>
+                                    <div id="dash-total" class="text-3xl font-bold text-blue-700 mt-1">-</div>
+                                </div>
+                                <i class="fa-solid fa-school text-3xl text-blue-300"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200 dash-card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-green-600 uppercase tracking-wider">ครบถ้วน</div>
+                                    <div id="dash-complete" class="text-3xl font-bold text-green-700 mt-1">-</div>
+                                </div>
+                                <i class="fa-solid fa-circle-check text-3xl text-green-300"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-4 border border-amber-200 dash-card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-amber-600 uppercase tracking-wider">ยังไม่ครบ</div>
+                                    <div id="dash-incomplete" class="text-3xl font-bold text-amber-700 mt-1">-</div>
+                                </div>
+                                <i class="fa-solid fa-clock text-3xl text-amber-300"></i>
+                            </div>
+                        </div>
+                        <div class="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-2xl p-4 border border-rose-200 dash-card">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-xs font-bold text-rose-600 uppercase tracking-wider">ยังไม่เริ่ม</div>
+                                    <div id="dash-empty" class="text-3xl font-bold text-rose-700 mt-1">-</div>
+                                </div>
+                                <i class="fa-solid fa-circle-exclamation text-3xl text-rose-300"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/60 rounded-2xl p-4 mb-6 border border-gray-200">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-sm font-bold text-gray-700">ความคืบหน้ารวม</span>
+                            <span id="dash-overall-percent" class="text-sm font-bold text-blue-600">-</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                            <div id="dash-overall-bar" class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <div class="mb-6">
+                        <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-layer-group text-indigo-600"></i> ความคืบหน้าแยกตามระดับชั้น
+                        </h3>
+                        <div id="dash-by-grade" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div class="text-center text-gray-400 py-4 col-span-full">กำลังโหลด...</div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
+                            <i class="fa-solid fa-user-clock text-rose-600"></i> ครูที่ยังต้องกรอกข้อมูล
+                        </h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm text-left border border-gray-200 rounded-xl overflow-hidden">
+                                <thead class="text-xs text-gray-600 uppercase bg-gray-50 border-b border-gray-200">
+                                    <tr>
+                                        <th class="px-4 py-3">ครูผู้สอน</th>
+                                        <th class="px-4 py-3 text-center">ห้องที่ยังไม่ครบ</th>
+                                        <th class="px-4 py-3 text-center">จำนวน</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dash-teachers-pending" class="divide-y divide-gray-100 bg-white/50">
+                                    <tr><td colspan="3" class="p-6 text-center text-gray-400">กำลังโหลด...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== จัดการครูแนะแนว ========== -->
+                <div class="glass rounded-3xl overflow-hidden mb-2">
+                    <div class="bg-emerald-600/90 backdrop-blur-sm text-white px-6 py-4 font-bold flex justify-between items-center text-lg">
+                        <div class="flex items-center gap-2"><i class="fa-solid fa-users-gear"></i> กำหนดสิทธิ์และวันที่เริ่มสอน</div>
+                        <button onclick="openAddGuidanceTeacherModal()" class="text-sm bg-white text-emerald-700 px-4 py-1.5 rounded-xl shadow-sm hover:bg-emerald-50 transition-colors flex items-center gap-1">
+                            <i class="fa-solid fa-plus"></i> เพิ่มครูแนะแนว
+                        </button>
+                    </div>
+                    <div class="p-4 bg-emerald-50/80 text-sm text-emerald-800 flex items-center gap-2 border-b border-emerald-100">
+                        <i class="fa-solid fa-circle-info"></i> กดปุ่ม "จัดการห้องสอน" เพื่อเพิ่มชั้นเรียนให้ครูแต่ละท่าน
+                    </div>
+                    <div class="overflow-x-auto p-4">
+                        <table class="w-full text-sm text-left table-fixed min-w-[700px] border border-gray-200 rounded-xl overflow-hidden bg-white/50">
+                            <thead class="text-xs text-blue-800 uppercase bg-blue-50/80 border-b border-blue-100">
+                                <tr>
+                                    <th class="px-5 py-3 w-3/12">ชื่อ-สกุล (ครูผู้สอน)</th>
+                                    <th class="px-5 py-3 w-7/12">ห้องที่รับผิดชอบ</th>
+                                    <th class="px-5 py-3 text-center w-2/12">ตั้งค่า</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-teachers-manage" class="divide-y divide-gray-100">
+                                <tr><td colspan="3" class="p-8 text-center text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ========== ตรวจสอบความคืบหน้า ========== -->
+                <div class="glass rounded-3xl flex-1 flex flex-col overflow-hidden">
+                    <div class="p-5 border-b border-gray-200/50 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/30">
+                        <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line text-indigo-600"></i> ตรวจสอบความคืบหน้าการบันทึก (ทุกระดับชั้น)
+                        </h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadMonitoringData()" class="px-4 py-2 text-sm font-bold rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2">
+                                <i class="fa-solid fa-rotate-right"></i> โหลดข้อมูลใหม่
+                            </button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto flex-1 p-6">
+                        <table id="monitoringTable" class="w-full text-sm text-left display">
+                            <thead class="text-xs text-gray-600 uppercase bg-gray-100/80 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-4 py-3 text-center">ห้องเรียน</th>
+                                    <th class="px-4 py-3">ครูผู้สอน</th>
+                                    <th class="px-4 py-3 text-center">จำนวน นร.</th>
+                                    <th class="px-4 py-3 text-center">สรุปสถานะ</th>
+                                    <th class="px-4 py-3 text-center">การจัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-monitoring" class="divide-y divide-gray-100">
+                                <tr><td colspan="5" class="p-8 text-center text-gray-400">กำลังโหลดข้อมูล...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <form id="systemSettingsForm" onsubmit="saveSystemSettings(event)"
-                class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">รายวิชา</label><input type="text"
-                        id="set_subject"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ภาคเรียน (จากส่วนกลาง)</label><input
-                        type="text" id="set_semester"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none bg-gray-100/50 text-gray-500 cursor-not-allowed"
-                        readonly></div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ปีการศึกษา (จากส่วนกลาง)</label><input
-                        type="text" id="set_year"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none bg-gray-100/50 text-gray-500 cursor-not-allowed"
-                        readonly></div>
-                <div><label class="block text-sm font-bold text-emerald-700 mb-1">วันเริ่มสอน
-                        (จากส่วนกลาง)</label><input type="date" id="set_term_start"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none bg-gray-100/50 text-gray-500 cursor-not-allowed"
-                        readonly></div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">ผู้อำนวยการโรงเรียน</label><input
-                        type="text" id="set_director"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none bg-gray-100/50 text-gray-500 cursor-not-allowed"
-                        readonly></div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">รองผู้อำนวยการ ฝ่ายวิชาการ</label><input
-                        type="text" id="set_deputy"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none bg-gray-100/50 text-gray-500 cursor-not-allowed"
-                        readonly></div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้างานวัดผลฯ</label><input
-                        type="text" id="set_eval"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้ากิจกรรมพัฒนาผู้เรียน</label><input
-                        type="text" id="set_student_dev"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">หัวหน้างานแนะแนว</label><input
-                        type="text" id="set_guidance"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
-                </div>
-                <div><label class="block text-sm font-bold text-gray-700 mb-1">วันที่อนุมัติผล (ปพ.5)</label><input
-                        type="date" id="set_approval_date"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80">
-                </div>
-                <div class="col-span-1 md:col-span-2 lg:col-span-1">
-                    <label class="block text-sm font-bold text-gray-700 mb-1">GAS API URL</label>
-                    <input type="text" id="set_gas_api_url"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80"
-                        placeholder="https://script.google.com/macros/s/.../exec">
-                </div>
-                <div class="col-span-1 md:col-span-2 lg:col-span-1">
-                    <label class="block text-sm font-bold text-gray-700 mb-1">ID Folder เก็บไฟล์ PDF</label>
-                    <input type="text" id="set_pdf_folder_id"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80"
-                        placeholder="1abc...">
-                </div>
-                <div class="col-span-1 md:col-span-2 lg:col-span-1">
-                    <label class="block text-sm font-bold text-gray-700 mb-1">ID Slide Template</label>
-                    <input type="text" id="set_slide_template_id"
-                        class="w-full border border-gray-300 rounded-xl px-4 py-2 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 bg-white/80"
-                        placeholder="1xyz...">
-                </div>
-                <div
-                    class="col-span-1 md:col-span-2 lg:col-span-4 flex justify-end mt-2 pt-4 border-t border-gray-200/50">
-                    <button type="submit"
-                        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-sm transition-all flex items-center gap-2 btn-hover-lift">
-                        <i class="fa-solid fa-floppy-disk"></i> บันทึกการตั้งค่า
+
+            <!-- ========== Admin Editor View ========== -->
+            <div id="adminEditorView" class="hidden" style="padding:0 0 12px;">
+                <div class="bg-slate-800 rounded-3xl shadow-lg p-5 flex justify-between items-center text-white border border-slate-700 mb-4">
+                    <div>
+                        <div class="text-sm text-slate-300 flex items-center gap-1"><i class="fa-solid fa-user-pen"></i> โหมดแอดมิน: จัดการข้อมูลแทนครูผู้สอน</div>
+                        <div class="text-xl font-bold mt-1" id="adminEditTitle">กำลังโหลด...</div>
+                    </div>
+                    <button onclick="closeAdminEditor()" class="bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-colors flex items-center gap-2 backdrop-blur-sm">
+                        <i class="fa-solid fa-arrow-left"></i> ย้อนกลับ
                     </button>
                 </div>
-            </form>
-        </div>
 
-        <!-- Dashboard -->
-        <div class="glass rounded-[2rem] p-6">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6 border-b border-gray-200/50 pb-4">
-                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2">
-                    <i class="fa-solid fa-chart-pie text-purple-600"></i> Dashboard สรุปความคืบหน้า
-                </h2>
-                <button onclick="loadDashboardData()"
-                    class="px-4 py-2 text-sm font-bold rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 btn-hover-lift">
-                    <i class="fa-solid fa-rotate-right"></i> รีเฟรช
-                </button>
-            </div>
+                <div class="glass rounded-3xl flex-1 flex flex-col overflow-hidden">
+                    <div class="flex border-b border-gray-200/50 bg-white/50 overflow-x-auto px-2 pt-2 shrink-0">
+                        <button onclick="switchAdminTab('tab-attendance', this)" class="admin-tab-btn active whitespace-nowrap">1. เวลาเรียน</button>
+                        <button onclick="switchAdminTab('tab-attributes', this)" class="admin-tab-btn whitespace-nowrap">2. คุณลักษณะ</button>
+                    </div>
 
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                <div class="bg-gradient-to-br from-blue-50 to-blue-100/50 rounded-2xl p-4 border border-blue-200 dash-card">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-blue-600 uppercase tracking-wider">ห้องทั้งหมด</div>
-                            <div id="dash-total" class="text-3xl font-bold text-blue-700 mt-1">-</div>
+                    <div id="tab-attendance" class="admin-tab-content active p-3 table-responsive flex-1">
+                        <div class="mb-3 flex justify-between items-center px-2">
+                            <div class="text-sm font-bold text-gray-600">จัดการข้อมูลเวลาเรียน</div>
                         </div>
-                        <i class="fa-solid fa-school text-3xl text-blue-300"></i>
+                        <table class="w-full text-center text-sm">
+                            <thead>
+                                <tr id="att-header-row-1">
+                                    <th rowspan="2" class="col-no">เลขที่</th>
+                                    <th rowspan="2" class="col-name">ชื่อ-สกุล</th>
+                                    <th rowspan="2" class="w-16 bg-green-50 text-green-700">รวม<br>เวลาเรียน</th>
+                                    <th rowspan="2" class="w-28 bg-gray-100">สถานะผู้เรียน</th>
+                                </tr>
+                                <tr id="att-header-row-2" class="text-[11px] font-normal text-gray-600 tracking-tighter"></tr>
+                            </thead>
+                            <tbody id="tb-attendance"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="tab-attributes" class="admin-tab-content p-3 hidden table-responsive flex-1">
+                        <div class="mb-3 flex items-center gap-2 px-2"><span class="text-sm font-bold text-gray-600">จัดการประเมินคุณลักษณะ</span></div>
+                        <table class="w-full text-center text-sm">
+                            <thead>
+                                <tr>
+                                    <th rowspan="2" class="col-no">เลขที่</th>
+                                    <th rowspan="2" class="col-name">ชื่อ-สกุล</th>
+                                    <th colspan="4">มาตรฐานที่ 1</th>
+                                    <th colspan="2">มาตรฐานที่ 2</th>
+                                    <th colspan="1">มาตรฐานที่ 3</th>
+                                    <th colspan="5">มาตรฐานที่ 4</th>
+                                    <th rowspan="2" class="w-16 bg-blue-50 text-blue-700 leading-tight border-l-2 border-gray-300">สรุปผล<br>คุณลักษณะ</th>
+                                    <th rowspan="2" class="w-16 bg-indigo-50 text-indigo-700 leading-tight border-l border-gray-300">สรุปผล<br>เวลาเรียน</th>
+                                    <th rowspan="2" class="w-20 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">ผลการ<br>ประเมิน</th>
+                                </tr>
+                                <tr class="text-xs text-gray-500 font-normal">
+                                    <th class="w-10">1.1</th>
+                                    <th class="w-10">1.2</th>
+                                    <th class="w-10">1.3</th>
+                                    <th class="w-10">1.4</th>
+                                    <th class="w-10">2.1</th>
+                                    <th class="w-10">2.2</th>
+                                    <th class="w-10">3.1</th>
+                                    <th class="w-10">4.1</th>
+                                    <th class="w-10">4.2</th>
+                                    <th class="w-10">4.3</th>
+                                    <th class="w-10">4.4</th>
+                                    <th class="w-10">4.5</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-attributes"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-4 bg-white/60 border-t border-white rounded-b-3xl flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+                        <div class="flex gap-2 flex-wrap">
+                            <button onclick="exportExcelAll()" class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                                <i class="fa-solid fa-file-export"></i> ส่งออก (Offline)
+                            </button>
+                            <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden" onchange="importExcelAll(event)">
+                            <button onclick="document.getElementById('excelUploadAll').click()" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                                <i class="fa-solid fa-file-import"></i> นำเข้า Excel
+                            </button>
+                            <button onclick="printPDFAdmin()" class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                                <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
+                            </button>
+                        </div>
+                        <button onclick="adminSaveAllData()" class="bg-red-600 hover:bg-red-700 text-white font-bold py-3 px-8 rounded-xl shadow-lg text-base flex items-center justify-center gap-2 transition-all">
+                            <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลแบบบังคับ (Override)
+                        </button>
                     </div>
                 </div>
-                <div class="bg-gradient-to-br from-green-50 to-green-100/50 rounded-2xl p-4 border border-green-200 dash-card">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-green-600 uppercase tracking-wider">ครบถ้วน</div>
-                            <div id="dash-complete" class="text-3xl font-bold text-green-700 mt-1">-</div>
-                        </div>
-                        <i class="fa-solid fa-circle-check text-3xl text-green-300"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl p-4 border border-amber-200 dash-card">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-amber-600 uppercase tracking-wider">ยังไม่ครบ</div>
-                            <div id="dash-incomplete" class="text-3xl font-bold text-amber-700 mt-1">-</div>
-                        </div>
-                        <i class="fa-solid fa-clock text-3xl text-amber-300"></i>
-                    </div>
-                </div>
-                <div class="bg-gradient-to-br from-rose-50 to-rose-100/50 rounded-2xl p-4 border border-rose-200 dash-card">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-xs font-bold text-rose-600 uppercase tracking-wider">ยังไม่เริ่ม</div>
-                            <div id="dash-empty" class="text-3xl font-bold text-rose-700 mt-1">-</div>
-                        </div>
-                        <i class="fa-solid fa-circle-exclamation text-3xl text-rose-300"></i>
-                    </div>
-                </div>
             </div>
-
-            <div class="bg-white/60 rounded-2xl p-4 mb-6 border border-gray-200">
-                <div class="flex justify-between items-center mb-2">
-                    <span class="text-sm font-bold text-gray-700">ความคืบหน้ารวม</span>
-                    <span id="dash-overall-percent" class="text-sm font-bold text-blue-600">-</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
-                    <div id="dash-overall-bar" class="bg-gradient-to-r from-blue-500 to-green-500 h-4 rounded-full transition-all duration-500" style="width: 0%"></div>
-                </div>
-            </div>
-
-            <div class="mb-6">
-                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-layer-group text-indigo-600"></i> ความคืบหน้าแยกตามระดับชั้น
-                </h3>
-                <div id="dash-by-grade" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    <div class="text-center text-gray-400 py-4 col-span-full">กำลังโหลด...</div>
-                </div>
-            </div>
-
-            <div>
-                <h3 class="text-sm font-bold text-gray-700 mb-3 flex items-center gap-2">
-                    <i class="fa-solid fa-user-clock text-rose-600"></i> ครูที่ยังต้องกรอกข้อมูล
-                </h3>
-                <div class="overflow-x-auto">
-                    <table class="w-full text-sm text-left border border-gray-200 rounded-xl overflow-hidden">
-                        <thead class="text-xs text-gray-600 uppercase bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-4 py-3">ครูผู้สอน</th>
-                                <th class="px-4 py-3 text-center">ห้องที่ยังไม่ครบ</th>
-                                <th class="px-4 py-3 text-center">จำนวน</th>
-                            </tr>
-                        </thead>
-                        <tbody id="dash-teachers-pending" class="divide-y divide-gray-100 bg-white/50">
-                            <tr><td colspan="3" class="p-6 text-center text-gray-400">กำลังโหลด...</td></tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-
-        <!-- จัดการครูแนะแนว -->
-        <div class="glass rounded-[2rem] overflow-hidden mb-2">
-            <div
-                class="bg-emerald-600/90 backdrop-blur-sm text-white px-6 py-4 font-bold flex justify-between items-center text-lg">
-                <div class="flex items-center gap-2"><i class="fa-solid fa-users-gear"></i> กำหนดสิทธิ์และวันที่เริ่มสอน
-                </div>
-                <button onclick="openAddGuidanceTeacherModal()"
-                    class="text-sm bg-white text-emerald-700 px-4 py-1.5 rounded-xl shadow-sm hover:bg-emerald-50 transition-colors flex items-center gap-1 btn-hover-lift"><i
-                        class="fa-solid fa-plus"></i> เพิ่มครูแนะแนว</button>
-            </div>
-            <div
-                class="p-4 bg-emerald-50/80 text-sm text-emerald-800 flex items-center gap-2 border-b border-emerald-100">
-                <i class="fa-solid fa-circle-info"></i> กดปุ่ม "จัดการห้องสอน" เพื่อเพิ่มชั้นเรียนให้ครูแต่ละท่าน
-                (ระบบจะดึงวันที่เริ่มสอนให้เป็นค่าเริ่มต้นโดยอัตโนมัติ)</div>
-            <div class="overflow-x-auto p-4">
-                <table
-                    class="w-full text-sm text-left table-fixed min-w-[700px] border border-gray-200 rounded-xl overflow-hidden bg-white/50">
-                    <thead class="text-xs text-blue-800 uppercase bg-blue-50/80 border-b border-blue-100">
-                        <tr>
-                            <th class="px-5 py-3 w-3/12">ชื่อ-สกุล (ครูผู้สอน)</th>
-                            <th class="px-5 py-3 w-7/12">ห้องที่รับผิดชอบ</th>
-                            <th class="px-5 py-3 text-center w-2/12">ตั้งค่า</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-teachers-manage" class="divide-y divide-gray-100">
-                        <tr>
-                            <td colspan="3" class="p-8 text-center text-gray-400">กำลังโหลดข้อมูล...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
-
-        <!-- ตรวจสอบความคืบหน้า -->
-        <div class="glass rounded-[2rem] flex-1 flex flex-col overflow-hidden">
-            <div
-                class="p-5 border-b border-gray-200/50 flex flex-col md:flex-row justify-between items-center gap-4 bg-white/30">
-                <h2 class="text-lg font-bold text-gray-800 flex items-center gap-2"><i
-                        class="fa-solid fa-chart-line text-indigo-600"></i> ตรวจสอบความคืบหน้าการบันทึก (ทุกระดับชั้น)
-                </h2>
-                <div class="flex gap-2"><button onclick="loadMonitoringData()"
-                        class="px-4 py-2 text-sm font-bold rounded-xl bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 shadow-sm transition-colors flex items-center gap-2 btn-hover-lift"><i
-                            class="fa-solid fa-rotate-right"></i> โหลดข้อมูลใหม่</button></div>
-            </div>
-            <div class="overflow-x-auto flex-1 p-6">
-                <table id="monitoringTable" class="w-full text-sm text-left display">
-                    <thead class="text-xs text-gray-600 uppercase bg-gray-100/80 border-b border-gray-200">
-                        <tr>
-                            <th class="px-4 py-3 text-center">ห้องเรียน</th>
-                            <th class="px-4 py-3">ครูผู้สอน</th>
-                            <th class="px-4 py-3 text-center">จำนวน นร.</th>
-                            <th class="px-4 py-3 text-center">สรุปสถานะ</th>
-                            <th class="px-4 py-3 text-center">การจัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-monitoring" class="divide-y divide-gray-100">
-                        <tr>
-                            <td colspan="5" class="p-8 text-center text-gray-400">กำลังโหลดข้อมูล...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- Modal สำหรับจัดการห้องสอน -->
-    <div id="teacherModal"
-        class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+    <!-- ================= Modal จัดการห้องสอน ================= -->
+    <div id="teacherModal" class="hidden fixed inset-0 bg-slate-900/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
             <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center">
-                <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-days"></i>
-                    จัดการห้องและวันที่เริ่มสอน</h2>
-                <button onclick="closeTeacherModal()" class="text-white hover:text-gray-200 transition-colors"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+                <h2 class="text-xl font-bold flex items-center gap-2"><i class="fa-solid fa-calendar-days"></i> จัดการห้องและวันที่เริ่มสอน</h2>
+                <button onclick="closeTeacherModal()" class="text-white hover:text-gray-200 transition-colors"><i class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1 bg-slate-50">
-                <div class="mb-4 text-lg font-bold text-gray-800 flex items-center gap-2"><span
-                        class="text-blue-600">ครูผู้สอน:</span> <span id="modalTeacherName">กำลังโหลด...</span></div>
-                <table
-                    class="w-full text-sm text-left border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm">
+                <div class="mb-4 text-lg font-bold text-gray-800 flex items-center gap-2">
+                    <span class="text-blue-600">ครูผู้สอน:</span> <span id="modalTeacherName">กำลังโหลด...</span>
+                </div>
+                <table class="w-full text-sm text-left border border-gray-200 bg-white rounded-xl overflow-hidden shadow-sm">
                     <thead class="bg-blue-50 text-blue-800 border-b border-blue-100">
                         <tr>
                             <th class="px-4 py-3 text-center w-48 border-r border-blue-100">วันที่เริ่มสอน</th>
@@ -508,126 +560,20 @@
                     </thead>
                     <tbody id="modalRowsBody" class="divide-y divide-gray-100"></tbody>
                 </table>
-                <button onclick="addModalRow()"
-                    class="mt-4 px-4 py-2 bg-white border border-green-200 text-green-700 font-bold rounded-xl shadow-sm hover:bg-green-50 transition-colors flex items-center gap-2 btn-hover-lift"><i
-                        class="fa-solid fa-plus"></i> เพิ่มแถววันที่เริ่มสอน</button>
-            </div>
-            <div class="bg-white px-6 py-4 flex justify-end gap-3 border-t border-gray-100">
-                <button onclick="closeTeacherModal()"
-                    class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl shadow-sm transition-colors">ยกเลิก</button>
-                <button onclick="saveTeacherClasses()"
-                    class="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-colors btn-hover-lift">ยืนยันการบันทึก</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- โหมดแอดมินจัดการข้อมูลแทนครู -->
-    <div id="adminEditorView" class="hidden p-6 max-w-[1400px] mx-auto w-full flex-1 flex-col gap-8">
-        <div
-            class="bg-slate-800 rounded-3xl shadow-lg p-5 flex justify-between items-center text-white border border-slate-700">
-            <div>
-                <div class="text-sm text-slate-300 flex items-center gap-1"><i class="fa-solid fa-user-pen"></i>
-                    โหมดแอดมิน: จัดการข้อมูลแทนครูผู้สอน</div>
-                <div class="text-xl font-bold mt-1" id="adminEditTitle">กำลังโหลด...</div>
-            </div>
-            <div class="flex flex-wrap gap-2"><button onclick="closeAdminEditor()"
-                    class="bg-white/10 hover:bg-white/20 border border-white/20 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-colors flex items-center gap-2 backdrop-blur-sm"><i
-                        class="fa-solid fa-arrow-left"></i> ย้อนกลับ</button></div>
-        </div>
-
-        <div class="glass rounded-3xl flex-1 flex flex-col overflow-hidden">
-            <div class="flex border-b border-gray-200/50 bg-white/50 overflow-x-auto px-2 pt-2 shrink-0">
-                <button onclick="switchAdminTab('tab-attendance', this)"
-                    class="admin-tab-btn active tab-btn whitespace-nowrap">1. เวลาเรียน</button>
-                <button onclick="switchAdminTab('tab-attributes', this)"
-                    class="admin-tab-btn tab-btn whitespace-nowrap">2. คุณลักษณะ</button>
-            </div>
-
-            <!-- แท็บเวลาเรียน -->
-            <div id="tab-attendance" class="admin-tab-content active p-3 table-responsive flex-1">
-                <div class="mb-3 flex justify-between items-center px-2">
-                    <div class="text-sm font-bold text-gray-600">จัดการข้อมูลเวลาเรียน</div>
-                </div>
-                <table class="w-full text-center text-sm">
-                    <thead>
-                        <tr id="att-header-row-1">
-                            <th rowspan="2" class="col-no">เลขที่</th>
-                            <th rowspan="2" class="col-name">ชื่อ-สกุล</th>
-                            <th rowspan="2" class="w-16 bg-green-50 text-green-700">รวม<br>เวลาเรียน</th>
-                            <th rowspan="2" class="w-28 bg-gray-100">สถานะผู้เรียน</th>
-                        </tr>
-                        <tr id="att-header-row-2" class="text-[11px] font-normal text-gray-600 tracking-tighter"></tr>
-                    </thead>
-                    <tbody id="tb-attendance"></tbody>
-                </table>
-            </div>
-
-            <!-- แท็บคุณลักษณะ -->
-            <div id="tab-attributes" class="admin-tab-content p-3 hidden table-responsive flex-1">
-                <div class="mb-3 flex items-center gap-2 px-2"><span
-                        class="text-sm font-bold text-gray-600">จัดการประเมินคุณลักษณะ</span></div>
-                <table class="w-full text-center text-sm">
-                    <thead>
-                        <tr>
-                            <th rowspan="2" class="col-no">เลขที่</th>
-                            <th rowspan="2" class="col-name">ชื่อ-สกุล</th>
-                            <th colspan="4">มาตรฐานที่ 1</th>
-                            <th colspan="2">มาตรฐานที่ 2</th>
-                            <th colspan="1">มาตรฐานที่ 3</th>
-                            <th colspan="5">มาตรฐานที่ 4</th>
-                            <th rowspan="2"
-                                class="w-16 bg-blue-50 text-blue-700 leading-tight border-l-2 border-gray-300">
-                                สรุปผล<br>คุณลักษณะ</th>
-                            <th rowspan="2"
-                                class="w-16 bg-indigo-50 text-indigo-700 leading-tight border-l border-gray-300">
-                                สรุปผล<br>เวลาเรียน</th>
-                            <th rowspan="2"
-                                class="w-20 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">
-                                ผลการ<br>ประเมิน</th>
-                        </tr>
-                        <tr class="text-xs text-gray-500 font-normal">
-                            <th class="w-10">1.1</th>
-                            <th class="w-10">1.2</th>
-                            <th class="w-10">1.3</th>
-                            <th class="w-10">1.4</th>
-                            <th class="w-10">2.1</th>
-                            <th class="w-10">2.2</th>
-                            <th class="w-10">3.1</th>
-                            <th class="w-10">4.1</th>
-                            <th class="w-10">4.2</th>
-                            <th class="w-10">4.3</th>
-                            <th class="w-10">4.4</th>
-                            <th class="w-10">4.5</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-attributes"></tbody>
-                </table>
-            </div>
-
-            <div
-                class="p-4 bg-white/60 border-t border-white rounded-b-3xl flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
-                <div class="flex gap-2 flex-wrap">
-                    <button onclick="exportExcelAll()"
-                        class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift"><i
-                            class="fa-solid fa-file-export"></i> ส่งออก (Offline)</button>
-                    <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden"
-                        onchange="importExcelAll(event)">
-                    <button onclick="document.getElementById('excelUploadAll').click()"
-                        class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift"><i
-                            class="fa-solid fa-file-import"></i> นำเข้า Excel</button>
-                    <button onclick="printPDFAdmin()"
-                        class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-5 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors btn-hover-lift">
-                        <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
-                    </button>
-                </div>
-                <button onclick="adminSaveAllData()"
-                    class="btn-save-override font-bold py-3 px-8 rounded-xl shadow-lg text-base flex items-center justify-center gap-2 transition-all">
-                    <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูลแบบบังคับ (Override)
+                <button onclick="addModalRow()" class="mt-4 px-4 py-2 bg-white border border-green-200 text-green-700 font-bold rounded-xl shadow-sm hover:bg-green-50 transition-colors flex items-center gap-2">
+                    <i class="fa-solid fa-plus"></i> เพิ่มแถววันที่เริ่มสอน
                 </button>
             </div>
+            <div class="bg-white px-6 py-4 flex justify-end gap-3 border-t border-gray-100">
+                <button onclick="closeTeacherModal()" class="px-6 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl shadow-sm transition-colors">ยกเลิก</button>
+                <button onclick="saveTeacherClasses()" class="px-8 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl shadow-sm transition-colors">ยืนยันการบันทึก</button>
+            </div>
         </div>
     </div>
 
+    <!-- ================= Scripts ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="dashboard_ui.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
     <script src="guidance_admin.js"></script>
 </body>

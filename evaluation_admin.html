@@ -3,977 +3,499 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>จัดการระบบประเมินผล - WRK System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>จัดการระบบประเมินผล | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
     <style>
-        /* ====== Custom Styles ====== */
-        .tab-panel {
-            display: none;
-            animation: fadeSlideIn 0.3s ease-out;
-        }
-
-        .tab-panel.active {
-            display: block;
-        }
-
+        /* Tab Panel */
+        .tab-panel { display: none; animation: fadeSlideIn 0.3s ease-out; }
+        .tab-panel.active { display: block; }
         @keyframes fadeSlideIn {
-            0% {
-                opacity: 0;
-                transform: translateY(10px);
-            }
-
-            100% {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
         }
 
-        .tab-btn {
-            padding: 0.5rem 1.25rem;
-            border-radius: 0.75rem;
-            font-weight: 600;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            border: 2px solid transparent;
-        }
+        /* Tab Button */
+        .tab-btn { padding: 0.5rem 1.25rem; border-radius: 0.75rem; font-weight: 600; font-size: 0.875rem; cursor: pointer; transition: all 0.2s ease; border: 2px solid transparent; }
+        .tab-btn:hover { background: #f1f5f9; }
+        .tab-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; box-shadow: 0 4px 12px rgba(59,130,246,0.25); }
+        .tab-btn:not(.active) { color: #64748b; background: transparent; border-color: #e2e8f0; }
 
-        .tab-btn:hover {
-            background: #f1f5f9;
-        }
+        /* Sub Item Label */
+        .sub-item-label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.8rem; color: #334155; padding: 0.35rem 0.6rem; border-radius: 0.375rem; background: white; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.15s ease; line-height: 1.4; }
+        .sub-item-label:hover { background: #f1f5f9; border-color: #94a3b8; }
+        .sub-item-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #8b5cf6; flex-shrink: 0; margin-top: 1px; }
+        .sub-item-label span { word-break: break-word; }
+        .sub-items-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.5rem; margin-top: 0.5rem; }
 
-        .tab-btn.active {
-            background: #3b82f6;
-            color: white;
-            border-color: #3b82f6;
-            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
-        }
+        /* Dept Checkbox */
+        .dept-checkbox-label { display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; padding: 0.35rem 0.6rem; border-radius: 0.375rem; background: white; border: 1px solid #e2e8f0; cursor: pointer; transition: all 0.15s ease; }
+        .dept-checkbox-label:hover { background: #f1f5f9; border-color: #94a3b8; }
+        .dept-checkbox-label input[type="checkbox"] { width: 16px; height: 16px; accent-color: #8b5cf6; flex-shrink: 0; }
 
-        .tab-btn:not(.active) {
-            color: #64748b;
-            background: transparent;
-            border-color: #e2e8f0;
-        }
-
-        .sub-item-label {
-            display: flex;
-            align-items: flex-start;
-            gap: 0.5rem;
-            font-size: 0.8rem;
-            color: #334155;
-            padding: 0.35rem 0.6rem;
-            border-radius: 0.375rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            line-height: 1.4;
-        }
-
-        .sub-item-label:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
-        }
-
-        .sub-item-label input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #8b5cf6;
-            flex-shrink: 0;
-            margin-top: 1px;
-        }
-
-        .sub-item-label span {
-            word-break: break-word;
-        }
-
-        .sub-items-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .select-all-btn {
-            font-size: 0.75rem;
-            padding: 0.25rem 0.75rem;
-            border-radius: 0.375rem;
-            border: 1px solid #d1d5db;
-            background: white;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .select-all-btn:hover {
-            background: #f1f5f9;
-        }
-
-        .select-all-btn.active {
-            background: #8b5cf6;
-            color: white;
-            border-color: #8b5cf6;
-        }
-
-        .dept-checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-size: 0.85rem;
-            padding: 0.35rem 0.6rem;
-            border-radius: 0.375rem;
-            background: white;
-            border: 1px solid #e2e8f0;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-
-        .dept-checkbox-label:hover {
-            background: #f1f5f9;
-            border-color: #94a3b8;
-        }
-
-        .dept-checkbox-label input[type="checkbox"] {
-            width: 16px;
-            height: 16px;
-            accent-color: #8b5cf6;
-            flex-shrink: 0;
-        }
-
-        /* Tom Select Override */
-        .ts-wrapper {
-            width: 100%;
-        }
-
-        .ts-control {
-            border-radius: 0.5rem !important;
-            border-color: #d1d5db !important;
-            padding: 0.625rem 1rem !important;
-            min-height: 44px !important;
-        }
-
-        .ts-control:focus {
-            border-color: #8b5cf6 !important;
-            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
-        }
+        /* Tom Select */
+        .ts-wrapper { width: 100%; }
+        .ts-control { border-radius: 0.5rem !important; border-color: #d1d5db !important; padding: 0.625rem 1rem !important; min-height: 44px !important; }
+        .ts-control:focus { border-color: #8b5cf6 !important; box-shadow: 0 0 0 3px rgba(139,92,246,0.1) !important; }
 
         /* Status Badge */
-        .status-badge {
-            padding: 0.25rem 0.75rem;
-            border-radius: 9999px;
-            font-size: 0.75rem;
-            font-weight: 600;
-        }
+        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
+        .status-badge.active { background: #d1fae5; color: #065f46; }
+        .status-badge.inactive { background: #fee2e2; color: #991b1b; }
+        .status-badge.pending { background: #fef3c7; color: #92400e; }
+        .status-badge.done { background: #d1fae5; color: #065f46; }
+        .status-badge.draft { background: #e0e7ff; color: #3730a3; }
+        .status-badge.empty { background: #f3f4f6; color: #6b7280; }
 
-        .status-badge.active {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-badge.inactive {
-            background: #fee2e2;
-            color: #991b1b;
-        }
-
-        .status-badge.pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-badge.done {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .status-badge.draft {
-            background: #e0e7ff;
-            color: #3730a3;
-        }
-
-        .status-badge.empty {
-            background: #f3f4f6;
-            color: #6b7280;
-        }
-
-        @media (max-width: 640px) {
-            .sub-items-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* ========================================== */
-        /* ✅ ตารางคณะกรรมการ - ไม่มี Scroll */
-        /* ========================================== */
-
-        /* บังคับตารางไม่ให้เกิน Container */
-        #groupsTable_wrapper {
-            overflow: hidden !important;
-        }
-
-        #groupsTable {
-            table-layout: fixed !important;
-            width: 100% !important;
-            min-width: 100% !important;
-        }
-
-        /* กำหนดความกว้างของแต่ละคอลัมน์ */
-        #groupsTable th,
-        #groupsTable td {
+        /* Groups Table */
+        #groupsTable { table-layout: fixed !important; width: 100% !important; }
+        #groupsTable th, #groupsTable td {
             padding: 6px 8px !important;
             font-size: 0.75rem !important;
-            line-height: 1.3 !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
             vertical-align: middle !important;
         }
+        #groupsTable th:nth-child(1), #groupsTable td:nth-child(1) { width: 12% !important; }
+        #groupsTable th:nth-child(2), #groupsTable td:nth-child(2) { width: 8% !important; text-align: center !important; }
+        #groupsTable th:nth-child(3), #groupsTable td:nth-child(3) { width: 10% !important; }
+        #groupsTable th:nth-child(4), #groupsTable td:nth-child(4) { width: 18% !important; }
+        #groupsTable th:nth-child(5), #groupsTable td:nth-child(5) { width: 18% !important; }
+        #groupsTable th:nth-child(6), #groupsTable td:nth-child(6) { width: 14% !important; }
+        #groupsTable th:nth-child(7), #groupsTable td:nth-child(7) { width: 8% !important; text-align: center !important; }
+        #groupsTable th:nth-child(8), #groupsTable td:nth-child(8) { width: 12% !important; text-align: center !important; white-space: nowrap !important; }
+        #groupsTable td:nth-child(8) button { font-size: 0.65rem !important; padding: 2px 5px !important; margin: 1px !important; }
 
-        /* คอลัมน์ที่ 1: ชื่อชุด */
-        #groupsTable th:nth-child(1),
-        #groupsTable td:nth-child(1) {
-            width: 12% !important;
-            min-width: 70px !important;
-            max-width: 100px !important;
-        }
-
-        /* คอลัมน์ที่ 2: ประเภท */
-        #groupsTable th:nth-child(2),
-        #groupsTable td:nth-child(2) {
-            width: 8% !important;
-            min-width: 50px !important;
-            max-width: 70px !important;
-            text-align: center !important;
-        }
-
-        /* คอลัมน์ที่ 3: ชุดหลัก */
-        #groupsTable th:nth-child(3),
-        #groupsTable td:nth-child(3) {
-            width: 10% !important;
-            min-width: 60px !important;
-            max-width: 90px !important;
-        }
-
-        /* คอลัมน์ที่ 4: หัวข้อย่อย */
-        #groupsTable th:nth-child(4),
-        #groupsTable td:nth-child(4) {
-            width: 18% !important;
-            min-width: 80px !important;
-            max-width: 140px !important;
-        }
-
-        /* คอลัมน์ที่ 5: กรรมการ */
-        #groupsTable th:nth-child(5),
-        #groupsTable td:nth-child(5) {
-            width: 18% !important;
-            min-width: 80px !important;
-            max-width: 140px !important;
-        }
-
-        /* คอลัมน์ที่ 6: กลุ่มสาระฯ */
-        #groupsTable th:nth-child(6),
-        #groupsTable td:nth-child(6) {
-            width: 14% !important;
-            min-width: 70px !important;
-            max-width: 120px !important;
-        }
-
-        /* คอลัมน์ที่ 7: สถานะ */
-        #groupsTable th:nth-child(7),
-        #groupsTable td:nth-child(7) {
-            width: 8% !important;
-            min-width: 50px !important;
-            max-width: 70px !important;
-            text-align: center !important;
-        }
-
-        /* คอลัมน์ที่ 8: ดำเนินการ */
-        #groupsTable th:nth-child(8),
-        #groupsTable td:nth-child(8) {
-            width: 12% !important;
-            min-width: 100px !important;
-            max-width: 130px !important;
-            text-align: center !important;
-            white-space: nowrap !important;
-        }
-
-        /* ปรับปุ่มให้เล็กลง */
-        #groupsTable td:nth-child(8) button {
-            font-size: 0.65rem !important;
-            padding: 2px 5px !important;
-            border-radius: 4px !important;
-            margin: 1px !important;
-        }
-
-        #groupsTable td:nth-child(8) .fa-solid {
-            font-size: 0.6rem !important;
-            margin-right: 2px !important;
-        }
-
-        /* Tooltip เมื่อ hover */
-        #groupsTable td[title] {
-            cursor: help !important;
-            position: relative !important;
-        }
-
-        #groupsTable td[title]:hover::after {
-            content: attr(title);
-            position: absolute;
-            background: #1e293b !important;
-            color: #ffffff !important;
-            padding: 6px 12px !important;
-            border-radius: 6px !important;
-            font-size: 0.7rem !important;
-            font-weight: 400 !important;
-            white-space: normal !important;
-            max-width: 300px !important;
-            word-wrap: break-word !important;
-            z-index: 9999 !important;
-            bottom: calc(100% + 8px) !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
-            pointer-events: none !important;
-        }
-
-        #groupsTable td[title]:hover::before {
-            content: '' !important;
-            position: absolute !important;
-            bottom: calc(100% + 2px) !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            border: 6px solid transparent !important;
-            border-top-color: #1e293b !important;
-            z-index: 9999 !important;
-            pointer-events: none !important;
-        }
-
-        /* ซ่อน scrollbar */
-        .dataTables_scrollBody::-webkit-scrollbar {
-            display: none !important;
-        }
-
-        .dataTables_scrollBody {
-            -ms-overflow-style: none !important;
-            scrollbar-width: none !important;
-        }
-
-        .dataTables_wrapper {
-            overflow: hidden !important;
-        }
-
-        /* ปรับ pagination และ search */
-        .dataTables_length,
-        .dataTables_filter {
-            font-size: 0.8rem !important;
-        }
-
-        .dataTables_length select,
-        .dataTables_filter input {
-            padding: 4px 8px !important;
-            font-size: 0.75rem !important;
-            border-radius: 4px !important;
-        }
-
-        /* ========================================== */
-        /* ✅ Responsive - มือถือ */
-        /* ========================================== */
-
-        @media (max-width: 1024px) {
-
-            #groupsTable th,
-            #groupsTable td {
-                font-size: 0.7rem !important;
-                padding: 4px 6px !important;
-            }
-
-            #groupsTable td:nth-child(8) button {
-                font-size: 0.55rem !important;
-                padding: 1px 4px !important;
-            }
-
-            #groupsTable td:nth-child(8) .fa-solid {
-                font-size: 0.5rem !important;
-            }
-
-            #groupsTable th:nth-child(4),
-            #groupsTable td:nth-child(4) {
-                max-width: 100px !important;
-            }
-
-            #groupsTable th:nth-child(5),
-            #groupsTable td:nth-child(5) {
-                max-width: 100px !important;
-            }
-
-            #groupsTable th:nth-child(6),
-            #groupsTable td:nth-child(6) {
-                max-width: 80px !important;
-            }
-        }
-
+        /* Mobile card */
         @media (max-width: 768px) {
-
-            /* ซ่อนตาราง desktop แสดงการ์ดมือถือ */
-            #groupsTable_wrapper {
-                display: none !important;
-            }
-
-            #groupsMobileContainer {
-                display: block !important;
-            }
+            #groupsTable_wrapper { display: none !important; }
+            #groupsMobileContainer { display: block !important; }
         }
-
         @media (min-width: 769px) {
-            #groupsMobileContainer {
-                display: none !important;
-            }
+            #groupsMobileContainer { display: none !important; }
         }
 
-        /* ========================================== */
-        /* ✅ ผลการตรวจสอบความครบถ้วน */
-        /* ========================================== */
-        #completenessResult {
-            max-height: 500px;
-            overflow-y: auto;
-        }
+        /* Result Summary */
+        #completenessResult { max-height: 500px; overflow-y: auto; }
+        #completenessResult table td, #completenessResult table th { padding: 4px 8px !important; font-size: 0.75rem !important; }
 
-        #completenessResult::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        #completenessResult::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        #completenessResult::-webkit-scrollbar-thumb {
-            background: #c1c7cd;
-            border-radius: 3px;
-        }
-
-        #completenessResult table td,
-        #completenessResult table th {
-            padding: 4px 8px !important;
-            font-size: 0.75rem !important;
-        }
-
-        /* ========================================== */
-        /* ✅ การ์ดมือถือ */
-        /* ========================================== */
-        #groupsMobileContainer .group-card {
-            transition: all 0.2s ease;
-        }
-
-        #groupsMobileContainer .group-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-        }
-
-        #groupsMobileContainer .group-card:active {
-            transform: scale(0.98);
-        }
-
-        /* ========================================== */
-        /* Modal ตรวจสอบความครบถ้วน */
-        /* ========================================== */
-        #completenessModal .modal-content {
-            animation: modalSlideIn 0.3s ease-out;
-        }
-
-        #completenessModal .modal-body-scroll {
-            max-height: 70vh;
-            overflow-y: auto;
-        }
-
-        #completenessModal .modal-body-scroll::-webkit-scrollbar {
-            width: 6px;
-        }
-
-        #completenessModal .modal-body-scroll::-webkit-scrollbar-track {
-            background: #f1f1f1;
-            border-radius: 3px;
-        }
-
-        #completenessModal .modal-body-scroll::-webkit-scrollbar-thumb {
-            background: #c1c7cd;
-            border-radius: 3px;
-        }
-
-        #completenessModal .modal-body-scroll::-webkit-scrollbar-thumb:hover {
-            background: #a0a7ae;
-        }
-
+        /* Modal */
+        #completenessModal, #impersonateModal { animation: modalSlideIn 0.3s ease-out; }
         @keyframes modalSlideIn {
-            from {
-                opacity: 0;
-                transform: translateY(-30px) scale(0.95);
-            }
-
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
+            from { opacity: 0; transform: translateY(-30px) scale(0.95); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
         }
 
-        /* ✅ ตารางใน Modal */
-        #completenessTable td,
-        #completenessTable th {
-            padding: 6px 8px !important;
-            font-size: 0.75rem !important;
-        }
-
-        #completenessTable td:nth-child(2) {
-            max-width: 120px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-
-        #completenessTable td:nth-child(3) {
-            max-width: 140px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
+        /* Card */
+        .group-card { transition: all 0.2s ease; }
+        .group-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
     </style>
 </head>
 
-<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 transition-colors h-screen overflow-hidden flex flex-col">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <!-- ========================================== -->
-    <!-- NAVBAR -->
-    <!-- ========================================== -->
-    <header
-        class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 p-4 flex flex-wrap justify-between items-center sticky top-0 z-50 gap-2">
-        <div class="flex items-center gap-3">
-            <div
-                class="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-purple-600/20">
-                <i class="fa-solid fa-user-shield text-xl"></i>
+    <div class="d-app">
+
+        <!-- ================= Sidebar ================= -->
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>WRK System</b><span>จัดการประเมิน</span></div>
             </div>
-            <div>
-                <h1 class="font-bold text-lg leading-tight">จัดการระบบประเมินผล</h1>
-                <p class="text-[11px] text-gray-500" id="header_school_term">ภาคเรียนที่ 1 / 2569</p>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a href="index.html" title="หน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">หน้าหลัก</span>
+                </a>
+
+                <div class="d-nav-title">ระบบประเมิน</div>
+                <a id="nav-dashboard" href="evaluation.html" title="ประเมินผล">
+                    <span class="d-ico"><i class="fa-solid fa-user-check"></i></span>
+                    <span class="d-label">ประเมินผล</span>
+                </a>
+                <a id="nav-admin" class="active" title="ตั้งค่ากรรมการ">
+                    <span class="d-ico"><i class="fa-solid fa-user-shield"></i></span>
+                    <span class="d-label">ตั้งค่ากรรมการ</span>
+                </a>
+
+                <div class="d-nav-title">การตั้งค่า</div>
+                <a id="nav-settings" class="hidden" href="evaluation_settings.html" title="ตั้งค่าระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
+                    <span class="d-label">ตั้งค่าระบบ</span>
+                </a>
+                <a class="logout" onclick="logout()" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
             </div>
-        </div>
-        <div class="flex items-center gap-2 flex-wrap">
-            <div class="text-right hidden sm:block">
-                <p class="text-sm font-medium text-gray-700" id="header_user_name">-</p>
-                <p class="text-xs text-gray-400" id="header_user_role">-</p>
-            </div>
-            <button onclick="window.location.href='evaluation_settings.html'"
-                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                <i class="fa-solid fa-gear mr-1"></i> ตั้งค่าระบบ
-            </button>
-            <button onclick="window.location.href='evaluation.html'"
-                class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-md">
-                <i class="fa-solid fa-user-check"></i> ประเมินตนเอง
-            </button>
-            <button onclick="window.location.href='index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                title="กลับหน้าหลัก">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                title="ออกจากระบบ">
-                <i class="fas fa-sign-out-alt"></i>
-            </button>
-        </div>
-    </header>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-    <!-- ========================================== -->
-    <!-- MAIN CONTENT -->
-    <!-- ========================================== -->
-    <main class="flex-1 overflow-y-auto p-4 md:p-6 pb-20" id="mainBody">
+        <!-- ================= Main ================= -->
+        <main class="d-main" id="dMain">
 
-        <div class="max-w-6xl mx-auto">
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
 
-            <!-- ========================================== -->
-            <!-- TABS -->
-            <!-- ========================================== -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 mb-6">
-                <div class="flex flex-wrap gap-2">
-                    <button onclick="switchTab('rounds')" id="tab-rounds" class="tab-btn active">
-                        <i class="fa-solid fa-calendar-check mr-2"></i>รอบการประเมิน
+                <h2 id="pageTitle">จัดการระบบประเมินผล</h2>
+
+                <div class="d-spacer"></div>
+
+                <div class="d-settings-wrap">
+                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>แสดงผล</span>
                     </button>
-                    <button onclick="switchTab('groups')" id="tab-groups" class="tab-btn">
-                        <i class="fa-solid fa-users mr-2"></i>คณะกรรมการ
-                    </button>
-                    <button onclick="switchTab('results')" id="tab-results" class="tab-btn">
-                        <i class="fa-solid fa-chart-bar mr-2"></i>ผลการประเมิน
-                    </button>
-                </div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- TAB 1: รอบการประเมิน -->
-            <!-- ========================================== -->
-            <div id="panel-rounds" class="tab-panel active">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <div class="flex flex-wrap justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">
-                            <i class="fa-solid fa-calendar-check text-blue-500 mr-2"></i>จัดการรอบการประเมิน
-                        </h2>
-                        <button onclick="openRoundModal()"
-                            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                            <i class="fa-solid fa-plus mr-1"></i> สร้างรอบใหม่
-                        </button>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table id="roundsTable" class="display w-full text-sm">
-                            <thead>
-                                <tr>
-                                    <th>ชื่อรอบ</th>
-                                    <th>ครั้งที่</th>
-                                    <th>วันที่เริ่ม</th>
-                                    <th>วันที่สิ้นสุด</th>
-                                    <th>สถานะ</th>
-                                    <th>ดำเนินการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-rounds">
-                                <tr>
-                                    <td colspan="6" class="text-center py-8 text-gray-400">
-                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ========================================== -->
-            <!-- TAB 2: คณะกรรมการ -->
-            <!-- ========================================== -->
-            <div id="panel-groups" class="tab-panel">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <div class="flex flex-wrap justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">
-                            <i class="fa-solid fa-users text-purple-500 mr-2"></i>จัดการคณะกรรมการ
-                        </h2>
-                        <div class="flex flex-wrap gap-2">
-                            <select id="filter_round_for_groups"
-                                class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-purple-500 text-sm">
-                                <option value="">-- เลือกรอบการประเมิน --</option>
-                            </select>
-
-                            <!-- ✅ ปุ่มคัดลอกหัวข้อชุดหลักให้ชุดย่อย -->
-                            <button onclick="copySubItemsToAllSubGroups()"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-copy mr-1"></i> คัดลอกหัวข้อชุดหลักให้ชุดย่อย
-                            </button>
-
-                            <button onclick="checkEvaluationCompleteness()"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-check-double mr-1"></i> ตรวจสอบความครบถ้วน
-                            </button>
-                            <button onclick="openGroupModal()"
-                                class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-plus mr-1"></i> สร้างชุดใหม่
-                            </button>
+                    <div class="d-settings-menu" id="settingsMenu">
+                        <div class="d-settings-title">ขนาดตัวอักษร</div>
+                        <div class="d-settings-options">
+                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
+                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
+                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
+                        </div>
+                        <div class="d-settings-title">ความหนาแน่น</div>
+                        <div class="d-settings-options cols-2">
+                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
+                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
                         </div>
                     </div>
+                </div>
 
-                    <!-- ✅ ส่วนแสดงผลการตรวจสอบ -->
-                    <div id="completenessResult" class="hidden mb-4 p-4 rounded-xl border bg-white shadow-sm">
-                        <!-- จะถูกสร้างโดย JavaScript -->
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
                     </div>
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
+                    </div>
+                </div>
+            </header>
 
-                    <!-- ✅ Responsive Table Container -->
-                    <div class="w-full">
-                        <!-- Desktop Table -->
-                        <div class="hidden md:block">
-                            <table id="groupsTable" class="display w-full text-sm">
+            <!-- ================= Content ================= -->
+            <div style="padding:0 0 12px;" class="space-y-4">
+
+                <!-- Tab Header -->
+                <div class="d-card">
+                    <div class="flex flex-wrap gap-2">
+                        <button onclick="switchTab('rounds')" id="tab-rounds" class="tab-btn active">
+                            <i class="fa-solid fa-calendar-check mr-2"></i>รอบการประเมิน
+                        </button>
+                        <button onclick="switchTab('groups')" id="tab-groups" class="tab-btn">
+                            <i class="fa-solid fa-users mr-2"></i>คณะกรรมการ
+                        </button>
+                        <button onclick="switchTab('results')" id="tab-results" class="tab-btn">
+                            <i class="fa-solid fa-chart-bar mr-2"></i>ผลการประเมิน
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ============ Tab 1: รอบการประเมิน ============ -->
+                <div id="panel-rounds" class="tab-panel active">
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">
+                                <i class="fa-solid fa-calendar-check text-blue-500 mr-2"></i>จัดการรอบการประเมิน
+                            </div>
+                            <button onclick="openRoundModal()"
+                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                <i class="fa-solid fa-plus mr-1"></i> สร้างรอบใหม่
+                            </button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table id="roundsTable" class="w-full text-sm">
                                 <thead>
-                                    <tr>
-                                        <th>ชื่อชุด</th>
-                                        <th>ประเภท</th>
-                                        <th>ชุดหลัก</th>
-                                        <th>หัวข้อย่อย</th>
-                                        <th>กรรมการ</th>
-                                        <th>กลุ่มสาระฯ</th>
-                                        <th>สถานะ</th>
-                                        <th>ดำเนินการ</th>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
+                                        <th class="py-3 px-3 text-left">ชื่อรอบ</th>
+                                        <th class="py-3 px-3 text-center">ครั้งที่</th>
+                                        <th class="py-3 px-3 text-left">วันที่เริ่ม</th>
+                                        <th class="py-3 px-3 text-left">วันที่สิ้นสุด</th>
+                                        <th class="py-3 px-3 text-center">สถานะ</th>
+                                        <th class="py-3 px-3 text-center">ดำเนินการ</th>
                                     </tr>
                                 </thead>
-                                <tbody id="tb-groups">
-                                    <tr>
-                                        <td colspan="8" class="text-center py-8 text-gray-400">
-                                            <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
-                                        </td>
-                                    </tr>
+                                <tbody id="tb-rounds">
+                                    <tr><td colspan="6" class="text-center py-8 text-gray-400">
+                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                                    </td></tr>
                                 </tbody>
                             </table>
                         </div>
-
-                        <!-- Mobile Card View -->
-                        <div id="groupsMobileContainer" class="md:hidden space-y-4">
-                            <div class="text-center py-8 text-gray-400">
-                                <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
-                            </div>
-                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- ========================================== -->
-            <!-- TAB 3: ผลการประเมิน -->
-            <!-- ========================================== -->
-            <div id="panel-results" class="tab-panel">
-                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-                    <!-- ✅ Summary -->
-                    <div id="resultsSummary" class="hidden"></div>
-                    <div class="flex flex-wrap justify-between items-center mb-6">
-                        <h2 class="text-xl font-bold text-gray-800">
-                            <i class="fa-solid fa-chart-bar text-emerald-500 mr-2"></i>ผลการประเมิน
-                        </h2>
-                        <div class="flex flex-wrap gap-2">
-                            <select id="filter_round_for_results"
-                                class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-emerald-500 text-sm">
-                                <option value="">-- เลือกรอบการประเมิน --</option>
-                            </select>
-
-                            <!-- ✅ ปุ่มตรวจสอบการให้คะแนนกรรมการ -->
-                            <button onclick="checkEvaluatorAssignments()"
-                                class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-user-check mr-1"></i> ตรวจสอบการให้คะแนนกรรมการ
-                            </button>
-
-                            <button onclick="exportAllResults()"
-                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
-                            </button>
-                            <button onclick="triggerGenerateAllFinalScores()"
-                                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
-                                <i class="fa-solid fa-calculator mr-1"></i> สรุปผลทั้งหมด
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="overflow-x-auto">
-                        <table id="resultsTable" class="display w-full text-sm">
-                            <thead>
-                                <tr>
-                                    <th>ผู้รับการประเมิน</th>
-                                    <th>วิทยฐานะ</th>
-                                    <th>คะแนนเฉลี่ย</th>
-                                    <th>จำนวนกรรมการ</th>
-                                    <th>จำนวนชุด</th>
-                                    <th>ระดับคุณภาพ</th>
-                                    <th>สถานะ</th>
-                                    <th>ดำเนินการ</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tb-results">
-                                <tr>
-                                    <td colspan="8" class="text-center py-8 text-gray-400">
-                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </main>
-
-    <!-- ========================================== -->
-    <!-- MODAL: สร้าง/แก้ไขรอบการประเมิน -->
-    <!-- ========================================== -->
-    <div id="roundModal" class="fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl">
-                <div class="flex justify-between items-center p-4 border-b border-gray-200">
-                    <h3 class="text-xl font-bold text-gray-800" id="roundModalTitle">
-                        <i class="fa-solid fa-calendar-plus text-blue-500 mr-2"></i>สร้างรอบการประเมิน
-                    </h3>
-                    <button onclick="closeRoundModal()"
-                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
-                        <i class="fa-solid fa-xmark text-2xl"></i>
-                    </button>
-                </div>
-                <div class="p-6">
-                    <form id="roundForm">
-                        <input type="hidden" id="round_edit_id" value="">
-
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อรอบ <span
-                                    class="text-red-500">*</span></label>
-                            <input type="text" id="round_name"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500"
-                                placeholder="เช่น รอบประเมินภาคเรียนที่ 1/2569">
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ครั้งที่ <span
-                                    class="text-red-500">*</span></label>
-                            <input type="number" id="round_number"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500"
-                                placeholder="1">
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่เริ่ม <span
-                                        class="text-red-500">*</span></label>
-                                <input type="date" id="round_start_date"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
+                <!-- ============ Tab 2: คณะกรรมการ ============ -->
+                <div id="panel-groups" class="tab-panel">
+                    <div class="d-card">
+                        <div class="d-card-head">
+                            <div class="d-card-title">
+                                <i class="fa-solid fa-users text-purple-500 mr-2"></i>จัดการคณะกรรมการ
                             </div>
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">วันที่สิ้นสุด <span
-                                        class="text-red-500">*</span></label>
-                                <input type="date" id="round_end_date"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-blue-500">
-                            </div>
-                        </div>
-
-                        <div class="mb-4">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="round_is_active" checked class="w-4 h-4 accent-blue-600">
-                                <span class="text-sm font-medium text-gray-700">เปิดใช้งานทันที</span>
-                            </label>
-                        </div>
-
-                        <div class="flex gap-3 mt-6">
-                            <button type="submit"
-                                class="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-lg font-bold transition-colors">
-                                <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
-                            </button>
-                            <button type="button" onclick="closeRoundModal()"
-                                class="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition-colors">
-                                ยกเลิก
-                            </button>
-                        </div>
-                    </form>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ========================================== -->
-    <!-- MODAL: สร้าง/แก้ไขคณะกรรมการ -->
-    <!-- ========================================== -->
-    <div id="groupModal" class="fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] shadow-2xl overflow-hidden">
-                <div class="flex justify-between items-center p-4 border-b border-gray-200 sticky top-0 bg-white z-10">
-                    <h3 class="text-xl font-bold text-gray-800" id="groupModalTitle">
-                        <i class="fa-solid fa-users-plus text-purple-500 mr-2"></i>สร้างชุดคณะกรรมการ
-                    </h3>
-                    <button onclick="closeGroupModal()"
-                        class="text-gray-400 hover:text-gray-600 transition-colors w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
-                        <i class="fa-solid fa-xmark text-2xl"></i>
-                    </button>
-                </div>
-                <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 80px);">
-                    <form id="groupForm">
-                        <input type="hidden" id="group_edit_id" value="">
-
-                        <!-- เลือกรอบการประเมิน -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">รอบการประเมิน <span
-                                    class="text-red-500">*</span></label>
-                            <select id="group_round_id"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                <option value="">-- เลือกรอบ --</option>
-                            </select>
-                        </div>
-
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <!-- ชื่อชุด -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อชุด <span
-                                        class="text-red-500">*</span></label>
-                                <input type="text" id="group_name"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500"
-                                    placeholder="เช่น ชุดที่ 1">
-                            </div>
-                            <!-- ประเภท -->
-                            <div>
-                                <label class="block text-sm font-bold text-gray-700 mb-1">ประเภท <span
-                                        class="text-red-500">*</span></label>
-                                <select id="group_type"
-                                    class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                    <option value="main">ชุดหลัก</option>
-                                    <option value="sub">ชุดย่อย</option>
+                            <div class="flex flex-wrap gap-2">
+                                <select id="filter_round_for_groups"
+                                    class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-purple-500 text-sm">
+                                    <option value="">-- เลือกรอบการประเมิน --</option>
                                 </select>
+                                <button onclick="copySubItemsToAllSubGroups()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-copy mr-1"></i> คัดลอกหัวข้อชุดหลักให้ชุดย่อย
+                                </button>
+                                <button onclick="checkEvaluationCompleteness()"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-check-double mr-1"></i> ตรวจสอบความครบถ้วน
+                                </button>
+                                <button onclick="openGroupModal()"
+                                    class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-plus mr-1"></i> สร้างชุดใหม่
+                                </button>
                             </div>
                         </div>
 
-                        <!-- ชุดหลัก (เฉพาะชุดย่อย) -->
-                        <div class="mb-4" id="parent_group_container">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">ชุดหลัก <span
-                                    class="text-red-500">*</span></label>
-                            <select id="group_parent_id"
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500">
-                                <option value="">-- เลือกชุดหลัก --</option>
-                            </select>
-                            <p class="text-xs text-gray-400 mt-1">เฉพาะชุดย่อยเท่านั้นที่ต้องเลือกชุดหลัก</p>
-                        </div>
+                        <div id="completenessResult" class="hidden mb-4 p-4 rounded-xl border bg-white shadow-sm"></div>
 
-                        <!-- หัวข้อย่อย -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-2">หัวข้อย่อยที่ต้องประเมิน</label>
-                            <div id="sub_items_container">
-                                <!-- จะถูกสร้างโดย JavaScript -->
+                        <div class="w-full">
+                            <div class="hidden md:block overflow-x-auto">
+                                <table id="groupsTable" class="w-full text-sm">
+                                    <thead>
+                                        <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
+                                            <th class="p-2 text-left">ชื่อชุด</th>
+                                            <th class="p-2 text-center">ประเภท</th>
+                                            <th class="p-2 text-left">ชุดหลัก</th>
+                                            <th class="p-2 text-left">หัวข้อย่อย</th>
+                                            <th class="p-2 text-left">กรรมการ</th>
+                                            <th class="p-2 text-left">กลุ่มสาระฯ</th>
+                                            <th class="p-2 text-center">สถานะ</th>
+                                            <th class="p-2 text-center">ดำเนินการ</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tb-groups">
+                                        <tr><td colspan="8" class="text-center py-8 text-gray-400">
+                                            <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                                        </td></tr>
+                                    </tbody>
+                                </table>
                             </div>
-                            <p class="text-xs text-gray-400 mt-1">เลือกหัวข้อย่อยที่คณะกรรมการชุดนี้ต้องประเมิน</p>
-                        </div>
-
-                        <!-- สมาชิก -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">สมาชิกคณะกรรมการ <span
-                                    class="text-red-500">*</span></label>
-                            <select id="group_members" multiple
-                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-purple-500"
-                                style="min-height: 120px;">
-                                <!-- จะถูกสร้างโดย JavaScript -->
-                            </select>
-                            <p class="text-xs text-gray-400 mt-1">กด Ctrl (หรือ Cmd) เพื่อเลือกหลายคน</p>
-                        </div>
-
-                        <!-- กลุ่มเป้าหมาย -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มเป้าหมาย <span
-                                    class="text-red-500">*</span></label>
-                            <div id="target_departments_container">
-                                <!-- จะถูกสร้างโดย JavaScript -->
+                            <div id="groupsMobileContainer" class="md:hidden space-y-4">
+                                <div class="text-center py-8 text-gray-400">
+                                    <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                                </div>
                             </div>
-                            <p class="text-xs text-gray-400 mt-1">เลือกกลุ่มสาระที่คณะกรรมการชุดนี้ต้องประเมิน</p>
                         </div>
-
-                        <!-- สถานะ -->
-                        <div class="mb-4">
-                            <label class="flex items-center gap-2 cursor-pointer">
-                                <input type="checkbox" id="group_is_active" checked class="w-4 h-4 accent-purple-600">
-                                <span class="text-sm font-medium text-gray-700">เปิดใช้งาน</span>
-                            </label>
-                        </div>
-
-                        <div class="flex gap-3 mt-6">
-                            <button type="submit"
-                                class="flex-1 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-lg font-bold transition-colors">
-                                <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
-                            </button>
-                            <button type="button" onclick="closeGroupModal()"
-                                class="px-4 py-2.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-bold transition-colors">
-                                ยกเลิก
-                            </button>
-                        </div>
-                    </form>
+                    </div>
                 </div>
+
+                <!-- ============ Tab 3: ผลการประเมิน ============ -->
+                <div id="panel-results" class="tab-panel">
+                    <div class="d-card">
+                        <div id="resultsSummary" class="hidden mb-4"></div>
+                        <div class="d-card-head">
+                            <div class="d-card-title">
+                                <i class="fa-solid fa-chart-bar text-emerald-500 mr-2"></i>ผลการประเมิน
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <select id="filter_round_for_results"
+                                    class="border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-emerald-500 text-sm">
+                                    <option value="">-- เลือกรอบการประเมิน --</option>
+                                </select>
+                                <button onclick="checkEvaluatorAssignments()"
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-user-check mr-1"></i> ตรวจสอบการให้คะแนนกรรมการ
+                                </button>
+                                <button onclick="exportAllResults()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-file-export mr-1"></i> ส่งออก Excel
+                                </button>
+                                <button onclick="triggerGenerateAllFinalScores()"
+                                    class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-bold transition-colors shadow-sm">
+                                    <i class="fa-solid fa-calculator mr-1"></i> สรุปผลทั้งหมด
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table id="resultsTable" class="w-full text-sm">
+                                <thead>
+                                    <tr class="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase">
+                                        <th class="py-3 px-3 text-left">ผู้รับการประเมิน</th>
+                                        <th class="py-3 px-3 text-left">วิทยฐานะ</th>
+                                        <th class="py-3 px-3 text-center">คะแนนเฉลี่ย</th>
+                                        <th class="py-3 px-3 text-center">จำนวนกรรมการ</th>
+                                        <th class="py-3 px-3 text-center">จำนวนชุด</th>
+                                        <th class="py-3 px-3 text-center">ระดับคุณภาพ</th>
+                                        <th class="py-3 px-3 text-center">สถานะ</th>
+                                        <th class="py-3 px-3 text-center">ดำเนินการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-results">
+                                    <tr><td colspan="8" class="text-center py-8 text-gray-400">
+                                        <i class="fa-solid fa-spinner fa-spin mr-2"></i>กำลังโหลด...
+                                    </td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- ================= Modal: รอบการประเมิน ================= -->
+    <div id="roundModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeRoundModal()"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2" id="roundModalTitle">
+                    <i class="fa-solid fa-calendar-plus"></i> สร้างรอบการประเมิน
+                </h3>
+                <button onclick="closeRoundModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <form id="roundForm" class="space-y-4">
+                    <input type="hidden" id="round_edit_id" value="">
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อรอบ <span class="text-red-500">*</span></label>
+                        <input type="text" id="round_name" class="field-input" placeholder="เช่น รอบประเมินภาคเรียนที่ 1/2569">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">ครั้งที่ <span class="text-red-500">*</span></label>
+                        <input type="number" id="round_number" class="field-input" placeholder="1">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">วันที่เริ่ม <span class="text-red-500">*</span></label>
+                            <input type="date" id="round_start_date" class="field-input">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">วันที่สิ้นสุด <span class="text-red-500">*</span></label>
+                            <input type="date" id="round_end_date" class="field-input">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="round_is_active" checked class="w-4 h-4 accent-blue-600">
+                            <span class="text-sm font-medium text-gray-700">เปิดใช้งานทันที</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 flex-shrink-0">
+                <button type="button" onclick="closeRoundModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">
+                    ยกเลิก
+                </button>
+                <button type="submit" form="roundForm" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- ========================================== -->
-    <!-- SCRIPTS -->
-    <!-- ========================================== -->
+    <!-- ================= Modal: คณะกรรมการ ================= -->
+    <div id="groupModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeGroupModal()"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-600 text-white flex-shrink-0">
+                <h3 class="text-lg font-bold flex items-center gap-2" id="groupModalTitle">
+                    <i class="fa-solid fa-users-plus"></i> สร้างชุดคณะกรรมการ
+                </h3>
+                <button onclick="closeGroupModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto flex-1">
+                <form id="groupForm" class="space-y-4">
+                    <input type="hidden" id="group_edit_id" value="">
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">รอบการประเมิน <span class="text-red-500">*</span></label>
+                        <select id="group_round_id" class="field-input">
+                            <option value="">-- เลือกรอบ --</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ชื่อชุด <span class="text-red-500">*</span></label>
+                            <input type="text" id="group_name" class="field-input" placeholder="เช่น ชุดที่ 1">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-bold text-gray-700 mb-1">ประเภท <span class="text-red-500">*</span></label>
+                            <select id="group_type" class="field-input">
+                                <option value="main">ชุดหลัก</option>
+                                <option value="sub">ชุดย่อย</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="parent_group_container" style="display:none">
+                        <label class="block text-sm font-bold text-gray-700 mb-1">ชุดหลัก <span class="text-red-500">*</span></label>
+                        <select id="group_parent_id" class="field-input">
+                            <option value="">-- เลือกชุดหลัก --</option>
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">เฉพาะชุดย่อยเท่านั้นที่ต้องเลือกชุดหลัก</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-2">หัวข้อย่อยที่ต้องประเมิน</label>
+                        <div id="sub_items_container"></div>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">สมาชิกคณะกรรมการ <span class="text-red-500">*</span></label>
+                        <select id="group_members" multiple class="field-input" style="min-height:120px"></select>
+                        <p class="text-xs text-gray-400 mt-1">กด Ctrl (หรือ Cmd) เพื่อเลือกหลายคน</p>
+                    </div>
+
+                    <div>
+                        <label class="block text-sm font-bold text-gray-700 mb-1">กลุ่มเป้าหมาย <span class="text-red-500">*</span></label>
+                        <div id="target_departments_container"></div>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" id="group_is_active" checked class="w-4 h-4 accent-purple-600">
+                            <span class="text-sm font-medium text-gray-700">เปิดใช้งาน</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 flex-shrink-0">
+                <button type="button" onclick="closeGroupModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">
+                    ยกเลิก
+                </button>
+                <button type="submit" form="groupForm" class="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-md transition">
+                    <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึก
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= Scripts ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="dashboard_ui.js"></script>
     <script src="evaluation_core.js"></script>
     <script src="evaluation_logic.js"></script>
     <script src="evaluation_admin_groups.js"></script>
@@ -984,10 +506,7 @@
         // ==========================================
         // Event Listeners
         // ==========================================
-
-        // ✅ กรองคณะกรรมการตามรอบ
         document.getElementById('filter_round_for_groups')?.addEventListener('change', function () {
-            // ซ่อนผลการตรวจสอบเก่า
             const resultContainer = document.getElementById('completenessResult');
             if (resultContainer) {
                 resultContainer.classList.add('hidden');
@@ -996,24 +515,12 @@
             loadGroupsTable();
         });
 
-        // ✅ กรองผลการประเมินตามรอบ
         document.getElementById('filter_round_for_results')?.addEventListener('change', function () {
             loadResultsTable();
         });
 
-        // ✅ เมื่อเลือกรอบใน Modal ให้โหลด Parent Groups
         document.getElementById('group_round_id')?.addEventListener('change', function () {
             populateParentGroupDropdown();
-        });
-
-        // ✅ ตรวจสอบว่าเป็น super_admin หรือ admin
-        document.addEventListener('DOMContentLoaded', function () {
-            const userRole = document.getElementById('header_user_role')?.innerText || '';
-            if (['super_admin', 'admin'].includes(userRole)) {
-                // แสดงปุ่มตรวจสอบความครบถ้วน
-                const checkBtn = document.querySelector('[onclick="checkEvaluationCompleteness()"]');
-                if (checkBtn) checkBtn.style.display = '';
-            }
         });
     </script>
 

@@ -95,6 +95,16 @@ function applyAdminVisibility() {
 
     // ✅ ใช้โหมดอ่านอย่างเดียว (ถ้าเป็นหัวหน้า)
     applyReadOnlyState();
+
+    // ✅ Sync sidebar settings button
+    const sidebarSettings = document.getElementById('btnSettingsSidebar');
+    if (sidebarSettings) {
+        if (isAdminMode || isModuleAdmin) {
+            sidebarSettings.classList.remove('hidden');
+        } else {
+            sidebarSettings.classList.add('hidden');
+        }
+    }
 }
 
 // ==========================================
@@ -103,8 +113,8 @@ function applyAdminVisibility() {
 function applyReadOnlyState() {
     if (!isReadOnly) return;
 
-    // 1. ซ่อน/ปิดการใช้งานปุ่มอัปโหลดรูป
-    const uploadBtns = document.querySelectorAll('#profileFileInput, #cloudUploadBtn, .delete-profile-btn');
+    // 1. ปิดการใช้งานปุ่มอัปโหลดรูป
+    const uploadBtns = document.querySelectorAll('#profileFileInput, #cloudUploadBtn');
     uploadBtns.forEach(btn => {
         if (btn) {
             btn.disabled = true;
@@ -116,7 +126,7 @@ function applyReadOnlyState() {
     const deleteBtn = document.querySelector('button[onclick="deleteProfilePicture()"]');
     if (deleteBtn) deleteBtn.style.display = 'none';
 
-    // 3. แสดงข้อความแจ้งเตือนว่าเป็นโหมดดูอย่างเดียว
+    // 3. แสดงข้อความแจ้งเตือน
     const existingBanner = document.getElementById('readonly-banner');
     if (!existingBanner) {
         const banner = document.createElement('div');
@@ -126,36 +136,72 @@ function applyReadOnlyState() {
             <i class="fas fa-eye text-amber-600"></i>
             <span class="font-bold">คุณอยู่ในโหมดดูข้อมูลอย่างเดียว (ไม่สามารถอัปโหลดรูปหรือแก้ไขได้)</span>
         `;
-        const modalBody = document.querySelector('#studentDetailModal .p-6');
-        if (modalBody) modalBody.prepend(banner);
+        // แทรกเหนือ Tabs bar ในตัว modal
+        const tabsBar = document.querySelector('#studentDetailModal .hide-scrollbar');
+        if (tabsBar) tabsBar.parentNode.insertBefore(banner, tabsBar);
     }
 
     console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
 
 // ==========================================
-// อัปเดตชื่อและสถานะบทบาทใน Nav Bar
+// อัปเดตชื่อและสถานะบทบาทใน Topbar
 // ==========================================
 function updateUserDisplay() {
-    const nameDisplay = document.getElementById('user-display');
-    if (!nameDisplay || !currentUser) return;
+    if (!currentUser) return;
 
     const fullName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
     let roleText = '';
 
     if (isAdminMode) {
-        roleText = ' (ผู้ดูแลระบบ)';
+        roleText = 'ผู้ดูแลระบบ';
     } else if (currentUserRole === 'teacher' || currentUserRole === 'staff') {
-        roleText = ' (ครูที่ปรึกษา)';
+        roleText = isHead ? 'หัวหน้า - ดูอย่างเดียว' : 'ครูที่ปรึกษา';
+    } else if (currentUserRole === 'super_admin') {
+        roleText = 'ผู้ดูแลระบบสูงสุด';
+    } else if (currentUserRole === 'admin') {
+        roleText = 'ผู้ดูแลระบบ';
+    } else if (currentUserRole === 'director') {
+        roleText = 'ผู้อำนวยการ';
+    } else if (currentUserRole === 'deputy') {
+        roleText = 'รองผู้อำนวยการ';
     } else if (isHead) {
-        roleText = ' (หัวหน้า - ดูอย่างเดียว)';
+        roleText = 'หัวหน้า - ดูอย่างเดียว';
     } else {
-        roleText = ' (บุคลากร)';
+        roleText = 'บุคลากร';
     }
 
-    nameDisplay.textContent = fullName + roleText;
-    nameDisplay.classList.remove('hidden');
-    nameDisplay.classList.add('block');
+    // ✅ Topbar elements (ใหม่)
+    const userNameEl = document.getElementById('userName');
+    const userRoleEl = document.getElementById('userRole');
+    if (userNameEl) userNameEl.textContent = fullName;
+    if (userRoleEl) userRoleEl.textContent = roleText;
+
+    // ✅ Topbar avatar
+    const avatarImg = document.getElementById('userAvatarImg');
+    const avatarInitial = document.getElementById('userAvatarInitial');
+    if (currentUser.avatar_staff_url) {
+        if (avatarImg) {
+            avatarImg.src = currentUser.avatar_staff_url;
+            avatarImg.style.display = 'block';
+        }
+        if (avatarInitial) avatarInitial.style.display = 'none';
+    } else {
+        if (avatarImg) {
+            avatarImg.src = '';
+            avatarImg.style.display = 'none';
+        }
+        if (avatarInitial) {
+            avatarInitial.style.display = '';
+            avatarInitial.textContent = (currentUser.first_name || '?').charAt(0).toUpperCase();
+        }
+    }
+
+    // ✅ เก็บ element เดิมไว้ใช้ fallback
+    const legacyDisplay = document.getElementById('user-display');
+    if (legacyDisplay) {
+        legacyDisplay.textContent = fullName + (roleText ? ` (${roleText})` : '');
+    }
 }
 
 // ==========================================
@@ -677,12 +723,35 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
             if (!sdqData || sdqData.length === 0) sdqDiv.innerHTML = '<div class="p-4 bg-slate-100 text-center rounded-xl">ยังไม่ได้ประเมิน</div>';
             else { sdqDiv.innerHTML = ''; sdqData.forEach(item => { const colorClass = item.result_summary === 'ปกติ' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'; sdqDiv.innerHTML += `<div class="flex justify-between p-3 rounded-lg border"><span>${getEvaluatorLabel(item.evaluator_type)}</span><span class="px-3 py-1 rounded-full text-xs ${colorClass}">${item.result_summary}</span></div>`; }); }
         }
-        const { data: eqData } = await db.from('eq_assessments').select('*').eq('student_id', studentId).maybeSingle();
+        const { data: eqData } = await db.from('eq_assessments')
+            .select('*')
+            .eq('student_id', studentId)
+            .maybeSingle();
         const eqDiv = document.getElementById('view_eq_container');
         if (eqDiv) {
-            if (!eqData) eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation"></i> ยังไม่ได้ประเมิน</div>';
-            else eqDiv.innerHTML = `<div class="text-3xl font-black ${eqData.result_summary === 'ปกติ' ? 'text-pink-600' : 'text-orange-500'}">${eqData.result_summary}</div><p class="text-sm">${eqData.detail || ''}</p>`;
+            if (!eqData) {
+                eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> ยังไม่ได้ประเมิน</div>';
+            } else {
+                const totalScore = eqData.score_total || 0;
+                const levelTotal = eqData.level_total || 'ไม่ระบุ';
+                let colorClass = 'text-pink-600';
+                if (levelTotal === 'สูงกว่าเกณฑ์') colorClass = 'text-green-600';
+                else if (levelTotal === 'เกณฑ์ปกติ') colorClass = 'text-blue-600';
+                else if (levelTotal === 'ต่ำกว่าเกณฑ์') colorClass = 'text-red-600';
+
+                eqDiv.innerHTML = `
+            <div class="text-3xl font-black ${colorClass}">${totalScore} <span class="text-base font-normal text-slate-500">/ 208</span></div>
+            <p class="text-sm font-bold mt-1">ระดับรวม: ${levelTotal}</p>
+            <div class="text-xs text-slate-500 mt-2 space-y-1">
+                <p>ด้านดี: ${eqData.score_good || 0}/72  (${eqData.level_good || '-'})</p>
+                <p>ด้านเก่ง: ${eqData.score_skill || 0}/72  (${eqData.level_skill || '-'})</p>
+                <p>ด้านสุข: ${eqData.score_happy || 0}/64  (${eqData.level_happy || '-'})</p>
+            </div>
+            <p class="text-[10px] text-slate-400 mt-2">ประเมินเมื่อ: ${eqData.completed_at ? new Date(eqData.completed_at).toLocaleDateString('th-TH') : '-'}</p>
+        `;
+            }
         }
+        
         safeSetText('view_club_name', await fetchStudentClub(studentId));
     } catch (err) { console.error(err); Swal.fire('ข้อผิดพลาด', 'ไม่สามารถแสดงข้อมูลบางส่วน', 'error'); }
     finally { const overlay = document.getElementById('modalLoadingOverlay'); if (overlay) overlay.classList.add('hidden'); }
@@ -695,7 +764,34 @@ function formatNationalId(id) {
 function getEvaluatorLabel(t) { const map = { student: 'นักเรียน', parent: 'ผู้ปกครอง', teacher: 'ครูประจำชั้น' }; return map[t] || t; }
 function renderAttendanceChart(p, a, l, pl, sl) { const ctx = document.getElementById('attendanceChart')?.getContext('2d'); if (ctx) { if (chartInstance) chartInstance.destroy(); chartInstance = new Chart(ctx, { type: 'doughnut', data: { labels: ['มาเรียน', 'ขาด', 'สาย', 'ลากิจ', 'ลาป่วย'], datasets: [{ data: [p, a, l, pl, sl], backgroundColor: ['#10b981', '#f43f5e', '#f97316', '#eab308', '#3b82f6'], borderWidth: 2 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: '65%', plugins: { legend: { position: 'right' } } } }); } }
 function closeStudentModal() { document.getElementById('studentDetailModal')?.classList.add('hidden'); activeStudentId = null; }
-function switchTab(tabId) { document.querySelectorAll('.tab-content').forEach(e => e.classList.add('hidden')); document.querySelectorAll('.tab-btn').forEach(e => e.classList.remove('text-blue-700', 'bg-blue-200/50')); const t = document.getElementById(tabId); if (t) t.classList.remove('hidden'); const btn = document.getElementById('btn-' + tabId); if (btn) btn.classList.add('text-blue-700', 'bg-blue-200/50'); }
+function switchTab(tabId) {
+    // ซ่อนทุก content
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+
+    // ลบ active จากทุกปุ่ม
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('text-blue-700', 'bg-blue-100', 'shadow-sm');
+        el.classList.add('text-slate-600');
+    });
+
+    // แสดง content
+    const target = document.getElementById(tabId);
+    if (target) target.classList.remove('hidden');
+
+    // Active state
+    const btn = document.getElementById('btn-' + tabId);
+    if (btn) {
+        btn.classList.remove('text-slate-600');
+        btn.classList.add('text-blue-700', 'bg-blue-100', 'shadow-sm');
+    }
+
+    // ปรับขนาด chart
+    if (tabId === 'tab2' && chartInstance) {
+        setTimeout(() => {
+            try { chartInstance.resize(); } catch (e) { /* ignore */ }
+        }, 50);
+    }
+}
 async function fetchStudentClub(id) { try { const { data: reg } = await db.from('club_registrations').select('club_id').eq('student_id', id).maybeSingle(); if (reg?.club_id) { const { data: ci } = await db.from('club_lists').select('club_name').eq('id', reg.club_id).maybeSingle(); return ci ? ci.club_name : 'ไม่พบชื่อชุมนุม'; } return 'ยังไม่ได้ลงทะเบียนชุมนุม'; } catch (e) { return 'ไม่สามารถดึงข้อมูลได้'; } }
 
 // ==========================================
@@ -833,7 +929,11 @@ window.onload = async () => {
         await window.logUserAction('เข้าสู่ระบบข้อมูลนักเรียน', 'info_teacher');
 
         document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
-
+        // ✅ แสดงหน้าเว็บ
+        const mainBody = document.getElementById('mainBody');
+        if (mainBody) {
+            mainBody.classList.replace('opacity-0', 'opacity-100');
+        }
     } catch (err) {
         console.error('Error initializing:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');

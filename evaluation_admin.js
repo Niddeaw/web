@@ -129,14 +129,23 @@ const STANDARD_FULL_ITEMS = [
 ];
 
 // ==========================================
-// ฟังก์ชันเริ่มต้น
+// INIT (ใช้ $(document).ready)
 // ==========================================
-window.onload = async () => {
-    await checkAuth();
-};
+$(document).ready(async function () {
+    const t0 = performance.now();
+    try {
+        await checkAuth();
+        console.log(`⚡ Admin init: ${Math.round(performance.now() - t0)} ms`);
+    } catch (err) {
+        console.error('Init error:', err);
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    } finally {
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    }
+});
 
 // ==========================================
-// ตรวจสอบสิทธิ์
+// ตรวจสอบสิทธิ์ (แก้ไขสำหรับเทมเพลตใหม่)
 // ==========================================
 async function checkAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
@@ -144,7 +153,10 @@ async function checkAuth() {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('index.html');
 
-    const { data: profile } = await db.from('core_personnel').select('*').eq('id', session.user.id).single();
+    const { data: profile } = await db.from('core_personnel')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
     currentUser = profile;
 
     // ✅ ตรวจสอบสิทธิ์ Admin
@@ -159,25 +171,32 @@ async function checkAuth() {
         return;
     }
 
-    document.getElementById('header_user_name').innerText = `${currentUser.first_name} ${currentUser.last_name}`;
-    document.getElementById('header_user_role').innerText = currentUser.role || '';
+    // ✅ UI มาตรฐานจาก dashboard_ui.js
+    setUserDisplayName(currentUser);
+    updateUserRoleLabel(currentUser.role);
+    renderUserAvatar(currentUser);
 
-    // โหลดข้อมูลพื้นฐาน
+    // ✅ Sidebar nav
+    $('#nav-admin').removeClass('hidden').addClass('active');
+    if (currentUser.role === 'super_admin') {
+        $('#nav-settings').removeClass('hidden');
+    }
+
+    // ✅ โหลดข้อมูลพื้นฐาน
     await loadSchoolInfo();
     await loadRounds();
     await loadPersonnel();
     await loadDepartments();
     await loadSubItems();
 
-    // โหลดข้อมูลตาม Tab (เรียกใช้จากไฟล์ย่อย)
+    // ✅ โหลดข้อมูลตาม Tab
     await loadRoundsTable();
     await loadGroupsTable();
     await loadResultsTable();
 
-    // โหลด dropdown
+    // ✅ โหลด dropdown
     await populateRoundDropdowns();
 
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     Swal.close();
 }
 
@@ -187,7 +206,6 @@ async function checkAuth() {
 async function loadSchoolInfo() {
     const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
     currentTermData = schoolInfo;
-    document.getElementById('header_school_term').innerText = `ภาคเรียนที่ ${schoolInfo.current_semester} / ${schoolInfo.current_academic_year}`;
 }
 
 // ==========================================

@@ -4,362 +4,561 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ข้อมูลนักเรียนรายบุคคล (Teacher View) - WRK System</title>
+    <title>ข้อมูลนักเรียนรายบุคคล (Teacher View) | WRK System</title>
 
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        .hide-scrollbar::-webkit-scrollbar {
-            display: none;
-        }
-
-        .hide-scrollbar {
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
         .info-card {
             transition: box-shadow 0.15s ease, transform 0.15s ease;
         }
-
         .info-card:hover {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
             transform: translateY(-1px);
         }
 
-        .upload-spinner {
-            display: none;
+        .upload-spinner { display: none; }
+        .upload-spinner.active { display: flex; }
+
+        /* ปุ่มโหมด toggle ใหม่ */
+        .d-topbar .hv-topbtn {
+            height: 40px;
+            padding: 0 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 13px;
+            border: 1px solid;
+            transition: background-color 0.15s, color 0.15s;
+            white-space: nowrap;
         }
 
-        .upload-spinner.active {
-            display: flex;
+        /* Profile hero modal */
+        .profile-hero {
+            background: linear-gradient(135deg, #3b82f6 0%, #6366f1 50%, #8b5cf6 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        .profile-hero::before {
+            content: '';
+            position: absolute;
+            top: -50%; right: -20%;
+            width: 400px; height: 400px;
+            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .profile-hero::after {
+            content: '';
+            position: absolute;
+            bottom: -60%; left: -10%;
+            width: 300px; height: 300px;
+            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        /* Tab pills */
+        .tab-btn {
+            transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+        }
+
+        /* DataTable styling */
+        #studentDataTable thead th {
+            background-color: #f8fafc;
+            font-weight: 700;
+            color: #475569;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        #studentDataTable tbody tr:hover {
+            background-color: #f8fafc;
         }
     </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 h-screen flex flex-col overflow-hidden">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <header
-        class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex justify-between items-center z-10 sticky top-0">
-        <div class="flex items-center gap-4">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 object-contain">
-            <div>
-                <h2 class="text-xl font-bold text-slate-800">ระบบสารสนเทศนักเรียนรายบุคคล (Student 360°)</h2>
-                <p id="pageBadge" class="text-xs text-slate-500">มุมมองครูที่ปรึกษา (Teacher View)</p>
-                <div id="termDisplay" class="text-xs font-semibold text-green-600 mt-1"></div>
+    <div class="d-app">
+
+        <!-- ================= Sidebar ================= -->
+        <aside class="d-sidebar" id="dSidebar">
+            <div class="d-brand">
+                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
+                <div><b>WRK System</b><span>ข้อมูลนักเรียน</span></div>
             </div>
-        </div>
-        <div class="flex items-center gap-3">
-            <span id="user-display" class="hidden md:block text-sm font-bold text-slate-700">กำลังโหลด...</span>
-            <button id="btnToggleMode" onclick="toggleTeacherAdminMode()"
-                class="hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95"></button>
-            <button id="btnSettings" onclick="openSettingsModal()"
-                class="hidden h-10 w-10 flex items-center justify-center rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 transition border border-amber-200 shadow-sm"
-                title="ตั้งค่าระบบอัปโหลดรูป (Admin)"><i class="fas fa-gear text-sm"></i></button>
-            <button onclick="window.location.href='index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                title="กลับหน้าหลัก"><i class="fas fa-house text-sm"></i></button>
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
-        </div>
-    </header>
+            <nav class="d-nav">
+                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
+                <a href="index.html" title="หน้าหลัก">
+                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
+                    <span class="d-label">หน้าหลัก</span>
+                </a>
 
-    <main class="flex-1 p-6 overflow-y-auto">
-        <div class="max-w-7xl mx-auto space-y-6">
+                <div class="d-nav-title">Student 360°</div>
+                <a class="active" title="ข้อมูลนักเรียนรายบุคคล">
+                    <span class="d-ico"><i class="fa-solid fa-user-graduate"></i></span>
+                    <span class="d-label">ข้อมูลนักเรียน</span>
+                </a>
 
-            <!-- Admin dropdown -->
-            <div id="adminFilterSection" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i
-                        class="fa-solid fa-filter text-blue-600 mr-1"></i> เลือกห้องเรียน (โหมดผู้ดูแลระบบ)</label>
-                <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
-                    <select id="classSelector"
-                        class="w-full md:w-1/3 border border-gray-300 rounded-lg px-4 py-2 outline-none focus:border-blue-500 font-sans">
-                        <option value="">-- เลือกห้องเรียน --</option>
-                    </select>
-                    <div id="adviserDisplay"
-                        class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
-                        <i class="fas fa-chalkboard-user text-blue-500"></i>
-                        <span class="text-slate-400 font-bold">ครูที่ปรึกษา:</span>
-                        <span id="adviserNames" class="font-bold text-slate-700">-</span>
+                <!-- Quick actions -->
+                <!-- <div class="d-nav-title">ทางลัด</div>
+                <a href="homevisit.html" title="ระบบเยี่ยมบ้าน">
+                    <span class="d-ico"><i class="fa-solid fa-house-chimney-user"></i></span>
+                    <span class="d-label">ระบบเยี่ยมบ้าน</span>
+                </a>
+                <a href="guidance_teacher.html" title="ระบบแนะแนว">
+                    <span class="d-ico"><i class="fa-solid fa-chalkboard-user"></i></span>
+                    <span class="d-label">ระบบแนะแนว</span>
+                </a> -->
+
+                <div class="d-nav-title">การตั้งค่า</div>
+                <a id="btnSettingsSidebar" class="hidden" onclick="openSettingsModal()" title="ตั้งค่าระบบอัปโหลด">
+                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
+                    <span class="d-label">ตั้งค่าระบบ</span>
+                </a>
+                <a class="logout" onclick="logout()" title="ออกจากระบบ">
+                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
+                    <span class="d-label">ออกจากระบบ</span>
+                </a>
+            </nav>
+            <div class="d-sidebar-bottom">
+                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn">
+                    <i class="fa-brands fa-facebook"></i>
+                    <span>ติดตามเพจโรงเรียน</span>
+                </a>
+            </div>
+        </aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
+
+        <!-- ================= Main ================= -->
+        <main class="d-main" id="dMain">
+
+            <!-- ============ Topbar ============ -->
+            <header class="d-topbar">
+                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
+                    <i class="fa-solid fa-angles-left"></i>
+                </button>
+
+                <h2 id="pageTitle">ข้อมูลนักเรียนรายบุคคล</h2>
+
+                <div class="d-spacer"></div>
+
+                <!-- Mode toggle -->
+                <button id="btnToggleMode" onclick="toggleTeacherAdminMode()"
+                    class="hidden hv-topbtn bg-purple-50 text-purple-600 border-purple-200"
+                    title="สลับโหมด">
+                    <i class="fa-solid fa-user-shield"></i>
+                    <span class="hidden sm:inline">โหมดแอดมิน</span>
+                </button>
+
+                <!-- GAS Settings -->
+                <button id="btnSettings" onclick="openSettingsModal()"
+                    class="hidden hv-topbtn bg-amber-50 text-amber-600 border-amber-200"
+                    title="ตั้งค่าระบบอัปโหลดรูป (Admin)">
+                    <i class="fas fa-gear"></i>
+                </button>
+
+                <div class="d-settings-wrap">
+                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                        <i class="fa-solid fa-sliders"></i>
+                        <span>แสดงผล</span>
+                    </button>
+                    <div class="d-settings-menu" id="settingsMenu">
+                        <div class="d-settings-title">ขนาดตัวอักษร</div>
+                        <div class="d-settings-options">
+                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
+                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
+                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
+                        </div>
+                        <div class="d-settings-title">ความหนาแน่น</div>
+                        <div class="d-settings-options cols-2">
+                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
+                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- ตารางนักเรียน -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-                <div id="no-classroom-msg" class="hidden py-16 text-center text-slate-400">
-                    <i class="fa-solid fa-school text-3xl mb-3 block"></i>
-                    <p class="font-bold">กรุณาเลือกห้องเรียนด้านบน</p>
+                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
+
+                <div class="d-profile">
+                    <div class="d-avatar-wrap">
+                        <div class="d-avatar" id="userAvatar">
+                            <span id="userAvatarInitial">?</span>
+                            <img id="userAvatarImg" src="" alt="" style="display:none;">
+                        </div>
+                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
+                    </div>
+                    <div>
+                        <b id="userName" class="text-sm">กำลังโหลด...</b>
+                        <small id="userRole">...</small>
+                    </div>
                 </div>
-                <table id="studentDataTable" class="w-full text-left text-sm display nowrap" style="width:100%">
-                    <thead>
-                        <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
-                            <th class="py-3 px-4 text-center">รูปภาพ</th>
-                            <th class="py-3 px-4 text-center">ชั้น</th>
-                            <th class="py-3 px-4 text-center">เลขที่</th>
-                            <th class="py-3 px-4">เลขประจำตัว</th>
-                            <th class="py-3 px-4">ชื่อ-นามสกุล</th>
-                            <th class="py-3 px-4 text-center">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-students"></tbody>
-                </table>
+            </header>
+
+            <!-- ================= Content ================= -->
+            <div style="padding:0 0 12px;" class="space-y-6">
+
+                <!-- Info bar -->
+                <div class="glass-card rounded-2xl p-4 flex justify-between items-center flex-wrap gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200">
+                            <i class="fa-solid fa-user-graduate"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm font-bold text-slate-800">Student 360° Report</p>
+                            <p id="pageBadge" class="text-xs text-slate-500">มุมมองครูที่ปรึกษา (Teacher View)</p>
+                        </div>
+                    </div>
+                    <div id="termDisplay" class="text-xs font-bold text-green-600 px-3 py-1.5 bg-green-50 rounded-xl border border-green-100"></div>
+                </div>
+
+                <!-- Admin dropdown -->
+                <div id="adminFilterSection" class="hidden glass-card rounded-2xl p-5">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">
+                        <i class="fa-solid fa-filter text-blue-600 mr-1"></i> เลือกห้องเรียน (โหมดผู้ดูแลระบบ)
+                    </label>
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-3">
+                        <select id="classSelector"
+                            class="w-full md:w-1/3 border border-gray-300 rounded-xl px-4 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 font-sans">
+                            <option value="">-- เลือกห้องเรียน --</option>
+                        </select>
+                        <div id="adviserDisplay"
+                            class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-600">
+                            <i class="fas fa-chalkboard-user text-blue-500"></i>
+                            <span class="text-slate-400 font-bold">ครูที่ปรึกษา:</span>
+                            <span id="adviserNames" class="font-bold text-slate-700">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Student table -->
+                <div class="glass-card rounded-2xl p-5">
+                    <div id="no-classroom-msg" class="hidden py-16 text-center text-slate-400">
+                        <i class="fa-solid fa-school text-3xl mb-3 block"></i>
+                        <p class="font-bold">กรุณาเลือกห้องเรียนด้านบน</p>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="studentDataTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                            <thead>
+                                <tr class="bg-gray-100 text-gray-600 border-b border-gray-200">
+                                    <th class="py-3 px-4 text-center">รูปภาพ</th>
+                                    <th class="py-3 px-4 text-center">ชั้น</th>
+                                    <th class="py-3 px-4 text-center">เลขที่</th>
+                                    <th class="py-3 px-4">เลขประจำตัว</th>
+                                    <th class="py-3 px-4">ชื่อ-นามสกุล</th>
+                                    <th class="py-3 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-students"></tbody>
+                        </table>
+                    </div>
+                </div>
+
             </div>
+        </main>
+    </div>
 
-        </div>
-    </main>
-
-    <!-- Settings Modal -->
+    <!-- ================= Settings Modal ================= -->
     <div id="settingsModal"
         class="hidden fixed inset-0 bg-slate-900/50 z-[200] flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white w-full max-w-md mx-4 rounded-2xl shadow-2xl overflow-hidden">
-            <div class="bg-amber-500 text-white px-6 py-4 flex justify-between items-center">
+        <div class="bg-white w-full max-w-md mx-4 rounded-3xl shadow-2xl overflow-hidden">
+            <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4 flex justify-between items-center">
                 <div class="flex items-center gap-3">
-                    <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center"><i
-                            class="fa-solid fa-gear text-lg"></i></div>
+                    <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                        <i class="fa-solid fa-gear text-lg"></i>
+                    </div>
                     <div>
                         <h3 class="font-bold text-base">ตั้งค่าระบบอัปโหลดรูปภาพ</h3>
                         <p class="text-xs opacity-80">Google Apps Script Integration</p>
                     </div>
-                </div><button onclick="closeSettingsModal()" class="text-white hover:text-amber-200 transition"><i
-                        class="fa-solid fa-xmark text-2xl"></i></button>
+                </div>
+                <button onclick="closeSettingsModal()" class="text-white hover:text-amber-200 transition">
+                    <i class="fa-solid fa-xmark text-2xl"></i>
+                </button>
             </div>
             <div class="p-6 space-y-5">
-                <div><label class="block text-sm font-bold text-slate-700 mb-1.5"><i
-                            class="fa-brands fa-google text-blue-500 mr-1"></i> GAS Web App URL</label><input type="url"
-                        id="settingsGasUrl" placeholder="https://script.google.com/macros/s/..."
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">
+                        <i class="fa-brands fa-google text-blue-500 mr-1"></i> GAS Web App URL
+                    </label>
+                    <input type="url" id="settingsGasUrl" placeholder="https://script.google.com/macros/s/..."
                         class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition font-mono" />
                     <p class="text-xs text-slate-400 mt-1">URL ของ Google Apps Script ที่ Deploy เป็น Web App</p>
                 </div>
-                <div><label class="block text-sm font-bold text-slate-700 mb-1.5"><i
-                            class="fa-brands fa-google-drive text-green-600 mr-1"></i> Google Drive Folder
-                        ID</label><input type="text" id="settingsFolderId"
+                <div>
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">
+                        <i class="fa-brands fa-google-drive text-green-600 mr-1"></i> Google Drive Folder ID
+                    </label>
+                    <input type="text" id="settingsFolderId"
                         placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
                         class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition font-mono" />
                     <p class="text-xs text-slate-400 mt-1">ID โฟลเดอร์ Google Drive สำหรับเก็บรูปโปรไฟล์</p>
                 </div>
-                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700"><i
-                        class="fa-solid fa-database mr-1"></i> การตั้งค่านี้จะถูกบันทึกลงในฐานข้อมูล
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700">
+                    <i class="fa-solid fa-database mr-1"></i> การตั้งค่านี้จะถูกบันทึกลงในฐานข้อมูล
                     <strong>core_school_info</strong> (ใช้ร่วมกันทุกคน)
                 </div>
-                <div class="flex gap-3 pt-1"><button onclick="saveSettings()"
-                        class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition text-sm"><i
-                            class="fa-solid fa-floppy-disk mr-1"></i> บันทึกการตั้งค่า</button><button
-                        onclick="closeSettingsModal()"
-                        class="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl transition text-sm">ยกเลิก</button>
+                <div class="flex gap-3 pt-1">
+                    <button onclick="saveSettings()"
+                        class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition text-sm">
+                        <i class="fa-solid fa-floppy-disk mr-1"></i> บันทึกการตั้งค่า
+                    </button>
+                    <button onclick="closeSettingsModal()"
+                        class="px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-2.5 rounded-xl transition text-sm">
+                        ยกเลิก
+                    </button>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Student Detail Modal (ครบทุก element) -->
+    <!-- ================= Student Detail Modal ================= -->
     <div id="studentDetailModal"
         class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <div
-            class="bg-white w-full h-full md:w-[95vw] md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
-            <div class="bg-blue-600 text-white px-6 py-4 flex justify-between items-center shrink-0">
-                <div class="flex items-center gap-4">
-                    <div class="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-2xl font-bold">
-                        <i class="fa-solid fa-user-graduate"></i>
+        <div class="bg-white w-full h-full md:w-[95vw] md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
+
+            <!-- Header bar -->
+            <div class="bg-slate-800 text-white px-6 py-3 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-3">
+                    <div class="w-8 h-8 bg-white/10 rounded-lg flex items-center justify-center">
+                        <i class="fa-solid fa-user-graduate text-sm"></i>
                     </div>
-                    <div>
-                        <h3 id="modalStudentName" class="text-xl font-bold">กำลังโหลด...</h3>
-                        <p id="modalStudentCode" class="text-sm opacity-80">รหัสประจำตัว: -</p>
+                    <span class="font-bold text-sm">Student 360° Report</span>
+                </div>
+                <button onclick="closeStudentModal()" class="text-white hover:text-red-200 transition-colors h-9 w-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+
+            <!-- Profile Hero -->
+            <div class="profile-hero shrink-0">
+                <div class="relative z-10 px-6 sm:px-8 py-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                    <!-- Avatar -->
+                    <div class="flex flex-col items-center gap-3 shrink-0">
+                        <div class="relative">
+                            <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-full border-4 border-white/80 shadow-2xl overflow-hidden cursor-pointer bg-white"
+                                onclick="openLightbox(document.getElementById('profileImage').src)">
+                                <img id="profileImage"
+                                    src="https://ui-avatars.com/api/?name=Student&background=dbeafe&color=1d4ed8&size=128&font-size=0.4"
+                                    class="w-full h-full object-cover" />
+                            </div>
+                            <span class="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                                <i class="fas fa-check text-white text-[10px]"></i>
+                            </span>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <label for="profileFileInput"
+                                class="bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2.5 rounded-xl text-white transition cursor-pointer border border-white/30"
+                                title="เลือกรูปใหม่">
+                                <i class="fas fa-camera"></i>
+                            </label>
+                            <button type="button" id="cloudUploadBtn"
+                                class="bg-white/20 hover:bg-white/30 backdrop-blur-sm p-2.5 rounded-xl text-white transition border border-white/30"
+                                title="อัปโหลดขึ้นระบบ">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </button>
+                            <button type="button" onclick="deleteProfilePicture()"
+                                class="bg-rose-500/80 hover:bg-rose-500 backdrop-blur-sm p-2.5 rounded-xl text-white transition border border-rose-300/40"
+                                title="ลบรูป">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+
+                        <div id="uploadSpinner" class="hidden flex items-center gap-1 text-xs text-white/90">
+                            <i class="fas fa-spinner fa-spin"></i> กำลังอัปโหลด...
+                        </div>
+                        <input type="file" id="profileFileInput" accept="image/*" class="hidden" />
+                    </div>
+
+                    <!-- Info -->
+                    <div class="flex-1 text-white text-center md:text-left min-w-0">
+                        <h3 id="modalStudentName" class="text-2xl sm:text-3xl font-black leading-tight">กำลังโหลด...</h3>
+                        <p id="modalStudentCode" class="text-sm opacity-90 mt-1 font-mono">รหัสประจำตัว: -</p>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-xs sm:text-sm">
+                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
+                                <i class="fa-solid fa-school opacity-80"></i>
+                                <span id="view_class_info" class="font-bold truncate">-</span>
+                            </div>
+                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
+                                <i class="fa-solid fa-user opacity-80"></i>
+                                <span id="view_fullname" class="font-bold truncate">-</span>
+                            </div>
+                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2 sm:col-span-2">
+                                <i class="fa-solid fa-id-badge opacity-80"></i>
+                                <span id="view_national_id" class="font-mono tracking-widest font-bold">-</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <button onclick="closeStudentModal()" class="text-white hover:text-red-200 transition-colors"><i
-                        class="fa-solid fa-xmark text-3xl"></i></button>
             </div>
-            <div
-                class="bg-blue-50 border-b border-blue-100 px-6 py-2 flex gap-2 overflow-x-auto shrink-0 hide-scrollbar">
+
+            <!-- Tabs bar -->
+            <div class="bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex gap-2 overflow-x-auto shrink-0 hide-scrollbar">
                 <button onclick="switchTab('tab1')" id="btn-tab1"
-                    class="tab-btn active px-4 py-2 rounded-xl font-bold text-blue-700 bg-blue-200/50 hover:bg-blue-200 transition-colors whitespace-nowrap"><i
-                        class="fa-solid fa-house-user mr-1"></i> 1. ประวัติ & ครอบครัว</button>
+                    class="tab-btn px-4 py-2.5 rounded-xl font-bold text-blue-700 bg-blue-100 shadow-sm hover:bg-blue-200 transition whitespace-nowrap flex items-center gap-2">
+                    <i class="fa-solid fa-house-user"></i>
+                    <span>ประวัติ & ครอบครัว</span>
+                </button>
                 <button onclick="switchTab('tab2')" id="btn-tab2"
-                    class="tab-btn px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition-colors whitespace-nowrap"><i
-                        class="fa-solid fa-clipboard-user mr-1"></i> 2. มาเรียน & ความประพฤติ</button>
+                    class="tab-btn px-4 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition whitespace-nowrap flex items-center gap-2">
+                    <i class="fa-solid fa-clipboard-user"></i>
+                    <span>มาเรียน & ความประพฤติ</span>
+                </button>
                 <button onclick="switchTab('tab3')" id="btn-tab3"
-                    class="tab-btn px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition-colors whitespace-nowrap"><i
-                        class="fa-solid fa-brain mr-1"></i> 3. ประเมิน SDQ/EQ</button>
+                    class="tab-btn px-4 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition whitespace-nowrap flex items-center gap-2">
+                    <i class="fa-solid fa-brain"></i>
+                    <span>ประเมิน SDQ/EQ</span>
+                </button>
                 <button onclick="switchTab('tab4')" id="btn-tab4"
-                    class="tab-btn px-4 py-2 rounded-xl font-bold text-slate-600 hover:bg-blue-100 hover:text-blue-700 transition-colors whitespace-nowrap"><i
-                        class="fa-solid fa-people-group mr-1"></i> 4. กิจกรรมชุมนุม</button>
+                    class="tab-btn px-4 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-blue-50 hover:text-blue-700 transition whitespace-nowrap flex items-center gap-2">
+                    <i class="fa-solid fa-people-group"></i>
+                    <span>ชุมนุม</span>
+                </button>
             </div>
+
+            <!-- Loading overlay -->
             <div id="modalLoadingOverlay"
                 class="hidden absolute inset-0 bg-white/80 z-10 flex items-center justify-center">
-                <div class="text-center"><i class="fa-solid fa-spinner fa-spin text-blue-600 text-4xl mb-3"></i>
+                <div class="text-center">
+                    <i class="fa-solid fa-spinner fa-spin text-blue-600 text-4xl mb-3"></i>
                     <p class="text-slate-600 font-bold">กำลังโหลดข้อมูลนักเรียน...</p>
                 </div>
             </div>
-            <div class="p-6 overflow-y-auto flex-1 bg-slate-50/80">
-                <!-- Tab 1 -->
+
+            <!-- Tab contents -->
+            <div class="p-4 sm:p-6 overflow-y-auto flex-1 bg-slate-50/80">
+
+                <!-- ===== TAB 1 ===== -->
                 <div id="tab1" class="tab-content block space-y-6">
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <h4 class="font-bold text-blue-800 text-lg mb-4 border-b pb-2"><i
-                                class="fa-solid fa-id-card mr-1"></i> ข้อมูลนักเรียน</h4>
-                        <div class="flex flex-col md:flex-row gap-6 items-start">
-                            <div class="flex flex-col items-center gap-3 shrink-0">
-                                <div class="w-32 h-32 rounded-full border-4 border-blue-200 shadow-md overflow-hidden cursor-pointer"
-                                    onclick="openLightbox(document.getElementById('profileImage').src)">
-                                    <img id="profileImage"
-                                        src="https://ui-avatars.com/api/?name=Student&background=dbeafe&color=1d4ed8&size=128&font-size=0.4"
-                                        class="w-full h-full object-cover" />
-                                </div>
-                                <div class="flex gap-3">
-                                    <label for="profileFileInput"
-                                        class="bg-gray-200 hover:bg-gray-300 p-2 rounded-full text-blue-600 transition cursor-pointer"><i
-                                            class="fas fa-camera fa-lg"></i></label>
-                                    <button type="button" id="cloudUploadBtn"
-                                        class="bg-gray-200 hover:bg-gray-300 p-2 rounded-full text-green-600 transition"><i
-                                            class="fas fa-cloud-upload-alt fa-lg"></i></button>
-                                </div>
-                                <!-- วางไว้ใกล้ปุ่มกล้อง/อัปโหลด -->
-                                <button onclick="deleteProfilePicture()"
-                                    class="bg-rose-50 text-rose-600 px-3 py-2 rounded-xl text-xs font-bold hover:bg-rose-100 transition border border-rose-200">
-                                    <i class="fa-solid fa-trash"></i> ลบรูป
-                                </button>
-                                <div id="uploadSpinner" class="hidden flex items-center gap-1 text-xs text-slate-500"><i
-                                        class="fas fa-spinner fa-spin"></i> กำลังอัปโหลด...</div>
-                                <input type="file" id="profileFileInput" accept="image/*" class="hidden" />
-                                <p class="text-xs text-slate-400 text-center">เลือกรูป แล้วกดปุ่มเมฆ</p>
-                            </div>
-                            <div class="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div class="info-card bg-blue-50 rounded-xl border border-blue-100 p-4"><span
-                                        class="text-xs text-blue-500 font-bold uppercase tracking-wide block mb-1"><i
-                                            class="fa-solid fa-user mr-1"></i> ชื่อ-นามสกุล</span><span
-                                        id="view_fullname" class="text-base font-bold text-blue-900">-</span></div>
-                                <div class="info-card bg-slate-50 rounded-xl border border-slate-200 p-4"><span
-                                        class="text-xs text-slate-500 font-bold uppercase tracking-wide block mb-1"><i
-                                            class="fa-solid fa-school mr-1"></i> ชั้น / เลขที่</span><span
-                                        id="view_class_info" class="text-base font-bold text-slate-800">-</span></div>
-                                <div class="info-card bg-slate-50 rounded-xl border border-slate-200 p-4 sm:col-span-2">
-                                    <span class="text-xs text-slate-500 font-bold uppercase tracking-wide block mb-1"><i
-                                            class="fa-solid fa-id-badge mr-1"></i> เลขบัตรประชาชน</span><span
-                                        id="view_national_id"
-                                        class="text-base font-bold text-slate-800 font-mono tracking-widest">-</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <div class="flex justify-between items-center mb-4 border-b pb-2">
-                            <h4 class="font-bold text-blue-800 text-lg"><i class="fa-solid fa-people-roof mr-1"></i>
-                                ข้อมูลครอบครัวและผู้ปกครอง</h4><span id="view_parent_status"
-                                class="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">สถานะครอบครัว:
-                                กำลังโหลด...</span>
+                        <div class="flex justify-between items-center mb-4 border-b pb-2 flex-wrap gap-2">
+                            <h4 class="font-bold text-blue-800 text-lg flex items-center gap-2">
+                                <i class="fa-solid fa-people-roof"></i> ข้อมูลครอบครัวและผู้ปกครอง
+                            </h4>
+                            <span id="view_parent_status"
+                                class="px-3 py-1 bg-indigo-100 text-indigo-700 text-xs font-bold rounded-full">
+                                สถานะครอบครัว: กำลังโหลด...
+                            </span>
                         </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <h5 class="font-bold text-slate-700 mb-2 border-b pb-1"><i
-                                        class="fa-solid fa-person text-blue-500 mr-1"></i> ข้อมูลบิดา</h5>
+                                <h5 class="font-bold text-slate-700 mb-2 border-b pb-1 flex items-center gap-1">
+                                    <i class="fa-solid fa-person text-blue-500"></i> ข้อมูลบิดา
+                                </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_father_name"
-                                            class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_father_job"
-                                            class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_father_phone"
-                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_father_name" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_father_job" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_father_phone" class="font-semibold">-</span></p>
                                 </div>
                             </div>
                             <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                                <h5 class="font-bold text-slate-700 mb-2 border-b pb-1"><i
-                                        class="fa-solid fa-person-dress text-pink-500 mr-1"></i> ข้อมูลมารดา</h5>
+                                <h5 class="font-bold text-slate-700 mb-2 border-b pb-1 flex items-center gap-1">
+                                    <i class="fa-solid fa-person-dress text-pink-500"></i> ข้อมูลมารดา
+                                </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_mother_name"
-                                            class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_mother_job"
-                                            class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_mother_phone"
-                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_mother_name" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_mother_job" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_mother_phone" class="font-semibold">-</span></p>
                                 </div>
                             </div>
                             <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 ring-1 ring-blue-200">
-                                <h5 class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1"><i
-                                        class="fa-solid fa-user-shield mr-1"></i> ผู้ปกครอง (ผู้ดูแลปัจจุบัน)</h5>
+                                <h5 class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1 flex items-center gap-1">
+                                    <i class="fa-solid fa-user-shield"></i> ผู้ปกครอง (ผู้ดูแลปัจจุบัน)
+                                </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_guardian_name"
-                                            class="font-bold text-blue-700">-</span></p>
-                                    <p><span class="text-slate-500">เกี่ยวข้องเป็น:</span> <span
-                                            id="view_guardian_relation" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_guardian_job"
-                                            class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_guardian_phone"
-                                            class="font-bold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_guardian_name" class="font-bold text-blue-700">-</span></p>
+                                    <p><span class="text-slate-500">เกี่ยวข้องเป็น:</span> <span id="view_guardian_relation" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_guardian_job" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_guardian_phone" class="font-bold">-</span></p>
                                 </div>
                             </div>
                         </div>
                     </div>
+
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
-                        <h4 class="font-bold text-teal-800 mb-3 border-b pb-2"><i
-                                class="fa-solid fa-map-location-dot mr-1"></i> ที่อยู่ปัจจุบัน</h4>
-                        <p id="view_address" class="text-sm font-medium text-slate-700">กำลังโหลด...</p>
+                        <h4 class="font-bold text-teal-800 mb-3 border-b pb-2 flex items-center gap-2">
+                            <i class="fa-solid fa-map-location-dot"></i> ที่อยู่ปัจจุบัน
+                        </h4>
+                        <p id="view_address" class="text-sm font-medium text-slate-700 leading-relaxed">กำลังโหลด...</p>
                     </div>
                 </div>
-                <!-- Tab 2 -->
+
+                <!-- ===== TAB 2 ===== -->
                 <div id="tab2" class="tab-content hidden space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                            <h4 class="font-bold text-indigo-800 mb-4 border-b pb-2"><i
-                                    class="fa-solid fa-calendar-check mr-1"></i> สถิติการมาเรียน (วันเปิดเรียน <span
-                                    id="total_school_days">0</span> วัน)</h4>
+                            <h4 class="font-bold text-indigo-800 mb-4 border-b pb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-calendar-check"></i>
+                                สถิติการมาเรียน
+                                <span class="text-xs font-normal text-slate-500">(วันเปิดเรียน <span id="total_school_days">0</span> วัน)</span>
+                            </h4>
                             <div class="relative h-64 w-full"><canvas id="attendanceChart"></canvas></div>
-                            <div class="grid grid-cols-5 gap-2 mt-4 text-center">
-                                <div class="bg-emerald-50 p-2 rounded-lg">มา<br><span id="stat_present"
-                                        class="text-lg">0</span></div>
-                                <div class="bg-rose-50 p-2 rounded-lg">ขาด<br><span id="stat_absent"
-                                        class="text-lg">0</span></div>
-                                <div class="bg-orange-50 p-2 rounded-lg">สาย<br><span id="stat_late"
-                                        class="text-lg">0</span></div>
-                                <div class="bg-yellow-50 p-2 rounded-lg">ลากิจ<br><span id="stat_pleave"
-                                        class="text-lg">0</span></div>
-                                <div class="bg-blue-50 p-2 rounded-lg">ลาป่วย<br><span id="stat_sleave"
-                                        class="text-lg">0</span></div>
+                            <div class="grid grid-cols-5 gap-2 mt-4 text-center text-xs font-bold">
+                                <div class="bg-emerald-50 p-2 rounded-lg text-emerald-700">มา<br><span id="stat_present" class="text-lg">0</span></div>
+                                <div class="bg-rose-50 p-2 rounded-lg text-rose-700">ขาด<br><span id="stat_absent" class="text-lg">0</span></div>
+                                <div class="bg-orange-50 p-2 rounded-lg text-orange-700">สาย<br><span id="stat_late" class="text-lg">0</span></div>
+                                <div class="bg-yellow-50 p-2 rounded-lg text-yellow-700">ลากิจ<br><span id="stat_pleave" class="text-lg">0</span></div>
+                                <div class="bg-blue-50 p-2 rounded-lg text-blue-700">ลาป่วย<br><span id="stat_sleave" class="text-lg">0</span></div>
                             </div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                            <h4 class="font-bold text-rose-800 border-b pb-2 mb-4"><i class="fa-solid fa-star mr-1"></i>
-                                สรุปคะแนนความประพฤติ</h4>
+                            <h4 class="font-bold text-rose-800 border-b pb-2 mb-4 flex items-center gap-2">
+                                <i class="fa-solid fa-star"></i> สรุปคะแนนความประพฤติ
+                            </h4>
                             <div class="flex justify-center py-6">
-                                <div class="text-center"><span
-                                        class="text-sm text-slate-500 font-bold">คะแนนคงเหลือปัจจุบัน</span>
+                                <div class="text-center">
+                                    <span class="text-sm text-slate-500 font-bold">คะแนนคงเหลือปัจจุบัน</span>
                                     <div id="view_behavior_score" class="text-6xl font-black text-rose-600">100</div>
                                 </div>
                             </div>
                             <div class="grid grid-cols-2 gap-4 text-center">
-                                <div class="bg-emerald-50 p-3 rounded-xl"><span
-                                        class="text-xs text-emerald-600 font-bold">บวกเพิ่มแล้ว</span><span
-                                        id="score_added" class="text-xl font-black text-emerald-600">+0</span></div>
-                                <div class="bg-rose-50 p-3 rounded-xl"><span
-                                        class="text-xs text-rose-600 font-bold">ถูกหักแล้ว</span><span
-                                        id="score_deducted" class="text-xl font-black text-rose-600">-0</span></div>
+                                <div class="bg-emerald-50 p-3 rounded-xl">
+                                    <span class="text-xs text-emerald-600 font-bold">บวกเพิ่มแล้ว</span>
+                                    <span id="score_added" class="text-xl font-black text-emerald-600 block">+0</span>
+                                </div>
+                                <div class="bg-rose-50 p-3 rounded-xl">
+                                    <span class="text-xs text-rose-600 font-bold">ถูกหักแล้ว</span>
+                                    <span id="score_deducted" class="text-xl font-black text-rose-600 block">-0</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-                <!-- Tab 3 -->
+
+                <!-- ===== TAB 3 ===== -->
                 <div id="tab3" class="tab-content hidden space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                            <h4 class="font-bold text-purple-800 mb-4 border-b pb-2"><i
-                                    class="fa-solid fa-clipboard-list mr-1"></i> ผลการประเมิน SDQ</h4>
+                            <h4 class="font-bold text-purple-800 mb-4 border-b pb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-list"></i> ผลการประเมิน SDQ
+                            </h4>
                             <div id="view_sdq" class="space-y-3"></div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                            <h4 class="font-bold text-pink-800 mb-4 border-b pb-2"><i
-                                    class="fa-solid fa-heart-pulse mr-1"></i> ผลการประเมิน EQ</h4>
+                            <h4 class="font-bold text-pink-800 mb-4 border-b pb-2 flex items-center gap-2">
+                                <i class="fa-solid fa-heart-pulse"></i> ผลการประเมิน EQ
+                            </h4>
                             <div id="view_eq_container"
-                                class="flex flex-col items-center justify-center h-48 bg-slate-50 rounded-xl"></div>
+                                class="flex flex-col items-center justify-center min-h-[12rem] bg-slate-50 rounded-xl p-4"></div>
                         </div>
                     </div>
                 </div>
-                <!-- Tab 4 -->
-                <div id="tab4" class="tab-content hidden h-full">
+
+                <!-- ===== TAB 4 ===== -->
+                <div id="tab4" class="tab-content hidden">
                     <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
-                        <div
-                            class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-4 mx-auto">
+                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto shadow-lg shadow-blue-200">
                             <i class="fa-solid fa-people-group"></i>
                         </div>
                         <h4 class="font-bold text-slate-500 mb-1">ชุมนุมที่เลือกเรียน (เทอมปัจจุบัน)</h4>
@@ -370,7 +569,7 @@
         </div>
     </div>
 
-    <!-- Lightbox Modal -->
+    <!-- ================= Lightbox Modal ================= -->
     <div id="lightboxModal"
         class="hidden fixed inset-0 bg-black/90 z-[300] flex items-center justify-center cursor-pointer"
         onclick="closeLightbox()">
@@ -378,6 +577,8 @@
         <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300">&times;</button>
     </div>
 
+    <!-- ================= Scripts ================= -->
+    <script src="dashboard_ui.js"></script>
     <script src="info_teacher.js"></script>
 </body>
 

@@ -1,4 +1,8 @@
-// info_student.js - สำหรับนักเรียนดูข้อมูลของตนเอง (ฉบับสมบูรณ์)
+// ==========================================
+// info_student.js — สำหรับนักเรียนดูข้อมูลของตนเอง
+// (ปรับปรุง: topbar display + topbar avatar sync + loading hide)
+// ==========================================
+
 let currentStudentId = null;
 let chartInstance = null;
 let gasSettingsCache = null;
@@ -7,16 +11,73 @@ let currentSemester = null;
 let pendingProfileFile = null;
 let moduleSettings = { gas_avatar_api_url: "", gas_avatar_folder_id: "" };
 
-// Helper safe
-function safeSetText(id, text) { const el = document.getElementById(id); if(el) el.innerText = text; else console.warn(`Element ${id} not found`); }
-function safeSetHtml(id, html) { const el = document.getElementById(id); if(el) el.innerHTML = html; else console.warn(`Element ${id} not found`); }
-function safeSetSrc(id, src) { const el = document.getElementById(id); if(el) el.src = src; else console.warn(`Element ${id} not found`); }
+// ==========================================
+// ✅ HELPER: Safe DOM manipulation
+// ==========================================
+function safeSetText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.innerText = text;
+    else console.warn(`Element ${id} not found`);
+}
+function safeSetHtml(id, html) {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = html;
+    else console.warn(`Element ${id} not found`);
+}
+function safeSetSrc(id, src) {
+    const el = document.getElementById(id);
+    if (el) el.src = src;
+    else console.warn(`Element ${id} not found`);
+}
 
-// ========== โหลดปี/ภาคปัจจุบัน ==========
+// ==========================================
+// ✅ PATCH: ตั้งค่าข้อมูลนักเรียนใน topbar
+// ==========================================
+function applyStudentToTopbar(student) {
+    if (!student) return;
+
+    // ชื่อ-นามสกุล
+    const fullName = `${student.prefix || ''}${student.first_name || ''} ${student.last_name || ''}`.trim();
+    const userNameEl = document.getElementById('userName');
+    if (userNameEl) userNameEl.textContent = fullName || 'นักเรียน';
+
+    // Role
+    const userRoleEl = document.getElementById('userRole');
+    if (userRoleEl) userRoleEl.textContent = 'นักเรียน';
+
+    // Avatar (ถ้ามีรูป)
+    const avatarImg = document.getElementById('userAvatarImg');
+    const avatarInitial = document.getElementById('userAvatarInitial');
+
+    if (student.avatar_students_url) {
+        if (avatarImg) {
+            avatarImg.src = student.avatar_students_url;
+            avatarImg.style.display = 'block';
+        }
+        if (avatarInitial) avatarInitial.style.display = 'none';
+    } else {
+        if (avatarImg) {
+            avatarImg.src = '';
+            avatarImg.style.display = 'none';
+        }
+        if (avatarInitial) {
+            avatarInitial.style.display = '';
+            const initial = (student.first_name || '?').charAt(0).toUpperCase();
+            avatarInitial.textContent = initial;
+        }
+    }
+}
+window.applyStudentToTopbar = applyStudentToTopbar;
+
+// ==========================================
+// โหลดปี/ภาคปัจจุบัน
+// ==========================================
 async function loadCurrentYearAndSemester() {
     if (currentAcademicYear !== null && currentSemester !== null) return;
     try {
-        const { data, error } = await db.from('core_school_info').select('current_academic_year, current_semester').single();
+        const { data, error } = await db.from('core_school_info')
+            .select('current_academic_year, current_semester')
+            .single();
         if (error) throw error;
         currentAcademicYear = data?.current_academic_year || 2567;
         currentSemester = data?.current_semester || 1;
@@ -28,19 +89,30 @@ async function loadCurrentYearAndSemester() {
         updateTermDisplay();
     }
 }
+
 function updateTermDisplay() {
     const el = document.getElementById('termDisplay');
-    if (el && currentAcademicYear && currentSemester) el.innerHTML = `📅 ภาคเรียนที่ ${currentSemester} ปีการศึกษา ${currentAcademicYear}`;
+    if (el && currentAcademicYear && currentSemester) {
+        el.innerHTML = `📅 ภาคเรียนที่ ${currentSemester} ปีการศึกษา ${currentAcademicYear}`;
+    }
 }
 
-// ========== GAS Settings ==========
+// ==========================================
+// GAS Settings
+// ==========================================
 async function loadGasSettings() {
     if (gasSettingsCache) return gasSettingsCache;
     try {
-        let { data, error } = await db.from('core_school_info').select('gas_avatar_api_url, gas_avatar_folder_id').limit(1).maybeSingle();
+        let { data, error } = await db.from('core_school_info')
+            .select('gas_avatar_api_url, gas_avatar_folder_id')
+            .limit(1)
+            .maybeSingle();
         if (error) throw error;
         if (!data) {
-            const { data: inserted, error: insertError } = await db.from('core_school_info').insert({ gas_avatar_api_url: '', gas_avatar_folder_id: '' }).select().single();
+            const { data: inserted, error: insertError } = await db.from('core_school_info')
+                .insert({ gas_avatar_api_url: '', gas_avatar_folder_id: '' })
+                .select()
+                .single();
             if (insertError) throw insertError;
             data = inserted;
         }
@@ -54,7 +126,9 @@ async function loadGasSettings() {
     }
 }
 
-// ========== อัปโหลดรูป (compressImage) ==========
+// ==========================================
+// อัปโหลดรูป (compressImage)
+// ==========================================
 async function compressImage(file, maxSizeMB = 2) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -66,9 +140,15 @@ async function compressImage(file, maxSizeMB = 2) {
                 const canvas = document.createElement('canvas');
                 let width = img.width, height = img.height;
                 const MAX_SIZE = 1920;
-                if (width > height && width > MAX_SIZE) { height *= MAX_SIZE / width; width = MAX_SIZE; }
-                else if (height > MAX_SIZE) { width *= MAX_SIZE / height; height = MAX_SIZE; }
-                canvas.width = width; canvas.height = height;
+                if (width > height && width > MAX_SIZE) {
+                    height *= MAX_SIZE / width;
+                    width = MAX_SIZE;
+                } else if (height > MAX_SIZE) {
+                    width *= MAX_SIZE / height;
+                    height = MAX_SIZE;
+                }
+                canvas.width = width;
+                canvas.height = height;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(img, 0, 0, width, height);
                 let quality = 0.9;
@@ -84,23 +164,43 @@ async function compressImage(file, maxSizeMB = 2) {
         reader.onerror = reject;
     });
 }
+
 async function uploadProfilePicture(file, studentCode) {
     const GAS_URL = moduleSettings.gas_avatar_api_url;
     const FOLDER_ID = moduleSettings.gas_avatar_folder_id;
     if (!GAS_URL || !FOLDER_ID) {
-        Swal.fire({ icon: 'info', title: 'ยังไม่ตั้งค่าระบบอัปโหลด', html: '<p class="text-sm">กรุณาติดต่อผู้ดูแลระบบ</p>', confirmButtonText: 'รับทราบ' });
+        Swal.fire({
+            icon: 'info',
+            title: 'ยังไม่ตั้งค่าระบบอัปโหลด',
+            html: '<p class="text-sm">กรุณาติดต่อผู้ดูแลระบบ</p>',
+            confirmButtonText: 'รับทราบ'
+        });
         return null;
     }
-    Swal.fire({ title: 'กำลังอัปโหลด...', allowOutsideClick: false, showConfirmButton: false, didOpen: () => Swal.showLoading() });
+    Swal.fire({
+        title: 'กำลังอัปโหลด...',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        didOpen: () => Swal.showLoading()
+    });
     try {
         const compressedBase64 = await compressImage(file, 2);
         const response = await fetch(GAS_URL, {
             method: "POST",
-            body: JSON.stringify({ action: 'upload', base64: compressedBase64, fileName: `avatar_${studentCode}.jpg`, folderId: FOLDER_ID })
+            body: JSON.stringify({
+                action: 'upload',
+                base64: compressedBase64,
+                fileName: `avatar_${studentCode}.jpg`,
+                folderId: FOLDER_ID
+            })
         });
         const result = await response.json();
-        if (result.status === 'success' && result.url) { Swal.close(); return result.url; }
-        else throw new Error(result.message || "ไม่สามารถอัปโหลดได้");
+        if (result.status === 'success' && result.url) {
+            Swal.close();
+            return result.url;
+        } else {
+            throw new Error(result.message || "ไม่สามารถอัปโหลดได้");
+        }
     } catch (err) {
         Swal.close();
         Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error');
@@ -108,7 +208,9 @@ async function uploadProfilePicture(file, studentCode) {
     }
 }
 
-// ========== จัดการรูป (กล้อง + เมฆ) ==========
+// ==========================================
+// จัดการรูป (กล้อง + เมฆ)
+// ==========================================
 function onFileSelected(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -118,26 +220,57 @@ function onFileSelected(event) {
     reader.onload = (e) => safeSetSrc('profileImage', e.target.result);
     reader.readAsDataURL(file);
 }
+
 async function uploadPendingProfile() {
-    if (!pendingProfileFile) return Swal.fire('ยังไม่มีรูป', 'กรุณาเลือกรูปด้วยปุ่มกล้องก่อน', 'info');
+    if (!pendingProfileFile) {
+        return Swal.fire('ยังไม่มีรูป', 'กรุณาเลือกรูปด้วยปุ่มกล้องก่อน', 'info');
+    }
     if (!currentStudentId) return;
-    const { data: student, error } = await db.from('core_students').select('student_id_card').eq('id', currentStudentId).single();
+
+    const { data: student, error } = await db.from('core_students')
+        .select('student_id_card')
+        .eq('id', currentStudentId)
+        .single();
     if (error || !student) return Swal.fire('ข้อผิดพลาด', 'ไม่พบรหัสนักเรียน', 'error');
+
     const spinner = document.getElementById('uploadSpinner');
     if (spinner) spinner.classList.remove('hidden');
+
     const driveUrl = await uploadProfilePicture(pendingProfileFile, student.student_id_card);
+
     if (driveUrl) {
-        await db.from('core_students').update({ avatar_students_url: driveUrl }).eq('id', currentStudentId);
+        await db.from('core_students')
+            .update({ avatar_students_url: driveUrl })
+            .eq('id', currentStudentId);
         safeSetSrc('profileImage', driveUrl);
-        Swal.fire({ icon: 'success', title: 'อัปโหลดสำเร็จ', timer: 1500, showConfirmButton: false });
+
+        // ✅ PATCH: อัปเดต avatar ใน topbar ทันที
+        const topbarImg = document.getElementById('userAvatarImg');
+        const topbarInitial = document.getElementById('userAvatarInitial');
+        if (topbarImg) {
+            topbarImg.src = driveUrl;
+            topbarImg.style.display = 'block';
+        }
+        if (topbarInitial) topbarInitial.style.display = 'none';
+
+        Swal.fire({
+            icon: 'success',
+            title: 'อัปโหลดสำเร็จ',
+            timer: 1500,
+            showConfirmButton: false
+        });
         pendingProfileFile = null;
     }
+
     if (spinner) spinner.classList.add('hidden');
 }
 
-// ========== ลบรูปโปรไฟล์ ==========
+// ==========================================
+// ลบรูปโปรไฟล์
+// ==========================================
 async function deleteProfilePicture() {
     if (!currentStudentId) return;
+
     const result = await Swal.fire({
         icon: 'warning',
         title: 'ลบรูปโปรไฟล์?',
@@ -148,26 +281,67 @@ async function deleteProfilePicture() {
         cancelButtonText: 'ยกเลิก'
     });
     if (!result.isConfirmed) return;
-    const { error } = await db.from('core_students').update({ avatar_students_url: null }).eq('id', currentStudentId);
+
+    const { error } = await db.from('core_students')
+        .update({ avatar_students_url: null })
+        .eq('id', currentStudentId);
     if (error) return Swal.fire('ผิดพลาด', 'ไม่สามารถลบรูปได้', 'error');
+
     const el = document.getElementById('profileImage');
     if (el) {
         const fullName = document.getElementById('modalStudentName')?.innerText || '';
         el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`;
     }
+
+    // ✅ PATCH: รีเซ็ต avatar ใน topbar กลับเป็น initial
+    const topbarImg = document.getElementById('userAvatarImg');
+    const topbarInitial = document.getElementById('userAvatarInitial');
+    if (topbarImg) {
+        topbarImg.src = '';
+        topbarImg.style.display = 'none';
+    }
+    if (topbarInitial) {
+        topbarInitial.style.display = '';
+        const nameText = document.getElementById('modalStudentName')?.innerText || '?';
+        topbarInitial.textContent = nameText.charAt(0).toUpperCase();
+    }
+
     pendingProfileFile = null;
-    Swal.fire({ icon: 'success', title: 'ลบรูปเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
+    Swal.fire({
+        icon: 'success',
+        title: 'ลบรูปเรียบร้อยแล้ว',
+        timer: 1500,
+        showConfirmButton: false
+    });
 }
 
-// ========== Lightbox ==========
-function openLightbox(imgSrc) { if(imgSrc){ const img = document.getElementById('lightboxImage'); if(img) img.src = imgSrc; document.getElementById('lightboxModal')?.classList.remove('hidden'); } }
-function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
+// ==========================================
+// Lightbox
+// ==========================================
+function openLightbox(imgSrc) {
+    if (imgSrc) {
+        const img = document.getElementById('lightboxImage');
+        if (img) img.src = imgSrc;
+        document.getElementById('lightboxModal')?.classList.remove('hidden');
+    }
+}
+function closeLightbox() {
+    document.getElementById('lightboxModal')?.classList.add('hidden');
+}
 
-// ========== โหลดและแสดงข้อมูลนักเรียน (ปรับปรุงแล้ว) ==========
+// ==========================================
+// ✅ โหลดและแสดงข้อมูลนักเรียน
+// ==========================================
 async function openMyData(studentId, studentData) {
     const modal = document.getElementById('studentDetailModal');
     if (!modal) return;
+
     modal.classList.remove('hidden');
+
+    // ✅ PATCH: ซ่อน #loadingContainer
+    const loadingContainer = document.getElementById('loadingContainer');
+    if (loadingContainer) loadingContainer.classList.add('is-hidden');
+
     const overlay = document.getElementById('modalLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
 
@@ -179,7 +353,7 @@ async function openMyData(studentId, studentData) {
     safeSetText('view_national_id', studentData.national_id ? formatNationalId(studentData.national_id) : 'ไม่มีข้อมูล');
 
     try {
-        // ✅ 1. ดึงข้อมูลชั้นเรียนและเลขที่ (ไม่ต้องกรองปี/ภาค)
+        // ✅ 1. ดึงข้อมูลชั้นเรียนและเลขที่
         const { data: enroll } = await db.from('student_enrollments')
             .select('student_number, core_classrooms(grade_level, room_number)')
             .eq('student_id', studentId)
@@ -211,14 +385,16 @@ async function openMyData(studentId, studentData) {
                 homeVisit = data;
                 console.log('📋 homeVisit data:', homeVisit);
             }
-        } catch(err) {
+        } catch (err) {
             console.error('❌ Exception fetching homeVisit:', err);
         }
 
-        const requiredIds = ['view_parent_status', 'view_father_name', 'view_father_job', 'view_father_phone',
-                             'view_mother_name', 'view_mother_job', 'view_mother_phone',
-                             'view_guardian_name', 'view_guardian_relation', 'view_guardian_job', 'view_guardian_phone',
-                             'view_address'];
+        const requiredIds = [
+            'view_parent_status', 'view_father_name', 'view_father_job', 'view_father_phone',
+            'view_mother_name', 'view_mother_job', 'view_mother_phone',
+            'view_guardian_name', 'view_guardian_relation', 'view_guardian_job', 'view_guardian_phone',
+            'view_address'
+        ];
         const missingIds = requiredIds.filter(id => !document.getElementById(id));
         if (missingIds.length > 0) {
             console.warn('⚠️ Missing elements in HTML:', missingIds);
@@ -249,15 +425,18 @@ async function openMyData(studentId, studentData) {
         } else {
             console.log('ℹ️ No home visit record for student', studentId);
             safeSetText('view_parent_status', 'สถานะครอบครัว: ไม่มีข้อมูล');
-            ['father_name','father_job','father_phone','mother_name','mother_job','mother_phone',
-             'guardian_name','guardian_relation','guardian_job','guardian_phone'].forEach(id => safeSetText(`view_${id}`, '-'));
+            ['father_name', 'father_job', 'father_phone',
+                'mother_name', 'mother_job', 'mother_phone',
+                'guardian_name', 'guardian_relation', 'guardian_job', 'guardian_phone']
+                .forEach(id => safeSetText(`view_${id}`, '-'));
             safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
         }
 
-        // 3. Attendance, Behavior, SDQ, EQ, Club (คงเดิม)
-        // Attendance
+        // 3. Attendance
         let present = 0, absent = 0, late = 0, pleave = 0, sleave = 0;
-        const { data: attData } = await db.from('homeroom_attendance').select('status').eq('student_id', studentId);
+        const { data: attData } = await db.from('homeroom_attendance')
+            .select('status')
+            .eq('student_id', studentId);
         if (attData) attData.forEach(r => {
             if (r.status === 'มา') present++;
             else if (r.status === 'ขาด') absent++;
@@ -273,8 +452,10 @@ async function openMyData(studentId, studentData) {
         safeSetText('stat_sleave', sleave);
         renderAttendanceChart(present, absent, late, pleave, sleave);
 
-        // Behavior
-        const { data: behaviors } = await db.from('behavior_scores').select('score_change').eq('student_id', studentId);
+        // 4. Behavior
+        const { data: behaviors } = await db.from('behavior_scores')
+            .select('score_change')
+            .eq('student_id', studentId);
         let added = 0, deducted = 0;
         if (behaviors) behaviors.forEach(b => {
             if (b.score_change > 0) added += b.score_change;
@@ -284,29 +465,35 @@ async function openMyData(studentId, studentData) {
         safeSetText('score_deducted', `-${deducted}`);
         safeSetText('view_behavior_score', 100 + added - deducted);
 
-        // SDQ
-        const { data: sdqData } = await db.from('sdq_assessments').select('*').eq('student_id', studentId);
+        // 5. SDQ
+        const { data: sdqData } = await db.from('sdq_assessments')
+            .select('*')
+            .eq('student_id', studentId);
         const sdqDiv = document.getElementById('view_sdq');
         if (sdqDiv) {
             if (!sdqData || sdqData.length === 0) {
-                sdqDiv.innerHTML = '<div class="p-4 bg-slate-100 text-center rounded-xl">ยังไม่ได้ประเมิน</div>';
+                sdqDiv.innerHTML = '<div class="p-4 bg-slate-100 text-center rounded-xl text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation mr-1"></i> ยังไม่ได้ประเมิน</div>';
             } else {
                 sdqDiv.innerHTML = '';
                 sdqData.forEach(item => {
-                    const colorClass = item.result_summary === 'ปกติ' ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50';
-                    sdqDiv.innerHTML += `<div class="flex justify-between p-3 rounded-lg border"><span>${getEvaluatorLabel(item.evaluator_type)}</span><span class="px-3 py-1 rounded-full text-xs ${colorClass}">${item.result_summary}</span></div>`;
+                    const colorClass = item.result_summary === 'ปกติ'
+                        ? 'text-emerald-600 bg-emerald-50'
+                        : 'text-rose-600 bg-rose-50';
+                    sdqDiv.innerHTML += `<div class="flex justify-between items-center p-3 rounded-lg border border-slate-200"><span class="font-bold text-slate-700">${getEvaluatorLabel(item.evaluator_type)}</span><span class="px-3 py-1 rounded-full text-xs font-bold ${colorClass}">${item.result_summary}</span></div>`;
                 });
             }
         }
 
-        // === แก้ไขส่วน EQ ===
-        const { data: eqData } = await db.from('eq_assessments').select('*').eq('student_id', studentId).maybeSingle();
+        // 6. EQ
+        const { data: eqData } = await db.from('eq_assessments')
+            .select('*')
+            .eq('student_id', studentId)
+            .maybeSingle();
         const eqDiv = document.getElementById('view_eq_container');
         if (eqDiv) {
             if (!eqData) {
                 eqDiv.innerHTML = '<div class="text-slate-500 font-bold"><i class="fa-solid fa-circle-exclamation"></i> ยังไม่ได้ประเมิน</div>';
             } else {
-                // ✅ ดึงข้อมูลที่แท้จริง
                 const totalScore = eqData.score_total || 0;
                 const levelTotal = eqData.level_total || 'ไม่ระบุ';
                 let colorClass = 'text-pink-600';
@@ -327,7 +514,7 @@ async function openMyData(studentId, studentData) {
             }
         }
 
-        // Club
+        // 7. Club
         const clubName = await fetchStudentClub(studentId);
         safeSetText('view_club_name', clubName);
 
@@ -339,51 +526,110 @@ async function openMyData(studentId, studentData) {
     }
 }
 
+// ==========================================
+// ดึงข้อมูลชุมนุม
+// ==========================================
 async function fetchStudentClub(studentId) {
     try {
-        const { data: reg } = await db.from('club_registrations').select('club_id').eq('student_id', studentId).maybeSingle();
+        const { data: reg } = await db.from('club_registrations')
+            .select('club_id')
+            .eq('student_id', studentId)
+            .maybeSingle();
         if (reg?.club_id) {
-            const { data: clubInfo } = await db.from('club_lists').select('club_name').eq('id', reg.club_id).maybeSingle();
+            const { data: clubInfo } = await db.from('club_lists')
+                .select('club_name')
+                .eq('id', reg.club_id)
+                .maybeSingle();
             return clubInfo ? clubInfo.club_name : 'ไม่พบชื่อชุมนุม';
-        } else return 'ยังไม่ได้ลงทะเบียนชุมนุม';
-    } catch (e) { return 'ไม่สามารถดึงข้อมูลได้'; }
+        } else {
+            return 'ยังไม่ได้ลงทะเบียนชุมนุม';
+        }
+    } catch (e) {
+        return 'ไม่สามารถดึงข้อมูลได้';
+    }
 }
 
+// ==========================================
+// Helpers
+// ==========================================
 function formatNationalId(id) {
     if (!id) return '-';
     return id.toString().replace(/\D/g, '');
 }
 
 function getEvaluatorLabel(type) {
-    const map = { student:'นักเรียน', parent:'ผู้ปกครอง', teacher:'ครูประจำชั้น' };
+    const map = { student: 'นักเรียน', parent: 'ผู้ปกครอง', teacher: 'ครูประจำชั้น' };
     return map[type] || type;
 }
-function renderAttendanceChart(p,a,l,pl,sl) {
+
+function renderAttendanceChart(p, a, l, pl, sl) {
     const ctx = document.getElementById('attendanceChart')?.getContext('2d');
     if (!ctx) return;
     if (chartInstance) chartInstance.destroy();
     chartInstance = new Chart(ctx, {
-        type:'doughnut',
-        data:{ labels:['มาเรียน','ขาด','สาย','ลากิจ','ลาป่วย'], datasets:[{ data:[p,a,l,pl,sl], backgroundColor:['#10b981','#f43f5e','#f97316','#eab308','#3b82f6'], borderWidth:2 }] },
-        options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{ position:'right' } } }
+        type: 'doughnut',
+        data: {
+            labels: ['มาเรียน', 'ขาด', 'สาย', 'ลากิจ', 'ลาป่วย'],
+            datasets: [{
+                data: [p, a, l, pl, sl],
+                backgroundColor: ['#10b981', '#f43f5e', '#f97316', '#eab308', '#3b82f6'],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '65%',
+            plugins: { legend: { position: 'right' } }
+        }
     });
 }
+
+// ==========================================
+// Modal & Tab Control
+// ==========================================
 function closeStudentModal() {
     const modal = document.getElementById('studentDetailModal');
     if (modal) modal.classList.add('hidden');
     window.location.href = 'student_index.html';
 }
+
 function switchTab(tabId) {
+    // ซ่อนทุก tab content
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('text-blue-700','bg-blue-200/50'));
+
+    // ลบ active state จากทุกปุ่ม
+    document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('text-blue-700', 'bg-blue-100', 'shadow-sm');
+        el.classList.add('text-slate-600');
+    });
+
+    // แสดง tab ที่เลือก
     const target = document.getElementById(tabId);
     if (target) target.classList.remove('hidden');
-    const btn = document.getElementById('btn-'+tabId);
-    if (btn) btn.classList.add('text-blue-700','bg-blue-200/50');
-}
-function logout() { db.auth.signOut().then(() => window.location.replace('login.html')); }
 
-// ========== เริ่มต้น ==========
+    // เพิ่ม active state ให้ปุ่ม
+    const btn = document.getElementById('btn-' + tabId);
+    if (btn) {
+        btn.classList.remove('text-slate-600');
+        btn.classList.add('text-blue-700', 'bg-blue-100', 'shadow-sm');
+    }
+
+    // ปรับขนาด chart หลังสลับ tab (ถ้ามี)
+    if (tabId === 'tab2' && chartInstance) {
+        setTimeout(() => {
+            try { chartInstance.resize(); } catch (e) { /* ignore */ }
+        }, 50);
+    }
+}
+
+function logout() {
+    db.auth.signOut().then(() => window.location.replace('login.html'));
+}
+
+// ==========================================
+// ✅ DOMContentLoaded — INIT
+// ==========================================
 document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('login.html');
@@ -405,6 +651,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     currentStudentId = student.id;
+
+    // ✅ PATCH: ตั้งค่า topbar ก่อนโหลดส่วนอื่น
+    if (typeof applyStudentToTopbar === 'function') {
+        applyStudentToTopbar(student);
+    }
+
     await loadCurrentYearAndSemester();
     await loadGasSettings();
     await openMyData(currentStudentId, student);
@@ -412,4 +664,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ผูกอีเวนต์
     document.getElementById('profileFileInput')?.addEventListener('change', onFileSelected);
     document.getElementById('cloudUploadBtn')?.addEventListener('click', uploadPendingProfile);
+
+    // ✅ PATCH: แสดงหน้าเว็บ (ลบ opacity-0)
+    const mainBody = document.getElementById('mainBody');
+    if (mainBody) {
+        mainBody.classList.replace('opacity-0', 'opacity-100');
+    }
 });
