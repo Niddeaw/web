@@ -152,7 +152,7 @@
             transition: all 0.15s ease;
         }
 
-        /* ✅ Skeleton */
+        /* Skeleton */
         .skeleton-pulse {
             animation: skeletonPulse 1.5s ease-in-out infinite;
         }
@@ -167,102 +167,22 @@
 
     <div class="d-app">
 
-        <aside class="d-sidebar" id="dSidebar">
-            <div class="d-brand">
-                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
-                <div><b>WRK System</b><span>ปพ.5 แนะแนว</span></div>
-            </div>
-            <nav class="d-nav">
-                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
-                <a href="index.html" title="หน้าหลัก">
-                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
-                    <span class="d-label">หน้าหลัก</span>
-                </a>
-
-                <div class="d-nav-title">ระบบ ปพ.5 แนะแนว</div>
-                <a id="nav-teacher" class="active" title="ครูผู้สอน">
-                    <span class="d-ico"><i class="fa-solid fa-chalkboard-user"></i></span>
-                    <span class="d-label">ครูผู้สอน</span>
-                </a>
-                <a id="nav-admin" class="hidden" href="javascript:void(0)" onclick="switchToAdminMode()" title="ผู้ดูแลระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-user-shield"></i></span>
-                    <span class="d-label">ผู้ดูแลระบบ</span>
-                </a>
-
-                <div class="d-nav-title">การตั้งค่า</div>
-                <a class="logout" onclick="logout()" title="ออกจากระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
-                    <span class="d-label">ออกจากระบบ</span>
-                </a>
-            </nav>
-            <div class="d-sidebar-bottom">
-                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดตามเพจโรงเรียน</span>
-                </a>
-            </div>
-        </aside>
+        <!-- ================= Sidebar (placeholder) ================= -->
+        <aside class="d-sidebar" id="dSidebar"></aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
+        <!-- ================= Main ================= -->
         <main class="d-main" id="dMain">
 
-            <header class="d-topbar">
-                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-                    <i class="fa-solid fa-angles-left"></i>
-                </button>
+            <!-- ================= Topbar (placeholder) ================= -->
+            <header class="d-topbar" id="dTopbar"></header>
 
-                <h2 id="pageTitle">ปพ.5 กิจกรรมแนะแนว</h2>
-
-                <div class="d-spacer"></div>
-
-                <button id="btnModeAdmin" onclick="switchToAdminMode()"
-                        class="hidden h-10 px-3 flex items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm d-btn-mode admin" title="โหมดแอดมิน">
-                    <i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>
-                </button>
-
-                <div class="d-settings-wrap">
-                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>แสดงผล</span>
-                    </button>
-                    <div class="d-settings-menu" id="settingsMenu">
-                        <div class="d-settings-title">ขนาดตัวอักษร</div>
-                        <div class="d-settings-options">
-                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
-                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
-                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
-                        </div>
-                        <div class="d-settings-title">ความหนาแน่น</div>
-                        <div class="d-settings-options cols-2">
-                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
-                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
-
-                <div class="d-profile">
-                    <div class="d-avatar-wrap">
-                        <div class="d-avatar" id="userAvatar">
-                            <span id="userAvatarInitial">?</span>
-                            <img id="userAvatarImg" src="" alt="" style="display:none;">
-                        </div>
-                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
-                    </div>
-                    <div>
-                        <b id="userName" class="text-sm">กำลังโหลด...</b>
-                        <small id="userRole">...</small>
-                    </div>
-                </div>
-            </header>
-
+            <!-- ================= Content ================= -->
             <div id="systemClosedBanner" class="bg-red-500 text-white text-center py-2 text-sm font-bold hidden shadow-md">
                 ⚠️ แอดมินได้ทำการปิดระบบชั่วคราว ไม่สามารถบันทึกหรือแก้ไขข้อมูลได้ในขณะนี้
             </div>
 
-            <!-- ✅ Skeleton ก่อนโหลดเสร็จ -->
+            <!-- Skeleton ก่อนโหลดเสร็จ -->
             <div id="skeletonLoader" class="hidden space-y-4" style="padding:0 0 12px;">
                 <div class="glass rounded-3xl p-5">
                     <div class="flex flex-wrap gap-3 skeleton-pulse">
@@ -277,7 +197,7 @@
                 </div>
             </div>
 
-            <!-- ✅ เนื้อหาจริง (ซ่อนก่อน) -->
+            <!-- เนื้อหาจริง (ซ่อนก่อน) -->
             <div id="dashboardMain" class="hidden space-y-4" style="padding:0 0 12px;">
 
                 <div class="glass rounded-3xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
@@ -377,10 +297,158 @@
         </main>
     </div>
 
+    <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
+    <script src="guidance_teacher.js"></script>
+
+    <!-- =======================================================
+         ✅ Init Module Sidebar + Topbar
+         ======================================================= -->
     <script>
-        // ✅ Lazy load TomSelect (async)
+        // Mode button ID
+        window._guidanceModeBtnId = 'btnModeAdmin';
+
+        // =======================================================
+        // Fallback Config — Guidance Teacher
+        // =======================================================
+        function getGuidanceTeacherFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: 'ปพ.5 แนะแนว'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [
+                    {
+                        title: 'ระบบ ปพ.5 แนะแนว',
+                        sectionId: 'sec-guidance',
+                        collapsible: false,
+                        defaultOpen: true,
+                        items: [
+                            {
+                                id: 'nav-teacher',
+                                icon: 'fa-chalkboard-user',
+                                label: 'ครูผู้สอน'
+                                // หน้าปัจจุบัน
+                            },
+                            {
+                                id: 'nav-admin',
+                                icon: 'fa-user-shield',
+                                label: 'ผู้ดูแลระบบ',
+                                onclick: 'switchToAdminMode()',
+                                hidden: true
+                            }
+                        ]
+                    }
+                ],
+                footerMenuTitle: '',
+                footerCollapsible: false,
+                footerMenu: [],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        // =======================================================
+        // ✅ Helper: Refresh Topbar + Sidebar UI
+        // =======================================================
+        function refreshGuidanceTopbarUI() {
+            // 1) วันที่
+            if (typeof setTodayChip === 'function') {
+                try { setTodayChip(); } catch (e) { console.warn('setTodayChip:', e); }
+            }
+
+            // 2) ข้อมูลผู้ใช้
+            try {
+                if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
+                    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUserProfile);
+                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentUserRole || '');
+                    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUserProfile);
+                }
+            } catch (e) { /* TDZ — ignore */ }
+
+            // 3) Role-based visibility
+            applyGuidanceRoleUI();
+        }
+
+        function applyGuidanceRoleUI() {
+            const canSeeAdmin = window._guidanceCanSeeAdmin;
+            const modeBtnId = window._guidanceModeBtnId;
+
+            // Mode button
+            if (modeBtnId) {
+                const btn = document.getElementById(modeBtnId);
+                if (btn) {
+                    if (canSeeAdmin === true) btn.classList.remove('hidden');
+                    else if (canSeeAdmin === false) btn.classList.add('hidden');
+                }
+            }
+
+            // nav-admin visibility
+            if (canSeeAdmin === true) {
+                if (typeof showNavItem === 'function') showNavItem('nav-admin', true);
+            } else if (canSeeAdmin === false) {
+                if (typeof hideNavItem === 'function') hideNavItem('nav-admin');
+            }
+        }
+
+        window.refreshGuidanceTopbarUI = refreshGuidanceTopbarUI;
+        window.applyGuidanceRoleUI = applyGuidanceRoleUI;
+
+        // Helper: เรียกใช้จาก guidance_teacher.js หลัง auth
+        window.setGuidanceRoleVisibility = function (canSee) {
+            window._guidanceCanSeeAdmin = canSee === true;
+            refreshGuidanceTopbarUI();
+        };
+
+        // =======================================================
+        // ✅ Init Module Sidebar
+        // =======================================================
+        initModuleSidebar({
+            moduleKey: 'guidance',
+            pageTitle: 'ปพ.5 กิจกรรมแนะแนว',
+            activeId: 'nav-teacher',
+            topbarButtons: [
+                {
+                    id: 'btnModeAdmin',
+                    html: '<i class="fa-solid fa-user-shield"></i><span>โหมดแอดมิน</span>',
+                    onclick: 'switchToAdminMode()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'โหมดแอดมิน'
+                }
+            ],
+            fallbackConfig: getGuidanceTeacherFallbackConfig(),
+            onReady: () => {
+                refreshGuidanceTopbarUI();
+                setTimeout(refreshGuidanceTopbarUI, 800);
+            }
+        });
+    </script>
+
+    <!-- =======================================================
+         Lazy load TomSelect + XLSX
+         ======================================================= -->
+    <script>
+        // Lazy load TomSelect
         (function() {
             const s = document.createElement('script');
             s.src = 'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js';
@@ -388,7 +456,7 @@
             document.head.appendChild(s);
         })();
 
-        // ✅ Lazy load XLSX เมื่อใช้ครั้งแรก
+        // Lazy load XLSX เมื่อใช้ครั้งแรก
         window.loadXLSX = function() {
             if (window.XLSX) return Promise.resolve();
             return new Promise((resolve, reject) => {
@@ -400,7 +468,6 @@
             });
         };
     </script>
-    <script src="guidance_teacher.js"></script>
 </body>
 
 </html>

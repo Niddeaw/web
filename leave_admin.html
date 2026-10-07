@@ -3,113 +3,49 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin Dashboard - ระบบการลา | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <script src="leave_core.js"></script>
+
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
+
     <style>
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; transition: all 0.15s; font-size: 12px; flex-shrink: 0; }
         .btn-icon:hover { transform: scale(1.1); }
         .btn-icon:disabled { opacity: 0.5; cursor: default; transform: none; }
         .holiday-tag { display: inline-block; background-color: #e0f2fe; color: #0369a1; padding: 0.2rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 600; border: 1px solid #bae6fd; margin: 0.15rem 0.2rem; }
         .holiday-tag .remove-holiday { margin-left: 0.3rem; cursor: pointer; color: #ef4444; font-weight: 700; opacity: 0.7; transition: opacity 0.15s; }
         .holiday-tag .remove-holiday:hover { opacity: 1; }
-        .d-nav a.tab-nav-btn.active { background: linear-gradient(90deg, #2d91ec, #4ba0ef); color: #fff; box-shadow: 0 5px 12px #268be82a; }
+
+        @media (max-width: 760px) {
+            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
+            .d-sidebar.open, .d-sidebar.show, .d-sidebar.active, .d-sidebar.is-open { transform: translateX(0) !important; }
+            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
+            .d-overlay.open, .d-overlay.show, .d-overlay.active, .d-overlay.is-open { display: block !important; opacity: 1; }
+            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; align-items: center; justify-content: center; }
+            .d-collapse { display: none !important; }
+            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+            .glass-panel { max-width: 100%; }
+        }
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar { width: 240px; }
+        }
     </style>
 </head>
 
 <body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
     <div class="d-app">
-
-        <aside class="d-sidebar" id="dSidebar">
-            <div class="d-brand">
-                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
-                <div><b>WRK Admin</b><span>ระบบจัดการการลา</span></div>
-            </div>
-            <nav class="d-nav">
-                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
-                <a id="btn-dashboard" class="tab-nav-btn active" onclick="switchTab('dashboard')" title="ภาพรวมสถิติ">
-                    <span class="d-ico"><i class="fas fa-chart-pie"></i></span>
-                    <span class="d-label">ภาพรวมสถิติ</span>
-                </a>
-                <a id="btn-manage-leave" class="tab-nav-btn" onclick="switchTab('manage-leave')" title="ตรวจสอบใบลา">
-                    <span class="d-ico"><i class="fas fa-list-check"></i></span>
-                    <span class="d-label">ตรวจสอบใบลา</span>
-                </a>
-                <a id="btn-attendance" class="tab-nav-btn" onclick="switchTab('attendance')" title="บันทึกขาด/มาสาย">
-                    <span class="d-ico"><i class="fas fa-user-clock"></i></span>
-                    <span class="d-label">บันทึกขาด/มาสาย</span>
-                </a>
-                <a id="btn-settings" class="tab-nav-btn" onclick="switchTab('settings')" title="ตั้งค่าระบบ">
-                    <span class="d-ico"><i class="fas fa-cog"></i></span>
-                    <span class="d-label">ตั้งค่าระบบ</span>
-                </a>
-
-                <div class="d-nav-title">ระบบกลาง</div>
-                <a id="btnSuperAdmin" class="hidden" href="super_admin.html" title="หน้าผู้ดูแลระบบสูงสุด">
-                    <span class="d-ico"><i class="fas fa-crown"></i></span>
-                    <span class="d-label">ผู้ดูแลระบบสูงสุด</span>
-                </a>
-                <a href="index.html" title="กลับหน้าหลัก">
-                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
-                    <span class="d-label">กลับหน้าหลัก</span>
-                </a>
-                <a class="logout" onclick="logout()" title="ออกจากระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
-                    <span class="d-label">ออกจากระบบ</span>
-                </a>
-            </nav>
-            <div class="d-sidebar-bottom">
-                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดตามเพจโรงเรียน</span>
-                </a>
-            </div>
-        </aside>
+        <aside class="d-sidebar" id="dSidebar"></aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
         <main class="d-main" id="dMain">
-
-            <header class="d-topbar">
-                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-                    <i class="fa-solid fa-angles-left"></i>
-                </button>
-                <h2 id="page-title" style="margin:0;font-size:16px;font-weight:700;color:#26364a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
-                    แดชบอร์ดสรุปผล
-                </h2>
-                <div class="d-spacer"></div>
-
-                <!-- ✅ ปุ่มโหมด มาตรฐาน -->
-                <button id="btnToggleDeptHead" onclick="switchToDeptHeadMode()" class="hidden d-btn-mode depthead" title="สลับไปโหมดหัวหน้ากลุ่มฯ">
-                    <i class="fas fa-users"></i>
-                    <span>หัวหน้ากลุ่มฯ</span>
-                </button>
-                <button id="btnToggleMode" onclick="switchToTeacherMode()" class="hidden d-btn-mode teacher" title="สลับไปโหมดครู">
-                    <i class="fas fa-chalkboard-user"></i>
-                    <span>โหมดครู</span>
-                </button>
-
-                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
-
-                <div class="d-profile">
-                    <div class="d-avatar-wrap">
-                        <div class="d-avatar" id="userAvatar">
-                            <span id="userAvatarInitial">?</span>
-                            <img id="userAvatarImg" src="" alt="" style="display:none;">
-                        </div>
-                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
-                    </div>
-                    <div>
-                        <b id="display-name" class="text-sm">กำลังโหลด...</b>
-                        <small id="userRole">Administrator</small>
-                    </div>
-                </div>
-            </header>
+            <header class="d-topbar" id="dTopbar"></header>
 
             <div style="padding:0 0 12px;">
 
@@ -300,8 +236,7 @@
         </main>
     </div>
 
-    <!-- ================= Modals ================= -->
-    <!-- editLeaveModal -->
+    <!-- ================= Modals (คงเดิมทั้งหมด) ================= -->
     <div id="editLeaveModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-50 backdrop-blur-sm transition-opacity">
         <div class="glass-panel p-6 md:p-8 w-full max-w-4xl bg-white rounded-2xl shadow-2xl transform transition-all">
             <div class="flex justify-between items-center mb-6">
@@ -342,7 +277,6 @@
         </div>
     </div>
 
-    <!-- adminLeaveModal -->
     <div id="adminLeaveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdminLeaveModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
@@ -386,7 +320,6 @@
         </div>
     </div>
 
-    <!-- attendanceModal -->
     <div id="attendanceModal" class="hidden fixed inset-0 bg-slate-900 bg-opacity-50 flex items-center justify-center z-[60] backdrop-blur-sm transition-opacity">
         <div class="glass-panel p-6 md:p-8 w-full max-w-lg bg-white rounded-2xl shadow-2xl">
             <div class="flex justify-between items-center mb-6">
@@ -407,7 +340,6 @@
         </div>
     </div>
 
-    <!-- viewLeaveModal -->
     <div id="viewLeaveModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
         <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
             <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-t-2xl text-white flex-shrink-0">
@@ -419,7 +351,6 @@
         </div>
     </div>
 
-    <!-- viewSignatureImageModal -->
     <div id="viewSignatureImageModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[80] p-4">
         <div class="bg-white w-full max-w-sm rounded-2xl shadow-2xl flex flex-col overflow-hidden">
             <div class="flex items-center justify-between px-5 py-4 border-b bg-gradient-to-r from-emerald-600 to-teal-600 text-white">
@@ -434,7 +365,6 @@
         </div>
     </div>
 
-    <!-- signatureModal -->
     <div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
         <div class="bg-white w-full max-w-4xl rounded-3xl shadow-2xl max-h-[90vh] flex flex-col">
             <div class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white rounded-t-3xl">
@@ -464,7 +394,49 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="leave_admin.js"></script>
+
+    <script>
+        function getLeaveAdminFallbackConfig() {
+            return {
+                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Admin', subtitle: 'ระบบจัดการการลา' },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'btn-dashboard', icon: 'fa-chart-pie', label: 'ภาพรวมสถิติ', onclick: "switchTab('dashboard')", class: 'active' },
+                    { id: 'btn-manage-leave', icon: 'fa-list-check', label: 'ตรวจสอบใบลา', onclick: "switchTab('manage-leave')" },
+                    { id: 'btn-attendance', icon: 'fa-user-clock', label: 'บันทึกขาด/มาสาย', onclick: "switchTab('attendance')" },
+                    { id: 'btn-settings', icon: 'fa-cog', label: 'ตั้งค่าระบบ', onclick: "switchTab('settings')", roles: ['super_admin', 'admin'] }
+                ],
+                showAllDepartments: false, departmentsTitle: '', departments: [], moduleMenus: [],
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: [
+                    { id: 'btnSuperAdmin', icon: 'fa-crown', label: 'ผู้ดูแลระบบสูงสุด', href: 'super_admin.html', roles: ['super_admin'] },
+                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
+                ],
+                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+            };
+        }
+
+        initModuleSidebar({
+            moduleKey: 'leave_admin',
+            pageTitle: 'แดชบอร์ดสรุปผล',
+            activeId: 'btn-dashboard',
+            topbarButtons: [
+                { id: 'btnNavTeacher', html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>', onclick: "window.location.href='leave_teacher.html'", class: 'hidden d-btn-mode teacher', title: 'ไปหน้าโหมดครู' },
+                { id: 'btnNavDeptHead', html: '<i class="fas fa-users"></i><span>หัวหน้ากลุ่มฯ</span>', onclick: "window.location.href='leave_dept_head.html'", class: 'hidden d-btn-mode depthead', title: 'ไปหน้าโหมดหัวหน้ากลุ่มฯ' }
+            ],
+            fallbackConfig: getLeaveAdminFallbackConfig(),
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+            }
+        });
+    </script>
+
 </body>
 
 </html>

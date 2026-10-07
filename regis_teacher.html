@@ -3,130 +3,203 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>ระบบบริหารจัดการงานทะเบียน - ผู้ดูแลระบบ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบบริหารจัดการงานทะเบียน | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
+    <style>
+        /* Mobile sidebar */
+        @media (max-width: 760px) {
+            .d-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                z-index: 1000 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .d-sidebar.open,
+            .d-sidebar.show,
+            .d-sidebar.active,
+            .d-sidebar.is-open {
+                transform: translateX(0) !important;
+            }
+
+            .d-overlay {
+                display: none !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
+                z-index: 999 !important;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .d-overlay.open,
+            .d-overlay.show,
+            .d-overlay.active,
+            .d-overlay.is-open {
+                display: block !important;
+                opacity: 1;
+            }
+
+            .d-main {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .d-app {
+                display: block !important;
+            }
+
+            .d-menu {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .d-collapse {
+                display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
+            }
+
+            .glass-panel {
+                max-width: 100%;
+            }
+        }
+
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar {
+                width: 240px;
+            }
+        }
+    </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 min-h-screen font-sans">
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-    <!-- mainBody ซ่อนไว้ก่อน JS จะ remove hidden หลังผ่านสิทธิ์ -->
-    <div id="mainBody" class="hidden">
-    <nav class="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
-        <div class="max-w-7xl mx-auto px-4 py-3 flex justify-between items-center">
-            <div class="flex items-center gap-3">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 object-contain" alt="Logo">
-                <div>
-                    <h1 class="text-xl font-bold text-primary-600 leading-tight">WRK System</h1>
-                    <p class="text-xs text-slate-500">ระบบบริหารจัดการงานทะเบียน (Admin)</p>
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
+
+            <!-- ========= Main Content ========= -->
+            <div style="padding:0 0 12px;" class="space-y-6">
+
+                <!-- Dashboard Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-blue-500">
+                        <div class="p-4 bg-blue-50 rounded-xl text-blue-500 text-2xl"><i class="fa-solid fa-users"></i>
+                        </div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">คำขอทั้งหมด</p>
+                            <h3 class="text-2xl font-bold text-slate-800" id="dashTotal">0</h3>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-amber-500">
+                        <div class="p-4 bg-amber-50 rounded-xl text-amber-500 text-2xl"><i
+                                class="fa-solid fa-hourglass-half"></i></div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">กำลังดำเนินการ</p>
+                            <h3 class="text-2xl font-bold text-slate-800" id="dashPending">0</h3>
+                        </div>
+                    </div>
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-emerald-500">
+                        <div class="p-4 bg-emerald-50 rounded-xl text-emerald-500 text-2xl"><i
+                                class="fa-solid fa-check-double"></i></div>
+                        <div>
+                            <p class="text-sm text-slate-500 font-medium">ดำเนินการเรียบร้อย</p>
+                            <h3 class="text-2xl font-bold text-slate-800" id="dashCompleted">0</h3>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-lg font-bold text-slate-800"><i
+                                class="fa-solid fa-table-list text-primary-500 mr-2"></i>รายการคำขอเอกสาร</h2>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="requestsTable" class="w-full text-sm text-left">
+                            <thead class="bg-slate-50 text-slate-600">
+                                <tr>
+                                    <th class="px-4 py-3 rounded-tl-lg">รหัสคำขอ</th>
+                                    <th class="px-4 py-3">วันที่ยื่น</th>
+                                    <th class="px-4 py-3">เวลา</th>
+                                    <th class="px-4 py-3">เลขประจำตัว</th>
+                                    <th class="px-4 py-3">ชื่อ-สกุล</th>
+                                    <th class="px-4 py-3">สถานะ</th>
+                                    <th class="px-4 py-3 rounded-tr-lg">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody"></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div class="flex items-center gap-4">
-                <!-- ✅ แสดงชื่อผู้ใช้ + สิทธิ์ -->
-                <div class="hidden md:block text-right">
-                    <span id="display-name" class="text-sm font-semibold text-slate-700">กำลังโหลด...</span>
-                    <br>
-                    <span id="userRoleBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">กำลังโหลด...</span>
-                </div>
-
-                <!-- ✅ ปุ่มตั้งค่า (id="btnSettings" สำหรับ applyVisibilityByRole) -->
-                <button id="btnSettings" onclick="openSettingsModal()" class="text-slate-600 hover:text-primary-600 transition">
-                    <i class="fa-solid fa-gear text-lg"></i>
-                </button>
-
-                <button onclick="window.location.href='index.html'"
-                    class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                    title="กลับหน้าหลัก">
-                    <i class="fas fa-house text-sm"></i>
-                </button>
-
-                <button onclick="logout()"
-                    class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                    title="ออกจากระบบ">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
-            </div>
-        </div>
-    </nav>
-
-    <main class="max-w-7xl mx-auto px-4 py-8">
-        <!-- Dashboard Cards -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-blue-500">
-                <div class="p-4 bg-blue-50 rounded-xl text-blue-500 text-2xl"><i class="fa-solid fa-users"></i></div>
-                <div>
-                    <p class="text-sm text-slate-500 font-medium">คำขอทั้งหมด</p>
-                    <h3 class="text-2xl font-bold text-slate-800" id="dashTotal">0</h3>
-                </div>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-amber-500">
-                <div class="p-4 bg-amber-50 rounded-xl text-amber-500 text-2xl"><i class="fa-solid fa-hourglass-half"></i></div>
-                <div>
-                    <p class="text-sm text-slate-500 font-medium">กำลังดำเนินการ</p>
-                    <h3 class="text-2xl font-bold text-slate-800" id="dashPending">0</h3>
-                </div>
-            </div>
-            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4 border-l-4 border-l-emerald-500">
-                <div class="p-4 bg-emerald-50 rounded-xl text-emerald-500 text-2xl"><i class="fa-solid fa-check-double"></i></div>
-                <div>
-                    <p class="text-sm text-slate-500 font-medium">ดำเนินการเรียบร้อย</p>
-                    <h3 class="text-2xl font-bold text-slate-800" id="dashCompleted">0</h3>
-                </div>
-            </div>
-        </div>
-
-        <!-- Table -->
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 overflow-hidden">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-table-list text-primary-500 mr-2"></i>รายการคำขอเอกสาร</h2>
-            </div>
-            <div class="overflow-x-auto">
-                <table id="requestsTable" class="w-full text-sm text-left">
-                    <thead class="bg-slate-50 text-slate-600">
-                        <tr>
-                            <th class="px-4 py-3 rounded-tl-lg">รหัสคำขอ</th>
-                            <th class="px-4 py-3">วันที่ยื่น</th>
-                            <th class="px-4 py-3">เวลา</th>
-                            <th class="px-4 py-3">เลขประจำตัว</th>
-                            <th class="px-4 py-3">ชื่อ-สกุล</th>
-                            <th class="px-4 py-3">สถานะ</th>
-                            <th class="px-4 py-3 rounded-tr-lg">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tableBody"></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
     <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+    <div id="settingsModal"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
         <div class="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden transform transition-all">
             <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-sliders text-primary-500 mr-2"></i>ตั้งค่าระบบงานทะเบียน</h3>
-                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-slate-800"><i
+                        class="fa-solid fa-sliders text-primary-500 mr-2"></i>ตั้งค่าระบบงานทะเบียน</h3>
+                <button onclick="closeSettingsModal()" class="text-slate-400 hover:text-red-500"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
             </div>
             <div class="p-6">
                 <form id="settingsForm" onsubmit="saveSettings(event)" class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-slate-700 mb-1">URL GAS API</label>
-                        <input type="url" id="gasApiUrl" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                        <input type="url" id="gasApiUrl"
+                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัส Template สไลด์ (Google Slides)</label>
-                        <input type="text" id="slideTemplateId" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัส Template สไลด์ (Google
+                            Slides)</label>
+                        <input type="text" id="slideTemplateId"
+                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัสโฟลเดอร์เก็บ PDF (Google Drive)</label>
-                        <input type="text" id="pdfFolderId" class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">รหัสโฟลเดอร์เก็บ PDF (Google
+                            Drive)</label>
+                        <input type="text" id="pdfFolderId"
+                            class="w-full rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border">
                     </div>
 
                     <div class="pt-4 border-t mt-4">
-                        <button type="button" onclick="openAdminModal()" class="w-full mb-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold py-2 px-4 rounded-xl transition">
+                        <button type="button" onclick="openAdminModal()"
+                            class="w-full mb-3 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 font-bold py-2 px-4 rounded-xl transition">
                             <i class="fa-solid fa-user-shield mr-2"></i>ตั้งค่าผู้ดูแลระบบโมดูลนี้
                         </button>
-                        <button type="submit" class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition">
+                        <button type="submit"
+                            class="w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-2.5 px-4 rounded-xl shadow-md transition">
                             บันทึกการตั้งค่า
                         </button>
                     </div>
@@ -136,11 +209,15 @@
     </div>
 
     <!-- Admin Management Modal -->
-    <div id="adminModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
-        <div class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all">
+    <div id="adminModal"
+        class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] hidden flex items-center justify-center">
+        <div
+            class="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden transform transition-all">
             <div class="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                <h3 class="font-bold text-slate-800"><i class="fa-solid fa-user-shield text-indigo-500 mr-2"></i>จัดการผู้ดูแลระบบโมดูลงานทะเบียน</h3>
-                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-red-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+                <h3 class="font-bold text-slate-800"><i
+                        class="fa-solid fa-user-shield text-indigo-500 mr-2"></i>จัดการผู้ดูแลระบบโมดูลงานทะเบียน</h3>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-red-500"><i
+                        class="fa-solid fa-xmark text-xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto max-h-[70vh]">
                 <div class="mb-6">
@@ -163,9 +240,12 @@
                 <div class="border-t pt-4">
                     <h4 class="text-sm font-semibold text-slate-600 mb-3">เพิ่มผู้ดูแลระบบ</h4>
                     <div class="flex flex-col sm:flex-row gap-3">
-                        <select id="adminUserSelect" class="flex-1 rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border" placeholder="-- ค้นหาชื่อบุคลากร --">
+                        <select id="adminUserSelect"
+                            class="flex-1 rounded-xl border-slate-300 shadow-sm focus:border-primary-500 focus:ring p-2 border"
+                            placeholder="-- ค้นหาชื่อบุคลากร --">
                         </select>
-                        <button onclick="addModuleAdmin()" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow transition whitespace-nowrap">
+                        <button onclick="addModuleAdmin()"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl shadow transition whitespace-nowrap">
                             <i class="fa-solid fa-plus mr-1"></i> เพิ่ม
                         </button>
                     </div>
@@ -174,10 +254,67 @@
         </div>
     </div>
 
-    <div id="pdfTemplateAdmin" class="hidden bg-white p-10 text-black"></div>
-    </div><!-- /mainBody -->
-
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="regis_teacher.js"></script>
+
+    <script>
+        // =======================================================
+        // Fallback Config — ระบบงานทะเบียน (regis)
+        // =======================================================
+        function getRegisFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK Regis',
+                    subtitle: 'ระบบงานทะเบียน'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenu: [
+                    { id: 'nav-regis-dashboard', icon: 'fa-chart-pie', label: 'ภาพรวมงานทะเบียน', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [
+                    {
+                        title: 'จัดการระบบ',
+                        sectionId: 'sec-regis-settings',
+                        collapsible: true,
+                        defaultOpen: true,
+                        items: [
+                            { id: 'nav-regis-settings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', onclick: 'openSettingsModal()', roles: ['super_admin', 'admin'] },
+                            { id: 'nav-regis-admins', icon: 'fa-user-shield', label: 'ผู้ดูแลระบบโมดูล', onclick: 'openAdminModal()', roles: ['super_admin'] }
+                        ]
+                    }
+                ],
+                footerMenuTitle: 'ระบบกลาง',
+                footerMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
+                ],
+                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+            };
+        }
+
+        // =======================================================
+        // ✅ Init Module Sidebar + ปุ่มนำทาง
+        // =======================================================
+        initModuleSidebar({
+            moduleKey: 'regis',
+            pageTitle: 'ระบบบริหารจัดการงานทะเบียน',
+            activeId: 'nav-regis-dashboard',
+            topbarButtons: [], // ไม่มีปุ่มเพิ่มเติมใน Topbar
+            fallbackConfig: getRegisFallbackConfig(),
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+            }
+        });
+    </script>
+
 </body>
 
 </html>

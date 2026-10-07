@@ -10,61 +10,35 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ==========================================
 // ระบบสิทธิ์และบทบาท (Role & Permission) — มาตรฐานกลาง
 // ==========================================
-
-/**
- * WRK_ROLES — กำหนดบทบาทและสิทธิ์ของระบบ
- * แก้ไขตรงนี้เพียงที่เดียวเมื่อต้องการเพิ่ม/ลด Role
- *
- * วิธีเพิ่มเจ้าหน้าที่สำนักงาน (office):
- *  1. เพิ่ม user ใน Supabase Auth (email + password)
- *  2. Insert core_personnel → id = user.id, role = 'office'
- *  3. Insert core_module_admins → user_id, module_id (ต่อโมดูลที่อนุญาต)
- */
 const WRK_ROLES = {
-    // ✅ Role ที่สามารถเข้าใช้งานระบบต่างๆ ได้ (ทุกโมดูล)
     ALLOWED: ['super_admin', 'admin', 'director', 'deputy', 'teacher', 'staff', 'office'],
-
-    // ✅ Role ที่มีสิทธิ์ระดับ Admin (เห็นทุกห้อง, จัดการระบบ, ตั้งค่า)
     ADMIN: ['super_admin', 'admin', 'director', 'deputy'],
-
-    // ✅ Role ที่เป็นครู (มีห้องที่ปรึกษา)
     TEACHER: ['teacher', 'staff'],
-
-    // ✅ Role เจ้าหน้าที่สำนักงาน (เข้าได้เฉพาะโมดูลที่ได้รับมอบหมาย ไม่เกี่ยวกับข้อมูลครู)
     OFFICE: ['office'],
-
-    // ✅ Role ที่มีสิทธิ์จัดการตั้งค่าระบบ (Settings) — เฉพาะ super_admin และ admin
     SETTINGS: ['super_admin', 'admin'],
 };
 
 // ==========================================
-// ฟังก์ชันตรวจสอบสิทธิ์ (ใช้ร่วมกันทุกโมดูล)
+// ✅ Role catalog — ใช้ใน UI (Sidebar Editor)
 // ==========================================
+const WRK_ROLE_CATALOG = [
+    { value: 'super_admin', label: 'Super Admin',      color: '#9333ea', icon: 'fa-crown' },
+    { value: 'admin',       label: 'Admin',            color: '#2563eb', icon: 'fa-user-shield' },
+    { value: 'director',    label: 'ผู้อำนวยการ',        color: '#0891b2', icon: 'fa-user-tie' },
+    { value: 'deputy',      label: 'รองผู้อำนวยการ',    color: '#06b6d4', icon: 'fa-user-tie' },
+    { value: 'teacher',     label: 'ครูผู้สอน',           color: '#e11d48', icon: 'fa-chalkboard-user' },
+    { value: 'staff',       label: 'เจ้าหน้าที่',           color: '#f59e0b', icon: 'fa-user' },
+    { value: 'office',      label: 'เจ้าหน้าที่สำนักงาน', color: '#10b981', icon: 'fa-briefcase' }
+];
 
-function isAllowedRole(role) {
-    return WRK_ROLES.ALLOWED.includes(role);
-}
-
-function isAdminUser(role, isAdminMode) {
-    return WRK_ROLES.ADMIN.includes(role) || isAdminMode === true;
-}
-
-function isTeacherUser(role, hasClassrooms) {
-    return WRK_ROLES.TEACHER.includes(role) || hasClassrooms === true;
-}
-
-// ✅ เจ้าหน้าที่สำนักงาน — ไม่แสดงข้อมูลครู/ห้องเรียน
-function isOfficeUser(role) {
-    return WRK_ROLES.OFFICE.includes(role);
-}
-
-// ✅ ฟังก์ชันใหม่สำหรับสิทธิ์ตั้งค่าระบบ
-function canManageSettings(role) {
-    return WRK_ROLES.SETTINGS.includes(role);
-}
-
-// ✅ เช็คว่า role นี้ต้องการ module-level permission หรือไม่
-//    (teacher, staff, office ต้องมี record ใน core_module_admins)
+// ==========================================
+// ฟังก์ชันตรวจสอบสิทธิ์
+// ==========================================
+function isAllowedRole(role) { return WRK_ROLES.ALLOWED.includes(role); }
+function isAdminUser(role, isAdminMode) { return WRK_ROLES.ADMIN.includes(role) || isAdminMode === true; }
+function isTeacherUser(role, hasClassrooms) { return WRK_ROLES.TEACHER.includes(role) || hasClassrooms === true; }
+function isOfficeUser(role) { return WRK_ROLES.OFFICE.includes(role); }
+function canManageSettings(role) { return WRK_ROLES.SETTINGS.includes(role); }
 function requiresModulePermission(role) {
     return WRK_ROLES.TEACHER.includes(role) || WRK_ROLES.OFFICE.includes(role);
 }
@@ -82,22 +56,8 @@ function requireAdmin(role, isAdminMode, customMessage = null) {
     return true;
 }
 
-/**
- * hasModuleAccess — ตรวจสอบสิทธิ์เข้าโมดูล
- *
- * - Admin: เข้าได้ทุกโมดูลเสมอ
- * - Teacher / Staff / Office: ต้องมี record ใน core_module_admins
- *
- * @param {string} role
- * @param {string} moduleId  — ชื่อโมดูล เช่น 'finance', 'report'
- * @param {string} userId    — user.id จาก Supabase Auth
- * @returns {Promise<boolean>}
- */
 async function hasModuleAccess(role, moduleId, userId) {
-    // Admin เข้าได้ทุกโมดูลเสมอ
     if (WRK_ROLES.ADMIN.includes(role)) return true;
-
-    // Teacher / Staff / Office — เช็คจาก core_module_admins
     if (WRK_ROLES.TEACHER.includes(role) || WRK_ROLES.OFFICE.includes(role)) {
         const { data, error } = await db
             .from('core_module_admins')
@@ -105,45 +65,30 @@ async function hasModuleAccess(role, moduleId, userId) {
             .eq('user_id', userId)
             .eq('module_id', moduleId)
             .maybeSingle();
-
-        if (error) {
-            console.error('Error checking module access:', error);
-            return false;
-        }
+        if (error) { console.error('Error checking module access:', error); return false; }
         return !!data;
     }
-
     return false;
 }
 
 // ==========================================
-// ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ร่วมกัน)
+// ฟังก์ชันอัปเดต UI ตามสิทธิ์
 // ==========================================
-
 function applyVisibilityByRole(role, isAdminMode, elements = {}) {
     const isAdmin = isAdminUser(role, isAdminMode);
     const hasSettings = canManageSettings(role);
 
     const btnSettings = document.getElementById(elements.settingsBtn || 'btn-settings');
-    if (btnSettings) {
-        btnSettings.classList.toggle('hidden', !hasSettings);
-    }
+    if (btnSettings) btnSettings.classList.toggle('hidden', !hasSettings);
 
     const btnToggle = document.getElementById(elements.toggleBtn || 'btnToggleMode');
     if (btnToggle) {
-        if (isAdmin) {
-            btnToggle.classList.remove('hidden');
-            btnToggle.classList.add('flex');
-        } else {
-            btnToggle.classList.add('hidden');
-            btnToggle.classList.remove('flex');
-        }
+        if (isAdmin) { btnToggle.classList.remove('hidden'); btnToggle.classList.add('flex'); }
+        else { btnToggle.classList.add('hidden'); btnToggle.classList.remove('flex'); }
     }
 
     const btnAdminManager = document.getElementById(elements.adminManagerBtn || 'adminManagerBtn');
-    if (btnAdminManager) {
-        btnAdminManager.classList.toggle('hidden', !isAdmin);
-    }
+    if (btnAdminManager) btnAdminManager.classList.toggle('hidden', !isAdmin);
 }
 
 function updateToggleModeUI(role, isAdminMode, btnId = 'btnToggleMode') {
@@ -161,22 +106,8 @@ function updateToggleModeUI(role, isAdminMode, btnId = 'btnToggleMode') {
 }
 
 // ==========================================
-// ฟังก์ชันสำหรับใช้ใน window.load (ช่วยให้โค้ดสั้นลง)
+// checkSessionAndRole — ตรวจสอบ session และ role
 // ==========================================
-
-/**
- * checkSessionAndRole — ตรวจสอบ session และ role ก่อนโหลดโมดูล
- *
- * คืนค่า object ที่ประกอบด้วย:
- *  - user, personnel, role
- *  - isAdmin    : true ถ้าเป็น ADMIN role
- *  - isTeacher  : true ถ้าเป็น TEACHER role
- *  - isOffice   : true ถ้าเป็น OFFICE role (เจ้าหน้าที่สำนักงาน)
- *  - isAdminMode: เริ่มต้นเป็น true สำหรับ Admin
- *
- * @param {string}        moduleName   — ชื่อโมดูลสำหรับแสดงในข้อความแจ้งเตือน
- * @param {string[]|null} allowedRoles — กำหนด role ที่อนุญาต (null = ใช้ ALLOWED ทั้งหมด)
- */
 async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const { data: { user } } = await db.auth.getUser();
     if (!user) {
@@ -191,7 +122,6 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
         .single();
 
     if (!personnel) {
-        // ✅ await — หยุดรอจนกว่า user จะกด OK แล้วค่อย redirect
         await Swal.fire('ไม่พบข้อมูล', 'กรุณาติดต่อผู้ดูแลระบบ', 'error');
         window.location.href = 'login.html';
         return null;
@@ -201,7 +131,6 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const allowed = allowedRoles || WRK_ROLES.ALLOWED;
 
     if (!allowed.includes(role)) {
-        // ✅ await — หยุดรอจนกว่า user จะกด ตกลง แล้วค่อย redirect
         await Swal.fire({
             icon: 'warning',
             title: 'ไม่มีสิทธิ์เข้าใช้งาน',
@@ -217,6 +146,9 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
     const isAdmin   = WRK_ROLES.ADMIN.includes(role);
     const isTeacher = WRK_ROLES.TEACHER.includes(role);
     const isOffice  = WRK_ROLES.OFFICE.includes(role);
+
+    // ✅ เก็บ role ไว้ใช้ทั้งระบบ (Sidebar filter, UI)
+    window.currentUserRole = role;
 
     return {
         user,
@@ -234,7 +166,6 @@ async function checkSessionAndRole(moduleName = 'system', allowedRoles = null) {
 // ==========================================
 function injectGlobalFooter() {
     if (document.getElementById('wrk-global-footer')) return;
-
     const footer = document.createElement('footer');
     footer.id = 'wrk-global-footer';
     footer.className = 'fixed bottom-0 left-0 w-full bg-white/80 backdrop-blur-md border-t border-gray-200 py-2.5 z-40 text-center shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]';
@@ -247,54 +178,38 @@ function injectGlobalFooter() {
 
     const style = document.createElement('style');
     style.innerHTML = `
-        body, main, #main-content {
-            padding-bottom: 75px !important;
-        }
-        .overflow-y-auto {
-            padding-bottom: 75px !important;
-        }
+        body, main, #main-content { padding-bottom: 75px !important; }
+        .overflow-y-auto { padding-bottom: 75px !important; }
         @media (min-width: 640px) {
-            body, main, #main-content, .overflow-y-auto {
-                padding-bottom: 50px !important;
-            }
+            body, main, #main-content, .overflow-y-auto { padding-bottom: 50px !important; }
         }
     `;
     document.head.appendChild(style);
 }
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectGlobalFooter);
-} else {
-    injectGlobalFooter();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectGlobalFooter);
+else injectGlobalFooter();
 
 // ==========================================
 // Global Helpdesk Button
 // ==========================================
 function injectHelpdeskButton() {
     if (document.getElementById('wrk-helpdesk-fab')) return;
-
     const fab = document.createElement('div');
     fab.id = 'wrk-helpdesk-fab';
     fab.className = 'fixed bottom-16 right-6 z-[100]';
     fab.innerHTML = `
-        <button onclick="window.location.href='helpdesk_user.html'"
-                title="แจ้งปัญหา / ติดต่อแอดมิน"
-                class="bg-blue-600/90 backdrop-blur-sm hover:bg-blue-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-[0_8px_16px_rgba(37,99,235,0.3)] hover:shadow-[0_12px_20px_rgba(37,99,235,0.4)] transition-all duration-300 hover:scale-105 group relative border border-blue-400/30">
+        <button onclick="window.location.href='helpdesk_user.html'" title="แจ้งปัญหา / ติดต่อแอดมิน"
+            class="bg-blue-600/90 backdrop-blur-sm hover:bg-blue-700 text-white rounded-full w-14 h-14 flex items-center justify-center shadow-[0_8px_16px_rgba(37,99,235,0.3)] hover:shadow-[0_12px_20px_rgba(37,99,235,0.4)] transition-all duration-300 hover:scale-105 group relative border border-blue-400/30">
             <i class="fa-solid fa-headset text-2xl"></i>
         </button>
     `;
     document.body.appendChild(fab);
 }
-
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectHelpdeskButton);
-} else {
-    injectHelpdeskButton();
-}
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', injectHelpdeskButton);
+else injectHelpdeskButton();
 
 // ==========================================
-// ฟังก์ชัน Log การเข้าใช้งาน
+// Log การเข้าใช้งาน
 // ==========================================
 async function logUserAction(action, module) {
     try {
@@ -306,15 +221,14 @@ async function logUserAction(action, module) {
             module: module,
             user_agent: navigator.userAgent
         }]);
-    } catch (error) {
-        console.error("Failed to save log:", error);
-    }
+    } catch (error) { console.error("Failed to save log:", error); }
 }
 
 // ==========================================
-// ประกาศตัวแปรและฟังก์ชันให้เป็น Global
+// Exports
 // ==========================================
 window.WRK_ROLES             = WRK_ROLES;
+window.WRK_ROLE_CATALOG      = WRK_ROLE_CATALOG;   // ✅ ใหม่
 window.isAllowedRole         = isAllowedRole;
 window.isAdminUser           = isAdminUser;
 window.isTeacherUser         = isTeacherUser;
@@ -328,3 +242,22 @@ window.updateToggleModeUI    = updateToggleModeUI;
 window.checkSessionAndRole   = checkSessionAndRole;
 window.logUserAction         = logUserAction;
 window.db                    = db;
+
+// ✅ Global logout alias
+window.logout = function () {
+    if (typeof handleLogout === 'function') return handleLogout();
+    Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    }).then(async (result) => {
+        if (result.isConfirmed) {
+            try { localStorage.removeItem('activeMode'); } catch (e) {}
+            await db.auth.signOut();
+            window.location.replace('login.html');
+        }
+    });
+};

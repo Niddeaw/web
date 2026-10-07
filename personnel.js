@@ -12,15 +12,15 @@ let moduleAdminChecked = false;
 let isModuleAdmin = false;
 
 // ==========================================
-// ROLE HELPERS (ใช้ config.js)
+// ROLE HELPERS
 // ==========================================
 const isSuperAdmin = () => {
-    if (forceTeacherMode) return false; // ✅ บังคับให้ไม่ใช่ Super Admin ในโหมดครู
+    if (forceTeacherMode) return false;
     return currentProfile?.role === 'super_admin';
 };
 
 const isAdmin = () => {
-    if (forceTeacherMode) return false; // ✅ บังคับให้ไม่ใช่ Admin ในโหมดครู (ทุกคน)
+    if (forceTeacherMode) return false;
     if (currentProfile?.role === 'super_admin') return true;
     if (isAdminUser(currentProfile?.role, false)) return true;
     if (moduleAdminChecked && isModuleAdmin) return true;
@@ -30,16 +30,12 @@ const isAdmin = () => {
 
 const isTeacher = () => !isAdmin();
 
-// ✅ ใช้ canManageSettings จาก config.js โดยตรง
 const canManagePersonnelSettings = () => {
     if (forceTeacherMode) return false;
     return window.canManageSettings(currentProfile?.role);
 };
 
-// ✅ ตรวจสอบสิทธิ์แก้ไข
 const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
-
-// ✅ ตรวจสอบสิทธิ์ลบ (เฉพาะ Super Admin เท่านั้น)
 const canDelete = () => isSuperAdmin();
 
 /* ── Position Logic ─────────── */
@@ -60,7 +56,6 @@ const posLogic = {
         academic: ["ผู้อำนวยการชำนาญการพิเศษ"],
         map: { "ผู้อำนวยการชำนาญการพิเศษ": "คศ.3" }
     },
-    // ✅ เพิ่มใหม่
     "เจ้าหน้าที่สำนักงาน": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "พนักงานบริการ": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
     "พนักงานขับรถยนต์": { academic: ["ไม่มีวิทยฐานะ"], rank: "-" },
@@ -92,48 +87,120 @@ function switchTab(id, btn) {
     syncPaInfoPanel();
 }
 
+// ==========================================
+// ✅ ปุ่มนำทาง — personnel
+//    แสดงปุ่มสลับโหมดสำหรับ admin
+// ==========================================
+window.refreshNavButtons = function () {
+    const btnToggle = document.getElementById('btnAdminMode');
+    if (btnToggle) {
+        btnToggle.classList.toggle('hidden', !actualIsAdmin);
+        if (actualIsAdmin) updateToggleModeButton();
+    }
+};
+
+// ==========================================
+// ✅ Inject ปุ่ม ⚙️ ตั้งค่าระบบ เข้า Sidebar
+//    (ทำแบบ dynamic เพราะ DB config อาจไม่มีปุ่มนี้)
+// ==========================================
+window.injectPersonnelSettingsMenu = function () {
+    const nav = document.querySelector('#dSidebar .d-nav');
+    if (!nav) return;
+
+    // ✅ ลบปุ่มเก่าก่อน (ป้องกันซ้ำ)
+    const oldBtn = document.getElementById('btn-settings');
+    if (oldBtn) oldBtn.remove();
+
+    // ✅ ตรวจสอบสิทธิ์
+    const userRole = window.currentUserRole || currentProfile?.role;
+    const canSee = ['super_admin', 'admin'].includes(userRole);
+    if (!canSee) return;
+
+    // ✅ สร้างปุ่มใหม่
+    const newLink = document.createElement('a');
+    newLink.id = 'btn-settings';
+    newLink.href = 'javascript:void(0)';
+    newLink.title = 'ตั้งค่าระบบ';
+    newLink.setAttribute('onclick', 'openSettings()');
+    newLink.innerHTML = `
+        <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
+        <span class="d-label">ตั้งค่าระบบ</span>
+    `;
+
+    // ✅ แทรกก่อนปุ่ม logout (ถ้ามี) หรือต่อท้ายสุด
+    const logoutLink = nav.querySelector('a.logout');
+    if (logoutLink) {
+        logoutLink.parentNode.insertBefore(newLink, logoutLink);
+    } else {
+        nav.appendChild(newLink);
+    }
+
+    console.log('✅ Injected btn-settings into sidebar');
+};
+
+function updateToggleModeButton() {
+    const btn = document.getElementById('btnAdminMode');
+    if (!btn) return;
+    btn.classList.add('d-btn-mode');
+    if (forceTeacherMode) {
+        // อยู่โหมดครู → เสนอสลับเป็นแอดมิน
+        btn.classList.remove('teacher', 'depthead');
+        btn.classList.add('admin');
+        btn.innerHTML = '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>';
+    } else {
+        // อยู่โหมดแอดมิน → เสนอสลับเป็นครู
+        btn.classList.remove('admin', 'depthead');
+        btn.classList.add('teacher');
+        btn.innerHTML = '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>';
+    }
+}
+
 /* ── Bootstrap ──────────────── */
 window.onload = async () => {
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     try {
-        // ✅ ใช้ checkSessionAndRole จาก config.js
         const result = await checkSessionAndRole('personnel', WRK_ROLES.ALLOWED);
         if (!result) return;
 
         currentUser = result.user;
         currentProfile = result.personnel;
 
+        // ✅ expose window.* สำหรับ onReady + refreshNavButtons
+        window.currentUser = currentUser;
+        window.currentProfile = currentProfile;
+        window.currentUserId = currentUser.id;
+        window.currentUserRole = currentProfile.role;
+
         setUserDisplayName(currentProfile);
-        updateUserRoleLabel(currentProfile.role);
         renderUserAvatar(currentProfile);
 
         // ✅ ตรวจสอบ Module Admin
         moduleAdminChecked = true;
         isModuleAdmin = await hasModuleAccess(currentProfile.role, 'personnel', currentUser.id);
 
-        // ✅ ใช้ applyVisibilityByRole
+        // ✅ ตรวจสอบสิทธิ์
         const isAdminByRole = isAdminUser(currentProfile.role, false);
-        actualIsAdmin = isAdminByRole || isModuleAdmin || (window._personnelSettings?.local_admins || []).includes(currentProfile.id);
+        actualIsAdmin = isAdminByRole || isModuleAdmin;
 
-        applyVisibilityByRole(currentProfile.role, actualIsAdmin, {
-            settingsBtn: 'btn-settings',
-            toggleBtn: 'btnAdminMode'
-        });
-
-        // ✅ อัปเดตปุ่มสลับโหมด
-        if (actualIsAdmin) {
-            updateToggleModeUI(currentProfile.role, false, 'btnAdminMode');
-        }
+        // ✅ เรียก refreshNavButtons หลัง auth เสร็จ
+        if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
         await loadCoreUsers();
         await loadSettings();
+
+        // ✅ ตรวจสอบ local_admins หลังโหลด settings
+        actualIsAdmin = isAdminByRole || isModuleAdmin || (window._personnelSettings?.local_admins || []).includes(currentProfile.id);
+        if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+
         await loadPersonnelList();
         applyRoleUI();
         renderPAInputs();
         initFlatpickr();
         updatePositionLogic();
 
-        // ✅ บันทึก Log
+        // ✅ อัปเดต birthday notification
+        if (typeof window.updateBirthdayNotification === 'function') window.updateBirthdayNotification();
+
         await logUserAction('เข้าสู่ระบบบุคลากร', 'personnel');
 
     } catch (err) {
@@ -147,39 +214,11 @@ function applyRoleUI() {
     const btnAdd = document.getElementById('btn-add');
     if (btnAdd) btnAdd.style.display = isAdmin() ? '' : 'none';
 
-    const btnSettings = document.getElementById('btn-settings');
-    if (btnSettings) {
-        if (canManagePersonnelSettings()) {
-            btnSettings.classList.remove('hidden');
-            btnSettings.classList.add('flex');
-        } else {
-            btnSettings.classList.add('hidden');
-            btnSettings.classList.remove('flex');
-        }
-    }
-
-    const toggleBtn = document.getElementById('btnAdminMode');
-    if (toggleBtn && actualIsAdmin) {
-        updateToggleModeUI(currentProfile.role, forceTeacherMode, 'btnAdminMode');
-        toggleBtn.classList.remove('hidden');
-        toggleBtn.classList.add('flex');
-    }
-
-    // ✅ แสดงการ์ดสถิติให้ทุกคนเห็น (ไม่ซ่อน)
-    const statCards = document.querySelector('.grid.grid-cols-2\\.sm\\:grid-cols-3\\.lg\\:grid-cols-6\\.gap-3');
-    if (statCards) {
-        statCards.classList.remove('hidden');
-    }
-
-    // ✅ Info Blocks (ตารางวิเคราะห์) ซ่อนเฉพาะคนที่ไม่ใช่ Admin
+    // ✅ Info Blocks ซ่อนเฉพาะคนที่ไม่ใช่ Admin
     const isUserAdmin = isAdmin();
     const infoBlocks = document.getElementById('info-blocks-section');
     if (infoBlocks) {
-        if (isUserAdmin) {
-            infoBlocks.classList.remove('hidden');
-        } else {
-            infoBlocks.classList.add('hidden');
-        }
+        infoBlocks.classList.toggle('hidden', !isUserAdmin);
     }
 
     const btnImport = document.getElementById('btn-import');
@@ -189,19 +228,8 @@ function applyRoleUI() {
     if (btnImportSheets) btnImportSheets.style.display = isUserAdmin ? '' : 'none';
     if (btnTemplate) btnTemplate.style.display = isUserAdmin ? '' : 'none';
 
-    // roleLabel
-    let roleLabel = '🟢 ครูผู้สอน';
-    if (isSuperAdmin()) roleLabel = '🔴 Super Admin';
-    else if (currentProfile?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
-    else if (currentProfile?.role === 'director') roleLabel = '🟣 ผู้อำนวยการ';
-    else if (currentProfile?.role === 'deputy') roleLabel = '🟠 รองผู้อำนวยการ';
-    else if (currentProfile?.role === 'staff') roleLabel = '🔵 เจ้าหน้าที่';
-    else if (currentProfile?.role === 'office') roleLabel = '🟢 เจ้าหน้าที่สำนักงาน';
-    else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
-    if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
-
-    const badge = document.getElementById('userRole');
-    if (badge) badge.textContent = roleLabel;
+    // ✅ อัปเดต role label แบบ custom (มี emoji)
+    updateCustomRoleLabel();
 
     const sel = document.getElementById('inp-personnel-id');
     if (sel) {
@@ -224,11 +252,25 @@ function applyRoleUI() {
     }
 }
 
-/* ── Toggle Role View ──────── */
-// เพิ่มตัวแปร actualIsAdmin ไว้ด้านบน (มีอยู่แล้ว)
+// ✅ Custom role label with emoji
+function updateCustomRoleLabel() {
+    if (!currentProfile) return;
+    let roleLabel = '🟢 ครูผู้สอน';
+    if (isSuperAdmin()) roleLabel = '🔴 Super Admin';
+    else if (currentProfile?.role === 'admin') roleLabel = '🟡 Admin (ส่วนกลาง)';
+    else if (currentProfile?.role === 'director') roleLabel = '🟣 ผู้อำนวยการ';
+    else if (currentProfile?.role === 'deputy') roleLabel = '🟠 รองผู้อำนวยการ';
+    else if (currentProfile?.role === 'staff') roleLabel = '🔵 เจ้าหน้าที่';
+    else if (currentProfile?.role === 'office') roleLabel = '🟢 เจ้าหน้าที่สำนักงาน';
+    else if (isAdmin()) roleLabel = '🟣 Admin (เฉพาะระบบ)';
+    if (forceTeacherMode) roleLabel = '🟢 ครูผู้สอน (จำลอง)';
 
+    const badge = document.getElementById('userRole');
+    if (badge) badge.textContent = roleLabel;
+}
+
+/* ── Toggle Role View ──────── */
 function toggleRoleView() {
-    // ใช้ actualIsAdmin ที่ตั้งค่าไว้ใน checkAuth (ไม่สน forceTeacherMode)
     if (!actualIsAdmin) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
         return;
@@ -236,15 +278,11 @@ function toggleRoleView() {
 
     forceTeacherMode = !forceTeacherMode;
 
-    const toggleBtn = document.getElementById('btnAdminMode');
-    if (toggleBtn && actualIsAdmin) {
-        updateToggleModeUI(currentProfile.role, forceTeacherMode, 'btnAdminMode');
-    }
-
-    logUserAction(`สลับโหมดเป็น ${forceTeacherMode ? 'Teacher' : 'Admin'}`, 'personnel');
-
+    updateToggleModeButton();
     applyRoleUI();
     loadPersonnelList();
+
+    logUserAction(`สลับโหมดเป็น ${forceTeacherMode ? 'Teacher' : 'Admin'}`, 'personnel');
 
     const modeName = forceTeacherMode ? 'มุมมองครู' : 'มุมมอง Admin';
     Swal.fire({
@@ -279,7 +317,6 @@ async function loadSettings() {
 }
 
 async function saveSetting(key, value) {
-    // ✅ ใช้ canManagePersonnelSettings
     if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ได้รับอนุญาตให้บันทึกการตั้งค่า', 'error');
         return;
@@ -296,7 +333,6 @@ async function saveSetting(key, value) {
     if (key !== 'is_active') sysSettings = newSettings;
     window._personnelSettings = sysSettings;
 
-    // ✅ Log
     await logUserAction(`บันทึกการตั้งค่า: ${key}`, 'personnel');
 
     const Toast = Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 2000, timerProgressBar: true });
@@ -305,7 +341,6 @@ async function saveSetting(key, value) {
 }
 
 function openSettings() {
-    // ✅ ใช้ canManagePersonnelSettings
     if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบบุคลากรได้', 'warning');
         return;
@@ -313,7 +348,11 @@ function openSettings() {
     const modal = document.getElementById('settings-modal');
     modal.classList.remove('hidden');
     modal.classList.add('flex');
-    loadSettings().then(() => renderLocalAdmins());
+
+    loadSettings().then(() => {
+        renderLocalAdmins();
+        renderPA3List();   // ✅ เพิ่ม
+    });
 }
 
 function closeSettings() {
@@ -329,6 +368,7 @@ function closeSettings() {
 /* ── Local Admin Management ── */
 function renderLocalAdmins() {
     const listEl = document.getElementById('list-local-admins');
+    const countBadge = document.getElementById('local-admin-count');
     if (!listEl) return;
 
     const sel = document.getElementById('sel-add-local-admin');
@@ -350,25 +390,29 @@ function renderLocalAdmins() {
     listEl.innerHTML = '';
     const admins = window._personnelSettings?.local_admins || [];
 
+    // ✅ อัปเดต count badge
+    if (countBadge) countBadge.textContent = admins.length;
+
     if (admins.length === 0) {
-        listEl.innerHTML = '<p class="text-xs text-slate-400 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 text-center">ยังไม่มีการกำหนดแอดมินเฉพาะระบบ</p>';
+        listEl.innerHTML = '<p class="text-[11px] text-slate-400 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 text-center">ยังไม่มีการกำหนดแอดมิน</p>';
         return;
     }
 
     admins.forEach(id => {
         const user = allPersonnelData.find(u => u.id === id) || { first_name: 'Unknown', last_name: '' };
         listEl.innerHTML += `
-            <div class="flex justify-between items-center bg-purple-50 px-3 py-2.5 rounded-xl border border-purple-100 transition hover:bg-purple-100">
-                <span class="text-sm text-purple-800 font-semibold"><i class="fas fa-user-shield mr-2 text-purple-400"></i>${user.prefix || ''}${user.first_name} ${user.last_name}</span>
-                <button onclick="removeLocalAdmin('${id}')" class="h-7 w-7 rounded-lg bg-white text-red-400 hover:text-red-600 shadow-sm flex items-center justify-center transition" title="ถอดสิทธิ์">
-                    <i class="fas fa-times text-xs"></i>
+            <div class="flex justify-between items-center bg-purple-50 px-3 py-2 rounded-lg border border-purple-100 transition hover:bg-purple-100">
+                <span class="text-xs text-purple-800 font-semibold truncate mr-2">
+                    <i class="fas fa-user-shield mr-1 text-purple-400"></i>${user.prefix || ''}${user.first_name} ${user.last_name}
+                </span>
+                <button onclick="removeLocalAdmin('${id}')" class="h-6 w-6 rounded-md bg-white text-red-400 hover:text-red-600 shadow-sm flex items-center justify-center transition flex-shrink-0" title="ถอดสิทธิ์">
+                    <i class="fas fa-times text-[10px]"></i>
                 </button>
             </div>`;
     });
 }
 
 async function addLocalAdmin() {
-    // ✅ ใช้ canManagePersonnelSettings
     if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มแอดมินได้', 'warning');
         return;
@@ -381,7 +425,6 @@ async function addLocalAdmin() {
     admins.push(uid);
     await saveSetting('local_admins', admins);
 
-    // ✅ Log
     const user = allPersonnelData.find(u => u.id === uid);
     const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : uid;
     await logUserAction(`แต่งตั้งแอดมินระบบบุคลากร: ${name}`, 'personnel');
@@ -395,7 +438,6 @@ async function addLocalAdmin() {
 }
 
 async function removeLocalAdmin(uid) {
-    // ✅ ใช้ canManagePersonnelSettings
     if (!canManagePersonnelSettings()) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ถอดแอดมินได้', 'warning');
         return;
@@ -404,12 +446,112 @@ async function removeLocalAdmin(uid) {
     admins = admins.filter(id => id !== uid);
     await saveSetting('local_admins', admins);
 
-    // ✅ Log
     const user = allPersonnelData.find(u => u.id === uid);
     const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : uid;
     await logUserAction(`ถอดถอนแอดมินระบบบุคลากร: ${name}`, 'personnel');
 
     renderLocalAdmins();
+}
+
+/* ── PA3 Years Management ───── */
+function renderPA3List() {
+    const container = document.getElementById('list-pa3-years');
+    const countBadge = document.getElementById('pa3-year-count');
+    if (!container) return;
+
+    const config = getPA3Config();
+
+    // ✅ อัปเดต count badge
+    if (countBadge) countBadge.textContent = config.length;
+
+    if (config.length === 0) {
+        container.innerHTML = `<p class="text-[11px] text-slate-400 bg-slate-50 p-3 rounded-xl border border-dashed border-slate-200 text-center">
+            <i class="fas fa-folder-open mr-1"></i> ยังไม่มีการกำหนดปี
+        </p>`;
+        return;
+    }
+
+    container.innerHTML = config.map(item => `
+        <div class="flex justify-between items-center bg-indigo-50 px-2.5 py-2 rounded-lg border border-indigo-100 transition hover:bg-indigo-100">
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+                <span class="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded-md flex-shrink-0">${item.year}</span>
+                <span class="text-xs text-indigo-800 font-medium truncate">${item.label || `ปี ${item.year}`}</span>
+            </div>
+            <button onclick="removePA3Year(${item.year})" class="h-6 w-6 rounded-md bg-white text-red-400 hover:text-red-600 shadow-sm flex items-center justify-center transition flex-shrink-0 ml-1" title="ลบปีนี้">
+                <i class="fas fa-times text-[10px]"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+async function addPA3Year() {
+    if (!canManagePersonnelSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่เพิ่มปีงบประมาณได้', 'warning');
+        return;
+    }
+
+    const yearInput = document.getElementById('set-pa3-new-year');
+    const labelInput = document.getElementById('set-pa3-new-label');
+    const year = parseInt(yearInput.value);
+    const label = labelInput.value.trim() || `ปีงบประมาณ ${year}`;
+
+    // ✅ Validate
+    if (!year || year < 2500 || year > 2700) {
+        Swal.fire('ข้อมูลไม่ถูกต้อง', 'กรุณาระบุปี พ.ศ. ที่ถูกต้อง (2500–2700)', 'warning');
+        yearInput.focus();
+        return;
+    }
+
+    let config = [...getPA3Config()];
+
+    if (config.some(c => c.year === year)) {
+        Swal.fire('ซ้ำซ้อน', `มีปี พ.ศ. ${year} อยู่แล้วในระบบ`, 'warning');
+        yearInput.value = '';
+        return;
+    }
+
+    config.push({ id: `pa_${year}`, year, label });
+    config.sort((a, b) => a.year - b.year);
+
+    await saveSetting('pa3_config', config);
+    await logUserAction(`เพิ่มปีงบประมาณ PA3: ${year}`, 'personnel');
+
+    yearInput.value = '';
+    labelInput.value = '';
+
+    renderPA3List();
+    renderPAInputs();
+}
+
+async function removePA3Year(year) {
+    if (!canManagePersonnelSettings()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        title: `ลบปี ${year}?`,
+        html: `<div class="text-sm text-slate-600 space-y-1 text-left">
+            <p>การลบปี <b class="text-red-600">${year}</b> ออกจะทำให้</p>
+            <p>• ไม่แสดงช่องใส่ลิงค์ PA3 ปีนี้ในหน้าแก้ไขบุคลากร</p>
+            <p class="text-xs text-slate-400 mt-2">💾 ข้อมูลที่กรอกไว้แล้วจะยังอยู่ในฐานข้อมูล (แสดงกลับได้ถ้าเพิ่มปีนี้กลับมาอีกครั้ง)</p>
+        </div>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: '<i class="fas fa-trash mr-1"></i> ลบปีนี้',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    let config = getPA3Config().filter(c => c.year !== year);
+
+    await saveSetting('pa3_config', config);
+    await logUserAction(`ลบปีงบประมาณ PA3: ${year}`, 'personnel');
+
+    renderPA3List();
+    renderPAInputs();
 }
 
 /* ── Load Users Dropdown ───── */
@@ -557,14 +699,49 @@ function syncPaInfoPanel() {
 }
 
 /* ── PA Inputs ──────────────── */
-const PA_YEARS = [2565, 2566, 2567, 2568, 2569, 2570];
+/* ── PA Inputs ──────────────── */
+// ✅ Default: ถ้า admin ยังไม่ตั้งค่า จะใช้ชุดนี้
+const DEFAULT_PA3_CONFIG = [
+    { id: 'pa_2565', year: 2565, label: 'ปีงบประมาณ 2565' },
+    { id: 'pa_2566', year: 2566, label: 'ปีงบประมาณ 2566' },
+    { id: 'pa_2567', year: 2567, label: 'ปีงบประมาณ 2567' },
+    { id: 'pa_2568', year: 2568, label: 'ปีงบประมาณ 2568' },
+    { id: 'pa_2569', year: 2569, label: 'ปีงบประมาณ 2569' },
+    { id: 'pa_2570', year: 2570, label: 'ปีงบประมาณ 2570' },
+];
+
+// ✅ อ่าน config จาก settings (ถ้ามี) หรือ default
+function getPA3Config() {
+    const cfg = window._personnelSettings?.pa3_config;
+    if (Array.isArray(cfg)) {
+        // ถ้ามี array (แม้ empty) → ใช้ของ settings
+        return [...cfg].sort((a, b) => (a.year || 0) - (b.year || 0));
+    }
+    // ยังไม่มีใน settings → ใช้ default
+    return DEFAULT_PA3_CONFIG;
+}
+
 function renderPAInputs(saved = {}) {
     const el = document.getElementById('pa-container');
     el.innerHTML = '';
     const canEdit = isAdmin();
+    const config = getPA3Config();
 
-    PA_YEARS.forEach(y => {
-        const v = saved[`pa_${y}`] || '';
+    // ✅ กรณีไม่มีปีเลย
+    if (config.length === 0) {
+        el.innerHTML = `
+            <div class="col-span-full text-center py-10 text-slate-400">
+                <i class="fas fa-folder-open text-4xl mb-3 text-slate-300"></i>
+                <p class="font-bold text-sm">ยังไม่มีการกำหนดปีงบประมาณ PA3</p>
+                <p class="text-xs mt-1">Super Admin เพิ่มได้ที่เมนู <b>⚙️ ตั้งค่าระบบ</b></p>
+            </div>`;
+        return;
+    }
+
+    config.forEach(item => {
+        const y = item.year;
+        const v = saved[item.id] || '';
+        const labelText = item.label || `ปีงบประมาณ ${y}`;
 
         let inputHtml = '';
         if (canEdit) {
@@ -595,19 +772,25 @@ function renderPAInputs(saved = {}) {
 
         el.insertAdjacentHTML('beforeend', `
             <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 hover:border-indigo-200 transition space-y-2">
-                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">ไฟล์ PA3 ปี ${y}</p>
+                <p class="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">${labelText}</p>
                 ${inputHtml}
             </div>`);
     });
 }
+
 function previewPA(y) {
     const u = document.getElementById(`pa-${y}`).value.trim();
     if (!u) return Swal.fire('ไม่มีลิงก์', `ยังไม่ได้ใส่ลิงก์ PA3 ปี ${y}`, 'info');
     window.open(u, '_blank');
 }
+
 function collectPA() {
     const pa = {};
-    PA_YEARS.forEach(y => { const el = document.getElementById(`pa-${y}`); if (el?.value.trim()) pa[`pa_${y}`] = el.value.trim(); });
+    const config = getPA3Config();
+    config.forEach(item => {
+        const el = document.getElementById(`pa-${item.year}`);
+        if (el?.value.trim()) pa[item.id] = el.value.trim();
+    });
     return pa;
 }
 
@@ -877,9 +1060,6 @@ function populateForm(p) {
     }
     onNameSelect();
 
-    document.getElementById('inp-personnel-id').value = p.id || '';
-    $('#inp-personnel-id').trigger('change');
-
     document.getElementById('inp-cid').value = p.national_id || '';
     document.getElementById('inp-phone').value = p.phone || '';
     document.getElementById('sel-learning-area').value = p.department || '';
@@ -918,7 +1098,6 @@ function populateForm(p) {
 async function savePersonnel(e) {
     e.preventDefault();
 
-    // ✅ Validate ด้วยตัวเอง (แทน browser native เพื่อหลีกเลี่ยง hidden-tab error)
     const userId = document.getElementById('inp-personnel-id').tomselect?.getValue()
         || document.getElementById('inp-personnel-id').value;
     const posValue = document.getElementById('sel-pos').value;
@@ -934,27 +1113,19 @@ async function savePersonnel(e) {
         return;
     }
 
-    // ✅ ตรวจสอบสิทธิ์ด้วย requireAdmin
-    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่บันทึกข้อมูลบุคลากรได้')) {
-        // แต่ถ้าเป็นเจ้าของข้อมูลตัวเอง ก็ให้บันทึกได้ (allow self-edit)
-        // requireAdmin จะ return false ถ้าไม่ใช่ admin แต่เราต้องตรวจสอบว่าเป็นตัวเองหรือไม่
-        const userId = document.getElementById('inp-personnel-id').value;
-        const editId = document.getElementById('edit-id').value;
-        const targetId = editId || userId;
-        if (currentProfile?.id !== targetId && !isAdmin()) {
-            return;
-        }
+    // ✅ ตรวจสอบสิทธิ์แก้ไข
+    const editId = document.getElementById('edit-id').value;
+    const targetId = editId || userId;
+    if (!canEditRecord(targetId)) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์แก้ไขข้อมูลของบุคลากรท่านอื่น', 'error');
+        return;
     }
 
     const btn = document.getElementById('btn-submit');
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังบันทึก...';
     try {
-        const userId = document.getElementById('inp-personnel-id').value;
-        const editId = document.getElementById('edit-id').value;
-        const targetId = editId || userId;
         if (!targetId) throw new Error('กรุณาเลือกชื่อบุคลากร');
-        if (!canEditRecord(targetId)) throw new Error('คุณไม่มีสิทธิ์แก้ไขข้อมูลของบุคลากรท่านอื่น');
 
         if (_pendingAvatarFile) {
             const driveUrl = await uploadFileToDrive(_pendingAvatarFile, targetId);
@@ -976,7 +1147,6 @@ async function savePersonnel(e) {
         }
 
         const payload = {
-            id: targetId,
             national_id: document.getElementById('inp-cid').value.trim() || null,
             phone: document.getElementById('inp-phone').value.trim() || null,
             department: document.getElementById('sel-learning-area').value || null,
@@ -994,11 +1164,9 @@ async function savePersonnel(e) {
             avatar_url: document.getElementById('inp-avatar-data').value || null,
         };
 
-        const { id: _id, ...updatePayload } = payload;
-        const { error } = await db.from('core_personnel').update(updatePayload).eq('id', targetId);
+        const { error } = await db.from('core_personnel').update(payload).eq('id', targetId);
         if (error) throw error;
 
-        // ✅ Log
         const user = allPersonnelData.find(u => u.id === targetId);
         const name = user ? `${user.prefix || ''}${user.first_name} ${user.last_name}` : targetId;
         await logUserAction(`บันทึกข้อมูลบุคลากร: ${name}`, 'personnel');
@@ -1016,10 +1184,9 @@ async function savePersonnel(e) {
 
 /* ── DELETE ─────────────────── */
 async function deletePersonnel(id, name) {
-    // ✅ ใช้ requireAdmin (เฉพาะ Super Admin)
-    if (!requireAdmin(currentProfile?.role, false, 'เฉพาะ Super Admin เท่านั้นที่ลบข้อมูลบุคลากรได้')) {
-        // ตรวจสอบเพิ่มว่าเป็น Super Admin จริงๆ
-        if (!isSuperAdmin()) return;
+    if (!isSuperAdmin()) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่ลบข้อมูลบุคลากรได้', 'warning');
+        return;
     }
 
     const r = await Swal.fire({
@@ -1037,7 +1204,6 @@ async function deletePersonnel(id, name) {
     }).eq('id', id);
     if (error) return Swal.fire('ผิดพลาด', error.message, 'error');
 
-    // ✅ Log
     await logUserAction(`ลบข้อมูลบุคลากร: ${name}`, 'personnel');
 
     Swal.fire({ icon: 'success', title: 'ลบข้อมูลแล้ว', timer: 1400, showConfirmButton: false });
@@ -1056,7 +1222,6 @@ async function loadPersonnelList() {
     const tbody = document.getElementById('main-tbody');
     tbody.innerHTML = '';
 
-    // ✅ ข้อมูลที่ใช้แสดงในตาราง (กรองตามโหมด)
     let displayData = allPersonnelData;
     if (isTeacher() || forceTeacherMode) {
         displayData = allPersonnelData.filter(p => p.id === currentProfile?.id);
@@ -1170,9 +1335,8 @@ async function loadPersonnelList() {
         }
     });
 
-    // ✅ ใช้ allPersonnelData เพื่อให้สถิติคงที่ (ไม่กรองตามโหมด)
     updateDashboard(allPersonnelData);
-    updateBirthdayNotification();   // ✅ เพิ่มบรรทัดนี้
+    if (typeof window.updateBirthdayNotification === 'function') window.updateBirthdayNotification();
 }
 
 function editPersonnel(id) {
@@ -1325,6 +1489,9 @@ function renderInfoBlocks(data) {
 }
 
 /* ── Birthday Notification ── */
+// ✅ Cache ข้อมูลวันเกิดไว้ใช้แสดง modal
+let _birthdayCache = { today: [], upcoming: [] };
+
 function updateBirthdayNotification() {
     const today = dayjs();
     const currentYear = today.year();
@@ -1343,6 +1510,9 @@ function updateBirthdayNotification() {
         }
     });
 
+    // ✅ เก็บลง cache
+    _birthdayCache = { today: birthdayToday, upcoming };
+
     const el = document.getElementById('birthday-notification');
     if (!el) return;
 
@@ -1355,28 +1525,152 @@ function updateBirthdayNotification() {
     el.classList.remove('hidden', 'animated');
     el.classList.add('birthday-notification-badge');
 
+    // ✅ ทำให้คลิกได้
+    el.style.cursor = 'pointer';
+    el.onclick = () => openBirthdayModal();
+
     let msg = '';
     if (birthdayToday.length > 0) {
         const names = birthdayToday.map(p => `${p.prefix || ''}${p.first_name} ${p.last_name}`).join(', ');
-        msg = `🎂 วันเกิดวันนี้: ${names}`;
+        // ✅ ถ้ามีหลายคน สั้นลง
+        if (birthdayToday.length > 1) {
+            msg = `🎂 วันเกิดวันนี้ ${birthdayToday.length} คน`;
+        } else {
+            msg = `🎂 วันเกิดวันนี้: ${names}`;
+        }
     } else {
         const sorted = upcoming.sort((a, b) => a.days - b.days);
         const days = sorted[0].days;
         const count = sorted.length;
+        // ✅ ปรับข้อความ
         if (count === 1) {
             const p = sorted[0].person;
-            msg = `🎉 จะมีวันเกิดใน ${days} วัน (${p.prefix || ''}${p.first_name} ${p.last_name})`;
+            msg = `🎉 จะมีวันเกิดใน ${days} วัน (1 คน)`;
         } else {
             msg = `🎉 จะมีวันเกิดใน ${days} วัน (${count} คน)`;
         }
     }
     el.textContent = msg;
 
-    // รีเซ็ต animation เพื่อให้เล่นทุกครั้งที่มีการอัปเดต
-    void el.offsetWidth; // force reflow
+    void el.offsetWidth;
     el.classList.add('animated');
 }
 
+// ==========================================
+// ✅ Modal แสดงรายชื่อผู้มีวันเกิด
+// ==========================================
+function openBirthdayModal() {
+    const { today: birthdayToday, upcoming } = _birthdayCache;
+
+    if (birthdayToday.length === 0 && upcoming.length === 0) {
+        return;
+    }
+
+    const modal = document.getElementById('birthday-modal');
+    const content = document.getElementById('birthday-modal-content');
+    if (!modal || !content) return;
+
+    let html = '';
+
+    // ✅ ส่วนที่ 1: วันเกิดวันนี้
+    if (birthdayToday.length > 0) {
+        html += `
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+                        <i class="fas fa-birthday-cake text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm text-slate-800">วันเกิดวันนี้</h4>
+                        <p class="text-[10px] text-slate-400">${birthdayToday.length} คน</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    ${birthdayToday.map(p => `
+                        <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100 rounded-xl">
+                            <div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">
+                                ${(p.first_name || '?').charAt(0)}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                                <p class="text-[11px] text-slate-500 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+                            </div>
+                            <div class="text-2xl flex-shrink-0">🎂</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    // ✅ ส่วนที่ 2: วันเกิดที่กำลังจะมาถึง (≤ 7 วัน) จัดกลุ่มตามวัน
+    if (upcoming.length > 0) {
+        // จัดกลุ่มตาม days
+        const grouped = {};
+        upcoming.forEach(item => {
+            if (!grouped[item.days]) grouped[item.days] = [];
+            grouped[item.days].push(item.person);
+        });
+
+        const sortedDays = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+        html += `
+            <div>
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm">
+                        <i class="fas fa-calendar-alt text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm text-slate-800">วันเกิดที่กำลังจะมาถึง</h4>
+                        <p class="text-[10px] text-slate-400">ภายใน 7 วัน • ${upcoming.length} คน</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    ${sortedDays.map(days => `
+                        <div class="border border-slate-200 rounded-xl overflow-hidden">
+                            <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                                <i class="fas fa-clock text-amber-500 text-xs"></i>
+                                <span class="font-bold text-xs text-slate-700">อีก ${days} วัน</span>
+                                <span class="text-[10px] text-slate-400 ml-auto">${grouped[days].length} คน</span>
+                            </div>
+                            <div class="divide-y divide-slate-100 bg-white">
+                                ${grouped[days].map(p => {
+                                    // ✅ หาวันที่เกิดจริง + แปลงเป็นวันที่ไทยแบบเต็ม
+                                    const bd = dayjs(p.birth_date);
+                                    const bdThisYear = bd.set('year', dayjs().year());
+                                    const dateStr = bdThisYear.format('D MMMM');   // เช่น 8 ตุลาคม
+                                    return `
+                                        <div class="flex items-center gap-3 p-2.5">
+                                            <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">
+                                                ${(p.first_name || '?').charAt(0)}
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="font-semibold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                                                <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+                                            </div>
+                                            <div class="text-xs font-bold text-amber-600 flex-shrink-0">${dateStr}</div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    content.innerHTML = html;
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+}
+
+function closeBirthdayModal() {
+    const modal = document.getElementById('birthday-modal');
+    if (!modal) return;
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+}
 
 /* ── EXPORT EXCEL ───────────── */
 function exportToExcel() {
@@ -1608,7 +1902,6 @@ async function processImportRows(rows, foundHeaders) {
     }
     Swal.close();
 
-    // ✅ Log
     await logUserAction(`นำเข้าข้อมูลบุคลากร (สำเร็จ ${success}, ล้มเหลว ${failed})`, 'personnel');
 
     let html = `<div class="text-left text-sm space-y-1">
@@ -1624,7 +1917,6 @@ async function processImportRows(rows, foundHeaders) {
 
 /* ── IMPORT FROM GOOGLE SHEETS ── */
 async function importFromGoogleSheets() {
-    // ✅ ตรวจสอบสิทธิ์ Admin
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
         return;
     }
@@ -1739,7 +2031,6 @@ function parseCsv(text) {
 async function importFromExcel(event) {
     const file = event.target.files[0]; if (!file) return;
 
-    // ✅ ตรวจสอบสิทธิ์ Admin
     if (!requireAdmin(currentProfile?.role, false, 'เฉพาะผู้ดูแลระบบเท่านั้นที่นำเข้าข้อมูลได้')) {
         event.target.value = '';
         return;
@@ -1764,7 +2055,6 @@ async function importFromExcel(event) {
 }
 
 /* ── Modal Stats & Retire ── */
-
 function openStatsModal() {
     const posStats = {};
     const acadStats = {};
@@ -1847,10 +2137,7 @@ function closeRetireModal() {
     document.getElementById('retire-modal').classList.remove('flex');
 }
 
-
-// ==========================================
-// ประกาศฟังก์ชัน global
-// ==========================================
+/* ── Expose Globals ── */
 window.toggleRoleView = toggleRoleView;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
@@ -1876,8 +2163,16 @@ window.clearDate = clearDate;
 window.previewPA = previewPA;
 window.addLocalAdmin = addLocalAdmin;
 window.removeLocalAdmin = removeLocalAdmin;
+window.addPA3Year = addPA3Year;
+window.removePA3Year = removePA3Year;
+window.renderPA3List = renderPA3List;
 window.openStatsModal = openStatsModal;
 window.closeStatsModal = closeStatsModal;
 window.openRetireModal = openRetireModal;
 window.closeRetireModal = closeRetireModal;
 window.updateBirthdayNotification = updateBirthdayNotification;
+window.updateCustomRoleLabel = updateCustomRoleLabel;
+window.openBirthdayModal = openBirthdayModal;
+window.closeBirthdayModal = closeBirthdayModal;
+
+console.log('✅ personnel.js loaded (template-compliant + refreshNavButtons)');

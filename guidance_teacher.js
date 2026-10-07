@@ -110,11 +110,16 @@ $(document).ready(async function () {
         updateUserRoleLabel(role);
         renderUserAvatar(personnel);
 
-        if (window.isAdminUser(role, isAdminMode) || isModuleAdmin) {
-            $('#nav-admin').removeClass('hidden');
-            $('#btnModeAdmin').removeClass('hidden').addClass('flex');
+        // ✅ แจ้ง HTML helper ว่าผู้ใช้มีสิทธิ์เห็นปุ่ม/เมนูแอดมินหรือไม่
+        if (typeof window.setGuidanceRoleVisibility === 'function') {
+            window.setGuidanceRoleVisibility(window.isAdminUser(role, isAdminMode) || isModuleAdmin);
+        } else {
+            // Fallback
+            if (window.isAdminUser(role, isAdminMode) || isModuleAdmin) {
+                $('#nav-admin').removeClass('hidden');
+                $('#btnModeAdmin').removeClass('hidden').addClass('flex');
+            }
         }
-        $('#nav-teacher').removeClass('hidden').addClass('active');
 
         // ✅ แสดง skeleton ก่อน แล้วค่อยโหลด
         document.getElementById('skeletonLoader').classList.remove('hidden');

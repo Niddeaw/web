@@ -1,16 +1,29 @@
 // scholarship_dashboard.js
-// ปรับปรุงประสิทธิภาพด้วย Batch Query (Promise.all)
+// ปรับปรุงประสิทธิภาพด้วย Batch Query (Promise.all) + Dashboard Cache
 // แก้ไข error .catch is not a function
 
 let dashboardChart = null;
 
+// ✅ Cache
+let _dashboardCache = null;
+let _dashboardCacheKey = '';
+let _dashboardCacheTime = 0;
+const DASHBOARD_TTL = 60 * 1000; // 60 seconds
+
 /**
- * โหลดข้อมูลสำหรับ Dashboard (ใช้ Batch Query)
- * @param {string} academicYear - ปีการศึกษา เช่น '2566'
- * @param {string} semester - ภาคเรียน เช่น '1' หรือ '2'
+ * โหลดข้อมูลสำหรับ Dashboard (ใช้ Batch Query + Cache)
  */
 async function loadDashboard(academicYear, semester) {
     console.log('📊 loadDashboard called with:', academicYear, semester);
+
+    // ✅ Cache check
+    const cacheKey = `${academicYear}_${semester}`;
+    if (_dashboardCache && _dashboardCacheKey === cacheKey && (Date.now() - _dashboardCacheTime) < DASHBOARD_TTL) {
+        console.log('⚡ loadDashboard: จาก cache');
+        applyDashboardData(_dashboardCache, academicYear, semester);
+        return;
+    }
+
     try {
         const cardElements = {
             totalScholarships: document.getElementById('card-total-scholarships'),
@@ -24,14 +37,12 @@ async function loadDashboard(academicYear, semester) {
             return;
         }
 
-        // คำนวณวันที่สำหรับกรอง created_at
         const startDate = new Date();
         startDate.setFullYear(parseInt(academicYear) - 543);
         startDate.setMonth(0, 1);
         const endDate = new Date(startDate);
         endDate.setFullYear(startDate.getFullYear() + 1);
 
-        // ✅ สร้างฟังก์ชัน query ที่มี fallback ด้วย try/catch
         const fetchApplicationsCount = async () => {
             try {
                 const result = await db
@@ -87,106 +98,26 @@ async function loadDashboard(academicYear, semester) {
             fetchApprovedCount()
         ]);
 
-        // ตรวจสอบ error
         if (scholarshipsResult.error) throw scholarshipsResult.error;
         if (distinctStudentsResult.error) throw distinctStudentsResult.error;
 
-        // ประมวลผล
         const uniqueNames = new Set(scholarshipsResult.data.map(s => s.scholarship_name));
-        const totalScholarships = uniqueNames.size;
-
         const uniqueStudentIds = new Set(distinctStudentsResult.data.map(s => s.student_id));
-        const totalStudentsReceived = uniqueStudentIds.size;
 
-        const totalApplications = applicationsCountResult.count || 0;
-        const approvedApplications = approvedCountResult.count || 0;
+        const stats = {
+            totalScholarships: uniqueNames.size,
+            totalStudentsReceived: uniqueStudentIds.size,
+            totalApplications: applicationsCountResult.count || 0,
+            approvedApplications: approvedCountResult.count || 0,
+            studentIds: [...uniqueStudentIds]
+        };
 
-        // อัปเดตการ์ด
-        cardElements.totalScholarships.textContent = totalScholarships || 0;
-        cardElements.totalStudents.textContent = totalStudentsReceived || 0;
-        cardElements.totalApplications.textContent = totalApplications || 0;
-        cardElements.approvedApplications.textContent = approvedApplications || 0;
+        // ✅ เก็บ cache
+        _dashboardCache = stats;
+        _dashboardCacheKey = cacheKey;
+        _dashboardCacheTime = Date.now();
 
-        // ----- Chart (ใช้ distinctStudentsResult.data) -----
-        const studentIds = distinctStudentsResult.data.map(s => s.student_id);
-        const gradeCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
-
-        if (studentIds.length > 0) {
-            const { data: enrollments, error: enrollErr } = await db
-                .from('student_enrollments')
-                .select('student_id, academic_year, semester, core_classrooms(grade_level)')
-                .in('student_id', studentIds)
-                .order('academic_year', { ascending: false })
-                .order('semester', { ascending: false });
-
-            if (!enrollErr && enrollments) {
-                const latestEnrollmentMap = new Map();
-                enrollments.forEach(en => {
-                    const existing = latestEnrollmentMap.get(en.student_id);
-                    if (!existing ||
-                        en.academic_year > existing.academic_year ||
-                        (en.academic_year === existing.academic_year && en.semester > existing.semester)) {
-                        latestEnrollmentMap.set(en.student_id, en);
-                    }
-                });
-                latestEnrollmentMap.forEach(en => {
-                    const grade = en.core_classrooms?.grade_level;
-                    if (grade && grade >= 1 && grade <= 6) {
-                        gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
-                    }
-                });
-            }
-        }
-
-        const labels = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
-        const data = [gradeCounts[1], gradeCounts[2], gradeCounts[3], gradeCounts[4], gradeCounts[5], gradeCounts[6]];
-
-        const ctx = document.getElementById('scholarshipChart');
-        if (ctx) {
-            if (dashboardChart) dashboardChart.destroy();
-            dashboardChart = new Chart(ctx.getContext('2d'), {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'จำนวนนักเรียนที่ได้รับทุน',
-                        data: data,
-                        backgroundColor: [
-                            'rgba(54, 162, 235, 0.6)',
-                            'rgba(75, 192, 192, 0.6)',
-                            'rgba(255, 206, 86, 0.6)',
-                            'rgba(153, 102, 255, 0.6)',
-                            'rgba(255, 159, 64, 0.6)',
-                            'rgba(255, 99, 132, 0.6)'
-                        ],
-                        borderColor: [
-                            'rgba(54, 162, 235, 1)',
-                            'rgba(75, 192, 192, 1)',
-                            'rgba(255, 206, 86, 1)',
-                            'rgba(153, 102, 255, 1)',
-                            'rgba(255, 159, 64, 1)',
-                            'rgba(255, 99, 132, 1)'
-                        ],
-                        borderWidth: 2,
-                        borderRadius: 8,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        title: {
-                            display: true,
-                            text: `จำนวนนักเรียนที่ได้รับทุน จำแนกตามระดับชั้น (ปี ${academicYear} เทอม ${semester})`
-                        }
-                    },
-                    scales: {
-                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
-                    }
-                }
-            });
-        }
+        await applyDashboardData(stats, academicYear, semester);
 
         attachCardClickEvents();
         console.log('✅ Dashboard loaded successfully');
@@ -194,6 +125,103 @@ async function loadDashboard(academicYear, semester) {
         console.error('❌ Error loading dashboard:', error);
     }
 }
+
+// ✅ Helper: Apply stats + render chart (รองรับ cache)
+async function applyDashboardData(stats, academicYear, semester) {
+    const cardElements = {
+        totalScholarships: document.getElementById('card-total-scholarships'),
+        totalStudents: document.getElementById('card-total-students'),
+        totalApplications: document.getElementById('card-total-applications'),
+        approvedApplications: document.getElementById('card-approved-applications')
+    };
+
+    if (!cardElements.totalScholarships) return;
+
+    cardElements.totalScholarships.textContent = stats.totalScholarships || 0;
+    cardElements.totalStudents.textContent = stats.totalStudentsReceived || 0;
+    cardElements.totalApplications.textContent = stats.totalApplications || 0;
+    cardElements.approvedApplications.textContent = stats.approvedApplications || 0;
+
+    // Chart
+    const studentIds = stats.studentIds || [];
+    const gradeCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
+
+    if (studentIds.length > 0) {
+        const { data: enrollments, error: enrollErr } = await db
+            .from('student_enrollments')
+            .select('student_id, academic_year, semester, core_classrooms(grade_level)')
+            .in('student_id', studentIds)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false });
+
+        if (!enrollErr && enrollments) {
+            const latestEnrollmentMap = new Map();
+            enrollments.forEach(en => {
+                const existing = latestEnrollmentMap.get(en.student_id);
+                if (!existing ||
+                    en.academic_year > existing.academic_year ||
+                    (en.academic_year === existing.academic_year && en.semester > existing.semester)) {
+                    latestEnrollmentMap.set(en.student_id, en);
+                }
+            });
+            latestEnrollmentMap.forEach(en => {
+                const grade = en.core_classrooms?.grade_level;
+                if (grade && grade >= 1 && grade <= 6) {
+                    gradeCounts[grade] = (gradeCounts[grade] || 0) + 1;
+                }
+            });
+        }
+    }
+
+    const labels = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
+    const data = [gradeCounts[1], gradeCounts[2], gradeCounts[3], gradeCounts[4], gradeCounts[5], gradeCounts[6]];
+
+    const ctx = document.getElementById('scholarshipChart');
+    if (ctx) {
+        if (dashboardChart) dashboardChart.destroy();
+        dashboardChart = new Chart(ctx.getContext('2d'), {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'จำนวนนักเรียนที่ได้รับทุน',
+                    data: data,
+                    backgroundColor: [
+                        'rgba(54, 162, 235, 0.6)', 'rgba(75, 192, 192, 0.6)',
+                        'rgba(255, 206, 86, 0.6)', 'rgba(153, 102, 255, 0.6)',
+                        'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)'
+                    ],
+                    borderColor: [
+                        'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
+                        'rgba(255, 206, 86, 1)', 'rgba(153, 102, 255, 1)',
+                        'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'
+                    ],
+                    borderWidth: 2,
+                    borderRadius: 8,
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    title: {
+                        display: true,
+                        text: `จำนวนนักเรียนที่ได้รับทุน จำแนกตามระดับชั้น (ปี ${academicYear} เทอม ${semester})`
+                    }
+                },
+                scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+}
+
+// ✅ Helper: Clear dashboard cache
+window.clearDashboardCache = function () {
+    _dashboardCache = null;
+    _dashboardCacheKey = '';
+    _dashboardCacheTime = 0;
+};
 
 // ==========================================
 // ฟังก์ชันกลางสำหรับแสดง DataTable ใน SweetAlert
@@ -256,7 +284,6 @@ function showDataTableInSwal(title, columns, data, rowCallback) {
 // ==========================================
 // ฟังก์ชันคลิกการ์ด
 // ==========================================
-
 function attachCardClickEvents() {
     const cardScholarships = document.getElementById('card-scholarships');
     const cardStudents = document.getElementById('card-students');
@@ -365,7 +392,7 @@ window.showScholarshipList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 2: นักเรียนที่ได้รับทุน (Batch Query) ----------
+// ---------- การ์ดที่ 2: นักเรียนที่ได้รับทุน ----------
 window.showStudentList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -461,7 +488,7 @@ window.showStudentList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 3: ผู้ขอทุน (Batch Query) ----------
+// ---------- การ์ดที่ 3: ผู้ขอทุน ----------
 window.showApplicantList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -570,7 +597,7 @@ window.showApplicantList = async function () {
     }
 };
 
-// ---------- การ์ดที่ 4: อนุมัติแล้ว (Batch Query) ----------
+// ---------- การ์ดที่ 4: อนุมัติแล้ว ----------
 window.showApprovedList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;

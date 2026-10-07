@@ -61,28 +61,23 @@ window.addEventListener('load', async () => {
         currentUserId = currentUser.id;
         currentUserRole = currentProfile.role;
 
+        // ✅ ตั้ง window.* ให้ dashboard_sidebar.js ใช้ตอน re-render Topbar ได้
+        window.currentUser = currentUser;
+        window.currentProfile = currentProfile;
+        window.currentUserRole = currentUserRole;
+
         const isAdminByRole = isAdminUser(currentUserRole, false);
         isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
         isAdminMode = isAdminByRole || isModuleAdmin;
 
-        // ✅ แสดงชื่อผู้ใช้
-        document.getElementById('user-display').textContent =
-            `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+        // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันมาตรฐาน
+        if (typeof setUserDisplayName === 'function') setUserDisplayName(currentProfile);
+        if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentProfile.role);
+        if (typeof renderUserAvatar === 'function') renderUserAvatar(currentProfile);
 
-        // ✅ ใช้ applyVisibilityByRole และ updateToggleModeUI
-        applyVisibilityByRole(currentUserRole, isAdminMode, {
-            settingsBtn: 'btn-settings',
-            toggleBtn: 'btnToggleMode',
-            adminManagerBtn: 'btnAdminManager'
-        });
-        updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
-
-        // ✅ ปุ่ม Admin Manager (เฉพาะผู้มีสิทธิ์)
-        const btnAdminManager = document.getElementById('btnAdminManager');
-        if (btnAdminManager) {
-            const hasSettings = canManageSettings(currentUserRole);
-            btnAdminManager.classList.toggle('hidden', !hasSettings);
-            btnAdminManager.classList.toggle('flex', hasSettings);
+        // ✅ อัปเดต Toggle Mode UI (ปุ่ม visibility จัดการใน refreshNavButtons)
+        if (typeof updateToggleModeUI === 'function') {
+            updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
         }
 
         // ✅ โหลดข้อมูลโรงเรียน
@@ -118,6 +113,18 @@ window.addEventListener('load', async () => {
     } catch (err) {
         console.error('Init error:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    } finally {
+        // ✅ ลบ opacity-0 → แสดงหน้าเว็บ
+        restoreSidebarCollapse();
+        document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
+
+        // ✅ อัปเดต Topbar User Info อีกครั้ง (กัน initModuleSidebar re-render ทับ)
+        refreshTopbarUser();
+
+        // ✅ Refresh nav buttons หลัง auth เสร็จ
+        if (typeof window.refreshNavButtons === 'function') {
+            window.refreshNavButtons();
+        }
     }
 });
 
@@ -130,14 +137,11 @@ async function toggleMode() {
         return;
     }
     isAdminMode = !isAdminMode;
-    
-    // ✅ อัปเดต UI ด้วยฟังก์ชันกลาง
-    applyVisibilityByRole(currentUserRole, isAdminMode, {
-        settingsBtn: 'btn-settings',
-        toggleBtn: 'btnToggleMode',
-        adminManagerBtn: 'btnAdminManager'
-    });
-    updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
+
+    // ✅ อัปเดต Toggle Mode UI
+    if (typeof updateToggleModeUI === 'function') {
+        updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
+    }
 
     const adminFilter = document.getElementById('adminFilterSection');
     const teacherBar = document.getElementById('teacherActionBar');
@@ -153,7 +157,7 @@ async function toggleMode() {
     document.getElementById('eq-tbody').innerHTML = '';
     await loadClassrooms();
     await loadStats();
-    
+
     await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, 'eq');
 }
 
@@ -161,19 +165,22 @@ async function toggleMode() {
 // LOGOUT (มาตรฐานกลาง)
 // ==========================================
 async function logout() {
+    // ✅ ใช้ handleLogout() มาตรฐานกลาง
+    if (typeof window.handleLogout === 'function') {
+        return window.handleLogout();
+    }
+    // Fallback
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
-        text: "คุณต้องการออกจากระบบใช่หรือไม่",
         icon: 'warning',
         showCancelButton: true,
         confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
         confirmButtonText: 'ออกจากระบบ',
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
         await db.auth.signOut();
-        window.location.replace("login.html");
+        window.location.replace('login.html');
     }
 }
 
@@ -794,10 +801,10 @@ async function saveEdit() {
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
         return;
     }
-    
+
     // ✅ บันทึก Log
     await logUserAction(`แก้ไขผลประเมิน EQ ของนักเรียน ID ${studentId}`, 'eq');
-    
+
     Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1500, showConfirmButton: false });
     closeEditModal();
     loadResults();
@@ -809,7 +816,7 @@ async function deleteResult(studentId) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้')) {
         return;
     }
-    
+
     const r = await Swal.fire({
         title: 'ลบผลการประเมิน?',
         icon: 'warning',
@@ -818,15 +825,15 @@ async function deleteResult(studentId) {
         confirmButtonText: 'ลบ'
     });
     if (!r.isConfirmed) return;
-    
+
     await db.from('eq_assessments').delete()
         .eq('student_id', studentId)
         .eq('academic_year', schoolInfo.current_academic_year)
         .eq('semester', schoolInfo.current_semester);
-    
+
     // ✅ บันทึก Log
     await logUserAction(`ลบผลประเมิน EQ ของนักเรียน ID ${studentId}`, 'eq');
-    
+
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
     loadResults();
     loadStats();
@@ -864,7 +871,7 @@ function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'EQ_9dim');
     XLSX.writeFile(wb, `EQ_${isAdminMode ? 'admin' : 'teacher'}_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
-    
+
     // ✅ บันทึก Log
     logUserAction(`ส่งออก Excel EQ (${isAdminMode ? 'Admin' : 'Teacher'})`, 'eq');
 }
@@ -1118,10 +1125,10 @@ async function processImportRows(rows) {
     }
     Swal.close();
     closeImportModal();
-    
+
     // ✅ บันทึก Log
     await logUserAction(`นำเข้าข้อมูล EQ: ${success} รายการสำเร็จ, ${fail} รายการล้มเหลว`, 'eq');
-    
+
     Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
     loadResults();
     loadStats();
@@ -1130,21 +1137,46 @@ async function processImportRows(rows) {
 // ==========================================
 // SETTINGS (ใช้ requireAdmin)
 // ==========================================
-let allPersonnel = [];
-
+// ==========================================
+// SETTINGS — รวม Admin Management
+// ==========================================
 function openSettings() {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
         return;
     }
     const modal = document.getElementById('settings-modal');
+    if (!modal) {
+        console.warn('⚠️ ไม่พบ #settings-modal');
+        return;
+    }
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
+    // โหลดค่าปัจจุบัน
+    if (schoolInfo) {
+        db.from('eq_settings')
+            .select('*')
+            .eq('academic_year', schoolInfo.current_academic_year)
+            .eq('semester', schoolInfo.current_semester)
+            .maybeSingle()
+            .then(({ data }) => {
+                if (data) {
+                    const delayEl = document.getElementById('set-delay');
+                    const activeEl = document.getElementById('set-active');
+                    if (delayEl) delayEl.value = data.delay_seconds ?? 10;
+                    if (activeEl) activeEl.checked = data.is_active !== false;
+                }
+            });
+    }
+
+    // ✅ แสดง Admin Section เฉพาะ super_admin
+    const adminSection = document.getElementById('admin-section');
     if (currentUserRole === 'super_admin') {
-        document.getElementById('user-management-section').classList.remove('hidden');
-        loadPersonnelForSettings();
+        adminSection.classList.remove('hidden');
+        loadPersonnelOptions();
+        loadCurrentAdmins();
     } else {
-        document.getElementById('user-management-section').classList.add('hidden');
+        adminSection.classList.add('hidden');
     }
 }
 
@@ -1173,67 +1205,6 @@ async function saveSettings() {
         Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1400, showConfirmButton: false });
         closeSettings();
     }
-}
-
-async function loadPersonnelForSettings() {
-    if (!requireAdmin(currentUserRole, isAdminMode)) return;
-    if (currentUserRole !== 'super_admin') return;
-    const { data, error } = await db.from('core_personnel')
-        .select('id, first_name, last_name, email, role, prefix')
-        .order('first_name');
-    if (error) {
-        console.error(error);
-        return;
-    }
-    allPersonnel = data || [];
-    filterUsersForSettings();
-}
-
-function filterUsersForSettings() {
-    const searchTerm = document.getElementById('user-search-settings')?.value.toLowerCase() || '';
-    const filtered = allPersonnel.filter(u =>
-        `${u.first_name} ${u.last_name}`.toLowerCase().includes(searchTerm) ||
-        (u.email || '').toLowerCase().includes(searchTerm)
-    );
-    renderUserTableForSettings(filtered);
-}
-
-function renderUserTableForSettings(users) {
-    const tbody = document.getElementById('user-list-settings-tbody');
-    if (!tbody) return;
-    tbody.innerHTML = users.map(user => {
-        const roleDisplay = user.role === 'super_admin' ? 'Super Admin' : (user.role === 'admin' ? 'Admin' : 'ครู');
-        const roleClass = user.role === 'super_admin' ? 'bg-purple-100 text-purple-700' :
-            (user.role === 'admin' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600');
-        return `<tr>
-            <td class="px-2 py-1">${user.prefix || ''}${user.first_name} ${user.last_name}</td>
-            <td class="px-2 py-1">${user.email || '-'}</td>
-            <td class="px-2 py-1"><span class="px-2 py-0.5 rounded-full text-xs ${roleClass}">${roleDisplay}</span></td>
-            <td class="px-2 py-1">-</td>
-            <td class="px-2 py-1">-</td>
-        </tr>`;
-    }).join('');
-    const searchInput = document.getElementById('user-search-settings');
-    if (searchInput && !searchInput._listener) {
-        searchInput.addEventListener('input', filterUsersForSettings);
-        searchInput._listener = true;
-    }
-}
-
-// ==========================================
-// MODULE ADMIN MANAGEMENT (ใช้ core_module_admins)
-// ==========================================
-function openAdminManager() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการแอดมินโมดูลได้')) {
-        return;
-    }
-    document.getElementById('adminManagerModal').classList.remove('hidden');
-    loadPersonnelOptions();
-    loadCurrentAdmins();
-}
-
-function closeAdminManager() {
-    document.getElementById('adminManagerModal').classList.add('hidden');
 }
 
 async function loadPersonnelOptions() {
@@ -1790,6 +1761,39 @@ async function openStatusStudentList(type) {
 }
 
 // ==========================================
+// ✅ ปุ่มนำทาง — eq (กรองตาม role)
+// ==========================================
+window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentUserRole;
+    const isAdminRole = (role === 'super_admin' || role === 'admin') || isModuleAdmin;
+
+    // ปุ่ม Toggle Mode — เฉพาะ admin/module admin
+    const btnToggle = document.getElementById('btnToggleMode');
+    if (btnToggle) {
+        btnToggle.classList.toggle('hidden', !isAdminRole);
+        btnToggle.classList.toggle('flex', isAdminRole);
+    }
+
+    // ✅ ปุ่มตั้งค่าระบบ — เฉพาะ super_admin
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) {
+        const isSuperAdmin = role === 'super_admin';
+        btnSettings.classList.toggle('hidden', !isSuperAdmin);
+        btnSettings.classList.toggle('flex', isSuperAdmin);
+    }
+};
+
+// ==========================================
+// ✅ Helper: อัปเดต Topbar User Info
+// ==========================================
+function refreshTopbarUser() {
+    if (!window.currentProfile) return;
+    if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
+    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentProfile.role);
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+}
+
+// ==========================================
 // ประกาศฟังก์ชัน global
 // ==========================================
 window.toggleMode = toggleMode;
@@ -1810,9 +1814,10 @@ window.handleSheetsImport = handleSheetsImport;
 window.openSettings = openSettings;
 window.closeSettings = closeSettings;
 window.saveSettings = saveSettings;
-window.openAdminManager = openAdminManager;
-window.closeAdminManager = closeAdminManager;
 window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.openStatusStudentList = openStatusStudentList;
 window.closeStatusStudentModal = closeStatusStudentModal;
+window.refreshTopbarUser = refreshTopbarUser;
+
+

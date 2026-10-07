@@ -1,9 +1,12 @@
 // ============================================================
-// leave_admin.js — ระบบการลา (ฝ่ายบริหาร) ฉบับแก้ไขสมบูรณ์
-// - รองรับ submitted_date (วันที่ส่งใบลา) และ approved_date (วันที่อนุมัติ)
+// leave_admin.js — ระบบการลา (ฝ่ายบริหาร) ฉบับสมบูรณ์ [PATCHED]
+// - รองรับ submitted_date และ approved_date
 // - viewLeave แสดงข้อมูลการลาทั้งหมด + สถานะรับทราบ
 // - การอัปโหลดหลักฐาน (evidence) สำหรับลา >= 3 วัน
-// - เพิ่มระบบจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin)
+// - ระบบจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin)
+// - ✅ PATCH: loadSystemSettings() merge กับ default + auto-fix
+// - ✅ PATCH: saveSystemSettings() ใช้ upsert แทน update
+// - ✅ PATCH: loadDashboardStats() fallback แทน throw
 // ============================================================
 
 let currentUser = null;
@@ -18,8 +21,39 @@ let allLeavesData = [];
 let allPersonnelData = [];
 let attendanceDataTable = null;
 let allAttendanceData = [];
-let academicPersonnelId = null;   // ID ของรองวิชาการ
+let academicPersonnelId = null;
 window.academicPersonnelId = null;
+
+// ==========================================
+// ✅ NEW: Default Leave Settings
+// ==========================================
+function getDefaultLeaveSettings() {
+    return {
+        fiscal_year: (new Date().getFullYear() + 543).toString(),
+        eval_round: '1',
+        sign_leave_admin: '',
+        gas_url: '',
+        slide_template_id: '',
+        pdf_folder_id: '',
+        signature_folder_id: '',
+        evidence_folder_id: ''
+    };
+}
+
+// ==========================================
+// ✅ ปุ่มนำทาง — leave_admin
+// ==========================================
+window.refreshNavButtons = function () {
+    const role = window.currentUserRole || sessionStorage.getItem('wrk_leave_role') || '';
+    const isModuleAdminCached = isModuleAdmin || sessionStorage.getItem('wrk_leave_is_module_admin') === '1';
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+    const canSee = allowedRoles.includes(role) || isModuleAdminCached;
+
+    if (canSee) {
+        document.getElementById('btnNavTeacher')?.classList.remove('hidden');
+        document.getElementById('btnNavDeptHead')?.classList.remove('hidden');
+    }
+};
 
 // ==========================================
 // Helper: ตรวจสอบการรับทราบของหัวหน้ากลุ่มสาระฯ
@@ -45,7 +79,6 @@ function needsAcademicAck(l) {
 
 function getHeadAckStatus(l) {
     if (needsAcademicAck(l)) {
-        // ถ้าเป็นหัวหน้ากลุ่มฯ เอง → ไม่ต้อง ack_head
         return { icon: '—', color: 'slate', label: 'ไม่ต้องรับทราบ (หัวหน้ากลุ่มฯ)' };
     }
     if (l.ack_head) return { icon: '✅', color: 'emerald', label: 'รับทราบแล้ว' };
@@ -54,7 +87,7 @@ function getHeadAckStatus(l) {
 }
 
 function getAcademicAckStatus(l) {
-    if (!needsAcademicAck(l)) return null; // ไม่ต้องแสดง
+    if (!needsAcademicAck(l)) return null;
     if (l.ack_academic) return { icon: '✅', color: 'emerald', label: 'รับทราบแล้ว' };
     return { icon: '⏳', color: 'amber', label: 'รอรับทราบ' };
 }
@@ -76,13 +109,15 @@ $(document).ready(async function () {
         currentUserRole = role;
         isAdminMode = isAdmin;
 
-        // ✅ เซ็ต window variables สำหรับ leave_core.js
         window.currentUser = user;
         window.currentProfile = personnel;
         window.currentUserId = user.id;
         window.currentUserRole = role;
 
         isModuleAdmin = await hasModuleAccess(role, 'leave', user.id);
+
+        sessionStorage.setItem('wrk_leave_role', role);
+        sessionStorage.setItem('wrk_leave_is_module_admin', isModuleAdmin ? '1' : '0');
 
         if (!isAdmin && !isModuleAdmin) {
             await Swal.fire({
@@ -95,42 +130,22 @@ $(document).ready(async function () {
             return;
         }
 
-        applyVisibilityByRole(role, isAdminMode, {
-            settingsBtn: 'btn-settings'
-        });
-
-        if (isAdminMode || isModuleAdmin) {
-            $('#btnToggleMode').removeClass('hidden').addClass('inline-flex');
-        } else {
-            $('#btnToggleMode').addClass('hidden').removeClass('inline-flex');
-        }
-
-        // ✅ แสดงปุ่มสลับไปโหมดหัวหน้ากลุ่มสาระฯ เฉพาะ Super Admin
-        if (role === 'super_admin') {
-            $('#btnToggleDeptHead').removeClass('hidden').addClass('inline-flex');
-        } else {
-            $('#btnToggleDeptHead').addClass('hidden').removeClass('inline-flex');
-        }
-
         await logUserAction('เข้าสู่ระบบจัดการการลา (Admin)', 'leave');
 
-        // ✅ โหลดแบบ parallel ที่ไม่พึ่งกัน
         const [_, deptHeads] = await Promise.all([
             loadPersonnelSearch(),
             db.from('core_department_heads').select('personnel_id, department_id, department_name')
                 .then(({ data }) => data || [])
                 .catch(err => { console.warn('loadDeptHeads error:', err); return []; }),
-            loadSystemSettings()   // ← ย้ายมาใส่ใน Promise.all นี้ได้
+            loadSystemSettings()
         ]);
         window.allDeptHeads = deptHeads;
-        // ✅ โหลดข้อมูลรองวิชาการจากส่วนกลาง
+
         try {
-            const { data: school } = await db.from('core_school_info')
-                .select('deputy_academic').single();
+            const { data: school } = await db.from('core_school_info').select('deputy_academic').single();
             if (school?.deputy_academic) {
                 const cleanName = school.deputy_academic.replace(
-                    /^(นาย|นาง|นางสาว|ด.ต.|ร.ต.|ว่าที่ ร\.ต\.|พระ|สามเณร|หม่อมหลวง|หม่อมหลวงหญิง)\s*/,
-                    ''
+                    /^(นาย|นาง|นางสาว|ด.ต.|ร.ต.|ว่าที่ ร\.ต\.|พระ|สามเณร|หม่อมหลวง|หม่อมหลวงหญิง)\s*/, ''
                 ).trim();
                 const parts = cleanName.split(/\s+/);
                 if (parts.length >= 2) {
@@ -145,16 +160,15 @@ $(document).ready(async function () {
                     }
                 }
             }
-        } catch (err) {
-            console.warn('loadAcademic error:', err);
-        }
-        // ✅ แล้วค่อยโหลด dashboard (ใช้ settings แล้ว)
-        await loadDashboardStats();
+        } catch (err) { console.warn('loadAcademic error:', err); }
 
+        await loadDashboardStats();
         updateUI();
         initAttendanceFlatpickr();
         initEditFlatpickr();
         initAdminFlatpickr();
+
+        window.refreshNavButtons();
 
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
@@ -173,102 +187,171 @@ $(document).ready(async function () {
 // อัปเดต UI ตามสิทธิ์
 // ==========================================
 function updateUI() {
-    $('#display-name').text(`${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`);
-
-    // ✅ เพิ่ม avatar + today chip (จาก dashboard_ui.js)
-    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentProfile);
+    setUserDisplayName(currentProfile);
+    updateUserRoleLabel(currentUserRole);
+    renderUserAvatar(currentProfile);
 
     const isSuperAdmin = canManageSettings(currentUserRole);
 
     if (isSuperAdmin) {
-        $('#btn-import-excel').removeClass('hidden').addClass('flex');
-        $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin, #sign_hr_deputy, #sign_director').prop('disabled', false);
+        $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin').prop('disabled', false);
         $('#superadmin-only-section table').removeClass('opacity-50 pointer-events-none');
     } else {
-        $('#btn-import-excel').addClass('hidden').removeClass('flex');
-        $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin, #sign_hr_deputy, #sign_director').prop('disabled', true);
+        $('#fiscal_year, #evaluation_round, #btn-save-settings, #select-new-admin, #btn-add-admin, #sign_leave_admin').prop('disabled', true);
         $('#superadmin-only-section table').addClass('opacity-50 pointer-events-none');
     }
 
-    // ✅ ปุ่ม Super Admin link ใน sidebar
-    if (currentUserRole === 'super_admin') {
-        $('#btnSuperAdmin').removeClass('hidden');
-    } else {
-        $('#btnSuperAdmin').addClass('hidden');
-    }
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 }
 
 // ==========================================
-// สลับแท็บ (ปรับปรุงให้โหลดวันหยุดเมื่อเปิด Settings)
+// สลับแท็บ
 // ==========================================
 function switchTab(tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
-    $('.tab-nav-btn').removeClass('active');
-    $(`#btn-${tabId}`).addClass('active');
+
+    const navMap = {
+        'dashboard': 'btn-dashboard',
+        'manage-leave': 'btn-manage-leave',
+        'attendance': 'btn-attendance',
+        'settings': 'btn-settings'
+    };
+    if (navMap[tabId] && typeof setActiveNavItem === 'function') {
+        setActiveNavItem(navMap[tabId]);
+    }
+
     const titles = {
         'dashboard': 'แดชบอร์ดสรุปผล',
         'manage-leave': 'จัดการรายการลา',
         'attendance': 'บันทึกขาด/มาสาย',
         'settings': 'ตั้งค่าระบบ & แอดมิน'
     };
-    $('#page-title').text(titles[tabId] || 'แดชบอร์ดสรุปผล');
-    // ปิด sidebar บนมือถือ
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = titles[tabId] || 'แดชบอร์ดสรุปผล';
+
     if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
     if (tabId === 'manage-leave' && dataTable) dataTable.columns.adjust().draw();
     if (tabId === 'attendance' && attendanceDataTable) attendanceDataTable.columns.adjust().draw();
     if (tabId === 'settings') showHolidaySettingsAdmin();
 }
 
-// ==========================================
-// ระบบตั้งค่า (ใช้ requireAdmin)
-// ==========================================
+// ============================================================
+// ✅ PATCH 1: loadSystemSettings — Merge + Auto-fix
+// ============================================================
 async function loadSystemSettings() {
-    const { data: leaveData } = await db.from('core_system_modules').select('settings').eq('module_id', 'leave').maybeSingle();
-    systemSettings = leaveData?.settings || {
-        fiscal_year: (new Date().getFullYear() + 543).toString(),
-        eval_round: '1',
-        sign_leave_admin: '',
-        gas_url: '',
-        slide_template_id: '',
-        pdf_folder_id: '',
-        signature_folder_id: '',
-        evidence_folder_id: ''
-    };
-    $('#fiscal_year').val(systemSettings.fiscal_year);
-    $('#evaluation_round').val(systemSettings.eval_round);
-    $('#dash-fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
-    $('#set_gas_url').val(systemSettings.gas_url || '');
-    $('#set_slide_template_id').val(systemSettings.slide_template_id || '');
-    $('#set_pdf_folder_id').val(systemSettings.pdf_folder_id || '');
-    $('#set_signature_folder_id').val(systemSettings.signature_folder_id || '');
-    $('#set_evidence_folder_id').val(systemSettings.evidence_folder_id || '');
+    const DEFAULT = getDefaultLeaveSettings();
 
-    const sigDisplay = document.getElementById('sig-folder-id-display');
-    if (sigDisplay) {
-        sigDisplay.textContent = systemSettings.signature_folder_id || 'ยังไม่ได้ตั้งค่า';
-    }
+    try {
+        const { data: leaveData, error } = await db
+            .from('core_system_modules')
+            .select('settings')
+            .eq('module_id', 'leave')
+            .maybeSingle();
 
-    const signAdminEl = document.getElementById('sign_leave_admin');
-    if (signAdminEl) {
-        if (signAdminEl.tomselect) signAdminEl.tomselect.setValue(systemSettings.sign_leave_admin);
-        else signAdminEl.value = systemSettings.sign_leave_admin;
-    }
-    const { data: schoolData } = await db.from('core_school_info').select('*').single();
-    if (schoolData) {
-        $('#display_director').text(schoolData.director_name || 'ไม่ได้ตั้งค่าในส่วนกลาง');
-        $('#display_hr_deputy').text(schoolData.deputy_hr || 'ไม่ได้ตั้งค่าในส่วนกลาง');
-    } else {
-        $('#display_director').text('ไม่พบข้อมูลส่วนกลาง');
-        $('#display_hr_deputy').text('ไม่พบข้อมูลส่วนกลาง');
+        if (error) {
+            console.warn('⚠️ loadSystemSettings query error:', error);
+        }
+
+        const dbSettings = leaveData?.settings || {};
+
+        // ✅ Merge กับ default เพื่อให้ได้ค่าครบทุก field
+        systemSettings = { ...DEFAULT, ...dbSettings };
+
+        // ✅ ถ้าค่าว่าง/ผิดปกติ → ใช้ default
+        if (!systemSettings.fiscal_year || String(systemSettings.fiscal_year).trim() === '') {
+            systemSettings.fiscal_year = DEFAULT.fiscal_year;
+        }
+        if (!systemSettings.eval_round) {
+            systemSettings.eval_round = DEFAULT.eval_round;
+        }
+
+        // ✅ Auto-fix: ถ้า DB ไม่ครบ → save กลับเข้าไป
+        const dbFiscalMissing = !dbSettings.fiscal_year || String(dbSettings.fiscal_year).trim() === '';
+        const dbRoundMissing = !dbSettings.eval_round;
+        const noRow = !leaveData;
+
+        if (noRow) {
+            console.log('🔧 Creating leave module row in core_system_modules...');
+            await db.from('core_system_modules').insert({
+                module_id: 'leave',
+                module_name: 'ระบบการลา',
+                description: 'ระบบลาสำหรับครูและบุคลากร',
+                icon: 'fa-solid fa-envelope-open-text',
+                url: 'leave.html',
+                category: 'personnel',
+                is_active: true,
+                settings: systemSettings,
+                updated_at: new Date().toISOString()
+            });
+        } else if (dbFiscalMissing || dbRoundMissing) {
+            console.log('🔧 Auto-fixing leave settings in DB...');
+            await db.from('core_system_modules')
+                .update({
+                    settings: systemSettings,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('module_id', 'leave');
+        }
+
+        // ---------- อัปเดต UI ----------
+        const fiscalEl = document.getElementById('fiscal_year');
+        if (fiscalEl) fiscalEl.value = systemSettings.fiscal_year;
+
+        const roundEl = document.getElementById('evaluation_round');
+        if (roundEl) roundEl.value = systemSettings.eval_round;
+
+        const badge = document.getElementById('dash-fiscal-badge');
+        if (badge) badge.textContent = `ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`;
+
+        const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+        setVal('set_gas_url', systemSettings.gas_url);
+        setVal('set_slide_template_id', systemSettings.slide_template_id);
+        setVal('set_pdf_folder_id', systemSettings.pdf_folder_id);
+        setVal('set_signature_folder_id', systemSettings.signature_folder_id);
+        setVal('set_evidence_folder_id', systemSettings.evidence_folder_id);
+
+        const sigDisplay = document.getElementById('sig-folder-id-display');
+        if (sigDisplay) {
+            sigDisplay.textContent = systemSettings.signature_folder_id || 'ยังไม่ได้ตั้งค่า';
+        }
+
+        const signAdminEl = document.getElementById('sign_leave_admin');
+        if (signAdminEl) {
+            if (signAdminEl.tomselect) {
+                try { signAdminEl.tomselect.setValue(systemSettings.sign_leave_admin || ''); } catch (e) {}
+            } else {
+                signAdminEl.value = systemSettings.sign_leave_admin || '';
+            }
+        }
+
+        const { data: schoolData } = await db.from('core_school_info').select('*').single();
+        if (schoolData) {
+            const dirEl = document.getElementById('display_director');
+            if (dirEl) dirEl.textContent = schoolData.director_name || 'ไม่ได้ตั้งค่าในส่วนกลาง';
+            const hrEl = document.getElementById('display_hr_deputy');
+            if (hrEl) hrEl.textContent = schoolData.deputy_hr || 'ไม่ได้ตั้งค่าในส่วนกลาง';
+        }
+
+        console.log('✅ loadSystemSettings OK:', systemSettings.fiscal_year, 'รอบ', systemSettings.eval_round);
+        return systemSettings;
+
+    } catch (err) {
+        console.error('❌ loadSystemSettings fatal error:', err);
+        systemSettings = { ...DEFAULT };
+        return systemSettings;
     }
 }
 
+// ============================================================
+// ✅ PATCH 2: saveSystemSettings — ใช้ upsert
+// ============================================================
 async function saveSystemSettings(e) {
     e.preventDefault();
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบสูงสุดเท่านั้น')) return;
 
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     const newSettings = {
         fiscal_year: $('#fiscal_year').val().trim(),
         eval_round: $('#evaluation_round').val(),
@@ -279,12 +362,30 @@ async function saveSystemSettings(e) {
         signature_folder_id: $('#set_signature_folder_id').val().trim(),
         evidence_folder_id: $('#set_evidence_folder_id').val().trim()
     };
-    const { error } = await db.from('core_system_modules').update({ settings: newSettings, updated_at: new Date().toISOString() }).eq('module_id', 'leave');
-    if (error) {
-        Swal.fire('ผิดพลาด', error.message, 'error');
-    } else {
+
+    try {
+        // ✅ ใช้ upsert → ถ้าไม่มี row จะ insert, ถ้ามีจะ update
+        const { error } = await db.from('core_system_modules').upsert(
+            {
+                module_id: 'leave',
+                module_name: 'ระบบการลา',
+                description: 'ระบบลาสำหรับครูและบุคลากร',
+                icon: 'fa-solid fa-envelope-open-text',
+                url: 'leave.html',
+                category: 'personnel',
+                is_active: true,
+                settings: newSettings,
+                updated_at: new Date().toISOString()
+            },
+            { onConflict: 'module_id' }
+        );
+
+        if (error) throw error;
+
         systemSettings = newSettings;
-        $('#dash-fiscal-badge').text(`ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`);
+
+        const badge = document.getElementById('dash-fiscal-badge');
+        if (badge) badge.textContent = `ปีงบประมาณ ${systemSettings.fiscal_year} (รอบที่ ${systemSettings.eval_round})`;
 
         const sigDisplay = document.getElementById('sig-folder-id-display');
         if (sigDisplay) {
@@ -294,6 +395,9 @@ async function saveSystemSettings(e) {
         await logUserAction(`บันทึกการตั้งค่าระบบลา (ปี ${systemSettings.fiscal_year})`, 'leave');
         Swal.fire({ icon: 'success', title: 'บันทึกการตั้งค่าสำเร็จ', timer: 1500, showConfirmButton: false });
         loadDashboardStats();
+    } catch (err) {
+        console.error('saveSystemSettings error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
     }
 }
 
@@ -328,7 +432,7 @@ async function loadPersonnelSearch() {
 }
 
 // ==========================================
-// จัดการ Module Admin (ใช้ requireAdmin)
+// จัดการ Module Admin
 // ==========================================
 async function loadAdminList() {
     const tbody = document.getElementById('admin-list');
@@ -405,13 +509,30 @@ async function removeModuleAdmin(id) {
     } else Swal.fire('ผิดพลาด', error.message, 'error');
 }
 
-// ==========================================
-// Dashboard & ตารางข้อมูล
-// ==========================================
+// ============================================================
+// ✅ PATCH 3: loadDashboardStats — Fallback แทน Throw
+// ============================================================
 async function loadDashboardStats() {
     try {
+        // ✅ ถ้า settings ไม่ครบ → auto-init จาก default
         if (!systemSettings || !systemSettings.fiscal_year) {
-            throw new Error('ยังไม่ได้ตั้งค่าระบบ กรุณาตั้งค่าปีงบประมาณในเมนูตั้งค่าระบบ');
+            console.warn('⚠️ Settings ไม่ครบ — กำลัง initialize จาก default...');
+            await loadSystemSettings();
+
+            if (!systemSettings?.fiscal_year) {
+                const DEFAULT = getDefaultLeaveSettings();
+                systemSettings = { ...DEFAULT };
+            }
+
+            Swal.fire({
+                icon: 'info',
+                title: 'ใช้ค่าเริ่มต้น',
+                html: `ระบบพบว่ายังไม่ได้ตั้งค่าปีงบประมาณ<br>
+                       จึงใช้ค่าเริ่มต้น: <b>ปี ${systemSettings.fiscal_year}</b> (รอบที่ ${systemSettings.eval_round})<br>
+                       <span class="text-xs text-slate-500">กรุณาตั้งค่าให้ถูกต้องที่เมนู "ตั้งค่าระบบ"</span>`,
+                timer: 3500,
+                showConfirmButton: false
+            });
         }
 
         const [leavesRes, attRes] = await Promise.all([
@@ -424,6 +545,7 @@ async function loadDashboardStats() {
                 .eq('fiscal_year', systemSettings.fiscal_year)
                 .eq('eval_round', systemSettings.eval_round)
         ]);
+
         if (leavesRes.error) { console.error(leavesRes.error); return; }
         allLeavesData = leavesRes.data || [];
         const attendanceData = attRes.data || [];
@@ -458,8 +580,6 @@ async function loadDashboardStats() {
 
         checkLeaveLimits(approvedLeaves);
         renderTable();
-
-        // ✅ รัน parallel กับ loadPromotionWarnings (ไม่ต้องรอ renderTable)
         loadPromotionWarnings(approvedLeaves, attendanceData);
     } catch (err) {
         console.error('loadDashboardStats error:', err);
@@ -535,18 +655,15 @@ function checkLeaveLimits(approvedLeaves) {
 
 // ==========================================
 // โหลดข้อมูลแจ้งเตือน: บุคลากรที่ไม่ผ่านเกณฑ์การเลื่อนเงินเดือน
-// ✅ Optimized: รับข้อมูลที่ preload มาได้ + ใช้ Promise.all ตอน query
 // ==========================================
 async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendances = null) {
     try {
         let leaves, attendances;
 
-        // ✅ ถ้ามีข้อมูลส่งมา → ใช้เลย ไม่ query ซ้ำ
         if (preloadedLeaves !== null && preloadedAttendances !== null) {
             leaves = preloadedLeaves;
             attendances = preloadedAttendances;
         } else {
-            // ✅ Query พร้อมกัน 2 ตาราง (เร็วขึ้น ~50%)
             const [leavesRes, attRes] = await Promise.all([
                 db.from('leave_requests')
                     .select('personnel_id, type, total_days, status')
@@ -566,10 +683,8 @@ async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendance
             attendances = attRes.data || [];
         }
 
-        // ---------- คำนวณสถิติต่อคน ----------
         const statsMap = new Map();
 
-        // สะสมวันลา + จำนวนครั้ง
         for (const l of leaves) {
             let stat = statsMap.get(l.personnel_id);
             if (!stat) {
@@ -581,7 +696,6 @@ async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendance
             stat.totalLeaveCount++;
         }
 
-        // สะสมจำนวนครั้งมาสาย
         for (const a of attendances) {
             if (a.record_type === 'มาสาย') {
                 let stat = statsMap.get(a.personnel_id);
@@ -593,7 +707,6 @@ async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendance
             }
         }
 
-        // ---------- ประเมินเกณฑ์ ----------
         const evaluation = [];
         for (const [personnelId, stat] of statsMap.entries()) {
             const totalSickPersonal = stat.sickDays + stat.personalDays;
@@ -628,7 +741,6 @@ async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendance
             }
         }
 
-        // ---------- แสดงผล ----------
         const alertZone = $('#promotion-alert-zone');
 
         if (evaluation.length === 0) {
@@ -640,7 +752,6 @@ async function loadPromotionWarnings(preloadedLeaves = null, preloadedAttendance
             return;
         }
 
-        // ✅ ใช้ Array.map + join แทน for...of (เร็วกว่า ~2-3 เท่า)
         alertZone.html(
             evaluation.map(p => `
                 <div class="flex flex-col p-3 bg-yellow-50 border border-yellow-200 rounded-xl shadow-sm">
@@ -707,7 +818,6 @@ function renderTable() {
     let ackField = null;
     if (isAdmin) ackField = 'ack_admin';
     else if (isDeputy) ackField = 'ack_deputy';
-    // ✅ ผู้อำนวยการไม่ต้องรับทราบ — อนุมัติ/ไม่อนุมัติเท่านั้น
 
     if (allLeavesData.length > 0) {
         tbody.innerHTML = allLeavesData.map(l => {
@@ -769,12 +879,10 @@ function renderTable() {
 
             let ackBtn = '';
 
-            // ✅ รับทราบแทนหัวหน้ากลุ่มฯ (เฉพาะ teacher)
             if (isSuperAdmin && needsHeadAck(l) && !l.ack_head) {
                 ackBtn += `<button onclick="acknowledgeLeaveHead('${l.id}')" class="btn-icon bg-purple-50 text-purple-600 hover:bg-purple-500 hover:text-white" title="รับทราบแทนหัวหน้ากลุ่มฯ"><i class="fas fa-user-check"></i></button>`;
             }
 
-            // ✅ รับทราบรองวิชาการ (head leaves)
             if (needsAcademicAck(l) && !l.ack_academic) {
                 const isAcademicUser = (currentUser?.id === window.academicPersonnelId);
 
@@ -856,19 +964,15 @@ function renderTable() {
         order: [[3, 'desc']],
         columnDefs: [
             { orderable: false, targets: [8] },
-
-            // ============================================================
-            // ✅ Mobile Priority — ลำดับ 1 = สำคัญสุด (แสดงเสมอ)
-            // ============================================================
-            { responsivePriority: 1, targets: 1 },   // ⭐ ชื่อบุคลากร (แสดงเสมอ)
-            { responsivePriority: 2, targets: 8 },   // ⭐ จัดการ/อนุมัติ (แสดงเสมอ)
-            { responsivePriority: 3, targets: 6 },   // สถานะ
-            { responsivePriority: 4, targets: 2 },   // ประเภทการลา
-            { responsivePriority: 5, targets: 3 },   // ช่วงวันที่ลา
-            { responsivePriority: 6, targets: 0 },   // วันที่ส่ง (ซ่อนก่อน)
-            { responsivePriority: 7, targets: 7 },   // สถานะรับทราบ
-            { responsivePriority: 8, targets: 4 },   // จำนวนวัน
-            { responsivePriority: 9, targets: 5 }    // จำนวนครั้ง
+            { responsivePriority: 1, targets: 1 },
+            { responsivePriority: 2, targets: 8 },
+            { responsivePriority: 3, targets: 6 },
+            { responsivePriority: 4, targets: 2 },
+            { responsivePriority: 5, targets: 3 },
+            { responsivePriority: 6, targets: 0 },
+            { responsivePriority: 7, targets: 7 },
+            { responsivePriority: 8, targets: 4 },
+            { responsivePriority: 9, targets: 5 }
         ],
         pageLength: 20,
         lengthMenu: [[10, 20, 50, -1], [10, 20, 50, "ทั้งหมด"]],
@@ -878,8 +982,6 @@ function renderTable() {
 // ==========================================
 // ฟังก์ชันจัดการใบลา
 // ==========================================
-
-// ----- แก้ไขใบลา (พร้อม submitted_date) -----
 function initEditFlatpickr() {
     flatpickr(".edit-datepicker", {
         locale: "th",
@@ -896,7 +998,6 @@ function initEditFlatpickr() {
     });
 }
 
-// แทนที่ calculateEditDays
 async function calculateEditDays() {
     const start = $('#edit_start_date').val();
     const end = $('#edit_end_date').val();
@@ -986,7 +1087,7 @@ $('#editLeaveForm').on('submit', async function (e) {
 
     const id = $('#edit_leave_id').val();
     const days = parseFloat($('#edit_calc_days').text());
-    const type = $('#edit_leave_type').val();   // ✅ เพิ่มบรรทัดนี้
+    const type = $('#edit_leave_type').val();
     if (isNaN(days) || days <= 0) {
         Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันลาต้องมากกว่า 0', 'warning');
         return;
@@ -1035,7 +1136,6 @@ $('#editLeaveForm').on('submit', async function (e) {
         pdf_url: null
     };
 
-    // ✅ ดึง personnel_id ของใบลานี้จาก allLeavesData
     const leaveRecord = allLeavesData.find(l => l.id === id);
     if (!leaveRecord) {
         Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลใบลา', 'error');
@@ -1043,13 +1143,12 @@ $('#editLeaveForm').on('submit', async function (e) {
     }
     const personnelId = leaveRecord.personnel_id;
 
-    // ตรวจสอบซ้ำ (ข้ามรายการตัวเอง)
     const duplicate = await window.checkDuplicateLeave(
         personnelId,
         $('#edit_leave_type').val(),
         $('#edit_start_date').val(),
         $('#edit_end_date').val(),
-        id  // ข้ามตัวเอง
+        id
     );
 
     if (duplicate.exists) {
@@ -1084,7 +1183,7 @@ $('#editLeaveForm').on('submit', async function (e) {
     }
 });
 
-// ----- อนุมัติ/ไม่อนุมัติ (พร้อมระบุวันที่อนุมัติ) -----
+// ----- อนุมัติ/ไม่อนุมัติ -----
 async function updateStatus(id, newStatus) {
     if (!isModuleAdmin && !requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -1158,7 +1257,6 @@ async function updateStatus(id, newStatus) {
         approved_date: finalApprovedDate
     };
 
-    // ✅ Auto ack ที่ค้างอยู่ (หัวหน้ากลุ่มฯ / แอดมิน / รอง) เมื่อ Super Admin อนุมัติ
     if (currentUserRole === 'super_admin' && newStatus === 'อนุมัติ') {
         updateData.ack_admin = true;
         updateData.ack_admin_at = finalApprovedDateTime;
@@ -1176,14 +1274,12 @@ async function updateStatus(id, newStatus) {
                 updateData.head_department = head.department_name;
             }
         }
-        // ✅ Auto ack รองวิชาการ (ถ้าเป็นหัวหน้ากลุ่มฯ)
         if (leaveFull && needsAcademicAck(leaveFull) && !leaveFull.ack_academic) {
             updateData.ack_academic = true;
             updateData.ack_academic_at = finalApprovedDateTime;
             updateData.academic_personnel_id = window.academicPersonnelId || null;
         }
     }
-    // ✅ ผู้อำนวยการ/Super Admin ไม่ต้อง set ack_director — อนุมัติคือการรับทราบในตัว
 
     Swal.fire({ title: 'กำลังอัปเดตสถานะ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
@@ -1198,12 +1294,11 @@ async function updateStatus(id, newStatus) {
 }
 
 // ==========================================
-// ไม่อนุมัติใบลา (พร้อมระบุวันที่ไม่อนุมัติ)
+// ไม่อนุมัติใบลา
 // ==========================================
 async function rejectLeave(id) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
-    // ---------- ดึงข้อมูลใบลา ----------
     const { data: leave, error: fetchError } = await db.from('leave_requests')
         .select('ack_admin, ack_deputy, ack_head, ack_academic, status, personnel_id')
         .eq('id', id)
@@ -1213,7 +1308,6 @@ async function rejectLeave(id) {
         return;
     }
 
-    // ---------- เงื่อนไข: ต้องรอ ack ก่อน (ยกเว้น Super Admin) ----------
     if (currentUserRole !== 'super_admin' && leave.status === 'รออนุมัติ') {
         const leaveFull = allLeavesData.find(x => x.id === id);
 
@@ -1251,7 +1345,6 @@ async function rejectLeave(id) {
         }
     }
 
-    // ---------- ถามเหตุผลที่ไม่อนุมัติ ----------
     const { value: comment } = await Swal.fire({
         title: 'ไม่อนุมัติการลา',
         html: '<p class="text-sm text-slate-500 mb-3">กรุณาระบุเหตุผลที่ไม่อนุมัติ เพื่อส่งกลับไปให้บุคลากรทราบ</p>',
@@ -1267,7 +1360,6 @@ async function rejectLeave(id) {
 
     if (!comment) return;
 
-    // ---------- ถามวันที่ไม่อนุมัติ ----------
     const today = new Date().toLocaleDateString('sv-SE');
     const { value: customRejectDate } = await Swal.fire({
         title: 'วันที่ไม่อนุมัติ',
@@ -1290,7 +1382,6 @@ async function rejectLeave(id) {
 
     const now = new Date().toISOString();
 
-    // ---------- ข้อมูลที่ต้องอัปเดตหลัก ----------
     let updateData = {
         status: 'ไม่อนุมัติ',
         reject_comment: comment.trim(),
@@ -1299,19 +1390,14 @@ async function rejectLeave(id) {
         approved_date: finalRejectDate
     };
 
-    // ==========================================
-    // ✅ Auto ack ที่ค้างอยู่ทั้งหมด (เฉพาะ Super Admin)
-    // ==========================================
     if (currentUserRole === 'super_admin') {
         const leaveFull = allLeavesData.find(x => x.id === id);
 
-        // 1. แอดมิน + รองผู้อำนวยการ (ไม่ต้องเช็คเงื่อนไข — Super Admin override)
         updateData.ack_admin = true;
         updateData.ack_deputy = true;
         updateData.ack_admin_at = now;
         updateData.ack_deputy_at = now;
 
-        // 2. หัวหน้ากลุ่มสาระฯ (เฉพาะกรณี teacher)
         if (leaveFull && needsHeadAck(leaveFull) && !leaveFull.ack_head) {
             updateData.ack_head = true;
             updateData.ack_head_at = now;
@@ -1323,16 +1409,13 @@ async function rejectLeave(id) {
             }
         }
 
-        // 3. ✅ รองวิชาการ (เฉพาะกรณี head)
         if (leaveFull && needsAcademicAck(leaveFull) && !leaveFull.ack_academic) {
             updateData.ack_academic = true;
             updateData.ack_academic_at = now;
             updateData.academic_personnel_id = window.academicPersonnelId || null;
         }
     }
-    // ✅ ผู้อำนวยการ/Super Admin ไม่ต้อง set ack_director — ไม่อนุมัติคือการรับทราบในตัว
 
-    // ---------- บันทึก ----------
     const { error } = await db.from('leave_requests').update(updateData).eq('id', id);
 
     if (error) {
@@ -1415,9 +1498,9 @@ async function resetAllAcknowledge(id) {
             ack_head_at: null,
             head_personnel_id: null,
             head_department: null,
-            ack_academic: false,              // ✅ ใหม่
-            ack_academic_at: null,            // ✅ ใหม่
-            academic_personnel_id: null,      // ✅ ใหม่
+            ack_academic: false,
+            ack_academic_at: null,
+            academic_personnel_id: null,
             status: 'รออนุมัติ',
             reject_comment: null,
             approved_at: null,
@@ -1448,7 +1531,7 @@ async function resetAllAcknowledge(id) {
 }
 
 // ==========================================
-// ดูรายละเอียดใบลา (แสดงข้อมูลทั้งหมด + สถานะรับทราบ)
+// ดูรายละเอียดใบลา
 // ==========================================
 function viewLeave(id) {
     const l = allLeavesData.find(x => x.id === id);
@@ -1457,14 +1540,12 @@ function viewLeave(id) {
     const effectiveRole = currentUserRole === 'teacher' && (isAdminMode || isModuleAdmin) ? 'admin' : currentUserRole;
     const isSuperAdminView = effectiveRole === 'super_admin';
 
-    // ---------- Helper: แสดงวันที่แบบสั้น (dd/mm/yyyy) ----------
     function fmt(iso) {
         if (!iso) return '-';
         const p = iso.split('-');
         return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
     }
 
-    // ---------- Helper: แสดงวันที่แบบเต็ม (d เดือน yyyy) ----------
     function formatDateOnly(iso) {
         if (!iso) return '-';
         const d = new Date(iso);
@@ -1474,9 +1555,6 @@ function viewLeave(id) {
         return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear() + 543}`;
     }
 
-    // ============================================================
-    // ส่วนที่ 1: ข้อมูลการลา
-    // ============================================================
     const approvedDisplay = l.approved_date || l.approved_at;
     const leaveInfoHtml = `
         <div class="border border-slate-200 rounded-xl p-3 space-y-2 mb-4">
@@ -1532,9 +1610,6 @@ function viewLeave(id) {
         </div>
     `;
 
-    // ============================================================
-    // ส่วนที่ 2: Helper สร้างแถว ack (แอดมิน / รองผู้อำนวยการ)
-    // ============================================================
     function buildAckRow(label, field) {
         const done = !!l[field];
         const atField = field + '_at';
@@ -1549,7 +1624,6 @@ function viewLeave(id) {
             buttonHtml = `<button onclick="acknowledgeLeave('${l.id}', '${field}'); closeViewModal()" class="ml-2 px-3 py-1 bg-teal-500 hover:bg-teal-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i> รับทราบ</button>`;
         }
 
-        // ✅ ปุ่มแก้ไขวันที่รับทราบ (เฉพาะที่ done แล้ว)
         let editBtn = '';
         if (done) {
             const canEdit = isSuperAdminView
@@ -1573,36 +1647,26 @@ function viewLeave(id) {
     </div>`;
     }
 
-    // ============================================================
-    // ส่วนที่ 3: แถวหัวหน้ากลุ่มสาระฯ (แยกออกมาเพราะมี logic พิเศษ)
-    // ============================================================
     let headAckBtn = '';
     if (isSuperAdminView && needsHeadAck(l) && !l.ack_head) {
         headAckBtn = `<button onclick="acknowledgeLeaveHead('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-purple-500 hover:bg-purple-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-check mr-1"></i>รับทราบแทน</button>`;
     }
 
-    // ✅ ปุ่มแก้ไขวันที่รับทราบ (เฉพาะ Super Admin + ใบที่รับทราบแล้ว)
     let editAckHeadBtn = '';
     if (isSuperAdminView && l.ack_head) {
         editAckHeadBtn = `<button onclick="editAckHeadDate('${l.id}')" class="ml-2 px-3 py-1 bg-amber-500 hover:bg-amber-600 text-white rounded-lg text-xs font-bold shadow-sm transition" title="แก้ไขวันที่รับทราบ"><i class="fas fa-edit mr-1"></i>แก้ไขวันที่</button>`;
     }
 
-    // ✅ Academic Row (เฉพาะกรณีคนลาเป็นหัวหน้ากลุ่มฯ)
-    // ✅ Academic Row (เฉพาะกรณีคนลาเป็นหัวหน้ากลุ่มฯ)
     let academicAckRow = '';
     if (needsAcademicAck(l)) {
         const academicStatus = getAcademicAckStatus(l);
-
-        // ✅ ตรวจสอบสิทธิ์: เป็น Super Admin หรือเป็นรองวิชาการตัวจริง
         const isAcademicUser = (currentUser?.id === window.academicPersonnelId);
 
         let academicBtn = '';
         if (!l.ack_academic) {
             if (isSuperAdminView) {
-                // Super Admin → รับทราบแทน
                 academicBtn = `<button onclick="acknowledgeLeaveAcademic('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-user-graduate mr-1"></i>รับทราบแทน</button>`;
             } else if (isAcademicUser) {
-                // รองวิชาการตัวจริง → รับทราบ
                 academicBtn = `<button onclick="acknowledgeLeaveAcademic('${l.id}'); closeViewModal()" class="ml-2 px-3 py-1 bg-rose-500 hover:bg-rose-600 text-white rounded-lg text-xs font-bold shadow-sm transition"><i class="fas fa-check-double mr-1"></i>รับทราบ</button>`;
             }
         }
@@ -1626,7 +1690,6 @@ function viewLeave(id) {
     `;
     }
 
-    // headAckRow — แสดงเฉพาะกรณี people.is teacher
     const headAckRow = needsAcademicAck(l) ? '' : `
     <div class="flex items-center justify-between py-2 border-b border-slate-100">
         <span class="text-sm text-slate-600"><i class="fas fa-users text-slate-400 mr-1.5"></i>หัวหน้ากลุ่มสาระฯ</span>
@@ -1644,9 +1707,6 @@ function viewLeave(id) {
     </div>
 `;
 
-    // ============================================================
-    // ส่วนที่ 4: รวมสถานะการรับทราบ (3 แถว — ไม่มี ผอ.)
-    // ============================================================
     const ackHtml = `
     <div class="border border-slate-200 rounded-xl p-3">
         <p class="text-xs font-bold text-slate-500 mb-2">
@@ -1659,16 +1719,12 @@ function viewLeave(id) {
     </div>
 `;
 
-    // ============================================================
-    // ส่วนที่ 5: ปุ่มอนุมัติ/ไม่อนุมัติ (เฉพาะ ผอ./Super Admin + รออนุมัติ)
-    // ============================================================
     let actionHtml = '';
     if ((effectiveRole === 'super_admin' || effectiveRole === 'director') && l.status === 'รออนุมัติ') {
         const headOk = !needsHeadAck(l) || l.ack_head;
         const academicOk = !needsAcademicAck(l) || l.ack_academic;
 
         if (headOk && academicOk && l.ack_admin && l.ack_deputy) {
-            // ครบเงื่อนไข → แสดงปุ่มอนุมัติ/ไม่อนุมัติ
             actionHtml = `
                 <div class="flex flex-wrap gap-2 pt-2">
                     <button onclick="updateStatus('${l.id}', 'อนุมัติ'); closeViewModal()" class="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold text-sm flex items-center gap-2 transition shadow-sm">
@@ -1694,9 +1750,6 @@ function viewLeave(id) {
         }
     }
 
-    // ============================================================
-    // ส่วนที่ 6: ประกอบ HTML ทั้งหมด & แสดง Modal
-    // ============================================================
     const fullHtml = `
         <div class="space-y-4">
             ${leaveInfoHtml}
@@ -1719,7 +1772,6 @@ function closeViewModal() {
 // รับทราบใบลา
 // ==========================================
 async function acknowledgeLeave(id, field) {
-    // ✅ ผู้อำนวยการไม่ต้องรับทราบ — อนุญาตเฉพาะ admin/deputy
     const allowedFields = { admin: 'ack_admin', deputy: 'ack_deputy' };
     if (!Object.values(allowedFields).includes(field)) return;
 
@@ -1781,7 +1833,7 @@ async function acknowledgeLeave(id, field) {
 }
 
 // ==========================================
-// ฟังก์ชันส่งออก Excel (คงเดิม)
+// ฟังก์ชันส่งออก Excel
 // ==========================================
 function exportLeaveReport() {
     if (allLeavesData.length === 0) return Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลให้ส่งออก', 'info');
@@ -1806,21 +1858,15 @@ async function exportLeaveSummaryReport() {
     try {
         Swal.fire({ title: 'กำลังสร้างรายงาน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
-        // กรองเฉพาะตำแหน่งที่ต้องการ (ผู้อำนวยการ, รองผู้อำนวยการ, ครูทุกประเภท, พนักงานราชการ)
-        // และตัดตำแหน่งที่ไม่ต้องการออก
         let personnel = allPersonnelData.filter(p => {
             const pos = p.position || '';
-
-            // ตัดตำแหน่งที่ไม่ต้องการออกก่อน
             if (pos.includes('ครูอัตราจ้าง')) return false;
             if (pos.includes('ครูพี่เลี้ยงเด็กพิการ')) return false;
             if (pos.includes('เจ้าหน้าที่สำนักงาน')) return false;
             if (pos.includes('พนักงานขับรถยนต์')) return false;
             if (pos.includes('พนักงานบริการ')) return false;
             if (pos.includes('พนักงานรักษาความปลอดภัย')) return false;
-            // สามารถเพิ่มตำแหน่งอื่นที่ต้องการตัดได้ที่นี่
 
-            // อนุญาตเฉพาะตำแหน่งที่มีคำเหล่านี้
             return pos.includes('ผู้อำนวยการ') ||
                 pos.includes('รองผู้อำนวยการ') ||
                 pos.includes('ครู') ||
@@ -1974,7 +2020,7 @@ async function exportAttendanceReport() {
                 const c = counts[p.id] || { late: 0, absent: 0 };
                 return {
                     'ชื่อ-สกุล': `${p.prefix || ''}${p.first_name} ${p.last_name}`,
-                    'กลุ่มสาระฯ/กลุ่มงาน': p.department || '-',   // ✅ เพิ่มคอลัมน์นี้
+                    'กลุ่มสาระฯ/กลุ่มงาน': p.department || '-',
                     'มาสาย (ครั้ง)': c.late,
                     'ขาดราชการ (ครั้ง)': c.absent,
                     'รวม': c.late + c.absent
@@ -1989,11 +2035,11 @@ async function exportAttendanceReport() {
 
         const ws = XLSX.utils.json_to_sheet(exportData);
         ws['!cols'] = [
-            { wch: 30 },   // ชื่อ-สกุล
-            { wch: 28 },   // กลุ่มสาระฯ/กลุ่มงาน ✅ เพิ่ม
-            { wch: 15 },   // มาสาย (ครั้ง)
-            { wch: 15 },   // ขาดราชการ (ครั้ง)
-            { wch: 10 }    // รวม
+            { wch: 30 },
+            { wch: 28 },
+            { wch: 15 },
+            { wch: 15 },
+            { wch: 10 }
         ];
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'สรุปการขาด-มาสาย');
@@ -2008,7 +2054,7 @@ async function exportAttendanceReport() {
 }
 
 // ==========================================
-// นำเข้า Excel (เฉพาะ Super Admin)
+// นำเข้า Excel
 // ==========================================
 async function importLeaveExcel(event) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
@@ -2165,7 +2211,6 @@ $('#attendanceForm').on('submit', async function (e) {
         reason: $('#att_reason').val(),
         fiscal_year: systemSettings.fiscal_year,
         eval_round: systemSettings.eval_round,
-        // submitted_date: submittedDateIso,
     };
     if (!payload.personnel_id) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
@@ -2203,7 +2248,7 @@ async function deleteAttendance(id) {
 }
 
 // ==========================================
-// สร้างใบลา (Admin) พร้อม submitted_date และอัปโหลดหลักฐาน
+// สร้างใบลา (Admin)
 // ==========================================
 function initAdminFlatpickr() {
     const config = {
@@ -2227,7 +2272,6 @@ function initAdminFlatpickr() {
     flatpickr("#admin_submitted_date", config);
 }
 
-// แทนที่ adminCalculateDays
 window.adminCalculateDays = async function () {
     const startIso = $('#admin_start_date_iso').val();
     const endIso = $('#admin_end_date_iso').val();
@@ -2325,10 +2369,10 @@ async function openAdminLeaveModal() {
     document.getElementById('admin_evidence_file').value = '';
     document.getElementById('admin_existing_evidence').classList.add('hidden');
 
-    if (typeof adminFlatpickrInstance !== 'undefined' && adminFlatpickrInstance) adminFlatpickrInstance.destroy();
     initAdminFlatpickr();
     $('#adminLeaveModal').removeClass('hidden').addClass('flex');
 }
+
 function closeAdminLeaveModal() {
     $('#adminLeaveModal').addClass('hidden').removeClass('flex');
 }
@@ -2373,13 +2417,12 @@ window.saveLeaveForAdmin = async function (e) {
         }
     }
 
-    // ✅ ตรวจสอบข้อมูลซ้ำ
     const duplicate = await window.checkDuplicateLeave(
         personnelId,
         type,
         startDate,
         endDate,
-        null  // ไม่มี id เพราะเป็นการสร้างใหม่
+        null
     );
 
     if (duplicate.exists) {
@@ -2734,12 +2777,9 @@ async function exportSignatureExcel() {
 }
 
 // ============================================================
-// ฟังก์ชันจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin) — สำหรับหน้า Admin
+// ฟังก์ชันจัดการวันหยุดของโรงเรียน (เฉพาะ Super Admin)
 // ============================================================
-
-// โหลดรายการวันหยุด
 window.loadHolidaysAdmin = async function () {
-    // ตรวจสอบสิทธิ์ Super Admin
     if (window.currentUserRole !== 'super_admin') {
         const container = document.getElementById('holidayListContainerAdmin');
         if (container) container.innerHTML = '<span class="text-rose-500 text-sm">เฉพาะ Super Admin เท่านั้น</span>';
@@ -2762,7 +2802,6 @@ window.loadHolidaysAdmin = async function () {
             return;
         }
 
-        // Super Admin จะเห็นปุ่มลบ
         const isSuperAdmin = window.currentUserRole === 'super_admin';
         container.innerHTML = holidays.map(h => {
             const start = new Date(h.start_date).toLocaleDateString('th-TH');
@@ -2780,7 +2819,6 @@ window.loadHolidaysAdmin = async function () {
     }
 };
 
-// แสดงฟอร์มเพิ่มวันหยุด
 window.addHolidayAdmin = function () {
     if (window.currentUserRole !== 'super_admin') {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่เพิ่มวันหยุดได้', 'error');
@@ -2801,7 +2839,6 @@ window.cancelAddHolidayAdmin = function () {
     if (form) form.classList.add('hidden');
 };
 
-// บันทึกวันหยุดใหม่
 window.saveHolidayAdmin = async function () {
     if (window.currentUserRole !== 'super_admin') {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่เพิ่มวันหยุดได้', 'error');
@@ -2845,7 +2882,6 @@ window.saveHolidayAdmin = async function () {
     }
 };
 
-// ลบวันหยุด
 window.deleteHolidayAdmin = async function (holidayId) {
     if (window.currentUserRole !== 'super_admin') {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่ลบวันหยุดได้', 'error');
@@ -2879,7 +2915,6 @@ window.deleteHolidayAdmin = async function (holidayId) {
     }
 };
 
-// แสดงส่วนตั้งค่าวันหยุดเฉพาะ Super Admin (เรียกเมื่อเปิดแท็บ Settings)
 window.showHolidaySettingsAdmin = function () {
     const section = document.getElementById('holidaySettingsSectionAdmin');
     if (!section) return;
@@ -2921,10 +2956,11 @@ window.adminCalculateDays = adminCalculateDays;
 window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.saveSystemSettings = saveSystemSettings;
+window.loadSystemSettings = loadSystemSettings;
+window.getDefaultLeaveSettings = getDefaultLeaveSettings;
 window.logout = logout;
 window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 window.exportSignatureExcel = exportSignatureExcel;
-window.checkDuplicateLeave = window.checkDuplicateLeave; // (ไม่จำเป็น ถ้าใช้ window โดยตรง)
 
-console.log('✅ leave_admin.js loaded with submitted_date, approved_date, evidence upload, full viewLeave, and holiday management (Super Admin only)');
+console.log('✅ leave_admin.js loaded [PATCHED] — loadSystemSettings + saveSystemSettings upsert + loadDashboardStats fallback');

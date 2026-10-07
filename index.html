@@ -16,6 +16,7 @@
                 linear-gradient(90deg, #d9ecff 0%, #eaf4ff 45%, rgba(255, 255, 255, 0) 70%),
                 url('hero-banner.webp') right center / auto 100% no-repeat;
         }
+
         #totalStudentsLabel {
             display: inline-block;
             margin-left: 6px;
@@ -25,6 +26,273 @@
             border-radius: 20px;
             font-size: 11px;
             font-weight: 600;
+        }
+
+        /* ============================================================
+           Sidebar: Group (Dropdown Submenu)
+           ============================================================ */
+        .d-nav-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .d-nav-group>a.group-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.15s ease, color 0.15s ease;
+            position: relative;
+            user-select: none;
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .d-nav-group>a.group-header:hover {
+            background: rgba(59, 130, 246, 0.08);
+            color: #1e40af;
+        }
+
+        .d-nav-group>a.group-header .d-arrow {
+            margin-left: auto;
+            font-size: 12px;
+            opacity: 0.7;
+            transition: transform 0.25s ease;
+            color: #64748b;
+        }
+
+        .d-nav-group.expanded>a.group-header {
+            background: rgba(59, 130, 246, 0.06);
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+        .d-nav-group.expanded>a.group-header .d-arrow {
+            transform: rotate(90deg);
+            opacity: 1;
+            color: #2563eb;
+        }
+
+        /* ✅ Group Header: Active state */
+        .d-nav-group>a.group-header.active {
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05));
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+        .d-nav-group>a.group-header.active .d-arrow {
+            color: #2563eb;
+            opacity: 1;
+        }
+
+        .d-nav-group>a.group-header.active .d-ico {
+            color: #2563eb;
+            opacity: 1;
+        }
+
+        /* Submenu */
+        .d-nav-group>.d-submenu {
+            display: none;
+            flex-direction: column;
+            padding-left: 14px;
+            margin-left: 22px;
+            margin-top: 4px;
+            margin-bottom: 4px;
+            border-left: 2px solid rgba(59, 130, 246, 0.18);
+            animation: submenuFadeIn 0.2s ease;
+        }
+
+        .d-nav-group.expanded>.d-submenu {
+            display: flex;
+        }
+
+        @keyframes submenuFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-4px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .d-nav-group>.d-submenu>a {
+            padding: 7px 12px;
+            font-size: 13px;
+            border-radius: 8px;
+            margin: 2px 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #64748b;
+            text-decoration: none;
+            transition: background 0.15s, color 0.15s, padding-left 0.15s;
+            position: relative;
+        }
+
+        .d-nav-group>.d-submenu>a:hover {
+            background: rgba(59, 130, 246, 0.08);
+            color: #1e40af;
+            padding-left: 16px;
+        }
+
+        .d-nav-group>.d-submenu>a.active {
+            background: linear-gradient(90deg, rgba(59, 130, 246, 0.15), rgba(59, 130, 246, 0.05));
+            color: #2563eb;
+            font-weight: 700;
+        }
+
+        .d-nav-group>.d-submenu>a.active::before {
+            content: '';
+            position: absolute;
+            left: -14px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 6px;
+            height: 6px;
+            background: #3b82f6;
+            border-radius: 50%;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+        }
+
+        .d-nav-group>.d-submenu>a .d-ico {
+            font-size: 12px;
+            opacity: 0.7;
+            width: 16px;
+            text-align: center;
+        }
+
+        .d-nav-group>.d-submenu>a.active .d-ico {
+            opacity: 1;
+            color: #2563eb;
+        }
+
+        .d-nav-group>.d-submenu>a .d-label {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* ============================================================
+           Sidebar: Section (Collapsible Group)
+           ============================================================ */
+        .d-nav-title.collapsible {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            user-select: none;
+            transition: color 0.15s ease, background 0.15s ease;
+            padding: 8px 12px;
+            border-radius: 10px;
+            margin: 4px 0;
+            background: #f1f5f9;
+            color: #475569;
+            font-weight: 700;
+            font-size: 11px;
+            letter-spacing: 0.03em;
+            text-transform: uppercase;
+        }
+
+        .d-nav-title.collapsible:hover {
+            background: #e2e8f0;
+            color: #1e40af;
+        }
+
+        .d-nav-title.collapsible.collapsed {
+            background: #f8fafc;
+            color: #94a3b8;
+        }
+
+        .d-nav-title.collapsible .section-icon {
+            font-size: 14px;
+            opacity: 0.9;
+            transition: transform 0.2s ease, color 0.15s ease;
+            width: 18px;
+            text-align: center;
+            flex-shrink: 0;
+            color: #64748b;
+        }
+
+        .d-nav-title.collapsible:hover .section-icon {
+            color: #2563eb;
+        }
+
+        .d-nav-title.collapsible.collapsed .section-icon {
+            color: #94a3b8;
+        }
+
+        .d-nav-title.collapsible .section-arrow {
+            margin-left: auto;
+            font-size: 12px;
+            transition: transform 0.25s ease, color 0.15s ease;
+            opacity: 0.9;
+            flex-shrink: 0;
+            color: #64748b;
+        }
+
+        .d-nav-title.collapsible:hover .section-arrow {
+            color: #2563eb;
+        }
+
+        .d-nav-title.collapsible.collapsed .section-arrow {
+            transform: rotate(-90deg);
+            color: #94a3b8;
+        }
+
+        .d-nav-title.collapsible.collapsed .section-icon {
+            transform: rotate(-90deg);
+        }
+
+        .d-nav-section-items {
+            display: flex;
+            flex-direction: column;
+            transition: max-height 0.25s ease, opacity 0.2s ease;
+            overflow: hidden;
+        }
+
+        .d-nav-section-items.collapsed {
+            display: none;
+        }
+
+        /* ============================================================
+           Sidebar: Collapsed mode
+           ============================================================ */
+        .d-sidebar.collapsed .d-nav-title.collapsible .section-arrow,
+        .d-sidebar.collapsed .d-nav-group>a.group-header .d-arrow {
+            display: none;
+        }
+
+        .d-sidebar.collapsed .d-nav-group>.d-submenu {
+            display: none !important;
+        }
+
+        /* ============================================================
+           Responsive Mobile
+           ============================================================ */
+        @media (max-width: 760px) {
+            .d-nav-group>.d-submenu {
+                margin-left: 16px;
+                padding-left: 12px;
+            }
+
+            .d-nav-title.collapsible {
+                font-size: 10px;
+                padding: 7px 10px;
+            }
+
+            .d-nav-title.collapsible .section-icon {
+                font-size: 13px;
+            }
+
+            .d-nav-title.collapsible .section-arrow {
+                font-size: 11px;
+            }
         }
     </style>
 </head>
@@ -90,7 +358,8 @@
                     <section class="d-charts">
                         <div class="d-card">
                             <div class="d-card-head">
-                                <div class="d-card-title">📊 จำนวนนักเรียนจำแนกตามระดับชั้น <span id="totalStudentsLabel" class="d-sub"></span></div>
+                                <div class="d-card-title">📊 จำนวนนักเรียนจำแนกตามระดับชั้น <span
+                                        id="totalStudentsLabel" class="d-sub"></span></div>
                             </div>
                             <div class="d-chart-box">
                                 <canvas id="chartStudentsByLevel"></canvas>
@@ -137,14 +406,16 @@
                                     <thead class="bg-gray-100 text-gray-700 border-b sticky top-0 z-10">
                                         <tr>
                                             <th class="py-3 px-4 font-semibold">วัน/เดือน/ปี</th>
-                                            <th class="py-3 px-4 font-semibold whitespace-nowrap" style="min-width:120px;">กลุ่ม</th>
+                                            <th class="py-3 px-4 font-semibold whitespace-nowrap"
+                                                style="min-width:120px;">กลุ่ม</th>
                                             <th class="py-3 px-4 font-semibold">รายการ</th>
                                             <th class="py-3 px-4 font-semibold">รายละเอียด</th>
                                         </tr>
                                     </thead>
                                     <tbody id="calendarEventsTableBody">
                                         <tr>
-                                            <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...</td>
+                                            <td colspan="4" class="text-center py-8 text-gray-400">กำลังโหลดกิจกรรม...
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -153,7 +424,8 @@
 
                         <div class="d-card d-leave" style="border-left-color:#f43f5e">
                             <div class="d-card-head">
-                                <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋 การลาวันนี้</div>
+                                <div class="d-card-title"><i class="fas fa-calendar-day text-rose-500 mr-1"></i> 📋
+                                    การลาวันนี้</div>
                                 <span class="d-sub" id="sick-today-date"></span>
                             </div>
                             <div id="sick-leave-today" class="min-h-[40px]">
@@ -165,7 +437,8 @@
 
                         <div class="d-card d-leave" style="border-left-color:#f97316">
                             <div class="d-card-head">
-                                <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋 การลาสัปดาห์นี้</div>
+                                <div class="d-card-title"><i class="fas fa-calendar-week text-orange-500 mr-1"></i> 📋
+                                    การลาสัปดาห์นี้</div>
                                 <span class="d-sub" id="sick-week-range"></span>
                             </div>
                             <div id="sick-leave-week" class="min-h-[40px]">
@@ -239,13 +512,13 @@
         };
 
         const ALL_APPS = [
-            { id: 'guidance_teacher', category: 'academic', moduleId: 'guidance', title: 'ปพ.5 กิจกรรมแนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ', icon: 'fa-solid fa-compass', url: 'guidance_teacher.html', reqAdmin: false },
-            { id: 'scholarship', category: 'academic', moduleId: 'scholarship', title: 'ระบบทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน', icon: 'fa-solid fa-hand-holding-dollar', url: 'scholarship_teacher.html' },
-            { id: 'personnel', category: 'personnel', moduleId: 'personnel', title: 'ระบบบริหารจัดการบุคลากร', desc: 'ข้อมูลครูและบุคลากร, ตำแหน่ง, วิทยฐานะ และประวัติการทำงาน', icon: 'fa-solid fa-id-card', url: 'personnel.html' },
-            { id: 'leave_system', category: 'personnel', moduleId: 'leave', title: 'ระบบการลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร', icon: 'fa-solid fa-envelope-open-text', url: 'leave.html' },
-            { id: 'attendance', category: 'general', moduleId: 'attendance', title: 'ระบบเช็คชื่อหน้าเสาธง', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา', icon: 'fa-solid fa-clipboard-user', url: 'attendance_teacher.html' },
-            { id: 'discipline', category: 'general', moduleId: 'behavior', title: 'ระบบงานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน', icon: 'fa-solid fa-gavel', url: 'behavior_teacher.html' },
-            { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
+            { id: 'guidance_teacher', category: 'academic', moduleId: 'guidance', title: 'ปพ.5 แนะแนว', desc: 'บันทึกเวลาเรียน, ประเมินคุณลักษณะ', icon: 'fa-solid fa-compass', url: 'guidance_teacher.html', reqAdmin: false },
+            { id: 'scholarship', category: 'academic', moduleId: 'scholarship', title: 'ทุนการศึกษา', desc: 'จัดการแหล่งทุน เสนอชื่อนักเรียน และบันทึกการรับทุน', icon: 'fa-solid fa-hand-holding-dollar', url: 'scholarship_teacher.html' },
+            { id: 'personnel', category: 'personnel', moduleId: 'personnel', title: 'ข้อมูลบุคลากร', desc: 'ข้อมูลครูและบุคลากร, ตำแหน่ง, วิทยฐานะ และประวัติการทำงาน', icon: 'fa-solid fa-id-card', url: 'personnel.html' },
+            { id: 'leave_system', category: 'personnel', moduleId: 'leave', title: 'การลา', desc: 'บันทึกและตรวจสอบประวัติการลาป่วย ลากิจ ของบุคลากร', icon: 'fa-solid fa-envelope-open-text', url: 'leave.html' },
+            { id: 'attendance', category: 'general', moduleId: 'attendance', title: 'เช็คชื่อนักเรียน', desc: 'บันทึกการมาเรียนประจำวัน สำหรับครูที่ปรึกษา', icon: 'fa-solid fa-clipboard-user', url: 'attendance_teacher.html' },
+            { id: 'discipline', category: 'general', moduleId: 'behavior', title: 'งานปกครอง', desc: 'บันทึกพฤติกรรม, ตัดคะแนน, เพิ่มคะแนนของนักเรียน และสรุปข้อมูลพฤติกรรมประจำภาคเรียน', icon: 'fa-solid fa-gavel', url: 'behavior_teacher.html' },
+            { id: 'homevisit', category: 'general', moduleId: 'homevisit', title: 'เยี่ยมบ้านนักเรียน', desc: 'บันทึกข้อมูล พิกัดที่อยู่อาศัย และสภาพแวดล้อมนักเรียน', icon: 'fa-solid fa-house-chimney-user', url: 'homevisit.html' },
         ];
 
         // ====== Helpers ======
@@ -267,38 +540,128 @@
         }
 
         // =======================================================
-        // ✅ Render Sidebar + Topbar (NEW)
+        // ✅ อ่าน Category จาก URL (hash หรือ query string)
         // =======================================================
-        function buildSidebarAndTopbar() {
-            renderSidebar({
-                brand: { subtitle: 'School Management System' },
+        function getDesiredCategory() {
+            const hash = (window.location.hash || '').replace('#', '').trim();
+            if (hash && CATEGORY_NAMES[hash]) return hash;
+
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            if (tab && CATEGORY_NAMES[tab]) return tab;
+
+            return null;
+        }
+
+        // =======================================================
+        // ✅ FALLBACK CONFIG
+        // =======================================================
+        function getFallbackSidebarConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: 'School Management System'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
                 mainMenu: [
                     { id: 'homeTabBtn', icon: 'fa-house', label: 'หน้าหลัก', onclick: 'switchToHome()', class: 'active' }
                 ],
+                showAllDepartments: false,
                 moduleMenus: [
                     {
                         title: 'กลุ่มบริหารงาน',
+                        sectionId: 'sec-departments-index',
+                        collapsible: true,
+                        defaultOpen: true,
                         items: [
-                            { icon: 'fa-book-open', label: 'บริหารวิชาการ', onclick: "switchMainTab('academic', this)", class: 'main-tab-btn' },
-                            { icon: 'fa-coins', label: 'บริหารงบประมาณ', onclick: "switchMainTab('budget', this)", class: 'main-tab-btn' },
-                            { icon: 'fa-users', label: 'บริหารงานบุคคล', onclick: "switchMainTab('personnel', this)", class: 'main-tab-btn' },
-                            { icon: 'fa-building', label: 'บริหารทั่วไป', onclick: "switchMainTab('general', this)", class: 'main-tab-btn' }
+                            {
+                                id: 'academic', icon: 'fa-book-open', label: 'บริหารวิชาการ',
+                                children: [
+                                    { id: 'sub-academic-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด', onclick: "switchMainTab('academic', null)" },
+                                    { icon: 'fa-compass', label: 'ปพ.5 แนะแนว', href: 'guidance_teacher.html' },
+                                    { icon: 'fa-user-shield', label: 'ปพ.5 แนะแนว (Admin)', href: 'guidance_admin.html' },
+                                    { icon: 'fa-hand-holding-dollar', label: 'ทุนการศึกษา', href: 'scholarship_teacher.html' },
+                                    { icon: 'fa-users-rectangle', label: 'ชุมนุม', href: 'club_teacher.html' }
+                                ]
+                            },
+                            {
+                                id: 'budget', icon: 'fa-coins', label: 'บริหารงบประมาณ',
+                                children: [
+                                    { id: 'sub-budget-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด', onclick: "switchMainTab('budget', null)" }
+                                ]
+                            },
+                            {
+                                id: 'personnel', icon: 'fa-users', label: 'บริหารงานบุคคล',
+                                children: [
+                                    { id: 'sub-personnel-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด', onclick: "switchMainTab('personnel', null)" },
+                                    { icon: 'fa-id-card', label: 'ข้อมูลบุคลากร', href: 'personnel.html' },
+                                    { icon: 'fa-envelope-open-text', label: 'ระบบการลา', href: 'leave.html' }
+                                ]
+                            },
+                            {
+                                id: 'general', icon: 'fa-building', label: 'บริหารทั่วไป',
+                                children: [
+                                    { id: 'sub-general-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด', onclick: "switchMainTab('general', null)" },
+                                    { icon: 'fa-clipboard-user', label: 'เช็คชื่อหน้าเสาธง', href: 'attendance_teacher.html' },
+                                    { icon: 'fa-gavel', label: 'งานปกครอง', href: 'behavior_teacher.html' },
+                                    { icon: 'fa-house-chimney-user', label: 'เยี่ยมบ้านนักเรียน', href: 'homevisit.html' }
+                                ]
+                            }
                         ]
                     },
                     {
                         title: 'ระบบกลาง',
+                        sectionId: 'sec-central-index',
+                        collapsible: true,
+                        defaultOpen: true,
                         items: [
-                            { id: 'btnSuperAdmin', icon: 'fa-server', label: 'จัดการระบบส่วนกลาง', href: 'super_admin.html', hidden: true },
-                            { id: 'calendarAdminBtn', icon: 'fa-regular fa-calendar-alt', label: 'จัดการปฏิทิน', href: 'calendar_admin.html', hidden: true },
-                            { id: 'adminHelpdeskBtn', icon: 'fa-headset', label: 'ศูนย์ช่วยเหลือ', href: 'helpdesk_admin.html', hidden: true }
+                            { id: 'btnSuperAdmin', icon: 'fa-server', label: 'จัดการระบบส่วนกลาง', href: 'super_admin.html', roles: ['super_admin'] },
+                            { id: 'calendarAdminBtn', icon: 'fa-calendar-alt', label: 'จัดการปฏิทิน', href: 'calendar_admin.html', roles: ['super_admin', 'admin', 'director', 'deputy'] },
+                            { id: 'adminHelpdeskBtn', icon: 'fa-headset', label: 'ศูนย์ช่วยเหลือ', href: 'helpdesk_admin.html', roles: ['super_admin', 'admin'] }
                         ]
                     }
                 ],
+                footerMenuTitle: 'การตั้งค่า',
+                footerCollapsible: true,
                 footerMenu: [
                     { icon: 'fa-key', label: 'เปลี่ยนรหัสผ่าน', onclick: 'changeMyPassword()' }
                 ],
-                autoActivate: false  // ไม่ auto activate (ให้ switchToHome/switchMainTab จัดการ)
-            });
+                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        // =======================================================
+        // ✅ Render Sidebar + Topbar
+        // =======================================================
+        async function buildSidebarAndTopbar() {
+            let dbConfig = null;
+
+            try {
+                if (typeof loadSidebarConfigFromDB === 'function') {
+                    dbConfig = await loadSidebarConfigFromDB('index');
+                    if (!dbConfig || Object.keys(dbConfig).length === 0) {
+                        dbConfig = await loadSidebarConfigFromDB('default');
+                    }
+                }
+            } catch (e) {
+                console.warn('⚠️ โหลด Sidebar config จาก DB ไม่สำเร็จ → ใช้ fallback:', e);
+            }
+
+            const hasDbConfig = dbConfig && Object.keys(dbConfig).length > 0;
+            const finalConfig = hasDbConfig ? dbConfig : getFallbackSidebarConfig();
+
+            console.log(hasDbConfig
+                ? `✅ Sidebar: ใช้ config จาก DB → main=${finalConfig.mainMenu?.length || 0}, modules=${finalConfig.moduleMenus?.length || 0}`
+                : '📦 Sidebar: ใช้ fallback config');
+
+            renderSidebar({ ...finalConfig, autoActivate: false });
 
             renderTopbar({
                 search: {
@@ -313,56 +676,76 @@
         // Init
         // =======================================================
         window.onload = async () => {
-            buildSidebarAndTopbar();   // ✅ สร้าง sidebar/topbar ก่อน
-            await checkAuth();
-            restoreSidebarCollapse();
-            document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            try {
+                // 1) Auth
+                const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
+                if (!result) return;
+
+                currentUser = result.personnel;
+
+                // 2) โหลด module data
+                const { data: moduleAdmins } = await db
+                    .from('core_module_admins')
+                    .select('module_id')
+                    .eq('user_id', result.user.id);
+                userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
+
+                const { data: allCustomModules } = await db
+                    .from('core_system_modules')
+                    .select('*')
+                    .order('display_order', { ascending: true });
+                window.moduleOverrides = {};
+                activeModules = [];
+                if (allCustomModules) {
+                    allCustomModules.forEach(m => {
+                        window.moduleOverrides[m.module_id] = m;
+                        activeModules.push({ module_id: m.module_id, is_active: m.is_active, target_blank: m.target_blank });
+                    });
+                }
+
+                // 3) Render Sidebar + Topbar
+                await buildSidebarAndTopbar();
+
+                // 4) แสดงหน้าเว็บ
+                document.getElementById('portalView').classList.remove('hidden');
+
+                // 5) โหลดข้อมูล
+                updateUI();
+                await checkCalendarAdminAccess();
+                await loadSickLeaveWidget();
+                updateTotalAppStat();
+                await loadSchoolSettings();
+                loadDashboardStats();
+                initDashboardWidgets();
+
+                // ✅ 6) อ่าน hash/query → switch tab หรือกลับ home
+                const desired = getDesiredCategory();
+                if (desired) {
+                    console.log(`🔗 URL hash detected: #${desired} → switchMainTab('${desired}')`);
+                    switchMainTab(desired, null);
+                } else {
+                    switchToHome();
+                }
+
+            } catch (err) {
+                console.error('❌ Init error:', err);
+            } finally {
+                restoreSidebarCollapse();
+                document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            }
         };
 
-        async function checkAuth() {
-            const result = await checkSessionAndRole('index', WRK_ROLES.ALLOWED);
-            if (!result) return;
-            currentUser = result.personnel;
-
-            document.getElementById('portalView').classList.remove('hidden');
-
-            const { data: moduleAdmins } = await db
-                .from('core_module_admins')
-                .select('module_id')
-                .eq('user_id', result.user.id);
-            userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
-
-            const { data: allCustomModules } = await db
-                .from('core_system_modules')
-                .select('*')
-                .order('display_order', { ascending: true });
-
-            window.moduleOverrides = {};
-            activeModules = [];
-            if (allCustomModules) {
-                allCustomModules.forEach(m => {
-                    window.moduleOverrides[m.module_id] = m;
-                    activeModules.push({
-                        module_id: m.module_id,
-                        is_active: m.is_active,
-                        target_blank: m.target_blank
-                    });
-                });
+        // =======================================================
+        // ✅ รับการเปลี่ยนแปลง hash (คลิกซ้ำ / กด Back-Forward)
+        // =======================================================
+        window.addEventListener('hashchange', () => {
+            const desired = getDesiredCategory();
+            if (desired) {
+                switchMainTab(desired, null);
+            } else {
+                switchToHome();
             }
-
-            updateUI();
-            await checkCalendarAdminAccess();
-            await loadSickLeaveWidget();
-
-            updateTotalAppStat();
-
-            await loadSchoolSettings();
-            loadDashboardStats();
-
-            initDashboardWidgets();
-
-            switchToHome();
-        }
+        });
 
         // =======================================================
         // UI
@@ -375,13 +758,24 @@
             renderUserAvatar(currentUser);
 
             const isSuperAdmin = currentUser.role === 'super_admin';
-            document.getElementById('btnSuperAdmin').classList.toggle('hidden', !isSuperAdmin);
+            const btnSuperAdmin = document.getElementById('btnSuperAdmin');
+            if (btnSuperAdmin) {
+                btnSuperAdmin.classList.toggle('hidden', !isSuperAdmin);
+                btnSuperAdmin.classList.toggle('flex', isSuperAdmin);
+            }
 
             const canSeeHelpdesk = WRK_ROLES.SETTINGS.includes(currentUser.role);
-            document.getElementById('adminHelpdeskBtn').classList.toggle('hidden', !canSeeHelpdesk);
+            const btnHelpdesk = document.getElementById('adminHelpdeskBtn');
+            if (btnHelpdesk) {
+                btnHelpdesk.classList.toggle('hidden', !canSeeHelpdesk);
+                btnHelpdesk.classList.toggle('flex', canSeeHelpdesk);
+            }
         }
 
         async function checkCalendarAdminAccess() {
+            const btn = document.getElementById('calendarAdminBtn');
+            if (!btn) return;
+
             const { data: { session } } = await db.auth.getSession();
             if (!session) return;
             const { data: profile } = await db.from('core_personnel').select('role').eq('id', session.user.id).single();
@@ -389,15 +783,20 @@
 
             const hasSettingsAccess = window.canManageSettings(profile.role);
             if (!hasSettingsAccess) {
-                document.getElementById('calendarAdminBtn').classList.add('hidden');
+                btn.classList.add('hidden');
                 return;
             }
 
-            const managedDepts = await getUserManagedDepts(session.user.id);
-            const btn = document.getElementById('calendarAdminBtn');
-            if (btn && managedDepts.length > 0) {
-                btn.classList.remove('hidden');
-            } else {
+            try {
+                const managedDepts = await getUserManagedDepts(session.user.id);
+                if (managedDepts && managedDepts.length > 0) {
+                    btn.classList.remove('hidden');
+                    btn.classList.add('flex');
+                } else {
+                    btn.classList.add('hidden');
+                }
+            } catch (e) {
+                console.warn('checkCalendarAdminAccess error:', e);
                 btn.classList.add('hidden');
             }
         }
@@ -425,8 +824,10 @@
             document.getElementById('dashboardSection').classList.remove('hidden');
             document.getElementById('appModuleSection').classList.add('hidden');
 
-            // ✅ ลบ active ทั้งหมด แล้วเพิ่ม home
             document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
+            document.querySelectorAll('.d-nav-group > a.group-header').forEach(h => h.classList.remove('active'));
+            document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
+
             const homeBtn = document.getElementById('homeTabBtn');
             if (homeBtn) homeBtn.classList.add('active');
 
@@ -434,6 +835,11 @@
             if (s) s.value = '';
 
             toggleSidebar(false);
+
+            // ✅ ถ้า URL มี hash อยู่ → ลบออก (ไม่ reload)
+            if (window.location.hash) {
+                try { history.replaceState(null, '', window.location.pathname); } catch (e) { }
+            }
         }
 
         function switchMainTab(category, btnElement) {
@@ -443,10 +849,29 @@
             document.getElementById('dashboardSection').classList.add('hidden');
             document.getElementById('appModuleSection').classList.remove('hidden');
 
+            document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
+            document.querySelectorAll('.d-nav-group > a.group-header').forEach(h => h.classList.remove('active'));
             document.querySelectorAll('.main-tab-btn').forEach(btn => btn.classList.remove('active'));
+
+            const groupEl = document.querySelector(`.d-nav-group[data-group-id="${category}"]`);
+            if (groupEl) {
+                groupEl.classList.add('expanded');
+
+                const header = groupEl.querySelector('a.group-header');
+                if (header) header.classList.add('active');
+
+                const firstChild = groupEl.querySelector('.d-submenu > a:first-child');
+                if (firstChild) firstChild.classList.add('active');
+
+                try {
+                    const state = JSON.parse(localStorage.getItem('cp_sidebar_groups_open') || '{}');
+                    state[category] = true;
+                    localStorage.setItem('cp_sidebar_groups_open', JSON.stringify(state));
+                } catch (e) { /* ignore */ }
+            }
+
             const homeBtn = document.getElementById('homeTabBtn');
             if (homeBtn) homeBtn.classList.remove('active');
-            if (btnElement) btnElement.classList.add('active');
 
             const s = document.getElementById('appSearch');
             if (s) s.value = '';
@@ -463,6 +888,7 @@
                 document.getElementById('dashboardSection').classList.add('hidden');
                 document.getElementById('appModuleSection').classList.remove('hidden');
                 document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
+                document.querySelectorAll('.d-nav-group > a.group-header').forEach(h => h.classList.remove('active'));
             }
             if (!q && currentView === 'modules' && !document.querySelector('.main-tab-btn.active')) {
                 switchToHome();
@@ -574,20 +1000,20 @@
 
                 const iconStyle = `background-color: ${app.iconBgColor}; color: ${app.iconTextColor};`;
                 card.innerHTML = `
-                    <div class="flex justify-between items-start mb-4">
-                        <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
-                            <i class="${app.icon}"></i>
-                        </div>
-                        ${badgeHtml}
+                <div class="flex justify-between items-start mb-4">
+                    <div class="w-14 h-14 rounded-2xl ${isLocked ? 'bg-gray-200 text-gray-400' : ''} flex items-center justify-center text-2xl shadow-inner" style="${isLocked ? '' : iconStyle}">
+                        <i class="${app.icon}"></i>
                     </div>
-                    <div class="flex-1">
-                        <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
-                        <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
-                    </div>
-                    <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
-                        ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
-                    </div>
-                `;
+                    ${badgeHtml}
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-lg font-bold text-gray-800 mb-1.5">${app.title}</h3>
+                    <p class="text-sm text-gray-500 leading-relaxed">${app.desc}</p>
+                </div>
+                <div class="mt-5 pt-4 border-t border-gray-100 flex items-center text-sm font-bold ${isLocked ? 'text-gray-400' : 'text-blue-600 group-hover:text-blue-700'}">
+                    ${isLocked ? 'ระบบถูกล็อก' : 'เข้าใช้งานระบบ <i class="fa-solid fa-arrow-right ml-1"></i>'}
+                </div>
+            `;
                 grid.appendChild(card);
             });
         }
@@ -691,14 +1117,7 @@
                         buckets[group] = (buckets[group] || 0) + 1;
                     });
 
-                    const ORDER = [
-                        'ฝ่ายบริหาร',
-                        'ข้าราชการครู',
-                        'พนักงานราชการ/อัตราจ้าง',
-                        'เจ้าหน้าที่สำนักงาน',
-                        'ลูกจ้าง/พนักงานบริการ',
-                        'อื่นๆ'
-                    ];
+                    const ORDER = ['ฝ่ายบริหาร', 'ข้าราชการครู', 'พนักงานราชการ/อัตราจ้าง', 'เจ้าหน้าที่สำนักงาน', 'ลูกจ้าง/พนักงานบริการ', 'อื่นๆ'];
                     const labels = ORDER.filter(k => buckets[k] !== undefined);
                     const values = labels.map(k => buckets[k]);
 
@@ -729,10 +1148,10 @@
             const { value: formValues } = await Swal.fire({
                 title: 'เปลี่ยนรหัสผ่าน',
                 html: `
-                    <div class="text-sm text-gray-500 mb-3">กรุณาตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</div>
-                    <input id="swal-pwd1" type="password" placeholder="รหัสผ่านใหม่" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3 outline-none focus:border-blue-500">
-                    <input id="swal-pwd2" type="password" placeholder="ยืนยันรหัสผ่านใหม่อีกครั้ง" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-blue-500">
-                `,
+                <div class="text-sm text-gray-500 mb-3">กรุณาตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</div>
+                <input id="swal-pwd1" type="password" placeholder="รหัสผ่านใหม่" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3 outline-none focus:border-blue-500">
+                <input id="swal-pwd2" type="password" placeholder="ยืนยันรหัสผ่านใหม่อีกครั้ง" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-blue-500">
+            `,
                 focusConfirm: false,
                 showCancelButton: true,
                 confirmButtonColor: '#2563eb',
@@ -757,6 +1176,16 @@
                 }
             }
         }
+
+        // =======================================================
+        // ✅ Expose Global Functions (ให้โมดูลอื่น / Sidebar onclick ใช้ได้)
+        // =======================================================
+        window.switchToHome = switchToHome;
+        window.switchMainTab = switchMainTab;
+        window.changeMyPassword = changeMyPassword;
+        window.handleSearchInput = handleSearchInput;
+        window.updateUI = updateUI;
+        window.getDesiredCategory = getDesiredCategory;
     </script>
 
 </body>

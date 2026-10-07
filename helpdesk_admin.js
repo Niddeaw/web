@@ -64,6 +64,9 @@ window.onload = async () => {
             return;
         }
 
+        // ✅ แสดงข้อมูลผู้ใช้ใน header
+        _renderHelpdeskUser(personnel, role);
+
         // ✅ บันทึก Log การเข้าใช้งาน
         await window.logUserAction('เข้าสู่ระบบศูนย์ช่วยเหลือ (Admin)', 'helpdesk');
 
@@ -78,7 +81,7 @@ window.onload = async () => {
 
 function linkify(text) {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return text.replace(urlRegex, function(url) {
+    return text.replace(urlRegex, function (url) {
         return `<a href="${url}" target="_blank" class="text-blue-500 underline hover:text-blue-700">${escapeHtml(url)}</a>`;
     });
 }
@@ -122,7 +125,7 @@ async function loadTickets() {
                         const { data: student } = await db.from('core_students').select('prefix, first_name, last_name').eq('id', ticket.sender_id).maybeSingle();
                         if (student) senderName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
                     }
-                } catch (e) {}
+                } catch (e) { }
                 return { ...ticket, sender_display_name: senderName };
             }));
         } else {
@@ -151,7 +154,7 @@ function updateBadgeCount() {
 
 function filterTickets() {
     const keyword = document.getElementById('searchTicketInput').value.toLowerCase();
-    
+
     const filtered = allTicketsList.filter(t => {
         if (currentFilterStatus !== 'all' && t.status !== currentFilterStatus) return false;
         if (keyword) {
@@ -161,7 +164,7 @@ function filterTickets() {
         }
         return true;
     });
-    
+
     renderTicketList(filtered);
 }
 
@@ -182,13 +185,13 @@ function renderTicketList(tickets) {
     const ticketList = document.getElementById('ticketList');
     if (tickets.length > 0) {
         ticketList.innerHTML = tickets.map(ticket => {
-            const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700' 
+            const statusColor = ticket.status === 'open' ? 'bg-amber-100 text-amber-700'
                 : (ticket.status === 'replied' ? 'bg-green-100 text-green-700'
-                : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'));
-            const statusText = ticket.status === 'open' ? 'รอตรวจสอบ' 
-                : (ticket.status === 'replied' ? 'ตอบแล้ว' 
-                : (ticket.status === 'closed' ? 'ปิดงาน' : 'รอตรวจสอบ'));
-            
+                    : (ticket.status === 'closed' ? 'bg-gray-100 text-gray-500' : 'bg-blue-100 text-blue-700'));
+            const statusText = ticket.status === 'open' ? 'รอตรวจสอบ'
+                : (ticket.status === 'replied' ? 'ตอบแล้ว'
+                    : (ticket.status === 'closed' ? 'ปิดงาน' : 'รอตรวจสอบ'));
+
             const redBadgeHtml = (ticket.status === 'open' || ticket.status === 'replied') && ticket.id !== currentTicketId
                 ? `<span class="absolute top-2.5 right-2.5 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse shadow-[0_0_5px_rgba(239,68,68,0.6)]"></span>`
                 : '';
@@ -219,14 +222,14 @@ async function openTicket(ticketId, topic, senderId, senderType) {
     currentTicketId = ticketId;
     currentTicketSenderId = senderId;
     currentTicketSenderType = senderType;
-    
+
     document.getElementById('emptyState').classList.add('hidden');
     document.getElementById('chatHeader').classList.remove('hidden');
     document.getElementById('messagesContainer').classList.remove('hidden');
     document.getElementById('replyBox').classList.remove('hidden');
-    
+
     document.getElementById('activeTopic').innerText = topic;
-    
+
     let displayName = "ไม่พบข้อมูลผู้ใช้งาน";
     let detailText = senderType === 'teacher' ? 'บุคลากร/ครู' : 'นักเรียน';
     let avatarUrl = `https://ui-avatars.com/api/?name=${senderType}&background=random`;
@@ -266,7 +269,7 @@ async function openTicket(ticketId, topic, senderId, senderType) {
 
     document.getElementById('activeSenderName').innerText = displayName;
     document.getElementById('activeSenderDetail').innerText = detailText;
-    
+
     const avatarImgElement = document.getElementById('senderAvatarImg');
     if (avatarImgElement) {
         avatarImgElement.src = avatarUrl;
@@ -282,14 +285,14 @@ async function openTicket(ticketId, topic, senderId, senderType) {
 // ==========================================
 async function checkUserBanStatus() {
     if (!currentTicketSenderId || !currentTicketSenderType) return;
-    
+
     try {
         const table = currentTicketSenderType === 'teacher' ? 'core_personnel' : 'core_students';
         const { data } = await db.from(table).select('helpdesk_banned').eq('id', currentTicketSenderId).maybeSingle();
-        
+
         const btnBan = document.getElementById('btnBanUser');
         const btnUnban = document.getElementById('btnUnbanUser');
-        
+
         if (data && data.helpdesk_banned === true) {
             btnBan.classList.add('hidden');
             btnUnban.classList.remove('hidden');
@@ -323,7 +326,7 @@ async function fetchMessages() {
                 const alignment = isAdmin ? 'justify-end' : 'justify-start';
                 const bubbleColor = isAdmin ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-gray-200 text-gray-800 rounded-bl-none';
                 const textColor = isAdmin ? 'text-blue-100' : 'text-gray-400';
-                
+
                 const deleteBtnHtml = `<button onclick="deleteMessage('${msg.id}')" class="opacity-0 group-hover:opacity-100 transition-opacity ml-2 text-[10px] bg-red-100 text-red-600 hover:bg-red-500 hover:text-white px-1.5 py-0.5 rounded cursor-pointer"><i class="fa-solid fa-trash"></i> ลบ</button>`;
 
                 return `
@@ -350,7 +353,7 @@ async function fetchMessages() {
 async function sendMessage(e) {
     e.preventDefault();
     if (!currentTicketId || isProcessing) return;
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -361,7 +364,7 @@ async function sendMessage(e) {
         Swal.fire('ข้อความยาวเกินไป', 'ข้อความต้องไม่เกิน 5000 ตัวอักษร', 'warning');
         return;
     }
-    
+
     isProcessing = true;
     try {
         const { error: msgErr } = await db.from('module_helpdesk_messages').insert({
@@ -371,10 +374,10 @@ async function sendMessage(e) {
         });
         if (msgErr) throw msgErr;
         await db.from('module_helpdesk_tickets').update({ status: 'replied' }).eq('id', currentTicketId);
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`ตอบกลับข้อความ Helpdesk (Ticket: ${currentTicketId})`, 'helpdesk');
-        
+
         input.value = '';
         await fetchMessages();
         await loadTickets();
@@ -390,7 +393,7 @@ async function sendMessage(e) {
 // ==========================================
 async function closeTicket() {
     if (!currentTicketId || isProcessing) return;
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -412,10 +415,10 @@ async function closeTicket() {
                 sender_id: currentUserId,
                 message: '🟢 ผู้ดูแลระบบได้ทำการปิดเคสนี้เรียบร้อยแล้ว'
             });
-            
+
             // ✅ บันทึก Log
             await window.logUserAction(`ปิด Ticket Helpdesk (ID: ${currentTicketId})`, 'helpdesk');
-            
+
             Swal.fire({ icon: 'success', title: 'ปิดงานสำเร็จ', timer: 1500, showConfirmButton: false });
             await fetchMessages();
             await loadTickets();
@@ -432,7 +435,7 @@ async function closeTicket() {
 // ==========================================
 async function deleteMessage(messageId) {
     if (isProcessing) return;
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -446,15 +449,15 @@ async function deleteMessage(messageId) {
         cancelButtonText: 'ยกเลิก'
     });
     if (!isConfirmed) return;
-    
+
     isProcessing = true;
     try {
         const { error } = await db.from('module_helpdesk_messages').delete().eq('id', messageId);
         if (error) throw error;
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`ลบข้อความ Helpdesk (ID: ${messageId})`, 'helpdesk');
-        
+
         Swal.fire({ icon: 'success', title: 'ลบข้อความเรียบร้อย', toast: true, timer: 2000 });
         await fetchMessages();
         await loadTickets();
@@ -470,7 +473,7 @@ async function deleteMessage(messageId) {
 // ==========================================
 async function deleteAllMessages() {
     if (!currentTicketId || isProcessing) return;
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -484,7 +487,7 @@ async function deleteAllMessages() {
         cancelButtonText: 'ยกเลิก'
     });
     if (!isConfirmed) return;
-    
+
     isProcessing = true;
     try {
         await db.from('module_helpdesk_messages').delete().eq('ticket_id', currentTicketId);
@@ -493,10 +496,10 @@ async function deleteAllMessages() {
             sender_id: currentUserId,
             message: '🗑️ ผู้ดูแลระบบได้ลบข้อความทั้งหมดในแชทนี้แล้ว'
         });
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`ลบข้อความทั้งหมดใน Ticket ${currentTicketId}`, 'helpdesk');
-        
+
         Swal.fire({ icon: 'success', title: 'ลบข้อความทั้งหมดเรียบร้อย', toast: true, position: 'top-end', showConfirmButton: false, timer: 2000 });
         await fetchMessages();
         await loadTickets();
@@ -512,7 +515,7 @@ async function deleteAllMessages() {
 // ==========================================
 async function deleteTicket() {
     if (!currentTicketId || isProcessing) return;
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -526,15 +529,15 @@ async function deleteTicket() {
         cancelButtonText: 'ยกเลิก'
     });
     if (!isConfirmed) return;
-    
+
     isProcessing = true;
     try {
         await db.from('module_helpdesk_messages').delete().eq('ticket_id', currentTicketId);
         await db.from('module_helpdesk_tickets').delete().eq('id', currentTicketId);
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`ลบ Ticket Helpdesk (ID: ${currentTicketId})`, 'helpdesk');
-        
+
         Swal.fire({ icon: 'success', title: 'ลบ Ticket สำเร็จ', timer: 1500, showConfirmButton: false });
         currentTicketId = null;
         document.getElementById('emptyState').classList.remove('hidden');
@@ -561,7 +564,7 @@ async function banUser() {
         Swal.fire('ไม่สามารถแบนตัวเองได้', 'คุณคือผู้ดูแลระบบ', 'error');
         return;
     }
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -575,7 +578,7 @@ async function banUser() {
         cancelButtonText: 'ยกเลิก'
     });
     if (!isConfirmed) return;
-    
+
     isProcessing = true;
     try {
         const table = currentTicketSenderType === 'teacher' ? 'core_personnel' : 'core_students';
@@ -586,10 +589,10 @@ async function banUser() {
             sender_id: currentUserId,
             message: `🚫 ผู้ดูแลระบบได้ทำการแบนผู้ใช้นี้ (${currentTicketSenderType}) ไม่ให้ส่งข้อความเพิ่มเติม`
         });
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`แบนผู้ใช้ Helpdesk (ID: ${currentTicketSenderId})`, 'helpdesk');
-        
+
         Swal.fire({ icon: 'success', title: 'แบนผู้ใช้สำเร็จ', timer: 2000, showConfirmButton: false });
         await fetchMessages();
     } catch (err) {
@@ -607,7 +610,7 @@ async function unbanUser() {
         Swal.fire('ไม่พบข้อมูลผู้ใช้', 'ไม่สามารถระบุผู้ใช้ได้', 'error');
         return;
     }
-    
+
     // ✅ ใช้ requireAdmin ตรวจสอบสิทธิ์
     if (!window.requireAdmin(currentUserRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
@@ -621,7 +624,7 @@ async function unbanUser() {
         cancelButtonText: 'ยกเลิก'
     });
     if (!isConfirmed) return;
-    
+
     isProcessing = true;
     try {
         const table = currentTicketSenderType === 'teacher' ? 'core_personnel' : 'core_students';
@@ -632,10 +635,10 @@ async function unbanUser() {
             sender_id: currentUserId,
             message: `✅ ผู้ดูแลระบบได้ยกเลิกแบนผู้ใช้นี้ (${currentTicketSenderType}) แล้ว`
         });
-        
+
         // ✅ บันทึก Log
         await window.logUserAction(`ยกเลิกแบนผู้ใช้ Helpdesk (ID: ${currentTicketSenderId})`, 'helpdesk');
-        
+
         Swal.fire({ icon: 'success', title: 'ยกเลิกแบนสำเร็จ', timer: 2000, showConfirmButton: false });
         await fetchMessages();
     } catch (err) {
@@ -673,6 +676,62 @@ function showSidebarOnMobile() {
     currentTicketId = null;
     if (typeof loadTickets === 'function') loadTickets();
 }
+
+// ==========================================
+// ✅ แสดงข้อมูลผู้ใช้ใน header
+// ==========================================
+function _renderHelpdeskUser(personnel, role) {
+    if (!personnel) return;
+
+    // ชื่อ-สกุล
+    const nameEl = document.getElementById('userName');
+    if (nameEl) {
+        const fullName = `${personnel.prefix || ''}${personnel.first_name || ''} ${personnel.last_name || ''}`.trim();
+        nameEl.innerText = fullName || 'ผู้ใช้';
+    }
+
+    // Role (ภาษาไทย)
+    const roleEl = document.getElementById('userRole');
+    if (roleEl) {
+        const roleMap = {
+            super_admin: 'ผู้ดูแลสูงสุด (Super Admin)',
+            admin: 'ผู้ดูแลระบบย่อย (Admin)',
+            director: 'ผู้อำนวยการ',
+            deputy: 'รองผู้อำนวยการ',
+            teacher: 'ครูผู้สอน (Teacher)',
+            staff: 'เจ้าหน้าที่ (Staff)',
+            office: 'เจ้าหน้าที่สำนักงาน (Office)'
+        };
+        roleEl.innerText = roleMap[role] || role || '';
+    }
+
+    // Avatar
+    const avatarUrl = personnel.avatar_url
+        || personnel.profile_image
+        || personnel.photo_url
+        || personnel.image_url
+        || personnel.picture
+        || personnel.avatar
+        || '';
+
+    const imgEl = document.getElementById('userAvatarImg');
+    const initEl = document.getElementById('userAvatarInitial');
+
+    if (avatarUrl && imgEl) {
+        imgEl.src = avatarUrl;
+        imgEl.style.display = 'block';
+        imgEl.onerror = () => {
+            imgEl.style.display = 'none';
+            if (initEl) initEl.style.display = 'block';
+        };
+        if (initEl) initEl.style.display = 'none';
+    } else if (initEl) {
+        initEl.innerText = (personnel.first_name || '?').charAt(0).toUpperCase();
+    }
+}
+
+// Expose (optional — เผื่อเรียกจากที่อื่น)
+window._renderHelpdeskUser = _renderHelpdeskUser;
 
 // ==========================================
 // ประกาศฟังก์ชัน global

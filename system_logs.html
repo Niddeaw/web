@@ -3,221 +3,313 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>System Logs - ประวัติการเข้าใช้งานระบบ</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Logs | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        .stat-card {
-            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        .stat-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+        .stat-card:hover { transform: translateY(-2px); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1); }
+        .ua-full-text { word-break: break-all; white-space: normal; max-height: 220px; overflow-y: auto; }
+
+        /* Role badge */
+        .role-badge { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 10px; font-weight: 700; }
+        .role-super_admin { background: #f3e8ff; color: #7e22ce; }
+        .role-admin       { background: #fef3c7; color: #b45309; }
+        .role-director    { background: #cffafe; color: #0e7490; }
+        .role-deputy      { background: #cffafe; color: #0e7490; }
+        .role-teacher     { background: #dbeafe; color: #1d4ed8; }
+        .role-staff       { background: #fef3c7; color: #b45309; }
+        .role-office      { background: #d1fae5; color: #047857; }
+
+        /* Compact chips */
+        .chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 500; }
+
+        @media (max-width: 760px) {
+            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
+            .d-sidebar.open { transform: translateX(0) !important; }
+            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
+            .d-overlay.open { display: block !important; opacity: 1; }
+            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; align-items: center; justify-content: center; }
+            .d-collapse { display: none !important; }
+            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+        }
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar { width: 240px; }
         }
 
-        .stat-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+        /* Detail modal layout */
+        .detail-section {
+            border-left: 3px solid #cbd5e1;
+            padding-left: 12px;
+            margin-bottom: 16px;
         }
+        .detail-section.who   { border-left-color: #6366f1; }
+        .detail-section.what  { border-left-color: #10b981; }
+        .detail-section.where { border-left-color: #f59e0b; }
+        .detail-section.when  { border-left-color: #0ea5e9; }
+        .detail-section.tech  { border-left-color: #64748b; }
+        .detail-section.diff  { border-left-color: #ec4899; }
 
-        .ua-full-text {
-            word-break: break-all;
-            white-space: normal;
-            max-height: 200px;
-            overflow-y: auto;
-        }
-
-        /* ปรับแต่งให้กลมกลืนกับระบบอื่น */
-        body {
-            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
-        }
-
-        .glass-header {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            border-bottom: 1px solid rgba(255, 255, 255, 0.5);
-        }
-
-        .btn-home {
-            transition: all 0.2s;
-        }
-
-        .btn-home:hover {
-            transform: translateY(-1px);
-        }
-
-        /* ทำให้ตาราง Responsive ดีขึ้น */
-        @media (max-width: 768px) {
-            .stat-card .text-2xl {
-                font-size: 1.5rem;
-            }
-
-            .dataTables_wrapper .dt-buttons {
-                margin-bottom: 0.75rem;
-            }
-        }
-
-        /* กำหนดให้คอลัมน์ระดับสิทธิ์ (index 2) กว้างพอดีตัว */
-        #logsTable th:nth-child(3),
-        #logsTable td:nth-child(3) {
-            min-width: 110px;
-            white-space: nowrap;
-        }
-
-        /* สำหรับหน้าจอมือถือ อาจให้ wrap หรือเลื่อนแนวนอนได้อยู่แล้ว */
-        @media (max-width: 768px) {
-
-            #logsTable th:nth-child(3),
-            #logsTable td:nth-child(3) {
-                white-space: normal;
-                min-width: 90px;
-            }
+        .detail-section h4 {
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            color: #64748b;
         }
     </style>
 </head>
 
-<body id="mainBody"
-    class="text-slate-800 font-sans min-h-screen flex flex-col opacity-0 transition-opacity duration-300">
+<body class="text-slate-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-    <!-- Main Content (ไม่มี Sidebar) -->
-    <main class="flex-1 flex flex-col h-screen overflow-hidden">
-        <!-- Header: พร้อมปุ่ม Home และ Logout -->
-        <header class="glass-header sticky top-0 z-20 px-6 py-4 flex justify-between items-center shadow-sm">
-            <div class="flex items-center gap-3">
-                <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 rounded-xl shadow-sm">
-                <div>
-                    <h1 class="text-xl font-bold text-slate-800">System Logs</h1>
-                    <p class="text-xs text-slate-500">ประวัติการเข้าใช้งานและกิจกรรมของระบบ (เฉพาะ Super Admin)</p>
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
+
+            <div style="padding:0 0 12px;" class="max-w-[1600px] mx-auto space-y-6 px-4 mt-6">
+
+                <!-- ============ Status bar ============ -->
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="inline-block px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                        <i class="fa-solid fa-list-check mr-1"></i> System Audit
+                    </span>
+                    <span class="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+                        ประวัติการใช้งานและกิจกรรมทั้งระบบ
+                    </span>
+                </div>
+
+                <!-- ============ Statistics ============ -->
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-slate-500 uppercase tracking-wide font-bold">ทั้งหมด</p>
+                        <p class="text-2xl font-black text-slate-800 mt-1" id="stat-total">0</p>
+                        <i class="fa-solid fa-list text-2xl text-slate-200 absolute"></i>
+                    </div>
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-emerald-600 uppercase tracking-wide font-bold"><i class="fa-solid fa-right-to-bracket mr-1"></i>Login</p>
+                        <p class="text-2xl font-black text-emerald-600 mt-1" id="stat-login">0</p>
+                    </div>
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-rose-600 uppercase tracking-wide font-bold"><i class="fa-solid fa-right-from-bracket mr-1"></i>Logout</p>
+                        <p class="text-2xl font-black text-rose-600 mt-1" id="stat-logout">0</p>
+                    </div>
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-blue-600 uppercase tracking-wide font-bold"><i class="fa-solid fa-eye mr-1"></i>View</p>
+                        <p class="text-2xl font-black text-blue-600 mt-1" id="stat-view">0</p>
+                    </div>
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-amber-600 uppercase tracking-wide font-bold"><i class="fa-solid fa-pen mr-1"></i>Changes</p>
+                        <p class="text-2xl font-black text-amber-600 mt-1" id="stat-change">0</p>
+                    </div>
+                    <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
+                        <p class="text-[10px] text-red-600 uppercase tracking-wide font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Failed</p>
+                        <p class="text-2xl font-black text-red-600 mt-1" id="stat-failed">0</p>
+                    </div>
+                </div>
+
+                <!-- ============ Filters ============ -->
+                <div class="glass-card bg-white rounded-2xl border border-slate-200 p-5 shadow-sm">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3 mb-3">
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">จากวันที่</label>
+                            <input type="date" id="filterDateFrom" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">ถึงวันที่</label>
+                            <input type="date" id="filterDateTo" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">ผู้ใช้งาน</label>
+                            <select id="filterUser" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white">
+                                <option value="">ทุกคน</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">หมวดการกระทำ</label>
+                            <select id="filterActionCat" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white">
+                                <option value="">ทั้งหมด</option>
+                                <option value="AUTH">🔐 เข้า/ออกระบบ</option>
+                                <option value="VIEW">👁️ ดูข้อมูล</option>
+                                <option value="CREATE">➕ เพิ่มข้อมูล</option>
+                                <option value="UPDATE">✏️ แก้ไข</option>
+                                <option value="DELETE">🗑️ ลบ</option>
+                                <option value="EXPORT">📤 Export/Print</option>
+                                <option value="SYSTEM">⚙️ ระบบ</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">โมดูล</label>
+                            <select id="filterModule" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white">
+                                <option value="">ทั้งหมด</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-bold text-slate-500 uppercase mb-1">สถานะ</label>
+                            <select id="filterStatus" class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none bg-white">
+                                <option value="">ทั้งหมด</option>
+                                <option value="SUCCESS">✅ สำเร็จ</option>
+                                <option value="FAILED">❌ ล้มเหลว</option>
+                                <option value="WARNING">⚠️ เตือน</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap gap-2 justify-end">
+                        <button id="btnApplyFilter" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition">
+                            <i class="fa-solid fa-filter mr-1"></i> กรอง
+                        </button>
+                        <button id="btnClearFilter" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition">
+                            <i class="fa-solid fa-eraser mr-1"></i> ล้าง
+                        </button>
+                        <button id="btnRefresh" class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-bold transition">
+                            <i class="fa-solid fa-rotate mr-1"></i> รีเฟรช
+                        </button>
+                        <button id="btnClearOld" class="bg-rose-500 hover:bg-rose-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition">
+                            <i class="fa-solid fa-trash-can mr-1"></i> ลบ Logs เก่า
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ============ Table ============ -->
+                <div class="glass-card bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
+                    <div class="overflow-x-auto">
+                        <table id="logsTable" class="w-full text-left text-sm display nowrap" style="width:100%">
+                            <thead>
+                                <tr class="bg-slate-50 text-slate-600 border-b border-slate-200">
+                                    <th class="text-center">เมื่อไหร่</th>
+                                    <th>ใคร</th>
+                                    <th>ทำอะไร</th>
+                                    <th>ที่ไหน</th>
+                                    <th>รายละเอียด</th>
+                                    <th class="text-center">สถานะ</th>
+                                    <th class="text-center">IP</th>
+                                    <th class="text-center">ดู</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-            <div class="flex items-center gap-3">
-                <!-- ปุ่ม Home ไปยังหน้าหลักของ Super Admin -->
-                <a href="index.html"
-                    class="btn-home px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-house"></i> <span class="hidden sm:inline">หน้าหลัก</span>
-                </a>
-                <a href="super_admin.html"
-                    class="btn-home px-4 py-2 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-user-shield"></i> <span class="hidden sm:inline">หน้าแอดมิน</span>
-                </a>
-                <button onclick="handleLogout()"
-                    class="px-4 py-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl text-sm font-bold transition-colors flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-right-from-bracket"></i> <span class="hidden sm:inline">ออกจากระบบ</span>
+        </main>
+    </div>
+
+    <!-- ================= Modals ================= -->
+
+    <!-- Detail Modal -->
+    <div id="detailModal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeDetailModal()"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-circle-info text-lg"></i>
+                    <h3 class="font-bold text-base">รายละเอียด Log</h3>
+                    <span id="detail-log-id" class="text-[10px] bg-white/20 px-2 py-0.5 rounded font-mono"></span>
+                </div>
+                <button onclick="closeDetailModal()" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fa-solid fa-times"></i>
                 </button>
             </div>
-        </header>
-
-        <!-- Scrollable content -->
-        <div class="flex-1 overflow-auto p-6 md:p-8">
-            <!-- Statistics Cards -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-slate-500 uppercase tracking-wide">Logs ทั้งหมด</p>
-                            <p class="text-2xl font-bold text-slate-800" id="totalLogsCount">0</p>
-                        </div>
-                        <i class="fa-solid fa-list text-3xl text-slate-300"></i>
-                    </div>
-                </div>
-                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-slate-500 uppercase tracking-wide">LOGIN</p>
-                            <p class="text-2xl font-bold text-green-600" id="loginCount">0</p>
-                        </div>
-                        <i class="fa-solid fa-right-to-bracket text-3xl text-green-200"></i>
-                    </div>
-                </div>
-                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-slate-500 uppercase tracking-wide">LOGOUT</p>
-                            <p class="text-2xl font-bold text-red-600" id="logoutCount">0</p>
-                        </div>
-                        <i class="fa-solid fa-right-from-bracket text-3xl text-red-200"></i>
-                    </div>
-                </div>
-                <div class="stat-card bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-xs text-slate-500 uppercase tracking-wide">VIEW_PAGE</p>
-                            <p class="text-2xl font-bold text-blue-600" id="viewCount">0</p>
-                        </div>
-                        <i class="fa-solid fa-eye text-3xl text-blue-200"></i>
-                    </div>
-                </div>
+            <div id="detailBody" class="flex-1 overflow-y-auto p-6 space-y-4">
+                <div class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>
             </div>
-
-            <!-- Filter Bar + ปุ่มลบ Logs เก่า -->
-            <div class="bg-white rounded-2xl border border-slate-200 p-5 mb-6 shadow-sm">
-                <div class="flex flex-wrap gap-4 items-end">
-                    <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-medium text-slate-500 mb-1">วันที่เริ่มต้น</label>
-                        <input type="date" id="dateFrom"
-                            class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    <div class="flex-1 min-w-[150px]">
-                        <label class="block text-xs font-medium text-slate-500 mb-1">วันที่สิ้นสุด</label>
-                        <input type="date" id="dateTo"
-                            class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-primary-500">
-                    </div>
-                    <div class="flex gap-2">
-                        <button id="applyDateFilterBtn"
-                            class="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors shadow-sm"><i
-                                class="fa-solid fa-filter mr-1"></i> กรอง</button>
-                        <button id="clearDateFilterBtn"
-                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors"><i
-                                class="fa-solid fa-eraser mr-1"></i> ล้าง</button>
-                        <button id="refreshLogsBtn"
-                            class="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-xl text-sm font-medium transition-colors"><i
-                                class="fa-solid fa-rotate-right mr-1"></i> รีเฟรช</button>
-                    </div>
-                    <button id="clearOldLogsBtn"
-                        class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium shadow-sm">
-                        <i class="fa-solid fa-trash-can mr-1"></i> ลบ Logs เก่า
-                    </button>
-                </div>
-            </div>
-
-            <!-- Logs Table -->
-            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 md:p-6">
-                <div class="overflow-x-auto">
-                    <table id="logsTable" class="w-full text-left border-collapse" style="width:100%">
-                        <thead>
-                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200 text-sm">
-                                <th class="py-3 px-4 font-semibold">วัน-เวลา</th>
-                                <th class="py-3 px-4 font-semibold">ผู้ใช้งาน</th>
-                                <th class="py-3 px-4 font-semibold">ระดับสิทธิ์</th>
-                                <th class="py-3 px-4 font-semibold">โมดูล</th>
-                                <th class="py-3 px-4 font-semibold">การกระทำ</th>
-                                <th class="py-3 px-4 font-semibold">รายละเอียด</th>
-                                <th class="py-3 px-4 font-semibold">IP Address</th>
-                                <th class="py-3 px-4 font-semibold">อุปกรณ์ (User Agent)</th>
-                            </tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </main>
-
-    <!-- Modal for full user agent -->
-    <div id="uaModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 hidden transition-all">
-        <div class="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 p-6">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="text-lg font-bold text-slate-800">รายละเอียด User Agent</h3>
-                <button id="closeUaModal"
-                    class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
-            </div>
-            <div class="ua-full-text text-sm text-slate-600 bg-slate-50 p-3 rounded-lg font-mono" id="uaFullText"></div>
-            <div class="mt-4 text-right">
-                <button id="closeUaModalBtn" class="px-4 py-2 bg-slate-100 rounded-lg text-sm">ปิด</button>
+            <div class="px-6 py-3 border-t bg-slate-50 flex justify-end">
+                <button onclick="closeDetailModal()" class="px-5 py-2 bg-slate-200 hover:bg-slate-300 rounded-xl font-bold text-sm">ปิด</button>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- User Agent Modal -->
+    <div id="uaModal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeUaModal()"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl z-10 w-full max-w-lg p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-laptop mr-2 text-indigo-500"></i>User Agent</h3>
+                <button onclick="closeUaModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+            </div>
+            <div class="ua-full-text text-xs text-slate-600 bg-slate-50 p-3 rounded-xl font-mono" id="uaFullText"></div>
+            <div class="mt-4 text-right">
+                <button onclick="closeUaModal()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-sm font-bold">ปิด</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= Libraries ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- ================= Core scripts ================= -->
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
+    <script src="dashboard_charts.js"></script>
+
+    <!-- ================= Script เฉพาะโมดูล ================= -->
     <script src="system_logs.js"></script>
+
+    <!-- =======================================================
+         ✅ Fallback Config + Init Module Sidebar
+         ======================================================= -->
+    <script>
+        const MODULE_KEY  = 'system_logs';
+        const MODULE_NAME = 'System Logs';
+
+        function getSystemLogsFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: 'ประวัติการใช้งานระบบ'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-logs', icon: 'fa-list-check', label: 'ประวัติการใช้งาน', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active', icon_bg_color: '#6366f1', icon_text_color: '#ffffff' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [],
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: [
+                    { id: 'nav-super-admin', icon: 'fa-user-shield', label: 'หน้าแอดมิน', href: 'super_admin.html', roles: ['super_admin'], icon_bg_color: '#9333ea', icon_text_color: '#ffffff' },
+                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html', icon_bg_color: '#64748b', icon_text_color: '#ffffff' }
+                ],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'handleLogout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        initModuleSidebar({
+            moduleKey: MODULE_KEY,
+            pageTitle: MODULE_NAME,
+            activeId: 'nav-logs',
+            topbarButtons: [],
+            fallbackConfig: getSystemLogsFallbackConfig(),
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+            }
+        });
+    </script>
 </body>
 
 </html>

@@ -36,13 +36,13 @@ function safeSetSrc(id, src) {
 function applyStudentToTopbar(student) {
     if (!student) return;
 
-    // ชื่อ-นามสกุล
+    // ชื่อ-นามสกุล (รองรับทั้ง ID เก่าและใหม่)
     const fullName = `${student.prefix || ''}${student.first_name || ''} ${student.last_name || ''}`.trim();
-    const userNameEl = document.getElementById('userName');
+    const userNameEl = document.getElementById('userName') || document.getElementById('userNameDisplay');
     if (userNameEl) userNameEl.textContent = fullName || 'นักเรียน';
 
-    // Role
-    const userRoleEl = document.getElementById('userRole');
+    // Role (รองรับทั้ง ID เก่าและใหม่)
+    const userRoleEl = document.getElementById('userRole') || document.getElementById('userRoleDisplay');
     if (userRoleEl) userRoleEl.textContent = 'นักเรียน';
 
     // Avatar (ถ้ามีรูป)
@@ -651,6 +651,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     currentStudentId = student.id;
+
+    // ✅ Cache student ไว้ใช้ใน refreshInfoStudentTopbarUI()
+    window._cachedStudent = student;
 
     // ✅ PATCH: ตั้งค่า topbar ก่อนโหลดส่วนอื่น
     if (typeof applyStudentToTopbar === 'function') {

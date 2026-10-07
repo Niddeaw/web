@@ -15,63 +15,301 @@
 
     <style>
         /* Wizard */
-        .wizard-step { display: none; animation: fadeSlideIn 0.35s ease-out; }
-        .wizard-step.active { display: block; }
+        .wizard-step {
+            display: none;
+            animation: fadeSlideIn 0.35s ease-out;
+        }
+
+        .wizard-step.active {
+            display: block;
+        }
+
         @keyframes fadeSlideIn {
-            0% { opacity: 0; transform: translateY(20px); }
-            100% { opacity: 1; transform: translateY(0); }
+            0% {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
         /* Radio Card */
-        .radio-card { transition: all 0.2s ease; cursor: pointer; border: 2px solid transparent; }
-        .radio-card:hover { border-color: #93c5fd; background: #f0f9ff; }
-        .radio-card:has(input:checked) { border-color: #3b82f6; background: #eff6ff; box-shadow: 0 0 0 3px rgba(59,130,246,0.15); }
+        .radio-card {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .radio-card:hover {
+            border-color: #93c5fd;
+            background: #f0f9ff;
+        }
+
+        .radio-card:has(input:checked) {
+            border-color: #3b82f6;
+            background: #eff6ff;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
 
         /* Status Badges */
-        .status-badge { padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; display: inline-block; }
-        .status-badge.pending { background: #fef3c7; color: #92400e; }
-        .status-badge.done { background: #d1fae5; color: #065f46; }
-        .status-badge.draft { background: #e0e7ff; color: #3730a3; }
-        .status-badge.empty { background: #f3f4f6; color: #6b7280; }
+        .status-badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status-badge.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-badge.done {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-badge.draft {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .status-badge.empty {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
 
         /* Element Section */
-        .element-section { background: #f8fafc; border-radius: 0.75rem; padding: 1rem; border: 1px solid #e2e8f0; }
-        .element-section-title { font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+        .element-section {
+            background: #f8fafc;
+            border-radius: 0.75rem;
+            padding: 1rem;
+            border: 1px solid #e2e8f0;
+        }
+
+        .element-section-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 0.75rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
 
         /* Modal */
-        #evalDetailModal, #committeeReviewModal, #selfReviewModal, #evaluatorScoresModal {
-            background-color: rgba(0,0,0,0.5);
+        #evalDetailModal,
+        #committeeReviewModal,
+        #selfReviewModal,
+        #evaluatorScoresModal {
+            background-color: rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(4px);
         }
-        .modal-body-scroll { max-height: 70vh; overflow-y: auto; }
+
+        .modal-body-scroll {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
 
         /* Final Score */
-        .final-score-badge { display: inline-block; padding: 0.15rem 0.6rem; border-radius: 9999px; font-size: 0.7rem; font-weight: 700; }
-        .final-score-badge.excellent { background: #d1fae5; color: #065f46; }
-        .final-score-badge.good { background: #dbeafe; color: #1e40af; }
-        .final-score-badge.fair { background: #fef3c7; color: #92400e; }
-        .final-score-badge.poor { background: #fee2e2; color: #991b1b; }
+        .final-score-badge {
+            display: inline-block;
+            padding: 0.15rem 0.6rem;
+            border-radius: 9999px;
+            font-size: 0.7rem;
+            font-weight: 700;
+        }
+
+        .final-score-badge.excellent {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .final-score-badge.good {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .final-score-badge.fair {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .final-score-badge.poor {
+            background: #fee2e2;
+            color: #991b1b;
+        }
 
         /* Tom Select */
-        .ts-wrapper { width: 100%; }
-        .ts-control { border-radius: 0.5rem !important; border-color: #d1d5db !important; padding: 0.625rem 1rem !important; min-height: 44px !important; }
-        .ts-control:focus { border-color: #8b5cf6 !important; box-shadow: 0 0 0 3px rgba(139,92,246,0.1) !important; }
+        .ts-wrapper {
+            width: 100%;
+        }
+
+        .ts-control {
+            border-radius: 0.5rem !important;
+            border-color: #d1d5db !important;
+            padding: 0.625rem 1rem !important;
+            min-height: 44px !important;
+        }
+
+        .ts-control:focus {
+            border-color: #8b5cf6 !important;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1) !important;
+        }
 
         /* Print */
         @media print {
-            .no-print { display: none !important; }
-            #evalDetailModal { position: static !important; background: white !important; }
+            .no-print {
+                display: none !important;
+            }
+
+            #evalDetailModal {
+                position: static !important;
+                background: white !important;
+            }
         }
 
         /* Responsive */
         @media (max-width: 640px) {
-            .final-score-grid { grid-template-columns: 1fr !important; }
+            .final-score-grid {
+                grid-template-columns: 1fr !important;
+            }
         }
 
         /* Review Table */
-        #reviewTable td, #reviewTable th { padding: 6px 10px !important; font-size: 0.8rem !important; }
-        .review-summary-card { transition: all 0.2s ease; }
-        .review-summary-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        #reviewTable td,
+        #reviewTable th {
+            padding: 6px 10px !important;
+            font-size: 0.8rem !important;
+        }
+
+        .review-summary-card {
+            transition: all 0.2s ease;
+        }
+
+        .review-summary-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        /* ========================================================
+           ✅ Badge รอบการประเมิน (topbar button)
+           ======================================================== */
+        .eval-round-badge {
+            border: 1px solid #bfdbfe;
+            background: #eff6ff;
+            color: #1d4ed8;
+            border-radius: 20px;
+            padding: 8px 13px;
+            font: inherit;
+            font-size: 12px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: default;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            height: auto;
+            transition: none;
+        }
+
+        .eval-round-badge i {
+            font-size: 13px;
+        }
+
+        .eval-round-badge.hidden {
+            display: none !important;
+        }
+
+        /* ========================================================
+           ✅ ปุ่มนำทางไปหน้าอื่น (admin / settings)
+           ======================================================== */
+        .eval-nav-btn {
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            color: #526277;
+            border-radius: 20px;
+            padding: 8px 14px;
+            font: inherit;
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: auto;
+            transition: background .18s, color .18s, border-color .18s, transform .18s;
+        }
+
+        .eval-nav-btn:hover {
+            background: #f1f7ff;
+            color: #2588e8;
+            border-color: #c8e0fb;
+            transform: translateY(-1px);
+        }
+
+        .eval-nav-btn i {
+            font-size: 13px;
+        }
+
+        .eval-nav-btn.hidden {
+            display: none !important;
+        }
+
+        /* ปุ่ม settings — สีม่วง (เฉพาะ super_admin) */
+        .eval-nav-btn.eval-nav-settings {
+            border-color: #e9d5ff;
+            color: #7c3aed;
+            background: #faf5ff;
+        }
+
+        .eval-nav-btn.eval-nav-settings:hover {
+            background: #f3e8ff;
+            border-color: #d8b4fe;
+            color: #6d28d9;
+        }
+
+        /* ปุ่ม admin — สีน้ำเงิน (admin/director/deputy/super_admin) */
+        .eval-nav-btn.eval-nav-admin {
+            border-color: #c7d2fe;
+            color: #4f46e5;
+            background: #eef2ff;
+        }
+
+        .eval-nav-btn.eval-nav-admin:hover {
+            background: #e0e7ff;
+            border-color: #a5b4fc;
+            color: #4338ca;
+        }
+
+        /* ========================================================
+           Mobile
+           ======================================================== */
+        @media (max-width: 760px) {
+            .eval-round-badge {
+                padding: 8px 10px !important;
+                gap: 4px !important;
+                font-size: 11px !important;
+            }
+
+            /* ปุ่มนำทาง — เหลือเฉพาะ icon */
+            .eval-nav-btn {
+                padding: 8px 10px !important;
+                gap: 0 !important;
+            }
+
+            .eval-nav-btn>span {
+                display: none !important;
+            }
+
+            .eval-nav-btn>i {
+                font-size: 14px !important;
+            }
+        }
     </style>
 </head>
 
@@ -79,103 +317,15 @@
 
     <div class="d-app">
 
-        <!-- ================= Sidebar ================= -->
-        <aside class="d-sidebar" id="dSidebar">
-            <div class="d-brand">
-                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
-                <div><b>WRK System</b><span>ประเมินผล</span></div>
-            </div>
-            <nav class="d-nav">
-                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
-                <a href="index.html" title="หน้าหลัก">
-                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
-                    <span class="d-label">หน้าหลัก</span>
-                </a>
-
-                <div class="d-nav-title">ระบบประเมิน</div>
-                <a id="nav-dashboard" class="active" title="ประเมินตนเอง/ประเมินครู">
-                    <span class="d-ico"><i class="fa-solid fa-user-check"></i></span>
-                    <span class="d-label">ประเมินผล</span>
-                </a>
-                <a id="nav-admin" class="hidden" href="evaluation_admin.html" title="ตั้งค่ากรรมการ">
-                    <span class="d-ico"><i class="fa-solid fa-user-shield"></i></span>
-                    <span class="d-label">ตั้งค่ากรรมการ</span>
-                </a>
-
-                <div class="d-nav-title">การตั้งค่า</div>
-                <a id="nav-settings" class="hidden" href="evaluation_settings.html" title="ตั้งค่าระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
-                    <span class="d-label">ตั้งค่าระบบ</span>
-                </a>
-                <a class="logout" onclick="logout()" title="ออกจากระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
-                    <span class="d-label">ออกจากระบบ</span>
-                </a>
-            </nav>
-            <div class="d-sidebar-bottom">
-                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดตามเพจโรงเรียน</span>
-                </a>
-            </div>
-        </aside>
+        <!-- ================= Sidebar (placeholder) ================= -->
+        <aside class="d-sidebar" id="dSidebar"></aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
         <!-- ================= Main ================= -->
         <main class="d-main" id="dMain">
 
-            <header class="d-topbar">
-                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-                    <i class="fa-solid fa-angles-left"></i>
-                </button>
-
-                <h2 id="pageTitle">
-                    ประเมินผลการปฏิบัติงาน
-                    <span id="eval_round_badge" class="hidden text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full ml-2">
-                        <i class="fa-solid fa-calendar-check mr-1"></i><span id="eval_round_display">-</span>
-                    </span>
-                </h2>
-
-                <div class="d-spacer"></div>
-
-                <!-- Display Settings -->
-                <div class="d-settings-wrap">
-                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>แสดงผล</span>
-                    </button>
-                    <div class="d-settings-menu" id="settingsMenu">
-                        <div class="d-settings-title">ขนาดตัวอักษร</div>
-                        <div class="d-settings-options">
-                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
-                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
-                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
-                        </div>
-                        <div class="d-settings-title">ความหนาแน่น</div>
-                        <div class="d-settings-options cols-2">
-                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
-                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
-
-                <div class="d-profile">
-                    <div class="d-avatar-wrap">
-                        <div class="d-avatar" id="userAvatar">
-                            <span id="userAvatarInitial">?</span>
-                            <img id="userAvatarImg" src="" alt="" style="display:none;">
-                        </div>
-                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
-                    </div>
-                    <div>
-                        <b id="userName" class="text-sm">กำลังโหลด...</b>
-                        <small id="userRole">...</small>
-                    </div>
-                </div>
-            </header>
+            <!-- ================= Topbar (placeholder) ================= -->
+            <header class="d-topbar" id="dTopbar"></header>
 
             <!-- ================= Content ================= -->
             <div style="padding:0 0 12px;" class="space-y-4">
@@ -183,7 +333,8 @@
                 <!-- Dashboard View -->
                 <div id="dashboardView">
                     <!-- รอบการประเมิน -->
-                    <div class="d-card" style="background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1px solid #bfdbfe">
+                    <div class="d-card"
+                        style="background:linear-gradient(135deg,#eff6ff,#e0e7ff);border:1px solid #bfdbfe">
                         <div class="flex flex-wrap justify-between items-center gap-3">
                             <div>
                                 <p class="text-sm text-blue-600 font-bold">
@@ -192,8 +343,10 @@
                                 <p class="text-xl font-bold text-blue-800" id="eval_round_display_big">-</p>
                                 <p class="text-sm text-gray-500" id="eval_period_display">-</p>
                             </div>
-                            <span class="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold flex items-center gap-2">
-                                <span class="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Active
+                            <span
+                                class="px-4 py-2 bg-green-100 text-green-700 rounded-full text-sm font-bold flex items-center gap-2">
+                                <span class="inline-block w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                                Active
                             </span>
                         </div>
                     </div>
@@ -211,11 +364,13 @@
                                 <div id="myEvalStatus" class="text-sm">
                                     <span class="status-badge empty">⏳ ยังไม่ประเมิน</span>
                                 </div>
-                                <button id="btnViewSelfEval" onclick="openEvalDetailModal(currentUser.id, currentEvalRound?.id)"
+                                <button id="btnViewSelfEval"
+                                    onclick="openEvalDetailModal(currentUser.id, currentEvalRound?.id)"
                                     class="hidden bg-purple-600 hover:bg-purple-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
                                     <i class="fa-solid fa-eye"></i> ดูผล
                                 </button>
-                                <button id="btnViewPDF" class="hidden bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
+                                <button id="btnViewPDF"
+                                    class="hidden bg-rose-600 hover:bg-rose-700 text-white px-4 py-2.5 rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
                                     <i class="fa-solid fa-file-pdf"></i> ไฟล์ PDF
                                 </button>
                                 <button onclick='startEvaluation("self", null)'
@@ -232,7 +387,8 @@
 
                     <!-- การ์ดกรรมการประเมิน -->
                     <div id="committeeCard" class="hidden d-card">
-                        <div class="flex flex-wrap justify-between items-center gap-3 mb-5 pb-4 border-b border-slate-100">
+                        <div
+                            class="flex flex-wrap justify-between items-center gap-3 mb-5 pb-4 border-b border-slate-100">
                             <div class="flex items-center gap-3">
                                 <div class="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center">
                                     <i class="fa-solid fa-users text-blue-600 text-lg"></i>
@@ -252,7 +408,8 @@
                         <div class="space-y-3 mb-5">
                             <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div
+                                        class="w-7 h-7 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <i class="fa-solid fa-magnifying-glass text-indigo-600 text-xs"></i>
                                     </div>
                                     <p class="text-xs font-bold text-slate-700">
@@ -267,14 +424,16 @@
                                     </button>
                                     <button onclick="openCommitteeReviewModal()"
                                         class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                                        <i class="fa-solid fa-magnifying-glass-chart"></i> <span>ตรวจสอบการประเมิน (กรรมการ)</span>
+                                        <i class="fa-solid fa-magnifying-glass-chart"></i> <span>ตรวจสอบการประเมิน
+                                            (กรรมการ)</span>
                                     </button>
                                 </div>
                             </div>
 
                             <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div
+                                        class="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <i class="fa-solid fa-file-arrow-down text-blue-600 text-xs"></i>
                                     </div>
                                     <p class="text-xs font-bold text-slate-700">
@@ -291,18 +450,21 @@
                                         class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
                                         <i class="fa-solid fa-file-import"></i> <span>นำเข้า Excel</span>
                                     </button>
-                                    <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden" onchange="importCommitteeExcel(event)">
+                                    <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden"
+                                        onchange="importCommitteeExcel(event)">
                                 </div>
                             </div>
 
                             <div class="bg-slate-50 rounded-xl p-3 border border-slate-200">
                                 <div class="flex items-center gap-2 mb-2">
-                                    <div class="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div
+                                        class="w-7 h-7 bg-rose-100 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <i class="fa-solid fa-chart-bar text-rose-600 text-xs"></i>
                                     </div>
                                     <p class="text-xs font-bold text-slate-700">
                                         จัดการคะแนน
-                                        <span class="text-slate-400 font-normal ml-1">— ตรวจสอบและส่งออกทุกกรรมการ</span>
+                                        <span class="text-slate-400 font-normal ml-1">—
+                                            ตรวจสอบและส่งออกทุกกรรมการ</span>
                                     </p>
                                 </div>
                                 <div class="flex flex-wrap gap-2">
@@ -312,7 +474,8 @@
                                     </button>
                                     <button onclick="exportAllCommitteeScoresExcel()"
                                         class="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-sm hover:shadow-md flex items-center gap-1.5">
-                                        <i class="fa-solid fa-file-excel"></i> <span>ส่งออก Excel (ทุกกรรมการในชุด)</span>
+                                        <i class="fa-solid fa-file-excel"></i> <span>ส่งออก Excel
+                                            (ทุกกรรมการในชุด)</span>
                                     </button>
                                 </div>
                             </div>
@@ -325,27 +488,33 @@
                         <div id="sub_group_selection" class="mb-4"></div>
 
                         <!-- Selected Group Info -->
-                        <div id="selectedGroupInfo" class="hidden mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
+                        <div id="selectedGroupInfo"
+                            class="hidden mb-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-200">
                             <div class="flex flex-wrap justify-between items-center gap-3">
                                 <div class="flex items-center gap-3">
-                                    <div class="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <div
+                                        class="w-9 h-9 bg-blue-500 rounded-lg flex items-center justify-center flex-shrink-0">
                                         <i class="fa-solid fa-info-circle text-white text-sm"></i>
                                     </div>
                                     <div>
                                         <p class="text-sm font-bold text-blue-800">
                                             ชุดที่เลือก: <span id="selectedGroupName">-</span>
                                         </p>
-                                        <p class="text-xs text-blue-500 mt-0.5" id="selectedGroupSubItems">หัวข้อย่อย: -</p>
+                                        <p class="text-xs text-blue-500 mt-0.5" id="selectedGroupSubItems">หัวข้อย่อย: -
+                                        </p>
                                     </div>
                                 </div>
-                                <span class="text-xs bg-white text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 font-bold shadow-sm">
-                                    <i class="fa-solid fa-user-group mr-1"></i> กรรมการ <span id="selectedGroupMemberCount">0</span> คน
+                                <span
+                                    class="text-xs bg-white text-blue-700 px-3 py-1.5 rounded-full border border-blue-200 font-bold shadow-sm">
+                                    <i class="fa-solid fa-user-group mr-1"></i> กรรมการ <span
+                                        id="selectedGroupMemberCount">0</span> คน
                                 </span>
                             </div>
                         </div>
 
                         <!-- Final Summary Actions -->
-                        <div id="finalSummaryActions" class="hidden mb-5 p-3 bg-purple-50 rounded-xl border border-purple-200">
+                        <div id="finalSummaryActions"
+                            class="hidden mb-5 p-3 bg-purple-50 rounded-xl border border-purple-200">
                             <div class="flex flex-wrap items-center gap-2">
                                 <span class="text-xs font-bold text-purple-700 mr-2">
                                     <i class="fa-solid fa-lock mr-1"></i> จัดการผลสรุป:
@@ -374,10 +543,12 @@
                                     </tr>
                                 </thead>
                                 <tbody id="tb-teacher-eval">
-                                    <tr><td colspan="5" class="text-center py-8 text-gray-400">
-                                        <i class="fa-solid fa-info-circle mr-1"></i>
-                                        กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อโหลดรายชื่อ
-                                    </td></tr>
+                                    <tr>
+                                        <td colspan="5" class="text-center py-8 text-gray-400">
+                                            <i class="fa-solid fa-info-circle mr-1"></i>
+                                            กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระเพื่อโหลดรายชื่อ
+                                        </td>
+                                    </tr>
                                 </tbody>
                             </table>
                         </div>
@@ -400,14 +571,18 @@
                                 <h3 class="text-xl font-bold text-gray-800" id="wizardTargetName">-</h3>
                             </div>
                             <div class="flex items-center gap-3">
-                                <span class="text-sm font-bold text-gray-500">ขั้นตอนที่ <span id="currentStepText">1</span> / 4</span>
+                                <span class="text-sm font-bold text-gray-500">ขั้นตอนที่ <span
+                                        id="currentStepText">1</span> / 4</span>
                                 <div class="w-40 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                    <div id="progressBar" class="h-full bg-blue-600 rounded-full transition-all duration-500" style="width:25%"></div>
+                                    <div id="progressBar"
+                                        class="h-full bg-blue-600 rounded-full transition-all duration-500"
+                                        style="width:25%"></div>
                                 </div>
                                 <div class="bg-blue-50 px-3 py-1 rounded-lg">
                                     <span class="text-xs font-bold text-blue-600">
                                         <i class="fa-solid fa-calculator mr-1"></i>
-                                        คะแนนรวม: <span id="liveTotalScoreDisplay">0.00 <span class="text-xs font-normal text-gray-500 ml-1">/ 100</span></span>
+                                        คะแนนรวม: <span id="liveTotalScoreDisplay">0.00 <span
+                                                class="text-xs font-normal text-gray-500 ml-1">/ 100</span></span>
                                     </span>
                                 </div>
                             </div>
@@ -522,14 +697,16 @@
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-file-pen text-blue-500 mr-2"></i>รายละเอียดผลการประเมิน
                     </h3>
-                    <button onclick="closeEvalDetailModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeEvalDetailModal()"
+                        class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
                 <div class="p-6 modal-body-scroll flex-1">
                     <div id="evalDetailUserInfo" class="mb-4 bg-gray-50 p-4 rounded-xl">
                         <div class="flex items-center gap-4">
-                            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
+                            <div
+                                class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 text-xl font-bold">
                                 <span id="evalDetailUserInitial">-</span>
                             </div>
                             <div>
@@ -569,21 +746,26 @@
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-magnifying-glass-chart text-indigo-500 mr-2"></i>ตรวจสอบการประเมิน
                     </h3>
-                    <button onclick="closeCommitteeReviewModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeCommitteeReviewModal()"
+                        class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
                 <div class="p-6 modal-body-scroll flex-1">
                     <div class="mb-4 flex flex-wrap items-center gap-4">
                         <div class="w-full md:w-64">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกชุดคณะกรรมการ <span class="text-red-500">*</span></label>
-                            <select id="review_committee_group" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกชุดคณะกรรมการ <span
+                                    class="text-red-500">*</span></label>
+                            <select id="review_committee_group"
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500">
                                 <option value="">-- เลือกชุด --</option>
                             </select>
                         </div>
                         <div class="w-full md:w-64">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ <span class="text-red-500">*</span></label>
-                            <select id="review_department" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ <span
+                                    class="text-red-500">*</span></label>
+                            <select id="review_department"
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-indigo-500">
                                 <option value="">-- เลือกกลุ่มสาระ --</option>
                             </select>
                         </div>
@@ -594,19 +776,23 @@
                     </div>
                     <div id="reviewSummary" class="mb-4 hidden">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                            <div
+                                class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
                                 <p class="text-xs text-gray-500">ทั้งหมด</p>
                                 <p class="text-2xl font-bold text-blue-600" id="reviewTotalTeachers">0</p>
                             </div>
-                            <div class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                            <div
+                                class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
                                 <p class="text-xs text-gray-500">ประเมินแล้ว</p>
                                 <p class="text-2xl font-bold text-green-600" id="reviewEvaluated">0</p>
                             </div>
-                            <div class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                            <div
+                                class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
                                 <p class="text-xs text-gray-500">ยังไม่ประเมิน</p>
                                 <p class="text-2xl font-bold text-yellow-600" id="reviewNotEvaluated">0</p>
                             </div>
-                            <div class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                            <div
+                                class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
                                 <p class="text-xs text-gray-500">คะแนนเฉลี่ย</p>
                                 <p class="text-2xl font-bold text-purple-600" id="reviewAvgScore">0.00</p>
                             </div>
@@ -628,15 +814,18 @@
                                 </tr>
                             </thead>
                             <tbody id="tb-review">
-                                <tr><td colspan="9" class="text-center py-8 text-gray-400">
-                                    <i class="fa-solid fa-info-circle mr-2"></i>กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระ
-                                </td></tr>
+                                <tr>
+                                    <td colspan="9" class="text-center py-8 text-gray-400">
+                                        <i class="fa-solid fa-info-circle mr-2"></i>กรุณาเลือกชุดคณะกรรมการและกลุ่มสาระ
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
                 <div class="flex justify-end p-4 border-t border-gray-200 flex-shrink-0">
-                    <button onclick="closeCommitteeReviewModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">ปิด</button>
+                    <button onclick="closeCommitteeReviewModal()"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">ปิด</button>
                 </div>
             </div>
         </div>
@@ -650,40 +839,49 @@
                     <h3 class="text-xl font-bold text-gray-800">
                         <i class="fa-solid fa-clipboard-user text-teal-500 mr-2"></i>ตรวจสอบการประเมินตนเอง
                     </h3>
-                    <button onclick="closeSelfReviewModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeSelfReviewModal()"
+                        class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
                 <div class="p-6 modal-body-scroll flex-1">
                     <div class="mb-4 flex flex-wrap items-center gap-4">
                         <div class="w-full md:w-72">
-                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ <span class="text-red-500">*</span></label>
-                            <select id="self_review_department" class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-teal-500">
+                            <label class="block text-sm font-bold text-gray-700 mb-1">เลือกกลุ่มสาระ <span
+                                    class="text-red-500">*</span></label>
+                            <select id="self_review_department"
+                                class="w-full border border-gray-300 rounded-lg px-4 py-2.5 outline-none focus:border-teal-500">
                                 <option value="">-- เลือกกลุ่มสาระ --</option>
                             </select>
                         </div>
-                        <button onclick="loadSelfReviewData()" class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md mt-1 flex items-center gap-2">
+                        <button onclick="loadSelfReviewData()"
+                            class="bg-teal-600 hover:bg-teal-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md mt-1 flex items-center gap-2">
                             <i class="fa-solid fa-search"></i> แสดงข้อมูล
                         </button>
-                        <button onclick="loadSelfReviewData(true)" class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md mt-1 flex items-center gap-2">
+                        <button onclick="loadSelfReviewData(true)"
+                            class="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2.5 rounded-xl font-bold shadow-md mt-1 flex items-center gap-2">
                             <i class="fa-solid fa-list"></i> ดูทั้งหมด
                         </button>
                     </div>
                     <div id="selfReviewSummary" class="mb-4 hidden">
                         <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                            <div class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                            <div
+                                class="review-summary-card bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
                                 <p class="text-xs text-gray-500">ครูทั้งหมด</p>
                                 <p class="text-2xl font-bold text-blue-600" id="selfReviewTotal">0</p>
                             </div>
-                            <div class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                            <div
+                                class="review-summary-card bg-green-50 p-3 rounded-lg text-center border border-green-200">
                                 <p class="text-xs text-gray-500">ประเมินแล้ว</p>
                                 <p class="text-2xl font-bold text-green-600" id="selfReviewDone">0</p>
                             </div>
-                            <div class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
+                            <div
+                                class="review-summary-card bg-yellow-50 p-3 rounded-lg text-center border border-yellow-200">
                                 <p class="text-xs text-gray-500">ยังไม่ประเมิน</p>
                                 <p class="text-2xl font-bold text-yellow-600" id="selfReviewPending">0</p>
                             </div>
-                            <div class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                            <div
+                                class="review-summary-card bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
                                 <p class="text-xs text-gray-500">คะแนนเฉลี่ย</p>
                                 <p class="text-2xl font-bold text-purple-600" id="selfReviewAvg">0.00</p>
                             </div>
@@ -704,15 +902,18 @@
                                 </tr>
                             </thead>
                             <tbody id="tb-self-review">
-                                <tr><td colspan="8" class="text-center py-8 text-gray-400">
-                                    <i class="fa-solid fa-info-circle mr-2"></i>กรุณาเลือกกลุ่มสาระ
-                                </td></tr>
+                                <tr>
+                                    <td colspan="8" class="text-center py-8 text-gray-400">
+                                        <i class="fa-solid fa-info-circle mr-2"></i>กรุณาเลือกกลุ่มสาระ
+                                    </td>
+                                </tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
                 <div class="flex justify-end p-4 border-t border-gray-200 flex-shrink-0">
-                    <button onclick="closeSelfReviewModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">ปิด</button>
+                    <button onclick="closeSelfReviewModal()"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2.5 rounded-xl font-bold transition-colors">ปิด</button>
                 </div>
             </div>
         </div>
@@ -732,29 +933,36 @@
                             <p class="text-xs text-gray-500">ดูคะแนนรายข้อ แก้ไข และส่งออก Excel</p>
                         </div>
                     </div>
-                    <button onclick="closeEvaluatorScoresModal()" class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
+                    <button onclick="closeEvaluatorScoresModal()"
+                        class="text-gray-400 hover:text-gray-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100">
                         <i class="fa-solid fa-xmark text-2xl"></i>
                     </button>
                 </div>
                 <div class="p-4 border-b border-gray-100 bg-slate-50 flex-shrink-0">
                     <div class="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
                         <div class="md:col-span-4">
-                            <label class="block text-xs font-bold text-gray-600 mb-1">ชุดคณะกรรมการ <span class="text-red-500">*</span></label>
-                            <select id="ev_score_subgroup" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                            <label class="block text-xs font-bold text-gray-600 mb-1">ชุดคณะกรรมการ <span
+                                    class="text-red-500">*</span></label>
+                            <select id="ev_score_subgroup"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
                                 <option value="">-- เลือกชุด --</option>
                             </select>
                         </div>
                         <div class="md:col-span-4">
-                            <label class="block text-xs font-bold text-gray-600 mb-1">ครูที่ถูกประเมิน <span class="text-red-500">*</span></label>
-                            <select id="ev_score_evaluatee" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
+                            <label class="block text-xs font-bold text-gray-600 mb-1">ครูที่ถูกประเมิน <span
+                                    class="text-red-500">*</span></label>
+                            <select id="ev_score_evaluatee"
+                                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500">
                                 <option value="">-- เลือกครู --</option>
                             </select>
                         </div>
                         <div class="md:col-span-4 flex gap-2">
-                            <button onclick="loadEvaluatorScores()" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
+                            <button onclick="loadEvaluatorScores()"
+                                class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
                                 <i class="fa-solid fa-search mr-1"></i> แสดง
                             </button>
-                            <button onclick="exportEvaluatorScoresExcel()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
+                            <button onclick="exportEvaluatorScoresExcel()"
+                                class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-colors">
                                 <i class="fa-solid fa-file-excel mr-1"></i> Excel
                             </button>
                         </div>
@@ -770,7 +978,8 @@
                 </div>
                 <div class="flex justify-between items-center p-4 border-t border-gray-200 bg-slate-50 flex-shrink-0">
                     <div id="ev_score_summary" class="text-sm text-gray-600"></div>
-                    <button onclick="closeEvaluatorScoresModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-bold transition-colors">ปิด</button>
+                    <button onclick="closeEvaluatorScoresModal()"
+                        class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-bold transition-colors">ปิด</button>
                 </div>
             </div>
         </div>
@@ -780,11 +989,211 @@
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="evaluation_core.js" defer></script>
     <script src="evaluation_logic.js" defer></script>
     <script src="evaluation_excel.js" defer></script>
     <script src="evaluation_ui.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+
+    <!-- =======================================================
+         ✅ Init Module Sidebar + Topbar
+         ======================================================= -->
+    <script>
+        // =======================================================
+        // Fallback Config — Evaluation System
+        // =======================================================
+        function getEvaluationFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: 'ระบบประเมิน'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [
+                    {
+                        title: 'ระบบประเมิน',
+                        sectionId: 'sec-eval',
+                        collapsible: false,
+                        defaultOpen: true,
+                        items: [
+                            {
+                                id: 'nav-dashboard',
+                                icon: 'fa-user-check',
+                                label: 'ประเมินผล',
+                                href: 'evaluation.html'
+                            },
+                            {
+                                id: 'nav-admin',
+                                icon: 'fa-user-shield',
+                                label: 'ตั้งค่ากรรมการ',
+                                href: 'evaluation_admin.html',
+                                // ✅ อัปเดต roles — เพิ่ม director, deputy
+                                roles: ['super_admin', 'admin', 'director', 'deputy']
+                            }
+                        ]
+                    },
+                    {
+                        title: 'การตั้งค่า',
+                        sectionId: 'sec-settings',
+                        collapsible: false,
+                        defaultOpen: true,
+                        items: [
+                            {
+                                id: 'nav-settings',
+                                icon: 'fa-gear',
+                                label: 'ตั้งค่าระบบ',
+                                href: 'evaluation_settings.html',
+                                roles: ['super_admin']
+                            }
+                        ]
+                    }
+                ],
+                footerMenuTitle: '',
+                footerCollapsible: false,
+                footerMenu: [],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        // =======================================================
+        // ✅ Role ที่เห็นปุ่มนำทาง
+        // =======================================================
+        const EVAL_NAV_ADMIN_ROLES = ['super_admin', 'admin', 'director', 'deputy'];
+        const EVAL_NAV_SETTINGS_ROLES = ['super_admin'];
+
+        // =======================================================
+        // ✅ Helper: Apply role-based visibility สำหรับ topbar buttons
+        // =======================================================
+        function applyEvaluationTopbarRoleUI() {
+            const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : null;
+            if (!role) return false;
+
+            const btnAdmin = document.getElementById('btn-goto-admin');
+            const btnSettings = document.getElementById('btn-goto-settings');
+
+            if (btnAdmin) {
+                const canSee = EVAL_NAV_ADMIN_ROLES.includes(role);
+                btnAdmin.classList.toggle('hidden', !canSee);
+            }
+            if (btnSettings) {
+                const canSee = EVAL_NAV_SETTINGS_ROLES.includes(role);
+                btnSettings.classList.toggle('hidden', !canSee);
+            }
+            return true;
+        }
+        window.applyEvaluationTopbarRoleUI = applyEvaluationTopbarRoleUI;
+
+        // =======================================================
+        // ✅ Helper: Refresh Topbar UI (user + date + badge + role buttons)
+        //     ใช้ได้ทั้ง fallback render + full re-render + หลัง checkAuth
+        // =======================================================
+        function refreshEvaluationTopbarUI() {
+            // 1) วันที่วันนี้
+            if (typeof setTodayChip === 'function') {
+                try { setTodayChip(); } catch (e) { console.warn('setTodayChip:', e); }
+            }
+
+            // 2) ข้อมูลผู้ใช้ (ชื่อ, role, avatar)
+            try {
+                if (typeof currentUser !== 'undefined' && currentUser) {
+                    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
+                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentUser.role);
+                    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
+                }
+            } catch (e) { console.warn('refresh user info:', e); }
+
+            // 3) Badge รอบการประเมิน
+            try {
+                if (typeof currentEvalRound !== 'undefined' && currentEvalRound) {
+                    const badge = document.getElementById('eval_round_badge');
+                    const display = document.getElementById('eval_round_display');
+                    if (badge && display) {
+                        display.textContent = `${currentEvalRound.round_name} (ครั้งที่ ${currentEvalRound.round_number})`;
+                        badge.classList.remove('hidden');
+                    }
+                }
+            } catch (e) { /* ignore */ }
+
+            // 4) ✅ ปุ่มนำทาง — apply ตาม role
+            applyEvaluationTopbarRoleUI();
+        }
+        window.refreshEvaluationTopbarUI = refreshEvaluationTopbarUI;
+
+        // =======================================================
+        // ✅ Nav functions
+        // =======================================================
+        window.goToEvaluationAdmin = function () {
+            window.location.href = 'evaluation_admin.html';
+        };
+        window.goToEvaluationSettings = function () {
+            window.location.href = 'evaluation_settings.html';
+        };
+
+        // =======================================================
+        // ✅ Init Module Sidebar
+        // =======================================================
+        initModuleSidebar({
+            moduleKey: 'evaluation',
+            pageTitle: 'ประเมินผลการปฏิบัติงาน',
+            activeId: 'nav-dashboard',
+            topbarButtons: [
+                {
+                    id: 'eval_round_badge',
+                    html: '<i class="fa-solid fa-calendar-check"></i><span id="eval_round_display">-</span>',
+                    class: 'hidden eval-round-badge',
+                    title: 'รอบการประเมินปัจจุบัน'
+                },
+                {
+                    id: 'btn-goto-admin',
+                    html: '<i class="fa-solid fa-user-shield"></i><span>ตั้งค่ากรรมการ</span>',
+                    onclick: 'goToEvaluationAdmin()',
+                    class: 'hidden eval-nav-btn eval-nav-admin',
+                    title: 'ไปหน้าตั้งค่ากรรมการ (super_admin, admin, director, deputy)'
+                },
+                {
+                    id: 'btn-goto-settings',
+                    html: '<i class="fa-solid fa-gear"></i><span>ตั้งค่าระบบ</span>',
+                    onclick: 'goToEvaluationSettings()',
+                    class: 'hidden eval-nav-btn eval-nav-settings',
+                    title: 'ไปหน้าตั้งค่าระบบ (super_admin)'
+                }
+            ],
+            fallbackConfig: getEvaluationFallbackConfig(),
+            onReady: () => {
+                // ✅ re-apply topbar UI ทุกครั้งหลัง render
+                refreshEvaluationTopbarUI();
+
+                // ✅ Fallback: เผื่อ currentUser ยังโหลดไม่เสร็จตอน onReady
+                //     ลอง re-apply อีกครั้งหลัง 800ms
+                setTimeout(() => {
+                    refreshEvaluationTopbarUI();
+                }, 800);
+            }
+        });
+    </script>
+
+    <!-- =======================================================
+         Module Scripts (Deferred — โหลดหลัง DOM พร้อม)
+         ======================================================= -->
 
 </body>
 

@@ -1,70 +1,147 @@
-<!-- mit_teacher.html -->
 <!DOCTYPE html>
 <html lang="th">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MI Admin | WRK System</title>
+    <title>ระบบประเมินพหุปัญญา | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
     <script src="mit_data.js"></script>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
+    <style>
+        @media (max-width: 760px) {
+            .d-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                z-index: 1000 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .d-sidebar.open,
+            .d-sidebar.show,
+            .d-sidebar.active,
+            .d-sidebar.is-open {
+                transform: translateX(0) !important;
+            }
+
+            .d-overlay {
+                display: none !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
+                z-index: 999 !important;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .d-overlay.open,
+            .d-overlay.show,
+            .d-overlay.active,
+            .d-overlay.is-open {
+                display: block !important;
+                opacity: 1;
+            }
+
+            .d-main {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .d-app {
+                display: block !important;
+            }
+
+            .d-menu {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .d-collapse {
+                display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
+            }
+
+            .glass-panel {
+                max-width: 100%;
+            }
+        }
+
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar {
+                width: 240px;
+            }
+        }
+    </style>
 </head>
 
-<body class="min-h-screen pb-10">
+<body class="text-slate-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <nav class="glass sticky top-0 z-40 border-b border-white/60 shadow-sm px-4 py-3 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10">
-            <div>
-                <p class="font-bold text-purple-900 text-base leading-tight">MI Dashboard</p>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ระบบประเมินพหุปัญญา (8 ด้าน)
-                </p>
-            </div>
-        </div>
-        <div class="flex items-center gap-2">
-            <span id="user-display"
-                class="hidden sm:block text-sm font-semibold text-slate-600 bg-slate-100 px-3 py-1.5 rounded-xl"></span>
-            <button id="btnToggleMode" onclick="toggleMode()"
-                class="hidden h-9 px-3 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-sm font-bold flex items-center gap-2 transition"></button>
-            <button id="btn-settings" onclick="openSettings()"
-                class="hidden h-9 px-3 rounded-xl bg-slate-50 text-slate-600 hover:bg-slate-100 border border-slate-200 text-sm font-bold flex items-center gap-1 transition">
-                <i class="fas fa-gear"></i> <span class="hidden sm:inline">ตั้งค่า</span>
-            </button>
-            <button id="btnAdminManager" onclick="openAdminManager()"
-                class="hidden h-9 px-3 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 text-sm font-bold flex items-center gap-1 transition">
-                <i class="fas fa-user-cog"></i> <span class="hidden sm:inline">จัดการแอดมิน</span>
-            </button>
-            <button onclick="window.location.href='index.html'"
-                class="h-9 w-9 rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 flex items-center justify-center">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-            <button onclick="logout()"
-                class="h-9 w-9 rounded-xl bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-200 flex items-center justify-center">
-                <i class="fas fa-sign-out-alt text-sm"></i>
-            </button>
-        </div>
-    </nav>
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-    <div class="max-w-screen-2xl mx-auto px-4 py-6 space-y-5">
-        <div id="stat-cards" class="space-y-6"></div>
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
 
-        <div id="adminFilterSection" class="hidden glass rounded-2xl p-4 space-y-3">
-            <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">
-                <i class="fa-solid fa-filter text-purple-500 mr-1"></i> เลือกห้องเรียน (โหมดผู้ดูแลระบบ)
-            </label>
-            <div class="flex flex-col md:flex-row items-start md:items-center gap-3 flex-wrap">
-                <select id="sel-classroom" class="w-full md:w-64 border border-slate-200 rounded-xl px-3 py-2 text-sm">
-                    <option value="">-- เลือกห้องเรียน --</option>
-                </select>
-                <div id="adviserDisplay"
-                    class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border rounded-xl text-sm">
-                    <i class="fas fa-chalkboard-user text-purple-500"></i>
-                    <span class="text-slate-400 font-bold">ครูที่ปรึกษา:</span>
-                    <span id="adviserNames" class="font-bold text-slate-700">-</span>
+            <div style="padding:0 0 12px;" class="max-w-screen-2xl mx-auto space-y-5 px-4 mt-4">
+
+                <!-- STAT CARDS + Charts -->
+                <div id="stat-cards" class="space-y-6"></div>
+
+                <!-- FILTER BAR (Admin) -->
+                <div id="adminFilterSection" class="hidden glass rounded-2xl p-4 space-y-3">
+                    <label class="text-xs font-bold text-slate-400 uppercase tracking-widest block">
+                        <i class="fa-solid fa-filter text-purple-500 mr-1"></i> เลือกห้องเรียน (โหมดผู้ดูแลระบบ)
+                    </label>
+                    <div class="flex flex-col md:flex-row items-start md:items-center gap-3 flex-wrap">
+                        <select id="sel-classroom"
+                            class="w-full md:w-64 border border-slate-200 rounded-xl px-3 py-2 text-sm">
+                            <option value="">-- เลือกห้องเรียน --</option>
+                        </select>
+                        <div id="adviserDisplay"
+                            class="hidden items-center gap-2 px-4 py-2 bg-slate-50 border rounded-xl text-sm">
+                            <i class="fas fa-chalkboard-user text-purple-500"></i>
+                            <span class="text-slate-400 font-bold">ครูที่ปรึกษา:</span>
+                            <span id="adviserNames" class="font-bold text-slate-700">-</span>
+                        </div>
+                        <div class="flex gap-2 ml-auto">
+                            <button onclick="openImportModal()"
+                                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
+                                <i class="fas fa-file-import"></i> นำเข้า
+                            </button>
+                            <button onclick="exportExcel()"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
+                                <i class="fas fa-file-excel"></i> ส่งออก
+                            </button>
+                        </div>
+                    </div>
                 </div>
-                <div class="flex gap-2 ml-auto">
+
+                <!-- Teacher mode -->
+                <div id="teacherActionBar" class="hidden glass rounded-2xl p-4 flex gap-2 flex-wrap items-center">
+                    <span class="text-xs font-bold text-slate-400 uppercase tracking-widest flex-1">
+                        <i class="fa-solid fa-chalkboard-user text-purple-500 mr-1"></i> มุมมองครูที่ปรึกษา
+                        (ห้องโฮมรูมของคุณ)
+                    </span>
                     <button onclick="openImportModal()"
                         class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
                         <i class="fas fa-file-import"></i> นำเข้า
@@ -74,64 +151,54 @@
                         <i class="fas fa-file-excel"></i> ส่งออก
                     </button>
                 </div>
-            </div>
-        </div>
 
-        <div id="teacherActionBar" class="hidden glass rounded-2xl p-4 flex gap-2 flex-wrap items-center">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-widest flex-1">
-                <i class="fa-solid fa-chalkboard-user text-purple-500 mr-1"></i> มุมมองครูที่ปรึกษา (ห้องโฮมรูมของคุณ)
-            </span>
-            <button onclick="openImportModal()"
-                class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
-                <i class="fas fa-file-import"></i> นำเข้า
-            </button>
-            <button onclick="exportExcel()"
-                class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 shadow-sm">
-                <i class="fas fa-file-excel"></i> ส่งออก
-            </button>
-        </div>
-
-        <div class="glass rounded-3xl shadow-xl overflow-hidden">
-            <div class="p-5 border-b border-slate-100 flex justify-between items-center">
-                <h2 class="font-bold text-slate-800 flex items-center gap-2">
-                    <i class="fas fa-brain text-purple-600"></i> ผลการประเมินพหุปัญญารายบุคคล (8 ด้าน)
-                </h2>
+                <!-- TABLE -->
+                <div class="glass rounded-3xl shadow-xl overflow-hidden">
+                    <div class="p-5 border-b border-slate-100 flex justify-between items-center">
+                        <h2 class="font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fas fa-brain text-purple-600"></i> ผลการประเมินพหุปัญญารายบุคคล (8 ด้าน)
+                        </h2>
+                    </div>
+                    <div class="p-4 overflow-x-auto">
+                        <table id="mi-table" class="w-full display nowrap" style="width:100%">
+                            <thead>
+                                <tr>
+                                    <th>ห้อง</th>
+                                    <th>เลขที่</th>
+                                    <th>ชื่อ-สกุล</th>
+                                    <th>ภาษา</th>
+                                    <th>ตรรกศาสตร์</th>
+                                    <th>มิติสัมพันธ์</th>
+                                    <th>ร่างกาย</th>
+                                    <th>ดนตรี</th>
+                                    <th>มนุษยสัมพันธ์</th>
+                                    <th>เข้าใจตนเอง</th>
+                                    <th>ธรรมชาติ</th>
+                                    <th>รวม (200)</th>
+                                    <th>ระดับรวม</th>
+                                    <th>จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mi-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="p-4 overflow-x-auto">
-                <table id="mi-table" class="w-full display nowrap" style="width:100%">
-                    <thead>
-                        <tr>
-                            <th>ห้อง</th>
-                            <th>เลขที่</th>
-                            <th>ชื่อ-สกุล</th>
-                            <th>ภาษา</th>
-                            <th>ตรรกศาสตร์</th>
-                            <th>มิติสัมพันธ์</th>
-                            <th>ร่างกาย</th>
-                            <th>ดนตรี</th>
-                            <th>มนุษยสัมพันธ์</th>
-                            <th>เข้าใจตนเอง</th>
-                            <th>ธรรมชาติ</th>
-                            <th>รวม (200)</th>
-                            <th>ระดับรวม</th>
-                            <th>จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="mi-tbody"></tbody>
-                </table>
-            </div>
-        </div>
+        </main>
     </div>
 
-    <!-- Settings Modal -->
+    <!-- ================= Modals ================= -->
+    <!-- SETTINGS MODAL (รวม Admin Management) -->
     <div id="settings-modal" class="fixed inset-0 z-50 hidden items-start justify-center p-4 pt-20">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettings()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-2xl overflow-hidden">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden">
             <div class="bg-gradient-to-r from-purple-700 to-indigo-700 text-white px-6 py-4 flex justify-between">
                 <h3 class="font-bold text-lg"><i class="fas fa-gear"></i> ตั้งค่าระบบ MI</h3>
                 <button onclick="closeSettings()"><i class="fas fa-times"></i></button>
             </div>
-            <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+            <div class="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+
+                <!-- ============ ส่วนที่ 1: ตั้งค่าทั่วไป ============ -->
                 <div>
                     <label class="text-xs font-bold text-slate-500">เวลาหน่วงต่อข้อ (วินาที)</label>
                     <div class="flex gap-2 mt-1">
@@ -140,6 +207,7 @@
                         <span class="self-center">วินาที</span>
                     </div>
                 </div>
+
                 <div class="flex justify-between items-center bg-slate-50 p-4 rounded-2xl">
                     <div>
                         <p class="font-bold">เปิดใช้งานระบบประเมิน MI</p>
@@ -152,62 +220,58 @@
                         </div>
                     </label>
                 </div>
-                <div id="user-management-section" class="hidden pt-4 border-t">
-                    <div class="flex justify-between items-center mb-3">
-                        <label class="text-xs font-bold text-slate-500"><i class="fas fa-user-shield"></i>
-                            จัดการผู้ดูแลระบบ MI</label>
-                        <button onclick="openAdminManager()"
-                            class="px-4 py-2 bg-indigo-600 text-white rounded-xl text-sm font-bold hover:bg-indigo-700 transition flex items-center gap-2">
-                            <i class="fas fa-external-link-alt"></i> จัดการ
-                        </button>
+
+                <!-- ============ ส่วนที่ 2: จัดการผู้ดูแลระบบ (เฉพาะ Super Admin) ============ -->
+                <div id="admin-section" class="hidden pt-5 border-t-2 border-dashed border-slate-200">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center">
+                            <i class="fas fa-user-shield text-indigo-600 text-sm"></i>
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-slate-800">จัดการผู้ดูแลระบบ MI</h4>
+                            <p class="text-xs text-slate-400">แต่งตั้งหรือถอดถอนผู้ดูแลระบบย่อย (Module Admin)</p>
+                        </div>
                     </div>
-                    <p class="text-xs text-slate-400">คลิกปุ่มจัดการเพื่อแต่งตั้งหรือถอดถอนผู้ดูแลระบบ MI (ใช้ตาราง
-                        core_module_admins)</p>
+
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-4">
+                        <label class="block text-xs font-bold text-indigo-700 mb-2">
+                            <i class="fas fa-user-plus mr-1"></i> เลือกบุคลากรเพื่อแต่งตั้ง
+                        </label>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <select id="personnelSelect"
+                                class="flex-1 border border-indigo-200 rounded-xl px-3 py-2 text-sm bg-white"></select>
+                            <button onclick="addModuleAdmin()"
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-xl font-bold text-sm whitespace-nowrap shadow-sm transition">
+                                <i class="fas fa-plus mr-1"></i> แต่งตั้ง
+                            </button>
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-xs font-bold text-slate-500">
+                                <i class="fas fa-list-check mr-1"></i> ผู้ดูแลระบบปัจจุบัน
+                                <span id="adminCount" class="text-slate-400 font-normal"></span>
+                            </label>
+                            <button onclick="loadCurrentAdmins()"
+                                class="text-xs text-indigo-600 hover:text-indigo-700 font-bold">
+                                <i class="fas fa-sync-alt mr-1"></i> โหลดใหม่
+                            </button>
+                        </div>
+                        <div id="adminList" class="space-y-2 max-h-64 overflow-y-auto pr-1"></div>
+                    </div>
                 </div>
+
             </div>
-            <div class="px-6 py-4 border-t flex justify-end gap-3">
-                <button onclick="closeSettings()" class="px-5 py-2 rounded-xl bg-slate-100 font-bold">ยกเลิก</button>
+            <div class="px-6 py-4 border-t flex justify-end gap-3 bg-slate-50">
+                <button onclick="closeSettings()"
+                    class="px-5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-bold transition">ยกเลิก</button>
                 <button onclick="saveSettings()"
-                    class="px-6 py-2 rounded-xl bg-purple-600 text-white font-bold">บันทึก</button>
+                    class="px-6 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-sm transition">บันทึก</button>
             </div>
         </div>
     </div>
 
-    <!-- Admin Manager Modal -->
-    <div id="adminManagerModal" class="fixed inset-0 z-50 hidden items-start justify-center p-4 pt-20">
-        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdminManager()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl overflow-hidden">
-            <div class="bg-gradient-to-r from-indigo-700 to-purple-700 text-white px-6 py-4 flex justify-between">
-                <h3 class="font-bold text-lg"><i class="fas fa-user-shield"></i> จัดการผู้ดูแลระบบ MI</h3>
-                <button onclick="closeAdminManager()"><i class="fas fa-times"></i></button>
-            </div>
-            <div class="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-                <div>
-                    <label class="text-xs font-bold text-slate-500">เลือกบุคลากรเพื่อแต่งตั้ง</label>
-                    <div class="flex gap-2 mt-2">
-                        <select id="personnelSelect" class="flex-1 border rounded-xl px-3 py-2 text-sm"></select>
-                        <button onclick="addModuleAdmin()"
-                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl font-bold text-sm">
-                            <i class="fas fa-plus"></i> แต่งตั้ง
-                        </button>
-                    </div>
-                </div>
-                <div>
-                    <div class="flex justify-between items-center mb-2">
-                        <label class="text-xs font-bold text-slate-500">ผู้ดูแลระบบปัจจุบัน <span
-                                id="adminCount"></span></label>
-                        <button onclick="loadCurrentAdmins()" class="text-xs text-emerald-600 hover:text-emerald-700">
-                            <i class="fas fa-sync-alt"></i> โหลดใหม่
-                        </button>
-                    </div>
-                    <div id="adminList" class="space-y-2"></div>
-                </div>
-            </div>
-            <div class="px-6 py-4 border-t flex justify-end">
-                <button onclick="closeAdminManager()" class="px-5 py-2 rounded-xl bg-slate-100 font-bold">ปิด</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Import Modal -->
     <div id="import-modal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
@@ -228,8 +292,8 @@
                     <input type="file" id="import-file" accept=".xlsx,.xls,.csv" class="hidden"
                         onchange="handleFileImport(this)">
                     <button onclick="document.getElementById('import-file').click()"
-                        class="w-full border-2 border-dashed rounded-2xl p-8 text-center"><i
-                            class="fas fa-cloud-upload-alt text-3xl text-amber-400"></i>
+                        class="w-full border-2 border-dashed rounded-2xl p-8 text-center">
+                        <i class="fas fa-cloud-upload-alt text-3xl text-amber-400"></i>
                         <p>คลิกเพื่อเลือกไฟล์ Excel</p>
                     </button>
                 </div>
@@ -374,17 +438,90 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <!-- Core scripts -->
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
+    <script src="dashboard_charts.js"></script>
+
+    <!-- Module script -->
     <script src="mit_teacher.js"></script>
+
+    <!-- =======================================================
+         Fallback Config + Init Module Sidebar
+         ======================================================= -->
     <script>
-        // ฟังก์ชันปิด View Modal (เผื่อเรียกจาก onclick)
-        function closeViewModal() {
-            const modal = document.getElementById('view-result-modal');
-            if (modal) {
-                modal.classList.remove('flex');
-                modal.classList.add('hidden');
-            }
+        const MODULE_KEY = 'mit';
+        const MODULE_NAME = 'ระบบประเมินพหุปัญญา (MI)';
+
+        function getMIFallbackConfig() {
+            const adminRoles = ['super_admin', 'admin'];
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK MI',
+                    subtitle: 'ระบบประเมินพหุปัญญา (8 ด้าน)'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html', icon_bg_color: '#64748b', icon_text_color: '#ffffff' },
+                    { id: 'nav-mi-dashboard', icon: 'fa-brain', label: 'แดชบอร์ด MI', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active', icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [],
+                footerMenuTitle: '',
+                footerCollapsible: false,
+                footerMenu: [],  // ✅ ไม่มี settings ที่นี่ — ย้ายไป Topbar แล้ว
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
         }
+
+        initModuleSidebar({
+            moduleKey: MODULE_KEY,
+            pageTitle: MODULE_NAME,
+            activeId: 'nav-mi-dashboard',
+            topbarButtons: [
+                {
+                    id: 'btnToggleMode',
+                    icon: 'fa-solid fa-user-shield',
+                    label: 'โหมดแอดมิน',
+                    onclick: 'toggleMode()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'สลับโหมดมุมมอง'
+                },
+                {
+                    id: 'btn-settings',
+                    icon: 'fa-solid fa-gear',
+                    label: 'ตั้งค่า',
+                    onclick: 'openSettings()',
+                    class: 'hidden d-btn-mode settings',
+                    title: 'ตั้งค่าระบบ MI'
+                }
+            ],
+            fallbackConfig: getMIFallbackConfig(),
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+                if (typeof window.refreshTopbarUser === 'function') window.refreshTopbarUser();
+            }
+        });
     </script>
 </body>
 

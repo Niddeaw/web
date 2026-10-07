@@ -1,5 +1,6 @@
 // ==========================================
-// portfolio.js — ระบบแฟ้มสะสมผลงานครู (ปรับปรุง: ใช้ SearchBuilder)
+// portfolio.js — ระบบแฟ้มสะสมผลงานครู
+// ✅ Template-compliant: initModuleSidebar + dashboard_sidebar.js + dashboard_ui.js
 // ==========================================
 
 let currentUser = null;
@@ -22,9 +23,47 @@ let dtInstance = null;
 let dtInstanceType = null;
 let currentTableData = [];
 
-// เพิ่มตัวแปร global สำหรับเก็บข้อมูลทั้งหมด (Dashboard)
 let globalEntries = [];
 let teacherSelectInstance = null;
+
+// ==========================================
+// ✅ ปุ่มนำทาง — portfolio (topbar + sidebar)
+// ==========================================
+window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentRole;
+    const isSuperAdmin = role === 'super_admin';
+
+    // ปุ่มสลับโหมด (topbar)
+    const btnToggle = document.getElementById('btnToggleMode');
+    if (btnToggle) {
+        btnToggle.classList.toggle('hidden', !actualIsAdmin);
+        if (actualIsAdmin && typeof updateToggleModeUI === 'function') {
+            updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
+        }
+    }
+
+    // Sidebar: ตั้งค่า + นำเข้า — แสดงเฉพาะ super_admin
+    ['nav-settings', 'nav-import', 'nav-template', 'nav-sheets'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('hidden', !isSuperAdmin);
+    });
+};
+
+// ==========================================
+// ✅ Page title ตาม tab
+// ==========================================
+function getPageTitle(tab) {
+    if (tab === 'dashboard') return 'ภาพรวมผลงาน (Dashboard)';
+    if (tab === 'work') return 'จัดการผลงานและรางวัล';
+    if (tab === 'training') return 'จัดการประวัติการอบรม';
+    return 'ระบบแฟ้มสะสมผลงาน';
+}
+
+function restorePageTitle() {
+    const el = document.getElementById('pageTitle');
+    if (el) el.textContent = getPageTitle(currentTab);
+}
+window.restorePageTitle = restorePageTitle;
 
 // ==========================================
 // 1. ระบบรักษาความปลอดภัย & ตั้งค่าเริ่มต้น
@@ -36,10 +75,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initPortfolio();
 });
 
-/**
- * initPortfolio — ฟังก์ชันเริ่มต้นระบบ
- * แก้ไข: เรียก applyRoleUI และ loadInitialData ตามลำดับ
- */
 async function initPortfolio() {
     Swal.fire({
         title: 'กำลังตรวจสอบสิทธิ์...',
@@ -64,40 +99,26 @@ async function initPortfolio() {
         return;
     }
 
+    // ✅ expose window.* สำหรับ onReady + refreshNavButtons
+    window.currentUser = currentUser;
+    window.currentProfile = currentPersonnel;
+    window.currentUserId = currentUser.id;
+    window.currentUserRole = currentRole;
+
     moduleAdminChecked = true;
     isModuleAdmin = await hasModuleAccess(currentRole, MODULE_KEY, currentUser.id);
     actualIsAdmin = WRK_ROLES.ADMIN.includes(currentRole) || isModuleAdmin;
 
-    if (typeof applyVisibilityByRole === 'function') {
-        applyVisibilityByRole(currentRole, actualIsAdmin, {
-            settingsBtn: null,
-            toggleBtn: 'btnToggleMode'
-        });
-    }
+    // ✅ ใช้ฟังก์ชันกลาง
+    setUserDisplayName(currentPersonnel);
+    renderUserAvatar(currentPersonnel);
 
-    const toggleBtn = document.getElementById('btnToggleMode');
-    if (toggleBtn) {
-        if (actualIsAdmin) {
-            toggleBtn.classList.remove('hidden');
-            toggleBtn.classList.add('flex');
-            if (typeof updateToggleModeUI === 'function') {
-                updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
-            } else {
-                toggleBtn.innerHTML = forceTeacherMode ?
-                    '<i class="fa-solid fa-chalkboard-user"></i><span class="hidden sm:inline">โหมดครู</span>' :
-                    '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>';
-            }
-        } else {
-            toggleBtn.classList.add('hidden');
-            toggleBtn.classList.remove('flex');
-        }
-    }
+    // Override role label → แสดง "กลุ่มสาระ" แทน role
+    const roleEl = document.getElementById('userRole');
+    if (roleEl) roleEl.innerText = currentPersonnel.department || 'ไม่ระบุกลุ่มสาระฯ';
 
-    document.getElementById('userFullName').innerText =
-        `${currentPersonnel.prefix || ''}${currentPersonnel.first_name} ${currentPersonnel.last_name}`;
-    document.getElementById('userRoleBadge').innerText = currentPersonnel.department || 'ไม่ระบุกลุ่มสาระฯ';
-
-    renderSidebar();
+    // ✅ เรียก refreshNavButtons หลัง auth เสร็จ
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     const { data: schoolInfo } = await db.from('core_school_info')
         .select('current_academic_year, current_semester')
@@ -119,9 +140,8 @@ async function initPortfolio() {
 }
 
 // ==========================================
-// 2. ฟังก์ชันตรวจสอบสิทธิ์
+// 2. ตรวจสอบสิทธิ์
 // ==========================================
-
 function isAdminView() {
     if (forceTeacherMode) return false;
     return WRK_ROLES.ADMIN.includes(currentRole) || isModuleAdmin;
@@ -129,7 +149,6 @@ function isAdminView() {
 
 function canManagePortfolioSettings() {
     if (forceTeacherMode) return false;
-    // ให้เฉพาะ super_admin เท่านั้น
     return currentRole === 'super_admin';
 }
 
@@ -140,20 +159,11 @@ async function toggleRoleView() {
     }
     forceTeacherMode = !forceTeacherMode;
 
-    const toggleBtn = document.getElementById('btnToggleMode');
-    if (toggleBtn) {
-        if (typeof updateToggleModeUI === 'function') {
-            updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
-        } else {
-            toggleBtn.innerHTML = forceTeacherMode ?
-                '<i class="fa-solid fa-chalkboard-user"></i><span class="hidden sm:inline">โหมดครู</span>' :
-                '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>';
-        }
-    }
+    // ✅ อัปเดตปุ่มใน topbar + sidebar
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     logUserAction(`สลับโหมดเป็น ${forceTeacherMode ? 'Teacher' : 'Admin'}`, 'portfolio');
     applyRoleUI();
-    renderSidebar();
 
     await loadInitialData();
 
@@ -170,116 +180,31 @@ async function toggleRoleView() {
 // ==========================================
 // 3. UI & Navigation
 // ==========================================
-
 function applyRoleUI() {
-    if (typeof applyVisibilityByRole === 'function') {
-        applyVisibilityByRole(currentRole, isAdminView(), {
-            settingsBtn: null,
-            toggleBtn: 'btnToggleMode'
-        });
-    }
+    // ✅ อัปเดตปุ่มใน topbar + sidebar
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     let addBtn = document.getElementById('btn-add-entry');
     if (!addBtn) {
         addBtn = document.querySelector('button[onclick="openEntryFormModal()"]');
         if (addBtn) addBtn.id = 'btn-add-entry';
     }
-    // ✅ แสดงปุ่มเพิ่มเสมอ (ทั้ง Admin และ Teacher)
-    if (addBtn) {
-        addBtn.style.display = '';   // หรือ 'flex' ก็ได้
-    }
+    if (addBtn) addBtn.style.display = '';
 
     const chartsArea = document.getElementById('adminChartsArea');
     if (chartsArea) chartsArea.classList.remove('hidden');
 }
 
-function logout() {
-    Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ใช่, ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            await db.auth.signOut();
-            window.location.replace('index.html');
-        }
-    });
-}
-
-function renderSidebar() {
-    const menu = document.getElementById('sidebarMenu');
-    let html = `
-        <button onclick="switchTab('dashboard')" id="btn-tab-dashboard" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all">
-            <i class="fa-solid fa-chart-pie w-5 text-center text-lg"></i> <span class="sidebar-text">แดชบอร์ดภาพรวม</span>
-        </button>
-        <button onclick="switchTab('work')" id="btn-tab-work" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-all">
-            <i class="fa-solid fa-trophy w-5 text-center text-lg"></i> <span class="sidebar-text">ผลงาน/รางวัล</span>
-        </button>
-        <button onclick="switchTab('training')" id="btn-tab-training" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-all">
-            <i class="fa-solid fa-chalkboard-user w-5 text-center text-lg"></i> <span class="sidebar-text">ประวัติการอบรม</span>
-        </button>
-        <hr class="border-gray-200 my-2">
-        <button onclick="openExportModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-emerald-600 hover:bg-emerald-50 font-bold transition-all">
-            <i class="fa-solid fa-file-excel w-5 text-center text-lg"></i> <span class="sidebar-text">ส่งออก Excel</span>
-        </button>
-    `;
-
-    if (canManagePortfolioSettings()) {
-        html += `
-        <!-- hidden file input สำหรับ Excel import -->
-        <input type="file" id="hidden-import-file" accept=".xlsx,.xls" class="hidden" onchange="importFromExcel(event)">
-        <div class="space-y-1.5 mt-1">
-            <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1"><span class="sidebar-text">นำเข้าข้อมูล (Super Admin)</span></p>
-            <button onclick="triggerImportExcel()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-indigo-600 hover:bg-indigo-50 font-bold transition-all border border-indigo-200 bg-indigo-50/40">
-                <i class="fa-solid fa-file-import w-5 text-center text-lg"></i>
-                <span class="sidebar-text text-sm">นำเข้าจาก Excel</span>
-            </button>
-            <button onclick="downloadImportTemplate()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-500 hover:bg-slate-100 font-medium transition-all">
-                <i class="fa-solid fa-download w-5 text-center"></i>
-                <span class="sidebar-text text-sm">ดาวน์โหลด Template</span>
-            </button>
-            <button onclick="importFromGoogleSheets()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-green-600 hover:bg-green-50 font-bold transition-all border border-green-200 bg-green-50/40">
-                <i class="fa-brands fa-google-drive w-5 text-center text-lg"></i>
-                <span class="sidebar-text text-sm">นำเข้าจาก Google Sheets</span>
-            </button>
-        </div>`;
-    }
-
-    if (canManagePortfolioSettings()) {
-        html += `
-        <hr class="border-gray-200 my-2">
-        <button onclick="openSettingsModal()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-amber-600 hover:bg-amber-50 font-bold transition-all border border-amber-200 bg-amber-50/50">
-            <i class="fa-solid fa-gear w-5 text-center text-lg"></i> <span class="sidebar-text">ตั้งค่าระบบ</span>
-        </button>`;
-    }
-
-    menu.innerHTML = html;
-}
-
 /**
- * switchTab — เปลี่ยนหน้า และโหลดข้อมูลตาม tab
- * แก้ไข: เมื่อไป Dashboard ให้โหลดข้อมูลทั้งหมดใหม่ (ไม่กรอง entry_type)
+ * switchTab — เปลี่ยนหน้า + โหลดข้อมูลตาม tab
  */
-// ==========================================
-// แก้ไข switchTab — Dashboard ใช้ loadDashboardData เสมอ
-// ==========================================
-
 function switchTab(tab) {
     currentTab = tab;
 
-    // อัปเดตปุ่ม Active
-    ['dashboard', 'work', 'training'].forEach(t => {
-        const btn = document.getElementById(`btn-tab-${t}`);
-        if (btn) {
-            btn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl text-slate-600 hover:bg-slate-100 font-medium transition-all";
-        }
-    });
-    const activeBtn = document.getElementById(`btn-tab-${tab}`);
-    if (activeBtn) {
-        activeBtn.className = "w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-blue-600 text-white font-bold transition-all";
+    // ✅ Update sidebar active state
+    const navMap = { 'dashboard': 'nav-dashboard', 'work': 'nav-work', 'training': 'nav-training' };
+    if (navMap[tab] && typeof setActiveNavItem === 'function') {
+        setActiveNavItem(navMap[tab]);
     }
 
     const dashboardSection = document.getElementById('section-dashboard');
@@ -288,67 +213,33 @@ function switchTab(tab) {
     if (datatableSection) datatableSection.classList.add('hidden');
 
     if (tab === 'dashboard') {
-        // ✅ แสดง Dashboard
         if (dashboardSection) dashboardSection.classList.remove('hidden');
-        document.getElementById('pageTitle').innerText = 'ภาพรวมผลงาน (Dashboard)';
         const chartsArea = document.getElementById('adminChartsArea');
         if (chartsArea) chartsArea.classList.remove('hidden');
 
-        // ✅ โหลดข้อมูลทั้งหมด (ไม่กรอง) สำหรับ Dashboard เสมอ
-        // ใช้ setTimeout เพื่อไม่ให้ค้าง UI
         setTimeout(async () => {
-            try {
-                await loadDashboardData();
-            } catch (err) {
-                console.error('❌ Dashboard load error:', err);
-            }
+            try { await loadDashboardData(); } catch (err) { console.error('❌ Dashboard load error:', err); }
         }, 50);
-
     } else {
-        // Tab: work หรือ training
         currentEntryType = tab;
         if (datatableSection) datatableSection.classList.remove('hidden');
-        document.getElementById('pageTitle').innerText = tab === 'work' ? 'จัดการผลงานและรางวัล' : 'จัดการประวัติการอบรม';
-        document.getElementById('tableHeaderTitle').innerText = tab === 'work' ? 'รายการผลงาน/รางวัล' : 'รายการหลักสูตรที่อบรม';
+        const th = document.getElementById('tableHeaderTitle');
+        if (th) th.innerText = tab === 'work' ? 'รายการผลงาน/รางวัล' : 'รายการหลักสูตรที่อบรม';
 
         applyRoleUI();
-        // โหลดข้อมูลเฉพาะ entry_type ที่เลือก (จะกรองตามสิทธิ์)
         loadTableData();
     }
-}
 
-let isSidebarCollapsed = false;
+    // ✅ อัปเดต page title
+    restorePageTitle();
 
-function toggleSidebar() {
-    const sidebar = document.getElementById('sidebar');
-    const backdrop = document.getElementById('sidebarBackdrop');
-    if (window.innerWidth < 768) {
-        if (sidebar) sidebar.classList.toggle('mobile-open');
-        if (backdrop) backdrop.classList.toggle('show');
-    } else {
-        const texts = document.querySelectorAll('.sidebar-text');
-        isSidebarCollapsed = !isSidebarCollapsed;
-        if (sidebar) {
-            if (isSidebarCollapsed) {
-                sidebar.classList.remove('w-64');
-                sidebar.classList.add('w-20');
-                texts.forEach(txt => txt.classList.add('hidden'));
-            } else {
-                sidebar.classList.remove('w-20');
-                sidebar.classList.add('w-64');
-                texts.forEach(txt => txt.classList.remove('hidden'));
-            }
-        }
-    }
+    // ปิด sidebar บนมือถือ
+    if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
 }
 
 // ==========================================
-// 4. Data Fetching & Rendering
+// 4. Data Fetching
 // ==========================================
-
-/**
- * fetchPersonnelData — ดึงข้อมูลบุคลากร (ปรับปรุงให้ใช้ cache)
- */
 async function fetchPersonnelData(userIds) {
     if (!userIds || userIds.length === 0) {
         console.log('📭 ไม่มี userIds ให้ดึงบุคลากร');
@@ -392,19 +283,12 @@ async function fetchPersonnelData(userIds) {
     return cached;
 }
 
-// ==========================================
-// แก้ไข loadInitialData — โหลด Dashboard ครั้งแรก
-// ==========================================
-
 async function loadInitialData() {
     try {
         console.log('🔍 loadInitialData เริ่มต้น');
 
-        // ✅ โหลดข้อมูลทั้งหมด (ไม่กรอง) สำหรับ Dashboard ครั้งแรก
         await loadDashboardData();
 
-        // ✅ แสดงหน้า Dashboard
-        // ใช้ setTimeout ให้ UI พร้อมก่อน
         setTimeout(() => {
             switchTab('dashboard');
         }, 50);
@@ -419,18 +303,11 @@ async function loadInitialData() {
     }
 }
 
-/**
- * loadAllData — โหลดข้อมูลทั้งหมดตามสิทธิ์ (ไม่กรอง entry_type)
- * ใช้สำหรับ Dashboard และเมื่อต้องการข้อมูลรวมทั้งหมด
- */
 async function loadAllData() {
     try {
         console.log('🔍 loadAllData กำลังโหลดข้อมูลทั้งหมด (ไม่กรองประเภท)');
 
-        let query = db.from('portfolio_entries')
-            .select('*');
-
-        // loadAllData ใช้โดย super_admin (toggleEntryType) — ดึงทั้งหมดเสมอ
+        let query = db.from('portfolio_entries').select('*');
 
         const { data: entries, error } = await query;
         if (error) {
@@ -440,18 +317,14 @@ async function loadAllData() {
 
         console.log(`📊 loadAllData ได้ข้อมูล ${entries?.length || 0} รายการ (raw)`);
 
-        // ถ้าไม่มีข้อมูล ให้คงค่าเดิม (ป้องกันการหาย)
         if (!entries || entries.length === 0) {
             console.warn('⚠️ loadAllData: ไม่มีข้อมูลในฐานข้อมูล');
-            // ยังคงใช้ currentTableData เดิม (ถ้ามี)
             return;
         }
 
-        // ดึงข้อมูลบุคลากร
         const userIds = [...new Set(entries.map(e => e.user_id).filter(Boolean))];
         const personnelMap = await fetchPersonnelData(userIds);
 
-        // รวมข้อมูลบุคลากร
         const enrichedData = entries.map(e => ({
             ...e,
             core_personnel: personnelMap.get(e.user_id) || null
@@ -459,31 +332,14 @@ async function loadAllData() {
 
         console.log(`✅ loadAllData: ได้ข้อมูล ${enrichedData.length} รายการ (enriched)`);
 
-        // ✅ ตั้งค่า currentTableData และ allEntries เป็นข้อมูลทั้งหมด
         currentTableData = enrichedData;
         allEntries = enrichedData;
 
-        // ถ้าอยู่ในหน้า datatable (work/training) และมีการเรียก loadAllData
-        // เราไม่ควร render DataTable เพราะจะแสดงข้อมูลทั้งหมด (ไม่กรอง)
-        // แต่ถ้าอยู่ใน dashboard ให้ render อย่างเดียว
-        // เราไม่ render DataTable ที่นี่ เพราะ switchTab จะจัดการ
-        // updateDashboardStats และ renderAdminCharts จะถูกเรียกจาก switchTab
-
     } catch (err) {
         console.error('❌ loadAllData error:', err);
-        // ไม่ throw เพื่อไม่ให้หน้า crash
     }
 }
 
-/**
- * loadTableData — โหลดข้อมูลสำหรับตารางตาม entry_type
- */
-/**
- * loadTableData — โหลดข้อมูลตาราง
- * สิทธิ์ DataTable:
- *   admin roles → เห็นและจัดการได้ทั้งหมด
- *   teacher/staff → เห็นเฉพาะของตนเอง
- */
 async function loadTableData() {
     if (!currentUser) return;
 
@@ -494,8 +350,6 @@ async function loadTableData() {
             .order('academic_year', { ascending: false })
             .order('semester', { ascending: true });
 
-        // teacher / staff (โหมดครู) เห็นเฉพาะของตนเอง
-        // admin roles และ forceTeacherMode=false เห็นทั้งหมด
         const isTeacherMode = !isAdminView() || forceTeacherMode;
         if (isTeacherMode) {
             query = query.eq('user_id', currentUser.id);
@@ -522,16 +376,10 @@ async function loadTableData() {
     }
 }
 
-/**
- * renderDataTable — สร้าง DataTable พร้อม SearchBuilder
- */
 function renderDataTable(data) {
     const isWork = currentEntryType === 'work';
-    // work: ปี | เทอม | ชื่อครู | กลุ่มสาระ | ชื่อผลงาน | หน่วยงาน | วันที่ | ไฟล์ | จัดการ = 9
-    // training: ปี | เทอม | ชื่อครู | กลุ่มสาระ | ชื่อหลักสูตร | จัดโดย | วันที่ | ชม. | ไฟล์ | จัดการ = 10
     const colCount = isWork ? 9 : 10;
 
-    // ทำลาย instance เดิม
     if (dtInstance) {
         try { dtInstance.destroy(); } catch (_) { }
         dtInstance = null;
@@ -572,18 +420,15 @@ function renderDataTable(data) {
             : data.map(e => buildRowHtml(e, isWork)).join('');
     }
 
-    // ถ้าไม่มีข้อมูล ไม่ต้อง init DataTable
     if (data.length === 0) return;
 
-    // กำหนดประเภทคอลัมน์สำหรับ SearchBuilder
     const columnDefs = [
         { responsivePriority: 1, targets: -1 },
         { responsivePriority: 2, targets: -2 },
-        { targets: colCount - 1, orderable: false, searchable: false }, // จัดการ
-        { targets: colCount - 2, orderable: false, searchable: false }, // ไฟล์
+        { targets: colCount - 1, orderable: false, searchable: false },
+        { targets: colCount - 2, orderable: false, searchable: false },
     ];
 
-    // DataTable 2.x ใช้ layout แทน dom
     dtInstance = $('#dataTable').DataTable({
         language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
         pageLength: 25,
@@ -601,13 +446,8 @@ function renderDataTable(data) {
 }
 
 // ==========================================
-// 5. Charts
+// 5. Row Builder
 // ==========================================
-
-// ==========================================
-// buildRowHtml — เพิ่มปุ่มสลับประเภท (เฉพาะ super_admin)
-// ==========================================
-
 function buildRowHtml(e, isWork) {
     const name = `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ';
     const dept = e.core_personnel?.department || '-';
@@ -618,7 +458,6 @@ function buildRowHtml(e, isWork) {
 
     const canManage = e.user_id === currentUser.id || isAdminView();
 
-    // ✅ ปุ่มจัดการพื้นฐาน
     let manageBtns = '';
     if (canManage) {
         manageBtns = `
@@ -626,7 +465,6 @@ function buildRowHtml(e, isWork) {
                 <button type="button" onclick="openEditEntryModal('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200 whitespace-nowrap"><i class="fa-solid fa-pen-to-square"></i> แก้ไข</button>
                 <button type="button" onclick="deleteEntry('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 whitespace-nowrap"><i class="fa-solid fa-trash-can"></i> ลบ</button>
     `;
-        // ✅ ปุ่มสลับประเภท (เฉพาะ super_admin)
         if (currentRole === 'super_admin') {
             manageBtns += `
                 <button type="button" onclick="toggleEntryType('${e.id}')" class="text-xs font-bold px-2 py-1 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 whitespace-nowrap"><i class="fa-solid fa-arrows-rotate"></i> สลับประเภท</button>
@@ -655,11 +493,9 @@ function buildRowHtml(e, isWork) {
 }
 
 // ==========================================
-// ฟังก์ชันสลับประเภท (เฉพาะ super_admin)
+// toggleEntryType — สลับประเภท (เฉพาะ super_admin)
 // ==========================================
-
 async function toggleEntryType(id) {
-    // ตรวจสอบสิทธิ์ super_admin
     if (currentRole !== 'super_admin') {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้นที่สลับประเภทได้', 'error');
         return;
@@ -694,23 +530,19 @@ async function toggleEntryType(id) {
     if (!isConfirmed) return;
 
     try {
-        // อัปเดต entry_type
         const { error } = await db.from('portfolio_entries')
             .update({ entry_type: newType })
             .eq('id', id);
 
         if (error) throw error;
 
-        // บันทึก Log
         await logUserAction(
             `สลับประเภทข้อมูล portfolio ID=${id} จาก ${currentType} เป็น ${newType}`,
             'portfolio'
         );
 
-        // โหลดข้อมูลใหม่ทั้งหมด
         await loadAllData();
 
-        // ถ้าอยู่ในหน้า datatable → re-render DataTable ตามประเภทปัจจุบัน
         if (currentTab !== 'dashboard') {
             renderDataTable(currentTableData);
         }
@@ -728,11 +560,10 @@ async function toggleEntryType(id) {
     }
 }
 
-/**
- * renderAdminCharts — แสดงกราฟ (ใช้ globalEntries)
- */
+// ==========================================
+// 6. Charts
+// ==========================================
 function renderAdminCharts() {
-    // ✅ ใช้ globalEntries (ข้อมูลทั้งหมด)
     const works = globalEntries.filter(e => e.entry_type === 'work');
     const trainings = globalEntries.filter(e => e.entry_type === 'training');
 
@@ -744,7 +575,7 @@ function renderAdminCharts() {
         }, {});
     };
 
-    // ── 1. สัดส่วนประเภทผลงาน กับ การอบรม ──
+    // 1. สัดส่วนประเภทผลงาน กับ การอบรม
     const ctxRatio = document.getElementById('chartRatio');
     if (ctxRatio) {
         const ctx = ctxRatio.getContext('2d');
@@ -778,7 +609,7 @@ function renderAdminCharts() {
         });
     }
 
-    // ── 2. กลุ่มสาระฯ ที่มีผลงาน/รางวัลสูงสุด ──
+    // 2. กลุ่มสาระฯ ที่มีผลงาน/รางวัลสูงสุด
     const deptWorksCount = countBy(works, e => e.core_personnel?.department || 'ไม่ระบุ');
     const sortedDeptWorks = Object.entries(deptWorksCount).sort((a, b) => b[1] - a[1]).slice(0, 13);
 
@@ -805,7 +636,7 @@ function renderAdminCharts() {
         });
     }
 
-    // ── 3. ครูที่มีผลงาน/รางวัลสูงสุด ──
+    // 3. ครูที่มีผลงาน/รางวัลสูงสุด
     const teacherWorksCount = countBy(
         works,
         e => `${e.core_personnel?.first_name || ''} ${e.core_personnel?.last_name || ''}`.trim() || 'ไม่ระบุ'
@@ -836,7 +667,7 @@ function renderAdminCharts() {
         });
     }
 
-    // ── 4. กลุ่มสาระฯ ที่มีการอบรมสูงสุด ──
+    // 4. กลุ่มสาระฯ ที่มีการอบรมสูงสุด
     const deptTrainCount = countBy(trainings, e => e.core_personnel?.department || 'ไม่ระบุ');
     const sortedDeptTrain = Object.entries(deptTrainCount).sort((a, b) => b[1] - a[1]).slice(0, 7);
 
@@ -863,7 +694,7 @@ function renderAdminCharts() {
         });
     }
 
-    // ── 5. ลบกราฟ ครูที่มีชั่วโมงอบรมสูงสุด ──
+    // 5. ซ่อนกราฟครูที่มีชั่วโมงอบรมสูงสุด
     const teacherTrainContainer = document.getElementById('chartTeacherTrainings')?.closest('.lg\\:col-span-2');
     if (teacherTrainContainer) {
         teacherTrainContainer.style.display = 'none';
@@ -871,19 +702,10 @@ function renderAdminCharts() {
 }
 
 // ==========================================
-// 6. Dashboard Stats
+// 7. Dashboard Stats
 // ==========================================
-// ==========================================
-
-/**
- * loadDashboardData — โหลดข้อมูลทั้งหมด (ไม่กรอง user_id / entry_type)
- * ทุก role เห็นสถิติรวมทั้งโรงเรียน
- * - super_admin / admin / director / deputy → เห็นทั้งหมด (isAdminView = true)
- * - teacher / staff → เห็นสถิติรวมเหมือนกัน (Dashboard ดูภาพรวม ไม่ใช่ DataTable)
- */
 async function loadDashboardData() {
     try {
-        // ดึงข้อมูลทั้งหมด ไม่มีเงื่อนไข user_id ทุก role เห็นเหมือนกัน
         const { data: entries, error } = await db
             .from('portfolio_entries')
             .select('*')
@@ -891,7 +713,6 @@ async function loadDashboardData() {
 
         if (error) throw error;
 
-        // ดึงข้อมูลบุคลากรแยก (ไม่มี FK join)
         const userIds = [...new Set((entries || []).map(e => e.user_id).filter(Boolean))];
         const personnelMap = await fetchPersonnelData(userIds);
 
@@ -908,10 +729,6 @@ async function loadDashboardData() {
     }
 }
 
-/**
- * updateDashboardStats — อัปเดตการ์ดสถิติ
- * ใช้ globalEntries (ข้อมูลทั้งหมด ทุก role เห็นเหมือนกัน)
- */
 function updateDashboardStats() {
     try {
         const works = globalEntries.filter(e => e.entry_type === 'work');
@@ -929,7 +746,6 @@ function updateDashboardStats() {
         setEl('count-hours', totalHours);
         setEl('count-teachers', uniqueTeachers.size);
 
-        // stat cards สำรอง (กรณี HTML ใช้ชื่อ id ต่างกัน)
         setEl('stat-works', works.length);
         setEl('stat-trainings', trainings.length);
         setEl('stat-total', globalEntries.length);
@@ -941,7 +757,7 @@ function updateDashboardStats() {
 }
 
 // ==========================================
-// 7. Form Management (Add/Edit)
+// 8. Form Management
 // ==========================================
 function openEntryFormModal() {
     const form = document.getElementById('entryForm');
@@ -963,12 +779,11 @@ function openEntryFormModal() {
 
     clearFilePreview();
 
-    // ✅ จัดการ dropdown เลือกครู (เฉพาะ Admin)
     const container = document.getElementById('user-select-container');
     if (container) {
         if (isAdminView()) {
             container.classList.remove('hidden');
-            initTeacherSelect();   // ใช้ TomSelect
+            initTeacherSelect();
         } else {
             container.classList.add('hidden');
         }
@@ -1000,11 +815,9 @@ function openEditEntryModal(entryId) {
     const modalTitle = document.getElementById('entryModalTitle');
     if (modalTitle) modalTitle.innerText = entry.entry_type === 'work' ? 'แก้ไขผลงาน/รางวัล' : 'แก้ไขประวัติการอบรม';
 
-    // ✅ ซ่อน dropdown (ไม่ให้เปลี่ยนเจ้าของในโหมดแก้ไข)
     const container = document.getElementById('user-select-container');
     if (container) container.classList.add('hidden');
 
-    // แสดงลิงก์ไฟล์ปัจจุบัน ฯลฯ (ส่วนเดิม)
     const currentLinkContainer = document.getElementById('current-file-link-container');
     const currentLinkInput = document.getElementById('current-file-link');
     if (currentLinkContainer && currentLinkInput) {
@@ -1030,7 +843,6 @@ function closeEntryModal() {
     document.getElementById('entryModal').classList.add('hidden');
     clearFilePreview();
 
-    // ทำลาย TomSelect instance
     if (teacherSelectInstance) {
         teacherSelectInstance.destroy();
         teacherSelectInstance = null;
@@ -1051,12 +863,8 @@ function copyCurrentFileLink() {
 }
 
 // ==========================================
-// ฟังก์ชันจัดการ Preview รูปภาพ
+// Preview File
 // ==========================================
-
-/**
- * แสดง preview ของไฟล์ที่เลือก (รูปภาพ หรือ PDF)
- */
 function previewFile(input) {
     const container = document.getElementById('file-preview-container');
     const img = document.getElementById('file-preview');
@@ -1080,7 +888,6 @@ function previewFile(input) {
             };
             reader.readAsDataURL(file);
         } else {
-            // PDF หรือไฟล์อื่น — ไม่แสดงรูป
             img.classList.add('hidden');
             img.src = '';
         }
@@ -1092,9 +899,6 @@ function previewFile(input) {
     }
 }
 
-/**
- * ลบไฟล์ที่เลือก (เคลียร์ input file และซ่อน preview)
- */
 function removeFile() {
     const input = document.getElementById('f_file');
     if (input) {
@@ -1103,9 +907,6 @@ function removeFile() {
     }
 }
 
-/**
- * เคลียร์ preview (ใช้เมื่อเปิด/ปิด modal)
- */
 function clearFilePreview() {
     const container = document.getElementById('file-preview-container');
     const img = document.getElementById('file-preview');
@@ -1119,9 +920,8 @@ function clearFilePreview() {
 }
 
 // ==========================================
-// ฟังก์ชันบันทึกข้อมูล (เพิ่ม/แก้ไข) — ฉบับเต็ม
+// 9. Save Entry
 // ==========================================
-
 async function saveEntry(e) {
     e.preventDefault();
 
@@ -1154,15 +954,12 @@ async function saveEntry(e) {
             }
         }
 
-        // ✅ กำหนด user_id
         let userId = currentUser.id;
         if (!entryId && isAdminView()) {
-            // ใช้ TomSelect instance เพื่ออ่านค่า
             if (teacherSelectInstance) {
                 const val = teacherSelectInstance.getValue();
                 if (val) userId = val;
             } else {
-                // fallback
                 const selectedUserId = document.getElementById('f_user_id').value;
                 if (selectedUserId) userId = selectedUserId;
             }
@@ -1197,7 +994,6 @@ async function saveEntry(e) {
 
         if (dbError) throw dbError;
 
-        // ✅ บันทึก Log พร้อมระบุว่าเพิ่มให้ใคร
         await logUserAction(
             `${entryId ? 'แก้ไข' : 'เพิ่ม'}ข้อมูล portfolio (${payload.entry_type})` +
             (userId !== currentUser.id ? ` ให้กับ userId=${userId}` : ''),
@@ -1206,10 +1002,8 @@ async function saveEntry(e) {
 
         closeEntryModal();
 
-        // โหลดข้อมูลใหม่ทั้งหมด
         await loadAllData();
 
-        // ถ้าอยู่ในหน้า datatable → re-render DataTable
         if (currentTab !== 'dashboard') {
             renderDataTable(currentTableData);
         }
@@ -1228,9 +1022,8 @@ async function saveEntry(e) {
 }
 
 // ==========================================
-// ฟังก์ชันลบข้อมูล — ฉบับเต็ม
+// 10. Delete Entry
 // ==========================================
-
 async function deleteEntry(id) {
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบ?',
@@ -1258,7 +1051,6 @@ async function deleteEntry(id) {
 
         await logUserAction(`ลบข้อมูล portfolio ID=${id}`, 'portfolio');
 
-        // โหลดข้อมูลใหม่ทั้งหมด
         await loadAllData();
 
         if (currentTab !== 'dashboard') {
@@ -1279,9 +1071,8 @@ async function deleteEntry(id) {
 }
 
 // ==========================================
-// 8. File Upload (GAS Integration)
+// 11. File Upload (GAS Integration)
 // ==========================================
-
 async function getPortfolioSettings() {
     try {
         const { data, error } = await db
@@ -1384,9 +1175,8 @@ async function uploadFileToDrive(file, fileName) {
 }
 
 // ==========================================
-// 9. Export Excel (SheetJS)
+// 12. Export Excel
 // ==========================================
-
 function openExportModal() {
     const expDeptGroup = document.getElementById('exp_dept_group');
     if (isAdminView() && expDeptGroup) {
@@ -1493,9 +1283,8 @@ async function processExport() {
 }
 
 // ==========================================
-// 10. Import Functions (Excel & Google Sheets)
+// 13. Import Functions
 // ==========================================
-
 async function processImportRows(rows, foundHeaders) {
     const pad2 = n => String(n).padStart(2, '0');
 
@@ -1534,7 +1323,7 @@ async function processImportRows(rows, foundHeaders) {
                     if (y < 2400) y = y + 543;
                     return `${y - 543}-${pad2(dd.m)}-${pad2(dd.d)}`;
                 }
-            } catch (e) { /* ignore */ }
+            } catch (e) { }
         }
         return null;
     }
@@ -1850,55 +1639,14 @@ function downloadImportTemplate() {
     }
 
     const headers = [
-        'ชื่อ - สกุล',
-        'กลุ่มสาระ',
-        'ภาคเรียนที่',
-        'ปีการศึกษา',
-        'ประเภท',
-        'รายการ',
-        'เมื่อวันที่',
-        'ถึงวันที่',
-        'จัดโดย',
-        'ไฟล์'
+        'ชื่อ - สกุล', 'กลุ่มสาระ', 'ภาคเรียนที่', 'ปีการศึกษา', 'ประเภท',
+        'รายการ', 'เมื่อวันที่', 'ถึงวันที่', 'จัดโดย', 'ไฟล์'
     ];
 
     const exampleRows = [
-        [
-            'นางสาวสมใจ รักเรียน',
-            'ภาษาไทย',
-            1,
-            2568,
-            'รางวัลที่ได้รับ',
-            'ครูดีเด่นระดับจังหวัด ประจำปี 2568',
-            new Date(2025, 6, 23),
-            new Date(2025, 6, 23),
-            'สพม.เขต 9',
-            ''
-        ],
-        [
-            'นายสมชาย ใจดี',
-            'คณิตศาสตร์',
-            1,
-            2568,
-            'อบรม,ประชุม,สัมมนา',
-            'การพัฒนาทักษะ AI สำหรับครูยุคใหม่',
-            new Date(2025, 8, 15),
-            new Date(2025, 8, 16),
-            'สพฐ.',
-            ''
-        ],
-        [
-            'นางมาลี สุขสันต์',
-            'วิทยาศาสตร์และเทคโนโลยี',
-            2,
-            2568,
-            'รางวัลที่ได้รับ',
-            'ชนะเลิศการแข่งขันสื่อนวัตกรรมการสอนระดับเขต',
-            new Date(2025, 11, 10),
-            new Date(2025, 11, 10),
-            'สพม.เขต 9',
-            'https://drive.google.com/...'
-        ]
+        ['นางสาวสมใจ รักเรียน', 'ภาษาไทย', 1, 2568, 'รางวัลที่ได้รับ', 'ครูดีเด่นระดับจังหวัด ประจำปี 2568', new Date(2025, 6, 23), new Date(2025, 6, 23), 'สพม.เขต 9', ''],
+        ['นายสมชาย ใจดี', 'คณิตศาสตร์', 1, 2568, 'อบรม,ประชุม,สัมมนา', 'การพัฒนาทักษะ AI สำหรับครูยุคใหม่', new Date(2025, 8, 15), new Date(2025, 8, 16), 'สพฐ.', ''],
+        ['นางมาลี สุขสันต์', 'วิทยาศาสตร์และเทคโนโลยี', 2, 2568, 'รางวัลที่ได้รับ', 'ชนะเลิศการแข่งขันสื่อนวัตกรรมการสอนระดับเขต', new Date(2025, 11, 10), new Date(2025, 11, 10), 'สพม.เขต 9', 'https://drive.google.com/...']
     ];
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
@@ -2096,9 +1844,8 @@ async function importFromGoogleSheets() {
 }
 
 // ==========================================
-// 11. Settings & Module Admin Management
+// 14. Settings & Module Admin
 // ==========================================
-
 async function ensureModuleExists() {
     try {
         const { data, error } = await db
@@ -2158,7 +1905,9 @@ async function openSettingsModal() {
         await initTomSelect(personnelList || []);
 
         Swal.close();
-        document.getElementById('settingsModal').classList.remove('hidden');
+        const modal = document.getElementById('settingsModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
     } catch (err) {
         Swal.close();
         Swal.fire('ผิดพลาด', err.message, 'error');
@@ -2363,7 +2112,9 @@ async function removeModuleAdmin(userId) {
 }
 
 function closeSettingsModal() {
-    document.getElementById('settingsModal').classList.add('hidden');
+    const modal = document.getElementById('settingsModal');
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
     if (tomSelectInstance) {
         tomSelectInstance.destroy();
         tomSelectInstance = null;
@@ -2401,55 +2152,45 @@ async function saveSettings(e) {
     }
 }
 
-/**
- * initTeacherSelect — สร้าง TomSelect สำหรับเลือกครู (เฉพาะ Admin)
- * กรองเฉพาะตำแหน่ง: ผู้อำนวยการ, รองผู้อำนวยการ, ครู
- */
+// ==========================================
+// initTeacherSelect — สำหรับเลือกครู (Admin)
+// ==========================================
 async function initTeacherSelect() {
     const selectEl = document.getElementById('f_user_id');
     if (!selectEl) return;
 
-    // ถ้ามี instance เก่า ให้ทำลายก่อน
     if (teacherSelectInstance) {
         teacherSelectInstance.destroy();
         teacherSelectInstance = null;
     }
 
     try {
-        // ดึงข้อมูลบุคลากรเฉพาะตำแหน่งที่ต้องการ
-        // สมมติว่ามีคอลัมน์ `role` ในตาราง core_personnel
-        // ปรับเงื่อนไขตามโครงสร้างจริง (อาจใช้ position, department, หรือ custom field)
         const { data, error } = await db
             .from('core_personnel')
             .select('id, first_name, last_name, prefix, role')
-            .in('role', ['director', 'deputy', 'teacher'])   // ← ปรับตามค่าจริง
+            .in('role', ['director', 'deputy', 'teacher'])
             .order('first_name');
 
         if (error) throw error;
 
-        // สร้าง options สำหรับ TomSelect
         const options = data.map(p => ({
             value: p.id,
             text: `${p.prefix || ''}${p.first_name} ${p.last_name} (${p.role || ''})`
         }));
 
-        // เพิ่มตัวเองเป็นตัวเลือกแรก (ถ้าอยู่ในลิสต์)
         const ownIndex = options.findIndex(opt => opt.value === currentUser.id);
         if (ownIndex > -1) {
             const own = options.splice(ownIndex, 1)[0];
             options.unshift({ ...own, text: `👤 ${own.text} (ตัวเอง)` });
         } else {
-            // ถ้าตัวเองไม่อยู่ในลิสต์ (เช่น ไม่ใช่ครู) ก็เพิ่มเข้าไป
             options.unshift({
                 value: currentUser.id,
                 text: `👤 ${currentPersonnel.first_name} ${currentPersonnel.last_name} (ตัวเอง)`
             });
         }
 
-        // กำหนดค่าเริ่มต้นเป็นตัวเอง
         const defaultVal = currentUser.id;
 
-        // สร้าง TomSelect
         teacherSelectInstance = new TomSelect(selectEl, {
             options: options,
             placeholder: '-- พิมพ์ค้นหาชื่อครู --',
@@ -2472,18 +2213,14 @@ async function initTeacherSelect() {
 
     } catch (err) {
         console.error('initTeacherSelect error:', err);
-        // Fallback: ใช้ select ธรรมดา
         selectEl.innerHTML = '<option value="">-- ไม่สามารถโหลดข้อมูล --</option>';
     }
 }
 
 // ==========================================
-// 12. ประกาศฟังก์ชัน Global (ที่ใช้ใน HTML)
+// 15. Expose Globals
 // ==========================================
-
-window.logout = logout;
 window.toggleRoleView = toggleRoleView;
-window.toggleSidebar = toggleSidebar;
 window.switchTab = switchTab;
 window.openEntryFormModal = openEntryFormModal;
 window.closeEntryModal = closeEntryModal;
@@ -2516,3 +2253,10 @@ window.parseCsv = parseCsv;
 window.loadAllData = loadAllData;
 window.toggleEntryType = toggleEntryType;
 window.initTeacherSelect = initTeacherSelect;
+
+// ✅ Globals ใหม่สำหรับเทมเพลต
+window.refreshNavButtons = window.refreshNavButtons;
+window.restorePageTitle = restorePageTitle;
+window.getPageTitle = getPageTitle;
+
+console.log('✅ portfolio.js loaded (template-compliant + nav buttons)');

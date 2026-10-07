@@ -102,12 +102,17 @@ $(document).ready(async function () {
         updateUserRoleLabel(role);
         renderUserAvatar(personnel);
 
-        if (isAdmin || isModuleAdmin) {
-            $('#nav-admin').removeClass('hidden').addClass('active');
-            $('#btnModeTeacher').removeClass('hidden').addClass('flex');
-        }
-        if (window.isAdminUser(role, isAdminMode) || isModuleAdmin) {
-            $('#nav-teacher').removeClass('hidden');
+        // ✅ แจ้ง HTML helper ว่าผู้ใช้มีสิทธิ์เห็นปุ่ม/เมนูแอดมินหรือไม่
+        //    (แก้ปัญหาข้อมูลหายหลัง initModuleSidebar re-render)
+        if (typeof window.setGuidanceRoleVisibility === 'function') {
+            window.setGuidanceRoleVisibility(isAdmin || isModuleAdmin);
+        } else {
+            // Fallback (ก่อน HTML helper พร้อม)
+            if (isAdmin || isModuleAdmin) {
+                $('#nav-admin').removeClass('hidden');
+                $('#btnModeTeacher').removeClass('hidden').addClass('flex');
+                $('#nav-teacher').removeClass('hidden');
+            }
         }
 
         await window.logUserAction('เข้าสู่ระบบแนะแนว (Admin)', 'guidance');
@@ -432,9 +437,9 @@ function renderDashboardFromData(progress, mappedClasses) {
             <td class="px-4 py-3 text-center">
                 <div class="flex flex-wrap gap-1 justify-center">
                     ${t.rooms.map(r => {
-                        const color = r.status === 'empty' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
-                        return `<span class="px-2 py-0.5 rounded-lg text-xs font-bold ${color}">${escapeHtml(r.name)}</span>`;
-                    }).join('')}
+        const color = r.status === 'empty' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700';
+        return `<span class="px-2 py-0.5 rounded-lg text-xs font-bold ${color}">${escapeHtml(r.name)}</span>`;
+    }).join('')}
                 </div>
             </td>
             <td class="px-4 py-3 text-center font-bold text-rose-600">${t.rooms.length}</td>
@@ -629,13 +634,13 @@ function renderModalRows() {
             <td class="p-4 align-top">
                 <div class="flex flex-wrap gap-2 p-3 border border-gray-200 rounded-xl min-h-[80px] bg-gray-50 items-center" id="class-badge-container-${idx}">
                     ${row.classes.map((clsId, cIdx) => {
-                        const cInfo = allSystemClasses.find(c => c.id === clsId);
-                        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
-                        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
+        const cInfo = allSystemClasses.find(c => c.id === clsId);
+        const cName = cInfo ? `ม.${cInfo.grade_level}/${cInfo.room_number}` : 'ไม่ทราบ';
+        return `<span class="inline-flex bg-white border border-gray-300 text-gray-700 px-3 py-1 rounded-full text-sm font-bold shadow-sm">
                                     ${escapeHtml(cName)}
                                     <button onclick="teacherModalData[${idx}].classes.splice(${cIdx}, 1); renderModalRows();" class="ml-2 text-red-400 hover:text-red-600">&times;</button>
                                 </span>`;
-                    }).join('')}
+    }).join('')}
                 </div>
                 <select id="class-select-${idx}" class="mt-2 w-full tom-selector" data-idx="${idx}">
                     <option value="">-- เลือกห้องเรียน --</option>

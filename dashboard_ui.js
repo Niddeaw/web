@@ -50,12 +50,12 @@ function toggleSidebarCollapse() {
     if (!sb) return;
     const next = !sb.classList.contains('collapsed');
     applySidebarCollapsed(next);
-    try { localStorage.setItem('cp_sidebar_collapsed', next ? '1' : '0'); } catch (e) {}
+    try { localStorage.setItem('cp_sidebar_collapsed', next ? '1' : '0'); } catch (e) { }
 }
 
 function restoreSidebarCollapse() {
     let saved = '0';
-    try { saved = localStorage.getItem('cp_sidebar_collapsed') || '0'; } catch (e) {}
+    try { saved = localStorage.getItem('cp_sidebar_collapsed') || '0'; } catch (e) { }
     if (window.innerWidth > 760 && saved === '1') {
         applySidebarCollapsed(true);
     }
@@ -137,12 +137,15 @@ function handleLogout() {
         cancelButtonText: 'ยกเลิก'
     }).then(async (result) => {
         if (result.isConfirmed) {
-            try { localStorage.removeItem('activeMode'); } catch (e) {}
+            try { localStorage.removeItem('activeMode'); } catch (e) { }
             await db.auth.signOut();
             window.location.replace('login.html');
         }
     });
 }
+
+// ✅ Alias — รองรับ onclick="logout()" ที่ใช้ใน Sidebar config
+window.logout = handleLogout;
 
 /* ---------- Auto-restore collapse on load ---------- */
 document.addEventListener('DOMContentLoaded', () => {
@@ -166,40 +169,40 @@ const DISPLAY_KEYS = {
     density: 'cp_density'
 };
 
-function applyFontSize(size){
+function applyFontSize(size) {
     const scale = { small: 0.9, normal: 1, large: 1.15 }[size] || 1;
     document.documentElement.style.setProperty('--d-font-scale', scale);
     document.querySelectorAll('[data-font]').forEach(b => {
         b.classList.toggle('active', b.dataset.font === size);
     });
-    try { localStorage.setItem(DISPLAY_KEYS.font, size); } catch(e){}
+    try { localStorage.setItem(DISPLAY_KEYS.font, size); } catch (e) { }
 }
 
-function applyDensity(density){
+function applyDensity(density) {
     document.body.classList.toggle('d-compact', density === 'compact');
     document.querySelectorAll('[data-density]').forEach(b => {
         b.classList.toggle('active', b.dataset.density === density);
     });
-    try { localStorage.setItem(DISPLAY_KEYS.density, density); } catch(e){}
+    try { localStorage.setItem(DISPLAY_KEYS.density, density); } catch (e) { }
 }
 
-function setFontSize(size){ applyFontSize(size); }
-function setDensity(density){ applyDensity(density); }
+function setFontSize(size) { applyFontSize(size); }
+function setDensity(density) { applyDensity(density); }
 
-function initDisplaySettings(){
+function initDisplaySettings() {
     let font = 'normal';
     let density = 'normal';
     try {
         font = localStorage.getItem(DISPLAY_KEYS.font) || 'normal';
         density = localStorage.getItem(DISPLAY_KEYS.density) || 'normal';
-    } catch(e){}
+    } catch (e) { }
     applyFontSize(font);
     applyDensity(density);
 }
 
-function toggleSettingsMenu(force){
+function toggleSettingsMenu(force) {
     const menu = document.getElementById('settingsMenu');
-    const btn  = document.getElementById('settingsBtn');
+    const btn = document.getElementById('settingsBtn');
     if (!menu || !btn) return;
     const open = typeof force === 'boolean' ? force : !menu.classList.contains('open');
     menu.classList.toggle('open', open);
@@ -318,3 +321,164 @@ function getPersonnelAvatarUrl(p) {
         || p.avatar
         || null;
 }
+
+// =======================================================
+// ✅ Global Navigation Helpers
+// =======================================================
+if (typeof window.switchToHome !== 'function') {
+    window.switchToHome = function () {
+        window.location.href = 'index.html';
+    };
+}
+
+// ✅ ส่ง hash ไปด้วย → index.html จะอ่านแล้ว switch tab ให้เอง
+if (typeof window.switchMainTab !== 'function') {
+    window.switchMainTab = function (category, btnElement) {
+        const hash = category ? '#' + category : '';
+        window.location.href = 'index.html' + hash;
+    };
+}
+
+if (typeof window.changeMyPassword !== 'function') {
+    window.changeMyPassword = async function () {
+        if (typeof Swal === 'undefined') return;
+
+        const { value: formValues } = await Swal.fire({
+            title: 'เปลี่ยนรหัสผ่าน',
+            html: `
+                <div class="text-sm text-gray-500 mb-3">กรุณาตั้งรหัสผ่านใหม่ (อย่างน้อย 6 ตัวอักษร)</div>
+                <input id="swal-pwd1" type="password" placeholder="รหัสผ่านใหม่" class="w-full border border-gray-300 rounded-lg px-4 py-3 mb-3 outline-none focus:border-blue-500">
+                <input id="swal-pwd2" type="password" placeholder="ยืนยันรหัสผ่านใหม่อีกครั้ง" class="w-full border border-gray-300 rounded-lg px-4 py-3 outline-none focus:border-blue-500">
+            `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonColor: '#2563eb',
+            confirmButtonText: 'อัปเดตรหัสผ่าน',
+            cancelButtonText: 'ยกเลิก',
+            preConfirm: () => {
+                const p1 = document.getElementById('swal-pwd1').value;
+                const p2 = document.getElementById('swal-pwd2').value;
+                if (!p1 || p1.length < 6) { Swal.showValidationMessage('รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร'); return false; }
+                if (p1 !== p2) { Swal.showValidationMessage('รหัสผ่านทั้งสองช่องไม่ตรงกัน'); return false; }
+                return p1;
+            }
+        });
+
+        if (!formValues) return;
+        Swal.fire({ title: 'กำลังอัปเดต...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const { error } = await db.auth.updateUser({ password: formValues });
+        if (error) Swal.fire('ผิดพลาด', error.message, 'error');
+        else Swal.fire({ icon: 'success', title: 'เปลี่ยนรหัสผ่านสำเร็จ!', text: 'ครั้งต่อไปกรุณาใช้รหัสผ่านใหม่นี้ในการเข้าสู่ระบบ' });
+    };
+}
+
+// =======================================================
+// ✅ initModuleSidebar — Helper กลางสำหรับทุกโมดูล
+// ใช้แทน per-module sidebar files (behavior_sidebar.js, club_sidebar.js ฯลฯ)
+//
+// @param {object} options
+//   - moduleKey      : string      key สำหรับโหลด config จาก DB (เช่น 'club_system')
+//   - fallbackConfig : object      config สำรองถ้า DB ว่าง
+//   - pageTitle      : string      ชื่อหน้า (topbar)
+//   - topbarButtons  : array       ปุ่มบน topbar
+//   - activeId       : string      id ของเมนูที่ active
+//   - onReady        : function    callback หลัง render (เช่น updateSidebarNav)
+//   - waitRole       : boolean     รอ currentUserRole ก่อน re-render (default true)
+//   - reRenderDelay  : number      หน่วง ms ก่อน re-render (default 0)
+// =======================================================
+async function initModuleSidebar(options = {}) {
+    const {
+        moduleKey = null,
+        fallbackConfig = null,
+        pageTitle = 'WRK System',
+        topbarButtons = [],
+        activeId = null,
+        onReady = null,
+        waitRole = true,
+        reRenderDelay = 0
+    } = options;
+
+    // ============ 1) Render fallback ทันที (เมื่อ DOM พร้อม) ============
+    const renderFallback = () => {
+        try {
+            if (fallbackConfig) {
+                renderSidebar({ ...fallbackConfig, autoActivate: false });
+            }
+            renderTopbar({ pageTitle, buttons: topbarButtons });
+            console.log('📦 initModuleSidebar: fallback rendered');
+            _applyOnReady();
+        } catch (e) {
+            console.error('❌ Fallback render error:', e);
+        }
+    };
+
+    const _applyOnReady = () => {
+        if (typeof onReady === 'function') {
+            try { onReady(); } catch (e) { console.warn('onReady error:', e); }
+        }
+        // Set active item
+        if (activeId) {
+            setTimeout(() => setActiveNavItem(activeId), 50);
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderFallback);
+    } else {
+        renderFallback();
+    }
+
+    // ============ 2) Full init (โหลด DB config) ============
+    window.addEventListener('load', async () => {
+        // รอ currentUserRole (สำหรับ role filter)
+        if (waitRole) {
+            let waited = 0;
+            while (!window.currentUserRole && waited < 5000) {
+                await new Promise(r => setTimeout(r, 150));
+                waited += 150;
+            }
+        }
+
+        // หน่วงเวลาเพิ่มถ้ากำหนด
+        if (reRenderDelay > 0) {
+            await new Promise(r => setTimeout(r, reRenderDelay));
+        }
+
+        // โหลด DB config
+        let dbConfig = null;
+        try {
+            if (moduleKey && typeof loadSidebarConfigFromDB === 'function') {
+                const keys = [moduleKey, window.currentUserRole, 'default'];
+                for (const key of keys) {
+                    if (!key) continue;
+                    dbConfig = await loadSidebarConfigFromDB(key);
+                    if (dbConfig && Object.keys(dbConfig).length > 0) {
+                        console.log(`✅ initModuleSidebar: DB key="${key}"`);
+                        break;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('⚠️ Load DB config error:', e);
+        }
+
+        const finalConfig = (dbConfig && Object.keys(dbConfig).length > 0)
+            ? dbConfig
+            : fallbackConfig;
+
+        if (!finalConfig) {
+            console.warn('⚠️ initModuleSidebar: ไม่มี config ให้ render');
+            _applyOnReady();
+            return;
+        }
+
+        renderSidebar({ ...finalConfig, autoActivate: false });
+        renderTopbar({ pageTitle, buttons: topbarButtons });
+        console.log('✅ initModuleSidebar: re-rendered');
+        _applyOnReady();
+    });
+}
+
+window.initModuleSidebar = initModuleSidebar;
+
+console.log('✅ dashboard_ui.js loaded (+ Global Nav Helpers)');

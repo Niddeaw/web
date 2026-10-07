@@ -4,7 +4,7 @@
 // - ใช้ hasModuleAccess() สำหรับตรวจสอบ Module Admin
 // - ใช้ requireAdmin() ป้องกันฟังก์ชัน Admin
 // - ใช้ logUserAction() ทุกการกระทำสำคัญ
-// - ใช้ applyVisibilityByRole() + canManageSettings() จัดการ UI
+// - ใช้ applyVisibilityByRole() จัดการ UI
 // - ใช้ logout() มาตรฐานกลาง (signOut → login.html)
 // - staff, office → config.js แสดง Swal "ไม่มีสิทธิ์" + await OK + redirect index.html
 // - หัวหน้าปกครอง / หัวหน้าระดับ → read-only (currentViewRole = head_discipline / head_grade)
@@ -31,86 +31,79 @@ let isModuleAdmin = false;
 let selectedRecipientIds = new Set();
 let recordSearchTimeout = null;
 
+// ✅ Cache for recipients data
+let _recipientsCache = null;
+let _recipientsCacheTime = 0;
+const RECIPIENTS_TTL = 30 * 1000; // 30 seconds
+
 // ==========================================
-// AUTH & INIT — pattern เดียวกับ EQ
+// AUTH & INIT — Optimized: Parallel + no duplicate queries
 // ==========================================
 window.addEventListener('load', async () => {
+    const t0 = performance.now();
     try {
-        // ✅ ตรวจสอบ session ด้วย getSession() แทน getUser()
-        const { data: { session } } = await db.auth.getSession();
-        if (!session) {
-            window.location.href = 'login.html';
-            return;
-        }
-
-        const user = session.user;
-
-        const { data: personnel, error: personnelError } = await db
-            .from('core_personnel')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-        if (personnelError || !personnel) {
-            console.error('Personnel not found:', personnelError);
-            window.location.href = 'login.html';
-            return;
-        }
-
-        const role = personnel.role;
-
-        // ✅ ตรวจสอบ role ที่ไม่อนุญาต (office, staff)
-        if (role === 'office' || role === 'staff') {
-            window.location.replace('index.html');
-            return;
-        }
-
-        // ✅ เรียก checkSessionAndRole สำหรับ role ที่เหลือ
-        const result = await checkSessionAndRole('ระบบบริหารทุนการศึกษา', [
+        // ✅ checkSessionAndRole จัดการ session + personnel + role ครบในตัว
+        const result = await checkSessionAndRole('scholarship', [
             'super_admin', 'admin', 'director', 'deputy', 'teacher'
         ]);
-        if (!result) return;
+        if (!result) return; // config.js จัดการ redirect เองแล้ว
 
         currentUser = result.user;
         currentProfile = result.personnel;
         currentUserId = currentUser.id;
         actualRole = currentProfile.role;
 
-        // ดึงข้อมูลปีการศึกษา/เทอม
-        const { data: sInfo } = await db.from('core_school_info')
-            .select('current_academic_year, current_semester')
-            .single();
+        // ✅ FIX: Expose to window for standard topbar re-render
+        window.currentUser = currentUser;
+        window.currentProfile = currentProfile;
+        window.currentUserRole = actualRole;
 
-        if (sInfo) {
-            currentYear = sInfo.current_academic_year;
-            currentTerm = sInfo.current_semester;
-            const termDisplay = document.getElementById('term-display');
-            if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
-        }
-
-        // ✅ ตรวจสอบ Module Admin
-        isModuleAdmin = await hasModuleAccess(actualRole, 'scholarship', currentUser.id);
-
-        // ✅ ตรวจสอบหัวหน้างานปกครอง / หัวหน้าระดับชั้น
-        const [discHead, gradeHead] = await Promise.all([
+        // ✅ Parallel: ดึง school_info + module_access + disc_head + grade_head + settings
+        const [sInfoRes, moduleAccess, discHeadRes, gradeHeadRes, settingsRes] = await Promise.all([
+            db.from('core_school_info')
+                .select('current_academic_year, current_semester')
+                .single(),
+            hasModuleAccess(actualRole, 'scholarship', currentUser.id),
             db.from('core_discipline_heads')
                 .select('id')
                 .eq('personnel_id', currentUser.id)
-                .eq('academic_year', currentYear)
                 .maybeSingle(),
             db.from('behavior_grade_heads')
                 .select('grade_level')
                 .eq('teacher_id', currentUser.id)
-                .maybeSingle()
+                .maybeSingle(),
+            db.from('core_scholarship_settings')
+                .select('settings')
+                .single()
+                .then(r => r)
+                .catch(() => ({ data: null }))
         ]);
 
-        // ✅ กำหนด currentViewRole
+        // กำหนดปี/เทอม
+        if (sInfoRes.data) {
+            currentYear = sInfoRes.data.current_academic_year;
+            currentTerm = sInfoRes.data.current_semester;
+            const termDisplay = document.getElementById('term-display');
+            if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
+        }
+
+        // Module Admin
+        isModuleAdmin = !!moduleAccess;
+
+        // โหลด Settings
+        if (settingsRes?.data?.settings) {
+            moduleSettings = settingsRes.data.settings;
+        } else {
+            moduleSettings = { gas_url: "", drive_folder_id: "", pdf_api_url: "", slide_template_id: "" };
+        }
+
+        // กำหนด ViewRole
         const isGlobalAdmin = isAdminUser(actualRole, false);
         if (isGlobalAdmin || isModuleAdmin) {
             currentViewRole = 'module_admin';
-        } else if (discHead?.data) {
+        } else if (discHeadRes?.data) {
             currentViewRole = 'head_discipline';
-        } else if (gradeHead?.data) {
+        } else if (gradeHeadRes?.data) {
             currentViewRole = 'head_grade';
         } else {
             currentViewRole = 'teacher';
@@ -118,25 +111,38 @@ window.addEventListener('load', async () => {
 
         isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
 
-        // ✅ applyVisibilityByRole
+        // UI Setup
         applyVisibilityByRole(actualRole, isGlobalAdmin || isModuleAdmin, {
             settingsBtn: 'admin-settings-btn'
         });
-
         updateUIByRole();
         updateAdminModeButton();
-
-        // ✅ logUserAction
-        await logUserAction('เข้าสู่ระบบบริหารทุน', 'scholarship');
-
-        // ✅ โหลดข้อมูล
-        await loadModuleSettings();
         initTomSelects();
+
+        // แสดง UI ทันที (ก่อนโหลดข้อมูลอื่นๆ)
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+
+        // Fire-and-forget log (ไม่ต้อง await)
+        logUserAction('เข้าสู่ระบบบริหารทุน', 'scholarship').catch(() => { });
+
+        // ✅ โหลด classrooms (blocking — ต้องใช้ก่อน switchTab)
         await loadClassrooms();
+
         applyAdminVisibility();
-        document.getElementById('mainBody').classList.add('loaded');
         switchTab('recipients');
-        refreshDashboard();
+
+        // ✅ Defer: Dashboard (โหลดหลัง UI แสดงแล้ว)
+        setTimeout(() => {
+            refreshDashboard();
+            console.log(`⚡ Dashboard (deferred): ${Math.round(performance.now() - t0)} ms`);
+        }, 50);
+
+        console.log(`⚡ Total init: ${Math.round(performance.now() - t0)} ms`);
+
+        // ✅ Update standard topbar
+        if (typeof window.refreshNavButtons === 'function') {
+            window.refreshNavButtons();
+        }
 
     } catch (err) {
         console.error('Initialization error:', err);
@@ -145,15 +151,12 @@ window.addEventListener('load', async () => {
 });
 
 // ==========================================
-// checkAuth — ถูกแทนที่ด้วย window.addEventListener('load') ด้านบนแล้ว
-// ==========================================
-
-// ==========================================
 // UI Helpers
 // ==========================================
 function updateUIByRole() {
-    document.getElementById('userNameDisplay').innerText =
-        `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
+    // Old navbar elements (อาจไม่มีแล้ว)
+    const nameEl = document.getElementById('userNameDisplay');
+    if (nameEl) nameEl.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
 
     let roleText = 'ครูที่ปรึกษา';
     if (currentViewRole === 'super_admin') roleText = 'ผู้ดูแลระบบสูงสุด';
@@ -161,7 +164,20 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_discipline') roleText = 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
 
-    document.getElementById('userRoleDisplay').innerText = roleText;
+    const roleEl = document.getElementById('userRoleDisplay');
+    if (roleEl) roleEl.innerText = roleText;
+
+    // ✅ Update standard topbar
+    if (typeof setUserDisplayName === 'function') {
+        try { setUserDisplayName(currentProfile); } catch (e) { }
+    }
+    if (typeof renderUserAvatar === 'function') {
+        try { renderUserAvatar(currentProfile); } catch (e) { }
+    }
+    if (typeof updateUserRoleLabel === 'function') {
+        try { updateUserRoleLabel(roleText); } catch (e) { }
+    }
+
     applyAdminVisibility();
 }
 
@@ -184,6 +200,27 @@ function updateAdminModeButton() {
 }
 
 // ==========================================
+// ✅ ปุ่มนำทาง — scholarship
+// ==========================================
+window.refreshNavButtons = function () {
+    const btn = document.getElementById('btnAdminMode');
+    if (!btn) return;
+    const isAdmin = isAdminUser(actualRole, false) || isModuleAdmin;
+    if (!isAdmin) {
+        btn.classList.add('hidden');
+        btn.classList.remove('flex');
+        return;
+    }
+    btn.classList.remove('hidden');
+    btn.classList.add('flex');
+    if (currentViewRole === 'teacher') {
+        btn.innerHTML = '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>';
+    } else {
+        btn.innerHTML = '<i class="fa-solid fa-chalkboard-user"></i><span class="hidden sm:inline">โหมดครู</span>';
+    }
+};
+
+// ==========================================
 // toggleRoleView (ใช้ isAdminUser จาก config)
 // ==========================================
 window.toggleRoleView = function () {
@@ -196,6 +233,11 @@ window.toggleRoleView = function () {
     updateUIByRole();
     loadClassrooms();
 
+    // ✅ Update topbar button
+    if (typeof window.refreshNavButtons === 'function') {
+        window.refreshNavButtons();
+    }
+
     logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'scholarship');
 
     Swal.fire({
@@ -207,34 +249,12 @@ window.toggleRoleView = function () {
 };
 
 // ==========================================
-// applyAdminVisibility (ใช้ applyVisibilityByRole)
+// applyAdminVisibility
 // ==========================================
 function applyAdminVisibility() {
     const isAdmin = isAdminUser(actualRole, false) || isModuleAdmin;
 
-    // ✅ ใช้ applyVisibilityByRole จาก config.js
-    applyVisibilityByRole(actualRole, isAdmin, {
-        settingsBtn: 'admin-settings-btn'
-    });
-
-    // จัดการปุ่มบันทึกทุน
-    const recordBtnNav = document.getElementById('btnRecordScholarshipNav');
-    if (recordBtnNav) {
-        if (isAdmin) {
-            recordBtnNav.classList.add('visible');
-            recordBtnNav.classList.remove('admin-only');
-        } else {
-            recordBtnNav.classList.remove('visible');
-            recordBtnNav.classList.add('admin-only');
-        }
-    }
-
-    const recordBtn = document.getElementById('btnRecordScholarship');
-    if (recordBtn) {
-        recordBtn.style.display = 'none !important';
-    }
-
-    // จัดการปุ่ม admin-only ทั่วไป
+    // จัดการปุ่ม .admin-only ใน tab content
     document.querySelectorAll('.admin-only').forEach(el => {
         if (isAdmin) {
             el.classList.add('visible');
@@ -862,6 +882,7 @@ function updateDeleteButtonState() {
 // ===== ลบเฉพาะที่เลือก =====
 window.deleteSelectedScholarships = async function () {
     if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    clearRecipientsCache();  // ✅ เพิ่มบรรทัดนี้
 
     const ids = Array.from(selectedRecipientIds);
     if (ids.length === 0) {
@@ -908,6 +929,7 @@ window.deleteSelectedScholarships = async function () {
 // ===== ลบทั้งหมด =====
 window.deleteAllScholarships = async function () {
     if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    clearRecipientsCache();  // ✅
 
     const confirm = await Swal.fire({
         title: '⚠️ ลบทุนทั้งหมด?',
@@ -978,7 +1000,20 @@ window.deleteAllScholarships = async function () {
     }
 };
 
-async function fetchRecipientsData() {
+// ✅ Helper: Clear cache
+function clearRecipientsCache() {
+    _recipientsCache = null;
+    _recipientsCacheTime = 0;
+}
+window.clearRecipientsCache = clearRecipientsCache;
+
+async function fetchRecipientsData(forceRefresh = false) {
+    // ✅ ตรวจ cache ก่อน
+    if (!forceRefresh && _recipientsCache && (Date.now() - _recipientsCacheTime) < RECIPIENTS_TTL) {
+        console.log('⚡ fetchRecipientsData: จาก cache');
+        return _recipientsCache;
+    }
+
     try {
         let scholarships = [];
         let hasNote = true;
@@ -986,21 +1021,9 @@ async function fetchRecipientsData() {
         try {
             const { data, error } = await db.from('core_scholarships')
                 .select(`
-                    id,
-                    student_id,
-                    scholarship_name,
-                    amount,
-                    academic_year,
-                    semester,
-                    note,
-                    created_at,
-                    core_students (
-                        id,
-                        student_id_card,
-                        prefix,
-                        first_name,
-                        last_name
-                    )
+                    id, student_id, scholarship_name, amount,
+                    academic_year, semester, note, created_at,
+                    core_students ( id, student_id_card, prefix, first_name, last_name )
                 `)
                 .order('created_at', { ascending: false });
 
@@ -1011,20 +1034,9 @@ async function fetchRecipientsData() {
                 hasNote = false;
                 const { data, error } = await db.from('core_scholarships')
                     .select(`
-                        id,
-                        student_id,
-                        scholarship_name,
-                        amount,
-                        academic_year,
-                        semester,
-                        created_at,
-                        core_students (
-                            id,
-                            student_id_card,
-                            prefix,
-                            first_name,
-                            last_name
-                        )
+                        id, student_id, scholarship_name, amount,
+                        academic_year, semester, created_at,
+                        core_students ( id, student_id_card, prefix, first_name, last_name )
                     `)
                     .order('created_at', { ascending: false });
 
@@ -1036,7 +1048,9 @@ async function fetchRecipientsData() {
         }
 
         if (!scholarships || scholarships.length === 0) {
-            return { data: [], total: 0 };
+            _recipientsCache = { data: [], total: 0 };
+            _recipientsCacheTime = Date.now();
+            return _recipientsCache;
         }
 
         let classroomMap = {};
@@ -1073,7 +1087,11 @@ async function fetchRecipientsData() {
             };
         });
 
-        return { data: data, total: data.length };
+        // ✅ เก็บ cache
+        _recipientsCache = { data, total: data.length };
+        _recipientsCacheTime = Date.now();
+        console.log('💾 fetchRecipientsData: cache updated (' + data.length + ' rows)');
+        return _recipientsCache;
     } catch (err) {
         console.error('Error fetching recipients data:', err);
         throw err;
@@ -1445,6 +1463,7 @@ window.importStudentScholarships = function (studentId) {
             if (errorCount > 0) msg += `, ผิดพลาด ${errorCount} รายการ`;
 
             await logUserAction(`นำเข้าทุนของนักเรียน ${studentId} (สำเร็จ ${successCount})`, 'scholarship');
+            clearRecipientsCache();  // ✅
             await Swal.fire('เสร็จสิ้น', msg, 'success');
 
             await showStudentScholarshipHistory(studentId);
@@ -1494,6 +1513,7 @@ window.closeEditScholarshipModal = function () {
 
 window.updateScholarshipRecord = async function () {
     if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    clearRecipientsCache();  // ✅
 
     const id = document.getElementById('edit_record_id').value;
     const scholarshipName = document.getElementById('edit_scholarship_name').value.trim();
@@ -1570,6 +1590,7 @@ window.updateScholarshipRecord = async function () {
 // ===== ลบทุน =====
 window.deleteScholarshipRecord = async function (scholarshipId) {
     if (!requireAdmin(actualRole, false, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    clearRecipientsCache();  // ✅
 
     try {
         const { data, error } = await db.from('core_scholarships')
@@ -2030,6 +2051,10 @@ window.saveScholarshipRecord = async function () {
     } catch (checkErr) {
         console.error('Error checking duplicate:', checkErr);
         closeRecordScholarshipModal();
+        clearRecipientsCache();  // ✅
+        await Swal.fire('บันทึกสำเร็จ', 'เพิ่มประวัติทุนเรียบร้อย', 'success');
+        refreshDashboard(true);   // ✅ ใช้ true เพื่อ refresh dashboard
+
         await Swal.fire({
             icon: 'info',
             title: 'ไม่สามารถตรวจสอบข้อมูลซ้ำได้',
@@ -2488,11 +2513,12 @@ window.approveApplication = async function (applicationId) {
         if (updateErr) throw updateErr;
 
         await logUserAction(`อนุมัติคำขอทุน ID: ${applicationId}`, 'scholarship');
+        clearRecipientsCache();  // ✅
         Swal.fire('สำเร็จ', 'อนุมัติทุนเรียบร้อย', 'success');
         if (document.getElementById('applicantListModal').classList.contains('flex')) {
             openApplicantListModal();
         }
-        refreshDashboard();
+        refreshDashboard(true);   // ✅
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
@@ -2536,6 +2562,7 @@ window.rejectApplication = async function (applicationId) {
         if (error) throw error;
 
         await logUserAction(`ไม่อนุมัติคำขอทุน ID: ${applicationId} (เหตุผล: ${reason})`, 'scholarship');
+        clearRecipientsCache();  // ✅
         Swal.fire('สำเร็จ', 'บันทึกการไม่อนุมัติเรียบร้อย', 'success');
         if (document.getElementById('applicantListModal').classList.contains('flex')) {
             openApplicantListModal();
@@ -2568,11 +2595,12 @@ window.deleteApplication = async function (applicationId) {
         if (error) throw error;
 
         await logUserAction(`ลบคำขอทุน ID: ${applicationId}`, 'scholarship');
+        clearRecipientsCache();  // ✅
         Swal.fire('ลบสำเร็จ', 'ลบคำขอเรียบร้อย', 'success');
         if (document.getElementById('applicantListModal').classList.contains('flex')) {
             openApplicantListModal();
         }
-        refreshDashboard();
+        refreshDashboard(true);   // ✅
     } catch (err) {
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
@@ -2818,6 +2846,7 @@ window.importRecipientsFromExcel = function () {
             `;
 
             await logUserAction(`นำเข้าทุนจาก Excel (สำเร็จ ${successCount}, ล้มเหลว ${errorCount})`, 'scholarship');
+            clearRecipientsCache();  // ✅
 
             await Swal.fire({
                 title: 'นำเข้าเสร็จสิ้น',
@@ -2906,8 +2935,11 @@ async function insertScholarship(studentId, scholarshipName, amount, academicYea
 }
 
 // ===== REFRESH DASHBOARD =====
-function refreshDashboard() {
+function refreshDashboard(forceRefresh = false) {
     if (typeof window.loadDashboard === 'function' && currentYear && currentTerm) {
+        if (forceRefresh && typeof window.clearDashboardCache === 'function') {
+            window.clearDashboardCache();
+        }
         window.loadDashboard(currentYear, currentTerm);
     } else {
         console.warn('⚠️ loadDashboard not ready or missing year/term');

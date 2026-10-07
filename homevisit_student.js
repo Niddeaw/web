@@ -110,9 +110,15 @@ $(document).ready(async function () {
         window.currentStudentCode = currentStudentCode;
 
         const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
-        document.getElementById('userNameDisplay').textContent = fullName;
+        // ✅ รองรับทั้ง ID เก่าและใหม่
+        const userNameEl = document.getElementById('userNameDisplay') || document.getElementById('userName');
+        if (userNameEl) userNameEl.textContent = fullName;
         document.getElementById('student-fullname-display').textContent = fullName;
         document.getElementById('student-id-display').textContent = student.student_id_card;
+
+        // ✅ ตั้งชื่อ role (นักเรียน)
+        const userRoleEl = document.getElementById('userRoleDisplay') || document.getElementById('userRole');
+        if (userRoleEl) userRoleEl.textContent = 'นักเรียน';
 
         const { data: sInfo } = await db.from('core_school_info')
             .select('current_academic_year, current_semester')

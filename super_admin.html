@@ -10,11 +10,31 @@
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
+    <style>
+        /* ==========================================
+        Role Selector Popover
+        ========================================== */
+        #role-popover-container,
+        [id^="role-popover-"] {
+            animation: popoverFadeIn 0.15s ease;
+        }
+
+        @keyframes popoverFadeIn {
+            from { opacity: 0; transform: translateY(-4px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+
+        [id^="role-wrap-"] input[type="checkbox"] {
+            accent-color: currentColor;
+            cursor: pointer;
+        }
+</style>
 </head>
 
 <body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
     <div class="d-app">
 
+        <!-- ================= Sidebar ================= -->
         <aside class="d-sidebar" id="dSidebar">
             <div class="d-brand">
                 <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
@@ -44,6 +64,12 @@
                     <span class="d-ico"><i class="fa-regular fa-calendar-days"></i></span>
                     <span class="d-label">ปฏิทินกิจกรรม</span>
                 </a>
+
+                <div class="d-nav-title">ปรับแต่งระบบ</div>
+                <a id="btn-menu-sidebar" title="จัดการ Sidebar" onclick="switchMenu('menu-sidebar')">
+                    <span class="d-ico"><i class="fa-solid fa-bars-staggered"></i></span>
+                    <span class="d-label">จัดการ Sidebar</span>
+                </a>
                 <a href="system_logs.html" title="ประวัติการเข้าใช้งาน">
                     <span class="d-ico"><i class="fa-solid fa-clock-rotate-left"></i></span>
                     <span class="d-label">ประวัติการเข้าใช้งาน</span>
@@ -68,8 +94,10 @@
         </aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
+        <!-- ================= Main ================= -->
         <main class="d-main" id="dMain">
 
+            <!-- ================= Topbar ================= -->
             <header class="d-topbar">
                 <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
                 <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
@@ -121,7 +149,9 @@
 
             <div style="padding:0 0 12px;">
 
-                <!-- ================ เมนู school ================ -->
+                <!-- ============================================================ -->
+                <!-- เมนู school -->
+                <!-- ============================================================ -->
                 <div id="menu-school" class="max-w-6xl mx-auto space-y-6">
                     <!-- กล่องข้อมูลโรงเรียน -->
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 transition-colors">
@@ -207,7 +237,7 @@
                                 </tbody>
                             </table>
                         </div>
-                        <div class="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-6">
+                        <div class="bg-blue-50 p-5 rounded-xl border border-blue-200 mb-6 mt-6">
                             <h4 class="font-bold text-blue-800 mb-3"><i class="fa-solid fa-plus-circle mr-1"></i> เพิ่ม/แก้ไขระบบย่อย</h4>
                             <form id="microServiceForm" onsubmit="saveMicroService(event)" class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <input type="hidden" id="ms_id">
@@ -270,6 +300,36 @@
                                         <span class="text-sm font-bold text-gray-700">เปิดแท็บใหม่ (_blank)</span>
                                     </label>
                                 </div>
+                                <!-- ✅ AUTO-SYNC Section -->
+                                <div class="md:col-span-2 bg-emerald-50 border border-emerald-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div class="flex items-center gap-3">
+                                        <input type="checkbox" id="ms_auto_sidebar" checked
+                                            class="w-5 h-5 text-emerald-600 rounded cursor-pointer">
+                                        <label for="ms_auto_sidebar" class="text-sm font-bold text-emerald-800 cursor-pointer flex-1">
+                                            <i class="fa-solid fa-bars-staggered mr-1"></i>
+                                            Sync เข้า Sidebar อัตโนมัติ
+                                        </label>
+                                    </div>
+                                    <div>
+                                        <label class="block text-xs font-bold text-emerald-700 mb-1">
+                                            <i class="fa-solid fa-folder-tree mr-1"></i> วางในกลุ่ม Sidebar
+                                        </label>
+                                        <select id="ms_sidebar_group"
+                                            class="w-full border border-emerald-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-emerald-500 bg-white">
+                                            <option value="">🎯 อัตโนมัติตามกลุ่มงาน (แนะนำ)</option>
+                                            <option value="academic">📂 บริหารวิชาการ</option>
+                                            <option value="budget">📂 บริหารงบประมาณ</option>
+                                            <option value="personnel">📂 บริหารงานบุคคล</option>
+                                            <option value="general">📂 บริหารทั่วไป</option>
+                                            <option value="sec-central-index">📁 ระบบกลาง (ระดับบน)</option>
+                                            <option value="footer">⚙️ การตั้งค่า (Footer)</option>
+                                        </select>
+                                        <p class="text-[10px] text-emerald-600 mt-1">
+                                            <i class="fa-solid fa-info-circle mr-0.5"></i>
+                                            ต้องมี section นี้ใน Sidebar config (ถ้าไม่มี ระบบจะสร้างใหม่ให้)
+                                        </p>
+                                    </div>
+                                </div>
                                 <div class="md:col-span-2 flex justify-end gap-2 mt-4">
                                     <button type="button" onclick="clearMicroServiceForm()" class="px-4 py-2 bg-gray-200 rounded-lg font-bold text-gray-700 hover:bg-gray-300">เคลียร์ฟอร์ม</button>
                                     <button type="submit" class="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold"><i class="fa-solid fa-save mr-1"></i> บันทึก</button>
@@ -279,7 +339,9 @@
                     </div>
                 </div>
 
-                <!-- ================ เมนู personnel ================ -->
+                <!-- ============================================================ -->
+                <!-- เมนู personnel -->
+                <!-- ============================================================ -->
                 <div id="menu-personnel" class="hidden max-w-7xl mx-auto space-y-6">
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
                         <div class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
@@ -311,7 +373,9 @@
                     </div>
                 </div>
 
-                <!-- ================ เมนู students ================ -->
+                <!-- ============================================================ -->
+                <!-- เมนู students -->
+                <!-- ============================================================ -->
                 <div id="menu-students" class="hidden max-w-7xl mx-auto space-y-6">
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
                         <div class="p-5 border-b border-gray-200 flex flex-col md:flex-row justify-between items-center gap-4 bg-gray-50">
@@ -442,7 +506,9 @@
                     </div>
                 </div>
 
-                <!-- ================ เมนู student-portal ================ -->
+                <!-- ============================================================ -->
+                <!-- เมนู student-portal -->
+                <!-- ============================================================ -->
                 <div id="menu-student-portal" class="hidden max-w-6xl mx-auto space-y-6">
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
                         <h3 class="text-lg font-bold text-gray-800 mb-4 border-b pb-2 flex items-center gap-2">
@@ -580,7 +646,9 @@
                     </div>
                 </div>
 
-                <!-- ================ เมนู calendar ================ -->
+                <!-- ============================================================ -->
+                <!-- เมนู calendar -->
+                <!-- ============================================================ -->
                 <div id="menu-calendar" class="hidden max-w-6xl mx-auto space-y-6">
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
                         <h2 class="text-xl font-bold text-slate-800 mb-4 border-b pb-2 flex items-center gap-2">
@@ -659,11 +727,295 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ============================================================ -->
+                <!-- เมนู sidebar config -->
+                <!-- ============================================================ -->
+                <div id="menu-sidebar" class="hidden max-w-[1600px] mx-auto space-y-6">
+                    <!-- Header -->
+                    <div class="bg-gradient-to-r from-indigo-600 to-blue-600 rounded-2xl shadow-lg p-5 text-white">
+                        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div class="flex items-center gap-3">
+                                <div class="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                                    <i class="fa-solid fa-bars-staggered text-2xl"></i>
+                                </div>
+                                <div>
+                                    <h2 class="text-xl font-bold">จัดการ Sidebar (เมนูนำทาง)</h2>
+                                    <p class="text-indigo-100 text-sm">ปรับแต่งเมนู รองรับหลายโปรไฟล์ (Multi-Profile)</p>
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap gap-2">
+                                <span id="sidebar-dirty-badge" class="hidden items-center gap-1 px-3 py-1.5 bg-amber-400 text-amber-900 text-xs font-bold rounded-full">
+                                    <i class="fa-solid fa-circle text-[8px] animate-pulse"></i> ยังไม่บันทึก
+                                </span>
+                                <button onclick="exportSidebarJSON()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold flex items-center gap-1.5 backdrop-blur-sm transition">
+                                    <i class="fa-solid fa-download"></i> Export
+                                </button>
+                                <button onclick="importSidebarJSON()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold flex items-center gap-1.5 backdrop-blur-sm transition">
+                                    <i class="fa-solid fa-upload"></i> Import
+                                </button>
+                                <button onclick="resetToDefaults()" class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold flex items-center gap-1.5 backdrop-blur-sm transition">
+                                    <i class="fa-solid fa-rotate-left"></i> Reset
+                                </button>
+                                <button onclick="syncAllToSidebar()"
+                                    class="px-3 py-2 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-bold flex items-center gap-1.5 backdrop-blur-sm transition"
+                                    title="ดึง Micro-services ที่ยังไม่มี เข้า Sidebar อัตโนมัติ">
+                                    <i class="fa-solid fa-rotate"></i> Sync ทั้งหมด
+                                </button>
+                                <button onclick="saveSidebarConfig()" class="px-5 py-2 bg-white text-indigo-700 hover:bg-indigo-50 rounded-xl text-sm font-bold flex items-center gap-1.5 shadow-md transition">
+                                    <i class="fa-solid fa-floppy-disk"></i> บันทึก
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Profile bar -->
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+                        <div class="flex flex-col lg:flex-row gap-5">
+                            <!-- Profile list -->
+                            <div class="lg:w-72 shrink-0">
+                                <div class="flex items-center justify-between mb-3">
+                                    <h3 class="font-bold text-slate-700 flex items-center gap-2">
+                                        <i class="fa-solid fa-users-gear text-indigo-600"></i> โปรไฟล์
+                                    </h3>
+                                    <div class="flex gap-1">
+                                        <button onclick="createNewSidebarProfile()" title="สร้างใหม่"
+                                            class="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition flex items-center justify-center">
+                                            <i class="fa-solid fa-plus text-xs"></i>
+                                        </button>
+                                        <button onclick="cloneSidebarProfile()" title="คัดลอก"
+                                            class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition flex items-center justify-center">
+                                            <i class="fa-solid fa-copy text-xs"></i>
+                                        </button>
+                                        <button onclick="deleteSidebarProfile()" title="ลบ"
+                                            class="w-8 h-8 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 transition flex items-center justify-center">
+                                            <i class="fa-solid fa-trash text-xs"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div id="sidebar-profiles-list" class="space-y-2 max-h-[400px] overflow-y-auto pr-1">
+                                    <div class="text-slate-400 text-sm p-3 text-center">
+                                        <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                                    </div>
+                                </div>
+                                <div class="mt-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
+                                    <p class="text-[11px] text-slate-500 leading-relaxed">
+                                        <b>💡 คำแนะนำ:</b> ตั้งชื่อ key ให้ตรงกับ role ในระบบ เช่น
+                                        <code class="text-[10px] bg-white px-1 py-0.5 rounded border">default</code>,
+                                        <code class="text-[10px] bg-white px-1 py-0.5 rounded border">teacher</code>,
+                                        <code class="text-[10px] bg-white px-1 py-0.5 rounded border">admin</code>,
+                                        <code class="text-[10px] bg-white px-1 py-0.5 rounded border">office</code>,
+                                        <code class="text-[10px] bg-white px-1 py-0.5 rounded border">super_admin</code>
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Editor -->
+                            <div class="flex-1 grid grid-cols-1 xl:grid-cols-[1fr_300px] gap-5">
+                                <!-- Config editor -->
+                                <div class="space-y-4 min-w-0">
+
+                                    <!-- Display Name -->
+                                    <div class="bg-indigo-50 rounded-2xl border border-indigo-200 p-4">
+                                        <label class="block text-xs font-bold text-indigo-700 mb-1.5">
+                                            <i class="fa-solid fa-tag mr-1"></i> ชื่อโปรไฟล์ (Display Name)
+                                        </label>
+                                        <input id="sb_profile_display_name" type="text"
+                                            oninput="updateProfileMeta('display_name', this.value)"
+                                            placeholder="เช่น ครูผู้สอน, แอดมิน, Office"
+                                            class="w-full border border-indigo-300 rounded-lg px-3 py-2 text-sm font-bold text-indigo-800 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white">
+                                        <p class="text-[10px] text-indigo-500 mt-1">
+                                            <i class="fa-solid fa-circle-info mr-0.5"></i>
+                                            key ของโปรไฟล์นี้:
+                                            <code class="bg-white px-1 py-0.5 rounded border border-indigo-200 font-mono" id="current_profile_key_label">-</code>
+                                        </p>
+                                    </div>
+
+                                    <!-- Brand settings -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <h3 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm">
+                                            <i class="fa-solid fa-image text-indigo-600"></i> แบรนด์ / โลโก้
+                                        </h3>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">โลโก้ URL</label>
+                                                <input id="sb_brand_logo" type="text"
+                                                    oninput="updateBrandField('logo', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">ชื่อระบบ</label>
+                                                <input id="sb_brand_name" type="text"
+                                                    oninput="updateBrandField('name', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">คำโปรย</label>
+                                                <input id="sb_brand_subtitle" type="text"
+                                                    oninput="updateBrandField('subtitle', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- ============================================================ -->
+                                    <!-- ✅ Titles + Departments Controls (แก้ไขเพิ่ม 2 checkbox ใหม่) -->
+                                    <!-- ============================================================ -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <h3 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm">
+                                            <i class="fa-solid fa-heading text-indigo-600"></i> หัวข้อกลุ่ม
+                                        </h3>
+                                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">หัวข้อเมนูหลัก</label>
+                                                <input id="sb_main_title" type="text"
+                                                    oninput="updateConfigField('mainMenuTitle', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">หัวข้อกลุ่มงาน</label>
+                                                <input id="sb_dept_title" type="text"
+                                                    oninput="updateConfigField('departmentsTitle', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">หัวข้อตั้งค่า</label>
+                                                <input id="sb_footer_title" type="text"
+                                                    oninput="updateConfigField('footerMenuTitle', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                        </div>
+
+                                        <!-- ✅ Departments Controls (ของใหม่) -->
+                                        <div class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2.5">
+                                            <p class="text-[11px] font-bold text-amber-800 flex items-center gap-1.5">
+                                                <i class="fa-solid fa-folder-tree"></i> ควบคุมการแสดงผล "กลุ่มบริหารงาน"
+                                            </p>
+<button type="button" onclick="reloadDepartmentsFromModules()"
+    class="ml-2 text-xs text-indigo-600 hover:text-indigo-800 hover:underline font-bold">
+    <i class="fa-solid fa-rotate text-[10px]"></i> โหลดใหม่
+</button>
+                                            <label class="flex items-center gap-2 cursor-pointer">
+                                                <input id="sb_show_all_depts" type="checkbox"
+                                                    onchange="updateConfigField('showAllDepartments', this.checked)"
+                                                    class="w-4 h-4 text-indigo-600 rounded">
+                                                <span class="text-sm font-bold text-slate-700">แสดง 4 กลุ่มบริหารงานในทุกหน้า</span>
+                                            </label>
+                                            <label class="flex items-center gap-2 ml-6 cursor-pointer">
+                                                <input id="sb_departments_collapsible" type="checkbox"
+                                                    onchange="updateConfigField('departmentsCollapsible', this.checked)"
+                                                    class="w-4 h-4 text-indigo-600 rounded">
+                                                <span class="text-sm text-slate-700">พับ/ขยายได้ (แสดงลูกศร)</span>
+                                            </label>
+
+                                            <label class="flex items-center gap-2 ml-6 cursor-pointer">
+                                                <input id="sb_departments_default_open" type="checkbox"
+                                                    onchange="updateConfigField('departmentsDefaultOpen', this.checked)"
+                                                    class="w-4 h-4 text-indigo-600 rounded">
+                                                <span class="text-sm text-slate-700">เปิดกลุ่มงานไว้เป็นค่าเริ่มต้น <span class="text-emerald-600 font-bold">(แนะนำ)</span></span>
+                                            </label>
+                                        </div>
+                                    </div>
+
+                                    <!-- Main Menu -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h3 class="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                                                <i class="fa-solid fa-house text-indigo-600"></i> เมนูหลัก
+                                            </h3>
+                                            <button onclick="addItem('mainMenu')"
+                                                class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold transition">
+                                                <i class="fa-solid fa-plus mr-1"></i> เพิ่ม
+                                            </button>
+                                        </div>
+                                        <div id="sb_main_menu_list" class="space-y-2"></div>
+                                    </div>
+
+                                    <!-- Module Menus -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h3 class="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                                                <i class="fa-solid fa-folder-tree text-indigo-600"></i> กลุ่มโมดูล
+                                            </h3>
+                                            <button onclick="addModuleMenu()"
+                                                class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold transition">
+                                                <i class="fa-solid fa-plus mr-1"></i> เพิ่มกลุ่ม
+                                            </button>
+                                        </div>
+                                        <div id="sb_module_menus_list" class="space-y-3"></div>
+                                    </div>
+
+                                    <!-- Footer Menu -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <div class="flex items-center justify-between mb-3">
+                                            <h3 class="font-bold text-slate-700 flex items-center gap-2 text-sm">
+                                                <i class="fa-solid fa-gear text-indigo-600"></i> เมนูตั้งค่า
+                                            </h3>
+                                            <button onclick="addItem('footerMenu')"
+                                                class="text-xs bg-indigo-600 text-white px-3 py-1.5 rounded-lg hover:bg-indigo-700 font-bold transition">
+                                                <i class="fa-solid fa-plus mr-1"></i> เพิ่ม
+                                            </button>
+                                        </div>
+                                        <div id="sb_footer_menu_list" class="space-y-2"></div>
+                                    </div>
+
+                                    <!-- Facebook -->
+                                    <div class="bg-slate-50 rounded-2xl border border-slate-200 p-4">
+                                        <h3 class="font-bold text-slate-700 mb-3 flex items-center gap-2 text-sm">
+                                            <i class="fa-brands fa-facebook text-blue-600"></i> ปุ่ม Facebook
+                                        </h3>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">ลิงก์</label>
+                                                <input id="sb_fb_href" type="text"
+                                                    oninput="updateFacebookField('href', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                            <div>
+                                                <label class="block text-xs font-bold text-slate-500 mb-1">ข้อความ</label>
+                                                <input id="sb_fb_label" type="text"
+                                                    oninput="updateFacebookField('label', this.value)"
+                                                    class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-indigo-500 bg-white">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                </div>
+
+                                <!-- Live Preview -->
+                                <div class="xl:sticky xl:top-4 self-start">
+                                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                                        <div class="px-4 py-3 bg-gradient-to-r from-slate-700 to-slate-800 text-white flex items-center gap-2">
+                                            <i class="fa-solid fa-eye text-sm"></i>
+                                            <span class="font-bold text-sm">ตัวอย่าง (Live Preview)</span>
+                                            <span class="ml-auto text-[10px] text-slate-300">≈ 218px</span>
+                                        </div>
+                                        <div class="p-3 bg-slate-100 overflow-hidden">
+                                            <aside class="d-sidebar"
+                                                style="position:static;width:218px;height:auto;max-height:700px;overflow-y:auto;transform:none!important;display:flex;flex-direction:column;border-radius:12px;border:1px solid #e9eef5;"
+                                                id="sidebar-preview">
+                                                <div class="text-center text-slate-400 text-sm p-8">
+                                                    <i class="fa-solid fa-circle-notch fa-spin"></i> กำลังโหลด...
+                                                </div>
+                                            </aside>
+                                        </div>
+                                    </div>
+                                </div>
+
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- ============================================================ -->
+                <!-- /เมนู sidebar config -->
+                <!-- ============================================================ -->
+
             </div>
         </main>
     </div>
 
     <!-- ================= Modals ================= -->
+
     <!-- Event Modal -->
     <div id="eventModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm">
         <div class="bg-white rounded-xl w-full max-w-lg p-6 relative shadow-2xl mx-4">
@@ -900,6 +1252,33 @@
         </div>
     </div>
 
+    <!-- Icon Picker Modal -->
+    <div id="iconPickerModal" class="fixed inset-0 z-[80] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeIconPicker()"></div>
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-indigo-600 to-blue-600 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-icons"></i> เลือกไอคอน (Font Awesome)
+                </h3>
+                <button onclick="closeIconPicker()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fa-solid fa-times"></i>
+                </button>
+            </div>
+            <div class="px-6 py-4 border-b border-slate-100 bg-slate-50">
+                <div class="relative">
+                    <i class="fa-solid fa-search absolute left-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    <input id="icon-picker-search" type="text"
+                        placeholder="ค้นหาไอคอน... (เช่น user, chart, calendar)"
+                        oninput="filterIconPicker(this.value)"
+                        class="w-full border border-slate-300 rounded-xl pl-11 pr-4 py-3 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white">
+                </div>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 bg-slate-50">
+                <div id="icon-picker-grid" class="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 gap-2"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -913,8 +1292,12 @@
     <script src="super_admin_personnel.js"></script>
     <script src="super_admin_classroom.js"></script>
     <script src="super_admin_portal.js"></script>
+    <script src="super_admin_sidebar.js"></script>
 
     <script>
+        // ============================================================
+        // Calendar Admin UI Loaders
+        // ============================================================
         async function loadCalendarAdminUI() {
             await loadCalendarConfigs();
             await loadPersonnelForSelects();

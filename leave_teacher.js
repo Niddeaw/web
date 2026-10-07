@@ -1,7 +1,6 @@
 // ============================================================
-// leave_teacher.js — ระบบการลา (ฝ่ายผู้ใช้งาน/ครู)
-// ใช้ window object ทั้งหมด เพื่อป้องกัน Identifier conflict
-// ปรับปรุงให้รองรับการคำนวณวันลาตามวันหยุดของโรงเรียน (ผ่าน leave_core.js)
+// leave_teacher.js — ระบบการลา (ฝ่ายผู้ใช้งาน/ครู) [ฉบับสมบูรณ์]
+// ✅ initModuleSidebar + refreshNavButtons + onReady
 // ============================================================
 
 window.currentUser = null;
@@ -16,12 +15,11 @@ window.dataTable = null;
 window.editingOriginalLeaveType = null;
 
 // ==========================================
-// LOGOUT
+// ✅ ปุ่มนำทาง — leave_teacher แสดงทุกคน
 // ==========================================
-window.logout = async function () {
-    if (typeof handleLogout === 'function') return handleLogout();
-    const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' });
-    if (isConfirmed) { await db.auth.signOut(); window.location.replace("login.html"); }
+window.refreshNavButtons = function () {
+    document.getElementById('btnNavDeptHead')?.classList.remove('hidden');
+    document.getElementById('btnNavAdmin')?.classList.remove('hidden');
 };
 
 // ==========================================
@@ -34,6 +32,10 @@ $(document).ready(async function () {
         await window.loadSystemSettings();
         window.initFlatpickr();
         await window.loadLeaveData();
+
+        // ✅ เรียก refreshNavButtons หลังโหลดข้อมูล
+        window.refreshNavButtons();
+
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
@@ -43,12 +45,13 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// ตรวจสอบสิทธิ์ และประกาศ Global Variables
+// ตรวจสอบสิทธิ์
 // ==========================================
 window.checkAuth = async function () {
     const result = await window.checkSessionAndRole('leave_teacher');
     if (!result) return;
-    const { user, personnel, role, isAdmin, isTeacher } = result;
+    const { user, personnel, role, isAdmin } = result;
+
     window.currentUser = user;
     window.currentProfile = personnel;
     window.currentUserId = user.id;
@@ -56,31 +59,10 @@ window.checkAuth = async function () {
     window.isAdminMode = isAdmin;
     window.isModuleAdmin = await window.hasModuleAccess(role, 'leave', user.id);
 
-    $('#display-name').text(`${personnel.prefix || ''}${personnel.first_name} ${personnel.last_name}`);
-
-    // ✅ เพิ่ม avatar (จาก dashboard_ui.js)
-    if (typeof renderUserAvatar === 'function') renderUserAvatar(personnel);
-    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(role);
-
-    // ปุ่มโหมดแอดมิน
-    if (window.isAdminMode || window.isModuleAdmin) {
-        $('#btnAdminMode').removeClass('hidden').addClass('flex');
-    } else {
-        $('#btnAdminMode').addClass('hidden').removeClass('flex');
-    }
-
-    // ปุ่มโหมดหัวหน้ากลุ่มฯ
-    try {
-        const isSuperAdmin = (role === 'super_admin');
-        const headInfo = await window.getDepartmentHeadInfo(user.id);
-        if (headInfo || isSuperAdmin) {
-            $('#btnDeptHeadMode').removeClass('hidden').addClass('flex');
-        } else {
-            $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
-        }
-    } catch (err) {
-        $('#btnDeptHeadMode').addClass('hidden').removeClass('flex');
-    }
+    // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันกลาง
+    setUserDisplayName(personnel);
+    updateUserRoleLabel(role);
+    renderUserAvatar(personnel);
 
     await window.logUserAction('เข้าสู่ระบบการลา (ครู)', 'leave');
 };
@@ -95,11 +77,12 @@ window.loadSystemSettings = async function () {
         eval_round: '1',
         gas_url: '', slide_template_id: '', pdf_folder_id: '', evidence_folder_id: ''
     };
-    $('#fiscal-badge').text(`ปีงบประมาณ ${window.systemSettings.fiscal_year} (รอบที่ ${window.systemSettings.eval_round})`);
+    const badge = document.getElementById('fiscal-badge');
+    if (badge) badge.textContent = `ปีงบประมาณ ${window.systemSettings.fiscal_year} (รอบที่ ${window.systemSettings.eval_round})`;
 };
 
 // ==========================================
-// Flatpickr (ปรับ onChange ให้เรียก calculateDays() โดยไม่ต้อง await)
+// Flatpickr
 // ==========================================
 window.initFlatpickr = function () {
     function updateYear(instance) {
@@ -107,8 +90,6 @@ window.initFlatpickr = function () {
         if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
     }
 
-    // ฟังก์ชัน helper สำหรับ onChange ที่เรียก calculateDays() 
-    // และไม่ต้องรอผล (fire-and-forget) เพื่อไม่ให้ UI ค้าง
     const handleDateChange = function (selectedDates, dateStr, instance) {
         if (selectedDates[0]) {
             const id = instance.element.id;
@@ -116,7 +97,6 @@ window.initFlatpickr = function () {
             document.getElementById(id + '_iso').value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
             instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
         }
-        // เรียก calculateDays() โดยไม่ต้อง await (async function แต่ไม่ต้องรอ)
         window.calculateDays();
     };
 
@@ -129,10 +109,9 @@ window.initFlatpickr = function () {
     };
     flatpickr("#start_date", config);
     flatpickr("#end_date", config);
-    // flatpickr สำหรับ submitted_date
+
     flatpickr("#submitted_date", {
-        locale: 'th',
-        dateFormat: 'd/m/Y',
+        locale: 'th', dateFormat: 'd/m/Y',
         onChange: function (selectedDates, dateStr, instance) {
             if (selectedDates[0]) {
                 const d = selectedDates[0];
@@ -147,7 +126,7 @@ window.initFlatpickr = function () {
 };
 
 // ==========================================
-// ฟังก์ชันคำนวณวันลา (เวอร์ชัน async รองรับวันหยุด)
+// คำนวณวันลา
 // ==========================================
 window.calculateDays = async function () {
     const startIso = $('#start_date_iso').val();
@@ -157,7 +136,6 @@ window.calculateDays = async function () {
     const days = await window.calculateDaysWithHalfDay(startIso, endIso, type, isHalfDay);
     $('#calc_days').text(days % 1 === 0 ? days : days.toFixed(1));
 
-    // จัดการช่องอัปโหลดหลักฐาน (ถ้ามี)
     const wrapper = $('#evidence_upload_wrapper');
     if (wrapper.length) {
         const fileInput = $('#evidence_file');
@@ -180,12 +158,14 @@ window.updateLeaveGuide = function () {
     const prefix = window.currentProfile?.prefix || '';
     const gender = window.getGenderFromPrefix(prefix);
     const isEditMode = $('#leave_id').val() !== '';
+
     const resetLeaveType = (originalType = '') => {
         if (isEditMode && originalType) $('#leave_type').val(originalType);
         else $('#leave_type').val('');
         $('#leave_guide').addClass('hidden');
-        window.calculateDays(); // ไม่ต้อง await
+        window.calculateDays();
     };
+
     if (type === 'ลาคลอดบุตร' && gender !== 'หญิง') {
         Swal.fire({ icon: 'error', title: 'ไม่สามารถเลือกลาคลอดบุตรได้', text: 'ท่านเป็นเพศชาย ไม่มีสิทธิ์ลาคลอดบุตร', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
         return;
@@ -198,6 +178,7 @@ window.updateLeaveGuide = function () {
         Swal.fire({ icon: 'warning', title: 'ไม่สามารถเลือกลาพักผ่อนได้', text: 'ผู้ปฏิบัติงานในสถานศึกษาและได้หยุดราชการตามวันหยุดภาคการศึกษาเกินกว่าวันลาพักผ่อน (ปิดเทอม) ไม่มีสิทธิ์ลาพักผ่อน', confirmButtonText: 'ตกลง' }).then(() => resetLeaveType(window.editingOriginalLeaveType));
         return;
     }
+
     const guides = {
         "ลาป่วย": "<i class='fas fa-info-circle text-lg mt-0.5'></i> <span>ลาป่วยตั้งแต่ 3 วันทำการขึ้นไป ให้แนบใบรับรองแพทย์ในวันแรกที่มาปฏิบัติราชการ</span>",
         "ลากิจส่วนตัว": "<i class='fas fa-info-circle text-lg mt-0.5'></i> <span>ต้องส่งใบอนุญาตล่วงหน้าก่อนวันลาอย่างน้อย 3 วันทำการ และรอรับการอนุมัติก่อนถึงจะหยุดได้</span>",
@@ -206,7 +187,7 @@ window.updateLeaveGuide = function () {
     };
     if (guides[type]) $('#leave_guide').html(guides[type]).removeClass('hidden');
     else $('#leave_guide').addClass('hidden');
-    window.calculateDays(); // ไม่ต้อง await
+    window.calculateDays();
 };
 
 // ==========================================
@@ -265,14 +246,12 @@ window.renderTable = function () {
             const displayDays = isRejected ? 0 : (l.is_half_day ? 0.5 : l.total_days);
             const displayTimes = isRejected ? 0 : 1;
 
-            // สถานะหัวหน้ากลุ่มฯ (คำนวณก่อน)
             const headAckBadge = l.ack_head
-    ? `<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold" title="หัวหน้ากลุ่มฯ รับทราบแล้ว"><i class="fas fa-user-check mr-0.5"></i>หัวหน้ากลุ่มฯรับทราบ</span>`
-    : (l.ack_academic
-        ? `<span class="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-bold" title="รองวิชาการรับทราบแล้ว"><i class="fas fa-user-graduate mr-0.5"></i>รองวิชาการรับทราบ</span>`
-        : '');
+                ? `<span class="text-[10px] text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-bold" title="หัวหน้ากลุ่มฯ รับทราบแล้ว"><i class="fas fa-user-check mr-0.5"></i>หัวหน้ากลุ่มฯรับทราบ</span>`
+                : (l.ack_academic
+                    ? `<span class="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-bold" title="รองวิชาการรับทราบแล้ว"><i class="fas fa-user-graduate mr-0.5"></i>รองวิชาการรับทราบ</span>`
+                    : '');
 
-            // สถานะหลัก + badge
             let statusHtml = '';
             if (l.status === 'รออนุมัติ') {
                 statusHtml = `<div class="flex flex-col items-center gap-1">
@@ -296,17 +275,20 @@ window.renderTable = function () {
 
             let typeClass = l.type === 'ลาป่วย' ? 'text-blue-600' : (l.type === 'ลากิจส่วนตัว' ? 'text-orange-600' : 'text-rose-600');
             if (isRejected) typeClass = 'text-slate-400 line-through';
+
             let pdfHtml = '';
             if (l.pdf_url) {
                 pdfHtml = `<a href="${l.pdf_url}" target="_blank" class="bg-green-50 text-green-600 hover:bg-green-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="เปิดไฟล์ PDF"><i class="fas fa-file-pdf"></i></a>`;
             } else {
                 pdfHtml = `<button onclick="window.generateLeavePDF('${l.id}', window.systemSettings)" class="bg-blue-50 text-blue-600 hover:bg-blue-500 hover:text-white px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="สร้างใบลา (PDF)"><i class="fas fa-print"></i></button>`;
             }
+
             let btnHtml = pdfHtml;
             if (l.status === 'รออนุมัติ') {
                 btnHtml += `<button onclick="window.editLeave('${l.id}')" class="text-yellow-600 hover:text-yellow-700 bg-yellow-50 px-2 py-1.5 rounded-lg transition shadow-sm mr-1" title="แก้ไขใบลา"><i class="fas fa-pen text-xs"></i></button>
                             <button onclick="window.deleteLeave('${l.id}')" class="text-rose-500 hover:text-rose-700 bg-rose-50 px-2 py-1.5 rounded-lg transition shadow-sm" title="ลบใบลา"><i class="fas fa-trash text-xs"></i></button>`;
             }
+
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-4 text-center text-slate-500 text-xs" data-order="${new Date(l.created_at).getTime()}">${createDate} น.</td>
                 <td class="py-3 px-4 font-bold ${typeClass}">${l.type}</td>
@@ -322,13 +304,16 @@ window.renderTable = function () {
         tbody.innerHTML = '';
     }
     window.dataTable = $('#leaveTable').DataTable({
-        responsive: true, scrollX: false, language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-        order: [[0, 'desc']], columnDefs: [{ orderable: false, targets: [7] }], pageLength: 25
+        responsive: true, scrollX: false,
+        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        order: [[0, 'desc']],
+        columnDefs: [{ orderable: false, targets: [7] }],
+        pageLength: 25
     });
 };
 
 // ==========================================
-// เปิด Modal
+// Modal
 // ==========================================
 window.openLeaveModal = function () {
     document.getElementById('leaveForm').reset();
@@ -406,7 +391,6 @@ window.editLeave = function (id) {
         if (l.total_days >= 3 && l.type === 'ลาป่วย') {
             wrapper.removeClass('hidden');
             fileInput.prop('required', true);
-            // แสดงไฟล์เดิมถ้ามี
             if (l.attachment_file_id) {
                 existingDiv.removeClass('hidden');
                 existingName.text(`ไฟล์หลักฐาน ID: ${l.attachment_file_id}`);
@@ -422,7 +406,7 @@ window.editLeave = function (id) {
         }
     }
 
-    window.calculateDays(); // ไม่ต้อง await
+    window.calculateDays();
     window.updateLeaveGuide();
     $('#leaveModal').removeClass('hidden').addClass('flex');
 };
@@ -471,13 +455,8 @@ window.saveLeave = async function (e) {
         }
     }
 
-    // ✅ ตรวจสอบข้อมูลซ้ำ
     const duplicate = await window.checkDuplicateLeave(
-        window.currentUser.id,
-        type,
-        startDate,
-        endDate,
-        id || null  // ถ้ามี id (แก้ไข) จะไม่นับรายการนี้
+        window.currentUser.id, type, startDate, endDate, id || null
     );
 
     if (duplicate.exists) {
@@ -485,16 +464,13 @@ window.saveLeave = async function (e) {
             ? `${duplicate.existingLeave.core_personnel.prefix || ''}${duplicate.existingLeave.core_personnel.first_name} ${duplicate.existingLeave.core_personnel.last_name}`
             : 'บุคลากร';
         await Swal.fire({
-            icon: 'warning',
-            title: 'มีใบลาซ้ำ',
-            html: `
-                <div class="text-left">
+            icon: 'warning', title: 'มีใบลาซ้ำ',
+            html: `<div class="text-left">
                     <p>พบข้อมูลการลานี้แล้วสำหรับ <b>${existingName}</b></p>
                     <p class="text-sm text-slate-600">ประเภท: ${type}</p>
                     <p class="text-sm text-slate-600">วันที่: ${window.formatDateThai(startDate)} - ${window.formatDateThai(endDate)}</p>
                     <p class="text-sm text-slate-600">สถานะ: <span class="font-bold">${duplicate.existingLeave.status}</span></p>
-                </div>
-            `,
+                </div>`,
             confirmButtonText: 'ตกลง'
         });
         return;
@@ -503,22 +479,13 @@ window.saveLeave = async function (e) {
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const payload = {
-        personnel_id: window.currentUser.id,
-        type,
-        reason,
-        start_date: startDate,
-        end_date: endDate,
-        total_days: totalDays,
-        contact_address: contactAddress,
-        phone_number: phoneNumber,
-        fiscal_year: window.systemSettings.fiscal_year,
-        eval_round: window.systemSettings.eval_round,
-        status: 'รออนุมัติ',
-        reject_comment: null,
-        attachment_file_id: attachmentFileId,
-        pdf_url: null,
-        is_half_day: isHalfDay,
-        submitted_date: submittedDateIso
+        personnel_id: window.currentUser.id, type, reason,
+        start_date: startDate, end_date: endDate, total_days: totalDays,
+        contact_address: contactAddress, phone_number: phoneNumber,
+        fiscal_year: window.systemSettings.fiscal_year, eval_round: window.systemSettings.eval_round,
+        status: 'รออนุมัติ', reject_comment: null,
+        attachment_file_id: attachmentFileId, pdf_url: null,
+        is_half_day: isHalfDay, submitted_date: submittedDateIso
     };
 
     try {
@@ -550,13 +517,12 @@ window.deleteLeave = async function (id) {
             await window.logUserAction(`ลบใบลา ID: ${id}`, 'leave');
             await window.loadLeaveData();
             Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false });
-        }
-        else Swal.fire('ผิดพลาด', error.message, 'error');
+        } else Swal.fire('ผิดพลาด', error.message, 'error');
     }
 };
 
 // ==========================================
-// ส่งออก Excel (เพิ่มสรุปการลาต่อท้าย)
+// Export Excel
 // ==========================================
 window.exportExcel = function () {
     if (window.allMyLeaves.length === 0) {
@@ -569,7 +535,6 @@ window.exportExcel = function () {
         return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
     };
 
-    // 1. สร้างข้อมูลหลัก (ประวัติการลาทั้งหมด)
     const exportData = window.allMyLeaves.map(l => ({
         'วันที่ส่งใบลา': new Date(l.created_at).toLocaleDateString('th-TH'),
         'ปีงบประมาณ': l.fiscal_year,
@@ -586,21 +551,14 @@ window.exportExcel = function () {
         'เหตุผล (กรณีไม่อนุมัติ)': l.reject_comment || ''
     }));
 
-    // 2. สร้างข้อมูลสรุปเฉพาะรายการที่อนุมัติแล้ว
     const approvedLeaves = window.allMyLeaves.filter(l => l.status === 'อนุมัติ');
 
     if (approvedLeaves.length > 0) {
-        // คำนวณสรุปแยกตามประเภท
         const summary = {};
         approvedLeaves.forEach(l => {
             const type = l.type;
             if (!summary[type]) {
-                summary[type] = {
-                    count: 0,
-                    days: 0,
-                    minStart: l.start_date,
-                    maxEnd: l.end_date
-                };
+                summary[type] = { count: 0, days: 0, minStart: l.start_date, maxEnd: l.end_date };
             }
             summary[type].count += 1;
             summary[type].days += l.is_half_day ? 0.5 : l.total_days;
@@ -608,86 +566,42 @@ window.exportExcel = function () {
             if (l.end_date > summary[type].maxEnd) summary[type].maxEnd = l.end_date;
         });
 
-        // เพิ่มแถวว่างคั่น
         exportData.push({
-            'วันที่ส่งใบลา': '',
-            'ปีงบประมาณ': '',
-            'รอบประเมิน': '',
-            'ประเภทการลา': '',
-            'เริ่มวันที่': '',
-            'ถึงวันที่': '',
-            'จำนวน (วัน)': '',
-            'จำนวน (ครั้ง)': '',
-            'สาเหตุ': '',
-            'ที่อยู่ติดต่อ': '',
-            'เบอร์โทรศัพท์': '',
-            'สถานะ': '',
-            'เหตุผล (กรณีไม่อนุมัติ)': ''
+            'วันที่ส่งใบลา': '', 'ปีงบประมาณ': '', 'รอบประเมิน': '', 'ประเภทการลา': '',
+            'เริ่มวันที่': '', 'ถึงวันที่': '', 'จำนวน (วัน)': '', 'จำนวน (ครั้ง)': '',
+            'สาเหตุ': '', 'ที่อยู่ติดต่อ': '', 'เบอร์โทรศัพท์': '', 'สถานะ': '', 'เหตุผล (กรณีไม่อนุมัติ)': ''
         });
-
-        // แถวหัวข้อสรุป
         exportData.push({
             'วันที่ส่งใบลา': '=== สรุปการลา (เฉพาะที่อนุมัติแล้ว) ===',
-            'ปีงบประมาณ': '',
-            'รอบประเมิน': '',
-            'ประเภทการลา': '',
-            'เริ่มวันที่': '',
-            'ถึงวันที่': '',
-            'จำนวน (วัน)': '',
-            'จำนวน (ครั้ง)': '',
-            'สาเหตุ': '',
-            'ที่อยู่ติดต่อ': '',
-            'เบอร์โทรศัพท์': '',
-            'สถานะ': '',
-            'เหตุผล (กรณีไม่อนุมัติ)': ''
+            'ปีงบประมาณ': '', 'รอบประเมิน': '', 'ประเภทการลา': '',
+            'เริ่มวันที่': '', 'ถึงวันที่': '', 'จำนวน (วัน)': '', 'จำนวน (ครั้ง)': '',
+            'สาเหตุ': '', 'ที่อยู่ติดต่อ': '', 'เบอร์โทรศัพท์': '', 'สถานะ': '', 'เหตุผล (กรณีไม่อนุมัติ)': ''
         });
 
-        // แถวสรุปแต่ละประเภท
         for (const [type, data] of Object.entries(summary)) {
             exportData.push({
-                'วันที่ส่งใบลา': '',
-                'ปีงบประมาณ': '',
-                'รอบประเมิน': '',
-                'ประเภทการลา': type,
-                'เริ่มวันที่': fmt(data.minStart),
-                'ถึงวันที่': fmt(data.maxEnd),
-                'จำนวน (วัน)': data.days,
-                'จำนวน (ครั้ง)': data.count,
-                'สาเหตุ': '',
-                'ที่อยู่ติดต่อ': '',
-                'เบอร์โทรศัพท์': '',
-                'สถานะ': '',
-                'เหตุผล (กรณีไม่อนุมัติ)': ''
+                'วันที่ส่งใบลา': '', 'ปีงบประมาณ': '', 'รอบประเมิน': '', 'ประเภทการลา': type,
+                'เริ่มวันที่': fmt(data.minStart), 'ถึงวันที่': fmt(data.maxEnd),
+                'จำนวน (วัน)': data.days, 'จำนวน (ครั้ง)': data.count,
+                'สาเหตุ': '', 'ที่อยู่ติดต่อ': '', 'เบอร์โทรศัพท์': '', 'สถานะ': '', 'เหตุผล (กรณีไม่อนุมัติ)': ''
             });
         }
 
-        // แถวรวมทั้งหมด
         const totalCount = approvedLeaves.length;
         const totalDays = approvedLeaves.reduce((sum, l) => sum + (l.is_half_day ? 0.5 : l.total_days), 0);
         exportData.push({
-            'วันที่ส่งใบลา': '',
-            'ปีงบประมาณ': '',
-            'รอบประเมิน': '',
-            'ประเภทการลา': 'รวมทั้งหมด',
-            'เริ่มวันที่': '',
-            'ถึงวันที่': '',
-            'จำนวน (วัน)': totalDays,
-            'จำนวน (ครั้ง)': totalCount,
-            'สาเหตุ': '',
-            'ที่อยู่ติดต่อ': '',
-            'เบอร์โทรศัพท์': '',
-            'สถานะ': '',
-            'เหตุผล (กรณีไม่อนุมัติ)': ''
+            'วันที่ส่งใบลา': '', 'ปีงบประมาณ': '', 'รอบประเมิน': '', 'ประเภทการลา': 'รวมทั้งหมด',
+            'เริ่มวันที่': '', 'ถึงวันที่': '',
+            'จำนวน (วัน)': totalDays, 'จำนวน (ครั้ง)': totalCount,
+            'สาเหตุ': '', 'ที่อยู่ติดต่อ': '', 'เบอร์โทรศัพท์': '', 'สถานะ': '', 'เหตุผล (กรณีไม่อนุมัติ)': ''
         });
     }
 
-    // 3. สร้างไฟล์ Excel
     const ws = XLSX.utils.json_to_sheet(exportData);
     ws['!cols'] = [
         { wch: 15 }, { wch: 12 }, { wch: 12 }, { wch: 20 },
         { wch: 15 }, { wch: 15 }, { wch: 12 }, { wch: 12 },
-        { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 15 },
-        { wch: 30 }
+        { wch: 35 }, { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 30 }
     ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "ประวัติการลา");
@@ -710,14 +624,7 @@ window.showRejectComment = function (comment) {
 };
 
 // ==========================================
-// ฟังก์ชันสลับโหมด (เรียกโดยปุ่มใน HTML)
-// ==========================================
-window.toggleAdminMode = function () {
-    window.switchToAdminMode();
-};
-
-// ==========================================
-// ดูลายเซ็น (read-only — ดึงจาก core_personnel.signature_file_id)
+// ดูลายเซ็น
 // ==========================================
 window.viewSignature = async function () {
     $('#signatureModal').removeClass('hidden').addClass('flex');
@@ -752,4 +659,4 @@ window.closeSignatureModal = function () {
     $('#signatureModal').addClass('hidden').removeClass('flex');
 };
 
-console.log('✅ leave_teacher.js loaded (with holiday-aware calculation)');
+console.log('✅ leave_teacher.js loaded (template-compliant + nav buttons)');

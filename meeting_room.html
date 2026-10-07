@@ -4,249 +4,287 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ระบบจองห้องประชุม - WRK System</title>
-    <!-- Core -->
+    <title>ระบบจองห้องประชุม | WRK System</title>
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
     <!-- FullCalendar -->
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.10/index.global.min.js"></script>
 
     <style>
-        .fc-theme-standard .fc-scrollgrid {
-            border-color: #e2e8f0;
-            border-radius: 0.5rem;
-            overflow: hidden;
-        }
-        .fc .fc-toolbar-title {
-            font-size: 1.25rem;
-            font-weight: 700;
-            color: #1e293b;
-        }
-        .fc .fc-button-primary {
-            background-color: #21BCFF;
-            border-color: #21BCFF;
-        }
-        .fc .fc-button-primary:hover {
-            background-color: #1C69A8;
-            border-color: #1C69A8;
-        }
+        .fc-theme-standard .fc-scrollgrid { border-color: #e2e8f0; border-radius: 0.5rem; overflow: hidden; }
+        .fc .fc-toolbar-title { font-size: 1.25rem; font-weight: 700; color: #1e293b; }
+        .fc .fc-button-primary { background-color: #21BCFF; border-color: #21BCFF; }
+        .fc .fc-button-primary:hover { background-color: #1C69A8; border-color: #1C69A8; }
 
-        .ts-wrapper.single .ts-control {
-            border: 1px solid #cbd5e1;
-            border-radius: 0.5rem;
-            padding: 0.375rem 0.75rem;
-            font-size: 0.875rem;
-            background-color: #fff;
-            box-shadow: none;
+        .ts-wrapper.single .ts-control { border: 1px solid #cbd5e1; border-radius: 0.5rem; padding: 0.375rem 0.75rem; font-size: 0.875rem; background-color: #fff; box-shadow: none; }
+        .ts-wrapper.single .ts-control:focus-within { border-color: #3b82f6; box-shadow: none; }
+        .ts-dropdown { border-radius: 0.5rem; border: 1px solid #e2e8f0; box-shadow: 0 4px 12px rgba(0,0,0,0.08); font-size: 0.875rem; }
+        .ts-dropdown .option.active { background-color: #eff6ff; color: #1d4ed8; }
+        .ts-dropdown .option:hover { background-color: #f1f5f9; }
+        .fc-event { cursor: pointer; border: none; padding: 2px 4px; border-radius: 4px; }
+
+        /* Mobile sidebar */
+        @media (max-width: 760px) {
+            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
+            .d-sidebar.open, .d-sidebar.show, .d-sidebar.active, .d-sidebar.is-open { transform: translateX(0) !important; }
+            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
+            .d-overlay.open, .d-overlay.show, .d-overlay.active, .d-overlay.is-open { display: block !important; opacity: 1; }
+            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; align-items: center; justify-content: center; }
+            .d-collapse { display: none !important; }
+            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+            .glass-panel { max-width: 100%; }
         }
-        .ts-wrapper.single .ts-control:focus-within {
-            border-color: #3b82f6;
-            box-shadow: none;
-        }
-        .ts-dropdown {
-            border-radius: 0.5rem;
-            border: 1px solid #e2e8f0;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-            font-size: 0.875rem;
-        }
-        .ts-dropdown .option.active {
-            background-color: #eff6ff;
-            color: #1d4ed8;
-        }
-        .ts-dropdown .option:hover {
-            background-color: #f1f5f9;
-        }
-        .fc-event {
-            cursor: pointer;
-            border: none;
-            padding: 2px 4px;
-            border-radius: 4px;
-        }
-        #userRoleBadge {
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 2px 10px;
-            border-radius: 9999px;
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar { width: 240px; }
         }
     </style>
 </head>
 
-<body class="bg-slate-50 text-slate-800 font-sans opacity-0 transition-opacity duration-300" id="mainBody">
+<body class="text-slate-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <!-- Header -->
-    <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-3 flex flex-wrap items-center justify-between gap-3 z-40 sticky top-0 shadow-sm">
-        <div class="flex items-center gap-4">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="w-10 h-10 object-contain" alt="Logo">
-            <div>
-                <h2 class="text-xl font-bold text-slate-800 leading-tight">ระบบจองห้องประชุม</h2>
-                <p id="pageBadge" class="text-xs text-slate-500">มุมมองผู้ขอใช้ห้อง</p>
-            </div>
-        </div>
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-        <div class="flex items-center gap-3 flex-wrap">
-            <!-- ชื่อผู้ใช้ + บทบาท -->
-            <span id="userDisplayName" class="hidden md:block text-sm font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-full">กำลังโหลด...</span>
-            <span id="userRoleBadge" class="hidden">Admin</span>
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
 
-            <button id="btnToggleMode" onclick="toggleTeacherAdminMode()"
-                class="hidden flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95"></button>
+            <div style="padding:0 0 12px;" class="space-y-6">
 
-            <button id="btnSettings" onclick="openSettingsModal()"
-                class="hidden h-10 w-10 flex items-center justify-center rounded-xl bg-amber-50 text-amber-600 hover:bg-amber-100 transition border border-amber-200 shadow-sm"
-                title="ตั้งค่าห้องประชุม (Admin)"><i class="fas fa-gear text-sm"></i></button>
+                <!-- Page Badge -->
+                <div class="flex items-center justify-between">
+                    <p id="pageBadge" class="text-sm text-slate-500">มุมมองผู้ขอใช้ห้อง (Teacher View)</p>
+                </div>
 
-            <button onclick="window.location.href='index.html'"
-                class="h-10 w-10 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition border border-indigo-200 shadow-sm"
-                title="กลับหน้าหลัก"><i class="fas fa-house text-sm"></i></button>
-
-            <button onclick="logout()"
-                class="bg-rose-50 text-rose-600 h-10 w-10 flex items-center justify-center rounded-xl hover:bg-rose-100 transition-colors focus:outline-none shadow-sm"
-                title="ออกจากระบบ"><i class="fas fa-sign-out-alt"></i></button>
-        </div>
-    </header>
-
-    <main class="max-w-7xl mx-auto px-4 py-6">
-        <!-- Tabs (เฉพาะครู) -->
-        <div id="userTabsContainer" class="flex flex-wrap gap-2 mb-6 border-b border-slate-200 pb-4">
-            <button onclick="switchTab('calendar-tab')" id="btn-calendar-tab"
-                class="tab-btn active px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-sm transition-all"><i class="fa-regular fa-calendar-days mr-1"></i> ปฏิทินห้องประชุม</button>
-            <button onclick="switchTab('my-booking-tab')" id="btn-my-booking-tab"
-                class="tab-btn px-5 py-2.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-bold transition-all"><i class="fa-solid fa-list mr-1"></i> การจองของฉัน</button>
-        </div>
-
-        <!-- ปฏิทิน + ฟอร์มจอง (Teacher View) -->
-        <div id="calendar-tab" class="tab-content grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div class="lg:col-span-1 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <h3 class="text-base font-bold text-slate-700 mb-4 border-b pb-2"><i class="fa-solid fa-pen-to-square text-blue-500 mr-1"></i> ส่งคำขอจองห้อง</h3>
-                <form id="bookingForm" onsubmit="submitBooking(event)" class="space-y-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">เรื่อง / วัตถุประสงค์ *</label>
-                        <input type="text" id="bk_title" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">ห้องประชุม *</label>
-                        <select id="bk_room" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                            <option value="">-- เลือกห้อง --</option>
-                        </select>
-                    </div>
-                    <div class="grid grid-cols-2 gap-2">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1">เวลาเริ่ม *</label>
-                            <input type="text" id="bk_start" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 mb-1">เวลาสิ้นสุด *</label>
-                            <input type="text" id="bk_end" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
-                        </div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">จำนวนผู้เข้าร่วม *</label>
-                        <input type="number" id="bk_attendees" min="1" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">หน่วยงาน *</label>
-                        <select id="bk_department" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                            <option value="">-- เลือกกลุ่มงาน --</option>
-                            <option value="กลุ่มบริหารวิชาการ">กลุ่มบริหารวิชาการ</option>
-                            <option value="กลุ่มบริหารงบประมาณ">กลุ่มบริหารงบประมาณ</option>
-                            <option value="กลุ่มบริหารงานบุคคล">กลุ่มบริหารงานบุคคล</option>
-                            <option value="กลุ่มบริหารทั่วไป">กลุ่มบริหารทั่วไป</option>
-                        </select>
-                    </div>
-                    <input type="hidden" id="bk_workgroup">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">ผู้ขอใช้ห้อง *</label>
-                        <select id="bk_responsible" required placeholder="ค้นหาชื่อครู..."></select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-500 mb-1">เบอร์ติดต่อ *</label>
-                        <input type="tel" id="bk_phone" required readonly placeholder="กรอกอัตโนมัติเมื่อเลือกชื่อ" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed">
-                    </div>
-                    <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">
-                        <i class="fa-solid fa-paper-plane mr-1"></i> ส่งคำขอจอง
+                <!-- ========= Teacher Tabs ========= -->
+                <div id="userTabsContainer" class="flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+                    <button onclick="switchTab('calendar-tab')" id="btn-calendar-tab"
+                        class="tab-btn active px-5 py-2.5 bg-blue-600 text-white rounded-xl font-bold shadow-sm transition-all">
+                        <i class="fa-regular fa-calendar-days mr-1"></i> ปฏิทินห้องประชุม
                     </button>
-                </form>
-            </div>
-            <div class="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-                <div id="calendar"></div>
-            </div>
-        </div>
+                    <button onclick="switchTab('my-booking-tab')" id="btn-my-booking-tab"
+                        class="tab-btn px-5 py-2.5 bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 rounded-xl font-bold transition-all">
+                        <i class="fa-solid fa-list mr-1"></i> การจองของฉัน
+                    </button>
+                </div>
 
-        <!-- ตารางการจองของฉัน -->
-        <div id="my-booking-tab" class="tab-content hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <h2 class="text-lg font-bold text-blue-700 mb-4 border-b pb-2"><i class="fa-solid fa-list mr-1"></i> การจองของฉัน</h2>
-            <div class="overflow-x-auto">
-                <table id="myTable" class="w-full text-sm display nowrap">
-                    <thead class="bg-blue-50 text-blue-700">
-                        <tr>
-                            <th class="py-2 px-3">เรื่อง</th>
-                            <th class="py-2 px-3">ห้องประชุม</th>
-                            <th class="py-2 px-3 text-center">เวลาเริ่ม</th>
-                            <th class="py-2 px-3 text-center">เวลาสิ้นสุด</th>
-                            <th class="py-2 px-3 text-center">สถานะ</th>
-                            <th class="py-2 px-3 text-center">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-my-bookings"></tbody>
-                </table>
-            </div>
-        </div>
+                <!-- ========= Calendar + Form ========= -->
+                <div id="calendar-tab" class="tab-content grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-1 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <h3 class="text-base font-bold text-slate-700 mb-4 border-b pb-2">
+                            <i class="fa-solid fa-pen-to-square text-blue-500 mr-1"></i> ส่งคำขอจองห้อง
+                        </h3>
+                        <form id="bookingForm" onsubmit="submitBooking(event)" class="space-y-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">เรื่อง / วัตถุประสงค์ *</label>
+                                <input type="text" id="bk_title" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">ห้องประชุม *</label>
+                                <select id="bk_room" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                                    <option value="">-- เลือกห้อง --</option>
+                                </select>
+                            </div>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">เวลาเริ่ม *</label>
+                                    <input type="text" id="bk_start" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">เวลาสิ้นสุด *</label>
+                                    <input type="text" id="bk_end" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">จำนวนผู้เข้าร่วม *</label>
+                                <input type="number" id="bk_attendees" min="1" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">หน่วยงาน *</label>
+                                <select id="bk_department" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                                    <option value="">-- เลือกกลุ่มงาน --</option>
+                                    <option value="กลุ่มบริหารวิชาการ">กลุ่มบริหารวิชาการ</option>
+                                    <option value="กลุ่มบริหารงบประมาณ">กลุ่มบริหารงบประมาณ</option>
+                                    <option value="กลุ่มบริหารงานบุคคล">กลุ่มบริหารงานบุคคล</option>
+                                    <option value="กลุ่มบริหารทั่วไป">กลุ่มบริหารทั่วไป</option>
+                                </select>
+                            </div>
+                            <input type="hidden" id="bk_workgroup">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">ผู้ขอใช้ห้อง *</label>
+                                <select id="bk_responsible" required placeholder="ค้นหาชื่อครู..."></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">เบอร์ติดต่อ *</label>
+                                <input type="tel" id="bk_phone" required readonly placeholder="กรอกอัตโนมัติเมื่อเลือกชื่อ" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed">
+                            </div>
+                            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-sm transition-colors shadow-sm">
+                                <i class="fa-solid fa-paper-plane mr-1"></i> ส่งคำขอจอง
+                            </button>
+                        </form>
+                    </div>
 
-        <!-- Admin View -->
-        <div id="admin-view-content" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
-            <h2 class="text-lg font-bold text-rose-700 mb-4 border-b pb-2"><i class="fa-solid fa-list-check mr-1"></i> รายการรออนุมัติ / จัดการการจองทั้งหมดในระบบ</h2>
-            <div class="overflow-x-auto">
-                <table id="adminBookingTable" class="w-full text-sm display nowrap">
-                    <thead class="bg-rose-50 text-rose-700">
-                        <tr>
-                            <th class="py-2 px-3">เรื่อง</th>
-                            <th class="py-2 px-3">ผู้จอง / เบอร์โทร</th>
-                            <th class="py-2 px-3">ห้องประชุม (คน)</th>
-                            <th class="py-2 px-3 text-center">วัน/เวลา</th>
-                            <th class="py-2 px-3 text-center">สถานะ</th>
-                            <th class="py-2 px-3 text-center">การอนุมัติ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-admin-bookings"></tbody>
-                </table>
-            </div>
-        </div>
-    </main>
+                    <div class="lg:col-span-2 bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                        <div id="calendar"></div>
+                    </div>
+                </div>
 
-    <!-- Settings Modal -->
-    <div id="settingsModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-4xl p-6 relative shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
-            <button onclick="closeSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-xmark text-xl"></i></button>
-            <div class="flex justify-between items-center mb-4 border-b pb-2">
-                <h2 class="text-xl font-bold text-slate-800"><i class="fa-solid fa-door-open text-amber-500 mr-1"></i> ตั้งค่าห้องประชุมในระบบ</h2>
-                <button onclick="openRoomFormModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm"><i class="fa-solid fa-plus mr-1"></i> เพิ่มห้องใหม่</button>
+                <!-- ========= My Bookings ========= -->
+                <div id="my-booking-tab" class="tab-content hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-blue-700 mb-4 border-b pb-2"><i class="fa-solid fa-list mr-1"></i> การจองของฉัน</h2>
+                    <div class="overflow-x-auto">
+                        <table id="myTable" class="w-full text-sm display nowrap">
+                            <thead class="bg-blue-50 text-blue-700">
+                                <tr>
+                                    <th class="py-2 px-3">เรื่อง</th>
+                                    <th class="py-2 px-3">ห้องประชุม</th>
+                                    <th class="py-2 px-3 text-center">เวลาเริ่ม</th>
+                                    <th class="py-2 px-3 text-center">เวลาสิ้นสุด</th>
+                                    <th class="py-2 px-3 text-center">สถานะ</th>
+                                    <th class="py-2 px-3 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-my-bookings"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ========= Admin View ========= -->
+                <div id="admin-view-content" class="hidden bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-rose-700 mb-4 border-b pb-2"><i class="fa-solid fa-list-check mr-1"></i> รายการรออนุมัติ / จัดการการจองทั้งหมดในระบบ</h2>
+                    <div class="overflow-x-auto">
+                        <table id="adminBookingTable" class="w-full text-sm display nowrap">
+                            <thead class="bg-rose-50 text-rose-700">
+                                <tr>
+                                    <th class="py-2 px-3">เรื่อง</th>
+                                    <th class="py-2 px-3">ผู้จอง / เบอร์โทร</th>
+                                    <th class="py-2 px-3">ห้องประชุม (คน)</th>
+                                    <th class="py-2 px-3 text-center">วัน/เวลา</th>
+                                    <th class="py-2 px-3 text-center">สถานะ</th>
+                                    <th class="py-2 px-3 text-center">การอนุมัติ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-admin-bookings"></tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
-            <div class="overflow-x-auto">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-slate-100 text-slate-600">
-                        <tr>
-                            <th class="py-2 px-4">ชื่อห้องประชุม</th>
-                            <th class="py-2 px-4 text-center">ความจุ (คน)</th>
-                            <th class="py-2 px-4">อุปกรณ์อำนวยความสะดวก</th>
-                            <th class="py-2 px-4 text-center">สถานะ</th>
-                            <th class="py-2 px-4 text-center">จัดการ</th>
-                        </tr>
-                    </thead>
-                    <tbody id="tb-rooms" class="divide-y divide-slate-100"></tbody>
-                </table>
+        </main>
+    </div>
+
+    <!-- ================= Modal: Settings (2 Tabs) ================= -->
+    <div id="settingsModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] flex flex-col shadow-2xl">
+
+            <!-- Header -->
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 flex-shrink-0">
+                <h2 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fas fa-gear text-amber-500"></i> ตั้งค่าระบบ
+                </h2>
+                <button onclick="closeSettingsModal()" class="h-9 w-9 rounded-xl bg-slate-100 hover:bg-rose-50 hover:text-rose-500 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+
+            <!-- Tabs -->
+            <div class="px-6 pt-4 border-b border-slate-100 flex-shrink-0">
+                <div class="inline-flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-sm font-bold">
+                    <button id="stab-rooms" onclick="setSettingsTab('rooms')"
+                        class="px-5 py-2.5 transition">
+                        <i class="fas fa-door-open mr-1"></i> จัดการห้องประชุม
+                    </button>
+                    <button id="stab-admins" onclick="setSettingsTab('admins')"
+                        class="px-5 py-2.5 transition border-l border-slate-200">
+                        <i class="fas fa-user-shield mr-1"></i> ผู้ดูแลระบบ
+                    </button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-6">
+
+                <!-- ===== Tab: Rooms ===== -->
+                <div id="stab-content-rooms">
+                    <div class="flex justify-between items-center mb-4">
+                        <p class="text-sm text-slate-500">รายการห้องประชุมในระบบ</p>
+                        <button onclick="openRoomFormModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm">
+                            <i class="fa-solid fa-plus mr-1"></i> เพิ่มห้องใหม่
+                        </button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm text-left">
+                            <thead class="bg-slate-100 text-slate-600">
+                                <tr>
+                                    <th class="py-2 px-4">ชื่อห้องประชุม</th>
+                                    <th class="py-2 px-4 text-center">ความจุ (คน)</th>
+                                    <th class="py-2 px-4">อุปกรณ์อำนวยความสะดวก</th>
+                                    <th class="py-2 px-4 text-center">สถานะ</th>
+                                    <th class="py-2 px-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tb-rooms" class="divide-y divide-slate-100"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- ===== Tab: Admins ===== -->
+                <div id="stab-content-admins" class="hidden">
+                    <div class="bg-purple-50 border border-purple-200 rounded-xl p-3 text-xs text-purple-700 flex items-start gap-2 mb-5">
+                        <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
+                        <div>
+                            <p class="font-bold">ผู้ดูแลระบบย่อย (Module Admin)</p>
+                            <p class="mt-0.5">ครูที่ได้รับการแต่งตั้งจะสามารถอนุมัติ/ปฏิเสธคำขอจองห้องประชุมได้ทุกห้อง และเข้าถึงหน้าจัดการทั้งหมดในระบบ</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 mb-5">
+                        <label class="block text-xs font-bold text-slate-600 mb-2">เลือกครูเพื่อแต่งตั้ง</label>
+                        <div class="flex flex-col sm:flex-row gap-2">
+                            <select id="select-teacher-appoint" class="flex-1"></select>
+                            <button onclick="appointModuleAdmin()" class="bg-purple-600 hover:bg-purple-700 text-white px-5 py-2.5 rounded-xl font-bold shadow-sm whitespace-nowrap">
+                                <i class="fas fa-plus mr-1"></i> แต่งตั้ง
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="border border-slate-200 rounded-xl overflow-hidden">
+                        <div class="bg-purple-50 px-4 py-3 border-b border-purple-100">
+                            <h3 class="font-bold text-purple-800 text-sm flex items-center gap-2">
+                                <i class="fas fa-list"></i> รายชื่อผู้ดูแลปัจจุบัน
+                                <span id="admin-count-badge" class="ml-auto text-xs bg-purple-200 text-purple-800 px-2 py-0.5 rounded-full">0</span>
+                            </h3>
+                        </div>
+                        <div id="module-admin-list" class="divide-y divide-slate-100 bg-white max-h-80 overflow-y-auto">
+                            <div class="text-center py-6 text-slate-400 text-sm">
+                                <i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="px-6 py-3 border-t border-slate-100 flex justify-end flex-shrink-0">
+                <button onclick="closeSettingsModal()" class="px-5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition">
+                    ปิด
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Modal เพิ่ม/แก้ไขห้อง -->
-    <div id="roomModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-md p-6 relative shadow-2xl mx-4">
-            <button onclick="closeRoomModal()" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-xmark text-xl"></i></button>
+    <!-- ================= Modal: Room (Add/Edit) ================= -->
+    <div id="roomModal" class="fixed inset-0 bg-black/60 z-[60] hidden items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl w-full max-w-md p-6 relative shadow-2xl">
+            <button onclick="closeRoomModal()" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500">
+                <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
             <h3 id="roomModalTitle" class="text-lg font-bold mb-4 border-b pb-2">เพิ่มห้องประชุม</h3>
             <form id="roomForm" onsubmit="saveRoom(event)" class="space-y-4">
                 <input type="hidden" id="r_id">
@@ -273,9 +311,9 @@
         </div>
     </div>
 
-    <!-- Modal แก้ไขการจองของฉัน -->
-    <div id="editBookingModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-lg p-6 relative shadow-2xl mx-4 max-h-[90vh] overflow-y-auto">
+    <!-- ================= Modal: Edit Booking ================= -->
+    <div id="editBookingModal" class="fixed inset-0 bg-black/60 z-50 hidden items-center justify-center backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl w-full max-w-lg p-6 relative shadow-2xl max-h-[90vh] overflow-y-auto">
             <button onclick="closeEditBookingModal()" class="absolute top-4 right-4 text-slate-400 hover:text-rose-500"><i class="fa-solid fa-xmark text-xl"></i></button>
             <h3 class="text-lg font-bold mb-4 border-b pb-2 text-blue-700"><i class="fa-solid fa-pen-to-square mr-1"></i> แก้ไขคำขอจองห้อง</h3>
             <form id="editBookingForm" onsubmit="saveEditBooking(event)" class="space-y-3">
@@ -291,11 +329,11 @@
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">เวลาเริ่ม *</label>
-                        <input type="text" id="eb_start" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
+                        <input type="text" id="eb_start" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">เวลาสิ้นสุด *</label>
-                        <input type="text" id="eb_end" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer" placeholder="เลือกวัน/เวลา">
+                        <input type="text" id="eb_end" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 cursor-pointer">
                     </div>
                 </div>
                 <div>
@@ -318,7 +356,7 @@
                 </div>
                 <div>
                     <label class="block text-xs font-bold text-slate-500 mb-1">เบอร์ติดต่อ *</label>
-                    <input type="tel" id="eb_phone" required readonly placeholder="กรอกอัตโนมัติเมื่อเลือกชื่อ" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed">
+                    <input type="tel" id="eb_phone" required readonly class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 text-slate-500 cursor-not-allowed">
                 </div>
                 <p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
                     <i class="fa-solid fa-triangle-exclamation mr-1"></i>
@@ -332,7 +370,83 @@
         </div>
     </div>
 
+    <!-- ================= Scripts ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="meeting_room.js"></script>
+
+    <script>
+        function getMeetingRoomFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK Meeting',
+                    subtitle: 'ระบบจองห้องประชุม'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-calendar', icon: 'fa-calendar-days', label: 'ปฏิทินห้องประชุม', onclick: "switchTab('calendar-tab')", class: 'active' },
+                    { id: 'nav-my-booking', icon: 'fa-list', label: 'การจองของฉัน', onclick: "switchTab('my-booking-tab')" }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [],
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
+                ],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        initModuleSidebar({
+            moduleKey: 'meeting_room',
+            pageTitle: 'ระบบจองห้องประชุม',
+            activeId: 'nav-calendar',
+            topbarButtons: [
+                {
+                    id: 'btnToggleMode',
+                    html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>',
+                    onclick: 'toggleTeacherAdminMode()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'สลับโหมดมุมมอง'
+                },
+                {
+                    id: 'btnMeetingSettings',
+                    html: '<i class="fas fa-gear"></i><span>ตั้งค่า</span>',
+                    onclick: 'openSettingsModal()',
+                    class: 'hidden d-btn-mode depthead',
+                    title: 'ตั้งค่าระบบ'
+                }
+            ],
+            fallbackConfig: getMeetingRoomFallbackConfig(),
+            onReady: () => {
+                if (window.currentProfile) {
+                    if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
+                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentUserRole);
+                    if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+                }
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+            }
+        });
+    </script>
+
 </body>
 
 </html>

@@ -18,101 +18,16 @@
 <body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
     <div class="d-app">
-
-        <!-- ================= Sidebar ================= -->
-        <aside class="d-sidebar" id="dSidebar">
-            <div class="d-brand">
-                <div class="d-logo"><img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" alt="logo"></div>
-                <div><b>WRK System</b><span>ระบบปฏิทิน</span></div>
-            </div>
-            <nav class="d-nav">
-                <div class="d-nav-title" style="margin-top:4px">เมนูหลัก</div>
-                <a href="index.html" title="หน้าหลัก">
-                    <span class="d-ico"><i class="fa-solid fa-house"></i></span>
-                    <span class="d-label">หน้าหลัก</span>
-                </a>
-                <a class="active" title="จัดการปฏิทิน">
-                    <span class="d-ico"><i class="fa-regular fa-calendar-alt"></i></span>
-                    <span class="d-label">จัดการปฏิทิน</span>
-                </a>
-
-                <div class="d-nav-title">การตั้งค่า</div>
-                <a id="btn-settings" class="hidden" onclick="openSettings()" title="ตั้งค่าระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
-                    <span class="d-label">ตั้งค่าระบบ</span>
-                </a>
-                <a class="logout" onclick="logout()" title="ออกจากระบบ">
-                    <span class="d-ico"><i class="fa-solid fa-power-off"></i></span>
-                    <span class="d-label">ออกจากระบบ</span>
-                </a>
-            </nav>
-            <div class="d-sidebar-bottom">
-                <a href="https://www.facebook.com/WRKOfficial" target="_blank" rel="noopener" class="d-fb-btn" title="ติดตามเพจ Facebook โรงเรียน">
-                    <i class="fa-brands fa-facebook"></i>
-                    <span>ติดตามเพจโรงเรียน</span>
-                </a>
-            </div>
-        </aside>
+        <aside class="d-sidebar" id="dSidebar"></aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-        <!-- ================= Main ================= -->
         <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
 
-            <!-- ================= Topbar ================= -->
-            <header class="d-topbar">
-                <button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-                <button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-                    <i class="fa-solid fa-angles-left"></i>
-                </button>
-
-                <h2 id="pageTitle">จัดการปฏิทินกิจกรรม</h2>
-
-                <div class="d-spacer"></div>
-
-                <div class="d-settings-wrap">
-                    <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
-                        <i class="fa-solid fa-sliders"></i>
-                        <span>แสดงผล</span>
-                    </button>
-                    <div class="d-settings-menu" id="settingsMenu">
-                        <div class="d-settings-title">ขนาดตัวอักษร</div>
-                        <div class="d-settings-options">
-                            <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
-                            <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
-                            <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
-                        </div>
-                        <div class="d-settings-title">ความหนาแน่น</div>
-                        <div class="d-settings-options cols-2">
-                            <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
-                            <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>
-
-                <div class="d-profile">
-                    <div class="d-avatar-wrap">
-                        <div class="d-avatar" id="userAvatar">
-                            <span id="userAvatarInitial">?</span>
-                            <img id="userAvatarImg" src="" alt="" style="display:none;">
-                        </div>
-                        <img id="userAvatarPreview" class="d-avatar-preview" src="" alt="" style="display:none;">
-                    </div>
-                    <div>
-                        <b id="userName" class="text-sm">กำลังโหลด...</b>
-                        <small id="userRole">...</small>
-                    </div>
-                </div>
-            </header>
-
-            <!-- ================= Content ================= -->
             <div style="padding:0 0 12px;" class="space-y-4">
 
-                <!-- Role Badge -->
                 <div id="userRoleBadge" class="text-xs text-slate-500"></div>
 
-                <!-- Stats -->
                 <div class="d-grid4">
                     <div class="d-stat">
                         <div class="d-stat-icon d-blue"><i class="fa-regular fa-calendar-check"></i></div>
@@ -124,7 +39,6 @@
                     </div>
                 </div>
 
-                <!-- Events Card -->
                 <div class="d-card">
                     <div class="d-card-head">
                         <div class="d-card-title">📅 รายการกิจกรรม</div>
@@ -230,8 +144,6 @@
     <div id="settingsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-0">
         <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
         <div class="relative bg-white w-full h-full flex flex-col overflow-hidden z-10">
-
-            <!-- Header -->
             <div class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
                 <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center text-lg flex-shrink-0">
                     <i class="fas fa-cog"></i>
@@ -245,7 +157,6 @@
                 </button>
             </div>
 
-            <!-- Tabs -->
             <div class="px-6 py-3 bg-slate-50 border-b border-slate-100 flex-shrink-0">
                 <div class="inline-flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-xs font-bold">
                     <button id="stab-dept" onclick="setSettingsTab('dept')" class="px-4 py-2.5 transition">
@@ -257,10 +168,7 @@
                 </div>
             </div>
 
-            <!-- Content -->
             <div class="flex-1 overflow-y-auto p-6">
-
-                <!-- ===== Tab: กลุ่มงาน ===== -->
                 <div id="stab-content-dept" class="space-y-4">
                     <div class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 flex items-start gap-2">
                         <i class="fas fa-info-circle mt-0.5 flex-shrink-0"></i>
@@ -279,10 +187,7 @@
                     </div>
                 </div>
 
-                <!-- ===== Tab: ผู้ดูแล ===== -->
                 <div id="stab-content-admin" class="hidden space-y-4">
-
-                    <!-- Add Admin -->
                     <div class="d-card">
                         <h3 class="font-bold mb-3 flex items-center gap-2">
                             <i class="fas fa-user-plus text-indigo-600"></i>
@@ -315,7 +220,6 @@
                         </p>
                     </div>
 
-                    <!-- Admin List -->
                     <div class="d-card">
                         <h3 class="font-bold mb-3 flex items-center gap-2">
                             <i class="fas fa-list text-indigo-600"></i>
@@ -331,7 +235,6 @@
                 </div>
             </div>
 
-            <!-- Footer -->
             <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex justify-end flex-shrink-0">
                 <button onclick="closeSettingsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 font-bold text-slate-700 text-sm transition">
                     <i class="fas fa-times mr-1.5"></i> ปิด
@@ -343,11 +246,12 @@
     <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="calendar_manager.js"></script>
 
     <script>
         // =====================================================
-        // State
+        // Calendar Admin — State
         // =====================================================
         let currentUser = null;
         let currentProfile = null;
@@ -358,9 +262,8 @@
         let currentYear = new Date().getFullYear() + 543;
         let currentMonth = new Date().getMonth();
 
-        // Settings state
         let settingsConfig = [];
-        let settingsDeptAdmins = {};      // { dept_key: [{ user_id, name, email }] }
+        let settingsDeptAdmins = {};
         let adminUserTomSelect = null;
         let settingsTab = 'dept';
 
@@ -386,7 +289,75 @@
         };
 
         // =====================================================
-        // Init
+        // ✅ Fallback Sidebar Config
+        // =====================================================
+        function getCalendarFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK System',
+                    subtitle: 'ระบบปฏิทิน'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [
+                    {
+                        title: 'ระบบปฏิทิน',
+                        sectionId: 'sec-calendar',
+                        collapsible: false,
+                        defaultOpen: true,
+                        items: [
+                            { id: 'nav-calendar', icon: 'fa-calendar-alt', label: 'จัดการปฏิทิน', href: 'calendar_admin.html' }
+                        ]
+                    }
+                ],
+                footerMenuTitle: 'การตั้งค่า',
+                footerCollapsible: false,
+                footerMenu: [
+                    {
+                        id: 'btn-settings',
+                        icon: 'fa-gear',
+                        label: 'ตั้งค่าระบบ',
+                        onclick: 'openSettings()',
+                        roles: ['super_admin', 'admin']
+                    }
+                ],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        // =====================================================
+        // ✅ Init Module Sidebar (ทันที - ไม่ต้องรอ auth)
+        // =====================================================
+        initModuleSidebar({
+            moduleKey: 'calendar',
+            pageTitle: 'จัดการปฏิทินกิจกรรม',
+            activeId: 'nav-calendar',
+            topbarButtons: [],
+            fallbackConfig: getCalendarFallbackConfig(),
+            onReady: () => {
+                // เรียกหลัง sidebar render ทุกครั้ง
+            }
+        });
+
+        // =====================================================
+        // Init — full
         // =====================================================
         $(document).ready(async function () {
             try {
@@ -415,11 +386,6 @@
                         window.location.href = 'index.html';
                         return;
                     }
-                }
-
-                // ปุ่ม settings (sidebar) — เฉพาะ super_admin/admin
-                if (canManageSettings(role)) {
-                    $('#btn-settings').removeClass('hidden').addClass('flex');
                 }
 
                 await loadManagedDepts();
@@ -683,19 +649,11 @@
             settingsTab = tab;
             const isDept = tab === 'dept';
 
-            // Toggle content
             $('#stab-content-dept').toggleClass('hidden', !isDept);
             $('#stab-content-admin').toggleClass('hidden', isDept);
 
-            // Active state ของ tab buttons
-            $('#stab-dept').css({
-                background: isDept ? '#4f46e5' : '',
-                color: isDept ? '#fff' : ''
-            });
-            $('#stab-admin').css({
-                background: !isDept ? '#4f46e5' : '',
-                color: !isDept ? '#fff' : ''
-            });
+            $('#stab-dept').css({ background: isDept ? '#4f46e5' : '', color: isDept ? '#fff' : '' });
+            $('#stab-admin').css({ background: !isDept ? '#4f46e5' : '', color: !isDept ? '#fff' : '' });
 
             if (!isDept && adminUserTomSelect) {
                 setTimeout(() => adminUserTomSelect.refreshOptions(false), 50);
@@ -704,15 +662,11 @@
 
         async function loadSettingsData() {
             try {
-                // 1. โหลด config
                 const configs = await getCalendarConfig();
                 settingsConfig = configs || [];
                 renderDeptConfigs();
 
-                // 2. โหลด dept admins
                 await loadAllDeptAdmins();
-
-                // 3. โหลดรายชื่อครู (สำหรับ select)
                 await loadTeachersForAdminSelect();
             } catch (err) {
                 console.error('loadSettingsData error:', err);
@@ -795,7 +749,6 @@
 
             container.innerHTML = html;
 
-            // Bind checkbox change (update label)
             deptOrder.forEach(dept => {
                 $(`#dept-active-${dept}`).on('change', function () {
                     const label = $(this).siblings('span');
@@ -822,7 +775,6 @@
             try {
                 await updateCalendarConfig(deptKey, updates);
 
-                // อัปเดต local state
                 const idx = settingsConfig.findIndex(c => c.dept_key === deptKey);
                 if (idx >= 0) Object.assign(settingsConfig[idx], updates);
 
@@ -835,7 +787,6 @@
                     timer: 1500, showConfirmButton: false
                 });
 
-                // รีเฟรชตารางกิจกรรม
                 await loadEvents();
             } catch (err) {
                 Swal.fire('ผิดพลาด', err.message, 'error');
@@ -924,7 +875,6 @@
 
             if (error || !data) return;
 
-            // Destroy old
             if (adminUserTomSelect) {
                 adminUserTomSelect.destroy();
                 adminUserTomSelect = null;
@@ -961,7 +911,6 @@
                 return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกกลุ่มงานและครู', 'warning');
             }
 
-            // ตรวจสอบซ้ำ
             const existing = (settingsDeptAdmins[deptKey] || []).find(a => a.user_id === userId);
             if (existing) {
                 return Swal.fire('ซ้ำซ้อน', 'ครูท่านนี้เป็นผู้ดูแลกลุ่มนี้อยู่แล้ว', 'warning');
@@ -973,7 +922,6 @@
                 await addDeptAdmin(userId, deptKey);
                 logUserAction(`เพิ่มผู้ดูแลกลุ่ม ${DEPT_NAMES[deptKey]}`, 'calendar');
 
-                // Clear select
                 if (adminUserTomSelect) adminUserTomSelect.clear();
                 else $('#settings_admin_user').val('');
                 $('#settings_admin_dept').val('');
@@ -1012,29 +960,8 @@
         }
 
         // =====================================================
-        // Logout
-        // =====================================================
-        function logout() {
-            if (typeof handleLogout === 'function') return handleLogout();
-            Swal.fire({
-                title: 'ออกจากระบบ?',
-                icon: 'warning',
-                showCancelButton: true,
-                confirmButtonColor: '#dc2626',
-                confirmButtonText: 'ออกจากระบบ',
-                cancelButtonText: 'ยกเลิก'
-            }).then(async (result) => {
-                if (result.isConfirmed) {
-                    await db.auth.signOut();
-                    window.location.replace('login.html');
-                }
-            });
-        }
-
-        // =====================================================
         // Expose global
         // =====================================================
-        window.logout = logout;
         window.openSettings = openSettings;
         window.closeSettingsModal = closeSettingsModal;
         window.setSettingsTab = setSettingsTab;
@@ -1044,7 +971,7 @@
         window.hideModal = hideModal;
         window.submitEventForm = submitEventForm;
 
-        console.log('✅ calendar_admin.html loaded (with Settings)');
+        console.log('✅ calendar_admin.html loaded (initModuleSidebar + Settings)');
     </script>
 </body>
 

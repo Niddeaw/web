@@ -3,51 +3,91 @@
 
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบฝากข้อความ - ผู้ดูแลระบบ | WRK System</title>
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
+    <style>
+        /* Skeleton */
+        .skeleton-item {
+            animation: skeletonPulse 1.5s ease-in-out infinite;
+        }
+        @keyframes skeletonPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Hide scrollbar for a cleaner look */
+        .scroll-slim::-webkit-scrollbar { width: 6px; height: 6px; }
+        .scroll-slim::-webkit-scrollbar-track { background: transparent; }
+        .scroll-slim::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 9999px; }
+        .scroll-slim::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        /* Mobile: shrink header text */
+        @media (max-width: 640px) {
+            .helpdesk-header-title { font-size: 15px; }
+            .helpdesk-header-subtitle { font-size: 10px; }
+        }
+    </style>
 </head>
 
-<body
-    class="bg-slate-50 dark:bg-slate-900 text-gray-800 h-screen flex flex-col opacity-0 transition-opacity duration-300"
-    id="mainBody">
+<body class="bg-slate-50 dark:bg-slate-900 text-gray-800 h-screen flex flex-col opacity-0 transition-opacity duration-300" id="mainBody">
 
-    <header
-        class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-6 py-4 flex justify-between items-center z-10 sticky top-0 shadow-sm">
-        <div class="flex items-center gap-4">
+    <header class="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-3 sm:px-6 py-3 sm:py-4 flex justify-between items-center z-10 sticky top-0 shadow-sm">
+
+        <!-- ============ Left: Brand ============ -->
+        <div class="flex items-center gap-3 sm:gap-4 min-w-0">
             <div class="rounded-xl p-1.5 shadow-sm shrink-0 bg-blue-50">
-                <i class="fa-solid fa-headset text-blue-600 text-xl"></i>
+                <i class="fa-solid fa-headset text-blue-600 text-lg sm:text-xl"></i>
             </div>
-            <div>
-                <h2 class="text-xl font-bold text-slate-800 dark:text-slate-100">ศูนย์ช่วยเหลือ (Helpdesk)</h2>
-                <p class="text-xs text-gray-500">ตอบกลับข้อความและปัญหาการใช้งาน</p>
+            <div class="min-w-0">
+                <h2 class="helpdesk-header-title text-base sm:text-xl font-bold text-slate-800 dark:text-slate-100 truncate">
+                    ศูนย์ช่วยเหลือ (Helpdesk)
+                </h2>
+                <p class="helpdesk-header-subtitle text-[10px] sm:text-xs text-gray-500 truncate">
+                    ตอบกลับข้อความและปัญหาการใช้งาน
+                </p>
             </div>
         </div>
-        <button onclick="window.location.replace('index.html')"
-            class="text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors" title="กลับหน้าหลัก">
-            <i class="fa-solid fa-arrow-left mr-1"></i> กลับหน้าหลัก
-        </button>
+
+        <!-- ============ Right: User Profile + Back ============ -->
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+
+            <!-- User Profile (ซ่อนบนมือถือ) -->
+            <div class="hidden sm:flex items-center gap-2 pl-3 border-l border-slate-200 dark:border-slate-700">
+                <div class="w-9 h-9 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-sm shrink-0">
+                    <span id="userAvatarInitial">?</span>
+                    <img id="userAvatarImg" src="" alt="" class="w-full h-full object-cover" style="display:none;">
+                </div>
+                <div class="text-left leading-tight">
+                    <b id="userName" class="block text-xs text-slate-700 dark:text-slate-200 max-w-[140px] truncate">กำลังโหลด...</b>
+                    <small id="userRole" class="text-[10px] text-gray-400 block max-w-[140px] truncate">...</small>
+                </div>
+            </div>
+
+            <!-- Back Button -->
+            <button onclick="window.location.replace('index.html')"
+                class="text-xs sm:text-sm font-bold text-gray-500 hover:text-blue-600 transition-colors flex items-center gap-1 px-2 py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700"
+                title="กลับหน้าหลัก">
+                <i class="fa-solid fa-arrow-left"></i>
+                <span class="hidden sm:inline">กลับหน้าหลัก</span>
+            </button>
+        </div>
     </header>
 
     <main class="flex-1 flex overflow-hidden max-w-7xl w-full mx-auto p-2 sm:p-4 gap-4 relative">
 
-        <!-- <div id="sidebarPanel" class="w-full md:w-1/3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden transition-all duration-300">
-            <div class="p-4 border-b border-gray-100 bg-gray-50">
-                <h3 class="font-bold text-gray-700"><i class="fa-solid fa-inbox text-blue-500 mr-2"></i>กล่องข้อความ</h3>
-            </div>
-            <div class="flex-1 overflow-y-auto p-2 space-y-2" id="ticketList">
-                <div class="text-center py-8 text-gray-400 text-sm">กำลังโหลดข้อมูล...</div>
-            </div>
-        </div> -->
+        <!-- ============ Ticket List ============ -->
         <div id="sidebarPanel"
             class="w-full md:w-1/3 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden transition-all duration-300">
 
             <div class="p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center shrink-0">
-                <h3 class="font-bold text-gray-700"><i class="fa-solid fa-inbox text-blue-500 mr-2"></i>กล่องข้อความ
+                <h3 class="font-bold text-gray-700">
+                    <i class="fa-solid fa-inbox text-blue-500 mr-2"></i>กล่องข้อความ
                 </h3>
                 <span id="unreadCountBadge"
-                    class="hidden bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse">0
-                    ใหม่</span>
+                    class="hidden bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full shadow-sm animate-pulse">0 ใหม่</span>
             </div>
 
             <div class="p-3 bg-white border-b border-gray-100 flex flex-col gap-2 shrink-0">
@@ -67,62 +107,90 @@
                 </div>
             </div>
 
-            <div class="flex-1 overflow-y-auto p-2 space-y-2" id="ticketList">
-                <div class="text-center py-8 text-gray-400 text-sm">กำลังโหลดข้อมูล...</div>
+            <div class="flex-1 overflow-y-auto p-2 space-y-2 scroll-slim" id="ticketList">
+                <!-- Skeleton -->
+                <div class="p-3 bg-white border border-gray-100 rounded-xl skeleton-item">
+                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div class="h-3 bg-gray-100 rounded w-1/2"></div>
+                </div>
+                <div class="p-3 bg-white border border-gray-100 rounded-xl skeleton-item">
+                    <div class="h-4 bg-gray-200 rounded w-2/3 mb-2"></div>
+                    <div class="h-3 bg-gray-100 rounded w-1/3"></div>
+                </div>
+                <div class="p-3 bg-white border border-gray-100 rounded-xl skeleton-item">
+                    <div class="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                    <div class="h-3 bg-gray-100 rounded w-1/2"></div>
+                </div>
             </div>
         </div>
 
+        <!-- ============ Chat Panel ============ -->
         <div id="chatPanel"
             class="hidden md:flex flex-1 w-full bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-gray-200 flex-col overflow-hidden relative transition-all duration-300">
 
-<div id="chatHeader" class="p-3 sm:p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center hidden">
-                <div class="flex items-center gap-2 sm:gap-3">
-                    <button onclick="showSidebarOnMobile()" class="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors shrink-0">
+            <!-- Chat Header -->
+            <div id="chatHeader" class="p-3 sm:p-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center hidden">
+                <div class="flex items-center gap-2 sm:gap-3 min-w-0">
+                    <button onclick="showSidebarOnMobile()"
+                        class="md:hidden flex items-center justify-center w-8 h-8 rounded-full bg-slate-200 text-slate-600 hover:bg-slate-300 transition-colors shrink-0">
                         <i class="fa-solid fa-chevron-left"></i>
                     </button>
 
                     <div class="relative block shrink-0">
-                        <img id="senderAvatarImg" src="https://ui-avatars.com/api/?name=User&background=random" alt="Profile" class="w-10 h-10 rounded-full object-cover border border-gray-200 bg-white">
+                        <img id="senderAvatarImg" src="https://ui-avatars.com/api/?name=User&background=random" alt="Profile"
+                            class="w-10 h-10 rounded-full object-cover border border-gray-200 bg-white">
                     </div>
-                    <div>
-                        <h3 class="font-bold text-gray-800 text-sm sm:text-base truncate max-w-[120px] sm:max-w-xs" id="activeTopic">ชื่อหัวข้อปัญหา</h3>
+                    <div class="min-w-0">
+                        <h3 class="font-bold text-gray-800 text-sm sm:text-base truncate" id="activeTopic">ชื่อหัวข้อปัญหา</h3>
                         <div class="flex items-center gap-1 sm:gap-2 mt-0.5">
-                            <span class="text-xs sm:text-sm font-bold text-blue-600 truncate max-w-[80px] sm:max-w-[150px]" id="activeSenderName">กำลังโหลด...</span>
+                            <span class="text-xs sm:text-sm font-bold text-blue-600 truncate" id="activeSenderName">กำลังโหลด...</span>
                             <span class="text-[9px] sm:text-[10px] text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full whitespace-nowrap" id="activeSenderDetail">...</span>
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="flex gap-1 sm:gap-2 shrink-0">
-                    
-                    <button id="btnBanUser" onclick="banUser()" class="hidden bg-slate-200 text-slate-700 hover:bg-red-100 hover:text-red-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors" title="ระงับการใช้งาน">
+                    <button id="btnBanUser" onclick="banUser()"
+                        class="hidden bg-slate-200 text-slate-700 hover:bg-red-100 hover:text-red-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                        title="ระงับการใช้งาน">
                         <i class="fa-solid fa-ban"></i>
                     </button>
-                    <button id="btnUnbanUser" onclick="unbanUser()" class="hidden bg-red-100 text-red-600 hover:bg-green-100 hover:text-green-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors" title="ยกเลิกการระงับ">
+                    <button id="btnUnbanUser" onclick="unbanUser()"
+                        class="hidden bg-red-100 text-red-600 hover:bg-green-100 hover:text-green-700 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                        title="ยกเลิกการระงับ">
                         <i class="fa-solid fa-unlock"></i>
                     </button>
 
-                    <button onclick="deleteAllMessages()" class="hidden sm:block bg-slate-200 text-slate-700 hover:bg-orange-500 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors" title="ล้างข้อความทั้งหมดในแชทนี้">
+                    <button onclick="deleteAllMessages()"
+                        class="hidden sm:block bg-slate-200 text-slate-700 hover:bg-orange-500 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                        title="ล้างข้อความทั้งหมดในแชทนี้">
                         <i class="fa-solid fa-eraser"></i>
                     </button>
 
-                    <button onclick="deleteTicket()" class="bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors" title="ลบเรื่องนี้">
+                    <button onclick="deleteTicket()"
+                        class="bg-slate-200 text-slate-700 hover:bg-red-500 hover:text-white px-2.5 py-1.5 rounded-lg text-xs font-bold transition-colors"
+                        title="ลบเรื่องนี้">
                         <i class="fa-solid fa-trash"></i>
                     </button>
 
-                    <button onclick="closeTicket()" class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors">
-                        <i class="fa-solid fa-check-circle sm:mr-1"></i> <span class="hidden sm:inline">ปิดงาน</span>
+                    <button onclick="closeTicket()"
+                        class="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 sm:px-3 py-1.5 rounded-lg text-xs sm:text-sm font-bold transition-colors">
+                        <i class="fa-solid fa-check-circle sm:mr-1"></i>
+                        <span class="hidden sm:inline">ปิดงาน</span>
                     </button>
                 </div>
             </div>
 
+            <!-- Empty State -->
             <div id="emptyState" class="flex-1 flex flex-col items-center justify-center text-gray-400 p-6 text-center">
                 <i class="fa-regular fa-comments text-5xl mb-3 text-gray-300"></i>
                 <p>เลือกข้อความทางซ้ายเพื่อเริ่มต้นสนทนา</p>
             </div>
 
-            <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-slate-50/50"></div>
+            <!-- Messages -->
+            <div id="messagesContainer" class="flex-1 overflow-y-auto p-4 space-y-4 hidden bg-slate-50/50 scroll-slim"></div>
 
+            <!-- Reply Box -->
             <div id="replyBox" class="p-2 sm:p-4 border-t border-gray-200 bg-white hidden">
                 <form onsubmit="sendMessage(event)" class="flex gap-2 items-end">
                     <div class="flex-1 relative">

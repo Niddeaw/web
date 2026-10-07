@@ -1,15 +1,118 @@
 // ==========================================
 // dashboard_sidebar.js
-// Dynamic Sidebar + Topbar renderer
-// - แก้ที่เดียว ทุกหน้าอัปเดตอัตโนมัติ
-// - Backward compatible กับ dashboard_ui.js
-// - Auto active link จาก URL หรือจาก config
-// - รองรับ Search input ใน topbar
+// Dynamic Sidebar + Topbar Renderer
+// + Role-based visibility
+// + Icon color support (icon_bg_color, icon_text_color)
+// + Fix: Profile/Avatar ไม่หายหลัง re-render
 // ==========================================
 
+const SIDEBAR_CONFIG_CACHE_KEY = 'cp_sidebar_config_cache';
+const SIDEBAR_CONFIG_TTL = 5 * 60 * 1000;
+
+let _sidebarConfigLoading = null;
+
+async function loadSidebarConfigFromDB(configKey = 'default') {
+    try {
+        const cached = JSON.parse(localStorage.getItem(SIDEBAR_CONFIG_CACHE_KEY) || 'null');
+        if (cached && cached.key === configKey && (Date.now() - cached.ts) < SIDEBAR_CONFIG_TTL) {
+            return cached.data;
+        }
+    } catch (e) { }
+
+    if (_sidebarConfigLoading) return _sidebarConfigLoading;
+
+    _sidebarConfigLoading = (async () => {
+        try {
+            const { data, error } = await db.rpc('get_sidebar_config', { p_key: configKey });
+            if (error || !data || Object.keys(data).length === 0) return null;
+            try {
+                localStorage.setItem(SIDEBAR_CONFIG_CACHE_KEY, JSON.stringify({
+                    key: configKey, ts: Date.now(), data
+                }));
+            } catch (e) { }
+            return data;
+        } catch (err) {
+            console.warn('loadSidebarConfigFromDB error:', err);
+            return null;
+        } finally {
+            _sidebarConfigLoading = null;
+        }
+    })();
+
+    return _sidebarConfigLoading;
+}
+
+function clearSidebarConfigCache() {
+    try { localStorage.removeItem(SIDEBAR_CONFIG_CACHE_KEY); } catch (e) { }
+}
+
+async function renderSidebarAuto(configKey, overrides = {}) {
+    const dbConfig = await loadSidebarConfigFromDB(configKey);
+    const finalConfig = { ...(dbConfig || {}), ...overrides };
+    renderSidebar(finalConfig);
+}
+
+window.loadSidebarConfigFromDB = loadSidebarConfigFromDB;
+window.renderSidebarAuto = renderSidebarAuto;
+window.clearSidebarConfigCache = clearSidebarConfigCache;
+
 // ==========================================
-// DEFAULT CONFIG (override ได้จากแต่ละหน้า)
+// SHARED DEPARTMENTS
 // ==========================================
+const SHARED_DEPARTMENTS = [
+    {
+        id: 'dept-academic', icon: 'fa-book-open', label: 'บริหารวิชาการ',
+        icon_bg_color: '#3b82f6', icon_text_color: '#ffffff',
+        children: [
+            // ✅ Overview — คลิกแล้วไปหน้า index.html#academic
+            { id: 'sub-academic-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+              href: 'index.html#academic', icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
+
+            { id: 'nav-aca-guidance-t', icon: 'fa-compass', label: 'ปพ.5 แนะแนว', href: 'guidance_teacher.html' },
+            { id: 'nav-aca-guidance-a', icon: 'fa-user-shield', label: 'ปพ.5 แนะแนว (Admin)', href: 'guidance_admin.html' },
+            { id: 'nav-aca-scholarship', icon: 'fa-hand-holding-dollar', label: 'ทุนการศึกษา', href: 'scholarship_teacher.html' },
+            { id: 'nav-aca-club', icon: 'fa-users-rectangle', label: 'ชุมนุม', href: 'club_teacher.html' }
+        ]
+    },
+    {
+        id: 'dept-budget', icon: 'fa-coins', label: 'บริหารงบประมาณ',
+        icon_bg_color: '#10b981', icon_text_color: '#ffffff',
+        children: [
+            { id: 'sub-budget-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+              href: 'index.html#budget', icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
+
+            { id: 'nav-bud-overview', icon: 'fa-chart-pie', label: 'ภาพรวมงบประมาณ', href: 'budget_overview.html' },
+            { id: 'nav-bud-purchase', icon: 'fa-shopping-cart', label: 'จัดซื้อจัดจ้าง', href: 'purchase.html' },
+            { id: 'nav-bud-assets', icon: 'fa-boxes-stacked', label: 'ครุภัณฑ์', href: 'assets.html' }
+        ]
+    },
+    {
+        id: 'dept-personnel', icon: 'fa-users', label: 'บริหารงานบุคคล',
+        icon_bg_color: '#a855f7', icon_text_color: '#ffffff',
+        children: [
+            { id: 'sub-personnel-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+              href: 'index.html#personnel', icon_bg_color: '#a855f7', icon_text_color: '#ffffff' },
+
+            { id: 'nav-per-list', icon: 'fa-id-card', label: 'ข้อมูลบุคลากร', href: 'personnel.html' },
+            { id: 'nav-per-leave', icon: 'fa-envelope-open-text', label: 'ระบบการลา', href: 'leave.html' },
+            { id: 'nav-per-eval', icon: 'fa-star-half-stroke', label: 'ประเมินผล', href: 'evaluation.html' }
+        ]
+    },
+    {
+        id: 'dept-general', icon: 'fa-building', label: 'บริหารทั่วไป',
+        icon_bg_color: '#f97316', icon_text_color: '#ffffff',
+        children: [
+            { id: 'sub-general-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+              href: 'index.html#general', icon_bg_color: '#f97316', icon_text_color: '#ffffff' },
+
+            { id: 'nav-gen-attendance', icon: 'fa-clipboard-user', label: 'เช็คชื่อหน้าเสาธง', href: 'attendance_teacher.html' },
+            { id: 'nav-gen-discipline', icon: 'fa-gavel', label: 'งานปกครอง', href: 'behavior_teacher.html' },
+            { id: 'nav-gen-homevisit', icon: 'fa-house-chimney-user', label: 'เยี่ยมบ้านนักเรียน', href: 'homevisit.html' },
+            { id: 'nav-gen-calendar', icon: 'fa-calendar-alt', label: 'ปฏิทินกิจกรรม', href: 'calendar_admin.html' }
+        ]
+    }
+];
+
 const SIDEBAR_DEFAULTS = {
     brand: {
         logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
@@ -17,9 +120,11 @@ const SIDEBAR_DEFAULTS = {
         subtitle: 'ยินดีต้อนรับ'
     },
     mainMenuTitle: 'เมนูหลัก',
-    mainMenu: [
-        { href: 'index.html', icon: 'fa-house', label: 'หน้าหลัก', id: 'nav-home' }
-    ],
+    mainMenu: [{ href: 'index.html', icon: 'fa-house', label: 'หน้าหลัก', id: 'nav-home' }],
+    showAllDepartments: false,
+    departmentsTitle: 'กลุ่มบริหารงาน',
+    departments: SHARED_DEPARTMENTS,
+    moduleMenus: [],
     footerMenuTitle: 'การตั้งค่า',
     footerMenu: [],
     logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
@@ -32,7 +137,7 @@ const SIDEBAR_DEFAULTS = {
 
 const TOPBAR_DEFAULTS = {
     pageTitle: 'WRK System',
-    search: null,                   // { id, placeholder, oninput } | null
+    search: null,
     showSettingsMenu: true,
     showChip: true,
     showCollapse: true,
@@ -41,13 +146,43 @@ const TOPBAR_DEFAULTS = {
     buttons: []
 };
 
+const SS_KEYS = {
+    groups: 'cp_sidebar_groups_open',
+    sections: 'cp_sidebar_sections_open'
+};
+
+function _loadState(key, fallback = {}) {
+    try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; }
+    catch (e) { return fallback; }
+}
+function _saveState(key, state) {
+    try { localStorage.setItem(key, JSON.stringify(state)); } catch (e) { }
+}
+function _esc(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 // ==========================================
-// ✅ Helper: สร้าง anchor HTML
+// ✅ Role-based filter
+// ==========================================
+function _passesRoleFilter(item) {
+    if (!Array.isArray(item.roles) || item.roles.length === 0) return true;
+    const userRole = window.currentUserRole;
+    if (!userRole) return false;      // ยังไม่รู้ role → ซ่อนไว้ก่อน (ปลอดภัย)
+    return item.roles.includes(userRole);
+}
+
+// ==========================================
+// _buildNavItem — เพิ่ม Role Filter + Icon Colors
 // ==========================================
 function _buildNavItem(item) {
-    const attrs = [];
+    // ✅ กรองตาม role
+    if (!_passesRoleFilter(item)) return '';
 
-    // รวม class + hidden เข้าด้วยกัน
+    const attrs = [];
     let classList = [];
     if (item.class) classList.push(item.class);
     if (item.hidden) classList.push('hidden');
@@ -56,34 +191,91 @@ function _buildNavItem(item) {
     if (item.href) attrs.push(`href="${item.href}"`);
     if (item.onclick) attrs.push(`onclick="${item.onclick}"`);
     if (classList.length > 0) attrs.push(`class="${classList.join(' ')}"`);
-    if (item.title || item.label) attrs.push(`title="${item.title || item.label}"`);
-    if (item.target) attrs.push(`target="${item.target}" rel="noopener"`);
+    if (item.title || item.label) attrs.push(`title="${_esc(item.title || item.label)}"`);
+
+    const wantsBlank = item.target_blank === true || item.target_blank === 'true';
+    if (wantsBlank) attrs.push(`target="_blank" rel="noopener"`);
+    else if (item.target) attrs.push(`target="${item.target}" rel="noopener"`);
 
     if (item.dataAttrs) {
-        Object.entries(item.dataAttrs).forEach(([k, v]) => attrs.push(`data-${k}="${v}"`));
+        Object.entries(item.dataAttrs).forEach(([k, v]) => attrs.push(`data-${k}="${_esc(v)}"`));
     }
 
-    // ถ้ามี badge → เพิ่ม UI
     let badgeHtml = '';
     if (item.badge) {
-        badgeHtml = `<span class="ml-auto text-[10px] font-bold bg-rose-500 text-white px-1.5 py-0.5 rounded-full">${item.badge}</span>`;
+        badgeHtml = `<span class="ml-auto text-[10px] font-bold bg-rose-500 text-white px-1.5 py-0.5 rounded-full">${_esc(item.badge)}</span>`;
     }
 
     const iconClass = item.icon && item.icon.includes('fa-brands')
         ? item.icon
         : 'fa-solid ' + (item.icon || 'fa-cube');
 
+    // ✅ สร้าง Style สำหรับไอคอน (ดึงสีจาก Config)
+    const iconStyle = `background-color: ${item.icon_bg_color || 'transparent'}; color: ${item.icon_text_color || 'inherit'};`;
+
+    // Group (มี children)
+    if (item.children && item.children.length > 0) {
+        // ✅ กรอง children ตาม role ด้วย
+        const visibleChildren = item.children.filter(child => _passesRoleFilter(child));
+        if (visibleChildren.length === 0) return '';  // ไม่มี child ที่เห็นได้ → ซ่อน group
+
+        const groupId = item.id || `group-${Math.random().toString(36).slice(2, 9)}`;
+        const childrenHtml = visibleChildren
+            .filter(c => !c.hidden)
+            .map(child => _buildNavItem(child))
+            .join('');
+
+        return `
+            <div class="d-nav-group" id="grp-${_esc(groupId)}" data-group-id="${_esc(groupId)}">
+                <a class="group-header" onclick="toggleSidebarGroup('${_esc(groupId)}')" title="${_esc(item.label)}">
+                    <span class="d-ico" style="${iconStyle}"><i class="${iconClass}"></i></span>
+                    <span class="d-label">${_esc(item.label)}</span>
+                    <i class="fa-solid fa-chevron-right d-arrow"></i>
+                    ${badgeHtml}
+                </a>
+                <div class="d-submenu">
+                    ${childrenHtml}
+                </div>
+            </div>
+        `;
+    }
+
     return `
         <a ${attrs.join(' ')}>
-            <span class="d-ico"><i class="${iconClass}"></i></span>
-            <span class="d-label">${item.label}</span>
+            <span class="d-ico" style="${iconStyle}"><i class="${iconClass}"></i></span>
+            <span class="d-label">${_esc(item.label)}</span>
             ${badgeHtml}
         </a>
     `;
 }
 
 // ==========================================
-// ✅ renderSidebar(config)
+// _buildSection (เดิม)
+// ==========================================
+function _buildSection(title, itemsHtml, options = {}) {
+    const { collapsible = false, sectionId = null, defaultOpen = true } = options;
+    if (!collapsible) return `<div class="d-nav-title">${_esc(title)}</div>${itemsHtml}`;
+
+    const sid = sectionId || `sec-${title.replace(/\s+/g, '-').toLowerCase()}`;
+    const state = _loadState(SS_KEYS.sections, {});
+    const isOpen = state[sid] !== undefined ? state[sid] : defaultOpen;
+
+    return `
+        <div class="d-nav-title collapsible ${isOpen ? '' : 'collapsed'}"
+             data-section-id="${_esc(sid)}"
+             onclick="toggleSidebarSection('${_esc(sid)}')">
+            <i class="fa-solid fa-folder section-icon"></i>
+            <span>${_esc(title)}</span>
+            <i class="fa-solid fa-chevron-down section-arrow"></i>
+        </div>
+        <div class="d-nav-section-items ${isOpen ? '' : 'collapsed'}" data-section-items="${_esc(sid)}">
+            ${itemsHtml}
+        </div>
+    `;
+}
+
+// ==========================================
+// renderSidebar (เดิม)
 // ==========================================
 function renderSidebar(userConfig = {}) {
     const config = {
@@ -93,68 +285,137 @@ function renderSidebar(userConfig = {}) {
         facebook: { ...SIDEBAR_DEFAULTS.facebook, ...(userConfig.facebook || {}) }
     };
 
-    const sidebarEl = document.getElementById('dSidebar');
-    if (!sidebarEl) {
-        console.warn('⚠️ renderSidebar: ไม่พบ #dSidebar');
-        return;
+    // ✅ FIX: ถ้า showAllDepartments=true แต่ departments ว่าง → ใช้ SHARED_DEPARTMENTS (default)
+    if (config.showAllDepartments && (!Array.isArray(config.departments) || config.departments.length === 0)) {
+        config.departments = SIDEBAR_DEFAULTS.departments || SHARED_DEPARTMENTS || [];
+        console.log('✅ renderSidebar: Fallback departments =', config.departments.length, 'กลุ่ม');
     }
 
-    // ---- Brand ----
-    let html = `
+    const sidebarEl = document.getElementById('dSidebar');
+    if (!sidebarEl) { console.warn('⚠️ renderSidebar: ไม่พบ #dSidebar'); return; }
+
+    let html = '';
+    html += `
         <div class="d-brand">
-            <div class="d-logo"><img src="${config.brand.logo}" alt="logo"></div>
-            <div><b>${config.brand.name}</b><span>${config.brand.subtitle}</span></div>
+            <div class="d-logo"><img src="${_esc(config.brand.logo)}" alt="logo"></div>
+            <div><b>${_esc(config.brand.name)}</b><span>${_esc(config.brand.subtitle)}</span></div>
         </div>
         <nav class="d-nav">
     `;
 
-    // ---- Main Menu ----
     if (config.mainMenu && config.mainMenu.length > 0) {
-        html += `<div class="d-nav-title" style="margin-top:4px">${config.mainMenuTitle}</div>`;
-        config.mainMenu.forEach(item => { html += _buildNavItem(item); });
-    }
-
-    // ---- Module Menus (array ของ group) ----
-    if (config.moduleMenus && config.moduleMenus.length > 0) {
-        config.moduleMenus.forEach(group => {
-            if (group.title) html += `<div class="d-nav-title">${group.title}</div>`;
-            (group.items || []).forEach(item => { html += _buildNavItem(item); });
+        const visible = config.mainMenu.filter(_passesRoleFilter);
+        const itemsHtml = visible.map(item => _buildNavItem(item)).join('');
+        html += _buildSection(config.mainMenuTitle, itemsHtml, {
+            collapsible: config.mainMenuCollapsible === true,
+            sectionId: 'sec-main',
+            defaultOpen: true
         });
     }
 
-    // ---- Footer Menu ----
-    if (config.footerMenu && config.footerMenu.length > 0) {
-        html += `<div class="d-nav-title">${config.footerMenuTitle}</div>`;
-        config.footerMenu.forEach(item => { html += _buildNavItem(item); });
+    if (config.showAllDepartments && config.departments && config.departments.length > 0) {
+        const deptItemsHtml = config.departments
+            .filter(_passesRoleFilter)
+            .map(dept => _buildNavItem(dept))
+            .join('');
+        html += _buildSection(config.departmentsTitle, deptItemsHtml, {
+            collapsible: config.departmentsCollapsible !== false,
+            sectionId: 'sec-departments',
+            defaultOpen: config.departmentsDefaultOpen !== false  // ✅ เปลี่ยนจาก false
+        });
     }
 
-    // ---- Logout ----
+    if (config.moduleMenus && config.moduleMenus.length > 0) {
+        config.moduleMenus.forEach((group, idx) => {
+            const visible = (group.items || []).filter(_passesRoleFilter);
+            const itemsHtml = visible.map(item => _buildNavItem(item)).join('');
+            if (itemsHtml.trim() === '') return;   // ไม่มีอะไรแสดง → ข้าม section
+            html += _buildSection(group.title || `เมนู ${idx + 1}`, itemsHtml, {
+                collapsible: group.collapsible === true,
+                sectionId: group.sectionId || `sec-module-${idx}`,
+                defaultOpen: group.defaultOpen !== false
+            });
+        });
+    }
+
+    if (config.footerMenu && config.footerMenu.length > 0) {
+        const visible = config.footerMenu.filter(_passesRoleFilter);
+        const itemsHtml = visible.map(item => _buildNavItem(item)).join('');
+        html += _buildSection(config.footerMenuTitle, itemsHtml, {
+            collapsible: config.footerCollapsible === true,
+            sectionId: 'sec-footer',
+            defaultOpen: true
+        });
+    }
+
     html += _buildNavItem(config.logoutItem);
 
     html += `</nav>
         <div class="d-sidebar-bottom">
-            <a href="${config.facebook.href}" target="_blank" rel="noopener" class="d-fb-btn">
+            <a href="${_esc(config.facebook.href)}" target="_blank" rel="noopener" class="d-fb-btn">
                 <i class="${config.facebook.icon}"></i>
-                <span>${config.facebook.label}</span>
+                <span>${_esc(config.facebook.label)}</span>
             </a>
         </div>
     `;
 
     sidebarEl.innerHTML = html;
+    _restoreGroupStates();
 
-    // ---- Auto activate ----
-    if (userConfig.autoActivate !== false) {
-        autoActivateFromUrl(userConfig.activeId);
-    }
+    if (userConfig.autoActivate !== false) autoActivateFromUrl(userConfig.activeId);
+    else if (userConfig.activeId) setActiveNavItem(userConfig.activeId);
 
-    // ---- Re-bind dashboard_ui events (ถ้ามี) ----
+    _autoExpandActiveParents();
+
     if (typeof window.enhanceSidebar === 'function') {
-        try { window.enhanceSidebar(); } catch (e) { /* ignore */ }
+        try { window.enhanceSidebar(); } catch (e) { }
     }
 }
 
 // ==========================================
-// ✅ renderTopbar(config)
+// Toggle / Restore / Auto
+// ==========================================
+function toggleSidebarGroup(groupId, force) {
+    const grp = document.getElementById(`grp-${groupId}`);
+    if (!grp) return;
+    const currentState = grp.classList.contains('expanded');
+    const newState = typeof force === 'boolean' ? force : !currentState;
+    grp.classList.toggle('expanded', newState);
+    const state = _loadState(SS_KEYS.groups, {});
+    state[groupId] = newState;
+    _saveState(SS_KEYS.groups, state);
+}
+
+function _restoreGroupStates() {
+    const state = _loadState(SS_KEYS.groups, {});
+    document.querySelectorAll('.d-nav-group').forEach(grp => {
+        const gid = grp.getAttribute('data-group-id');
+        if (gid && state[gid]) grp.classList.add('expanded');
+    });
+}
+
+function _autoExpandActiveParents() {
+    const activeLink = document.querySelector('.d-nav a.active');
+    if (!activeLink) return;
+    const parentGrp = activeLink.closest('.d-nav-group');
+    if (parentGrp) parentGrp.classList.add('expanded');
+}
+
+function toggleSidebarSection(sectionId, force) {
+    const title = document.querySelector(`.d-nav-title[data-section-id="${sectionId}"]`);
+    const items = document.querySelector(`.d-nav-section-items[data-section-items="${sectionId}"]`);
+    if (!title || !items) return;
+    const currentState = !title.classList.contains('collapsed');
+    const newState = typeof force === 'boolean' ? force : !currentState;
+    title.classList.toggle('collapsed', !newState);
+    items.classList.toggle('collapsed', !newState);
+    const state = _loadState(SS_KEYS.sections, {});
+    state[sectionId] = newState;
+    _saveState(SS_KEYS.sections, state);
+}
+
+// ==========================================
+// renderTopbar (แก้ไข: ป้องกัน Profile/Avatar หายหลัง re-render)
 // ==========================================
 function renderTopbar(userConfig = {}) {
     const config = {
@@ -164,64 +425,44 @@ function renderTopbar(userConfig = {}) {
         buttons: userConfig.buttons || TOPBAR_DEFAULTS.buttons
     };
 
-    const topbarEl = document.getElementById('dTopbar');
-    if (!topbarEl) {
-        console.warn('⚠️ renderTopbar: ไม่พบ #dTopbar');
-        return;
+    // ✅ FIX: ถ้ามี window.currentProfile ให้ใช้ข้อมูลจริง แทน "กำลังโหลด..."
+    if (window.currentProfile && window.currentProfile.first_name) {
+        const p = window.currentProfile;
+        config.profile = {
+            name: `${p.prefix || ''}${p.first_name} ${p.last_name}`.trim() || 'ผู้ใช้งาน',
+            role: p.position || window.currentUserRole || '...'
+        };
     }
+
+    const topbarEl = document.getElementById('dTopbar');
+    if (!topbarEl) { console.warn('⚠️ renderTopbar: ไม่พบ #dTopbar'); return; }
 
     let html = '';
+    if (config.showHamburger) html += `<button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>`;
+    if (config.showCollapse) html += `<button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู"><i class="fa-solid fa-angles-left"></i></button>`;
 
-    // ---- Hamburger ----
-    if (config.showHamburger) {
-        html += `<button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>`;
-    }
-
-    // ---- Collapse ----
-    if (config.showCollapse) {
-        html += `<button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู">
-            <i class="fa-solid fa-angles-left"></i>
-        </button>`;
-    }
-
-    // ---- Search หรือ Title ----
     if (config.search) {
         const sid = config.search.id || 'appSearch';
         const placeholder = config.search.placeholder || 'ค้นหา...';
         const oninput = config.search.oninput ? `oninput="${config.search.oninput}"` : '';
-        html += `
-            <div class="d-search">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input id="${sid}" placeholder="${placeholder}" ${oninput}>
-            </div>
-        `;
+        html += `<div class="d-search"><i class="fa-solid fa-magnifying-glass"></i><input id="${sid}" placeholder="${_esc(placeholder)}" ${oninput}></div>`;
     } else if (config.pageTitle) {
         html += `<h2 id="pageTitle">${config.pageTitle}</h2>`;
     }
 
-    // ---- Spacer ----
     html += `<div class="d-spacer"></div>`;
 
-    // ---- Custom buttons (โหมด admin/teacher, etc.) ----
     (config.buttons || []).forEach(btn => {
         const btnClass = btn.class || 'hidden hv-topbtn';
-        html += `
-            <button id="${btn.id}" ${btn.onclick ? `onclick="${btn.onclick}"` : ''}
-                class="${btnClass}"
-                title="${btn.title || ''}">
-                <i class="${btn.icon}"></i>
-                <span class="hidden sm:inline">${btn.label || ''}</span>
-            </button>
-        `;
+        const innerHTML = btn.html || `<i class="${btn.icon}"></i><span class="hidden sm:inline">${_esc(btn.label || '')}</span>`;
+        html += `<button id="${btn.id}" ${btn.onclick ? `onclick="${btn.onclick}"` : ''} class="${btnClass}" title="${_esc(btn.title || '')}">${innerHTML}</button>`;
     });
 
-    // ---- Settings menu ----
     if (config.showSettingsMenu) {
         html += `
             <div class="d-settings-wrap">
                 <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>แสดงผล</span>
+                    <i class="fa-solid fa-sliders"></i><span>แสดงผล</span>
                 </button>
                 <div class="d-settings-menu" id="settingsMenu">
                     <div class="d-settings-title">ขนาดตัวอักษร</div>
@@ -240,12 +481,8 @@ function renderTopbar(userConfig = {}) {
         `;
     }
 
-    // ---- Date Chip ----
-    if (config.showChip) {
-        html += `<div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>`;
-    }
+    if (config.showChip) html += `<div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="todayChip">-</span></div>`;
 
-    // ---- Profile ----
     html += `
         <div class="d-profile">
             <div class="d-avatar-wrap">
@@ -264,128 +501,51 @@ function renderTopbar(userConfig = {}) {
 
     topbarEl.innerHTML = html;
 
-    // ---- Re-bind dashboard_ui events ----
+    // ✅ FIX: หลัง render Topbar ใหม่ → วาด Avatar กลับทันที (ถ้ามี profile)
+    if (window.currentProfile && typeof renderUserAvatar === 'function') {
+        try { renderUserAvatar(window.currentProfile); } catch (e) { }
+    }
+    // ✅ FIX: อัปเดตวันที่กลับทันที
+    if (typeof setTodayChip === 'function') {
+        try { setTodayChip(); } catch (e) { }
+    }
+
     if (typeof window.enhanceTopbar === 'function') {
-        try { window.enhanceTopbar(); } catch (e) { /* ignore */ }
+        try { window.enhanceTopbar(); } catch (e) { }
     }
 }
 
 // ==========================================
-// ✅ Auto activate จาก URL ปัจจุบัน หรือ forceId
+// Auto activate / Helpers
 // ==========================================
 function autoActivateFromUrl(forceId = null) {
     const currentPage = (window.location.pathname.split('/').pop() || 'index.html').toLowerCase();
-
     let activated = false;
     document.querySelectorAll('.d-nav a').forEach(a => {
         const href = (a.getAttribute('href') || '').toLowerCase();
-        // Clear active
         a.classList.remove('active');
-
-        // ถ้า forceId ตรงกับ id → activate
-        if (forceId && a.id === forceId) {
-            a.classList.add('active');
-            activated = true;
-            return;
-        }
-
-        // match จาก href (ถ้าไม่ได้ forceId)
-        if (!forceId && href && href === currentPage) {
-            a.classList.add('active');
-            activated = true;
-        }
+        if (forceId && a.id === forceId) { a.classList.add('active'); activated = true; return; }
+        if (!forceId && href && href === currentPage) { a.classList.add('active'); activated = true; }
     });
-
     return activated;
 }
 
-// ==========================================
-// ✅ Helper: แสดง/ซ่อนเมนูตาม ID
-// ==========================================
 function showNavItem(id, show = true) {
     const el = document.getElementById(id);
     if (!el) return;
-    if (show) {
-        el.classList.remove('hidden');
-    } else {
-        el.classList.add('hidden');
-    }
+    el.classList.toggle('hidden', !show);
 }
-
-function hideNavItem(id) {
-    showNavItem(id, false);
-}
-
-// ==========================================
-// ✅ Helper: ตั้ง active link แบบ manual
-// ==========================================
+function hideNavItem(id) { showNavItem(id, false); }
+function hideNavItems(ids = []) { ids.forEach(id => hideNavItem(id)); }
 function setActiveNavItem(id) {
     document.querySelectorAll('.d-nav a').forEach(a => a.classList.remove('active'));
     const el = document.getElementById(id);
-    if (el) el.classList.add('active');
-}
-
-// ==========================================
-// ✅ Helper: เพิ่ม/ลบเมนูแบบ dynamic (หลัง render)
-// ==========================================
-function insertNavItem(item, options = {}) {
-    const { groupTitle = null, before = null, after = null } = options;
-    const navEl = document.querySelector('#dSidebar .d-nav');
-    if (!navEl) return;
-
-    let targetEl = null;
-
-    // ถ้ามี groupTitle → หา title ที่ตรง
-    if (groupTitle) {
-        const titles = navEl.querySelectorAll('.d-nav-title');
-        for (const t of titles) {
-            if (t.textContent.trim() === groupTitle) {
-                targetEl = t;
-                break;
-            }
-        }
-        if (!targetEl) {
-            // ถ้าไม่มี title นั้น สร้างใหม่ + append ท้าย nav
-            const newTitle = document.createElement('div');
-            newTitle.className = 'd-nav-title';
-            newTitle.textContent = groupTitle;
-            navEl.appendChild(newTitle);
-            targetEl = newTitle;
-        }
+    if (el) {
+        el.classList.add('active');
+        const parentGrp = el.closest('.d-nav-group');
+        if (parentGrp) parentGrp.classList.add('expanded');
     }
-
-    // Insert ตาม before/after
-    const temp = document.createElement('div');
-    temp.innerHTML = _buildNavItem(item);
-    const newItem = temp.firstElementChild;
-
-    if (before) {
-        const ref = document.getElementById(before);
-        if (ref) ref.parentNode.insertBefore(newItem, ref);
-        else navEl.appendChild(newItem);
-    } else if (after) {
-        const ref = document.getElementById(after);
-        if (ref && ref.nextSibling) ref.parentNode.insertBefore(newItem, ref.nextSibling);
-        else navEl.appendChild(newItem);
-    } else if (targetEl && targetEl.nextSibling) {
-        targetEl.parentNode.insertBefore(newItem, targetEl.nextSibling);
-    } else {
-        navEl.appendChild(newItem);
-    }
-
-    return newItem;
 }
-
-// ==========================================
-// ✅ Helper: ซ่อนเมนูทั้งหมดในกลุ่มที่ระบุ
-// ==========================================
-function hideNavItems(ids = []) {
-    ids.forEach(id => hideNavItem(id));
-}
-
-// ==========================================
-// ✅ Helper: แสดงเมนูตาม Role
-// ==========================================
 function applyNavVisibilityByRole(visibleIds = []) {
     document.querySelectorAll('.d-nav a[id]').forEach(a => {
         const shouldShow = visibleIds.includes(a.id);
@@ -393,19 +553,18 @@ function applyNavVisibilityByRole(visibleIds = []) {
     });
 }
 
-// ==========================================
-// ✅ Export global
-// ==========================================
 window.renderSidebar = renderSidebar;
 window.renderTopbar = renderTopbar;
 window.autoActivateFromUrl = autoActivateFromUrl;
 window.showNavItem = showNavItem;
 window.hideNavItem = hideNavItem;
-window.setActiveNavItem = setActiveNavItem;
-window.insertNavItem = insertNavItem;
 window.hideNavItems = hideNavItems;
+window.setActiveNavItem = setActiveNavItem;
 window.applyNavVisibilityByRole = applyNavVisibilityByRole;
+window.toggleSidebarGroup = toggleSidebarGroup;
+window.toggleSidebarSection = toggleSidebarSection;
+window.SHARED_DEPARTMENTS = SHARED_DEPARTMENTS;
 window.SIDEBAR_DEFAULTS = SIDEBAR_DEFAULTS;
 window.TOPBAR_DEFAULTS = TOPBAR_DEFAULTS;
 
-console.log('✅ dashboard_sidebar.js loaded');
+console.log('✅ dashboard_sidebar.js loaded (+ Role filter + Icon colors + Topbar profile fix)');

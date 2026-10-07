@@ -2,11 +2,15 @@
 <html lang="th">
 
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ระบบผู้ปกครองเครือข่าย | WRK System</title>
-    <!-- Core Head -->
+
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
 
     <!-- jQuery.Thailand.js สำหรับที่อยู่ไทย -->
     <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/JQL.min.js"></script>
@@ -16,83 +20,13 @@
     <script>window.thailandPreloaded = true;</script>
 
     <style>
-        body {
-            background-color: #F8FAFC;
-            font-family: 'Anuphan', sans-serif;
-        }
+        body { background-color: #F8FAFC; font-family: 'Anuphan', sans-serif; }
+
         .glass-card {
             background: rgba(255, 255, 255, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.2);
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-        }
-        #userDisplayName {
-            font-weight: 600;
-            color: #1e293b;
-        }
-        #userRoleBadge {
-            font-size: 0.65rem;
-            font-weight: 700;
-            padding: 2px 10px;
-            border-radius: 9999px;
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-        .btn-toggle-mode {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 0.75rem;
-            font-size: 0.75rem;
-            font-weight: 700;
-            transition: all 0.2s;
-            border: 1px solid transparent;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-            cursor: pointer;
-        }
-        .btn-toggle-mode.teacher-mode {
-            background: #fef2f2;
-            color: #dc2626;
-            border-color: #fecaca;
-        }
-        .btn-toggle-mode.teacher-mode:hover {
-            background: #fee2e2;
-        }
-        .btn-toggle-mode.admin-mode {
-            background: #eff6ff;
-            color: #2563eb;
-            border-color: #bfdbfe;
-        }
-        .btn-toggle-mode.admin-mode:hover {
-            background: #dbeafe;
-        }
-        .btn-icon {
-            width: 2.5rem;
-            height: 2.5rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            border-radius: 0.75rem;
-            background: #f8fafc;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-            transition: all 0.2s;
-        }
-        .btn-icon:hover {
-            background: #f1f5f9;
-            color: #1e293b;
-        }
-        .btn-icon.primary:hover {
-            background: #eef2ff;
-            color: #4f46e5;
-            border-color: #c7d2fe;
-        }
-        .btn-icon.danger:hover {
-            background: #fef2f2;
-            color: #dc2626;
-            border-color: #fecaca;
         }
 
         /* Admin Modal 2 Columns */
@@ -102,10 +36,7 @@
             gap: 2rem;
         }
         @media (max-width: 768px) {
-            .admin-modal-grid {
-                grid-template-columns: 1fr;
-                gap: 1.5rem;
-            }
+            .admin-modal-grid { grid-template-columns: 1fr; gap: 1.5rem; }
         }
         .settings-section {
             background: #f8fafc;
@@ -162,182 +93,143 @@
             border: 1px solid #e2e8f0;
             margin-bottom: 0.5rem;
         }
-        .admin-list-item .name {
-            font-weight: 600;
-            font-size: 0.875rem;
-            color: #1e293b;
-        }
-        .admin-list-item .remove-btn {
-            color: #ef4444;
-            background: transparent;
-            border: none;
-            cursor: pointer;
-            padding: 0.25rem 0.5rem;
-            border-radius: 0.5rem;
-            transition: all 0.2s;
-        }
-        .admin-list-item .remove-btn:hover {
-            background: #fef2f2;
-        }
         .admin-list-scroll {
             max-height: 180px;
             overflow-y: auto;
         }
-        .admin-list-scroll::-webkit-scrollbar {
-            width: 4px;
+        .admin-list-scroll::-webkit-scrollbar { width: 4px; }
+        .admin-list-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        /* Mobile sidebar */
+        @media (max-width: 760px) {
+            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
+            .d-sidebar.open, .d-sidebar.show, .d-sidebar.active, .d-sidebar.is-open { transform: translateX(0) !important; }
+            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
+            .d-overlay.open, .d-overlay.show, .d-overlay.active, .d-overlay.is-open { display: block !important; opacity: 1; }
+            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; align-items: center; justify-content: center; }
+            .d-collapse { display: none !important; }
+            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+            .glass-panel { max-width: 100%; }
         }
-        .admin-list-scroll::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
-            border-radius: 4px;
+        @media (min-width: 761px) and (max-width: 1024px) {
+            .d-sidebar { width: 240px; }
         }
     </style>
 </head>
 
-<body class="text-slate-800 pb-10 opacity-0 transition-opacity duration-300" id="mainBody">
+<body class="text-slate-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
-    <!-- Navbar -->
-    <nav class="bg-white/80 backdrop-blur-md border-b border-slate-200 shadow-sm sticky top-0 z-40 px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-3">
-            <img src="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png" class="h-10 w-auto" alt="Logo">
-            <div>
-                <h1 class="text-xl font-bold text-slate-800 leading-tight">Parent Network</h1>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">ระบบผู้ปกครองเครือข่าย</p>
-            </div>
-        </div>
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
-        <div class="flex items-center gap-2 md:gap-3">
-            <!-- ปุ่มสลับโหมด -->
-            <button id="btnToggleMode" onclick="toggleViewRole()"
-                class="hidden btn-toggle-mode teacher-mode">
-                <i class="fas fa-sync-alt text-xs"></i> <span class="hidden sm:inline">สลับโหมด</span>
-            </button>
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
 
-            <!-- ปุ่มตั้งค่า -->
-            <button id="btnSettings" onclick="openAdminModal()"
-                class="hidden btn-icon primary" title="ตั้งค่าระบบ">
-                <i class="fas fa-cog text-sm"></i>
-            </button>
+            <div style="padding:0 0 12px;" class="space-y-6">
 
-            <!-- ชื่อผู้ใช้ + บทบาท -->
-            <div class="hidden sm:flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-200">
-                <span id="userDisplayName" class="text-sm font-semibold text-slate-700">กำลังโหลด...</span>
-                <span id="userRoleBadge" class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">Teacher</span>
-            </div>
-
-            <!-- ปุ่มกลับหน้าหลัก -->
-            <button onclick="window.location.href='index.html'"
-                class="btn-icon primary" title="กลับหน้าหลัก">
-                <i class="fas fa-house text-sm"></i>
-            </button>
-
-            <!-- ปุ่มออกจากระบบ -->
-            <button onclick="logout()"
-                class="btn-icon danger" title="ออกจากระบบ">
-                <i class="fas fa-sign-out-alt text-sm"></i>
-            </button>
-        </div>
-    </nav>
-
-    <main class="container mx-auto px-4 mt-6">
-        <!-- เนื้อหาเดิม -->
-        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-6">
-            <div class="lg:col-span-3 glass-card rounded-2xl p-6">
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label class="field-label">เลือกห้องเรียน</label>
-                        <select id="select-classroom" placeholder="-- ค้นหาและเลือกห้องเรียน --">
-                            <option value="">-- เลือกห้องเรียน --</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="field-label">ปีการศึกษา / เทอม</label>
-                        <div id="term-display" class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-bold text-sm uppercase tracking-tighter">กำลังโหลด...</div>
-                    </div>
-                    <div class="flex items-end gap-2">
-                        <button onclick="switchTab('form')" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">
-                            <i class="fas fa-pen mr-1"></i> กรอกฟอร์ม
-                        </button>
-                        <button onclick="switchTab('data')" class="flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm">
-                            <i class="fas fa-chart-bar mr-1"></i> ดูภาพรวม
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-center">
-                <i class="fas fa-check-circle absolute -right-4 -bottom-4 text-7xl text-slate-100"></i>
-                <h2 class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">สถานะห้องที่เลือก</h2>
-                <div id="status-badge" class="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-center">
-                    <p class="text-xs font-bold" id="status-text">ยังไม่เลือกห้องเรียน</p>
-                </div>
-            </div>
-        </div>
-
-        <div id="tab-form" class="animate-fade-in">
-            <div class="glass-card rounded-2xl p-6">
-                <div class="flex flex-wrap gap-2 mb-8" id="stepper"></div>
-
-                <form id="network-form" onsubmit="saveNetworkData(event)" novalidate>
-                    <div id="form-container">
-                        <div class="text-center py-20 text-slate-300">
-                            <i class="fas fa-mouse-pointer text-5xl mb-4"></i>
-                            <p class="font-bold uppercase tracking-widest text-xs">กรุณาเลือกห้องเรียนเพื่อดึงข้อมูล</p>
+                <!-- Info: ห้องเรียนที่เลือก -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+                    <div class="lg:col-span-3 glass-card rounded-2xl p-6">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="field-label">เลือกห้องเรียน</label>
+                                <select id="select-classroom" placeholder="-- ค้นหาและเลือกห้องเรียน --">
+                                    <option value="">-- เลือกห้องเรียน --</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="field-label">ปีการศึกษา / เทอม</label>
+                                <div id="term-display" class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-500 font-bold text-sm uppercase tracking-tighter">กำลังโหลด...</div>
+                            </div>
+                            <div class="flex items-end gap-2">
+                                <button onclick="switchTab('form')" class="flex-1 bg-blue-600 text-white font-bold py-2.5 rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">
+                                    <i class="fas fa-pen mr-1"></i> กรอกฟอร์ม
+                                </button>
+                                <button onclick="switchTab('data')" class="flex-1 bg-white text-slate-600 border border-slate-200 font-bold py-2.5 rounded-xl hover:bg-slate-50 transition-all text-sm">
+                                    <i class="fas fa-chart-bar mr-1"></i> ดูภาพรวม
+                                </button>
+                            </div>
                         </div>
                     </div>
 
-                    <div id="form-actions" class="hidden flex justify-between items-center pt-6 border-t border-slate-100 mt-8">
-                        <button type="button" onclick="prevStep()" class="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm">ย้อนกลับ</button>
-                        <div class="flex gap-2">
-                            <button type="button" onclick="clearRoomData()" class="px-5 py-2.5 text-rose-500 font-bold rounded-xl hover:bg-rose-50 transition-all text-sm border border-transparent hover:border-rose-100">
-                                <i class="fas fa-trash-alt mr-1"></i> ล้างข้อมูลห้องนี้
-                            </button>
-                            <button type="button" id="btn-next" onclick="nextStep()" class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">ถัดไป</button>
-                            <button type="submit" id="btn-submit" class="hidden px-8 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all text-sm">
-                                <i class="fas fa-save mr-1"></i> บันทึกข้อมูลทั้งหมด
-                            </button>
+                    <div class="glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-center">
+                        <i class="fas fa-check-circle absolute -right-4 -bottom-4 text-7xl text-slate-100"></i>
+                        <h2 class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">สถานะห้องที่เลือก</h2>
+                        <div id="status-badge" class="px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-center">
+                            <p class="text-xs font-bold" id="status-text">ยังไม่เลือกห้องเรียน</p>
                         </div>
                     </div>
-                </form>
-            </div>
-        </div>
+                </div>
 
-        <div id="tab-data" class="hidden animate-fade-in space-y-6">
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="dashboard-stats"></div>
+                <!-- Tab: Form -->
+                <div id="tab-form" class="animate-fade-in">
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex flex-wrap gap-2 mb-8" id="stepper"></div>
 
-            <div class="glass-card rounded-2xl p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i class="fas fa-database mr-2"></i>Network Summary Table</h3>
-                    <div class="flex gap-2">
-                        <button onclick="exportToExcel()" class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
-                            <i class="fas fa-file-excel mr-1"></i> Export Excel
-                        </button>
+                        <form id="network-form" onsubmit="saveNetworkData(event)" novalidate>
+                            <div id="form-container">
+                                <div class="text-center py-20 text-slate-300">
+                                    <i class="fas fa-mouse-pointer text-5xl mb-4"></i>
+                                    <p class="font-bold uppercase tracking-widest text-xs">กรุณาเลือกห้องเรียนเพื่อดึงข้อมูล</p>
+                                </div>
+                            </div>
+
+                            <div id="form-actions" class="hidden flex justify-between items-center pt-6 border-t border-slate-100 mt-8">
+                                <button type="button" onclick="prevStep()" class="px-6 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm">ย้อนกลับ</button>
+                                <div class="flex gap-2">
+                                    <button type="button" onclick="clearRoomData()" class="px-5 py-2.5 text-rose-500 font-bold rounded-xl hover:bg-rose-50 transition-all text-sm border border-transparent hover:border-rose-100">
+                                        <i class="fas fa-trash-alt mr-1"></i> ล้างข้อมูลห้องนี้
+                                    </button>
+                                    <button type="button" id="btn-next" onclick="nextStep()" class="px-8 py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-100 transition-all text-sm">ถัดไป</button>
+                                    <button type="submit" id="btn-submit" class="hidden px-8 py-2.5 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 shadow-lg shadow-emerald-100 transition-all text-sm">
+                                        <i class="fas fa-save mr-1"></i> บันทึกข้อมูลทั้งหมด
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
                     </div>
                 </div>
-                <div class="overflow-x-auto">
-                    <table id="networkTable" class="w-full text-sm">
-                        <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
-                            <tr>
-                                <th>ห้องเรียน</th>
-                                <th>ครูที่ปรึกษาคนที่ 1</th>
-                                <th>ครูที่ปรึกษาคนที่ 2</th>
-                                <th>สถานะ</th>
-                                <th>จัดการ</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tb-network" class="divide-y divide-slate-100"></tbody>
-                    </table>
+
+                <!-- Tab: Data -->
+                <div id="tab-data" class="hidden animate-fade-in space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="dashboard-stats"></div>
+
+                    <div class="glass-card rounded-2xl p-6">
+                        <div class="flex justify-between items-center mb-6">
+                            <h3 class="font-black text-blue-900 uppercase tracking-tight text-sm"><i class="fas fa-database mr-2"></i>Network Summary Table</h3>
+                            <div class="flex gap-2">
+                                <button onclick="exportToExcel()" class="bg-emerald-50 text-emerald-700 border border-emerald-100 px-4 py-2 rounded-xl text-[10px] font-black hover:bg-emerald-100 transition-all uppercase">
+                                    <i class="fas fa-file-excel mr-1"></i> Export Excel
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table id="networkTable" class="w-full text-sm">
+                                <thead class="bg-slate-50 text-slate-500 font-bold border-b border-slate-200">
+                                    <tr>
+                                        <th>ห้องเรียน</th>
+                                        <th>ครูที่ปรึกษาคนที่ 1</th>
+                                        <th>ครูที่ปรึกษาคนที่ 2</th>
+                                        <th>สถานะ</th>
+                                        <th>จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-network" class="divide-y divide-slate-100"></tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-    </main>
+        </main>
+    </div>
 
-    <!-- ============================================ -->
-    <!-- Modal ผู้ดูแลระบบ (2 กล่อง ซ้าย-ขวา)           -->
-    <!-- ============================================ -->
-    <div id="admin-modal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center hidden">
+    <!-- ================= Modal: Admin Settings ================= -->
+    <div id="admin-modal" class="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
         <div class="bg-white rounded-3xl shadow-2xl p-6 w-full max-w-6xl max-h-[90vh] overflow-y-auto animate-fade-in">
 
-            <!-- Header -->
             <div class="flex justify-between items-center border-b pb-4 mb-5">
                 <h2 class="text-xl font-black text-slate-800 uppercase tracking-tight">
                     <i class="fas fa-cogs mr-2 text-purple-600"></i>ตั้งค่าผู้ดูแลระบบ
@@ -345,13 +237,9 @@
                 <button onclick="closeAdminModal()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
 
-            <!-- 2 Columns Grid -->
             <div class="admin-modal-grid">
-
-                <!-- ====== คอลัมน์ซ้าย: การตั้งค่าระบบ ====== -->
+                <!-- Left Column -->
                 <div class="space-y-4">
-
-                    <!-- 1. Google API -->
                     <div class="settings-section">
                         <h3><i class="fas fa-cloud-upload-alt text-blue-600"></i> การเชื่อมต่อ Google API</h3>
                         <label>Google API Link (Exec URL) <span class="text-red-500">*</span></label>
@@ -359,7 +247,6 @@
                         <div class="hint">ใช้สำหรับทั้งอัปโหลดรูปภาพและสร้างไฟล์ PDF</div>
                     </div>
 
-                    <!-- 2. Google Drive Folders -->
                     <div class="settings-section">
                         <h3><i class="fas fa-folder-open text-green-600"></i> ตำแหน่งเก็บไฟล์บน Google Drive</h3>
                         <label>ID Folder อัปโหลดรูปภาพ <span class="text-red-500">*</span></label>
@@ -370,28 +257,23 @@
                         <div class="hint">โฟลเดอร์สำหรับเก็บไฟล์ PDF (ถ้าไม่ระบุจะใช้โฟลเดอร์รูปภาพ)</div>
                     </div>
 
-                    <!-- 3. Google Slides Template -->
                     <div class="settings-section">
                         <h3><i class="fas fa-sliders-h text-purple-600"></i> เทมเพลตสไลด์ (Google Slides)</h3>
                         <label>ID สไลด์เทมเพลต <span class="text-red-500">*</span></label>
                         <input type="text" id="set-slide-id" placeholder="1abcDEFghijKLmnopQRStuvWXyz">
                         <div class="hint">ใช้เป็นต้นแบบสำหรับสร้างไฟล์ PDF</div>
                     </div>
-
                 </div>
 
-                <!-- ====== คอลัมน์ขวา: จัดการ Module Admin ====== -->
+                <!-- Right Column -->
                 <div class="space-y-4">
-
-                    <!-- แต่งตั้งผู้ดูแลระบบ -->
                     <div class="settings-section">
                         <h3><i class="fas fa-user-shield text-purple-600"></i> แต่งตั้งผู้ดูแลระบบ (Module Admin)</h3>
 
                         <label>เลือกครูเพื่อแต่งตั้ง</label>
                         <div class="flex items-center gap-2">
                             <select id="select-teacher-appoint" class="flex-1"></select>
-                            <button onclick="appointModuleAdmin()" 
-                                    class="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all whitespace-nowrap">
+                            <button onclick="appointModuleAdmin()" class="px-4 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition-all whitespace-nowrap">
                                 <i class="fas fa-plus mr-1"></i> แต่งตั้ง
                             </button>
                         </div>
@@ -404,29 +286,105 @@
                         </div>
                     </div>
 
-                    <!-- คำอธิบายเพิ่มเติม -->
                     <div class="bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
                         <p class="text-xs text-purple-800">
                             <i class="fas fa-info-circle mr-1"></i>
                             ผู้ดูแลระบบสามารถเข้าถึงข้อมูลทุกห้องเรียน และตั้งค่าระบบได้
                         </p>
                     </div>
-
                 </div>
             </div>
 
-            <!-- Footer Buttons -->
             <div class="flex justify-end gap-3 pt-5 mt-5 border-t">
                 <button onclick="closeAdminModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200">ยกเลิก</button>
                 <button onclick="saveAdminSettings()" class="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">
                     <i class="fas fa-save mr-1"></i> บันทึกการตั้งค่า
                 </button>
             </div>
-
         </div>
     </div>
 
+    <!-- ================= Scripts ================= -->
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
     <script src="parents.js"></script>
+
+    <script>
+        // =======================================================
+        // Fallback Config — Parent Network
+        // =======================================================
+        function getParentNetworkFallbackConfig() {
+            return {
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'Parent Network',
+                    subtitle: 'ระบบผู้ปกครองเครือข่าย'
+                },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'nav-form', icon: 'fa-pen', label: 'กรอกฟอร์ม', onclick: "switchTab('form')", class: 'active' },
+                    { id: 'nav-data', icon: 'fa-chart-bar', label: 'ดูภาพรวม', onclick: "switchTab('data')" }
+                ],
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [],
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: [
+                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
+                ],
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
+            };
+        }
+
+        // =======================================================
+        // ✅ Init Module Sidebar + ปุ่มนำทาง
+        // =======================================================
+        initModuleSidebar({
+            moduleKey: 'parent_network',
+            pageTitle: 'ระบบผู้ปกครองเครือข่าย',
+            activeId: 'nav-form',
+            topbarButtons: [
+                {
+                    id: 'btnToggleMode',
+                    html: '<i class="fas fa-sync-alt"></i><span>สลับโหมด</span>',
+                    onclick: 'toggleViewRole()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'สลับโหมดมุมมอง'
+                },
+                {
+                    id: 'btnSettings',
+                    html: '<i class="fas fa-cog"></i><span>ตั้งค่า</span>',
+                    onclick: 'openAdminModal()',
+                    class: 'hidden d-btn-mode depthead',
+                    title: 'ตั้งค่าระบบ'
+                }
+            ],
+            fallbackConfig: getParentNetworkFallbackConfig(),
+            onReady: () => {
+                if (window.currentProfile) {
+                    if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
+                    if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+                }
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+            }
+        });
+    </script>
 </body>
 
 </html>

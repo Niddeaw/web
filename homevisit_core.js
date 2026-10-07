@@ -357,7 +357,12 @@ function applyReadOnlyState() {
 
 function updateUIByRole() {
     if (!currentUser) return;
-    document.getElementById('userNameDisplay').innerText = `ครู${currentUser.first_name} ${currentUser.last_name}`;
+
+    // ✅ รองรับทั้ง ID เก่า (userNameDisplay) และ ID ใหม่จาก dashboard_ui.js (userName)
+    const userNameEl = document.getElementById('userNameDisplay') || document.getElementById('userName');
+    if (userNameEl) {
+        userNameEl.innerText = `ครู${currentUser.first_name} ${currentUser.last_name}`;
+    }
 
     let roleText = 'ครูที่ปรึกษา';
     if (currentViewRole === 'super_admin') roleText = 'ผู้ดูแลระบบสูงสุด';
@@ -366,7 +371,11 @@ function updateUIByRole() {
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
     // ✅ หัวหน้าที่มีห้องที่ปรึกษา — แสดงสถานะให้ชัดเจน
     else if (currentViewRole === 'teacher' && isHead) roleText = 'หัวหน้าระดับ / ครูที่ปรึกษา';
-    document.getElementById('userRoleDisplay').innerText = roleText;
+
+    const userRoleEl = document.getElementById('userRoleDisplay') || document.getElementById('userRole');
+    if (userRoleEl) {
+        userRoleEl.innerText = roleText;
+    }
 
     const submitBtn = document.getElementById('btn-submit-homevisit');
     if (submitBtn) {

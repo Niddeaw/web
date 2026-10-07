@@ -1,8 +1,10 @@
-// ==========================================
-// meeting_room.js — ระบบจองห้องประชุม
-// ปรับปรุง: แสดงชื่อ+สิทธิ์บน Navbar, Flatpickr พร้อมปฏิทิน
-// ใช้ config.js มาตรฐาน
-// ==========================================
+// ============================================================
+// meeting_room.js — ระบบจองห้องประชุม [ฉบับสมบูรณ์]
+// ✅ initModuleSidebar + dashboard_sidebar.js + dashboard_ui.js
+// ✅ ใช้เทมเพลตมาตรฐาน: setUserDisplayName, updateUserRoleLabel, renderUserAvatar
+// ✅ ปุ่ม "ตั้งค่าห้องประชุม" อยู่บน topbar แสดงเฉพาะ super_admin + โหมดแอดมิน
+// ✅ บันทึก/restore โหมดผ่าน sessionStorage
+// ============================================================
 
 // ==========================================
 // ตัวแปร Global
@@ -21,26 +23,36 @@ let responsibleSelect = null;
 let editFlatStart = null;
 let editFlatEnd = null;
 let editResponsibleSelect = null;
+// ✅ ใหม่: Settings Modal states
+let currentSettingsTab = 'rooms';
+let tsTeacherAppoint = null;
+let moduleAdminsCache = [];
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
+// ✅ ปุ่มนำทาง — meeting_room
+//    - ปุ่มสลับโหมด (ใน topbar): admin/director/deputy/super_admin
+//    - ปุ่มตั้งค่าห้องประชุม (ใน topbar): เฉพาะ super_admin + โหมดแอดมิน
 // ==========================================
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        text: "คุณต้องการออกจากระบบใช่หรือไม่",
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        cancelButtonColor: '#64748b',
-        confirmButtonText: 'ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        await db.auth.signOut();
-        window.location.replace("login.html");
+window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentUserRole;
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+    const canAdmin = allowedRoles.includes(role) || isModuleAdmin;
+
+    // ✅ ปุ่มสลับโหมด (ใน topbar) — แสดงถ้าเป็น admin
+    const btnToggle = document.getElementById('btnToggleMode');
+    if (btnToggle) {
+        btnToggle.classList.toggle('hidden', !canAdmin);
+        if (canAdmin) updateToggleModeButton();
     }
-}
+
+    // ✅ ปุ่มตั้งค่าห้องประชุม (ใน topbar) — เฉพาะ super_admin + โหมดแอดมิน
+    const isSuperAdmin = (role === 'super_admin');
+    const btnMeetingSettings = document.getElementById('btnMeetingSettings');
+    if (btnMeetingSettings) {
+        const shouldShow = isSuperAdmin && currentMode === 'admin';
+        btnMeetingSettings.classList.toggle('hidden', !shouldShow);
+    }
+};
 
 // ==========================================
 // INIT
@@ -49,20 +61,29 @@ document.addEventListener('DOMContentLoaded', async () => {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     try {
         await checkAuth();
-        await loadRooms();
-        await initPersonnelSelect();
-        await initCalendar();
+
+        // ✅ แยก try-catch แต่ละส่วน → ป้องกันทั้งก้อนพัง
+        try { await loadRooms(); } catch (e) { console.warn('⚠️ loadRooms failed:', e); }
+        try { await initPersonnelSelect(); } catch (e) { console.warn('⚠️ initPersonnelSelect failed:', e); }
+        try { await initCalendar(); } catch (e) { console.warn('⚠️ initCalendar failed:', e); }
+
         applyModeUI();
+
+        // ✅ เรียก refreshNavButtons + restore user info
+        if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
         console.error('Initialization error:', err);
+        Swal.close();  // ✅ ปิด loading เสมอ
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 });
 
 // ==========================================
-// ตรวจสอบสิทธิ์ + แสดงชื่อ/บทบาทบน Navbar
+// ตรวจสอบสิทธิ์ + แสดงชื่อ/บทบาท (ใช้ฟังก์ชันกลาง)
+// + Restore โหมดล่าสุดที่ผู้ใช้เลือกไว้
 // ==========================================
 async function checkAuth() {
     const result = await checkSessionAndRole('meeting_room', WRK_ROLES.ALLOWED);
@@ -73,28 +94,19 @@ async function checkAuth() {
     currentUserId = currentUser.id;
     currentUserRole = result.role;
 
-    // แสดงชื่อและบทบาทบน Navbar
-    const fullName = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
-    const nameDisplay = document.getElementById('userDisplayName');
-    if (nameDisplay) {
-        nameDisplay.textContent = fullName;
-        nameDisplay.classList.remove('hidden');
-        nameDisplay.classList.add('inline-block');
-    }
+    // ✅ expose window.* สำหรับ onReady + refreshNavButtons
+    window.currentUser = currentUser;
+    window.currentProfile = currentProfile;
+    window.currentUserId = currentUserId;
+    window.currentUserRole = currentUserRole;
 
-    const roleBadge = document.getElementById('userRoleBadge');
-    if (roleBadge) {
-        const roleLabel = currentUserRole === 'super_admin' ? 'Super Admin' :
-                          currentUserRole === 'admin' ? 'Admin' :
-                          currentUserRole === 'director' ? 'ผู้อำนวยการ' :
-                          currentUserRole === 'deputy' ? 'รองผู้อำนวยการ' :
-                          currentUserRole === 'teacher' ? 'ครู' :
-                          currentUserRole === 'staff' ? 'บุคลากร' :
-                          currentUserRole === 'office' ? 'เจ้าหน้าที่' : currentUserRole;
-        roleBadge.textContent = roleLabel;
-        roleBadge.classList.remove('hidden');
-        roleBadge.classList.add('inline-block');
-    }
+    // ✅ ใช้ฟังก์ชันกลางจาก dashboard_ui.js
+    setUserDisplayName(currentProfile);
+    updateUserRoleLabel(currentUserRole);
+    renderUserAvatar(currentProfile);
+
+    // ✅ cache ลง sessionStorage
+    sessionStorage.setItem('wrk_meeting_room_role', currentUserRole);
 
     // ตรวจสอบสิทธิ์ Admin
     const isAdminByRole = isAdminUser(currentUserRole, false);
@@ -103,15 +115,18 @@ async function checkAuth() {
     }
     isAdmin = isAdminByRole || isModuleAdmin;
 
-    // ใช้ applyVisibilityByRole
-    applyVisibilityByRole(currentUserRole, isAdmin, {
-        settingsBtn: 'btnSettings',
-        toggleBtn: 'btnToggleMode'
-    });
+    sessionStorage.setItem('wrk_meeting_room_is_admin', isAdmin ? '1' : '0');
 
-    if (isAdmin) {
-        updateToggleModeButton();
+    // ✅ Restore โหมดล่าสุดที่ผู้ใช้เลือกไว้ (ถ้าเคยสลับเป็น admin)
+    const savedMode = sessionStorage.getItem('wrk_meeting_room_mode');
+    if (savedMode === 'admin' && isAdmin) {
+        currentMode = 'admin';
+    } else {
+        currentMode = 'teacher';
     }
+
+    // ✅ เรียก refreshNavButtons หลัง auth เสร็จ (จะแสดง/ซ่อนปุ่มตามโหมด)
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     await logUserAction('เข้าสู่ระบบจองห้องประชุม', 'meeting_room');
 }
@@ -123,19 +138,31 @@ function updateToggleModeButton() {
     const btn = document.getElementById('btnToggleMode');
     if (!btn) return;
     if (currentMode === 'teacher') {
-        btn.className = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200";
-        btn.innerHTML = `<i class="fas fa-shield-halved text-sm"></i> สลับเป็นโหมดแอดมิน`;
+        btn.className = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 d-btn-mode admin";
+        btn.innerHTML = `<i class="fas fa-user-shield text-sm"></i><span>โหมดแอดมิน</span>`;
     } else {
-        btn.className = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200";
-        btn.innerHTML = `<i class="fas fa-user text-sm"></i> สลับเป็นโหมดคุณครู`;
+        btn.className = "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm active:scale-95 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 d-btn-mode teacher";
+        btn.innerHTML = `<i class="fas fa-user text-sm"></i><span>โหมดครู</span>`;
     }
+    btn.classList.remove('hidden');
 }
 
 function toggleTeacherAdminMode() {
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
     currentMode = currentMode === 'teacher' ? 'admin' : 'teacher';
+
+    // ✅ บันทึกโหมดลง sessionStorage (ให้ restore ได้หลัง refresh)
+    sessionStorage.setItem('wrk_meeting_room_mode', currentMode);
+
     updateToggleModeButton();
     applyModeUI();
+
+    // ✅ อัปเดตปุ่มใน topbar ให้ตรงกับโหมดใหม่
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+
     logUserAction(`สลับโหมดเป็น ${currentMode === 'admin' ? 'แอดมิน' : 'ครู'}`, 'meeting_room');
 }
 
@@ -147,24 +174,31 @@ function applyModeUI() {
     const adminContent = document.getElementById('admin-view-content');
 
     if (currentMode === 'teacher') {
-        badge.innerText = "มุมมองผู้ขอใช้ห้อง (Teacher View)";
-        badge.className = "text-xs text-slate-500";
-        userTabs.classList.remove('hidden');
-        adminContent.classList.add('hidden');
-        teacherCalendarTab.classList.remove('hidden');
-        teacherMyBookingTab.classList.remove('hidden');
+        if (badge) {
+            badge.innerText = "มุมมองผู้ขอใช้ห้อง (Teacher View)";
+            badge.className = "text-sm text-slate-500";
+        }
+        userTabs?.classList.remove('hidden');
+        adminContent?.classList.add('hidden');
+        teacherCalendarTab?.classList.remove('hidden');
+        teacherMyBookingTab?.classList.remove('hidden');
         switchTab('calendar-tab');
     } else {
-        badge.innerText = "มุมมองผู้ดูแลระบบ (Admin View)";
-        badge.className = "text-xs font-bold text-rose-600";
-        userTabs.classList.add('hidden');
-        teacherCalendarTab.classList.add('hidden');
-        teacherMyBookingTab.classList.add('hidden');
-        adminContent.classList.remove('hidden');
+        if (badge) {
+            badge.innerText = "มุมมองผู้ดูแลระบบ (Admin View)";
+            badge.className = "text-sm font-bold text-rose-600";
+        }
+        userTabs?.classList.add('hidden');
+        teacherCalendarTab?.classList.add('hidden');
+        teacherMyBookingTab?.classList.add('hidden');
+        adminContent?.classList.remove('hidden');
         loadAdminBookings();
     }
 }
 
+// ==========================================
+// ✅ switchTab — ใช้ setActiveNavItem จาก dashboard_sidebar.js
+// ==========================================
 function switchTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
     document.querySelectorAll('.tab-btn').forEach(el => {
@@ -181,20 +215,53 @@ function switchTab(tabId) {
         activeBtn.classList.remove('bg-white', 'text-slate-600');
     }
 
+    // ✅ Update sidebar active state
+    const navMap = { 'calendar-tab': 'nav-calendar', 'my-booking-tab': 'nav-my-booking' };
+    if (navMap[tabId] && typeof setActiveNavItem === 'function') {
+        setActiveNavItem(navMap[tabId]);
+    }
+
+    // ✅ Update page title
+    const titles = {
+        'calendar-tab': 'ปฏิทินห้องประชุม',
+        'my-booking-tab': 'การจองของฉัน'
+    };
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl && titles[tabId]) titleEl.textContent = titles[tabId];
+
+    // ปิด sidebar บนมือถือ
+    if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
+
     if (tabId === 'calendar-tab' && calendarInstance) calendarInstance.render();
     if (tabId === 'my-booking-tab') loadMyBookings();
 }
 
 // ==========================================
-// Tom Select - ค้นหาชื่อครู
+// Tom Select - ค้นหาชื่อครู (มี fallback ถ้าไม่มีคอลัมน์ phone)
 // ==========================================
 async function initPersonnelSelect() {
-    const { data, error } = await db
+    // ✅ ลองดึงพร้อม phone ก่อน
+    let { data, error } = await db
         .from('core_personnel')
         .select('id, first_name, last_name, phone')
         .order('first_name', { ascending: true });
 
-    if (error || !data) return;
+    // ⚠️ ถ้า error (อาจไม่มีคอลัมน์ phone) → ลองดึงโดยไม่มี phone
+    if (error) {
+        console.warn('⚠️ initPersonnelSelect error (fallback):', error.message);
+        const fallback = await db
+            .from('core_personnel')
+            .select('id, first_name, last_name')
+            .order('first_name', { ascending: true });
+        data = fallback.data;
+        error = fallback.error;
+    }
+
+    if (error || !data) {
+        console.warn('⚠️ ไม่สามารถโหลดรายชื่อบุคลากรได้');
+        return;
+    }
+
     personnelData = data;
 
     const selectEl = document.getElementById('bk_responsible');
@@ -235,7 +302,7 @@ async function loadRooms() {
     const { data, error } = await db.from('mr_rooms').select('*').order('capacity', { ascending: false });
     if (error) {
         console.error('loadRooms error:', error);
-        return Swal.fire('Error', error.message, 'error');
+        throw error;
     }
 
     roomsData = data || [];
@@ -267,18 +334,66 @@ async function loadRooms() {
     }
 }
 
-function openSettingsModal() {
-    if (!isAdmin) return;
+async function openSettingsModal() {
+    // ✅ เช็ค 2 ชั้น: ต้องเป็น super_admin
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin' || !isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'warning');
+        return;
+    }
+
+    // ✅ เปิด Modal + แสดง tabs
     document.getElementById('settingsModal').classList.remove('hidden');
-    loadRooms();
+    document.getElementById('settingsModal').classList.add('flex');
+
+    // ✅ โหลดข้อมูลเริ่มต้น
+    await Promise.all([
+        loadRooms(),
+        loadTeachersForAppoint(),
+        loadModuleAdminsList()
+    ]);
+
+    // ✅ ตั้ง tab เริ่มต้น
+    setSettingsTab('rooms');
+}
+
+// ✅ สลับ tab ภายใน Modal
+function setSettingsTab(tab) {
+    currentSettingsTab = tab;
+    const isRooms = tab === 'rooms';
+
+    document.getElementById('stab-content-rooms').classList.toggle('hidden', !isRooms);
+    document.getElementById('stab-content-admins').classList.toggle('hidden', isRooms);
+
+    // style active/inactive
+    const styleTab = (btnId, active) => {
+        const btn = document.getElementById(btnId);
+        if (!btn) return;
+        btn.classList.toggle('bg-indigo-600', active);
+        btn.classList.toggle('text-white', active);
+        btn.classList.toggle('bg-white', !active);
+        btn.classList.toggle('text-slate-600', !active);
+        btn.classList.toggle('hover:bg-slate-50', !active);
+    };
+
+    styleTab('stab-rooms', isRooms);
+    styleTab('stab-admins', !isRooms);
+
+    // โหลดข้อมูล tab admins ครั้งแรก
+    if (!isRooms && moduleAdminsCache.length === 0) {
+        loadTeachersForAppoint();
+        loadModuleAdminsList();
+    }
 }
 
 function closeSettingsModal() {
     document.getElementById('settingsModal').classList.add('hidden');
+    document.getElementById('settingsModal').classList.remove('flex');
 }
 
 function openRoomFormModal() {
-    if (!isAdmin) return;
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin') return;
     document.getElementById('roomForm').reset();
     document.getElementById('r_id').value = '';
     document.getElementById('roomModalTitle').innerText = 'เพิ่มห้องประชุมใหม่';
@@ -287,10 +402,12 @@ function openRoomFormModal() {
 
 function closeRoomModal() {
     document.getElementById('roomModal').classList.add('hidden');
+    document.getElementById('roomModal').classList.remove('flex');
 }
 
 async function editRoom(id) {
-    if (!isAdmin) return;
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin') return;
     const room = roomsData.find(r => r.id === id);
     if (!room) return;
     document.getElementById('r_id').value = room.id;
@@ -305,7 +422,8 @@ async function editRoom(id) {
 
 async function saveRoom(e) {
     e.preventDefault();
-    if (!isAdmin) return;
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin') return;
 
     const id = document.getElementById('r_id').value;
     const payload = {
@@ -336,7 +454,8 @@ async function saveRoom(e) {
 }
 
 async function deleteRoom(id) {
-    if (!isAdmin) return;
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin') return;
     const room = roomsData.find(r => r.id === id);
     if (!room) return;
 
@@ -360,7 +479,233 @@ async function deleteRoom(id) {
 }
 
 // ==========================================
-// ระบบการจอง + Flatpickr พร้อมปฏิทินเวลา
+// ✅ Module Admin Management
+// ==========================================
+async function loadTeachersForAppoint() {
+    const selectEl = document.getElementById('select-teacher-appoint');
+    if (!selectEl) return;
+
+    try {
+        const { data, error } = await db.from('core_personnel')
+            .select('id, prefix, first_name, last_name')
+            .order('first_name');
+
+        if (error) throw error;
+
+        if (tsTeacherAppoint) {
+            tsTeacherAppoint.destroy();
+            tsTeacherAppoint = null;
+        }
+
+        selectEl.innerHTML = '<option value="">-- ค้นหาชื่อครู --</option>';
+        (data || []).forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.textContent = `${t.prefix || ''}${t.first_name} ${t.last_name}`;
+            selectEl.appendChild(opt);
+        });
+
+        tsTeacherAppoint = new TomSelect(selectEl, {
+            create: false,
+            placeholder: 'พิมพ์ค้นหาชื่อครู...',
+            dropdownParent: 'body',
+            allowEmptyOption: true,
+            render: {
+                option: (item, escape) => `
+                    <div class="p-2 text-sm border-b border-slate-50">
+                        <i class="fas fa-user-tie mr-2 text-slate-400"></i>${escape(item.text)}
+                    </div>
+                `,
+                item: (item, escape) => `<div class="font-bold text-indigo-700 text-sm">${escape(item.text)}</div>`
+            }
+        });
+    } catch (err) {
+        console.error('loadTeachersForAppoint error:', err);
+    }
+}
+
+async function loadModuleAdminsList() {
+    const container = document.getElementById('module-admin-list');
+    const countBadge = document.getElementById('admin-count-badge');
+    if (!container) return;
+
+    container.innerHTML = '<div class="text-center py-6 text-slate-400 text-sm"><i class="fas fa-circle-notch fa-spin mr-2"></i>กำลังโหลด...</div>';
+
+    try {
+        const { data: admins, error: adminErr } = await db
+            .from('core_module_admins')
+            .select('id, user_id')
+            .eq('module_id', 'meeting_room');
+
+        if (adminErr) throw adminErr;
+
+        if (!admins || admins.length === 0) {
+            moduleAdminsCache = [];
+            if (countBadge) countBadge.textContent = '0';
+            container.innerHTML = '<div class="text-center py-6 text-slate-400 text-sm"><i class="fas fa-inbox mr-2"></i>ยังไม่มีผู้ดูแลระบบ</div>';
+            return;
+        }
+
+        const userIds = admins.map(a => a.user_id);
+        const { data: personnel } = await db
+            .from('core_personnel')
+            .select('id, prefix, first_name, last_name')
+            .in('id', userIds);
+
+        const personnelMap = {};
+        (personnel || []).forEach(p => {
+            personnelMap[p.id] = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+        });
+
+        moduleAdminsCache = admins.map(a => ({
+            id: a.id,
+            user_id: a.user_id,
+            name: personnelMap[a.user_id] || `(ID: ${a.user_id})`
+        }));
+
+        if (countBadge) countBadge.textContent = moduleAdminsCache.length;
+
+        container.innerHTML = moduleAdminsCache.map(a => `
+            <div class="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition">
+                <div class="w-9 h-9 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                    ${(a.name || '?').charAt(0)}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <div class="font-bold text-sm text-slate-700 truncate">${a.name}</div>
+                    <div class="text-[10px] text-purple-500 font-bold uppercase tracking-wider">Module Admin</div>
+                </div>
+                <button onclick="removeModuleAdmin('${a.id}', '${(a.name || '').replace(/'/g, "\\'")}')"
+                    class="text-rose-400 hover:text-rose-600 hover:bg-rose-50 h-8 w-8 rounded-lg transition flex items-center justify-center flex-shrink-0"
+                    title="ถอดถอนสิทธิ์">
+                    <i class="fas fa-trash text-xs"></i>
+                </button>
+            </div>
+        `).join('');
+
+    } catch (err) {
+        console.error('loadModuleAdminsList error:', err);
+        container.innerHTML = `<div class="text-center py-6 text-rose-500 text-sm"><i class="fas fa-exclamation-triangle mr-2"></i>เกิดข้อผิดพลาด: ${err.message}</div>`;
+    }
+}
+
+async function appointModuleAdmin() {
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'warning');
+        return;
+    }
+
+    const teacherId = tsTeacherAppoint ? tsTeacherAppoint.getValue() : document.getElementById('select-teacher-appoint').value;
+    if (!teacherId) {
+        Swal.fire('แจ้งเตือน', 'กรุณาเลือกชื่อครูที่ต้องการแต่งตั้ง', 'warning');
+        return;
+    }
+
+    // ✅ เช็คซ้ำ
+    const existing = moduleAdminsCache.find(a => a.user_id === teacherId);
+    if (existing) {
+        Swal.fire('ซ้ำซ้อน', `ครูท่านนี้ (${existing.name}) เป็นแอดมินอยู่แล้ว`, 'warning');
+        return;
+    }
+
+    Swal.fire({ title: 'กำลังแต่งตั้ง...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { error } = await db.from('core_module_admins').insert({
+            user_id: teacherId,
+            module_id: 'meeting_room'
+        });
+
+        if (error) {
+            if (error.code === '23505') throw new Error('ครูท่านนี้เป็นแอดมินอยู่แล้ว');
+            throw error;
+        }
+
+        // ดึงชื่อครูเพื่อ log
+        const { data: teacher } = await db.from('core_personnel')
+            .select('prefix, first_name, last_name')
+            .eq('id', teacherId)
+            .single();
+        const teacherName = teacher
+            ? `${teacher.prefix || ''}${teacher.first_name} ${teacher.last_name}`
+            : teacherId;
+
+        await logUserAction(`แต่งตั้ง Module Admin (จองห้องประชุม): ${teacherName}`, 'meeting_room');
+
+        // เคลียร์ค่า + โหลดใหม่
+        if (tsTeacherAppoint) tsTeacherAppoint.clear();
+        await loadModuleAdminsList();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'แต่งตั้งสำเร็จ',
+            text: `ครู ${teacherName} ได้รับสิทธิ์เป็นผู้ดูแลระบบแล้ว`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+
+        // ✅ อัปเดต refreshNavButtons (เผื่อ admin ปัจจุบันเป็น module admin)
+        if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+
+    } catch (err) {
+        console.error('appointModuleAdmin error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function removeModuleAdmin(recordId, adminName) {
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'warning');
+        return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'ถอดถอนสิทธิ์ผู้ดูแล?',
+        html: `ลบสิทธิ์ Module Admin ของ <b>${adminName || 'ครูท่านนี้'}</b><br>ออกจากระบบจองห้องประชุม?`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: '<i class="fas fa-trash mr-1"></i> ถอดถอน',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { error } = await db.from('core_module_admins')
+            .delete()
+            .eq('id', recordId);
+
+        if (error) throw error;
+
+        await logUserAction(`ถอดถอน Module Admin (จองห้องประชุม): ${adminName || recordId}`, 'meeting_room');
+        await loadModuleAdminsList();
+
+        Swal.fire({
+            icon: 'success',
+            title: 'ถอดถอนสำเร็จ',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        console.error('removeModuleAdmin error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ✅ ปุ่ม "ตั้งค่า" เก็บข้อมูลเก่าไว้ (ถ้าเรียกจากที่อื่น)
+function openRoomFormModal() {
+    const role = window.currentUserRole || currentUserRole;
+    if (role !== 'super_admin') return;
+    document.getElementById('roomForm').reset();
+    document.getElementById('r_id').value = '';
+    document.getElementById('roomModalTitle').innerText = 'เพิ่มห้องประชุมใหม่';
+    document.getElementById('roomModal').classList.remove('hidden');
+    document.getElementById('roomModal').classList.add('flex');
+}
+
+// ==========================================
+// ระบบการจอง + Flatpickr
 // ==========================================
 async function initCalendar() {
     const calendarEl = document.getElementById('calendar');
@@ -414,27 +759,21 @@ async function initCalendar() {
     });
     calendarInstance.render();
 
-    // ตั้งค่า Flatpickr สำหรับฟอร์มหลัก (แสดงปฏิทิน + เวลา)
+    // Flatpickr สำหรับฟอร์มหลัก
     flatpickr("#bk_start", {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: "Y-m-d H:i",
-        locale: "th",
-        minDate: "today",
-        placeholder: "เลือกวันและเวลา"
+        enableTime: true, time_24hr: true,
+        dateFormat: "Y-m-d H:i", locale: "th",
+        minDate: "today", placeholder: "เลือกวันและเวลา"
     });
     flatpickr("#bk_end", {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: "Y-m-d H:i",
-        locale: "th",
-        minDate: "today",
-        placeholder: "เลือกวันและเวลา"
+        enableTime: true, time_24hr: true,
+        dateFormat: "Y-m-d H:i", locale: "th",
+        minDate: "today", placeholder: "เลือกวันและเวลา"
     });
 }
 
 // ==========================================
-// ฟังก์ชันการจอง (submit, execute, switch)
+// ฟังก์ชันการจอง
 // ==========================================
 async function submitBooking(e) {
     e.preventDefault();
@@ -541,7 +880,6 @@ async function executeBooking(roomId) {
         document.getElementById('bookingForm').reset();
         if (responsibleSelect) responsibleSelect.clear();
         document.getElementById('bk_phone').value = '';
-        // รีเซ็ต flatpickr ให้เป็นค่าว่าง
         document.querySelectorAll("#bk_start, #bk_end").forEach(el => {
             if (el._flatpickr) el._flatpickr.clear();
         });
@@ -551,7 +889,7 @@ async function executeBooking(roomId) {
 }
 
 // ==========================================
-// แสดงตาราง DataTables
+// ตาราง DataTables
 // ==========================================
 async function loadMyBookings() {
     if ($.fn.DataTable.isDataTable('#myTable')) $('#myTable').DataTable().destroy();
@@ -655,12 +993,12 @@ async function loadAdminBookings() {
 }
 
 // ==========================================
-// Helper Functions
+// Helpers
 // ==========================================
 function formatThaiDate(dateStr, short = false) {
     const d = dayjs(dateStr);
     const buddhistYear = d.year() + 543;
-    const months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     const day = d.date().toString().padStart(2, '0');
     const month = months[d.month()];
     const year = short ? (buddhistYear % 100).toString().padStart(2, '0') : buddhistYear;
@@ -714,7 +1052,7 @@ async function rejectBooking(id) {
 }
 
 // ==========================================
-// Edit Booking (สำหรับผู้จอง)
+// Edit Booking
 // ==========================================
 async function openEditBookingModal(id) {
     const { data: r, error } = await db.from('mr_reservations').select('*').eq('id', id).single();
@@ -731,21 +1069,16 @@ async function openEditBookingModal(id) {
         `<option value="${rm.id}" ${rm.id === r.room_id ? 'selected' : ''}>${rm.room_name} (รับได้ ${rm.capacity} คน)</option>`
     ).join('');
 
-    // ตั้งค่า Flatpickr สำหรับฟอร์มแก้ไข (แสดงปฏิทิน + เวลา)
     if (editFlatStart) editFlatStart.destroy();
     if (editFlatEnd) editFlatEnd.destroy();
     editFlatStart = flatpickr('#eb_start', {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: "Y-m-d H:i",
-        locale: "th",
+        enableTime: true, time_24hr: true,
+        dateFormat: "Y-m-d H:i", locale: "th",
         defaultDate: r.start_time
     });
     editFlatEnd = flatpickr('#eb_end', {
-        enableTime: true,
-        time_24hr: true,
-        dateFormat: "Y-m-d H:i",
-        locale: "th",
+        enableTime: true, time_24hr: true,
+        dateFormat: "Y-m-d H:i", locale: "th",
         defaultDate: r.end_time
     });
 
@@ -775,17 +1108,17 @@ async function openEditBookingModal(id) {
 function closeEditBookingModal() {
     document.getElementById('editBookingModal').classList.add('hidden');
     if (editFlatStart) { editFlatStart.destroy(); editFlatStart = null; }
-    if (editFlatEnd)   { editFlatEnd.destroy();   editFlatEnd   = null; }
+    if (editFlatEnd) { editFlatEnd.destroy(); editFlatEnd = null; }
     if (editResponsibleSelect) { editResponsibleSelect.destroy(); editResponsibleSelect = null; }
 }
 
 async function saveEditBooking(e) {
     e.preventDefault();
 
-    const id       = document.getElementById('eb_id').value;
-    const start    = document.getElementById('eb_start').value;
-    const end      = document.getElementById('eb_end').value;
-    const roomId   = document.getElementById('eb_room').value;
+    const id = document.getElementById('eb_id').value;
+    const start = document.getElementById('eb_start').value;
+    const end = document.getElementById('eb_end').value;
+    const roomId = document.getElementById('eb_room').value;
     const attendees = parseInt(document.getElementById('eb_attendees').value);
 
     if (new Date(start) >= new Date(end)) {
@@ -823,15 +1156,15 @@ async function saveEditBooking(e) {
     }
 
     const payload = {
-        room_id:            roomId,
-        title:              document.getElementById('eb_title').value,
-        department:         document.getElementById('eb_department').value,
+        room_id: roomId,
+        title: document.getElementById('eb_title').value,
+        department: document.getElementById('eb_department').value,
         responsible_person: editResponsibleSelect ? editResponsibleSelect.getValue() : document.getElementById('eb_responsible').value,
-        phone:              document.getElementById('eb_phone').value,
-        attendee_count:     attendees,
-        start_time:         new Date(start).toISOString(),
-        end_time:           new Date(end).toISOString(),
-        status:             'pending'  // รีเซ็ตเป็นรออนุมัติ
+        phone: document.getElementById('eb_phone').value,
+        attendee_count: attendees,
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(end).toISOString(),
+        status: 'pending'
     };
 
     const { error } = await db.from('mr_reservations').update(payload).eq('id', id);
@@ -911,13 +1244,17 @@ async function deleteBooking(id, isUserInitiated) {
 }
 
 // ==========================================
-// ประกาศฟังก์ชัน global สำหรับ HTML onclick
+// Expose Globals
 // ==========================================
-window.logout = logout;
 window.toggleTeacherAdminMode = toggleTeacherAdminMode;
 window.switchTab = switchTab;
 window.openSettingsModal = openSettingsModal;
 window.closeSettingsModal = closeSettingsModal;
+window.setSettingsTab = setSettingsTab;
+window.loadTeachersForAppoint = loadTeachersForAppoint;
+window.loadModuleAdminsList = loadModuleAdminsList;
+window.appointModuleAdmin = appointModuleAdmin;
+window.removeModuleAdmin = removeModuleAdmin;
 window.openRoomFormModal = openRoomFormModal;
 window.closeRoomModal = closeRoomModal;
 window.editRoom = editRoom;
@@ -935,4 +1272,4 @@ window.rejectBooking = rejectBooking;
 window.loadMyBookings = loadMyBookings;
 window.loadAdminBookings = loadAdminBookings;
 
-console.log('✅ meeting_room.js loaded with config.js integration, navbar & flatpickr improved');
+console.log('✅ meeting_room.js loaded (template-compliant + settings in topbar for super_admin only)');

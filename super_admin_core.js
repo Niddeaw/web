@@ -1,5 +1,6 @@
 // ==========================================
 // super_admin_core.js (เวอร์ชันปรับให้ใช้ dashboard_ui.js)
+// ✅ FIX: ลบ requireAdmin() ที่ทับซ้อนกับ config.js
 // ==========================================
 
 // ตัวแปร global
@@ -24,7 +25,7 @@ function showToast(icon, title, timer = 2000) {
 // ==========================================
 async function checkAuth() {
     const result = await checkSessionAndRole('super_admin', ['super_admin']);
-    if (!result) return;
+    if (!result) return false;
 
     const userInfo = result.personnel;
     if (userInfo) {
@@ -33,7 +34,6 @@ async function checkAuth() {
         renderUserAvatar(userInfo);
     }
 
-    // Today chip
     const todayChip = document.getElementById('todayChip');
     if (todayChip) {
         todayChip.textContent = new Date().toLocaleDateString('th-TH', {
@@ -41,50 +41,61 @@ async function checkAuth() {
         });
     }
 
-    document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
-}
-
-// ==========================================
-// requireAdmin
-// ==========================================
-function requireAdmin() {
-    if (typeof window.requireAdmin === 'function') {
-        return window.requireAdmin('super_admin', true, 'เฉพาะ Super Admin เท่านั้นที่สามารถดำเนินการนี้ได้');
-    }
     return true;
 }
 
+window.onload = async () => {
+    try {
+        const ok = await checkAuth();
+        if (!ok) {
+            // unauthorized — redirect กำลังจะเกิด แสดงหน้าให้เห็นก่อน (กันขาว)
+            document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+            return;
+        }
+
+        await updateUnassignedBadge();
+        if (typeof applyVisibilityByRole === 'function') {
+            applyVisibilityByRole('super_admin', true, { settingsBtn: 'admin-settings-btn' });
+        }
+        switchMenu('menu-school');
+    } catch (err) {
+        console.error('❌ super_admin init error:', err);
+    } finally {
+        document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
+    }
+};
+
+// ❌ ลบแล้ว: requireAdmin() ที่เคยทับซ้อนกับ config.js (ทำให้ infinite recursion)
+//    ถ้าต้องการเรียกใช้ ให้เรียก window.requireAdmin(...) จาก config.js โดยตรง
+
 // ==========================================
-// switchMenu — ปรับให้ใช้ class .active ของ dashboard.css
+// switchMenu — ปรับให้รองรับเมนู sidebar
 // ==========================================
 function switchMenu(menuId) {
-    // ปิด sidebar บน mobile
     if (window.innerWidth < 761) toggleSidebar(false);
 
-    // ซ่อนทุกเมนู content
-    ['menu-school', 'menu-personnel', 'menu-students', 'menu-student-portal', 'menu-calendar']
-        .forEach(id => document.getElementById(id)?.classList.add('hidden'));
+    const allMenus = ['menu-school', 'menu-personnel', 'menu-students',
+                      'menu-student-portal', 'menu-calendar', 'menu-sidebar'];
+    allMenus.forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
-    // Reset active ของ sidebar buttons
-    ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students', 'btn-menu-student-portal', 'btn-menu-calendar']
-        .forEach(id => document.getElementById(id)?.classList.remove('active'));
+    const allBtns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students',
+                     'btn-menu-student-portal', 'btn-menu-calendar', 'btn-menu-sidebar'];
+    allBtns.forEach(id => document.getElementById(id)?.classList.remove('active'));
 
-    // แสดงเมนูที่เลือก
     document.getElementById(menuId)?.classList.remove('hidden');
     document.getElementById('btn-' + menuId)?.classList.add('active');
 
-    // ชื่อหัวข้อใน topbar
     const titles = {
         'menu-school': 'ภาพรวมระบบ (Dashboard)',
         'menu-personnel': 'จัดการบุคลากรและข้าราชการครู',
         'menu-students': 'จัดการห้องเรียนและรายชื่อนักเรียน',
         'menu-student-portal': 'ตั้งค่าระบบสำหรับนักเรียน (Student Portal)',
-        'menu-calendar': 'จัดการปฏิทินกิจกรรม'
+        'menu-calendar': 'จัดการปฏิทินกิจกรรม',
+        'menu-sidebar': 'จัดการ Sidebar (เมนูนำทาง)'
     };
     const titleEl = document.getElementById('pageTitle');
     if (titleEl) titleEl.textContent = titles[menuId] || menuId;
 
-    // โหลดข้อมูลตามเมนู
     if (menuId === 'menu-school') {
         if (typeof loadSchoolInfo === 'function') loadSchoolInfo();
         if (typeof loadMicroServices === 'function') loadMicroServices();
@@ -100,10 +111,13 @@ function switchMenu(menuId) {
         if (typeof loadGasAvatarSettings === 'function') loadGasAvatarSettings();
     }
     if (menuId === 'menu-calendar') {
-        if (typeof loadCalendarAdminUI === 'function') {
-            loadCalendarAdminUI();
+        if (typeof loadCalendarAdminUI === 'function') loadCalendarAdminUI();
+    }
+    if (menuId === 'menu-sidebar') {
+        if (typeof loadSidebarProfiles === 'function') {
+            loadSidebarProfiles();
         } else {
-            console.warn('loadCalendarAdminUI not found.');
+            console.error('❌ loadSidebarProfiles not found — ตรวจสอบว่าโหลด super_admin_sidebar.js แล้ว');
         }
     }
 }
@@ -142,17 +156,3 @@ async function updateUnassignedBadge() {
         console.warn("Badge error:", e);
     }
 }
-
-// ==========================================
-// onload
-// ==========================================
-window.onload = async () => {
-    await checkAuth();
-    await updateUnassignedBadge();
-
-    if (typeof applyVisibilityByRole === 'function') {
-        applyVisibilityByRole('super_admin', true, { settingsBtn: 'admin-settings-btn' });
-    }
-
-    switchMenu('menu-school');
-};

@@ -1,6 +1,7 @@
 // ==========================================
-// super_admin_school.js
+// super_admin_school.js (ฉบับสมบูรณ์ + Auto-Sync)
 // จัดการข้อมูลโรงเรียน และระบบย่อย (Micro-services)
+// + Auto-Sync เข้า Sidebar
 // ==========================================
 
 // ข้อมูลเริ่มต้นของระบบย่อย (Master)
@@ -11,7 +12,7 @@ const MASTER_MODULES = [
     { module_id: 'guidance', title: 'ระบบ ปพ.5 - แนะแนว', category: 'academic', icon: 'fa-solid fa-compass', description: 'บันทึกกิจกรรมแนะแนว ปพ.5', url: 'guidance_teacher.html', display_order: 4, is_active: true, icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
     { module_id: 'homevisit', title: 'ระบบเยี่ยมบ้านนักเรียน', category: 'academic', icon: 'fa-solid fa-house-chimney', description: 'บันทึกข้อมูลการเยี่ยมบ้าน', url: 'homevisit.html', display_order: 5, is_active: true, icon_bg_color: '#14b8a6', icon_text_color: '#ffffff' },
     { module_id: 'personnel', title: 'ระบบบริหารจัดการบุคลากร', category: 'personnel', icon: 'fa-solid fa-id-card', description: 'ข้อมูลครูและบุคลากร', url: 'personnel.html', display_order: 1, is_active: true, icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' },
-    { module_id: 'leave', title: 'ระบบการลา', category: 'personnel', icon: 'fa-solid fa-envelope-open-text', description: 'ระบบลาสำหรับครู', url: 'leave_teacher.html', display_order: 2, is_active: true, icon_bg_color: '#f43f5e', icon_text_color: '#ffffff' },
+    { module_id: 'leave', title: 'ระบบการลา', category: 'personnel', icon: 'fa-solid fa-envelope-open-text', description: 'ระบบลาสำหรับครูและบุคลากร', url: 'leave.html', display_order: 2, is_active: true, icon_bg_color: '#f43f5e', icon_text_color: '#ffffff' },
     { module_id: 'scholarship', title: 'ระบบทุนการศึกษา', category: 'budget', icon: 'fa-solid fa-hand-holding-heart', description: 'จัดการทุนการศึกษา', url: 'scholarship.html', display_order: 1, is_active: true, icon_bg_color: '#eab308', icon_text_color: '#ffffff' },
     { module_id: 'sdq', title: 'ระบบประเมิน SDQ', category: 'general', icon: 'fa-solid fa-clipboard-list', description: 'แบบประเมิน SDQ', url: 'sdq_admin.html', display_order: 1, is_active: true, icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
 ];
@@ -114,7 +115,10 @@ async function loadMicroServices() {
                             <i class="${mod.icon || 'fa-solid fa-gear'} text-lg"></i>
                         </div>
                     </td>
-                    <td class="py-3 px-4 font-bold text-gray-700">${mod.module_name}</td>
+                    <td class="py-3 px-4 font-bold text-gray-700">
+                        ${mod.module_name}
+                        ${mod.auto_sidebar !== false ? '<i class="fa-solid fa-bars-staggered text-emerald-500 text-xs ml-1" title="Sync เข้า Sidebar อัตโนมัติ"></i>' : ''}
+                    </td>
                     <td class="py-3 px-4">
                         <span class="px-2 py-1 text-xs font-bold rounded-full bg-indigo-100 text-indigo-700">
                             ${categoryMap[mod.category] || mod.category}
@@ -164,8 +168,14 @@ async function loadMicroServices() {
 
 async function toggleMicroService(moduleId, isChecked) {
     try {
-        const { error } = await db.from('core_system_modules').update({ is_active: isChecked, updated_at: new Date().toISOString() }).eq('module_id', moduleId);
+        const { error } = await db.from('core_system_modules')
+            .update({ is_active: isChecked, updated_at: new Date().toISOString() })
+            .eq('module_id', moduleId);
         if (error) throw error;
+
+        // ✅ AUTO-SYNC: hide/show ใน sidebar
+        await syncModuleToSidebar(moduleId, isChecked ? 'show' : 'hide');
+
         showToast(isChecked ? 'success' : 'warning', isChecked ? 'เปิดใช้งานระบบแล้ว' : 'ปิดระบบชั่วคราว');
     } catch (err) {
         console.error(err);
@@ -183,6 +193,13 @@ function clearMicroServiceForm() {
     document.getElementById('ms_icon_text').value = '#ffffff';
     document.getElementById('ms_icon_text_text').value = '#ffffff';
     document.getElementById('ms_target_blank').checked = false;
+
+    const autoSb = document.getElementById('ms_auto_sidebar');
+    if (autoSb) autoSb.checked = true;
+
+    const sbGroup = document.getElementById('ms_sidebar_group');
+    if (sbGroup) sbGroup.value = '';
+
     currentEditServiceId = null;
 }
 
@@ -205,12 +222,21 @@ async function editMicroService(moduleId) {
         document.getElementById('ms_display_order').value = data.display_order || 0;
         document.getElementById('ms_is_active').checked = data.is_active;
         document.getElementById('ms_target_blank').checked = data.target_blank || false;
+
+        // ✅ Auto-Sync fields
+        const autoSb = document.getElementById('ms_auto_sidebar');
+        if (autoSb) autoSb.checked = data.auto_sidebar !== false;
+
+        const sbGroup = document.getElementById('ms_sidebar_group');
+        if (sbGroup) sbGroup.value = data.sidebar_group_id || '';
+
         currentEditServiceId = moduleId;
     } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
 }
 
 async function saveMicroService(e) {
     e.preventDefault();
+
     const formData = {
         module_id: document.getElementById('ms_module_key').value.trim(),
         module_name: document.getElementById('ms_title').value.trim(),
@@ -223,9 +249,14 @@ async function saveMicroService(e) {
         display_order: parseInt(document.getElementById('ms_display_order').value) || 0,
         is_active: document.getElementById('ms_is_active').checked,
         target_blank: document.getElementById('ms_target_blank').checked,
+        // ✅ Auto-Sync fields
+        auto_sidebar: document.getElementById('ms_auto_sidebar')?.checked ?? true,
+        sidebar_group_id: document.getElementById('ms_sidebar_group')?.value || null,
         updated_at: new Date().toISOString()
     };
+
     Swal.fire({ title: 'กำลังบันทึก...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
     try {
         if (currentEditServiceId) {
             const { error } = await db.from('core_system_modules').update(formData).eq('module_id', currentEditServiceId);
@@ -236,24 +267,409 @@ async function saveMicroService(e) {
             const { error } = await db.from('core_system_modules').insert([formData]);
             if (error) throw error;
         }
+
         clearMicroServiceForm();
         loadMicroServices();
+
+        // ✅ AUTO-SYNC เข้า Sidebar
+        if (formData.auto_sidebar !== false) {
+            const syncRes = await syncModuleToSidebar(formData.module_id, 'upsert');
+            if (!syncRes.success) {
+                console.warn('⚠️ Sync ไม่สำเร็จ:', syncRes.error);
+            } else {
+                console.log('✅ Sync สำเร็จ:', syncRes);
+            }
+        } else {
+            // ถ้าปิด auto → ลบ item ที่เคย sync ออก
+            await syncModuleToSidebar(formData.module_id, 'delete');
+        }
+
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
+        // ✅ Clear departments cache เมื่อโมดูลเปลี่ยน
+        if (typeof window.clearDepartmentsCache === 'function') {
+            window.clearDepartmentsCache();
+        }
     } catch (err) { Swal.fire('ผิดพลาด', err.message, 'error'); }
 }
 
 async function deleteMicroService(moduleId) {
     const { isConfirmed } = await Swal.fire({
         title: 'ยืนยันการลบ?',
-        html: `ต้องการลบระบบ <b>${moduleId}</b> ออกจากฐานข้อมูลใช่หรือไม่?`,
+        html: `ต้องการลบระบบ <b>${moduleId}</b> ออกจากฐานข้อมูลใช่หรือไม่?<br><span class="text-xs text-rose-500">*ระบบจะลบเมนูออกจาก Sidebar ด้วย</span>`,
         icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ลบเลย'
     });
     if (isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+        // ✅ AUTO-SYNC: ลบออกจาก sidebar ก่อน
+        await syncModuleToSidebar(moduleId, 'delete');
+
         const { error } = await db.from('core_system_modules').delete().eq('module_id', moduleId);
         if (error) Swal.fire('ผิดพลาด', error.message, 'error');
         else { loadMicroServices(); Swal.fire({ icon: 'success', title: 'ลบสำเร็จ', timer: 1500, showConfirmButton: false }); }
+        // ✅ Clear departments cache เมื่อโมดูลเปลี่ยน
+        if (typeof window.clearDepartmentsCache === 'function') {
+            window.clearDepartmentsCache();
+        }
     }
+}
+
+// ==========================================
+// AUTO-SYNC: Module ↔ Sidebar
+// ==========================================
+
+/**
+ * syncModuleToSidebar — เพิ่ม/อัปเดต/ลบ module ใน sidebar config
+ * @param {string} moduleId - module_id
+ * @param {string} action - 'upsert' | 'delete' | 'hide' | 'show'
+ */
+async function syncModuleToSidebar(moduleId, action = 'upsert') {
+    try {
+        // 1) อ่าน module
+        const { data: module, error: modErr } = await db
+            .from('core_system_modules')
+            .select('*')
+            .eq('module_id', moduleId)
+            .single();
+        if (modErr || !module) throw new Error('ไม่พบ module: ' + moduleId);
+
+        // 2) อ่าน sidebar configs
+        const { data: sidebarRows, error: sbErr } = await db
+            .from('core_sidebar_config')
+            .select('config_key, config_data')
+            .in('config_key', ['index', 'default']);
+        if (sbErr) throw sbErr;
+
+        if (!sidebarRows || sidebarRows.length === 0) {
+            console.warn('⚠️ ไม่พบ sidebar config → ข้ามการ sync');
+            return { success: true, skipped: true };
+        }
+
+        // ใหม่ (เพิ่มการดึงสี)
+        const sidebarItem = {
+            id: `${moduleId}_nav`,
+            icon: (module.icon || 'fa-solid fa-cube').replace(/^fa-solid\s+/, ''),
+            label: module.module_name,
+            href: module.url || '#',
+            target_blank: module.target_blank === true,
+            // ✅ ดึงสีจาก Micro-services มาใช้
+            icon_bg_color: module.icon_bg_color || '#f1f5f9', // สีพื้นหลัง (ถ้าไม่มีให้ใช้สีเทาอ่อน)
+            icon_text_color: module.icon_text_color || '#475569', // สีไอคอน (ถ้าไม่มีให้ใช้สีเทาเข้ม)
+            _sourceModule: moduleId,
+            _autoSynced: true,
+            ...(module.is_active === false ? { hidden: true } : {})
+        };
+
+        // 3) Loop อัปเดตแต่ละ config
+        for (const row of sidebarRows) {
+            const cfg = row.config_data || {};
+            let changed = false;
+
+            // ลบ item เก่าของ module นี้ออกก่อน (ถ้ามี)
+            const { found: wasFound } = findAndRemoveSyncedItem(cfg, moduleId);
+
+            if (action === 'delete') {
+                if (wasFound) {
+                    await db.rpc('save_sidebar_config', { p_key: row.config_key, p_data: cfg });
+                    changed = true;
+                }
+                continue;
+            }
+
+            // action: upsert | hide | show
+            if (action === 'hide') sidebarItem.hidden = true;
+            if (action === 'show') delete sidebarItem.hidden;
+
+            // ✅ หา target ที่ถูกต้อง (item > section > fallback)
+            const target = findInsertTarget(cfg, module);
+
+            if (!target) {
+                console.warn(`⚠️ ไม่พบ target สำหรับ module "${moduleId}" → ข้าม`);
+                continue;
+            }
+
+            if (target.type === 'item') {
+                // ✅ ใส่เป็น children ของ item ปลายทาง
+                if (!target.parent.children) target.parent.children = [];
+                target.parent.children.push(sidebarItem);
+                changed = true;
+            } else {
+                // ใส่เป็น items ของ section
+                if (!target.parent.items) target.parent.items = [];
+                target.parent.items.push(sidebarItem);
+                changed = true;
+            }
+
+            if (changed) {
+                const { data: saveRes, error: saveErr } = await db.rpc('save_sidebar_config', {
+                    p_key: row.config_key,
+                    p_data: cfg
+                });
+                if (saveErr) throw saveErr;
+                if (saveRes && saveRes.success === false) throw new Error(saveRes.error);
+            }
+        }
+
+        if (typeof clearSidebarConfigCache === 'function') clearSidebarConfigCache();
+
+        return { success: true, moduleId, action };
+    } catch (err) {
+        console.error('❌ syncModuleToSidebar error:', err);
+        return { success: false, error: err.message };
+    }
+}
+
+/**
+ * ลบ item ที่ sync มาจาก module ออก (ถ้ามี)
+ */
+function findAndRemoveSyncedItem(cfg, moduleId) {
+    let found = false;
+
+    const purge = (arr) => {
+        if (!Array.isArray(arr)) return arr;
+        for (let i = arr.length - 1; i >= 0; i--) {
+            const item = arr[i];
+            if (item._sourceModule === moduleId) {
+                arr.splice(i, 1);
+                found = true;
+            } else if (item.children && item.children.length > 0) {
+                purge(item.children);
+            }
+        }
+        return arr;
+    };
+
+    if (cfg.mainMenu) purge(cfg.mainMenu);
+    if (cfg.footerMenu) purge(cfg.footerMenu);
+    if (cfg.departments) purge(cfg.departments);
+    if (Array.isArray(cfg.moduleMenus)) {
+        cfg.moduleMenus.forEach(mod => purge(mod.items));
+    }
+
+    return { found };
+}
+
+/**
+ * หา section จาก sectionId
+ */
+function findSectionById(cfg, sectionId) {
+    if (!Array.isArray(cfg.moduleMenus)) {
+        if (sectionId === 'footer') {
+            if (!cfg.footerMenu) cfg.footerMenu = [];
+            return { items: cfg.footerMenu, title: cfg.footerMenuTitle };
+        }
+        return null;
+    }
+
+    for (const mod of cfg.moduleMenus) {
+        if (mod.sectionId === sectionId) {
+            if (!mod.items) mod.items = [];
+            return mod;
+        }
+    }
+
+    if (sectionId === 'footer') {
+        if (!cfg.footerMenu) cfg.footerMenu = [];
+        return { items: cfg.footerMenu, title: cfg.footerMenuTitle };
+    }
+
+    return null;
+}
+
+/**
+ * syncAllModulesToSidebar — sync ทุก module พร้อมกัน
+ */
+async function syncAllModulesToSidebar() {
+    Swal.fire({
+        title: 'กำลัง Sync ทั้งหมด...',
+        html: 'กรุณารอสักครู่',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        const { data: modules, error } = await db
+            .from('core_system_modules')
+            .select('*')
+            .eq('auto_sidebar', true);
+        if (error) throw error;
+
+        const { data: sidebarRows } = await db
+            .from('core_sidebar_config')
+            .select('config_key, config_data')
+            .in('config_key', ['index', 'default']);
+
+        if (!sidebarRows || sidebarRows.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่พบ Sidebar Config', 'กรุณาสร้างโปรไฟล์ default ก่อน', 'warning');
+        }
+
+        let addedCount = 0;
+
+        for (const row of sidebarRows) {
+            const cfg = row.config_data || {};
+
+            for (const module of (modules || [])) {
+                const existingItem = findItemByIdRecursive(cfg, `${module.module_id}_nav`);
+
+                // สร้างข้อมูล item ใหม่
+                const itemData = {
+                    id: `${module.module_id}_nav`,
+                    icon: (module.icon || 'fa-solid fa-cube').replace(/^fa-solid\s+/, ''),
+                    label: module.module_name,
+                    href: module.url || '#',
+                    target_blank: module.target_blank === true,
+                    icon_bg_color: module.icon_bg_color || '#f1f5f9',
+                    icon_text_color: module.icon_text_color || '#475569',
+                    _sourceModule: module.module_id,
+                    _autoSynced: true,
+                    ...(module.is_active === false ? { hidden: true } : {})
+                };
+
+                // ถ้ามีอยู่แล้ว ให้อัปเดตสีและข้อมูลอื่นๆ
+                if (existingItem) {
+                    existingItem.icon_bg_color = itemData.icon_bg_color;
+                    existingItem.icon_text_color = itemData.icon_text_color;
+                    existingItem.icon = itemData.icon;
+                    existingItem.label = itemData.label;
+                    existingItem.href = itemData.href;
+                    addedCount++; // นับเป็นการอัปเดต
+                    continue;
+                }
+
+                // ใหม่
+                const item = {
+                    id: `${module.module_id}_nav`,
+                    icon: (module.icon || 'fa-solid fa-cube').replace(/^fa-solid\s+/, ''),
+                    label: module.module_name,
+                    href: module.url || '#',
+                    target_blank: module.target_blank === true,
+                    // ✅ ดึงสีจาก Micro-services มาใช้
+                    icon_bg_color: module.icon_bg_color || '#f1f5f9',
+                    icon_text_color: module.icon_text_color || '#475569',
+                    _sourceModule: module.module_id,
+                    _autoSynced: true,
+                    ...(module.is_active === false ? { hidden: true } : {})
+                };
+
+                // ✅ หา target ที่ถูกต้อง
+                const target = findInsertTarget(cfg, module);
+                if (!target) {
+                    console.warn(`⚠️ ข้าม module "${module.module_id}" (ไม่พบ target)`);
+                    continue;
+                }
+
+                if (target.type === 'item') {
+                    if (!target.parent.children) target.parent.children = [];
+                    target.parent.children.push(item);
+                } else {
+                    if (!target.parent.items) target.parent.items = [];
+                    target.parent.items.push(item);
+                }
+                addedCount++;
+            }
+
+            await db.rpc('save_sidebar_config', { p_key: row.config_key, p_data: cfg });
+        }
+
+        if (typeof clearSidebarConfigCache === 'function') clearSidebarConfigCache();
+
+        Swal.close();
+        Swal.fire({
+            icon: 'success',
+            title: 'Sync สำเร็จ',
+            text: `เพิ่ม ${addedCount} รายการเข้า Sidebar`,
+            timer: 2000,
+            showConfirmButton: false
+        });
+    } catch (err) {
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+window.syncModuleToSidebar = syncModuleToSidebar;
+window.syncAllModulesToSidebar = syncAllModulesToSidebar;
+
+// ==========================================
+// ✅ Helper: map category → parent item id
+// ==========================================
+function getCategoryParentMap() {
+    return {
+        'academic': 'academic',      // item id ใต้ sec-departments
+        'budget': 'budget',
+        'personnel': 'personnel',
+        'general': 'general'
+    };
+}
+
+/**
+ * ค้นหา item ตาม id ในทุก section (recursive)
+ */
+function findItemByIdRecursive(cfg, targetId) {
+    if (!targetId) return null;
+
+    const searchIn = (items) => {
+        if (!Array.isArray(items)) return null;
+        for (const item of items) {
+            if (item.id === targetId) return item;
+            if (item.children) {
+                const found = searchIn(item.children);
+                if (found) return found;
+            }
+        }
+        return null;
+    };
+
+    if (Array.isArray(cfg.mainMenu)) {
+        const f = searchIn(cfg.mainMenu); if (f) return f;
+    }
+    if (Array.isArray(cfg.footerMenu)) {
+        const f = searchIn(cfg.footerMenu); if (f) return f;
+    }
+    if (Array.isArray(cfg.departments)) {
+        const f = searchIn(cfg.departments); if (f) return f;
+    }
+    if (Array.isArray(cfg.moduleMenus)) {
+        for (const mod of cfg.moduleMenus) {
+            const f = searchIn(mod.items);
+            if (f) return f;
+        }
+    }
+    return null;
+}
+
+/**
+ * หา "จุดติดตั้ง" ที่เหมาะสมสำหรับ module
+ *   1) ลองด้วย module.sidebar_group_id (ถ้าตั้งเป็น id ของ item)
+ *   2) ลองด้วย category map (auto: academic/budget/personnel/general)
+ *   3) fallback → section แรกใน moduleMenus
+ *
+ * @returns { type: 'item'|'section', parent: object } | null
+ */
+function findInsertTarget(cfg, module) {
+    // (1) ถ้ามี sidebar_group_id → ลองเป็น item id ก่อน
+    if (module.sidebar_group_id) {
+        const asItem = findItemByIdRecursive(cfg, module.sidebar_group_id);
+        if (asItem) return { type: 'item', parent: asItem };
+
+        const asSection = findSectionById(cfg, module.sidebar_group_id);
+        if (asSection) return { type: 'section', parent: asSection };
+    }
+
+    // (2) Auto-map by category
+    const catParentId = getCategoryParentMap()[module.category];
+    if (catParentId) {
+        const asItem = findItemByIdRecursive(cfg, catParentId);
+        if (asItem) return { type: 'item', parent: asItem };
+    }
+
+    // (3) Fallback: section แรก
+    if (Array.isArray(cfg.moduleMenus) && cfg.moduleMenus.length > 0) {
+        return { type: 'section', parent: cfg.moduleMenus[0] };
+    }
+
+    return null;
 }
 
 // Sync color inputs สำหรับ Micro-service form

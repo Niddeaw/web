@@ -1,6 +1,6 @@
 // ============================================================
-// leave_dept_head.js — ระบบรับทราบการลาสำหรับหัวหน้ากลุ่มสาระฯ
-// ใช้ window object ทั้งหมดเพื่อป้องกัน conflict
+// leave_dept_head.js — ระบบรับทราบการลาสำหรับหัวหน้ากลุ่มสาระฯ [ฉบับสมบูรณ์]
+// ✅ initModuleSidebar + refreshNavButtons + onReady
 // ============================================================
 
 window.currentUser = null;
@@ -12,6 +12,22 @@ window.pendingLeaves = [];
 window.doneLeaves = [];
 window.pendingDT = null;
 window.doneDT = null;
+window.isSuperAdmin = false;
+
+// ==========================================
+// ✅ ปุ่มนำทาง — leave_dept_head
+//    แสดงเฉพาะ: หัวหน้ากลุ่มฯ / super_admin / admin / director / deputy
+// ==========================================
+window.refreshNavButtons = function () {
+    const role = window.currentProfile?.role;
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+    const canSee = window.isSuperAdmin || window.headInfo || allowedRoles.includes(role);
+
+    if (canSee) {
+        document.getElementById('btnNavTeacher')?.classList.remove('hidden');
+        document.getElementById('btnNavAdmin')?.classList.remove('hidden');
+    }
+};
 
 // ==========================================
 // INIT
@@ -28,19 +44,18 @@ $(document).ready(async function () {
         if (!profile) { await db.auth.signOut(); window.location.href = 'login.html'; return; }
         window.currentProfile = profile;
         window.currentUserRole = profile.role || 'teacher';
-        // ✅ เพิ่ม avatar + today chip
-        if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+
+        // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันกลาง
+        setUserDisplayName(profile);
+        updateUserRoleLabel(profile.role);
+        renderUserAvatar(profile);
 
         const isSuperAdmin = (profile.role === 'super_admin');
-
-        // ตรวจสอบว่าเป็นหัวหน้ากลุ่มสาระฯ
         const headInfo = await window.getDepartmentHeadInfo(session.user.id);
 
-        // ✅ ถ้าไม่ใช่ทั้ง Super Admin และไม่ใช่หัวหน้ากลุ่มฯ → เตะออก
         if (!headInfo && !isSuperAdmin) {
             Swal.fire({
-                icon: 'warning',
-                title: 'ไม่มีสิทธิ์เข้าใช้งาน',
+                icon: 'warning', title: 'ไม่มีสิทธิ์เข้าใช้งาน',
                 text: 'คุณไม่ได้เป็นหัวหน้ากลุ่มสาระฯ ในระบบ',
                 confirmButtonText: 'กลับหน้าหลัก'
             }).then(() => { window.location.href = 'leave.html'; });
@@ -50,7 +65,7 @@ $(document).ready(async function () {
         window.isSuperAdmin = isSuperAdmin;
         window.headInfo = headInfo;
         window.currentGroupFilter = headInfo?.department_name || null;
-        // ✅ โหลดรายชื่อหัวหน้ากลุ่มฯ ทั้งหมด (สำหรับจัดหมวดหมู่)
+
         try {
             const { data: deptHeads } = await db.from('core_department_heads')
                 .select('personnel_id, department_id, department_name');
@@ -60,7 +75,6 @@ $(document).ready(async function () {
             window.allDeptHeads = [];
         }
 
-        // โหลด system settings
         const { data: sysData } = await db.from('core_system_modules')
             .select('settings').eq('module_id', 'leave').single();
         window.systemSettings = sysData?.settings || {
@@ -68,26 +82,18 @@ $(document).ready(async function () {
             eval_round: '1'
         };
 
-        // อัปเดต UI
-        $('#display-name').text(`${profile.prefix || ''}${profile.first_name} ${profile.last_name}`);
-
-        // ✅ Super Admin → แสดง dropdown เลือกกลุ่ม + ปุ่มสลับโหมดแอดมิน
+        // ✅ Super Admin → แสดง dropdown เลือกกลุ่ม
         if (isSuperAdmin) {
-            $('#btnToggleAdmin').removeClass('hidden').addClass('flex');
-            $('#deptHeadGroupFilter').removeClass('hidden');
-            if (!headInfo) {
-                $('#dept-badge').text('ทุกกลุ่ม (Super Admin)');
-            } else {
-                $('#dept-badge').text(`กลุ่ม${headInfo.department_name} (Super Admin)`);
-            }
-            // โหลดรายการกลุ่มทั้งหมด
+            const filterWrap = document.getElementById('deptHeadGroupFilterWrap');
+            if (filterWrap) filterWrap.classList.remove('hidden');
             await window.loadAllDepartments();
-        } else {
-            $('#dept-badge').text(`กลุ่ม${headInfo.department_name}`);
         }
 
         await window.loadDeptHeadLeaves();
-        await window.loadDepartmentTeachersCount();   // ✅ เพิ่มบรรทัดนี้
+        await window.loadDepartmentTeachersCount();
+
+        // ✅ เรียก refreshNavButtons หลังโหลดข้อมูล
+        window.refreshNavButtons();
 
         if (typeof window.logUserAction === 'function') {
             await window.logUserAction(`เข้าสู่ระบบ (หัวหน้ากลุ่มสาระฯ: ${headInfo?.department_name || 'ทุกกลุ่ม'})`, 'leave');
@@ -102,7 +108,7 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// โหลดข้อมูลใบลา (เฉพาะกลุ่มตัวเอง + เฉพาะครู)
+// โหลดข้อมูลใบลา
 // ==========================================
 window.loadDeptHeadLeaves = async function () {
     try {
@@ -113,21 +119,17 @@ window.loadDeptHeadLeaves = async function () {
             .neq('personnel_id', window.currentUser.id)
             .order('created_at', { ascending: false });
 
-        // ✅ กำหนดกลุ่มเป้าหมาย
         if (window.isSuperAdmin) {
-            // Super Admin → ดูตาม dropdown (ถ้าไม่เลือก = ทุกกลุ่ม)
             if (window.currentGroupFilter) {
                 query = query.eq('core_personnel.department', window.currentGroupFilter);
             }
         } else {
-            // หัวหน้ากลุ่มฯ ปกติ → ดูเฉพาะกลุ่มตัวเอง
             query = query.eq('core_personnel.department', window.headInfo.department_name);
         }
 
         const { data, error } = await query;
         if (error) throw error;
 
-        // ✅ กรองเฉพาะ teacher (ตัด staff ออก)
         const filtered = (data || []).filter(l => {
             if (typeof window.getPersonnelCategory !== 'function') return true;
             const cat = window.getPersonnelCategory(l, window.allDeptHeads || []);
@@ -139,7 +141,7 @@ window.loadDeptHeadLeaves = async function () {
 
         window.renderDeptTables();
         window.updateStats(filtered);
-        window.loadDepartmentTeachersCount();   // ✅ โหลดแบบ non-blocking
+        window.loadDepartmentTeachersCount();
     } catch (err) {
         console.error('loadDeptHeadLeaves error:', err);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้: ' + err.message, 'error');
@@ -149,35 +151,23 @@ window.loadDeptHeadLeaves = async function () {
 window.updateStats = function (all) {
     $('#stat-pending').text(window.pendingLeaves.length);
     $('#stat-done').text(window.doneLeaves.length);
-    // ✅ ตัวเลขครูในกลุ่ม โหลดแยกจาก loadDepartmentTeachersCount()
     const today = new Date().toLocaleDateString('sv-SE');
     const todayCount = all.filter(l => l.start_date <= today && l.end_date >= today).length;
     $('#stat-today').text(todayCount);
 };
 
-// ==========================================
-// โหลดจำนวนครูในกลุ่ม (ทุกคน ไม่ใช่แค่ที่ลา)
-// รวม: ครู / ครูอัตราจ้าง / พนักงานราชการ / หัวหน้ากลุ่มฯ
-// ไม่รวม: ครูพี่เลี้ยงเด็กพิการ, เจ้าหน้าที่, พนักงาน, ลูกจ้าง
-// ==========================================
 window.loadDepartmentTeachersCount = async function () {
     try {
-        // ✅ กำหนดขอบเขตกลุ่ม
         const targetDept = window.isSuperAdmin
-            ? window.currentGroupFilter            // null = ทุกกลุ่ม
-            : window.headInfo.department_name;     // เฉพาะกลุ่มตัวเอง
+            ? window.currentGroupFilter
+            : window.headInfo.department_name;
 
-        let query = db.from('core_personnel')
-            .select('id, department, position');
-
-        if (targetDept) {
-            query = query.eq('department', targetDept);
-        }
+        let query = db.from('core_personnel').select('id, department, position');
+        if (targetDept) query = query.eq('department', targetDept);
 
         const { data, error } = await query;
         if (error) throw error;
 
-        // ✅ กรองด้วย logic เดียวกับ getPersonnelCategory
         const staffKeywords = [
             'เจ้าหน้าที่', 'พนักงานขับรถ', 'พนักงานบริการ',
             'พนักงานขับรถยนต์', 'พนักงานรักษาความปลอดภัย',
@@ -188,20 +178,16 @@ window.loadDepartmentTeachersCount = async function () {
 
         const teachers = (data || []).filter(p => {
             const pos = p.position || '';
-            // ตัด staff ออกก่อน (สำคัญ! ต้องเช็คก่อน "ครู")
             if (staffKeywords.some(kw => pos.includes(kw))) return false;
-            // นับเฉพาะ "ครู" หรือ "พนักงานราชการ"
             return pos.includes('ครู') || pos.includes('พนักงานราชการ');
         });
 
-        // ✅ รวมหัวหน้ากลุ่มฯ ของกลุ่มนั้นด้วย (ถ้ามี)
         const heads = (window.allDeptHeads || []).filter(h => {
             if (targetDept && h.department_name !== targetDept) return false;
             return true;
         });
         heads.forEach(h => {
             if (!teachers.find(t => t.id === h.personnel_id)) {
-                // หัวหน้ากลุ่มฯ เป็นครูอยู่แล้ว → นับเป็น 1 คน
                 teachers.push({ id: h.personnel_id, position: 'หัวหน้ากลุ่มสาระฯ' });
             }
         });
@@ -214,7 +200,7 @@ window.loadDepartmentTeachersCount = async function () {
 };
 
 // ==========================================
-// render ตาราง
+// Render ตาราง
 // ==========================================
 const fmtShort = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
 const fmtFull = (iso) => {
@@ -254,14 +240,13 @@ window.renderDeptTables = function () {
         order: [[0, 'desc']],
         columnDefs: [
             { orderable: false, targets: [6] },
-            // ✅ Mobile: แสดงเฉพาะ "ชื่อครู" + "จัดการ" เสมอ
-            { responsivePriority: 1, targets: 1 },   // ชื่อครู
-            { responsivePriority: 2, targets: 6 },   // จัดการ (ปุ่มรับทราบ)
-            { responsivePriority: 3, targets: 0 },   // วันที่ส่ง
-            { responsivePriority: 4, targets: 2 },   // ประเภท
-            { responsivePriority: 5, targets: 3 },   // ช่วงวันที่
-            { responsivePriority: 6, targets: 4 },   // วัน
-            { responsivePriority: 7, targets: 5 }    // สาเหตุ
+            { responsivePriority: 1, targets: 1 },
+            { responsivePriority: 2, targets: 6 },
+            { responsivePriority: 3, targets: 0 },
+            { responsivePriority: 4, targets: 2 },
+            { responsivePriority: 5, targets: 3 },
+            { responsivePriority: 6, targets: 4 },
+            { responsivePriority: 7, targets: 5 }
         ],
         pageLength: 15
     });
@@ -320,14 +305,13 @@ window.renderDeptTables = function () {
         order: [[0, 'desc']],
         columnDefs: [
             { orderable: false, targets: [5, 6] },
-            // ✅ Mobile: แสดง "ชื่อครู" + "วันที่รับทราบ" ก่อน
-            { responsivePriority: 1, targets: 1 },   // ชื่อครู
-            { responsivePriority: 2, targets: 5 },   // วันที่รับทราบ (มีปุ่มแก้ไข)
-            { responsivePriority: 3, targets: 0 },   // วันที่ส่ง
-            { responsivePriority: 4, targets: 6 },   // สถานะ
-            { responsivePriority: 5, targets: 2 },   // ประเภท
-            { responsivePriority: 6, targets: 3 },   // ช่วงวันที่
-            { responsivePriority: 7, targets: 4 }    // วัน
+            { responsivePriority: 1, targets: 1 },
+            { responsivePriority: 2, targets: 5 },
+            { responsivePriority: 3, targets: 0 },
+            { responsivePriority: 4, targets: 6 },
+            { responsivePriority: 5, targets: 2 },
+            { responsivePriority: 6, targets: 3 },
+            { responsivePriority: 7, targets: 4 }
         ],
         pageLength: 15
     });
@@ -339,9 +323,16 @@ window.renderDeptTables = function () {
 window.switchTab = function (tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
-    $('.tab-nav-btn').removeClass('active');
-    $(`#btn-${tabId}`).addClass('active');
-    // ปิด sidebar บนมือถือ
+
+    const idMap = { pending: 'btn-pending', done: 'btn-done' };
+    if (idMap[tabId] && typeof setActiveNavItem === 'function') {
+        setActiveNavItem(idMap[tabId]);
+    }
+
+    const titles = { 'pending': 'รอรับทราบ', 'done': 'รับทราบแล้ว' };
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) titleEl.textContent = titles[tabId] || 'รับทราบการลา';
+
     if (window.innerWidth < 761 && typeof toggleSidebar === 'function') toggleSidebar(false);
     setTimeout(() => {
         if (tabId === 'pending' && window.pendingDT) window.pendingDT.columns.adjust().draw();
@@ -394,16 +385,7 @@ window.closeViewModal = function () {
 };
 
 // ==========================================
-// LOGOUT
-// ==========================================
-window.logout = async function () {
-    if (typeof handleLogout === 'function') return handleLogout();
-    const { isConfirmed } = await Swal.fire({ title: 'ออกจากระบบ?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#dc2626', confirmButtonText: 'ออกจากระบบ', cancelButtonText: 'ยกเลิก' });
-    if (isConfirmed) { await db.auth.signOut(); window.location.replace("login.html"); }
-};
-
-// ==========================================
-// สำหรับ Super Admin: โหลดรายชื่อกลุ่มทั้งหมด
+// Super Admin: โหลดรายชื่อกลุ่มทั้งหมด
 // ==========================================
 window.loadAllDepartments = async function () {
     try {
@@ -422,7 +404,6 @@ window.loadAllDepartments = async function () {
         });
         select.innerHTML = html;
 
-        // ถ้า Super Admin เป็นหัวหน้ากลุ่มฯ ตัวเอง → default เลือกกลุ่มตัวเอง
         if (window.headInfo?.department_name) {
             select.value = window.headInfo.department_name;
             window.currentGroupFilter = window.headInfo.department_name;
@@ -436,22 +417,15 @@ window.loadAllDepartments = async function () {
 };
 
 // ==========================================
-// Event: เปลี่ยนกลุ่มที่เลือก (Super Admin)
+// Event: เปลี่ยนกลุ่มที่เลือก
 // ==========================================
 window.onDeptHeadGroupChange = async function () {
     const select = document.getElementById('deptHeadGroupFilter');
     const val = select ? select.value : '';
     window.currentGroupFilter = val || null;
 
-    // อัปเดต badge
-    if (val) {
-        $('#dept-badge').text(`กลุ่ม${val} (Super Admin)`);
-    } else {
-        $('#dept-badge').text('ทุกกลุ่ม (Super Admin)');
-    }
-
     await window.loadDeptHeadLeaves();
-    await window.loadDepartmentTeachersCount();   // ✅ เพิ่มบรรทัดนี้
+    await window.loadDepartmentTeachersCount();
 };
 
-console.log('✅ leave_dept_head.js loaded');
+console.log('✅ leave_dept_head.js loaded (template-compliant + nav buttons)');

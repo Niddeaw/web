@@ -51,7 +51,7 @@ $(document).ready(async () => {
         // 5. Log (fire-and-forget)
         logUserAction('เข้าสู่ระบบสารบรรณ', 'sarabun');
 
-        console.timeEnd('⏱️ Sarabun โหลด (จนถึง UI ready)');
+        console.timeEnd('⏱️ Sarabun โหลด');
         console.log(`⚡ Total (UI ready): ${Math.round(performance.now() - t0)} ms`);
 
     } catch (err) {
@@ -59,6 +59,25 @@ $(document).ready(async () => {
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 });
+
+// ==========================================
+// ✅ ปุ่มนำทาง — sarabun
+// ==========================================
+window.refreshNavButtons = function () {
+    const toggleBtn = document.getElementById('btnToggleMode');
+    if (!toggleBtn) return;
+
+    if (isAdminMode) {
+        toggleBtn.classList.remove('hidden');
+        toggleBtn.classList.add('flex');
+        if (typeof updateToggleModeUI === 'function') {
+            updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
+        }
+    } else {
+        toggleBtn.classList.add('hidden');
+        toggleBtn.classList.remove('flex');
+    }
+};
 
 // ==========================================
 // 1. Auth
@@ -71,6 +90,11 @@ async function checkAuth() {
         currentUser = result.user;
         currentProfile = result.personnel;
         userRole = currentProfile.role;
+
+        // ✅ FIX: Expose to window for topbar re-render
+        window.currentUser = currentUser;
+        window.currentProfile = currentProfile;
+        window.currentUserRole = userRole;
 
         // UI มาตรฐานจาก dashboard_ui.js
         setUserDisplayName(currentProfile);
@@ -199,14 +223,14 @@ window.switchSidebarView = function (viewId, panel = null) {
         return;
     }
 
-    // Sidebar active
-    $('#nav-teacher-view, #nav-admin-view, #nav-new-doc').removeClass('active');
-    if (viewId === 'teacherView') {
-        $('#nav-teacher-view').addClass('active');
-    } else if (panel === 'form') {
-        $('#nav-new-doc').addClass('active');
-    } else {
-        $('#nav-admin-view').addClass('active');
+    // ✅ Sidebar active (ใช้ฟังก์ชันจาก dashboard_sidebar.js)
+    let activeId = 'nav-teacher-view';
+    if (viewId === 'teacherView') activeId = 'nav-teacher-view';
+    else if (panel === 'form') activeId = 'nav-new-doc';
+    else activeId = 'nav-admin-view';
+
+    if (typeof setActiveNavItem === 'function') {
+        setActiveNavItem(activeId);
     }
 
     // Tab content
@@ -228,7 +252,6 @@ window.switchSidebarView = function (viewId, panel = null) {
         } else {
             document.getElementById('adminTablePanel').classList.remove('hidden');
             document.getElementById('adminFormPanel').classList.add('hidden');
-            // Lazy: สร้าง admin table ครั้งแรก
             if (!adminTable) {
                 _initAdminTable();
             } else {
@@ -246,7 +269,9 @@ function updatePageTitle(viewId, panel = null) {
         'teacherView': 'ทะเบียนหนังสือรับ',
         'adminView': panel === 'form' ? 'ลงรับหนังสือใหม่' : 'จัดการหนังสือ'
     };
-    $('#pageTitle').text(titles[viewId] || 'ระบบสารบรรณ');
+    const title = titles[viewId] || 'ระบบสารบรรณ';
+    const el = document.getElementById('pageTitle');
+    if (el) el.textContent = title;
 }
 
 // ==========================================
