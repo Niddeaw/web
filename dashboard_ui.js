@@ -797,7 +797,8 @@ if (typeof window.changeMyPassword !== 'function') {
 
 // =======================================================
 // ✅ initModuleSidebar — Helper กลางสำหรับทุกโมดูล
-// + ✅ breadcrumb support
+// + breadcrumb support
+// + skipAutoRender — ให้โมดูลจัดการ render เอง
 // =======================================================
 async function initModuleSidebar(options = {}) {
     const {
@@ -809,7 +810,8 @@ async function initModuleSidebar(options = {}) {
         onReady = null,
         waitRole = true,
         reRenderDelay = 0,
-        breadcrumb = null       // 🆕
+        breadcrumb = null,
+        skipAutoRender = false       // ✅ ใหม่: ข้าม re-render ตอน window.load
     } = options;
 
     const renderFallback = () => {
@@ -841,6 +843,13 @@ async function initModuleSidebar(options = {}) {
     }
 
     window.addEventListener('load', async () => {
+        // ✅ skipAutoRender: ไม่ re-render (โมดูลจะจัดการเอง)
+        if (skipAutoRender) {
+            console.log('⏭️ initModuleSidebar: skip re-render (โมดูลจัดการเอง)');
+            _applyOnReady();
+            return;
+        }
+
         if (waitRole) {
             let waited = 0;
             while (!window.currentUserRole && waited < 5000) {
@@ -859,11 +868,22 @@ async function initModuleSidebar(options = {}) {
                 const keys = [moduleKey, window.currentUserRole, 'default'];
                 for (const key of keys) {
                     if (!key) continue;
-                    dbConfig = await loadSidebarConfigFromDB(key);
-                    if (dbConfig && Object.keys(dbConfig).length > 0) {
-                        console.log(`✅ initModuleSidebar: DB key="${key}"`);
-                        break;
+                    const candidate = await loadSidebarConfigFromDB(key);
+                    if (!candidate || Object.keys(candidate).length === 0) continue;
+
+                    // ✅ Validate: ต้องมี mainMenu หรือ moduleMenus อย่างน้อย 1
+                    const hasMainMenu = Array.isArray(candidate.mainMenu) && candidate.mainMenu.length > 0;
+                    const hasModuleMenus = Array.isArray(candidate.moduleMenus) && candidate.moduleMenus.length > 0;
+                    const hasFooterMenu = Array.isArray(candidate.footerMenu) && candidate.footerMenu.length > 0;
+
+                    if (!hasMainMenu && !hasModuleMenus && !hasFooterMenu) {
+                        console.warn(`⚠️ initModuleSidebar: DB key="${key}" มีข้อมูลแต่ไม่ครบ → ข้าม`);
+                        continue;
                     }
+
+                    dbConfig = candidate;
+                    console.log(`✅ initModuleSidebar: DB key="${key}"`);
+                    break;
                 }
             }
         } catch (e) {
@@ -887,7 +907,7 @@ async function initModuleSidebar(options = {}) {
     });
 }
 
-window.initModuleSidebar = initModuleSidebar;
+
 
 /* =======================================================
    🔗 Exports — Display Settings
@@ -905,6 +925,7 @@ window.closeDisplaySettingsModal = closeDisplaySettingsModal;
 window.resetDisplaySettings = resetDisplaySettings;
 window.initDisplaySettings = initDisplaySettings;
 window.toggleSettingsMenu = toggleSettingsMenu;
+window.initModuleSidebar = initModuleSidebar;
 
 /* ---------- Auto-init ---------- */
 if (document.readyState === 'loading') {
