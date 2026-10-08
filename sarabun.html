@@ -13,39 +13,161 @@
     <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        .truncate-text { display: inline-block; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        .ts-wrapper { position: relative !important; z-index: 2 !important; }
-        .ts-wrapper .ts-control { position: relative; z-index: 2; }
-        .ts-wrapper .ts-dropdown, .ts-dropdown { position: absolute !important; z-index: 99999 !important; }
-        #editDocModal { overflow: visible !important; }
-        #editDocModal .modal-body, #editDocModal .overflow-y-auto { overflow: visible !important; }
+        .truncate-text {
+            display: inline-block;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-        .d-grid-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-bottom: 12px; }
-        @media (max-width: 1280px) { .d-grid-stats { grid-template-columns: repeat(3, 1fr); } }
-        @media (max-width: 1023px) { .d-grid-stats { grid-template-columns: repeat(2, 1fr); } }
+        .ts-wrapper {
+            position: relative !important;
+            z-index: 2 !important;
+        }
+
+        .ts-wrapper .ts-control {
+            position: relative;
+            z-index: 2;
+        }
+
+        .ts-wrapper .ts-dropdown,
+        .ts-dropdown {
+            position: absolute !important;
+            z-index: 99999 !important;
+        }
+
+        #editDocModal {
+            overflow: visible !important;
+        }
+
+        #editDocModal .modal-body,
+        #editDocModal .overflow-y-auto {
+            overflow: visible !important;
+        }
+
+        .d-grid-stats {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        @media (max-width: 1280px) {
+            .d-grid-stats {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1023px) {
+            .d-grid-stats {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
         @media (max-width: 640px) {
-            .d-grid-stats { grid-template-columns: repeat(2, 1fr); gap: 8px; }
-            .d-grid-stats .d-stat { padding: 10px 11px; gap: 9px; }
-            .d-grid-stats .d-stat-icon { width: 40px; height: 40px; font-size: 17px; }
-            .d-grid-stats .d-stat h3 { font-size: 20px; }
-            .d-grid-stats .d-stat p { font-size: 11px; }
+            .d-grid-stats {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 8px;
+            }
+
+            .d-grid-stats .d-stat {
+                padding: 10px 11px;
+                gap: 9px;
+            }
+
+            .d-grid-stats .d-stat-icon {
+                width: 40px;
+                height: 40px;
+                font-size: 17px;
+            }
+
+            .d-grid-stats .d-stat h3 {
+                font-size: 20px;
+            }
+
+            .d-grid-stats .d-stat p {
+                font-size: 11px;
+            }
         }
 
         /* Mobile sidebar */
         @media (max-width: 760px) {
-            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
-            .d-sidebar.open, .d-sidebar.show, .d-sidebar.active, .d-sidebar.is-open { transform: translateX(0) !important; }
-            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
-            .d-overlay.open, .d-overlay.show, .d-overlay.active, .d-overlay.is-open { display: block !important; opacity: 1; }
-            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
-            .d-app { display: block !important; }
-            .d-menu { display: flex !important; align-items: center; justify-content: center; }
-            .d-collapse { display: none !important; }
-            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
-            .glass-panel { max-width: 100%; }
+            .d-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                z-index: 1000 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .d-sidebar.open,
+            .d-sidebar.show,
+            .d-sidebar.active,
+            .d-sidebar.is-open {
+                transform: translateX(0) !important;
+            }
+
+            .d-overlay {
+                display: none !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
+                z-index: 999 !important;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .d-overlay.open,
+            .d-overlay.show,
+            .d-overlay.active,
+            .d-overlay.is-open {
+                display: block !important;
+                opacity: 1;
+            }
+
+            .d-main {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .d-app {
+                display: block !important;
+            }
+
+            .d-menu {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .d-collapse {
+                display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
+            }
+
+            .glass-panel {
+                max-width: 100%;
+            }
         }
+
         @media (min-width: 761px) and (max-width: 1024px) {
-            .d-sidebar { width: 240px; }
+            .d-sidebar {
+                width: 240px;
+            }
         }
     </style>
 </head>
@@ -65,27 +187,46 @@
                 <div class="d-grid-stats">
                     <div class="d-stat" style="border-left:4px solid #3b82f6">
                         <div class="d-stat-icon d-blue"><i class="fas fa-file-alt"></i></div>
-                        <div><p>ทั้งหมด</p><h3 id="stat-total">0</h3></div>
+                        <div>
+                            <p>ทั้งหมด</p>
+                            <h3 id="stat-total">0</h3>
+                        </div>
                     </div>
                     <div class="d-stat" style="border-left:4px solid #ef4444">
                         <div class="d-stat-icon d-rose"><i class="fas fa-exclamation-circle"></i></div>
-                        <div><p>ด่วนที่สุด</p><h3 id="stat-urgent-most">0</h3></div>
+                        <div>
+                            <p>ด่วนที่สุด</p>
+                            <h3 id="stat-urgent-most">0</h3>
+                        </div>
                     </div>
                     <div class="d-stat" style="border-left:4px solid #f97316">
                         <div class="d-stat-icon d-gold"><i class="fas fa-exclamation-triangle"></i></div>
-                        <div><p>ด่วน</p><h3 id="stat-urgent">0</h3></div>
+                        <div>
+                            <p>ด่วน</p>
+                            <h3 id="stat-urgent">0</h3>
+                        </div>
                     </div>
                     <div class="d-stat" style="border-left:4px solid #22c55e">
                         <div class="d-stat-icon d-green"><i class="fas fa-check-circle"></i></div>
-                        <div><p>ปกติ</p><h3 id="stat-normal">0</h3></div>
+                        <div>
+                            <p>ปกติ</p>
+                            <h3 id="stat-normal">0</h3>
+                        </div>
                     </div>
                     <div class="d-stat" style="border-left:4px solid #8b5cf6">
                         <div class="d-stat-icon d-violet"><i class="fas fa-school"></i></div>
-                        <div><p>สพม.นครปฐม</p><h3 id="stat-spm">0</h3></div>
+                        <div>
+                            <p>สพม.นครปฐม</p>
+                            <h3 id="stat-spm">0</h3>
+                        </div>
                     </div>
                     <div class="d-stat" style="border-left:4px solid #ec4899">
-                        <div class="d-stat-icon" style="background:linear-gradient(145deg,#ec4899,#f472b6)"><i class="fas fa-building"></i></div>
-                        <div><p>หน่วยงานอื่น</p><h3 id="stat-other">0</h3></div>
+                        <div class="d-stat-icon" style="background:linear-gradient(145deg,#ec4899,#f472b6)"><i
+                                class="fas fa-building"></i></div>
+                        <div>
+                            <p>หน่วยงานอื่น</p>
+                            <h3 id="stat-other">0</h3>
+                        </div>
                     </div>
                 </div>
 
@@ -129,16 +270,19 @@
                                 <button onclick="toggleAdminPanel('table')" class="d-btn-mode settings">
                                     <i class="fa-solid fa-table-list"></i> รายการทั้งหมด
                                 </button>
-                                <button onclick="toggleAdminPanel('form')" class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
+                                <button onclick="toggleAdminPanel('form')"
+                                    class="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-blue-700 transition flex items-center gap-2">
                                     <i class="fa-solid fa-plus"></i> ลงรับหนังสือใหม่
                                 </button>
                                 <button onclick="exportToExcel()" class="d-btn-mode settings">
                                     <i class="fas fa-file-excel text-emerald-600"></i> ส่งออก
                                 </button>
-                                <button onclick="document.getElementById('importExcelInput').click()" class="d-btn-mode settings">
+                                <button onclick="document.getElementById('importExcelInput').click()"
+                                    class="d-btn-mode settings">
                                     <i class="fas fa-file-import text-amber-600"></i> นำเข้า
                                 </button>
-                                <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden" onchange="importFromExcel(event)">
+                                <input type="file" id="importExcelInput" accept=".xlsx,.xls" class="hidden"
+                                    onchange="importFromExcel(event)">
                             </div>
                         </div>
                     </div>
@@ -165,20 +309,26 @@
                     <div id="adminFormPanel" class="hidden d-card">
                         <div class="rounded-2xl overflow-hidden">
                             <div class="bg-gradient-to-r from-blue-700 to-blue-500 p-6 text-white -mx-4 -mt-4 mb-4">
-                                <h2 class="text-xl font-bold"><i class="fa-solid fa-pen-to-square mr-2 text-blue-200"></i>ฟอร์มลงรับหนังสือราชการ</h2>
+                                <h2 class="text-xl font-bold"><i
+                                        class="fa-solid fa-pen-to-square mr-2 text-blue-200"></i>ฟอร์มลงรับหนังสือราชการ
+                                </h2>
                                 <p class="text-sm opacity-90 font-medium mt-1">กรอกรายละเอียดหนังสือให้ครบถ้วน</p>
                             </div>
 
                             <form id="sarabunForm" onsubmit="submitDocument(event)" class="space-y-4 pt-2">
-                                <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">รายละเอียดหนังสือ</h3>
+                                <h3 class="text-lg font-bold text-slate-800 border-b border-slate-200 pb-2">
+                                    รายละเอียดหนังสือ</h3>
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">เลขทะเบียนรับ <span class="text-red-500">*</span></label>
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">เลขทะเบียนรับ <span
+                                                class="text-red-500">*</span></label>
                                         <input type="text" id="doc_receive_number" required class="field-input">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">วันที่ลงรับ <span class="text-red-500">*</span></label>
-                                        <input type="text" id="doc_receive_date" required class="field-input thai-datepicker">
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">วันที่ลงรับ <span
+                                                class="text-red-500">*</span></label>
+                                        <input type="text" id="doc_receive_date" required
+                                            class="field-input thai-datepicker">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-bold text-slate-600 mb-1">ชั้นความเร็ว</label>
@@ -199,23 +349,28 @@
                                         </select>
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">ที่ (เลขที่หนังสือ) <span class="text-red-500">*</span></label>
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">ที่ (เลขที่หนังสือ)
+                                            <span class="text-red-500">*</span></label>
                                         <input type="text" id="doc_number" required class="field-input">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">ลงวันที่ <span class="text-red-500">*</span></label>
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">ลงวันที่ <span
+                                                class="text-red-500">*</span></label>
                                         <input type="text" id="doc_date" required class="field-input thai-datepicker">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">จาก <span class="text-red-500">*</span></label>
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">จาก <span
+                                                class="text-red-500">*</span></label>
                                         <input type="text" id="doc_from" required class="field-input">
                                     </div>
                                     <div>
                                         <label class="block text-xs font-bold text-slate-600 mb-1">ถึง</label>
-                                        <input type="text" id="doc_to" value="ผู้อำนวยการโรงเรียน" readonly class="field-input bg-slate-100">
+                                        <input type="text" id="doc_to" value="ผู้อำนวยการโรงเรียน" readonly
+                                            class="field-input bg-slate-100">
                                     </div>
                                     <div class="md:col-span-2">
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">เรื่อง <span class="text-red-500">*</span></label>
+                                        <label class="block text-xs font-bold text-slate-600 mb-1">เรื่อง <span
+                                                class="text-red-500">*</span></label>
                                         <input type="text" id="doc_subject" required class="field-input">
                                     </div>
                                     <div>
@@ -244,42 +399,58 @@
                                             <option value="IS">IS</option>
                                             <option value="กิจกรรมพัฒนาผู้เรียน">กิจกรรมพัฒนาผู้เรียน</option>
                                             <option value="งานทะเบียนนักเรียน">งานทะเบียนนักเรียน</option>
-                                            <option value="งานวัดผลและเทียบโอนความรู้">งานวัดผลและเทียบโอนความรู้</option>
-                                            <option value="งานห้องสมุดและแหล่งเรียนรู้">งานห้องสมุดและแหล่งเรียนรู้</option>
+                                            <option value="งานวัดผลและเทียบโอนความรู้">งานวัดผลและเทียบโอนความรู้
+                                            </option>
+                                            <option value="งานห้องสมุดและแหล่งเรียนรู้">งานห้องสมุดและแหล่งเรียนรู้
+                                            </option>
                                             <option value="งานแนะแนว">งานแนะแนว</option>
-                                            <option value="งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา">งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา</option>
+                                            <option value="งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา">
+                                                งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา</option>
                                             <option value="งานจัดการเรียนรวม">งานจัดการเรียนรวม</option>
-                                            <option value="งานบริหารหลักสูตรสถานศึกษา">งานบริหารหลักสูตรสถานศึกษา</option>
+                                            <option value="งานบริหารหลักสูตรสถานศึกษา">งานบริหารหลักสูตรสถานศึกษา
+                                            </option>
                                             <option value="งานห้องเรียนพิเศษ">งานห้องเรียนพิเศษ</option>
-                                            <option value="งานห้องเรียนวิทยาศาสตร์พลังสิบ">งานห้องเรียนวิทยาศาสตร์พลังสิบ</option>
-                                            <option value="งานสร้างเครือข่ายความร่วมมือทางวิชาการ">งานสร้างเครือข่ายความร่วมมือทางวิชาการ</option>
+                                            <option value="งานห้องเรียนวิทยาศาสตร์พลังสิบ">
+                                                งานห้องเรียนวิทยาศาสตร์พลังสิบ</option>
+                                            <option value="งานสร้างเครือข่ายความร่วมมือทางวิชาการ">
+                                                งานสร้างเครือข่ายความร่วมมือทางวิชาการ</option>
                                             <option value="งานรับนักเรียน">งานรับนักเรียน</option>
-                                            <option value="งานส่งเสริมและประสานความร่วมมือทางวิชาการ">งานส่งเสริมและประสานความร่วมมือทางวิชาการ</option>
+                                            <option value="งานส่งเสริมและประสานความร่วมมือทางวิชาการ">
+                                                งานส่งเสริมและประสานความร่วมมือทางวิชาการ</option>
                                             <option value="งานนิเทศการศึกษา">งานนิเทศการศึกษา</option>
                                             <option value="งานชมรม TO BE NUMBER ONE">งานชมรม TO BE NUMBER ONE</option>
                                             <option value="งานธนาคารโรงเรียน">งานธนาคารโรงเรียน</option>
-                                            <option value="งานติดตามและประเมินผลการจัดการศึกษา">งานติดตามและประเมินผลการจัดการศึกษา</option>
+                                            <option value="งานติดตามและประเมินผลการจัดการศึกษา">
+                                                งานติดตามและประเมินผลการจัดการศึกษา</option>
                                             <option value="งานบริการสำเนาเอกสาร">งานบริการสำเนาเอกสาร</option>
-                                            <option value="สำนักงานกลุ่มบริหารวิชาการ">สำนักงานกลุ่มบริหารวิชาการ</option>
+                                            <option value="สำนักงานกลุ่มบริหารวิชาการ">สำนักงานกลุ่มบริหารวิชาการ
+                                            </option>
                                         </select>
                                     </div>
                                 </div>
 
                                 <div class="border-t border-slate-100 pt-5">
-                                    <label class="block text-xs font-bold text-slate-600 mb-2">แนบไฟล์หนังสือ (รูปภาพบีบอัดอัตโนมัติ / PDF)</label>
+                                    <label class="block text-xs font-bold text-slate-600 mb-2">แนบไฟล์หนังสือ
+                                        (รูปภาพบีบอัดอัตโนมัติ / PDF)</label>
                                     <input type="file" id="doc_file" accept=".pdf, image/*"
                                         class="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-blue-50 file:text-blue-700 cursor-pointer hover:file:bg-blue-100 transition">
-                                    <p class="text-[11px] text-slate-400 mt-1.5">* รูปภาพจะถูกบีบอัดให้ไม่เกิน 2MB อัตโนมัติ</p>
+                                    <p class="text-[11px] text-slate-400 mt-1.5">* รูปภาพจะถูกบีบอัดให้ไม่เกิน 2MB
+                                        อัตโนมัติ</p>
                                 </div>
 
-                                <div class="bg-slate-50 p-3 rounded-xl flex items-center gap-2 border border-slate-200/60">
+                                <div
+                                    class="bg-slate-50 p-3 rounded-xl flex items-center gap-2 border border-slate-200/60">
                                     <i class="fa-solid fa-user-pen text-slate-400"></i>
-                                    <span class="text-sm text-slate-600 font-medium">ผู้บันทึก: <strong id="recorder_name_display" class="text-slate-800">กำลังโหลด...</strong></span>
+                                    <span class="text-sm text-slate-600 font-medium">ผู้บันทึก: <strong
+                                            id="recorder_name_display"
+                                            class="text-slate-800">กำลังโหลด...</strong></span>
                                 </div>
 
                                 <div class="flex justify-between mt-6 pt-4 border-t border-slate-100">
-                                    <button type="button" onclick="toggleAdminPanel('table')" class="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition">ยกเลิก</button>
-                                    <button type="submit" class="px-8 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200 font-bold transition">
+                                    <button type="button" onclick="toggleAdminPanel('table')"
+                                        class="px-5 py-2.5 bg-slate-100 text-slate-700 rounded-xl font-bold hover:bg-slate-200 transition">ยกเลิก</button>
+                                    <button type="submit"
+                                        class="px-8 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl shadow-lg shadow-emerald-200 font-bold transition">
                                         <i class="fa-solid fa-floppy-disk mr-2"></i>บันทึกและส่งแจ้งเตือน
                                     </button>
                                 </div>
@@ -294,12 +465,15 @@
     <!-- Settings Modal -->
     <div id="adminSettingsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSettingsModal()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden" id="adminSettingsContent">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"
+            id="adminSettingsContent">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
                 <h3 class="text-lg font-bold flex items-center gap-2">
                     <i class="fas fa-cogs"></i> ตั้งค่าระบบสารบรรณ
                 </h3>
-                <button onclick="closeSettingsModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <button onclick="closeSettingsModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -313,11 +487,14 @@
                         <div class="grid grid-cols-1 gap-4 bg-blue-50/50 p-5 rounded-2xl border border-blue-100">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">GAS Web App URL</label>
-                                <input type="url" id="set_gas_url" placeholder="https://script.google.com/macros/s/..." class="field-input">
+                                <input type="url" id="set_gas_url" placeholder="https://script.google.com/macros/s/..."
+                                    class="field-input">
                             </div>
                             <div>
-                                <label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Folder ID</label>
-                                <input type="text" id="set_folder_id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ" class="field-input">
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Google Drive Folder
+                                    ID</label>
+                                <input type="text" id="set_folder_id" placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ"
+                                    class="field-input">
                             </div>
                         </div>
                     </section>
@@ -329,11 +506,13 @@
                         <div class="grid grid-cols-1 gap-4 bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Bot Token</label>
-                                <input type="text" id="set_telegram_token" placeholder="123456789:ABCdefGHI..." class="field-input">
+                                <input type="text" id="set_telegram_token" placeholder="123456789:ABCdefGHI..."
+                                    class="field-input">
                             </div>
                             <div>
                                 <label class="block text-xs font-bold text-slate-600 mb-1">Chat ID / Group ID</label>
-                                <input type="text" id="set_telegram_chat" placeholder="-1001234567890" class="field-input">
+                                <input type="text" id="set_telegram_chat" placeholder="-1001234567890"
+                                    class="field-input">
                             </div>
                         </div>
                     </section>
@@ -346,15 +525,19 @@
                     <div class="bg-purple-50/50 p-5 rounded-2xl border border-purple-100 space-y-5">
                         <div class="flex flex-col sm:flex-row items-end gap-3">
                             <div class="flex-1 w-full relative z-50">
-                                <label class="block text-xs font-bold text-slate-600 mb-1">เลือกบุคลากรเพื่อแต่งตั้ง</label>
-                                <select id="select-teacher-appoint" class="w-full" placeholder="ค้นหารายชื่อ..."></select>
+                                <label
+                                    class="block text-xs font-bold text-slate-600 mb-1">เลือกบุคลากรเพื่อแต่งตั้ง</label>
+                                <select id="select-teacher-appoint" class="w-full"
+                                    placeholder="ค้นหารายชื่อ..."></select>
                             </div>
-                            <button onclick="appointModuleAdmin()" class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition shadow-sm w-full sm:w-auto h-[42px] flex items-center justify-center">
+                            <button onclick="appointModuleAdmin()"
+                                class="px-5 py-2.5 bg-purple-600 text-white rounded-xl text-sm font-bold hover:bg-purple-700 transition shadow-sm w-full sm:w-auto h-[42px] flex items-center justify-center">
                                 <i class="fas fa-plus mr-2"></i> แต่งตั้ง
                             </button>
                         </div>
                         <div>
-                            <p class="text-xs font-bold text-slate-500 mb-2 border-b border-purple-200/50 pb-1">รายชื่อผู้ดูแลปัจจุบัน (ไม่รวม Super Admin)</p>
+                            <p class="text-xs font-bold text-slate-500 mb-2 border-b border-purple-200/50 pb-1">
+                                รายชื่อผู้ดูแลปัจจุบัน (ไม่รวม Super Admin)</p>
                             <div class="max-h-40 overflow-y-auto rounded-xl border border-slate-200 bg-white">
                                 <table class="w-full text-sm">
                                     <thead class="bg-slate-50 sticky top-0">
@@ -372,8 +555,10 @@
             </div>
 
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
-                <button onclick="closeSettingsModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition">ปิด</button>
-                <button onclick="saveSettings()" class="px-6 py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 shadow-md transition">
+                <button onclick="closeSettingsModal()"
+                    class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-sm font-bold hover:bg-slate-200 transition">ปิด</button>
+                <button onclick="saveSettings()"
+                    class="px-6 py-2.5 bg-slate-800 text-white rounded-xl text-sm font-bold hover:bg-slate-900 shadow-md transition">
                     <i class="fas fa-save mr-2"></i> บันทึกการตั้งค่า
                 </button>
             </div>
@@ -383,10 +568,13 @@
     <!-- Doc Detail Modal -->
     <div id="docDetailModal" class="fixed inset-0 z-[100] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeModal()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden" id="docModalContent">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+            id="docModalContent">
             <div class="bg-blue-600 p-5 flex justify-between items-center text-white">
-                <h3 class="text-lg font-bold tracking-wide"><i class="fa-solid fa-circle-info mr-2"></i>รายละเอียดหนังสือรับ</h3>
-                <button onclick="closeModal()" class="text-white hover:text-blue-200 transition"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                <h3 class="text-lg font-bold tracking-wide"><i
+                        class="fa-solid fa-circle-info mr-2"></i>รายละเอียดหนังสือรับ</h3>
+                <button onclick="closeModal()" class="text-white hover:text-blue-200 transition"><i
+                        class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 md:p-8 overflow-y-auto flex-1" id="docModalBody"></div>
         </div>
@@ -395,41 +583,51 @@
     <!-- Edit Doc Modal -->
     <div id="editDocModal" class="fixed inset-0 z-[110] hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeEditModal()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-2xl overflow-visible" id="editModalContent">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-2xl overflow-visible"
+            id="editModalContent">
             <div class="bg-amber-600 p-5 flex justify-between items-center text-white rounded-t-3xl">
-                <h3 class="text-lg font-bold tracking-wide"><i class="fa-solid fa-pen-to-square mr-2"></i>แก้ไขหนังสือรับ</h3>
-                <button onclick="closeEditModal()" class="text-white hover:text-amber-200 transition"><i class="fa-solid fa-xmark text-2xl"></i></button>
+                <h3 class="text-lg font-bold tracking-wide"><i
+                        class="fa-solid fa-pen-to-square mr-2"></i>แก้ไขหนังสือรับ</h3>
+                <button onclick="closeEditModal()" class="text-white hover:text-amber-200 transition"><i
+                        class="fa-solid fa-xmark text-2xl"></i></button>
             </div>
             <div class="p-6 overflow-visible" id="editModalBody">
                 <form id="editDocForm" onsubmit="saveEditDoc(event)">
                     <input type="hidden" id="edit_doc_id">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">เลขทะเบียนรับ <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">เลขทะเบียนรับ <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_receive_number" required class="field-input">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่ลงรับ <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">วันที่ลงรับ <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_receive_date" required class="field-input thai-datepicker">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">ที่หนังสือ <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">ที่หนังสือ <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_doc_number" required class="field-input">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">ลงวันที่ <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">ลงวันที่ <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_doc_date" required class="field-input thai-datepicker">
                         </div>
                         <div>
-                            <label class="block text-xs font-bold text-slate-600 mb-1">จาก <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">จาก <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_doc_from" required class="field-input">
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-600 mb-1">ถึง</label>
-                            <input type="text" id="edit_doc_to" readonly class="field-input bg-slate-100 text-slate-500">
+                            <input type="text" id="edit_doc_to" readonly
+                                class="field-input bg-slate-100 text-slate-500">
                         </div>
                         <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-600 mb-1">เรื่อง <span class="text-red-500">*</span></label>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">เรื่อง <span
+                                    class="text-red-500">*</span></label>
                             <input type="text" id="edit_doc_subject" required class="field-input">
                         </div>
                         <div>
@@ -479,18 +677,22 @@
                                 <option value="งานวัดผลและเทียบโอนความรู้">งานวัดผลและเทียบโอนความรู้</option>
                                 <option value="งานห้องสมุดและแหล่งเรียนรู้">งานห้องสมุดและแหล่งเรียนรู้</option>
                                 <option value="งานแนะแนว">งานแนะแนว</option>
-                                <option value="งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา">งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา</option>
+                                <option value="งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา">
+                                    งานพัฒนาและใช้สื่อเทคโนโลยีเพื่อการศึกษา</option>
                                 <option value="งานจัดการเรียนรวม">งานจัดการเรียนรวม</option>
                                 <option value="งานบริหารหลักสูตรสถานศึกษา">งานบริหารหลักสูตรสถานศึกษา</option>
                                 <option value="งานห้องเรียนพิเศษ">งานห้องเรียนพิเศษ</option>
                                 <option value="งานห้องเรียนวิทยาศาสตร์พลังสิบ">งานห้องเรียนวิทยาศาสตร์พลังสิบ</option>
-                                <option value="งานสร้างเครือข่ายความร่วมมือทางวิชาการ">งานสร้างเครือข่ายความร่วมมือทางวิชาการ</option>
+                                <option value="งานสร้างเครือข่ายความร่วมมือทางวิชาการ">
+                                    งานสร้างเครือข่ายความร่วมมือทางวิชาการ</option>
                                 <option value="งานรับนักเรียน">งานรับนักเรียน</option>
-                                <option value="งานส่งเสริมและประสานความร่วมมือทางวิชาการ">งานส่งเสริมและประสานความร่วมมือทางวิชาการ</option>
+                                <option value="งานส่งเสริมและประสานความร่วมมือทางวิชาการ">
+                                    งานส่งเสริมและประสานความร่วมมือทางวิชาการ</option>
                                 <option value="งานนิเทศการศึกษา">งานนิเทศการศึกษา</option>
                                 <option value="งานชมรม TO BE NUMBER ONE">งานชมรม TO BE NUMBER ONE</option>
                                 <option value="งานธนาคารโรงเรียน">งานธนาคารโรงเรียน</option>
-                                <option value="งานติดตามและประเมินผลการจัดการศึกษา">งานติดตามและประเมินผลการจัดการศึกษา</option>
+                                <option value="งานติดตามและประเมินผลการจัดการศึกษา">งานติดตามและประเมินผลการจัดการศึกษา
+                                </option>
                                 <option value="งานบริการสำเนาเอกสาร">งานบริการสำเนาเอกสาร</option>
                                 <option value="สำนักงานกลุ่มบริหารวิชาการ">สำนักงานกลุ่มบริหารวิชาการ</option>
                             </select>
@@ -500,14 +702,18 @@
                     <div class="mt-5 border-t border-slate-100 pt-4">
                         <label class="block text-xs font-bold text-slate-600 mb-2">ไฟล์แนบ</label>
                         <div id="edit_current_file_wrap" class="hidden mb-3">
-                            <div class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
+                            <div
+                                class="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5">
                                 <i class="fa-solid fa-paperclip text-slate-400 text-sm"></i>
-                                <a id="edit_current_file_link" href="#" target="_blank" class="text-blue-600 hover:underline text-sm font-medium flex-1 truncate">ดูไฟล์เดิม</a>
-                                <button type="button" onclick="clearEditFile()" class="text-xs text-rose-500 hover:text-rose-700 font-bold whitespace-nowrap transition">
+                                <a id="edit_current_file_link" href="#" target="_blank"
+                                    class="text-blue-600 hover:underline text-sm font-medium flex-1 truncate">ดูไฟล์เดิม</a>
+                                <button type="button" onclick="clearEditFile()"
+                                    class="text-xs text-rose-500 hover:text-rose-700 font-bold whitespace-nowrap transition">
                                     <i class="fas fa-times mr-1"></i>ลบไฟล์
                                 </button>
                             </div>
-                            <p class="text-[11px] text-slate-400 mt-1">* หากต้องการเปลี่ยนไฟล์ ให้กดลบแล้วเลือกไฟล์ใหม่</p>
+                            <p class="text-[11px] text-slate-400 mt-1">* หากต้องการเปลี่ยนไฟล์ ให้กดลบแล้วเลือกไฟล์ใหม่
+                            </p>
                         </div>
                         <div id="edit_new_file_wrap">
                             <input type="file" id="edit_doc_file" accept=".pdf, image/*"
@@ -518,8 +724,10 @@
                     </div>
 
                     <div class="mt-6 flex justify-end gap-3">
-                        <button type="button" onclick="closeEditModal()" class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">ยกเลิก</button>
-                        <button type="submit" class="px-8 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md transition">
+                        <button type="button" onclick="closeEditModal()"
+                            class="px-5 py-2.5 bg-slate-100 text-slate-600 rounded-xl font-bold hover:bg-slate-200 transition">ยกเลิก</button>
+                        <button type="submit"
+                            class="px-8 py-2.5 bg-amber-600 hover:bg-amber-700 text-white rounded-xl font-bold shadow-md transition">
                             <i class="fas fa-save mr-2"></i>บันทึกการแก้ไข
                         </button>
                     </div>
@@ -546,8 +754,10 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html',
-                      icon_bg_color: '#64748b', icon_text_color: '#ffffff' }
+                    {
+                        id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html',
+                        icon_bg_color: '#64748b', icon_text_color: '#ffffff'
+                    }
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -573,7 +783,7 @@
                                 icon: 'fa-pen-to-square',
                                 label: 'จัดการหนังสือ',
                                 onclick: "switchSidebarView('adminView')",
-                                roles: ['super_admin', 'admin', 'director', 'deputy'],
+                                hidden: true,
                                 icon_bg_color: '#8b5cf6',
                                 icon_text_color: '#ffffff'
                             },
@@ -582,7 +792,7 @@
                                 icon: 'fa-plus-circle',
                                 label: 'ลงรับหนังสือใหม่',
                                 onclick: "switchSidebarView('adminView', 'form')",
-                                roles: ['super_admin', 'admin', 'director', 'deputy'],
+                                hidden: true,
                                 icon_bg_color: '#10b981',
                                 icon_text_color: '#ffffff'
                             }
@@ -596,7 +806,7 @@
                         icon: 'fa-cog',
                         label: 'ตั้งค่าระบบ',
                         onclick: 'openSettingsModal()',
-                        roles: ['super_admin'],
+                        hidden: true,                              /* ✅ FIX: ลบ roles + hidden */
                         icon_bg_color: '#475569',
                         icon_text_color: '#ffffff'
                     }
@@ -611,10 +821,10 @@
         }
 
         // =======================================================
-        // Init Module Sidebar + ปุ่มนำทาง
+        // ✅ ใช้ fallback เท่านั้น (ไม่โหลด DB config)
         // =======================================================
         initModuleSidebar({
-            moduleKey: 'sarabun',
+            moduleKey: null,          // ไม่โหลด DB config
             pageTitle: 'ทะเบียนหนังสือรับ',
             activeId: 'nav-teacher-view',
             topbarButtons: [
@@ -627,9 +837,13 @@
                 }
             ],
             fallbackConfig: getSarabunFallbackConfig(),
+            waitRole: true,
             onReady: () => {
                 if (typeof setTodayChip === 'function') setTodayChip();
-                if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+                // ✅ FIX: เปิดปุ่มกลับหลัง initModuleSidebar re-render
+                if (typeof window.refreshNavButtons === 'function') {
+                    window.refreshNavButtons();
+                }
             }
         });
     </script>

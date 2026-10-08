@@ -1,10 +1,12 @@
 // ==========================================================================
-// sarabun.js — ระบบสารบรรณ (Optimized)
+// sarabun.js — ระบบสารบรรณ (Optimized + Patched)
+// - FIX: DB config ไม่ครบ → fallback อัตโนมัติ
+// - FIX: Sidebar/Topbar re-render หลัง role set
+// - FIX: isAdminMode / isSarabunAdmin sync กับ window
 // - ใช้ $(document).ready + Promise.all + fire-and-forget
 // - Dashboard Stats ผ่าน RPC + sessionStorage cache
 // - Settings cache 10 นาที
 // - Lazy Load DataTables (teacher/admin)
-// - count: 'estimated' เพื่อความเร็ว
 // ==========================================================================
 
 // ==========================================
@@ -33,22 +35,22 @@ $(document).ready(async () => {
         await checkAuth();
         console.log(`✅ Auth: ${Math.round(performance.now() - t0)} ms`);
 
-        // 2. โชว์ UI ทันที — ไม่รอ data
+        // 2. โชว์ UI ทันที
         document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
         console.log(`👁️ UI แสดง: ${Math.round(performance.now() - t0)} ms`);
 
-        // 3. Fire-and-forget: Settings + Stats (มี cache)
+        // 3. Fire-and-forget: Settings + Stats
         loadSettings();
         loadDashboardStats();
 
-        // 4. Init DataTable teacher (fire-and-forget)
+        // 4. Init DataTable teacher
         setTimeout(() => {
             initUIComponents();
             loadDocuments('teacher');
             console.log(`📊 DataTable init: ${Math.round(performance.now() - t0)} ms`);
         }, 0);
 
-        // 5. Log (fire-and-forget)
+        // 5. Log
         logUserAction('เข้าสู่ระบบสารบรรณ', 'sarabun');
 
         console.timeEnd('⏱️ Sarabun โหลด');
@@ -61,23 +63,100 @@ $(document).ready(async () => {
 });
 
 // ==========================================
-// ✅ ปุ่มนำทาง — sarabun
+// ✅ ปุ่มนำทาง — sarabun (ใช้ window.currentUserRole)
 // ==========================================
 window.refreshNavButtons = function () {
-    const toggleBtn = document.getElementById('btnToggleMode');
-    if (!toggleBtn) return;
+    const role = window.currentUserRole || userRole;
 
-    if (isAdminMode) {
-        toggleBtn.classList.remove('hidden');
-        toggleBtn.classList.add('flex');
-        if (typeof updateToggleModeUI === 'function') {
-            updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-        }
-    } else {
-        toggleBtn.classList.add('hidden');
-        toggleBtn.classList.remove('flex');
+    // ✅ Guard: ถ้ายังไม่รู้ role → รอรอบหน้า
+    if (!role) {
+        console.log('🔘 refreshNavButtons: รอ role...');
+        return;
     }
+
+    // ✅ admin = global admin OR module admin
+    const isGlobalAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
+    const canAdmin = isAdminMode || isGlobalAdmin || isSarabunAdmin;
+
+    // ---------- ปุ่ม Toggle Mode (topbar) ----------
+    const toggleBtn = document.getElementById('btnToggleMode');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('hidden', !canAdmin);
+        toggleBtn.classList.toggle('flex', canAdmin);
+        if (canAdmin && typeof updateToggleModeUI === 'function') {
+            updateToggleModeUI(role, isAdminMode, 'btnToggleMode');
+        }
+    }
+
+    // ---------- Sidebar nav items ----------
+    ['nav-admin-view', 'nav-new-doc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.toggle('hidden', !canAdmin);
+    });
+
+    // ---------- Settings button ----------
+    // ✅ FIX: ใช้ canAdmin (รวม module admin) แทน canManageSettings
+    const btnSettings = document.getElementById('btn-settings');
+    if (btnSettings) {
+        btnSettings.classList.toggle('hidden', !canAdmin);
+    }
+
+    console.log('🔘 refreshNavButtons:', { role, isAdminMode, isSarabunAdmin, canAdmin });
 };
+
+// ==========================================
+// ✅ Re-render Sidebar + Topbar หลัง role set
+// ✅ ใช้ fallback เท่านั้น (สอดคล้องกับ moduleKey: null)
+// ==========================================
+async function refreshSidebarUI() {
+    try {
+        // ✅ FIX: ใช้ fallback config เท่านั้น — ไม่โหลด DB
+        const finalConfig = getSarabunFallbackConfig();
+        console.log('📦 refreshSidebarUI: ใช้ fallback config');
+
+        // ---------- Re-render sidebar ----------
+        if (typeof renderSidebar === 'function') {
+            renderSidebar({ ...finalConfig, autoActivate: false });
+        }
+
+        // ---------- Re-render topbar ----------
+        if (typeof renderTopbar === 'function') {
+            renderTopbar({
+                pageTitle: 'ทะเบียนหนังสือรับ',
+                buttons: [{
+                    id: 'btnToggleMode',
+                    html: '<i id="mode-icon" class="fa-solid fa-user-shield"></i><span id="mode-text">โหมดแอดมิน</span>',
+                    onclick: 'toggleRoleView()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'สลับโหมด'
+                }],
+                breadcrumb: [
+                    { label: 'หน้าหลัก', href: 'index.html' },
+                    { label: 'ระบบสารบรรณ' }
+                ]
+            });
+        }
+
+        // ---------- Refresh ปุ่มนำทาง ----------
+        if (typeof window.refreshNavButtons === 'function') {
+            window.refreshNavButtons();
+        }
+
+        // ---------- Set active item ----------
+        if (typeof setActiveNavItem === 'function') {
+            setActiveNavItem('nav-teacher-view');
+        }
+
+        // ---------- Today chip ----------
+        if (typeof setTodayChip === 'function') setTodayChip();
+
+        console.log('✅ refreshSidebarUI: เสร็จสิ้น');
+    } catch (err) {
+        console.warn('⚠️ refreshSidebarUI error:', err);
+    }
+}
+window.refreshSidebarUI = refreshSidebarUI;
 
 // ==========================================
 // 1. Auth
@@ -91,12 +170,12 @@ async function checkAuth() {
         currentProfile = result.personnel;
         userRole = currentProfile.role;
 
-        // ✅ FIX: Expose to window for topbar re-render
+        // ✅ Expose to window
         window.currentUser = currentUser;
         window.currentProfile = currentProfile;
         window.currentUserRole = userRole;
 
-        // UI มาตรฐานจาก dashboard_ui.js
+        // UI มาตรฐาน
         setUserDisplayName(currentProfile);
         renderUserAvatar(currentProfile);
 
@@ -105,7 +184,7 @@ async function checkAuth() {
             recorderDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
         }
 
-        // ตรวจสอบสิทธิ์
+        // ---------- ตรวจสอบสิทธิ์ ----------
         const isGlobalAdmin = isAdminUser(userRole, false);
         let isModuleAdmin = false;
         if (!isGlobalAdmin) {
@@ -116,26 +195,11 @@ async function checkAuth() {
         isSarabunAdmin = isModuleAdmin || isGlobalAdmin;
         isAdminMode = isSarabunAdmin;
 
-        // ปุ่ม Settings (sidebar)
-        if (canManageSettings(userRole)) {
-            $('#btn-settings').removeClass('hidden');
-        }
+        // ✅ Sync กับ window ด้วย (เพื่อให้ refreshNavButtons เข้าถึง)
+        window.isAdminMode = isAdminMode;
+        window.isSarabunAdmin = isSarabunAdmin;
 
-        // ปุ่ม Toggle Mode (topbar)
-        const toggleBtn = document.getElementById('btnToggleMode');
-        if (toggleBtn && isAdminMode) {
-            toggleBtn.classList.remove('hidden');
-            toggleBtn.classList.add('flex');
-            updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
-        }
-
-        // Sidebar nav
-        if (isAdminMode) {
-            $('#nav-admin-view').removeClass('hidden');
-            $('#nav-new-doc').removeClass('hidden');
-        }
-
-        // Role label
+        // ---------- Role label ----------
         let roleText = 'Teacher';
         if (isOffice) roleText = 'เจ้าหน้าที่สำนักงาน';
         else if (isAdminMode) {
@@ -149,6 +213,9 @@ async function checkAuth() {
 
         updatePageTitle('teacherView');
 
+        // ---------- Re-render sidebar + topbar ----------
+        await refreshSidebarUI();
+
     } catch (error) {
         console.error('❌ checkAuth error:', error);
         Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
@@ -156,26 +223,7 @@ async function checkAuth() {
 }
 
 // ==========================================
-// 2. Logout
-// ==========================================
-async function logout() {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ออกจากระบบ?',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonColor: '#dc2626',
-        confirmButtonText: 'ใช่, ออกจากระบบ',
-        cancelButtonText: 'ยกเลิก'
-    });
-    if (isConfirmed) {
-        try { sessionStorage.clear(); } catch (e) {}
-        await db.auth.signOut();
-        window.location.replace('login.html');
-    }
-}
-
-// ==========================================
-// 3. Toggle Role View
+// 2. Toggle Role View
 // ==========================================
 async function toggleRoleView() {
     const isAdmin = isAdminUser(userRole, false) || isSarabunAdmin;
@@ -185,16 +233,24 @@ async function toggleRoleView() {
     }
 
     isAdminMode = !isAdminMode;
-    updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
+    window.isAdminMode = isAdminMode;
 
-    // Sidebar nav
-    if (isAdminMode) {
-        $('#nav-admin-view').removeClass('hidden');
-        $('#nav-new-doc').removeClass('hidden');
-    } else {
-        $('#nav-admin-view').addClass('hidden');
-        $('#nav-new-doc').addClass('hidden');
-        if ($('#adminView').hasClass('block')) {
+    if (typeof updateToggleModeUI === 'function') {
+        updateToggleModeUI(userRole, isAdminMode, 'btnToggleMode');
+    }
+
+    // Sidebar nav items
+    ['nav-admin-view', 'nav-new-doc'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (isAdminMode) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+    });
+
+    // ถ้าปิดโหมด admin และอยู่ในหน้า admin → กลับ teacher view
+    if (!isAdminMode) {
+        const adminView = document.getElementById('adminView');
+        if (adminView && adminView.classList.contains('block')) {
             switchSidebarView('teacherView');
         }
     }
@@ -215,7 +271,7 @@ async function toggleRoleView() {
 }
 
 // ==========================================
-// 4. Sidebar Navigation
+// 3. Sidebar Navigation
 // ==========================================
 window.switchSidebarView = function (viewId, panel = null) {
     if (viewId === 'adminView' && !isAdminMode) {
@@ -223,7 +279,7 @@ window.switchSidebarView = function (viewId, panel = null) {
         return;
     }
 
-    // ✅ Sidebar active (ใช้ฟังก์ชันจาก dashboard_sidebar.js)
+    // Sidebar active
     let activeId = 'nav-teacher-view';
     if (viewId === 'teacherView') activeId = 'nav-teacher-view';
     else if (panel === 'form') activeId = 'nav-new-doc';
@@ -246,12 +302,15 @@ window.switchSidebarView = function (viewId, panel = null) {
 
     // Admin panel + Lazy load
     if (viewId === 'adminView') {
+        const tablePanel = document.getElementById('adminTablePanel');
+        const formPanel = document.getElementById('adminFormPanel');
+
         if (panel === 'form') {
-            document.getElementById('adminTablePanel').classList.add('hidden');
-            document.getElementById('adminFormPanel').classList.remove('hidden');
+            tablePanel?.classList.add('hidden');
+            formPanel?.classList.remove('hidden');
         } else {
-            document.getElementById('adminTablePanel').classList.remove('hidden');
-            document.getElementById('adminFormPanel').classList.add('hidden');
+            tablePanel?.classList.remove('hidden');
+            formPanel?.classList.add('hidden');
             if (!adminTable) {
                 _initAdminTable();
             } else {
@@ -275,7 +334,7 @@ function updatePageTitle(viewId, panel = null) {
 }
 
 // ==========================================
-// 5. UI Components
+// 4. UI Components
 // ==========================================
 function initUIComponents() {
     // TomSelect Single
@@ -323,7 +382,7 @@ function initUIComponents() {
 }
 
 // ==========================================
-// 6. Helpers
+// 5. Helpers
 // ==========================================
 function escapeHtml(str) {
     if (!str) return '';
@@ -366,7 +425,7 @@ async function compressImage(file, maxSizeMB = 2) {
 }
 
 // ==========================================
-// 7. Submit Document
+// 6. Submit Document
 // ==========================================
 async function submitDocument(e) {
     e.preventDefault();
@@ -434,17 +493,16 @@ async function submitDocument(e) {
 
         logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
 
-        // ✅ Fire-and-forget: Telegram
+        // Fire-and-forget: Telegram
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
             const telegramData = {
                 ...docData,
                 receive_date: formatThaiDate(docData.receive_date),
                 recorder_name: `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`
             };
-            sendTelegram(telegramData);   // ไม่ await
+            sendTelegram(telegramData);
         }
 
-        // ✅ Reset cache + stats
         clearStatsCache();
 
         Swal.fire('สำเร็จ', 'บันทึกหนังสือรับเข้าระบบเรียบร้อย', 'success').then(() => {
@@ -493,7 +551,7 @@ async function uploadToGAS(file) {
 }
 
 // ==========================================
-// 8. Load Documents (Lazy Load)
+// 7. Load Documents (Lazy Load)
 // ==========================================
 function loadDocuments(which = 'both') {
     if (which === 'teacher' || which === 'both') _initTeacherTable();
@@ -601,7 +659,7 @@ function _initAdminTable() {
 }
 
 // ==========================================
-// 9. Dashboard Stats — RPC + Cache
+// 8. Dashboard Stats — RPC + Cache
 // ==========================================
 const _STATS_CACHE_KEY = 'sarabun_stats_cache';
 const _STATS_TTL = 2 * 60 * 1000;
@@ -687,7 +745,7 @@ async function _loadStatsFallback() {
 }
 
 // ==========================================
-// 10. Server-side Load — estimated count
+// 9. Server-side Load — estimated count
 // ==========================================
 async function loadTableDataServerSide(dtParams, callback, tableType) {
     const { start, length, search, order, draw } = dtParams;
@@ -698,7 +756,6 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
             selectCols += ', core_personnel ( prefix, first_name, last_name )';
         }
 
-        // ✅ estimated count → เร็วกว่า exact 10 เท่า
         let query = db.from('module_sarabun_docs').select(selectCols, { count: 'estimated' });
 
         if (search.value) {
@@ -762,7 +819,7 @@ async function loadTableDataServerSide(dtParams, callback, tableType) {
 }
 
 // ==========================================
-// 11. View/Edit/Delete
+// 10. View/Edit/Delete
 // ==========================================
 async function viewDoc(id) {
     const { data } = await db.from('module_sarabun_docs')
@@ -1101,7 +1158,7 @@ async function deleteDoc(id) {
 }
 
 // ==========================================
-// 12. Panel/Tab Switch (ใช้ sidebar)
+// 11. Panel/Tab Switch
 // ==========================================
 function toggleAdminPanel(panel) {
     if (panel === 'form') {
@@ -1117,7 +1174,7 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// 13. Settings Modal
+// 12. Settings Modal
 // ==========================================
 async function openSettingsModal() {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
@@ -1142,7 +1199,7 @@ function closeSettingsModal() {
 }
 
 // ==========================================
-// 14. Settings — Cache 10 นาที
+// 13. Settings — Cache 10 นาที
 // ==========================================
 const _SETTINGS_CACHE_KEY = 'sarabun_settings_cache';
 const _SETTINGS_TTL = 10 * 60 * 1000;
@@ -1232,7 +1289,7 @@ async function saveSettings() {
 }
 
 // ==========================================
-// 15. Module Admin Management
+// 14. Module Admin Management
 // ==========================================
 async function ensureModuleExists(moduleId) {
     const { data, error } = await db.from('core_system_modules')
@@ -1400,7 +1457,7 @@ async function removeModuleAdmin(recordId) {
 }
 
 // ==========================================
-// 16. Export Excel
+// 15. Export Excel
 // ==========================================
 async function exportToExcel() {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ส่งออกข้อมูลได้')) return;
@@ -1455,7 +1512,7 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 17. Import Excel
+// 16. Import Excel
 // ==========================================
 async function importFromExcel(event) {
     const file = event.target.files[0];
@@ -1497,10 +1554,9 @@ async function importFromExcel(event) {
                 return;
             }
 
-            const { data: personnelList, error: personnelErr } = await db.from('core_personnel')
+            const { data: personnelList } = await db.from('core_personnel')
                 .select('id, prefix, first_name, last_name')
                 .order('first_name', { ascending: true });
-            if (personnelErr) console.warn('ไม่สามารถโหลดรายชื่อบุคลากรเพื่อ map ผู้ลงรับ', personnelErr);
 
             const nameToId = {};
             if (personnelList) {
@@ -1536,12 +1592,10 @@ async function importFromExcel(event) {
 
                     let recorderId = currentUser.id;
                     let recorderName = row['ผู้ลงรับ'] || row['ผู้บันทึก'] || row['บันทึกโดย'] || row['recorder'] || '';
-                    let recorderFound = false;
                     if (recorderName && typeof recorderName === 'string' && recorderName.trim() !== '') {
                         const trimmedName = recorderName.trim();
                         if (nameToId[trimmedName]) {
                             recorderId = nameToId[trimmedName];
-                            recorderFound = true;
                         } else {
                             const parts = trimmedName.split(/\s+/);
                             if (parts.length >= 2) {
@@ -1550,7 +1604,6 @@ async function importFromExcel(event) {
                                 const fullNameNoPrefix = `${firstName} ${lastName}`;
                                 if (nameToId[fullNameNoPrefix]) {
                                     recorderId = nameToId[fullNameNoPrefix];
-                                    recorderFound = true;
                                 }
                             }
                         }
@@ -1617,7 +1670,7 @@ async function importFromExcel(event) {
 }
 
 // ==========================================
-// 18. Helpers (Date)
+// 17. Helpers (Date)
 // ==========================================
 function formatThaiDate(dateStr) {
     if (!dateStr) return '-';
@@ -1679,7 +1732,7 @@ function parseThaiDate(thaiDateStr) {
 }
 
 // ==========================================
-// 19. Telegram
+// 18. Telegram
 // ==========================================
 async function sendTelegram(docData) {
     if (!systemSettings.telegram_token || !systemSettings.telegram_chat_id) return;
@@ -1710,6 +1763,25 @@ async function sendTelegram(docData) {
 }
 
 // ==========================================
+// 19. Logout
+// ==========================================
+async function logout() {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ใช่, ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        try { sessionStorage.clear(); } catch (e) {}
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+}
+
+// ==========================================
 // 20. Expose global
 // ==========================================
 window.logout = logout;
@@ -1734,4 +1806,4 @@ window.importFromExcel = importFromExcel;
 window.loadDashboardStats = loadDashboardStats;
 window.switchSidebarView = switchSidebarView;
 
-console.log('✅ sarabun.js loaded (Optimized)');
+console.log('✅ sarabun.js loaded (Optimized + Patched v2)');
