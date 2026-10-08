@@ -2,8 +2,10 @@
 // dashboard_sidebar.js
 // Dynamic Sidebar + Topbar Renderer
 // + Role-based visibility
-// + Icon color support (icon_bg_color, icon_text_color)
+// + Icon color support
 // + Fix: Profile/Avatar ไม่หายหลัง re-render
+// + ✅ Settings Button → เปิด Modal Display Settings
+// + ✅ FIX: Breadcrumb แสดงในทุกโหมด (search + title)
 // ==========================================
 
 const SIDEBAR_CONFIG_CACHE_KEY = 'cp_sidebar_config_cache';
@@ -62,12 +64,10 @@ window.clearSidebarConfigCache = clearSidebarConfigCache;
 const SHARED_DEPARTMENTS = [
     {
         id: 'dept-academic', icon: 'fa-book-open', label: 'บริหารวิชาการ',
-        icon_bg_color: '#3b82f6', icon_text_color: '#ffffff',
+        icon_bg_color: '#6366f1', icon_text_color: '#ffffff',
         children: [
-            // ✅ Overview — คลิกแล้วไปหน้า index.html#academic
             { id: 'sub-academic-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
               href: 'index.html#academic', icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
-
             { id: 'nav-aca-guidance-t', icon: 'fa-compass', label: 'ปพ.5 แนะแนว', href: 'guidance_teacher.html' },
             { id: 'nav-aca-guidance-a', icon: 'fa-user-shield', label: 'ปพ.5 แนะแนว (Admin)', href: 'guidance_admin.html' },
             { id: 'nav-aca-scholarship', icon: 'fa-hand-holding-dollar', label: 'ทุนการศึกษา', href: 'scholarship_teacher.html' },
@@ -80,7 +80,6 @@ const SHARED_DEPARTMENTS = [
         children: [
             { id: 'sub-budget-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
               href: 'index.html#budget', icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
-
             { id: 'nav-bud-overview', icon: 'fa-chart-pie', label: 'ภาพรวมงบประมาณ', href: 'budget_overview.html' },
             { id: 'nav-bud-purchase', icon: 'fa-shopping-cart', label: 'จัดซื้อจัดจ้าง', href: 'purchase.html' },
             { id: 'nav-bud-assets', icon: 'fa-boxes-stacked', label: 'ครุภัณฑ์', href: 'assets.html' }
@@ -92,7 +91,6 @@ const SHARED_DEPARTMENTS = [
         children: [
             { id: 'sub-personnel-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
               href: 'index.html#personnel', icon_bg_color: '#a855f7', icon_text_color: '#ffffff' },
-
             { id: 'nav-per-list', icon: 'fa-id-card', label: 'ข้อมูลบุคลากร', href: 'personnel.html' },
             { id: 'nav-per-leave', icon: 'fa-envelope-open-text', label: 'ระบบการลา', href: 'leave.html' },
             { id: 'nav-per-eval', icon: 'fa-star-half-stroke', label: 'ประเมินผล', href: 'evaluation.html' }
@@ -104,7 +102,6 @@ const SHARED_DEPARTMENTS = [
         children: [
             { id: 'sub-general-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
               href: 'index.html#general', icon_bg_color: '#f97316', icon_text_color: '#ffffff' },
-
             { id: 'nav-gen-attendance', icon: 'fa-clipboard-user', label: 'เช็คชื่อหน้าเสาธง', href: 'attendance_teacher.html' },
             { id: 'nav-gen-discipline', icon: 'fa-gavel', label: 'งานปกครอง', href: 'behavior_teacher.html' },
             { id: 'nav-gen-homevisit', icon: 'fa-house-chimney-user', label: 'เยี่ยมบ้านนักเรียน', href: 'homevisit.html' },
@@ -138,6 +135,7 @@ const SIDEBAR_DEFAULTS = {
 const TOPBAR_DEFAULTS = {
     pageTitle: 'WRK System',
     search: null,
+    breadcrumb: null,        // 🆕
     showSettingsMenu: true,
     showChip: true,
     showCollapse: true,
@@ -171,15 +169,14 @@ function _esc(str) {
 function _passesRoleFilter(item) {
     if (!Array.isArray(item.roles) || item.roles.length === 0) return true;
     const userRole = window.currentUserRole;
-    if (!userRole) return false;      // ยังไม่รู้ role → ซ่อนไว้ก่อน (ปลอดภัย)
+    if (!userRole) return false;
     return item.roles.includes(userRole);
 }
 
 // ==========================================
-// _buildNavItem — เพิ่ม Role Filter + Icon Colors
+// _buildNavItem
 // ==========================================
 function _buildNavItem(item) {
-    // ✅ กรองตาม role
     if (!_passesRoleFilter(item)) return '';
 
     const attrs = [];
@@ -210,14 +207,12 @@ function _buildNavItem(item) {
         ? item.icon
         : 'fa-solid ' + (item.icon || 'fa-cube');
 
-    // ✅ สร้าง Style สำหรับไอคอน (ดึงสีจาก Config)
     const iconStyle = `background-color: ${item.icon_bg_color || 'transparent'}; color: ${item.icon_text_color || 'inherit'};`;
 
     // Group (มี children)
     if (item.children && item.children.length > 0) {
-        // ✅ กรอง children ตาม role ด้วย
         const visibleChildren = item.children.filter(child => _passesRoleFilter(child));
-        if (visibleChildren.length === 0) return '';  // ไม่มี child ที่เห็นได้ → ซ่อน group
+        if (visibleChildren.length === 0) return '';
 
         const groupId = item.id || `group-${Math.random().toString(36).slice(2, 9)}`;
         const childrenHtml = visibleChildren
@@ -250,7 +245,7 @@ function _buildNavItem(item) {
 }
 
 // ==========================================
-// _buildSection (เดิม)
+// _buildSection
 // ==========================================
 function _buildSection(title, itemsHtml, options = {}) {
     const { collapsible = false, sectionId = null, defaultOpen = true } = options;
@@ -275,7 +270,7 @@ function _buildSection(title, itemsHtml, options = {}) {
 }
 
 // ==========================================
-// renderSidebar (เดิม)
+// renderSidebar
 // ==========================================
 function renderSidebar(userConfig = {}) {
     const config = {
@@ -285,7 +280,6 @@ function renderSidebar(userConfig = {}) {
         facebook: { ...SIDEBAR_DEFAULTS.facebook, ...(userConfig.facebook || {}) }
     };
 
-    // ✅ FIX: ถ้า showAllDepartments=true แต่ departments ว่าง → ใช้ SHARED_DEPARTMENTS (default)
     if (config.showAllDepartments && (!Array.isArray(config.departments) || config.departments.length === 0)) {
         config.departments = SIDEBAR_DEFAULTS.departments || SHARED_DEPARTMENTS || [];
         console.log('✅ renderSidebar: Fallback departments =', config.departments.length, 'กลุ่ม');
@@ -321,7 +315,7 @@ function renderSidebar(userConfig = {}) {
         html += _buildSection(config.departmentsTitle, deptItemsHtml, {
             collapsible: config.departmentsCollapsible !== false,
             sectionId: 'sec-departments',
-            defaultOpen: config.departmentsDefaultOpen !== false  // ✅ เปลี่ยนจาก false
+            defaultOpen: config.departmentsDefaultOpen !== false
         });
     }
 
@@ -329,7 +323,7 @@ function renderSidebar(userConfig = {}) {
         config.moduleMenus.forEach((group, idx) => {
             const visible = (group.items || []).filter(_passesRoleFilter);
             const itemsHtml = visible.map(item => _buildNavItem(item)).join('');
-            if (itemsHtml.trim() === '') return;   // ไม่มีอะไรแสดง → ข้าม section
+            if (itemsHtml.trim() === '') return;
             html += _buildSection(group.title || `เมนู ${idx + 1}`, itemsHtml, {
                 collapsible: group.collapsible === true,
                 sectionId: group.sectionId || `sec-module-${idx}`,
@@ -415,7 +409,9 @@ function toggleSidebarSection(sectionId, force) {
 }
 
 // ==========================================
-// renderTopbar (แก้ไข: ป้องกัน Profile/Avatar หายหลัง re-render)
+// renderTopbar
+// ✅ FIX: Breadcrumb render ทุกโหมด (search + title)
+// ✅ Settings Button → เปิด Modal Display Settings
 // ==========================================
 function renderTopbar(userConfig = {}) {
     const config = {
@@ -425,7 +421,7 @@ function renderTopbar(userConfig = {}) {
         buttons: userConfig.buttons || TOPBAR_DEFAULTS.buttons
     };
 
-    // ✅ FIX: ถ้ามี window.currentProfile ให้ใช้ข้อมูลจริง แทน "กำลังโหลด..."
+    // ✅ FIX: ถ้ามี window.currentProfile ให้ใช้ข้อมูลจริง
     if (window.currentProfile && window.currentProfile.first_name) {
         const p = window.currentProfile;
         config.profile = {
@@ -441,42 +437,65 @@ function renderTopbar(userConfig = {}) {
     if (config.showHamburger) html += `<button class="d-menu" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>`;
     if (config.showCollapse) html += `<button class="d-collapse" id="collapseBtn" onclick="toggleSidebarCollapse()" title="ย่อ/ขยายเมนู"><i class="fa-solid fa-angles-left"></i></button>`;
 
+    // =====================================================
+    // 🧭 Page Head — แสดง Breadcrumb ทุกโหมด
+    // =====================================================
+    const breadcrumbItems = Array.isArray(config.breadcrumb) ? config.breadcrumb : null;
+
     if (config.search) {
+        // ✅ โหมดค้นหา — ใส่ breadcrumb ก่อน search box
+        html += `<div id="wrkBreadcrumb" class="d-breadcrumb hidden"></div>`;
+
         const sid = config.search.id || 'appSearch';
         const placeholder = config.search.placeholder || 'ค้นหา...';
         const oninput = config.search.oninput ? `oninput="${config.search.oninput}"` : '';
         html += `<div class="d-search"><i class="fa-solid fa-magnifying-glass"></i><input id="${sid}" placeholder="${_esc(placeholder)}" ${oninput}></div>`;
-    } else if (config.pageTitle) {
-        html += `<h2 id="pageTitle">${config.pageTitle}</h2>`;
+    } else {
+        // ✅ โหมด title — page head + breadcrumb container
+        const title = config.pageTitle || 'WRK System';
+        html += `
+            <div class="d-page-head">
+                <h2 id="pageTitle" class="d-page-title">${_esc(title)}</h2>
+                <div id="wrkBreadcrumb" class="d-breadcrumb hidden"></div>
+            </div>
+        `;
     }
 
     html += `<div class="d-spacer"></div>`;
 
+    // =====================================================
+    // 🔍 Global Search Button
+    // =====================================================
+    html += `
+        <button class="d-icon-btn" onclick="if(window.GlobalSearch)GlobalSearch.open()" title="ค้นหา (Ctrl+K)">
+            <i class="fa-solid fa-magnifying-glass"></i>
+        </button>
+    `;
+
+    // =====================================================
+    // 🔔 Notification Button (พร้อม badge)
+    // =====================================================
+    html += `
+        <button class="d-icon-btn" onclick="if(window.NotificationCenter)NotificationCenter.open()" title="การแจ้งเตือน" id="wrkNotifBtn">
+            <i class="fa-solid fa-bell"></i>
+            <span id="wrkNotifBadge" class="d-notif-badge hidden">0</span>
+        </button>
+    `;
+
+    // Custom buttons (จาก initModuleSidebar)
     (config.buttons || []).forEach(btn => {
         const btnClass = btn.class || 'hidden hv-topbtn';
         const innerHTML = btn.html || `<i class="${btn.icon}"></i><span class="hidden sm:inline">${_esc(btn.label || '')}</span>`;
         html += `<button id="${btn.id}" ${btn.onclick ? `onclick="${btn.onclick}"` : ''} class="${btnClass}" title="${_esc(btn.title || '')}">${innerHTML}</button>`;
     });
 
+    // ✅ Settings Button → เปิด Modal Display Settings
     if (config.showSettingsMenu) {
         html += `
             <div class="d-settings-wrap">
-                <button class="d-settings-btn" id="settingsBtn" onclick="toggleSettingsMenu()" title="ตั้งค่าการแสดงผล">
+                <button class="d-settings-btn" id="settingsBtn" onclick="openDisplaySettingsModal()" title="ตั้งค่าการแสดงผล">
                     <i class="fa-solid fa-sliders"></i><span>แสดงผล</span>
                 </button>
-                <div class="d-settings-menu" id="settingsMenu">
-                    <div class="d-settings-title">ขนาดตัวอักษร</div>
-                    <div class="d-settings-options">
-                        <button type="button" data-font="small" onclick="setFontSize('small')">เล็ก</button>
-                        <button type="button" data-font="normal" onclick="setFontSize('normal')">ปกติ</button>
-                        <button type="button" data-font="large" onclick="setFontSize('large')">ใหญ่</button>
-                    </div>
-                    <div class="d-settings-title">ความหนาแน่น</div>
-                    <div class="d-settings-options cols-2">
-                        <button type="button" data-density="normal" onclick="setDensity('normal')">ปกติ</button>
-                        <button type="button" data-density="compact" onclick="setDensity('compact')">กระชับ</button>
-                    </div>
-                </div>
             </div>
         `;
     }
@@ -501,13 +520,31 @@ function renderTopbar(userConfig = {}) {
 
     topbarEl.innerHTML = html;
 
-    // ✅ FIX: หลัง render Topbar ใหม่ → วาด Avatar กลับทันที (ถ้ามี profile)
+    // ✅ FIX: วาด Avatar กลับทันที
     if (window.currentProfile && typeof renderUserAvatar === 'function') {
         try { renderUserAvatar(window.currentProfile); } catch (e) { }
     }
     // ✅ FIX: อัปเดตวันที่กลับทันที
     if (typeof setTodayChip === 'function') {
         try { setTodayChip(); } catch (e) { }
+    }
+
+    // =====================================================
+    // 🧭 Breadcrumb: ถ้ามี config.breadcrumb → set ทันที
+    // =====================================================
+    if (breadcrumbItems && breadcrumbItems.length > 0 && window.Breadcrumb) {
+        try {
+            window.Breadcrumb.set(breadcrumbItems);
+        } catch (e) {
+            console.warn('Breadcrumb.set error:', e);
+        }
+    }
+
+    // =====================================================
+    // 🔔 อัปเดต Notification badge
+    // =====================================================
+    if (window.NotificationCenter && typeof window.NotificationCenter._updateBadge === 'function') {
+        try { window.NotificationCenter._updateBadge(); } catch (e) { }
     }
 
     if (typeof window.enhanceTopbar === 'function') {
@@ -567,4 +604,4 @@ window.SHARED_DEPARTMENTS = SHARED_DEPARTMENTS;
 window.SIDEBAR_DEFAULTS = SIDEBAR_DEFAULTS;
 window.TOPBAR_DEFAULTS = TOPBAR_DEFAULTS;
 
-console.log('✅ dashboard_sidebar.js loaded (+ Role filter + Icon colors + Topbar profile fix)');
+console.log('✅ dashboard_sidebar.js loaded (+ Breadcrumb fix + Role filter + Icon colors + Display Modal)');

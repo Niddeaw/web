@@ -2,6 +2,7 @@
 const coreHeadHTML = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#2588e8">
     <!-- Fonts & Icons -->
     <link rel="icon" href="https://i.ibb.co/94wLv5v/WRK-PNG-200px.png">
     <link href="https://fonts.googleapis.com/css2?family=Anuphan:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -60,7 +61,7 @@ const coreHeadHTML = `
     <script src="https://cdn.datatables.net/searchbuilder/1.8.4/js/searchBuilder.dataTables.js"></script>
     <script src="https://cdn.datatables.net/datetime/1.6.3/js/dataTables.dateTime.min.js"></script>
 
-    <!-- Flatpickr, SheetJS, HTML2PDF, Supabase, SweetAlert2, Tom Select, SortableJS, DayJS, ChartJS -->
+    <!-- Flatpickr, SheetJS, HTML2PDF, Supabase, SweetAlert2, Tom Select, SortableJS, DayJS, ChartJS, Canvas-Confetti -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <script src="https://cdn.jsdelivr.net/npm/flatpickr/dist/l10n/th.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -73,6 +74,8 @@ const coreHeadHTML = `
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/dayjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.9/locale/th.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- 🎉 Canvas-Confetti (เบา 5KB) -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 `;
 
 document.write(coreHeadHTML);

@@ -1117,3 +1117,581 @@ body.d-compact .d-layout{ gap:8px; margin-bottom:9px; }
 .module-drag-handle:active {
     cursor: grabbing;
 }
+
+/* ============================================================
+   🎨 THEME VARIABLES — ค่าเริ่มต้น (จะ override โดย JS)
+   ============================================================ */
+:root{
+    --d-primary: #2588e8;
+    --d-primary-hover: #1a75d1;
+    --d-primary-light: #eef7ff;
+    --d-primary-rgb: 37, 136, 232;
+}
+
+/* ใช้ --d-primary กับ component หลัก */
+.d-nav a.active,
+.d-btn,
+.d-settings-btn.active{
+    background: linear-gradient(135deg, var(--d-primary), var(--d-primary-hover)) !important;
+}
+
+.d-nav a:hover,
+.d-settings-btn:hover{
+    color: var(--d-primary) !important;
+    background: var(--d-primary-light) !important;
+}
+
+.d-search:focus-within{
+    border-color: var(--d-primary) !important;
+    box-shadow: 0 0 0 3px rgba(var(--d-primary-rgb), 0.12) !important;
+}
+
+.d-select:focus,
+input:focus,
+select:focus,
+textarea:focus{
+    border-color: var(--d-primary) !important;
+    box-shadow: 0 0 0 3px rgba(var(--d-primary-rgb), 0.15) !important;
+}
+
+.d-btn:hover{ filter: brightness(0.92); }
+
+.d-settings-options button.active{
+    background: var(--d-primary) !important;
+    border-color: var(--d-primary) !important;
+    box-shadow: 0 3px 8px rgba(var(--d-primary-rgb), 0.25) !important;
+}
+
+/* ============================================================
+   📐 DENSITY VARIANTS
+   ============================================================ */
+body.d-comfortable .d-card{ padding: 20px 22px; }
+body.d-comfortable .d-card-head{ margin-bottom: 14px; }
+body.d-comfortable .d-stat{ padding: 18px 20px; gap: 16px; }
+body.d-comfortable .d-stat-icon{ width: 56px; height: 56px; font-size: 22px; }
+body.d-comfortable .d-stat h3{ font-size: 26px; }
+body.d-comfortable .d-nav a{ padding: 12px 14px; margin: 4px 0; }
+body.d-comfortable .d-nav-title{ margin: 18px 12px 9px; }
+body.d-comfortable table th,
+body.d-comfortable table td{
+    padding-top: 14px !important;
+    padding-bottom: 14px !important;
+}
+body.d-comfortable .d-grid4{ gap: 14px; margin-bottom: 16px; }
+body.d-comfortable .d-charts,
+body.d-comfortable .d-layout{ gap: 14px; margin-bottom: 16px; }
+
+/* ============================================================
+   🌙 DARK MODE — ใช้กับ body.d-dark
+   ============================================================ */
+html.dark{
+    color-scheme: dark;
+}
+
+body.d-dark{
+    background: #0f172a !important;
+    color: #e2e8f0 !important;
+    --d-bg: #0f172a;
+    --d-text: #e2e8f0;
+    --d-line: #334155;
+    --d-muted: #94a3b8;
+}
+
+body.d-dark .d-sidebar,
+body.d-dark .d-topbar,
+body.d-dark .d-card,
+body.d-dark .d-stat,
+body.d-dark .glass-panel,
+body.d-dark .glass,
+body.d-dark .d-settings-menu,
+body.d-dark .d-fb-btn,
+body.d-dark .d-calendar-box{
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+
+body.d-dark .d-brand{
+    border-bottom-color: #334155 !important;
+}
+body.d-dark .d-logo{
+    background: linear-gradient(145deg, #1e3a8a, #312e81);
+}
+body.d-dark .d-brand b{ color: #f1f5f9; }
+body.d-dark .d-brand span{ color: #94a3b8; }
+
+body.d-dark .d-nav-title{
+    color: #64748b !important;
+}
+
+body.d-dark .d-nav a{
+    color: #cbd5e1 !important;
+}
+body.d-dark .d-nav a:hover{
+    background: #334155 !important;
+    color: #60a5fa !important;
+}
+body.d-dark .d-nav a.active{
+    background: linear-gradient(90deg, var(--d-primary-hover), var(--d-primary)) !important;
+    color: #fff !important;
+}
+body.d-dark .d-nav a.logout{ color: #f87171 !important; }
+body.d-dark .d-nav a.logout:hover{ background: #450a0a !important; color: #fca5a5 !important; }
+
+body.d-dark .d-nav-title.collapsible{
+    background: #1e293b !important;
+    color: #cbd5e1 !important;
+}
+body.d-dark .d-nav-title.collapsible:hover{
+    background: #334155 !important;
+    color: #60a5fa !important;
+}
+
+body.d-dark .d-nav-group > a.group-header:hover{
+    background: rgba(96, 165, 250, 0.15) !important;
+    color: #93c5fd !important;
+}
+body.d-dark .d-nav-group > .d-submenu > a{ color: #94a3b8 !important; }
+body.d-dark .d-nav-group > .d-submenu > a:hover{
+    background: rgba(96, 165, 250, 0.1) !important;
+    color: #93c5fd !important;
+}
+
+body.d-dark .d-topbar{
+    border-bottom-color: #334155 !important;
+}
+
+body.d-dark .d-menu,
+body.d-dark .d-collapse{
+    color: #cbd5e1;
+}
+body.d-dark .d-menu:hover,
+body.d-dark .d-collapse:hover{
+    background: #334155;
+    color: #60a5fa;
+}
+
+body.d-dark .d-search{
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #94a3b8;
+}
+body.d-dark .d-search input{
+    color: #e2e8f0 !important;
+    background: transparent !important;
+}
+
+body.d-dark .d-chip,
+body.d-dark .d-settings-btn{
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #cbd5e1 !important;
+}
+body.d-dark .d-chip:hover,
+body.d-dark .d-settings-btn:hover{
+    background: #334155 !important;
+    color: #60a5fa !important;
+}
+
+body.d-dark .d-settings-menu{
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5) !important;
+}
+body.d-dark .d-settings-title{
+    color: #94a3b8 !important;
+}
+body.d-dark .d-settings-options button{
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #cbd5e1 !important;
+}
+body.d-dark .d-settings-options button:hover{
+    background: #334155 !important;
+}
+body.d-dark .d-settings-options button.active{
+    background: var(--d-primary) !important;
+    color: #fff !important;
+}
+
+body.d-dark .d-profile small{ color: #94a3b8 !important; }
+body.d-dark .d-avatar{
+    background: #334155;
+    color: #93c5fd;
+}
+
+body.d-dark .d-hero{
+    background: linear-gradient(110deg, #1e293b, #0f172a 58%, #1e3a8a) !important;
+}
+body.d-dark .d-hero h1{ color: #f1f5f9; }
+body.d-dark .d-hero p{ color: #94a3b8; }
+
+body.d-dark input,
+body.d-dark select,
+body.d-dark textarea,
+body.d-dark .field-input{
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #e2e8f0 !important;
+}
+body.d-dark input::placeholder,
+body.d-dark textarea::placeholder{
+    color: #64748b !important;
+}
+
+body.d-dark table{
+    color: #cbd5e1;
+}
+body.d-dark table thead tr{
+    background: #1e293b !important;
+    color: #94a3b8 !important;
+}
+body.d-dark table th{
+    border-color: #334155 !important;
+}
+body.d-dark table tbody tr{
+    border-color: #334155 !important;
+}
+body.d-dark table tbody tr:hover{
+    background: #334155 !important;
+}
+
+body.d-dark .d-btn-mode{
+    background: #1e293b !important;
+    border-color: #334155 !important;
+    color: #cbd5e1 !important;
+}
+body.d-dark .d-btn-mode:hover{
+    background: #334155 !important;
+}
+
+body.d-dark .d-btn-mode.admin{
+    background: rgba(79, 70, 229, 0.2) !important;
+    border-color: #6366f1 !important;
+    color: #a5b4fc !important;
+}
+body.d-dark .d-btn-mode.teacher{
+    background: rgba(244, 63, 94, 0.2) !important;
+    border-color: #e11d48 !important;
+    color: #fda4af !important;
+}
+
+body.d-dark .d-overlay{
+    background: rgba(0, 0, 0, 0.7) !important;
+}
+
+/* Scrollbar dark */
+body.d-dark ::-webkit-scrollbar-thumb{
+    background: #475569 !important;
+}
+
+/* ============================================================
+   🎨 DISPLAY MODAL STYLES
+   ============================================================ */
+#wrkDisplayModal .font-option:hover,
+#wrkDisplayModal .theme-option:hover,
+#wrkDisplayModal .mode-option:hover,
+#wrkDisplayModal .density-option:hover{
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+#wrkDisplayModal .font-option,
+#wrkDisplayModal .theme-option,
+#wrkDisplayModal .mode-option,
+#wrkDisplayModal .density-option{
+    transition: all 0.18s ease;
+}
+
+/* Modal dark mode */
+body.d-dark #wrkDisplayModal > div:last-child{
+    background: #1e293b !important;
+    color: #e2e8f0;
+}
+body.d-dark #wrkDisplayModal .font-option,
+body.d-dark #wrkDisplayModal .theme-option,
+body.d-dark #wrkDisplayModal .mode-option,
+body.d-dark #wrkDisplayModal .density-option{
+    background: #0f172a !important;
+    border-color: #334155 !important;
+    color: #e2e8f0;
+}
+body.d-dark #wrkDisplayModal .font-option span:last-child,
+body.d-dark #wrkDisplayModal .theme-option span:last-child,
+body.d-dark #wrkDisplayModal .mode-option span:last-child,
+body.d-dark #wrkDisplayModal .density-option span:last-child{
+    color: #cbd5e1 !important;
+}
+body.d-dark #wrkDisplayModal section h4{
+    color: #f1f5f9;
+}
+body.d-dark #wrkDisplayModal #displayPreview{
+    background: #0f172a !important;
+    border-color: #334155 !important;
+}
+body.d-dark #wrkDisplayModal header{
+    background: linear-gradient(to right, #1e293b, #334155) !important;
+    border-color: #334155 !important;
+}
+body.d-dark #wrkDisplayModal header h3{
+    color: #f1f5f9 !important;
+}
+body.d-dark #wrkDisplayModal header p{
+    color: #94a3b8 !important;
+}
+body.d-dark #wrkDisplayModal .border-t{
+    background: #0f172a !important;
+    border-color: #334155 !important;
+}
+
+/* ============================================================
+   🧭 BREADCRUMB
+   ============================================================ */
+.d-page-head{
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+    flex-shrink: 1;
+}
+.d-page-title{
+    margin: 0;
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--d-text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.d-breadcrumb{
+    font-size: 11px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.d-breadcrumb.hidden{ display: none !important; }
+
+body.d-dark .d-page-title{ color: #f1f5f9; }
+body.d-dark .d-breadcrumb{ color: #64748b; }
+body.d-dark .d-breadcrumb a{ color: #94a3b8 !important; }
+body.d-dark .d-breadcrumb a:hover{ color: #60a5fa !important; }
+body.d-dark .d-breadcrumb .font-bold{ color: #f1f5f9 !important; }
+
+/* ============================================================
+   🔍 / 🔔 TOPBAR ICON BUTTONS
+   ============================================================ */
+.d-icon-btn{
+    position: relative;
+    border: 1px solid var(--d-line);
+    background: #fff;
+    color: #526277;
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 15px;
+    transition: background .18s, color .18s, border-color .18s, transform .15s;
+    flex-shrink: 0;
+}
+.d-icon-btn:hover{
+    background: var(--d-primary-light, #f1f7ff);
+    color: var(--d-primary, #2588e8);
+    border-color: var(--d-primary, #2588e8);
+    transform: translateY(-1px);
+}
+.d-icon-btn:active{
+    transform: scale(0.95);
+}
+
+.d-notif-badge{
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: #ef4444;
+    color: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 5px;
+    box-shadow: 0 2px 6px rgba(239, 68, 68, 0.5);
+    animation: notifPulse 2s ease-in-out infinite;
+}
+@keyframes notifPulse{
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+body.d-dark .d-icon-btn{
+    background: #1e293b;
+    border-color: #334155;
+    color: #cbd5e1;
+}
+body.d-dark .d-icon-btn:hover{
+    background: #334155;
+    color: #60a5fa;
+}
+
+/* Mobile: icon buttons เล็กลง */
+@media(max-width: 760px){
+    .d-icon-btn{
+        width: 34px;
+        height: 34px;
+        font-size: 14px;
+        border-radius: 10px;
+    }
+    .d-page-title{ font-size: 13px !important; }
+    .d-breadcrumb{ font-size: 10px; }
+}
+
+/* ============================================================
+   ✨ SKELETON LOADING
+   ============================================================ */
+.wrk-skeleton{
+    background: linear-gradient(90deg,
+        #eef2f7 0%,
+        #e2e8f0 50%,
+        #eef2f7 100%);
+    background-size: 200% 100%;
+    animation: wrkShimmer 1.4s ease-in-out infinite;
+    display: block;
+}
+@keyframes wrkShimmer{
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+body.d-dark .wrk-skeleton{
+    background: linear-gradient(90deg,
+        #1e293b 0%,
+        #334155 50%,
+        #1e293b 100%);
+    background-size: 200% 100%;
+}
+
+/* ============================================================
+   🎨 ICON ANIMATIONS
+   ============================================================ */
+@keyframes animBounce{
+    0%, 100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+    60% { transform: translateY(-3px); }
+}
+@keyframes animShake{
+    0%, 100% { transform: rotate(0deg); }
+    20% { transform: rotate(-12deg); }
+    40% { transform: rotate(12deg); }
+    60% { transform: rotate(-8deg); }
+    80% { transform: rotate(8deg); }
+}
+@keyframes animPulse{
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.18); }
+}
+@keyframes animWiggle{
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-6deg); }
+    75% { transform: rotate(6deg); }
+}
+@keyframes animSpin{
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.anim-bounce{ animation: animBounce 0.6s ease; }
+.anim-shake{ animation: animShake 0.5s ease; }
+.anim-pulse{ animation: animPulse 0.5s ease; }
+.anim-wiggle{ animation: animWiggle 0.5s ease; }
+.anim-spin{ animation: animSpin 0.6s linear; }
+
+/* Auto-animate icons on hover */
+.d-nav a:hover .d-ico i,
+.d-icon-btn:hover i,
+.d-btn-mode:hover i{
+    animation: animBounce 0.5s ease;
+}
+
+.d-nav a.active .d-ico i{
+    animation: animPulse 0.5s ease;
+}
+
+/* Hover บน menu group */
+.d-nav-group > a.group-header:hover .d-ico i{
+    animation: animWiggle 0.5s ease;
+}
+
+/* ============================================================
+   🔔 NOTIFICATION PANEL (modal ในตัว — จัดการด้วย JS)
+   ============================================================ */
+#wrkNotifModal .scrollbar-hide::-webkit-scrollbar{
+    display: none;
+}
+#wrkNotifModal .scrollbar-hide{
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+/* Dark mode for notif modal */
+body.d-dark #wrkNotifModal > div:last-child{
+    background: #1e293b !important;
+}
+body.d-dark #wrkNotifModal .bg-gradient-to-r{
+    background: linear-gradient(to right, #1e293b, #334155) !important;
+}
+body.d-dark #wrkNotifModal h3{
+    color: #f1f5f9;
+}
+body.d-dark #wrkNotifModal .border-b,
+body.d-dark #wrkNotifModal .border-t{
+    border-color: #334155 !important;
+}
+body.d-dark #wrkNotifModal .hover\:bg-slate-50:hover{
+    background: #334155 !important;
+}
+body.d-dark #wrkNotifModal .text-slate-800{
+    color: #f1f5f9 !important;
+}
+body.d-dark #wrkNotifModal .text-slate-500{
+    color: #94a3b8 !important;
+}
+
+/* ============================================================
+   🔍 SEARCH MODAL — dark mode
+   ============================================================ */
+body.d-dark #wrkSearchModal > div:last-child{
+    background: #1e293b !important;
+}
+body.d-dark #wrkSearchModal input{
+    color: #f1f5f9 !important;
+}
+body.d-dark #wrkSearchModal input::placeholder{
+    color: #64748b !important;
+}
+body.d-dark #wrkSearchModal .border-b{
+    border-color: #334155 !important;
+}
+body.d-dark #wrkSearchModal .bg-slate-50{
+    background: #0f172a !important;
+}
+body.d-dark #wrkSearchModal .hover\:bg-indigo-50:hover{
+    background: #334155 !important;
+}
+body.d-dark #wrkSearchModal .text-slate-800{
+    color: #f1f5f9 !important;
+}
+body.d-dark #wrkSearchModal .text-slate-500{
+    color: #94a3b8 !important;
+}
+
+/* ============================================================
+   ✅ END DISPLAY SETTINGS
+   ============================================================ */
