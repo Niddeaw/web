@@ -66,8 +66,10 @@ const SHARED_DEPARTMENTS = [
         id: 'dept-academic', icon: 'fa-book-open', label: 'บริหารวิชาการ',
         icon_bg_color: '#6366f1', icon_text_color: '#ffffff',
         children: [
-            { id: 'sub-academic-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
-              href: 'index.html#academic', icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
+            {
+                id: 'sub-academic-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+                href: 'index.html#academic', icon_bg_color: '#6366f1', icon_text_color: '#ffffff'
+            },
             { id: 'nav-aca-guidance-t', icon: 'fa-compass', label: 'ปพ.5 แนะแนว', href: 'guidance_teacher.html' },
             { id: 'nav-aca-guidance-a', icon: 'fa-user-shield', label: 'ปพ.5 แนะแนว (Admin)', href: 'guidance_admin.html' },
             { id: 'nav-aca-scholarship', icon: 'fa-hand-holding-dollar', label: 'ทุนการศึกษา', href: 'scholarship_teacher.html' },
@@ -78,8 +80,10 @@ const SHARED_DEPARTMENTS = [
         id: 'dept-budget', icon: 'fa-coins', label: 'บริหารงบประมาณ',
         icon_bg_color: '#10b981', icon_text_color: '#ffffff',
         children: [
-            { id: 'sub-budget-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
-              href: 'index.html#budget', icon_bg_color: '#10b981', icon_text_color: '#ffffff' },
+            {
+                id: 'sub-budget-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+                href: 'index.html#budget', icon_bg_color: '#10b981', icon_text_color: '#ffffff'
+            },
             { id: 'nav-bud-overview', icon: 'fa-chart-pie', label: 'ภาพรวมงบประมาณ', href: 'budget_overview.html' },
             { id: 'nav-bud-purchase', icon: 'fa-shopping-cart', label: 'จัดซื้อจัดจ้าง', href: 'purchase.html' },
             { id: 'nav-bud-assets', icon: 'fa-boxes-stacked', label: 'ครุภัณฑ์', href: 'assets.html' }
@@ -89,8 +93,10 @@ const SHARED_DEPARTMENTS = [
         id: 'dept-personnel', icon: 'fa-users', label: 'บริหารงานบุคคล',
         icon_bg_color: '#a855f7', icon_text_color: '#ffffff',
         children: [
-            { id: 'sub-personnel-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
-              href: 'index.html#personnel', icon_bg_color: '#a855f7', icon_text_color: '#ffffff' },
+            {
+                id: 'sub-personnel-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+                href: 'index.html#personnel', icon_bg_color: '#a855f7', icon_text_color: '#ffffff'
+            },
             { id: 'nav-per-list', icon: 'fa-id-card', label: 'ข้อมูลบุคลากร', href: 'personnel.html' },
             { id: 'nav-per-leave', icon: 'fa-envelope-open-text', label: 'ระบบการลา', href: 'leave.html' },
             { id: 'nav-per-eval', icon: 'fa-star-half-stroke', label: 'ประเมินผล', href: 'evaluation.html' }
@@ -100,8 +106,10 @@ const SHARED_DEPARTMENTS = [
         id: 'dept-general', icon: 'fa-building', label: 'บริหารทั่วไป',
         icon_bg_color: '#f97316', icon_text_color: '#ffffff',
         children: [
-            { id: 'sub-general-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
-              href: 'index.html#general', icon_bg_color: '#f97316', icon_text_color: '#ffffff' },
+            {
+                id: 'sub-general-all', icon: 'fa-chart-pie', label: 'ดูภาพรวมทั้งหมด',
+                href: 'index.html#general', icon_bg_color: '#f97316', icon_text_color: '#ffffff'
+            },
             { id: 'nav-gen-attendance', icon: 'fa-clipboard-user', label: 'เช็คชื่อหน้าเสาธง', href: 'attendance_teacher.html' },
             { id: 'nav-gen-discipline', icon: 'fa-gavel', label: 'งานปกครอง', href: 'behavior_teacher.html' },
             { id: 'nav-gen-homevisit', icon: 'fa-house-chimney-user', label: 'เยี่ยมบ้านนักเรียน', href: 'homevisit.html' },
@@ -164,6 +172,53 @@ function _esc(str) {
 }
 
 // ==========================================
+// 🎨 Icon Style State (filled | outline)
+// ==========================================
+let _activeIconStyle = 'filled';   // ค่าเริ่มต้น
+
+function _setGlobalIconStyle(style) {
+    _activeIconStyle = (style === 'outline') ? 'outline' : 'filled';
+}
+window._setGlobalIconStyle = _setGlobalIconStyle;
+
+// ==========================================
+// ✅ Icon Style Helpers
+// ==========================================
+function _isLightColor(hex) {
+    if (!hex || typeof hex !== 'string') return false;
+    const m = hex.trim().match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    if (!m) return false;
+    const r = parseInt(m[1], 16);
+    const g = parseInt(m[2], 16);
+    const b = parseInt(m[3], 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.82;   // สว่างเกินไป → ใช้ text_color แทน
+}
+
+/**
+ * @param {Object} item - sidebar item
+ * @param {String} context - 'sidebar' | 'cards' (อื่นๆ คงเดิม)
+ */
+function _getIconStyle(item, context = 'sidebar') {
+    const bg = item.icon_bg_color || '';
+    const txt = item.icon_text_color || '';
+
+    // Context อื่นๆ หรือ filled mode → ใช้ค่าปกติ
+    if (context !== 'sidebar' || _activeIconStyle !== 'outline') {
+        return `background-color: ${bg || 'transparent'}; color: ${txt || 'inherit'};`;
+    }
+
+    // ✅ Outline mode: พื้นหลังโปร่งใส + ไอคอนสีจาก bg
+    let color = bg;
+    if (!color || color === 'transparent' || _isLightColor(color)) {
+        color = txt || 'inherit';
+    }
+    return `background-color: transparent; color: ${color};`;
+}
+
+window._getIconStyle = _getIconStyle;
+
+// ==========================================
 // ✅ Role-based filter
 // ==========================================
 function _passesRoleFilter(item) {
@@ -207,7 +262,7 @@ function _buildNavItem(item) {
         ? item.icon
         : 'fa-solid ' + (item.icon || 'fa-cube');
 
-    const iconStyle = `background-color: ${item.icon_bg_color || 'transparent'}; color: ${item.icon_text_color || 'inherit'};`;
+    const iconStyle = _getIconStyle(item, 'sidebar');
 
     // Group (มี children)
     if (item.children && item.children.length > 0) {
@@ -279,6 +334,9 @@ function renderSidebar(userConfig = {}) {
         brand: { ...SIDEBAR_DEFAULTS.brand, ...(userConfig.brand || {}) },
         facebook: { ...SIDEBAR_DEFAULTS.facebook, ...(userConfig.facebook || {}) }
     };
+
+    // ✅ อ่าน iconStyle จาก config → set global
+    _setGlobalIconStyle(config.iconStyle || 'filled');
 
     if (config.showAllDepartments && (!Array.isArray(config.departments) || config.departments.length === 0)) {
         config.departments = SIDEBAR_DEFAULTS.departments || SHARED_DEPARTMENTS || [];

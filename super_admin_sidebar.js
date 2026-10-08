@@ -371,6 +371,7 @@ function clearItemRoles(path) {
 function getDefaultSidebarConfig() {
     return {
         _meta: { display_name: 'ค่าเริ่มต้น (Default)', description: 'ใช้เมื่อไม่พบโปรไฟล์เฉพาะของ role' },
+        iconStyle: 'filled',   // ✅ ใหม่: 'filled' | 'outline'
         brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK System', subtitle: 'School Management System' },
         mainMenuTitle: 'เมนูหลัก',
         mainMenuCollapsible: false,
@@ -693,9 +694,86 @@ function renderSidebarEditor() {
     renderItemList('sb_footer_menu_list', currentSidebarConfig.footerMenu || [], 'footerMenu');
     renderModuleMenus();
 
-    const fb = currentSidebarConfig.facebook || {};
+     const fb = currentSidebarConfig.facebook || {};
     setVal('sb_fb_href', fb.href || '');
     setVal('sb_fb_label', fb.label || '');
+
+    // ✅ เพิ่ม UI เลือก icon style
+    _renderIconStyleSelector();
+}
+
+// ==========================================
+// 🎨 Icon Style Selector (inject UI)
+// ==========================================
+function _renderIconStyleSelector() {
+    // หา anchor — ใช้ block ของแบรนด์
+    const anchor = document.getElementById('sb_brand_subtitle')?.closest('.bg-slate-50');
+    if (!anchor) return;
+
+    // ลบของเก่า (ถ้ามี)
+    document.getElementById('sb_icon_style_block')?.remove();
+
+    const current = currentSidebarConfig.iconStyle || 'filled';
+
+    const block = document.createElement('div');
+    block.id = 'sb_icon_style_block';
+    block.className = 'mt-3 p-4 bg-purple-50 rounded-xl border border-purple-200';
+    block.innerHTML = `
+        <label class="block text-xs font-bold text-purple-800 mb-2">
+            <i class="fa-solid fa-palette mr-1"></i> รูปแบบไอคอน Sidebar
+        </label>
+        <div class="grid grid-cols-2 gap-2">
+            <button type="button"
+                onclick="setIconStyle('filled')"
+                class="icon-style-opt px-3 py-2.5 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                data-style="filled">
+                <span class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:#6366f1; color:#fff;">
+                    <i class="fa-solid fa-circle text-[10px]"></i>
+                </span>
+                <span class="text-slate-700">พื้นหลังทึบ</span>
+            </button>
+            <button type="button"
+                onclick="setIconStyle('outline')"
+                class="icon-style-opt px-3 py-2.5 rounded-lg border-2 border-slate-200 bg-white text-xs font-bold flex items-center justify-center gap-2 transition-all"
+                data-style="outline">
+                <span class="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0" style="background:transparent; color:#6366f1;">
+                    <i class="fa-solid fa-circle text-[10px]"></i>
+                </span>
+                <span class="text-slate-700">โปร่งใส</span>
+            </button>
+        </div>
+        <p class="text-[10px] text-purple-600 mt-2 leading-relaxed">
+            <i class="fa-solid fa-info-circle mr-1"></i>
+            <b>พื้นหลังทึบ</b> = ไอคอนสีขาวบนพื้นสี &nbsp;|&nbsp;
+            <b>โปร่งใส</b> = ไม่มีพื้นหลัง แสดงแค่ไอคอนสี (เหมาะกับไอคอนเล็ก)
+        </p>
+    `;
+    anchor.appendChild(block);
+
+    _syncIconStyleButtons(current);
+}
+
+function _syncIconStyleButtons(style) {
+    document.querySelectorAll('.icon-style-opt').forEach(btn => {
+        const isActive = btn.dataset.style === style;
+        btn.classList.toggle('border-purple-500', isActive);
+        btn.classList.toggle('ring-2', isActive);
+        btn.classList.toggle('ring-purple-200', isActive);
+        btn.classList.toggle('border-slate-200', !isActive);
+    });
+}
+
+function setIconStyle(style) {
+    if (!currentSidebarConfig) return;
+    currentSidebarConfig.iconStyle = (style === 'outline') ? 'outline' : 'filled';
+    markSidebarDirty();
+    _syncIconStyleButtons(currentSidebarConfig.iconStyle);
+
+    // ✅ อัปเดต preview
+    if (typeof window._setGlobalIconStyle === 'function') {
+        window._setGlobalIconStyle(currentSidebarConfig.iconStyle);
+    }
+    renderSidebarPreview();
 }
 
 function setVal(id, val) {
@@ -1197,7 +1275,7 @@ function selectIcon(iconClass) {
 }
 
 // ==========================================
-// Live Preview (async)
+// Live Preview
 // ==========================================
 async function renderSidebarPreview() {
     const preview = document.getElementById('sidebar-preview');
@@ -1205,13 +1283,21 @@ async function renderSidebarPreview() {
     const cfg = currentSidebarConfig;
     const brand = cfg.brand || {};
 
+    // ✅ Icon Style Mode (parameter ที่จะส่งเข้า renderPreviewItem)
+    const styleMode = cfg.iconStyle || 'filled';
+
+    // ✅ Sync global ไว้ด้วย (เผื่อ Sidebar จริงในอนาคตใช้)
+    if (typeof window._setGlobalIconStyle === 'function') {
+        window._setGlobalIconStyle(styleMode);
+    }
+
     // ✅ ดึง departments: ใช้ config ก่อน → ถ้าว่างดึงจาก modules
     let previewDepts = cfg.departments || [];
     if (cfg.showAllDepartments && previewDepts.length === 0) {
         const fromModules = await buildDepartmentsFromModules();
         if (fromModules) {
             previewDepts = fromModules;
-            cfg.departments = JSON.parse(JSON.stringify(fromModules)); // cache ลง config
+            cfg.departments = JSON.parse(JSON.stringify(fromModules));
             if (!cfg.departmentsTitle) cfg.departmentsTitle = 'กลุ่มบริหารงาน';
         } else {
             previewDepts = getFallbackDepartments();
@@ -1227,10 +1313,9 @@ async function renderSidebarPreview() {
 
     if (cfg.mainMenu?.length > 0) {
         html += `<div class="d-nav-title">${escapeHtml(cfg.mainMenuTitle || 'เมนูหลัก')}</div>`;
-        html += renderPreviewItems(cfg.mainMenu);
+        html += renderPreviewItems(cfg.mainMenu, 0, styleMode);
     }
 
-    // Departments — render แบบ section พับได้ ตรงกับ renderSidebar() จริง
     if (cfg.showAllDepartments && previewDepts.length > 0) {
         const collapsible = cfg.departmentsCollapsible !== false;
         const defaultOpen = cfg.departmentsDefaultOpen !== false;
@@ -1243,19 +1328,19 @@ async function renderSidebarPreview() {
                     <i class="fa-solid fa-chevron-down section-arrow"></i>
                 </div>
                 <div class="d-nav-section-items ${defaultOpen ? '' : 'collapsed'}">
-                    ${renderPreviewItems(previewDepts)}
+                    ${renderPreviewItems(previewDepts, 0, styleMode)}
                 </div>
             `;
         } else {
             html += `<div class="d-nav-title">${escapeHtml(cfg.departmentsTitle || 'กลุ่มบริหารงาน')}</div>`;
-            html += renderPreviewItems(previewDepts);
+            html += renderPreviewItems(previewDepts, 0, styleMode);
         }
     }
 
     (cfg.moduleMenus || []).forEach(mod => {
         const collapsible = mod.collapsible === true;
         const defaultOpen = mod.defaultOpen !== false;
-        const items = renderPreviewItems(mod.items || []);
+        const items = renderPreviewItems(mod.items || [], 0, styleMode);
 
         if (collapsible) {
             html += `
@@ -1276,7 +1361,7 @@ async function renderSidebarPreview() {
 
     if (cfg.footerMenu?.length > 0) {
         const collapsible = cfg.footerCollapsible === true;
-        const items = renderPreviewItems(cfg.footerMenu);
+        const items = renderPreviewItems(cfg.footerMenu, 0, styleMode);
 
         if (collapsible) {
             html += `
@@ -1295,16 +1380,56 @@ async function renderSidebarPreview() {
         }
     }
 
-    if (cfg.logoutItem) html += renderPreviewItem(cfg.logoutItem, 0);
+    if (cfg.logoutItem) html += renderPreviewItem(cfg.logoutItem, 0, styleMode);
     html += `</nav>`;
     preview.innerHTML = html;
+
+    // ✅ Debug log
+    console.log('🎨 renderSidebarPreview:', { styleMode, deptCount: previewDepts.length });
 }
 
-function renderPreviewItems(items, depth = 0) {
-    return items.filter(item => !item.hidden).map(item => renderPreviewItem(item, depth)).join('');
+// ==========================================
+// 🎨 Icon Style Builder (parameter-based)
+// ==========================================
+function _buildIconStyle(item, styleMode) {
+    const bg = item.icon_bg_color || '';
+    const txt = item.icon_text_color || '';
+
+    // Outline mode: พื้นหลังโปร่งใส + ไอคอนสีจาก bg
+    if (styleMode === 'outline') {
+        let color = bg;
+        if (!color || color === 'transparent' || _isLightColor(bg)) {
+            color = txt || 'inherit';
+        }
+        return `background-color: transparent; color: ${color};`;
+    }
+
+    // Filled mode (default)
+    return `background-color: ${bg || 'transparent'}; color: ${txt || 'inherit'};`;
 }
 
-function renderPreviewItem(item, depth) {
+function _isLightColor(hex) {
+    if (!hex || typeof hex !== 'string') return false;
+    const m = hex.trim().match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
+    if (!m) return false;
+    const r = parseInt(m[1], 16);
+    const g = parseInt(m[2], 16);
+    const b = parseInt(m[3], 16);
+    const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return lum > 0.82;
+}
+
+// ==========================================
+// Preview Renderers — รับ styleMode
+// ==========================================
+function renderPreviewItems(items, depth = 0, styleMode = 'filled') {
+    return items
+        .filter(item => !item.hidden)
+        .map(item => renderPreviewItem(item, depth, styleMode))
+        .join('');
+}
+
+function renderPreviewItem(item, depth, styleMode = 'filled') {
     const label = escapeHtml(item.label || '');
     const hasChildren = item.children && item.children.length > 0;
     const wantsBlank = item.target_blank === true || item.target_blank === 'true';
@@ -1313,7 +1438,8 @@ function renderPreviewItem(item, depth) {
         ? `<span class="text-[8px] font-bold px-1 py-0.5 rounded ml-1" style="background:#e0e7ff;color:#4338ca;" title="${escapeAttr(roles.join(', '))}"><i class="fa-solid fa-user-lock text-[7px]"></i> ${roles.length}</span>`
         : '';
 
-    const iconStyle = `background-color: ${item.icon_bg_color || 'transparent'}; color: ${item.icon_text_color || 'inherit'};`;
+    // ✅ ใช้ parameter-based builder (ตรงไปตรงมา)
+    const iconStyle = _buildIconStyle(item, styleMode);
 
     if (hasChildren) {
         return `
@@ -1323,7 +1449,7 @@ function renderPreviewItem(item, depth) {
                     <span class="d-label">${label}${rolesBadge}</span>
                     <i class="fa-solid fa-chevron-right d-arrow"></i>
                 </a>
-                <div class="d-submenu">${renderPreviewItems(item.children, depth + 1)}</div>
+                <div class="d-submenu">${renderPreviewItems(item.children, depth + 1, styleMode)}</div>
             </div>`;
     }
     return `
@@ -1579,7 +1705,7 @@ window.isDescendantPath = isDescendantPath;
 window.toggleItemRole = toggleItemRole;
 window.clearItemRoles = clearItemRoles;
 window.toggleRolePopover = toggleRolePopover;
-
+window.setIconStyle = setIconStyle;
 // ✅ Exports ของ Dynamic Departments
 window.getFallbackDepartments = getFallbackDepartments;
 window.buildDepartmentsFromModules = buildDepartmentsFromModules;
