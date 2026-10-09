@@ -1793,3 +1793,180 @@ async function clearStudentAvatar() {
     const badge = document.getElementById('student-avatar-badge');
     if (badge) badge.classList.add('hidden');
 }
+
+// ==========================================
+// คัดลอกครูที่ปรึกษา (เทอม 1 ➔ 2)
+// ==========================================
+async function copyAdvisersToTerm2() {
+    Swal.fire({
+        title: 'กำลังตรวจสอบระบบ...',
+        allowOutsideClick: false,
+        didOpen: () => Swal.showLoading()
+    });
+
+    try {
+        // 1) ตรวจสอบปี/เทอมปัจจุบัน
+        const { data: sysSettings, error: sysErr } = await db
+            .from('core_school_info')
+            .select('current_academic_year, current_semester')
+            .eq('id', 1)
+            .single();
+        if (sysErr) throw sysErr;
+
+        const currentYear = sysSettings.current_academic_year;
+        const currentTerm = sysSettings.current_semester;
+        Swal.close();
+
+        if (currentTerm !== '2') {
+            return Swal.fire(
+                'แจ้งเตือน',
+                'ฟังก์ชันนี้ใช้สำหรับคัดลอกครูที่ปรึกษาเข้าสู่ <b>"เทอม 2"</b> เท่านั้น<br>กรุณาเปลี่ยนการตั้งค่าระบบเป็นเทอม 2 ก่อนครับ',
+                'warning'
+            );
+        }
+
+        // 2) ให้ผู้ใช้เลือกโหมดการคัดลอก
+        const { isConfirmed, value: mode } = await Swal.fire({
+            title: 'คัดลอกครูที่ปรึกษา (เทอม 1 ➔ 2)',
+            html: `
+                <div class="text-left text-sm text-slate-600 mb-3">
+                    ปีการศึกษา <b class="text-blue-700">${currentYear}</b>
+                    จาก <b>เทอม 1</b> ➜ <b>เทอม 2</b>
+                </div>
+                <div class="text-left text-sm space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" name="adv-mode" value="fill-empty" checked class="mt-1">
+                        <span>
+                            <b class="text-emerald-700">เฉพาะห้องที่ยังไม่มีครูที่ปรึกษา</b><br>
+                            <span class="text-xs text-slate-500">ปลอดภัย — ไม่ทับข้อมูลที่ตั้งไว้แล้ว</span>
+                        </span>
+                    </label>
+                    <label class="flex items-start gap-2 cursor-pointer">
+                        <input type="radio" name="adv-mode" value="overwrite" class="mt-1">
+                        <span>
+                            <b class="text-rose-700">ทับข้อมูลเดิมทั้งหมด</b><br>
+                            <span class="text-xs text-slate-500">ครูที่ปรึกษาในเทอม 2 จะถูกแทนที่ด้วยของเทอม 1 ทุกห้อง</span>
+                        </span>
+                    </label>
+                </div>
+            `,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#9333ea',
+            confirmButtonText: '<i class="fa-solid fa-copy mr-1"></i> เริ่มคัดลอก',
+            cancelButtonText: 'ยกเลิก',
+            preConfirm: () => {
+                const checked = document.querySelector('input[name="adv-mode"]:checked');
+                return checked ? checked.value : 'fill-empty';
+            }
+        });
+        if (!isConfirmed) return;
+
+        // 3) ดึงห้องเรียนเทอม 1 และ เทอม 2 ของปีปัจจุบัน
+        Swal.fire({
+            title: 'กำลังคัดลอกครูที่ปรึกษา...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+
+        const { data: sourceClasses, error: srcErr } = await db
+            .from('core_classrooms')
+            .select('id, grade_level, room_number, adviser_id_1, adviser_id_2')
+            .eq('academic_year', currentYear)
+            .eq('semester', '1');
+        if (srcErr) throw srcErr;
+
+        const { data: destClasses, error: destErr } = await db
+            .from('core_classrooms')
+            .select('id, grade_level, room_number, adviser_id_1, adviser_id_2')
+            .eq('academic_year', currentYear)
+            .eq('semester', '2');
+        if (destErr) throw destErr;
+
+        if (!sourceClasses || sourceClasses.length === 0) {
+            throw new Error(`ไม่พบข้อมูลห้องเรียนของเทอม 1 ปีการศึกษา ${currentYear}`);
+        }
+        if (!destClasses || destClasses.length === 0) {
+            throw new Error(`ไม่พบข้อมูลห้องเรียนของเทอม 2 ปีการศึกษา ${currentYear} (กรุณาสร้างห้องเรียนก่อน)`);
+        }
+
+        // 4) วนอัปเดตครูที่ปรึกษา
+        let updatedCount = 0;
+        let skippedCount = 0;
+        const details = [];
+
+        for (const dest of destClasses) {
+            const src = sourceClasses.find(
+                c => c.grade_level === dest.grade_level && c.room_number === dest.room_number
+            );
+
+            const label = `ม.${dest.grade_level}/${dest.room_number}`;
+
+            if (!src) {
+                details.push(`<span class="text-amber-600">⚠ ${label}: ไม่พบห้องต้นทางในเทอม 1</span>`);
+                skippedCount++;
+                continue;
+            }
+
+            if (!src.adviser_id_1 && !src.adviser_id_2) {
+                details.push(`<span class="text-slate-500">– ${label}: เทอม 1 ไม่มีครูที่ปรึกษา</span>`);
+                skippedCount++;
+                continue;
+            }
+
+            const destHasAdviser = dest.adviser_id_1 || dest.adviser_id_2;
+            if (mode === 'fill-empty' && destHasAdviser) {
+                details.push(`<span class="text-slate-500">– ${label}: มีครูที่ปรึกษาในเทอม 2 แล้ว (ข้าม)</span>`);
+                skippedCount++;
+                continue;
+            }
+
+            const { error: updErr } = await db
+                .from('core_classrooms')
+                .update({
+                    adviser_id_1: src.adviser_id_1,
+                    adviser_id_2: src.adviser_id_2
+                })
+                .eq('id', dest.id);
+
+            if (updErr) {
+                details.push(`<span class="text-rose-600">✗ ${label}: ${updErr.message}</span>`);
+                skippedCount++;
+            } else {
+                details.push(`<span class="text-emerald-600">✓ ${label}: คัดลอกแล้ว</span>`);
+                updatedCount++;
+            }
+        }
+
+        // 5) รีเฟรชตาราง
+        if (typeof loadClassrooms === 'function') await loadClassrooms();
+
+        Swal.fire({
+            icon: updatedCount > 0 ? 'success' : 'info',
+            title: updatedCount > 0 ? 'คัดลอกสำเร็จ!' : 'ไม่มีรายการที่ต้องคัดลอก',
+            html: `
+                <div class="text-sm text-left">
+                    <p class="mb-1">อัปเดตสำเร็จ: <b class="text-emerald-600">${updatedCount}</b> ห้อง</p>
+                    <p class="mb-2">ข้าม / ไม่สำเร็จ: <b class="text-amber-600">${skippedCount}</b> ห้อง</p>
+                    ${details.length > 0 ? `
+                        <details class="mt-2 text-xs">
+                            <summary class="cursor-pointer font-bold text-slate-600 hover:text-slate-800">ดูรายละเอียด</summary>
+                            <div class="mt-2 max-h-48 overflow-y-auto bg-slate-50 p-2 rounded-lg space-y-0.5 border border-slate-200">
+                                ${details.map(d => `<div>${d}</div>`).join('')}
+                            </div>
+                        </details>
+                    ` : ''}
+                </div>
+            `,
+            confirmButtonText: 'ตกลง'
+        });
+
+    } catch (err) {
+        console.error('❌ copyAdvisersToTerm2 error:', err);
+        Swal.close();
+        Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
+    }
+}
+
+// Export ให้ onclick เรียกได้
+window.copyAdvisersToTerm2 = copyAdvisersToTerm2;
