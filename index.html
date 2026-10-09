@@ -97,9 +97,10 @@
                     <!-- Charts -->
                     <section class="d-charts">
                         <div class="d-card">
-                            <div class="d-card-head">
-                                <div class="d-card-title">📊 จำนวนนักเรียนจำแนกตามระดับชั้น <span
-                                        id="totalStudentsLabel" class="d-sub"></span></div>
+                            <div class="d-card-title">
+                                📊 จำนวนนักเรียนจำแนกตามระดับชั้น
+                                <span id="chartStudentsSubtitle" class="d-sub"></span>
+                                <span id="totalStudentsLabel" class="d-sub"></span>
                             </div>
                             <div class="d-chart-box">
                                 <canvas id="chartStudentsByLevel"></canvas>
@@ -844,36 +845,37 @@
                     return;
                 }
 
-                const { count: studentCount, error: sErr } = await db
-                    .from('student_enrollments')
-                    .select('student_id', { count: 'exact', head: true })
-                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
-                    .eq('semester', CURRENT_SEMESTER)
-                    .eq('status', ENROLLMENT_STATUS);
-                if (!sErr) setStat('statStudents', (studentCount ?? 0).toLocaleString());
-                else console.warn('students count err:', sErr.message);
-
-                const { count: personnelCount, error: pErr } = await db
-                    .from(PERSONNEL_TABLE)
-                    .select('*', { count: 'exact', head: true })
-                    .or('is_deleted.is.null,is_deleted.eq.false');
-                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
-                else console.warn('personnel count err:', pErr.message);
-
+                // =====================================================
+                // ✅ นักเรียน — JOIN ผ่าน core_classrooms (ที่เก็บปี/เทอม)
+                // =====================================================
                 const { data: enrollments, error: sLevelErr } = await db
                     .from('student_enrollments')
-                    .select(`student_id, core_classrooms ( grade_level )`)
-                    .eq('academic_year', CURRENT_ACADEMIC_YEAR)
-                    .eq('semester', CURRENT_SEMESTER)
+                    .select(`
+                student_id,
+                status,
+                core_classrooms!inner ( grade_level, academic_year, semester )
+            `)
+                    .eq('core_classrooms.academic_year', CURRENT_ACADEMIC_YEAR)
+                    .eq('core_classrooms.semester', CURRENT_SEMESTER)
                     .eq('status', ENROLLMENT_STATUS);
 
-                if (!sLevelErr && enrollments) {
+                if (sLevelErr) {
+                    console.warn('students err:', sLevelErr.message);
+                    setStat('statStudents', '—');
+                    renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
+                } else if (enrollments) {
+                    // นับ unique student_id (กันนักเรียนซ้ำห้อง/ซ้ำแถว)
+                    const uniqueIds = new Set(enrollments.map(e => e.student_id));
+                    setStat('statStudents', uniqueIds.size.toLocaleString());
+
+                    // จัดกลุ่มตามระดับชั้น
                     const buckets = {};
                     enrollments.forEach(e => {
                         const lv = e.core_classrooms?.grade_level;
                         const label = gradeLevelToLabel(lv);
                         buckets[label] = (buckets[label] || 0) + 1;
                     });
+
                     const labels = Object.keys(buckets).sort((a, b) => {
                         const na = parseInt(a.replace(/\D/g, ''), 10) || 0;
                         const nb = parseInt(b.replace(/\D/g, ''), 10) || 0;
@@ -882,15 +884,32 @@
                     const values = labels.map(k => buckets[k]);
 
                     const totalStudents = values.reduce((s, v) => s + v, 0);
+
+                    // ✅ แสดง ปีการศึกษา / เทอม
+                    const subtitleEl = document.getElementById('chartStudentsSubtitle');
+                    if (subtitleEl) {
+                        subtitleEl.textContent = `(ปีการศึกษา ${CURRENT_ACADEMIC_YEAR} / เทอม ${CURRENT_SEMESTER})`;
+                    }
+
+                    // ✅ แสดงจำนวนรวม
                     const totalLabel = document.getElementById('totalStudentsLabel');
-                    if (totalLabel) totalLabel.textContent = `(ทั้งหมด ${totalStudents.toLocaleString()} คน)`;
+                    if (totalLabel) {
+                        totalLabel.textContent = `ทั้งหมด ${totalStudents.toLocaleString()} คน`;
+                    }
 
                     const colors = buildColorArray(labels, CHART_PALETTES.primary);
                     renderBarChart('chartStudentsByLevel', labels, values, 'นักเรียน (คน)', colors);
-                } else if (sLevelErr) {
-                    console.warn('students level err:', sLevelErr.message);
-                    renderBarChart('chartStudentsByLevel', ['ไม่สามารถโหลดข้อมูล'], [0], 'นักเรียน (คน)', '#cbd5e1');
                 }
+
+                // =====================================================
+                // บุคลากร (ไม่เปลี่ยน)
+                // =====================================================
+                const { count: personnelCount, error: pErr } = await db
+                    .from(PERSONNEL_TABLE)
+                    .select('*', { count: 'exact', head: true })
+                    .or('is_deleted.is.null,is_deleted.eq.false');
+                if (!pErr) setStat('statPersonnel', (personnelCount ?? 0).toLocaleString());
+                else console.warn('personnel count err:', pErr.message);
 
                 const { data: personnel, error: pGroupErr } = await db
                     .from(PERSONNEL_TABLE)
