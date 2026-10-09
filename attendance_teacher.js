@@ -1,9 +1,9 @@
 /**
- * WRK System - Morning Attendance (OPTIMIZED)
- * - ลบฟังก์ชันซ้ำ (loadClassroomDataWithPermission, populateClassroomSelect)
- * - เพิ่ม Performance Cache + Parallel queries
- * - Fire-and-forget logUserAction
- * - ใช้ dashboard_sidebar.js
+ * WRK System - Morning Attendance (v3.1 — Academic Terms + Edit)
+ * - ระบบเลือกภาคเรียนย้อนหลัง
+ * - ใช้ core_academic_terms กำหนดวันเปิด-ปิด
+ * - Admin: เพิ่ม/แก้ไข/ลบ ภาคเรียน
+ * - ก่อนเปิดเทอม: ล็อก / หลังปิดเทอม: ปล่อยให้บันทึกย้อนหลัง
  */
 
 const MODULE_ID = 'attendance';
@@ -18,12 +18,47 @@ const _perfCache = {
     disciplineHead: undefined,
     managedGrades: undefined,
     holidays: null,
-    attendanceData: {} // { [classroomId_date]: data }
+    attendanceData: {}
 };
 
-// Helper: fire-and-forget log
 function _logAttendance(action) {
-    try { logUserAction(action, 'attendance').catch(console.error); } catch (e) { /* ignore */ }
+    try { logUserAction(action, 'attendance').catch(console.error); } catch (e) { }
+}
+
+// ==========================================
+// ✅ ACADEMIC TERMS STATE
+// ==========================================
+let academicTerms = [];
+let selectedTerm = null;
+
+function toLocalDateStr(d) {
+    const x = new Date(d);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+}
+
+function getSelectedTerm() {
+    const sel = document.getElementById('term-select');
+    if (!sel || !sel.value) return null;
+    return academicTerms.find(t => `${t.academic_year}_${t.semester}` === sel.value) || null;
+}
+
+function getTermYear() {
+    return selectedTerm?.academic_year || currentSchoolInfo?.current_academic_year;
+}
+function getTermSemester() {
+    return selectedTerm?.semester || currentSchoolInfo?.current_semester;
+}
+
+// ==========================================
+// ✅ ตรวจสอบว่า "วันนี้" อยู่นอกช่วงเทอมทั้งหมดหรือไม่
+//    ใช้สำหรับข้ามการถาม auto-fill ตอนปิดเทอม
+// ==========================================
+function isTodayOutsideAllTerms() {
+    if (!academicTerms || academicTerms.length === 0) return false;
+    const todayStr = toLocalDateStr(new Date());
+    return !academicTerms.some(t =>
+        todayStr >= t.start_date && todayStr <= t.end_date
+    );
 }
 
 // ==========================================
@@ -38,7 +73,10 @@ let adviser2Name = '.......................................';
 let termStartDate = null;
 let termEndDate = null;
 let holidayList = [];
-let moduleSettings = { check_only_weekdays: true, lock_future_dates: true, enforce_term_start: true, end_date: null };
+let moduleSettings = {
+    check_only_weekdays: true,
+    lock_future_dates: true
+};
 let missingDatesList = [];
 let checkedDatesList = [];
 let currentManagedGrades = [];
@@ -74,6 +112,7 @@ function formatThaiDateFull(dateStr) {
 }
 
 function formatThaiDate(dateStr) {
+    if (!dateStr) return '';
     return new Date(dateStr).toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
@@ -111,7 +150,7 @@ $(document).ready(async () => {
             return;
         }
 
-        // 3. Parallel: school_info + discipline_head + grade_heads + behavior_grade_heads
+        // 3. Parallel queries
         const [sInfoRes, discHeadRes, gradeHeadsRes, behaviorHeadsRes] = await Promise.all([
             db.from('core_school_info').select('*').single(),
             db.from('core_discipline_heads').select('id').eq('personnel_id', user.id).maybeSingle(),
@@ -121,19 +160,18 @@ $(document).ready(async () => {
 
         const sInfo = sInfoRes.data;
         _perfCache.schoolInfo = sInfo;
+        currentSchoolInfo = sInfo;
 
-        // 4. Cache discipline head
         isDisciplineHead = !!discHeadRes.data;
         _perfCache.disciplineHead = isDisciplineHead;
 
-        // 5. Merge grade heads
         managedGrades = (gradeHeadsRes.data || []).map(g => g.grade_level);
         if (managedGrades.length === 0) {
             managedGrades = (behaviorHeadsRes.data || []).map(g => g.grade_level);
         }
         _perfCache.managedGrades = managedGrades;
 
-        // 6. Mode
+        // 4. Mode
         if (isAdmin) {
             const storedMode = localStorage.getItem('attendance_admin_mode');
             currentViewRole = (storedMode === 'true') ? 'admin' : 'teacher';
@@ -143,7 +181,7 @@ $(document).ready(async () => {
             localStorage.removeItem('attendance_admin_mode');
         }
 
-        // 7. UI
+        // 5. UI
         if (typeof applyVisibilityByRole === 'function') {
             applyVisibilityByRole(role, currentViewRole === 'admin', {
                 settingsBtn: 'admin-settings-btn',
@@ -155,11 +193,15 @@ $(document).ready(async () => {
             updateToggleModeUI(role, currentViewRole === 'admin', 'btnAdminMode');
         }
 
-        // 8. School info + classrooms
+        // 6. School info + Academic terms + holidays
         await loadSchoolInfo();
+        await loadAcademicTerms();
+        populateTermSelect();
+
+        // 7. Classrooms
         const hasAccess = await loadClassroomDataWithPermission(user.id, isAdmin, role);
 
-        // 9. ReadOnly state
+        // 8. ReadOnly
         if (!isAdmin && (isDisciplineHead || managedGrades.length > 0)) {
             isReadOnly = true;
             isHead = true;
@@ -178,17 +220,19 @@ $(document).ready(async () => {
             return;
         }
 
-        // 10. Fire-and-forget log
         _logAttendance('เข้าสู่ระบบเช็คชื่อ');
 
-        // 11. Constraints
+        // 9. Constraints
         applyDateConstraints();
 
-        // 12. Event listeners
-        $('#check-date').on('change', () => loadStudentList($('#classroom-select').val()));
+        // 10. Events
+        $('#check-date').on('change', () => {
+            applyDateConstraints();
+            loadStudentList($('#classroom-select').val());
+        });
         $('#searchStudent').on('keyup', handleStudentSearch);
 
-        // 13. UI
+        // 11. UI
         updateUIBasedOnRole();
         applyReadOnlyState();
 
@@ -202,13 +246,103 @@ $(document).ready(async () => {
 });
 
 // ==========================================
-// School Info (with cache)
+// ✅ ACADEMIC TERMS — Load / Populate / Change
+// ==========================================
+async function loadAcademicTerms() {
+    try {
+        const { data, error } = await db
+            .from('core_academic_terms')
+            .select('*')
+            .eq('is_active', true)
+            .order('academic_year', { ascending: false })
+            .order('semester', { ascending: false });
+
+        if (error) throw error;
+        academicTerms = data || [];
+        console.log('📅 Academic terms loaded:', academicTerms.length);
+    } catch (err) {
+        console.error('loadAcademicTerms error:', err);
+        academicTerms = [];
+    }
+}
+
+function populateTermSelect() {
+    const sel = document.getElementById('term-select');
+    if (!sel) return;
+
+    if (academicTerms.length === 0) {
+        sel.innerHTML = '<option value="">-- ยังไม่มีภาคเรียน --</option>';
+        sel.disabled = true;
+        selectedTerm = null;
+        return;
+    }
+    sel.disabled = false;
+
+    const currentYear = currentSchoolInfo?.current_academic_year;
+    const currentSem = currentSchoolInfo?.current_semester;
+    const defaultKey = `${currentYear}_${currentSem}`;
+
+    sel.innerHTML = academicTerms.map(t => {
+        const isCurrent = `${t.academic_year}_${t.semester}` === defaultKey;
+        return `<option value="${t.academic_year}_${t.semester}">
+            เทอม ${t.semester}/${t.academic_year}${isCurrent ? ' ⭐ (ปัจจุบัน)' : ''}
+        </option>`;
+    }).join('');
+
+    if (academicTerms.some(t => `${t.academic_year}_${t.semester}` === defaultKey)) {
+        sel.value = defaultKey;
+    } else {
+        sel.value = `${academicTerms[0].academic_year}_${academicTerms[0].semester}`;
+    }
+
+    selectedTerm = getSelectedTerm();
+    if (selectedTerm) {
+        termStartDate = selectedTerm.start_date;
+        termEndDate = selectedTerm.end_date;
+    }
+
+    sel.removeEventListener('change', onTermChanged);
+    sel.addEventListener('change', onTermChanged);
+}
+
+async function onTermChanged() {
+    selectedTerm = getSelectedTerm();
+    if (!selectedTerm) return;
+
+    termStartDate = selectedTerm.start_date;
+    termEndDate = selectedTerm.end_date;
+
+    _perfCache.classrooms = null;
+    window.globalClassroomsList = null;
+
+    const hasAccess = await loadClassroomDataWithPermission(currentUser.id,
+        WRK_ROLES.ADMIN.includes(actualUserRole), actualUserRole);
+
+    if (!hasAccess) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่มีสิทธิ์เข้าถึงห้องเรียนในภาคเรียนนี้', 'warning');
+        return;
+    }
+
+    const today = toLocalDateStr(new Date());
+    let newDate = today;
+    if (today < selectedTerm.start_date) newDate = selectedTerm.start_date;
+    if (today > selectedTerm.end_date) newDate = selectedTerm.end_date;
+    $('#check-date').val(newDate);
+
+    applyDateConstraints();
+    const classroomId = $('#classroom-select').val();
+    if (classroomId) await loadStudentList(classroomId);
+
+    _logAttendance(`สลับไปภาคเรียน ${selectedTerm.semester}/${selectedTerm.academic_year}`);
+}
+
+// ==========================================
+// School Info
 // ==========================================
 async function loadSchoolInfo() {
     try {
         if (_perfCache.schoolInfo) {
             currentSchoolInfo = _perfCache.schoolInfo;
-            termStartDate = currentSchoolInfo.term_start_date;
         } else {
             const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
             if (!schoolInfo) {
@@ -217,10 +351,8 @@ async function loadSchoolInfo() {
             }
             currentSchoolInfo = schoolInfo;
             _perfCache.schoolInfo = schoolInfo;
-            termStartDate = schoolInfo.term_start_date;
         }
 
-        // Parallel: settings + holidays
         const [settingsRes, holidaysRes] = await Promise.all([
             db.from('module_attendance_settings')
                 .select('*')
@@ -233,11 +365,8 @@ async function loadSchoolInfo() {
         if (settingsRes.data) {
             moduleSettings = {
                 check_only_weekdays: settingsRes.data.check_only_weekdays !== false,
-                lock_future_dates: settingsRes.data.lock_future_dates !== false,
-                enforce_term_start: settingsRes.data.enforce_term_start !== false,
-                end_date: settingsRes.data.end_date
+                lock_future_dates: settingsRes.data.lock_future_dates !== false
             };
-            termEndDate = settingsRes.data.end_date;
         }
 
         holidayList = holidaysRes.data || [];
@@ -253,11 +382,14 @@ async function loadSchoolInfo() {
 // ==========================================
 async function loadClassroomDataWithPermission(userId, isAdmin, role) {
     try {
+        const termYear = getTermYear();
+        const termSem = getTermSemester();
+
         const { data: allClassrooms, error: classError } = await db
             .from('core_classrooms')
             .select('*')
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester)
+            .eq('academic_year', termYear)
+            .eq('semester', termSem)
             .order('grade_level', { ascending: true })
             .order('room_number', { ascending: true });
         if (classError) throw classError;
@@ -269,14 +401,12 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
             cls.adviser_id_1 === userId || cls.adviser_id_2 === userId
         );
 
-        // ใช้ cache
         const localDisciplineHead = _perfCache.disciplineHead ?? isDisciplineHead;
         const localManagedGrades = _perfCache.managedGrades ?? managedGrades;
 
         isDisciplineHead = localDisciplineHead;
         managedGrades = localManagedGrades;
 
-        // currentManagedGrades
         if (isAdmin || localDisciplineHead) {
             currentManagedGrades = ['1', '2', '3', '4', '5', '6'];
         } else if (localManagedGrades.length > 0) {
@@ -285,7 +415,6 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
             currentManagedGrades = [];
         }
 
-        // ปุ่มภาพรวมระดับชั้น
         const btnGradeOverview = document.getElementById('btn-grade-overview');
         if (btnGradeOverview) {
             if (currentManagedGrades.length > 0) {
@@ -297,13 +426,11 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
             }
         }
 
-        // Module access
         let moduleAllowed = false;
         if (isAdmin) {
             moduleAllowed = true;
         } else {
             const isAdviser = window.adviserClassrooms.length > 0;
-
             if (role === 'teacher' && isAdviser) moduleAllowed = true;
             else if (role === 'head_of_level' && localManagedGrades.length > 0) moduleAllowed = true;
             else if (role === 'discipline_head' && localDisciplineHead) moduleAllowed = true;
@@ -317,7 +444,6 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
 
         if (!moduleAllowed) return false;
 
-        // UI
         if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
         if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
 
@@ -329,10 +455,8 @@ async function loadClassroomDataWithPermission(userId, isAdmin, role) {
         const roleEl = document.getElementById('userRole');
         if (roleEl) roleEl.textContent = roleText;
 
-        // Populate dropdown
         await populateClassroomSelect(userId, localDisciplineHead, localManagedGrades);
 
-        // Stats button
         const isAdviser = window.adviserClassrooms.length > 0;
         const canSeeStats = isAdmin || localDisciplineHead || localManagedGrades.length > 0 || isAdviser;
         const btnStatsReport = document.getElementById('btn-stats-report');
@@ -456,6 +580,15 @@ async function toggleRoleView() {
         toggleBtn: 'btnAdminMode'
     });
 
+    updateUIBasedOnRole();
+
+    const settingsBtn = document.getElementById('admin-settings-btn');
+    console.log('🔘 [toggleRoleView] settingsBtn:', {
+        exists: !!settingsBtn,
+        classes: settingsBtn?.className,
+        canManage: canManageSettings(actualUserRole)
+    });
+
     await populateClassroomSelect(currentUser.id);
 
     Swal.fire({
@@ -512,8 +645,6 @@ function applyReadOnlyState() {
             <span class="font-bold">${roleText}</span>
         </div>`;
     }
-
-    console.log('🔒 เปิดใช้งานโหมดอ่านอย่างเดียว');
 }
 
 // ==========================================
@@ -523,8 +654,7 @@ function openAdminModal() {
     if (!requireAdmin(actualUserRole, currentViewRole === 'admin', 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
     $('#setting-weekdays').prop('checked', moduleSettings.check_only_weekdays);
     $('#setting-lock-future').prop('checked', moduleSettings.lock_future_dates);
-    $('#setting-enforce-term-start').prop('checked', moduleSettings.enforce_term_start);
-    $('#setting-end-date').val(moduleSettings.end_date || '');
+    renderAcademicTermsTable();
     renderHolidayList();
     const today = new Date().toISOString().split('T')[0];
     $('#admin-batch-date').val(today);
@@ -541,10 +671,8 @@ async function saveAdminSettings() {
     const newSettings = {
         academic_year: currentSchoolInfo.current_academic_year,
         semester: currentSchoolInfo.current_semester,
-        end_date: $('#setting-end-date').val() || null,
         check_only_weekdays: $('#setting-weekdays').is(':checked'),
-        lock_future_dates: $('#setting-lock-future').is(':checked'),
-        enforce_term_start: $('#setting-enforce-term-start').is(':checked')
+        lock_future_dates: $('#setting-lock-future').is(':checked')
     };
 
     const { error } = await db.from('module_attendance_settings').upsert(newSettings, { onConflict: 'academic_year,semester' });
@@ -560,6 +688,221 @@ async function saveAdminSettings() {
     });
 }
 
+// ==========================================
+// ✅ ACADEMIC TERMS — Admin CRUD
+// ==========================================
+function renderAcademicTermsTable() {
+    const tbody = document.getElementById('academic-terms-table');
+    if (!tbody) return;
+
+    if (academicTerms.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-slate-400">ยังไม่มีข้อมูล</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = academicTerms.map(t => `
+        <tr class="hover:bg-slate-50 transition">
+            <td class="px-3 py-2 font-bold text-indigo-600">เทอม ${t.semester}/${t.academic_year}</td>
+            <td class="px-3 py-2 text-xs text-slate-600">
+                ${formatThaiDate(t.start_date)} - ${formatThaiDate(t.end_date)}
+            </td>
+            <td class="px-3 py-2 text-center whitespace-nowrap">
+                <button onclick="editAcademicTerm('${t.id}')" 
+                    class="text-amber-500 hover:text-amber-700 mx-1" title="แก้ไข">
+                    <i class="fas fa-pen-to-square"></i>
+                </button>
+                <button onclick="deleteAcademicTerm('${t.id}')" 
+                    class="text-rose-500 hover:text-rose-700 mx-1" title="ลบ">
+                    <i class="fas fa-trash"></i>
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+async function addAcademicTerm() {
+    const year = document.getElementById('term-new-year').value.trim();
+    const sem = document.getElementById('term-new-sem').value;
+    const start = document.getElementById('term-new-start').value;
+    const end = document.getElementById('term-new-end').value;
+
+    if (!year || !sem || !start || !end) {
+        return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
+    }
+    if (start >= end) {
+        return Swal.fire('ผิดพลาด', 'วันเปิดต้องน้อยกว่าวันปิด', 'error');
+    }
+
+    try {
+        const { data, error } = await db.from('core_academic_terms')
+            .insert([{ academic_year: year, semester: sem, start_date: start, end_date: end }])
+            .select()
+            .single();
+        if (error) throw error;
+
+        academicTerms.push(data);
+        academicTerms.sort((a, b) => {
+            if (a.academic_year !== b.academic_year) return b.academic_year.localeCompare(a.academic_year);
+            return b.semester.localeCompare(a.semester);
+        });
+
+        populateTermSelect();
+        renderAcademicTermsTable();
+
+        document.getElementById('term-new-year').value = '';
+        document.getElementById('term-new-start').value = '';
+        document.getElementById('term-new-end').value = '';
+
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เพิ่มภาคเรียนแล้ว', showConfirmButton: false, timer: 1500 });
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function editAcademicTerm(id) {
+    const term = academicTerms.find(t => t.id === id);
+    if (!term) return;
+
+    const { value: formValues } = await Swal.fire({
+        title: '<i class="fas fa-pen-to-square text-amber-500 mr-2"></i>แก้ไขภาคเรียน',
+        html: `
+            <div class="text-left space-y-3 mt-2">
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ปีการศึกษา</label>
+                        <input id="swal-edit-year" value="${escapeHtml(term.academic_year)}"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">ภาคเรียน</label>
+                        <select id="swal-edit-sem" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm font-bold bg-white">
+                            <option value="1" ${term.semester === '1' ? 'selected' : ''}>เทอม 1</option>
+                            <option value="2" ${term.semester === '2' ? 'selected' : ''}>เทอม 2</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">วันเปิด</label>
+                        <input type="date" id="swal-edit-start" value="${term.start_date}"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-slate-600 mb-1">วันปิด</label>
+                        <input type="date" id="swal-edit-end" value="${term.end_date}"
+                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm">
+                    </div>
+                </div>
+                <p class="text-[10px] text-amber-600 bg-amber-50 p-2 rounded-lg">
+                    <i class="fas fa-info-circle mr-1"></i>
+                    ระวัง! การเปลี่ยนวันเปิด-ปิดจะกระทบการกรองข้อมูลในหน้านี้
+                </p>
+            </div>
+        `,
+        width: 520,
+        showCancelButton: true,
+        confirmButtonColor: '#f59e0b',
+        confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึก',
+        cancelButtonText: 'ยกเลิก',
+        focusConfirm: false,
+        preConfirm: () => {
+            const year = document.getElementById('swal-edit-year').value.trim();
+            const sem = document.getElementById('swal-edit-sem').value;
+            const start = document.getElementById('swal-edit-start').value;
+            const end = document.getElementById('swal-edit-end').value;
+
+            if (!year || !sem || !start || !end) {
+                Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
+                return false;
+            }
+            if (start >= end) {
+                Swal.showValidationMessage('วันเปิดต้องน้อยกว่าวันปิด');
+                return false;
+            }
+            return { year, sem, start, end };
+        }
+    });
+
+    if (!formValues) return;
+
+    try {
+        const { error } = await db.from('core_academic_terms')
+            .update({
+                academic_year: formValues.year,
+                semester: formValues.sem,
+                start_date: formValues.start,
+                end_date: formValues.end,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', id);
+
+        if (error) throw error;
+
+        const idx = academicTerms.findIndex(t => t.id === id);
+        if (idx !== -1) {
+            academicTerms[idx] = {
+                ...academicTerms[idx],
+                academic_year: formValues.year,
+                semester: formValues.sem,
+                start_date: formValues.start,
+                end_date: formValues.end
+            };
+        }
+
+        academicTerms.sort((a, b) => {
+            if (a.academic_year !== b.academic_year) return b.academic_year.localeCompare(a.academic_year);
+            return b.semester.localeCompare(a.semester);
+        });
+
+        populateTermSelect();
+        renderAcademicTermsTable();
+
+        if (selectedTerm && selectedTerm.id === id) {
+            selectedTerm = academicTerms.find(t => t.id === id);
+            termStartDate = selectedTerm.start_date;
+            termEndDate = selectedTerm.end_date;
+            applyDateConstraints();
+        }
+
+        Swal.fire({
+            toast: true,
+            position: 'top-end',
+            icon: 'success',
+            title: 'อัปเดตภาคเรียนแล้ว',
+            showConfirmButton: false,
+            timer: 1500
+        });
+    } catch (err) {
+        console.error('editAcademicTerm error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+async function deleteAcademicTerm(id) {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ยืนยันการลบ?',
+        text: 'ข้อมูลภาคเรียนนี้จะถูกลบอย่างถาวร',
+        icon: 'warning', showCancelButton: true,
+        confirmButtonColor: '#dc2626', cancelButtonColor: '#64748b',
+        confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก'
+    });
+    if (!isConfirmed) return;
+
+    try {
+        const { error } = await db.from('core_academic_terms').delete().eq('id', id);
+        if (error) throw error;
+        academicTerms = academicTerms.filter(t => t.id !== id);
+        populateTermSelect();
+        renderAcademicTermsTable();
+        Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'ลบแล้ว', showConfirmButton: false, timer: 1500 });
+    } catch (err) {
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+// ==========================================
+// Admin batch mark all present
+// ==========================================
 async function adminMarkAllPresentBatch() {
     if (!requireAdmin(actualUserRole, currentViewRole === 'admin', 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
     const batchDate = $('#admin-batch-date').val();
@@ -575,10 +918,13 @@ async function adminMarkAllPresentBatch() {
     Swal.fire({ title: 'กำลังดำเนินการ...', html: 'กรุณารอสักครู่', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
+        const termYear = getTermYear();
+        const termSem = getTermSemester();
+
         const { data: rooms, error: roomErr } = await db.from('core_classrooms')
             .select('id, grade_level, room_number')
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester);
+            .eq('academic_year', termYear)
+            .eq('semester', termSem);
         if (roomErr) throw roomErr;
         if (!rooms || rooms.length === 0) { Swal.close(); return Swal.fire('ไม่พบห้องเรียน', 'ไม่มีห้องเรียนในเทอมนี้', 'warning'); }
 
@@ -628,10 +974,12 @@ async function clearAttendanceData() {
 
     if (isAdmin) {
         Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+        const termYear = getTermYear();
+        const termSem = getTermSemester();
         const { data, error } = await db.from('core_classrooms')
             .select('id, grade_level, room_number, semester, academic_year')
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester)
+            .eq('academic_year', termYear)
+            .eq('semester', termSem)
             .order('grade_level').order('room_number');
         Swal.close();
         if (error || !data) return Swal.fire('ผิดพลาด', 'โหลดห้องเรียนไม่ได้', 'error');
@@ -760,6 +1108,10 @@ async function updateAttendance(studentId, status) {
     const checkDate = $('#check-date').val();
     if (!studentId || !classroomId || !currentUser) return;
 
+    if (!isWithinAllowedDate(checkDate)) {
+        return Swal.fire('ไม่สามารถบันทึกได้', getDateBlockMessage(checkDate), 'warning');
+    }
+
     const { error } = await db.from('homeroom_attendance').upsert({
         student_id: studentId, classroom_id: classroomId, check_date: checkDate,
         status: status, teacher_id: currentUser.id
@@ -779,12 +1131,20 @@ async function updateAttendance(studentId, status) {
 
     _logAttendance(`บันทึกสถานะ "${status}" ให้ student ${studentId}`);
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
     if (checkDate < todayStr) {
+        // ✅ ย้อนหลัง → auto-fill เงียบ ๆ
         const unchecked = currentDashboardStudents.filter(s => !attendanceData[s.student_id || s.id]);
         if (unchecked.length > 0) await fillRemainingAsPresent(classroomId, checkDate, true);
         else { isDashboardSaved = true; renderDashboardSummary(); }
+    } else if (isTodayOutsideAllTerms()) {
+        // ✅ อยู่นอกช่วงเทอม (ปิดเทอม) → ไม่ถาม auto-fill
+        const total = currentDashboardStudents.length;
+        const checked = Object.keys(attendanceData).length;
+        isDashboardSaved = (checked === total);
+        renderDashboardSummary();
     } else {
+        // ปกติ → ถาม auto-fill
         const total = currentDashboardStudents.length;
         const checked = Object.keys(attendanceData).length;
         const prompKey = `${classroomId}_${checkDate}`;
@@ -806,6 +1166,22 @@ async function updateAttendance(studentId, status) {
 
     Swal.mixin({ toast: true, position: 'bottom-end', showConfirmButton: false, timer: 1000 })
         .fire({ icon: 'success', title: `บันทึก "${status}" เรียบร้อย` });
+}
+
+function isWithinAllowedDate(dateStr) {
+    if (!selectedTerm) return true;
+    const todayStr = toLocalDateStr(new Date());
+    if (todayStr < selectedTerm.start_date) return false;
+    return true;
+}
+
+function getDateBlockMessage(dateStr) {
+    if (!selectedTerm) return '';
+    const todayStr = toLocalDateStr(new Date());
+    if (todayStr < selectedTerm.start_date) {
+        return `ยังไม่เปิดภาคเรียน ${selectedTerm.semester}/${selectedTerm.academic_year} (เปิด ${formatThaiDate(selectedTerm.start_date)})`;
+    }
+    return '';
 }
 
 async function fillRemainingAsPresent(classroomId, checkDate, silent = false) {
@@ -938,12 +1314,19 @@ async function loadStudentList(classroomId) {
     renderTable(enrollments);
     updateStats();
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = toLocalDateStr(new Date());
     if (checkDate < todayStr) {
+        // ✅ ย้อนหลัง → auto-fill เงียบ ๆ
         const uncheckedStudents = currentDashboardStudents.filter(s => !attendanceData[s.student_id || s.id]);
         if (uncheckedStudents.length > 0) await fillRemainingAsPresent(classroomId, checkDate, true);
         else isDashboardSaved = true;
+    } else if (isTodayOutsideAllTerms()) {
+        // ✅ อยู่นอกช่วงเทอม → ไม่ถาม auto-fill
+        const total = currentDashboardStudents.length;
+        const checked = Object.keys(attendanceData).length;
+        isDashboardSaved = (checked === total);
     } else {
+        // ปกติ → ถาม auto-fill
         const total = currentDashboardStudents.length;
         const checked = Object.keys(attendanceData).length;
         if (checked < total && !promptedFillMap[`${classroomId}_${checkDate}`]) {
@@ -980,16 +1363,16 @@ function updateStatsClear() {
 // Classroom Overview
 // ==========================================
 async function loadClassroomOverview(classroomId) {
-    if (!termStartDate) return;
+    if (!selectedTerm || !selectedTerm.start_date) return;
 
-    const endDateObj = (termEndDate && new Date() > new Date(termEndDate))
-        ? new Date(termEndDate)
-        : new Date();
-    const endDateStr = endDateObj.toISOString().split('T')[0];
-    const startDateStr = termStartDate;
+    const termStart = selectedTerm.start_date;
+    const termEnd = selectedTerm.end_date;
+
+    const endDateObj = (new Date() > new Date(termEnd)) ? new Date(termEnd) : new Date();
+    const endDateStr = toLocalDateStr(endDateObj);
 
     let totalWeekdays = 0;
-    let current = new Date(startDateStr);
+    let current = new Date(termStart);
     const end = new Date(endDateStr);
     while (current <= end) {
         const day = current.getDay();
@@ -1001,17 +1384,19 @@ async function loadClassroomOverview(classroomId) {
     const { data: checked } = await db
         .from('homeroom_attendance')
         .select('check_date')
-        .eq('classroom_id', classroomId);
+        .eq('classroom_id', classroomId)
+        .gte('check_date', termStart)
+        .lte('check_date', termEnd);
 
     let allCheckedDates = checked?.map(d => d.check_date) || [];
 
     checkedDatesList = [...new Set(
-        allCheckedDates.filter(d => d >= startDateStr && d <= endDateStr)
+        allCheckedDates.filter(d => d >= termStart && d <= endDateStr)
     )].sort();
 
     missingDatesList = [];
-    for (let d = new Date(startDateStr); d <= endDateObj; d.setDate(d.getDate() + 1)) {
-        const ds = d.toISOString().split('T')[0];
+    for (let d = new Date(termStart); d <= endDateObj; d.setDate(d.getDate() + 1)) {
+        const ds = toLocalDateStr(d);
         const dow = d.getDay();
         const isWeekend = (dow === 0 || dow === 6);
         const isHoliday = holidayList.some(h => h.holiday_date === ds);
@@ -1116,6 +1501,9 @@ function showFullImage(imageUrl, studentName) {
 async function markAllAs(status) {
     const classroomId = $('#classroom-select').val();
     const checkDate = $('#check-date').val();
+    if (!isWithinAllowedDate(checkDate)) {
+        return Swal.fire('ไม่สามารถบันทึกได้', getDateBlockMessage(checkDate), 'warning');
+    }
     const ids = [...$('#student-list tr[data-student-id]')].map(el => el.dataset.studentId);
     if (!ids.length) return Swal.fire('ไม่มีข้อมูล', 'ไม่มีรายชื่อนักเรียน', 'warning');
 
@@ -1171,7 +1559,11 @@ async function openStudentHistory(sid, name, no) {
     $('#student-history-modal').removeClass('hidden');
     $('#student-history-content').html('<div class="text-center py-10"><i class="fas fa-spinner fa-spin text-3xl text-blue-500"></i></div>');
 
-    const { data } = await db.from('homeroom_attendance').select('check_date, status').eq('student_id', sid).eq('classroom_id', classroomId).order('check_date', { ascending: true });
+    let query = db.from('homeroom_attendance').select('check_date, status').eq('student_id', sid).eq('classroom_id', classroomId);
+    if (selectedTerm) {
+        query = query.gte('check_date', selectedTerm.start_date).lte('check_date', selectedTerm.end_date);
+    }
+    const { data } = await query.order('check_date', { ascending: true });
 
     let counts = { 'มา': 0, 'ขาด': 0, 'สาย': 0, 'ลา': 0, 'ป่วย': 0 };
     let rows = '';
@@ -1197,7 +1589,9 @@ function exportStudentPDF(name, no, counts, tableRows, className) {
     Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน';
-    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+    const termInfo = selectedTerm
+        ? `ภาคเรียนที่ ${selectedTerm.semester} ปีการศึกษา ${selectedTerm.academic_year}`
+        : `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const history = currentViewStudent.history || [];
 
@@ -1289,7 +1683,6 @@ async function exportToExcel() {
     const className = $('#classroom-select option:selected').text();
     Swal.fire({ title: 'กำลังสร้างตาราง Excel...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    // Lazy load XLSX
     if (typeof XLSX === 'undefined') {
         await new Promise((resolve) => {
             const s = document.createElement('script');
@@ -1299,9 +1692,14 @@ async function exportToExcel() {
         });
     }
 
+    let attQuery = db.from('homeroom_attendance').select('*').eq('classroom_id', classroomId);
+    if (selectedTerm) {
+        attQuery = attQuery.gte('check_date', selectedTerm.start_date).lte('check_date', selectedTerm.end_date);
+    }
+
     const [{ data: students }, { data: allAttendance }] = await Promise.all([
         db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name)`).eq('classroom_id', classroomId).order('student_number'),
-        db.from('homeroom_attendance').select('*').eq('classroom_id', classroomId)
+        attQuery
     ]);
 
     if (!allAttendance || allAttendance.length === 0) {
@@ -1349,7 +1747,8 @@ async function exportToExcel() {
         XLSX.utils.book_append_sheet(wb, ws, sheetName);
     }
 
-    XLSX.writeFile(wb, `เช็คชื่อ_${className.replace(/\s+/g, '')}_ละเอียด.xlsx`);
+    const termLabel = selectedTerm ? `_${selectedTerm.semester}-${selectedTerm.academic_year}` : '';
+    XLSX.writeFile(wb, `เช็คชื่อ_${className.replace(/\s+/g, '')}${termLabel}.xlsx`);
     Swal.close();
 }
 
@@ -1370,7 +1769,9 @@ async function generatePDFReport() {
     Swal.fire({ title: 'กำลังสร้าง PDF...', text: 'จัดหน้าเอกสาร...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
-    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '1'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '2569'}`;
+    const termInfo = selectedTerm
+        ? `ภาคเรียนที่ ${selectedTerm.semester} ปีการศึกษา ${selectedTerm.academic_year}`
+        : `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '1'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '2569'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDateStr);
 
@@ -1407,7 +1808,6 @@ async function generatePDFReport() {
     const pages = [];
     let remaining = [...studentsList];
     while (remaining.length > 0) {
-        const isOnlyRemaining = remaining.length <= ROWS_NORMAL;
         if (remaining.length <= ROWS_LAST) {
             pages.push(remaining.splice(0, remaining.length));
         } else {
@@ -1539,10 +1939,11 @@ async function openHistoryModal() {
 
     Swal.fire({ title: 'กำลังโหลดประวัติ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
-    const { data } = await db.from('homeroom_attendance')
-        .select('check_date, status')
-        .eq('classroom_id', classroomId)
-        .order('check_date', { ascending: false });
+    let query = db.from('homeroom_attendance').select('check_date, status').eq('classroom_id', classroomId);
+    if (selectedTerm) {
+        query = query.gte('check_date', selectedTerm.start_date).lte('check_date', selectedTerm.end_date);
+    }
+    const { data } = await query.order('check_date', { ascending: false });
 
     Swal.close();
     if (!data || data.length === 0) {
@@ -1684,10 +2085,13 @@ async function loadGradeOverviewData() {
     $('#grade-overview-tbody').html('<tr><td colspan="8" class="py-16 text-center"><i class="fas fa-circle-notch fa-spin text-4xl text-purple-500 mb-4 drop-shadow-md"></i><p class="text-slate-500 font-bold tracking-wide">กำลังวิเคราะห์ข้อมูลระดับชั้น...</p></td></tr>');
 
     try {
+        const termYear = getTermYear();
+        const termSem = getTermSemester();
+
         const { data: allRooms, error: roomError } = await db.from('core_classrooms')
             .select('*')
-            .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester)
+            .eq('academic_year', termYear)
+            .eq('semester', termSem)
             .order('grade_level', { ascending: true })
             .order('room_number', { ascending: true });
         if (roomError) throw roomError;
@@ -1776,7 +2180,9 @@ function exportGradeOverviewPDF() {
     }
 
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน';
-    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+    const termInfo = selectedTerm
+        ? `ภาคเรียนที่ ${selectedTerm.semester} ปีการศึกษา ${selectedTerm.academic_year}`
+        : `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const thaiDateText = formatThaiDateFull(checkDate);
     const isAdminRoleForPDF = ['super_admin', 'admin', 'director', 'deputy'].includes(actualUserRole);
@@ -1900,10 +2306,12 @@ async function openStatsModal() {
     let allRooms = _perfCache.classrooms;
     if (!allRooms) {
         try {
+            const termYear = getTermYear();
+            const termSem = getTermSemester();
             const { data, error } = await db.from('core_classrooms')
                 .select('*')
-                .eq('academic_year', currentSchoolInfo?.current_academic_year)
-                .eq('semester', currentSchoolInfo?.current_semester)
+                .eq('academic_year', termYear)
+                .eq('semester', termSem)
                 .order('grade_level').order('room_number');
             if (error) throw error;
             allRooms = data || [];
@@ -1988,7 +2396,6 @@ async function generateStats() {
     Swal.fire({ title: 'กำลังประมวลผลข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
-        // Parallel: room data + enrollments + records
         const [roomRes, enrollRes, attRes] = await Promise.all([
             db.from('core_classrooms').select('adviser_id_1, adviser_id_2').eq('id', classroomId).single(),
             db.from('student_enrollments').select(`student_id, student_number, core_students(prefix, first_name, last_name, student_id_card)`).eq('classroom_id', classroomId).order('student_number'),
@@ -2094,8 +2501,8 @@ async function generateStats() {
         const chartWrapper = document.querySelector('#attendanceChart')?.parentElement;
         if (chartWrapper) chartWrapper.style.display = 'none';
 
-        const sem = currentSchoolInfo ? currentSchoolInfo.current_semester : '-';
-        const year = currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-';
+        const sem = selectedTerm?.semester || (currentSchoolInfo ? currentSchoolInfo.current_semester : '-');
+        const year = selectedTerm?.academic_year || (currentSchoolInfo ? currentSchoolInfo.current_academic_year : '-');
         document.getElementById('ui-stats-room-term').textContent = `ระดับชั้น: ${roomText} | ภาคเรียนที่ ${sem}/${year}`;
         document.getElementById('ui-stats-advisers').textContent = '';
         document.getElementById('stats-pdf-term').textContent = `ภาคเรียนที่ ${sem} ปีการศึกษา ${year}`;
@@ -2306,30 +2713,75 @@ function printStatsPDF() {
 }
 
 // ==========================================
-// Date Constraints
+// ✅ Date Constraints (ใช้ selectedTerm)
 // ==========================================
 function applyDateConstraints() {
-    const today = new Date();
-    const todayStr = new Date(today.getTime() - (today.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-    let minDateVal = (moduleSettings.enforce_term_start && termStartDate) ? termStartDate : null;
-    let maxDateVal = null;
+    if (!selectedTerm) return;
 
-    if (moduleSettings.lock_future_dates) {
-        if (termEndDate && new Date(todayStr) > new Date(termEndDate)) maxDateVal = termEndDate;
-        else maxDateVal = todayStr;
-    } else {
-        maxDateVal = termEndDate || null;
+    const todayStr = toLocalDateStr(new Date());
+    const startDate = selectedTerm.start_date;
+    const endDate = selectedTerm.end_date;
+
+    const $dateInput = $('#check-date');
+    $dateInput.attr('min', startDate);
+    $dateInput.attr('max', endDate);
+
+    if (document.querySelector('#check-date')?._flatpickr) {
+        const fp = document.querySelector('#check-date')._flatpickr;
+        fp.set('minDate', startDate);
+        fp.set('maxDate', endDate);
     }
 
-    const dateInputNode = document.querySelector('#check-date');
-    if (dateInputNode && dateInputNode._flatpickr) {
-        dateInputNode._flatpickr.set('minDate', minDateVal);
-        dateInputNode._flatpickr.set('maxDate', maxDateVal);
+    const isBeforeTerm = todayStr < startDate;
+    const isAfterTerm = todayStr > endDate;
+
+    const bannerEl = document.getElementById('term-status-banner');
+
+    if (isBeforeTerm) {
+        setCheckDisabled(true, `ยังไม่เปิดภาคเรียน ${selectedTerm.semester}/${selectedTerm.academic_year} (เปิด ${formatThaiDate(startDate)})`);
+        if (bannerEl) {
+            bannerEl.innerHTML = `
+                <div class="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl flex items-center gap-2">
+                    <i class="fas fa-lock text-rose-500"></i>
+                    <span class="font-bold text-sm">
+                        ยังไม่เปิดภาคเรียน ${selectedTerm.semester}/${selectedTerm.academic_year} 
+                        (เปิดวันที่ ${formatThaiDate(startDate)}) — ไม่สามารถเช็คชื่อล่วงหน้าได้
+                    </span>
+                </div>`;
+        }
+    } else if (isAfterTerm) {
+        setCheckDisabled(false);
+        if (bannerEl) {
+            bannerEl.innerHTML = `
+                <div class="bg-amber-50 border border-amber-200 text-amber-800 p-3 rounded-xl flex items-center gap-2">
+                    <i class="fas fa-history text-amber-600"></i>
+                    <span class="font-bold text-sm">
+                        ปิดภาคเรียนแล้ว (${formatThaiDate(endDate)}) — เปิดให้บันทึกย้อนหลังเพื่อสรุปยอดค้าง
+                    </span>
+                </div>`;
+        }
     } else {
-        const $dateInput = $('#check-date');
-        minDateVal ? $dateInput.attr('min', minDateVal) : $dateInput.removeAttr('min');
-        maxDateVal ? $dateInput.attr('max', maxDateVal) : $dateInput.removeAttr('max');
+        setCheckDisabled(false);
+        if (bannerEl) bannerEl.innerHTML = '';
     }
+
+    if (isReadOnly) applyReadOnlyState();
+}
+
+function setCheckDisabled(disabled, message = '') {
+    document.querySelectorAll('.status-btn').forEach(btn => {
+        btn.disabled = disabled;
+        btn.classList.toggle('opacity-50', disabled);
+        btn.classList.toggle('cursor-not-allowed', disabled);
+    });
+    document.querySelectorAll(
+        'button[onclick*="markAllAs"], button[onclick*="clearDailyData"], button[onclick*="clearAttendanceData"]'
+    ).forEach(btn => {
+        btn.disabled = disabled;
+        btn.classList.toggle('opacity-50', disabled);
+        btn.classList.toggle('cursor-not-allowed', disabled);
+    });
+    document.querySelectorAll('select.tiny-select').forEach(s => s.disabled = disabled);
 }
 
 // ==========================================
@@ -2517,5 +2969,10 @@ window.loadStudentList = loadStudentList;
 window.formatThaiDateFull = formatThaiDateFull;
 window.formatThaiDate = formatThaiDate;
 window.loadHomeroomAdvisors = loadHomeroomAdvisors;
+window.addAcademicTerm = addAcademicTerm;
+window.editAcademicTerm = editAcademicTerm;
+window.deleteAcademicTerm = deleteAcademicTerm;
+window.onTermChanged = onTermChanged;
+window.updateUIBasedOnRole = updateUIBasedOnRole;
 
-console.log('✅ attendance_teacher.js loaded (OPTIMIZED: parallel + cache + fire-and-forget log)');
+console.log('✅ attendance_teacher.js loaded (v3.1 — Academic Terms + Edit + Cleanup)');

@@ -100,7 +100,11 @@
                             <i class="fas fa-search text-blue-600"></i>
                             <h2 class="font-bold text-slate-700">เลือกข้อมูลการเช็คชื่อ</h2>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div class="space-y-1 relative z-[60]">
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ปี / ภาคเรียน</label>
+                                <select id="term-select" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all font-semibold outline-none shadow-sm"></select>
+                            </div>
                             <div class="space-y-1 relative z-50">
                                 <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชั้นเรียน</label>
                                 <select id="classroom-select" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm"></select>
@@ -110,6 +114,7 @@
                                 <input type="date" id="check-date" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm">
                             </div>
                         </div>
+                        <div id="term-status-banner"></div>
                     </div>
 
                     <div class="glass-panel p-5 bg-blue-50/50 flex flex-col justify-center border-blue-100 shadow-lg relative overflow-hidden rounded-2xl">
@@ -296,6 +301,7 @@
                 <button onclick="closeAdminModal()" class="text-slate-400 hover:text-rose-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto space-y-6 flex-1">
+                <!-- ===== ตั้งค่าทั่วไป ===== -->
                 <div class="space-y-4">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">ตั้งค่าทั่วไป</h3>
                     <div class="flex justify-between items-center bg-slate-50 p-4 rounded-xl">
@@ -318,21 +324,40 @@
                             <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                         </label>
                     </div>
-                    <div class="flex justify-between items-center bg-slate-50 p-4 rounded-xl">
-                        <div>
-                            <p class="font-bold text-slate-700">ยึดวันเปิดเทอมตามระบบส่วนกลาง</p>
-                            <p class="text-[11px] text-slate-500">ปิดสวิตช์นี้หากต้องการเช็คชื่อย้อนหลัง หรือทดสอบระบบก่อนเปิดเทอมจริง</p>
-                        </div>
-                        <label class="relative inline-flex items-center cursor-pointer">
-                            <input type="checkbox" id="setting-enforce-term-start" class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                        </label>
+                </div>
+
+                <!-- ===== จัดการภาคเรียน ===== -->
+                <div class="space-y-4">
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">
+                        <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i> จัดการภาคเรียน (วันเปิด-ปิด)
+                    </h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <input type="text" id="term-new-year" placeholder="ปีการศึกษา เช่น 2569" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm">
+                        <select id="term-new-sem" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm bg-white">
+                            <option value="1">เทอม 1</option>
+                            <option value="2">เทอม 2</option>
+                        </select>
+                        <input type="date" id="term-new-start" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm" title="วันเปิด">
+                        <input type="date" id="term-new-end" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm" title="วันปิด">
                     </div>
-                    <div class="bg-slate-50 p-4 rounded-xl space-y-2">
-                        <label class="font-bold text-slate-700 block">วันสิ้นสุดการเช็คชื่อ (ของเทอมนี้)</label>
-                        <input type="date" id="setting-end-date" class="w-full px-4 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none">
+                    <button onclick="addAcademicTerm()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-bold transition-colors text-sm">
+                        <i class="fas fa-plus mr-1"></i> เพิ่มภาคเรียน
+                    </button>
+                    <div class="border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-3 py-2">ปี/เทอม</th>
+                                    <th class="px-3 py-2">เปิด - ปิด</th>
+                                    <th class="px-3 py-2 text-center w-20">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody id="academic-terms-table" class="divide-y divide-slate-100 bg-white"></tbody>
+                        </table>
                     </div>
                 </div>
+
+                <!-- ===== จัดการวันหยุด ===== -->
                 <div class="space-y-4">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">จัดการวันหยุด (ระบบบันทึก "มา" อัตโนมัติ)</h3>
                     <div class="flex gap-2">
@@ -342,13 +367,15 @@
                     </div>
                     <div class="border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
                         <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-50 text-slate-500">
+                            <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10">
                                 <tr><th class="px-4 py-2">วันที่</th><th class="px-4 py-2">คำอธิบาย</th><th class="px-4 py-2 text-center">จัดการ</th></tr>
                             </thead>
                             <tbody id="holiday-list-table" class="divide-y divide-slate-100 bg-white"></tbody>
                         </table>
                     </div>
                 </div>
+
+                <!-- ===== บันทึกย้อนหลัง ===== -->
                 <div class="space-y-4">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2"><i class="fas fa-clock-rotate-left mr-1"></i> บันทึกมาเรียนย้อนหลัง (ทั้งโรงเรียน)</h3>
                     <div class="flex flex-col sm:flex-row gap-2 items-end">
@@ -423,7 +450,7 @@
     <script>
         function getAttendanceFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK Attendance',
@@ -445,16 +472,38 @@
                         collapsible: false,
                         defaultOpen: true,
                         items: [
-                            { id: 'btn-stats-report', icon: 'fa-chart-pie', label: 'รายงานสถิติ', onclick: 'openStatsModal()' },
-                            { id: 'btn-grade-overview', icon: 'fa-chart-bar', label: 'ภาพรวมระดับชั้น', onclick: 'openGradeOverview()', hidden: true },
-                            { id: 'btn-history', icon: 'fa-history', label: 'ประวัติการเช็คชื่อ', onclick: 'openHistoryModal()' }
+                            {
+                                id: 'btn-stats-report',
+                                icon: 'fa-chart-pie',
+                                label: 'รายงานสถิติ',
+                                onclick: 'openStatsModal()'
+                            },
+                            {
+                                id: 'btn-grade-overview',
+                                icon: 'fa-chart-bar',
+                                label: 'ภาพรวมระดับชั้น',
+                                onclick: 'openGradeOverview()',
+                                class: 'hidden'
+                            },
+                            {
+                                id: 'btn-history',
+                                icon: 'fa-history',
+                                label: 'ประวัติการเช็คชื่อ',
+                                onclick: 'openHistoryModal()'
+                            }
                         ]
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
                 footerMenu: [
-                    { id: 'admin-settings-btn', icon: 'fa-cog', label: 'ตั้งค่าระบบ', onclick: 'openAdminModal()', hidden: true }
+                    {
+                        id: 'admin-settings-btn',
+                        icon: 'fa-cog',
+                        label: 'ตั้งค่าระบบ',
+                        onclick: 'openAdminModal()',
+                        class: 'hidden'
+                    }
                 ],
                 logoutItem: {
                     icon: 'fa-power-off',
@@ -471,7 +520,8 @@
         }
 
         initModuleSidebar({
-            moduleKey: 'attendance',
+            moduleKey: null,
+            skipAutoRender: true,
             pageTitle: 'ระบบเช็คชื่อหน้าเสาธง',
             activeId: 'nav-attendance',
             topbarButtons: [{
@@ -480,9 +530,34 @@
                 label: 'โหมดแอดมิน',
                 onclick: 'toggleRoleView()',
                 class: 'hidden d-btn-mode admin',
-                title: 'สลับโหมดมุมมอง'
+                title: 'สลับมุมมอง'
             }],
-            fallbackConfig: getAttendanceFallbackConfig()
+            fallbackConfig: getAttendanceFallbackConfig(),
+            onReady: () => {
+                if (typeof renderSidebar === 'function') {
+                    renderSidebar({ ...getAttendanceFallbackConfig(), autoActivate: false });
+                }
+                if (typeof renderTopbar === 'function') {
+                    renderTopbar({
+                        pageTitle: 'ระบบเช็คชื่อหน้าเสาธง',
+                        buttons: [{
+                            id: 'btnAdminMode',
+                            html: '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>',
+                            onclick: 'toggleRoleView()',
+                            class: 'hidden d-btn-mode admin',
+                            title: 'สลับมุมมอง'
+                        }],
+                        breadcrumb: [
+                            { label: 'หน้าหลัก', href: 'index.html' },
+                            { label: 'ระบบเช็คชื่อหน้าเสาธง' }
+                        ]
+                    });
+                }
+                if (typeof updateUIBasedOnRole === 'function') {
+                    updateUIBasedOnRole();
+                }
+                if (typeof setTodayChip === 'function') setTodayChip();
+            }
         });
     </script>
 </body>

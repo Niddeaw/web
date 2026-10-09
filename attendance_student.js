@@ -1,13 +1,16 @@
 /**
- * WRK System - Student Attendance Viewer
- * นักเรียนดูประวัติการเช็คชื่อของตนเอง
- * ใช้ Nested Select เพื่อดึงข้อมูลนักเรียน + Enrollment + ห้องเรียน พร้อมกัน
+ * WRK System - Student Attendance Viewer (v2 — Term Selector)
+ * นักเรียนดูประวัติการเช็คชื่อของตนเอง พร้อมเลือกเทอมย้อนหลัง
  */
 
 let currentStudent = null;
 let currentEnrollment = null;
 let currentSchoolInfo = null;
 let attendanceHistory = [];
+
+// ✅ Academic Terms
+let academicTerms = [];
+let selectedTerm = null;
 
 function formatThaiDateFull(dateStr) {
     if (!dateStr) return '';
@@ -36,7 +39,6 @@ async function checkAuth() {
         const studentSid = session.user.email.split('@')[0];
         console.log('🔍 Student SID:', studentSid);
 
-        // ✅ ใช้ Nested Select (แบบเดียวกับ behavior_student.html)
         const { data: student, error: studentError } = await db
             .from('core_students')
             .select(`
@@ -65,7 +67,6 @@ async function checkAuth() {
         currentStudent = student;
         console.log('✅ Student found:', currentStudent.id);
 
-        // ✅ ตรวจสอบ enrollment
         const enrollments = student.student_enrollments || [];
         console.log('📋 Enrollments from nested select:', enrollments);
 
@@ -74,46 +75,60 @@ async function checkAuth() {
             return;
         }
 
-        // ✅ เลือก enrollment ล่าสุด
+        // โหลด school_info + terms (parallel)
+        const [schoolRes, termsRes] = await Promise.all([
+            db.from('core_school_info').select('*').single(),
+            db.from('core_academic_terms').select('*').eq('is_active', true)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false })
+        ]);
+
+        if (schoolRes.data) currentSchoolInfo = schoolRes.data;
+        if (termsRes.data) academicTerms = termsRes.data;
+
+        // ✅ หา enrollment ล่าสุดเป็น default
         const sorted = [...enrollments].sort((a, b) => {
             const yearA = parseInt(a.academic_year) || 0;
             const yearB = parseInt(b.academic_year) || 0;
             if (yearA !== yearB) return yearB - yearA;
-            return (b.semester || 0) - (a.semester || 0);
+            return (parseInt(b.semester) || 0) - (parseInt(a.semester) || 0);
         });
 
-        const enrollment = sorted[0];
-        console.log('✅ Selected enrollment:', enrollment);
+        const latestEnr = sorted[0];
+        console.log('✅ Selected latest enrollment:', latestEnr);
 
-        // ✅ ตรวจสอบ classroom
-        const classroom = enrollment.core_classrooms;
+        const classroom = latestEnr.core_classrooms;
         if (!classroom) {
             console.error('❌ No classroom data');
             Swal.fire('ไม่พบห้องเรียน', 'ไม่พบข้อมูลห้องเรียนของท่าน กรุณาติดต่อครูที่ปรึกษา', 'warning').then(() => logout());
             return;
         }
 
-        // ✅ เก็บข้อมูล
         currentEnrollment = {
-            student_number: enrollment.student_number,
-            classroom_id: enrollment.classroom_id,
+            student_number: latestEnr.student_number,
+            classroom_id: latestEnr.classroom_id,
+            academic_year: latestEnr.academic_year,
+            semester: latestEnr.semester,
             core_classrooms: classroom
         };
 
-        const { data: schoolInfo } = await db.from('core_school_info').select('*').single();
-        if (schoolInfo) currentSchoolInfo = schoolInfo;
+        // ✅ ตั้ง default term
+        if (academicTerms.length > 0) {
+            const defaultKey = `${latestEnr.academic_year}_${latestEnr.semester}`;
+            selectedTerm = academicTerms.find(t => `${t.academic_year}_${t.semester}` === defaultKey) || academicTerms[0];
+        }
 
         // ✅ แสดงข้อมูลส่วนตัว
         const fullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
         const className = `ม.${classroom.grade_level}/${classroom.room_number}`;
-        
+
         $('#student-fullname').text(fullName);
         $('#student-info').html(`
             <p><i class="fas fa-graduation-cap w-5 text-center text-emerald-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ${className}</p>
             <p><i class="fas fa-list-ol w-5 text-center text-emerald-400 drop-shadow-sm"></i> เลขที่ ${currentEnrollment.student_number || '-'}</p>
             <p><i class="fas fa-id-card w-5 text-center text-emerald-400 drop-shadow-sm"></i> รหัสประจำตัว: ${currentStudent.student_id_card || '-'}</p>
         `);
-        
+
         // ✅ จัดการรูปโปรไฟล์
         const avatarUrl = currentStudent.avatar_students_url;
         if (avatarUrl) {
@@ -127,6 +142,9 @@ async function checkAuth() {
 
         $('#user-display').html(`<i class="fas fa-user-graduate mr-1 text-emerald-600"></i>${currentStudent.first_name} ${currentStudent.last_name}`);
 
+        // ✅ populate term dropdown
+        populateStudentTermSelect();
+
         await loadAttendanceHistory();
     } catch (err) {
         console.error('❌ Auth Error:', err);
@@ -134,12 +152,122 @@ async function checkAuth() {
     }
 }
 
+// ==========================================
+// ✅ Term Dropdown
+// ==========================================
+function populateStudentTermSelect() {
+    const sel = document.getElementById('term-select-student');
+    if (!sel) return;
+
+    if (academicTerms.length === 0) {
+        sel.innerHTML = '<option value="">-- ไม่พบภาคเรียน --</option>';
+        return;
+    }
+
+    const studentEnrollments = currentStudent.student_enrollments || [];
+
+    sel.innerHTML = academicTerms.map(t => {
+        const key = `${t.academic_year}_${t.semester}`;
+        const hasEnr = studentEnrollments.some(e =>
+            String(e.academic_year) === String(t.academic_year) &&
+            String(e.semester) === String(t.semester)
+        );
+        const isSelected = selectedTerm && `${selectedTerm.academic_year}_${selectedTerm.semester}` === key;
+        return `<option value="${key}" ${!hasEnr ? 'disabled' : ''} ${isSelected ? 'selected' : ''}>
+            เทอม ${t.semester}/${t.academic_year}${!hasEnr ? ' (ไม่มีข้อมูล)' : ''}
+        </option>`;
+    }).join('');
+
+    // set value
+    if (selectedTerm) {
+        const key = `${selectedTerm.academic_year}_${selectedTerm.semester}`;
+        if (academicTerms.some(t => `${t.academic_year}_${t.semester}` === key)) {
+            sel.value = key;
+        }
+    }
+
+    updateStudentTermDisplay();
+}
+
+function updateStudentTermDisplay() {
+    const el = document.getElementById('student-current-term');
+    if (!el) return;
+
+    if (!selectedTerm) {
+        el.innerHTML = '<i class="fas fa-calendar-alt mr-1"></i> ไม่พบข้อมูลเทอม';
+        return;
+    }
+
+    const startThai = formatThaiDateFull(selectedTerm.start_date);
+    const endThai = formatThaiDateFull(selectedTerm.end_date);
+    el.innerHTML = `<i class="fas fa-calendar-alt mr-1"></i> เทอม ${selectedTerm.semester}/${selectedTerm.academic_year} (${startThai} - ${endThai})`;
+}
+
+async function onStudentTermChanged() {
+    const sel = document.getElementById('term-select-student');
+    const key = sel.value;
+    if (!key) return;
+
+    selectedTerm = academicTerms.find(t => `${t.academic_year}_${t.semester}` === key);
+    if (!selectedTerm) return;
+
+    const enrollments = currentStudent.student_enrollments || [];
+    const targetEnr = enrollments.find(e =>
+        String(e.academic_year) === String(selectedTerm.academic_year) &&
+        String(e.semester) === String(selectedTerm.semester)
+    );
+
+    if (!targetEnr) {
+        Swal.fire('ไม่มีข้อมูล', 'ไม่พบการลงทะเบียนในภาคเรียนนี้', 'info');
+        return;
+    }
+
+    currentEnrollment = {
+        student_number: targetEnr.student_number,
+        classroom_id: targetEnr.classroom_id,
+        academic_year: targetEnr.academic_year,
+        semester: targetEnr.semester,
+        core_classrooms: targetEnr.core_classrooms
+    };
+
+    // อัปเดตการแสดงผล
+    const classroom = targetEnr.core_classrooms;
+    if (classroom) {
+        const className = `ม.${classroom.grade_level}/${classroom.room_number}`;
+        $('#student-info').html(`
+            <p><i class="fas fa-graduation-cap w-5 text-center text-emerald-400 drop-shadow-sm"></i> ชั้นมัธยมศึกษาปีที่ ${className}</p>
+            <p><i class="fas fa-list-ol w-5 text-center text-emerald-400 drop-shadow-sm"></i> เลขที่ ${targetEnr.student_number || '-'}</p>
+            <p><i class="fas fa-id-card w-5 text-center text-emerald-400 drop-shadow-sm"></i> รหัสประจำตัว: ${currentStudent.student_id_card || '-'}</p>
+        `);
+    }
+
+    updateStudentTermDisplay();
+    await loadAttendanceHistory();
+}
+
+// ==========================================
+// Load Attendance History
+// ==========================================
 async function loadAttendanceHistory() {
-    const { data, error } = await db.from('homeroom_attendance')
+    $('#history-list').html(`
+        <tr><td colspan="2" class="text-center py-16">
+            <i class="fas fa-spinner fa-spin text-3xl text-emerald-200"></i>
+            <p class="text-slate-400 font-medium mt-2">กำลังโหลด...</p>
+        </td></tr>`);
+
+    let query = db.from('homeroom_attendance')
         .select('check_date, status')
         .eq('student_id', currentStudent.id)
-        .eq('classroom_id', currentEnrollment.classroom_id)
-        .order('check_date', { ascending: false });
+        .eq('classroom_id', currentEnrollment.classroom_id);
+
+    // ✅ filter ตามช่วงวันที่ของเทอมที่เลือก
+    if (selectedTerm) {
+        query = query
+            .gte('check_date', selectedTerm.start_date)
+            .lte('check_date', selectedTerm.end_date);
+    }
+
+    const { data, error } = await query.order('check_date', { ascending: false });
 
     if (error) {
         $('#history-list').html('<tr><td colspan="2" class="text-center py-10 text-rose-500">ไม่สามารถโหลดข้อมูลได้</td></tr>');
@@ -187,6 +315,9 @@ async function loadAttendanceHistory() {
     $('#history-list').html(rows);
 }
 
+// ==========================================
+// Export PDF
+// ==========================================
 async function exportToPDF() {
     if (attendanceHistory.length === 0) {
         Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีประวัติให้พิมพ์', 'info');
@@ -196,7 +327,12 @@ async function exportToPDF() {
     Swal.fire({ title: 'กำลังสร้างเอกสาร PDF...', text: 'จัดหน้าเอกสาร กรุณารอสักครู่...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const schoolName = currentSchoolInfo?.school_name_th || currentSchoolInfo?.school_name || 'โรงเรียน (ตั้งค่าชื่อโรงเรียนในระบบส่วนกลาง)';
-    const termInfo = `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+
+    // ✅ ใช้ข้อมูลเทอมที่เลือก
+    const termInfo = selectedTerm
+        ? `ภาคเรียนที่ ${selectedTerm.semester} ปีการศึกษา ${selectedTerm.academic_year}`
+        : `ภาคเรียนที่ ${currentSchoolInfo?.current_semester || '-'} ปีการศึกษา ${currentSchoolInfo?.current_academic_year || '-'}`;
+
     const logoUrl = currentSchoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
     const studentFullName = `${currentStudent.prefix || ''}${currentStudent.first_name} ${currentStudent.last_name}`;
     const className = `ม.${currentEnrollment.core_classrooms.grade_level}/${currentEnrollment.core_classrooms.room_number}`;
@@ -284,7 +420,7 @@ async function exportToPDF() {
 
     const opt = {
         margin: 5,
-        filename: `ประวัติการมาเรียน_${studentFullName.replace(/\s+/g, '')}.pdf`,
+        filename: `ประวัติการมาเรียน_${studentFullName.replace(/\s+/g, '')}_${selectedTerm ? selectedTerm.semester + '-' + selectedTerm.academic_year : ''}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, useCORS: true, allowTaint: true },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -300,3 +436,6 @@ async function logout() {
     await db.auth.signOut();
     window.location.href = "index.html";
 }
+
+// Export
+window.onStudentTermChanged = onStudentTermChanged;

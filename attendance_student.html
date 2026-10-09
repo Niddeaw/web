@@ -3,10 +3,7 @@
 
 <head>
     <title>เช็คชื่อของฉัน | WRK System</title>
-    <!-- 1. โหลด Library ส่วนกลางทั้งหมดผ่านไฟล์เดียว -->
     <script src="core_head.js"></script>
-
-    <!-- 2. โหลด Script และ CSS ที่เฉพาะเจาะจงสำหรับหน้านี้เท่านั้น -->
     <script src="config.js"></script>
     <link rel="stylesheet" href="style.css">
 </head>
@@ -41,12 +38,12 @@
         </div>
     </nav>
 
-<main class="mx-4 mt-6 max-w-5xl md:mx-auto relative z-10">
-        
+    <main class="mx-4 mt-6 max-w-5xl md:mx-auto relative z-10">
+
         <div class="bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 md:p-8 flex flex-col md:flex-row items-center gap-6 border border-white shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden transition-all duration-300 hover:shadow-[0_8px_30px_rgba(16,185,129,0.08)]">
             <div class="absolute -right-10 -top-10 w-40 h-40 bg-emerald-400/10 rounded-full blur-3xl pointer-events-none"></div>
             <div class="absolute -left-10 -bottom-10 w-32 h-32 bg-blue-400/10 rounded-full blur-3xl pointer-events-none"></div>
-            
+
             <i class="fas fa-id-card absolute -right-6 -bottom-6 text-8xl text-emerald-50/50 z-0 -rotate-12"></i>
 
             <div class="w-28 h-28 shrink-0 rounded-[1.5rem] bg-emerald-50 text-emerald-300 flex items-center justify-center border-4 border-white shadow-lg overflow-hidden z-10 rotate-3 transition-transform hover:rotate-0 duration-300">
@@ -54,18 +51,25 @@
                     onerror="this.onerror=null; this.src='https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';">
                 <i id="student-avatar-placeholder" class="fas fa-user text-5xl"></i>
             </div>
-            
-            <div class="text-center md:text-left z-10">
+
+            <div class="text-center md:text-left z-10 flex-1">
                 <p class="text-xs font-black text-emerald-500 uppercase tracking-widest mb-1 bg-emerald-50 inline-block px-3 py-1 rounded-full border border-emerald-100">ข้อมูลนักเรียน</p>
                 <h2 id="student-fullname" class="text-2xl font-bold text-slate-800 mb-2 mt-2 leading-tight">กำลังโหลดข้อมูล...</h2>
                 <div id="student-info" class="text-sm font-medium text-slate-500 space-y-1">
                     <p><i class="fas fa-spinner fa-spin mr-1"></i> กรุณารอสักครู่...</p>
                 </div>
+                <p id="student-current-term" class="mt-2 text-xs font-bold text-emerald-700 bg-emerald-50 inline-block px-3 py-1 rounded-full border border-emerald-100">
+                    กำลังโหลด...
+                </p>
             </div>
-            
-            <div class="md:ml-auto z-10 mt-4 md:mt-0">
+
+            <div class="md:ml-auto z-10 mt-4 md:mt-0 flex flex-col sm:flex-row gap-2">
+                <select id="term-select-student" onchange="onStudentTermChanged()"
+                    class="px-4 py-3 bg-white border border-emerald-200 rounded-2xl text-sm font-bold text-emerald-700 outline-none focus:border-emerald-500 min-w-[220px] shadow-sm cursor-pointer">
+                    <option value="">-- กำลังโหลดเทอม --</option>
+                </select>
                 <button onclick="exportToPDF()" class="px-5 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white rounded-2xl font-bold shadow-md shadow-emerald-500/20 transition-all duration-300 hover:-translate-y-1 flex items-center gap-2">
-                    <i class="fas fa-file-pdf fa-bounce" style="--fa-animation-duration: 2s;"></i> บันทึก PDF
+                    <i class="fas fa-file-pdf"></i> บันทึก PDF
                 </button>
             </div>
         </div>
@@ -119,7 +123,7 @@
                 </div>
                 <h3 class="font-bold text-slate-700 text-lg">ประวัติการเช็คชื่อทั้งหมด</h3>
             </div>
-            
+
             <div class="overflow-x-auto min-h-[300px] p-2">
                 <table class="w-full text-left border-collapse">
                     <thead>
