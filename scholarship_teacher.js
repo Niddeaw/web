@@ -3033,13 +3033,14 @@ async function insertScholarship(studentId, scholarshipName, amount, academicYea
 
 // ===== REFRESH DASHBOARD =====
 function refreshDashboard(forceRefresh = false) {
-    if (typeof window.loadDashboard === 'function' && currentYear && currentTerm) {
+    if (typeof window.loadDashboard === 'function' && currentYear) {
         if (forceRefresh && typeof window.clearDashboardCache === 'function') {
             window.clearDashboardCache();
         }
-        window.loadDashboard(currentYear, currentTerm);
+        // ✅ ส่งเฉพาะ currentYear (ตัด currentTerm ออก)
+        window.loadDashboard(currentYear);
     } else {
-        console.warn('⚠️ loadDashboard not ready or missing year/term');
+        console.warn('⚠️ loadDashboard not ready or missing year');
     }
 }
 

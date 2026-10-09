@@ -14,14 +14,14 @@ const DASHBOARD_TTL = 60 * 1000; // 60 seconds
 /**
  * โหลดข้อมูลสำหรับ Dashboard (ใช้ Batch Query + Cache)
  */
-async function loadDashboard(academicYear, semester) {
-    console.log('📊 loadDashboard called with:', academicYear, semester);
+async function loadDashboard(academicYear) {
+    console.log('📊 loadDashboard called with year:', academicYear);
 
-    // ✅ Cache check
-    const cacheKey = `${academicYear}_${semester}`;
+    // ✅ Cache key ใช้แค่ปี
+    const cacheKey = `${academicYear}`;
     if (_dashboardCache && _dashboardCacheKey === cacheKey && (Date.now() - _dashboardCacheTime) < DASHBOARD_TTL) {
         console.log('⚡ loadDashboard: จาก cache');
-        applyDashboardData(_dashboardCache, academicYear, semester);
+        applyDashboardData(_dashboardCache, academicYear);
         return;
     }
 
@@ -46,41 +46,37 @@ async function loadDashboard(academicYear, semester) {
 
         const fetchApplicationsCount = async () => {
             try {
-                const result = await db
+                return await db
                     .from('core_scholarship_applications')
                     .select('*', { count: 'exact', head: true })
                     .gte('created_at', startDate.toISOString())
                     .lt('created_at', endDate.toISOString());
-                return result;
             } catch (e) {
                 console.warn('ไม่สามารถกรองด้วย created_at ได้ (fallback):', e);
-                const result = await db
+                return await db
                     .from('core_scholarship_applications')
                     .select('*', { count: 'exact', head: true });
-                return result;
             }
         };
 
         const fetchApprovedCount = async () => {
             try {
-                const result = await db
+                return await db
                     .from('core_scholarship_applications')
                     .select('*', { count: 'exact', head: true })
                     .eq('status', 'approved')
                     .gte('created_at', startDate.toISOString())
                     .lt('created_at', endDate.toISOString());
-                return result;
             } catch (e) {
                 console.warn('ไม่สามารถกรองอนุมัติด้วย created_at ได้ (fallback):', e);
-                const result = await db
+                return await db
                     .from('core_scholarship_applications')
                     .select('*', { count: 'exact', head: true })
                     .eq('status', 'approved');
-                return result;
             }
         };
 
-        // ✅ Batch Query 4 queries พร้อมกัน
+        // ✅ ตัด .eq('semester', semester) ออก → ดึงทั้งปี
         const [
             scholarshipsResult,
             distinctStudentsResult,
@@ -89,12 +85,10 @@ async function loadDashboard(academicYear, semester) {
         ] = await Promise.all([
             db.from('core_scholarships')
                 .select('scholarship_name')
-                .eq('academic_year', academicYear)
-                .eq('semester', semester),
+                .eq('academic_year', academicYear),
             db.from('core_scholarships')
                 .select('student_id')
-                .eq('academic_year', academicYear)
-                .eq('semester', semester),
+                .eq('academic_year', academicYear),
             fetchApplicationsCount(),
             fetchApprovedCount()
         ]);
@@ -113,22 +107,21 @@ async function loadDashboard(academicYear, semester) {
             studentIds: [...uniqueStudentIds]
         };
 
-        // ✅ เก็บ cache
         _dashboardCache = stats;
         _dashboardCacheKey = cacheKey;
         _dashboardCacheTime = Date.now();
 
-        await applyDashboardData(stats, academicYear, semester);
+        await applyDashboardData(stats, academicYear);
 
         attachCardClickEvents();
-        console.log('✅ Dashboard loaded successfully');
+        console.log('✅ Dashboard loaded (ทั้งปี ไม่แยกเทอม)');
     } catch (error) {
         console.error('❌ Error loading dashboard:', error);
     }
 }
 
 // ✅ Helper: Apply stats + render charts (Bar + Pie)
-async function applyDashboardData(stats, academicYear, semester) {
+async function applyDashboardData(stats, academicYear) {
     const cardElements = {
         totalScholarships: document.getElementById('card-total-scholarships'),
         totalStudents: document.getElementById('card-total-students'),
@@ -212,7 +205,7 @@ async function applyDashboardData(stats, academicYear, semester) {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: `จำนวนนักเรียนที่ได้รับทุน (ปี ${academicYear} เทอม ${semester})`,
+                        text: `จำนวนนักเรียนที่ได้รับทุน (ปี ${academicYear})`,
                         font: { size: 13, weight: '600' }
                     }
                 },
@@ -389,52 +382,67 @@ function attachCardClickEvents() {
 // ---------- การ์ดที่ 1: ทุนทั้งหมด (คลิกชื่อทุนได้) ----------
 window.showScholarshipList = async function () {
     const academicYear = currentYear;
-    const semester = currentTerm;
-    if (!academicYear || !semester) {
+    if (!academicYear) {
         Swal.fire('ยังไม่พร้อม', 'กรุณารอระบบโหลดข้อมูล', 'info');
         return;
     }
 
     try {
+        // ✅ ตัดตัวกรองเทอม + เพิ่มคอลัมน์เทอมในการ select
         const { data, error } = await db
             .from('core_scholarships')
-            .select('scholarship_name, amount, student_id')
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
+            .select('scholarship_name, amount, student_id, semester')
+            .eq('academic_year', academicYear);
 
         if (error) throw error;
 
         if (!data || data.length === 0) {
-            Swal.fire('ไม่มีข้อมูล', 'ยังไม่มีรายการทุนในปี/เทอมนี้', 'info');
+            Swal.fire('ไม่มีข้อมูล', `ยังไม่มีรายการทุนในปีการศึกษา ${academicYear}`, 'info');
             return;
         }
 
+        // ✅ Group by (ชื่อทุน + เทอม) เพื่อให้เห็นว่าเทอมไหนได้เท่าไร
         const grouped = {};
         data.forEach(item => {
             const name = item.scholarship_name || 'ไม่ระบุชื่อทุน';
-            if (!grouped[name]) {
-                grouped[name] = { count: 0, totalAmount: 0, studentIds: new Set() };
+            const term = item.semester || '-';
+            const key = `${name}__${term}`;
+            if (!grouped[key]) {
+                grouped[key] = {
+                    scholarship_name: name,
+                    semester: term,
+                    count: 0,
+                    totalAmount: 0,
+                    studentIds: new Set()
+                };
             }
-            grouped[name].count += 1;
-            grouped[name].totalAmount += (item.amount || 0);
-            if (item.student_id) grouped[name].studentIds.add(item.student_id);
+            grouped[key].count += 1;
+            grouped[key].totalAmount += (item.amount || 0);
+            if (item.student_id) grouped[key].studentIds.add(item.student_id);
         });
 
         let totalAllAmount = 0;
         const tableData = [];
-        Object.keys(grouped).forEach(name => {
-            const { count, totalAmount, studentIds } = grouped[name];
-            totalAllAmount += totalAmount;
+        Object.values(grouped).forEach(g => {
+            totalAllAmount += g.totalAmount;
             tableData.push({
-                scholarship_name: name,
-                count: count,
-                student_count: studentIds.size,
-                total_amount: totalAmount
+                scholarship_name: g.scholarship_name,
+                semester: g.semester,
+                count: g.count,
+                student_count: g.studentIds.size,
+                total_amount: g.totalAmount
             });
+        });
+
+        // เรียงตามเทอม
+        tableData.sort((a, b) => {
+            if (a.semester !== b.semester) return String(a.semester).localeCompare(String(b.semester));
+            return a.scholarship_name.localeCompare(b.scholarship_name);
         });
 
         tableData.push({
             scholarship_name: '📊 รวมทั้งหมด',
+            semester: '',
             count: data.length,
             student_count: new Set(data.map(d => d.student_id)).size,
             total_amount: totalAllAmount,
@@ -450,10 +458,16 @@ window.showScholarshipList = async function () {
                     if (row._isTotal) {
                         return `<span class="font-bold">${escapeHtml(data)}</span>`;
                     }
-                    return `<button class="scholarship-name-btn text-blue-600 hover:text-blue-800 hover:underline font-bold text-left transition" data-name="${escapeHtml(data)}">
+                    return `<button class="scholarship-name-btn text-blue-600 hover:text-blue-800 hover:underline font-bold text-left transition" data-name="${escapeHtml(data)}" data-semester="${escapeHtml(row.semester)}">
                         <i class="fas fa-hand-pointer mr-1 text-xs"></i>${escapeHtml(data)}
                     </button>`;
                 }
+            },
+            {
+                data: 'semester',
+                title: 'ภาคเรียน',
+                className: 'text-center',
+                render: (d) => d ? `เทอม ${d}` : '-'
             },
             { data: 'count', title: 'จำนวน (ทุน)', className: 'text-center' },
             { data: 'student_count', title: 'จำนวน (คน)', className: 'text-center' },
@@ -476,14 +490,18 @@ window.showScholarshipList = async function () {
                 });
             }
 
-            // ✅ ผูก event คลิกชื่อทุน
+            // ✅ ส่ง semester เข้าไปด้วย เพื่อแสดงรายชื่อของทุน+เทอมนั้น
             $('.scholarship-name-btn').off('click').on('click', function () {
                 const name = $(this).data('name');
-                showScholarshipStudents(name, academicYear, semester);
+                const sem = $(this).data('semester');
+                showScholarshipStudents(name, academicYear, sem);
             });
         };
 
-        showDataTableInSwal('💰 รายการทุนทั้งหมด', columns, tableData, rowCallback);
+        showDataTableInSwal(
+            `💰 รายการทุนทั้งหมด (ปีการศึกษา ${academicYear})`,
+            columns, tableData, rowCallback
+        );
 
     } catch (err) {
         console.error(err);
@@ -497,13 +515,18 @@ window.showScholarshipList = async function () {
 // ==========================================
 window.showScholarshipStudents = async function (scholarshipName, academicYear, semester) {
     try {
-        const { data: scholarships, error } = await db
+        // ✅ ถ้ามี semester → กรองเทอมนั้น / ถ้าไม่มี → ดูทั้งปี
+        let query = db
             .from('core_scholarships')
-            .select('id, student_id, amount, note, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .select('id, student_id, amount, note, semester, core_students(id, student_id_card, prefix, first_name, last_name)')
             .eq('scholarship_name', scholarshipName)
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
+            .eq('academic_year', academicYear);
 
+        if (semester) {
+            query = query.eq('semester', semester);
+        }
+
+        const { data: scholarships, error } = await query;
         if (error) throw error;
 
         if (!scholarships || scholarships.length === 0) {
@@ -511,21 +534,24 @@ window.showScholarshipStudents = async function (scholarshipName, academicYear, 
             return;
         }
 
-        // ✅ ดึงชั้นเรียนล่าสุด
+        // ✅ ดึงชั้นเรียนล่าสุดของแต่ละคน
         const studentIds = [...new Set(scholarships.map(s => s.student_id))];
         let classroomMap = {};
         try {
             const { data: enrolls } = await db
                 .from('student_enrollments')
-                .select('student_id, core_classrooms(grade_level, room_number)')
+                .select('student_id, academic_year, semester, core_classrooms(grade_level, room_number)')
                 .in('student_id', studentIds)
-                .eq('academic_year', academicYear)
-                .eq('semester', semester);
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false });
 
+            const latest = {};
             (enrolls || []).forEach(en => {
-                if (en.core_classrooms) {
-                    classroomMap[en.student_id] = `ม.${en.core_classrooms.grade_level}/${en.core_classrooms.room_number}`;
-                }
+                if (!latest[en.student_id]) latest[en.student_id] = en;
+            });
+            Object.keys(latest).forEach(id => {
+                const c = latest[id].core_classrooms;
+                if (c) classroomMap[id] = `ม.${c.grade_level}/${c.room_number}`;
             });
         } catch (e) {
             console.warn('โหลดชั้นเรียนไม่สำเร็จ:', e);
@@ -533,22 +559,23 @@ window.showScholarshipStudents = async function (scholarshipName, academicYear, 
 
         const totalAmount = scholarships.reduce((sum, s) => sum + (s.amount || 0), 0);
 
+        // ✅ เพิ่มคอลัมน์เทอม
         const tableData = scholarships.map(s => {
             const std = s.core_students;
             return {
                 grade: classroomMap[s.student_id] || '-',
                 id_card: std?.student_id_card || '-',
                 name: std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'ไม่พบข้อมูล',
+                semester: s.semester || '-',
                 amount: s.amount || 0,
                 note: s.note || '-'
             };
         });
 
-        // ✅ เพิ่มแถวรวมท้าย
         tableData.push({
-            grade: '',
-            id_card: '',
+            grade: '', id_card: '',
             name: `📊 รวมทั้งหมด ${scholarships.length} คน`,
+            semester: '',
             amount: totalAmount,
             note: '',
             _isTotal: true
@@ -558,6 +585,12 @@ window.showScholarshipStudents = async function (scholarshipName, academicYear, 
             { data: 'grade', title: 'ชั้น', className: 'text-left' },
             { data: 'id_card', title: 'เลขประจำตัว', className: 'text-left' },
             { data: 'name', title: 'ชื่อ-สกุล', className: 'text-left font-medium' },
+            {
+                data: 'semester',
+                title: 'เทอม',
+                className: 'text-center',
+                render: (d) => d ? `เทอม ${d}` : '-'
+            },
             {
                 data: 'amount',
                 title: 'จำนวนเงิน (บาท)',
@@ -579,16 +612,11 @@ window.showScholarshipStudents = async function (scholarshipName, academicYear, 
             }
         };
 
-        // ✅ ส่ง onClose → กลับไปเปิด Modal รายชื่อทุนเดิม
+        const titleSuffix = semester ? ` (เทอม ${semester})` : '';
         showDataTableInSwal(
-            `🏆 รายชื่อนักเรียนที่ได้รับทุน "${scholarshipName}"`,
-            columns,
-            tableData,
-            rowCallback,
-            () => {
-                // ✅ กลับมาเปิด Modal รายชื่อทุนอีกครั้ง
-                showScholarshipList();
-            }
+            `🏆 รายชื่อนักเรียนที่ได้รับทุน "${scholarshipName}"${titleSuffix}`,
+            columns, tableData, rowCallback,
+            () => { showScholarshipList(); }
         );
 
     } catch (err) {
@@ -600,8 +628,7 @@ window.showScholarshipStudents = async function (scholarshipName, academicYear, 
 // ---------- การ์ดที่ 2: นักเรียนที่ได้รับทุน ----------
 window.showStudentList = async function () {
     const academicYear = currentYear;
-    const semester = currentTerm;
-    if (!academicYear || !semester) {
+    if (!academicYear) {
         Swal.fire('ยังไม่พร้อม', 'กรุณารอระบบโหลดข้อมูล', 'info');
         return;
     }
@@ -610,8 +637,8 @@ window.showStudentList = async function () {
         const { data: scholarships, error: err1 } = await db
             .from('core_scholarships')
             .select('student_id')
-            .eq('academic_year', academicYear)
-            .eq('semester', semester);
+            .eq('academic_year', academicYear);
+        // ✅ ตัด semester ออก
         if (err1) throw err1;
 
         const studentIds = [...new Set(scholarships.map(s => s.student_id))];
