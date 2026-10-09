@@ -336,7 +336,8 @@ function renderSidebar(userConfig = {}) {
     };
 
     // ✅ อ่าน iconStyle จาก config → set global
-    _setGlobalIconStyle(config.iconStyle || 'filled');
+    // _setGlobalIconStyle(config.iconStyle || 'filled');    // ✅ แบบเติมสีไอคอน
+    _setGlobalIconStyle(config.iconStyle || 'outline');   // ✅ default = outline
 
     if (config.showAllDepartments && (!Array.isArray(config.departments) || config.departments.length === 0)) {
         config.departments = SIDEBAR_DEFAULTS.departments || SHARED_DEPARTMENTS || [];

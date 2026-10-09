@@ -139,10 +139,16 @@ window.addEventListener('load', async () => {
 
         console.log(`⚡ Total init: ${Math.round(performance.now() - t0)} ms`);
 
+                // ✅ FIX: Re-render sidebar ด้วย fallback (สำคัญ — กัน DB override)
+        await refreshSidebarUI();
+
         // ✅ Update standard topbar
         if (typeof window.refreshNavButtons === 'function') {
             window.refreshNavButtons();
         }
+        
+        // ✅ Apply .admin-only visibility (page buttons)
+        applyAdminVisibility();
 
     } catch (err) {
         console.error('Initialization error:', err);
@@ -200,32 +206,119 @@ function updateAdminModeButton() {
 }
 
 // ==========================================
-// ✅ ปุ่มนำทาง — scholarship
+// ✅ ปุ่มนำทาง — scholarship (แยกสิทธิ์ 2 ระดับ)
 // ==========================================
 window.refreshNavButtons = function () {
-    const btn = document.getElementById('btnAdminMode');
-    if (!btn) return;
-    const isAdmin = isAdminUser(actualRole, false) || isModuleAdmin;
-    if (!isAdmin) {
-        btn.classList.add('hidden');
-        btn.classList.remove('flex');
+    const role = window.currentUserRole || actualRole;
+
+    if (!role) {
+        console.log('🔘 refreshNavButtons: รอ role...');
         return;
     }
-    btn.classList.remove('hidden');
-    btn.classList.add('flex');
-    if (currentViewRole === 'teacher') {
-        btn.innerHTML = '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>';
+
+    // ✅ สิทธิ์ 1: admin (global + module) → เมนูจัดการ
+    const isGlobalAdmin = isAdminUser(role, false);
+    const canAdmin = isGlobalAdmin || isModuleAdmin;
+
+    // ✅ สิทธิ์ 2: super_admin เท่านั้น → ตั้งค่าระบบ
+    const isSuperAdmin = (role === 'super_admin');
+
+    // ---------- Sidebar nav items (admin) ----------
+    ['nav-record-scholarship', 'nav-applicant-list'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) {
+            console.warn(`⚠️ ไม่พบ element #${id}`);
+            return;
+        }
+        el.classList.toggle('hidden', !canAdmin);
+    });
+
+    // ---------- Sidebar settings button (super_admin only) ----------
+    const settingsBtn = document.getElementById('admin-settings-btn');
+    if (settingsBtn) {
+        settingsBtn.classList.toggle('hidden', !isSuperAdmin);
     } else {
-        btn.innerHTML = '<i class="fa-solid fa-chalkboard-user"></i><span class="hidden sm:inline">โหมดครู</span>';
+        console.warn('⚠️ ไม่พบ element #admin-settings-btn');
     }
+
+    // ---------- Page button: "บันทึกทุน" ----------
+    const recordBtn = document.getElementById('btnRecordScholarship');
+    if (recordBtn) {
+        // ลบ inline display:none ก่อน
+        recordBtn.style.removeProperty('display');
+        if (canAdmin) {
+            recordBtn.classList.add('admin-only', 'visible');
+        } else {
+            recordBtn.classList.remove('visible');
+        }
+    }
+
+    // ---------- Toggle Mode button (topbar) ----------
+    const toggleBtn = document.getElementById('btnAdminMode');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('hidden', !canAdmin);
+        toggleBtn.classList.toggle('flex', canAdmin);
+    }
+
+    console.log('🔘 refreshNavButtons:', { role, canAdmin, isSuperAdmin });
 };
+
+// ==========================================
+// ✅ Re-render Sidebar (fallback เท่านั้น — ป้องกัน DB override)
+// ==========================================
+async function refreshSidebarUI() {
+    try {
+        if (typeof getScholarshipFallbackConfig !== 'function') {
+            console.warn('⚠️ ไม่พบ getScholarshipFallbackConfig()');
+            return;
+        }
+
+        const finalConfig = getScholarshipFallbackConfig();
+        console.log('📦 refreshSidebarUI: ใช้ fallback config');
+
+        if (typeof renderSidebar === 'function') {
+            renderSidebar({ ...finalConfig, autoActivate: false });
+        }
+
+        if (typeof renderTopbar === 'function') {
+            renderTopbar({
+                pageTitle: 'ระบบบริหารทุนการศึกษา',
+                buttons: [{
+                    id: 'btnAdminMode',
+                    html: '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>',
+                    onclick: 'toggleRoleView()',
+                    class: 'hidden d-btn-mode admin',
+                    title: 'สลับโหมด'
+                }],
+                breadcrumb: [
+                    { label: 'หน้าหลัก', href: 'index.html' },
+                    { label: 'ระบบทุนการศึกษา' }
+                ]
+            });
+        }
+
+        if (typeof window.refreshNavButtons === 'function') {
+            window.refreshNavButtons();
+        }
+
+        if (typeof setTodayChip === 'function') setTodayChip();
+
+        console.log('✅ refreshSidebarUI: เสร็จสิ้น');
+    } catch (err) {
+        console.warn('⚠️ refreshSidebarUI error:', err);
+    }
+}
+window.refreshSidebarUI = refreshSidebarUI;
 
 // ==========================================
 // toggleRoleView (ใช้ isAdminUser จาก config)
 // ==========================================
 window.toggleRoleView = function () {
     const isAdmin = isAdminUser(actualRole, false) || isModuleAdmin;
-    if (!isAdmin) return;
+    if (!isAdmin) {
+        Swal.fire('ไม่มีสิทธิ์', 'คุณไม่ใช่ผู้ดูแลระบบ', 'warning');
+        return;
+    }
 
     currentViewRole = (currentViewRole === 'teacher') ? 'module_admin' : 'teacher';
     isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
@@ -233,17 +326,21 @@ window.toggleRoleView = function () {
     updateUIByRole();
     loadClassrooms();
 
-    // ✅ Update topbar button
+    // ✅ Refresh ทั้ง sidebar + topbar + page buttons
     if (typeof window.refreshNavButtons === 'function') {
         window.refreshNavButtons();
     }
+    // ✅ อัปเดต .admin-only ใน tab content
+    applyAdminVisibility();
 
     logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'scholarship');
 
     Swal.fire({
         toast: true,
+        position: 'top-end',
         icon: 'info',
         title: `สลับเป็น${currentViewRole === 'teacher' ? 'โหมดครู' : 'โหมดผู้ดูแล'}`,
+        showConfirmButton: false,
         timer: 1500
     });
 };

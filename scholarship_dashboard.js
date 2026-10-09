@@ -3,6 +3,7 @@
 // แก้ไข error .catch is not a function
 
 let dashboardChart = null;
+let dashboardPieChart = null;   // ✅ ใหม่
 
 // ✅ Cache
 let _dashboardCache = null;
@@ -126,7 +127,7 @@ async function loadDashboard(academicYear, semester) {
     }
 }
 
-// ✅ Helper: Apply stats + render chart (รองรับ cache)
+// ✅ Helper: Apply stats + render charts (Bar + Pie)
 async function applyDashboardData(stats, academicYear, semester) {
     const cardElements = {
         totalScholarships: document.getElementById('card-total-scholarships'),
@@ -142,7 +143,7 @@ async function applyDashboardData(stats, academicYear, semester) {
     cardElements.totalApplications.textContent = stats.totalApplications || 0;
     cardElements.approvedApplications.textContent = stats.approvedApplications || 0;
 
-    // Chart
+    // ===== คำนวณ grade counts =====
     const studentIds = stats.studentIds || [];
     const gradeCounts = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 };
 
@@ -176,6 +177,18 @@ async function applyDashboardData(stats, academicYear, semester) {
     const labels = ['ม.1', 'ม.2', 'ม.3', 'ม.4', 'ม.5', 'ม.6'];
     const data = [gradeCounts[1], gradeCounts[2], gradeCounts[3], gradeCounts[4], gradeCounts[5], gradeCounts[6]];
 
+    const COLORS = [
+        'rgba(54, 162, 235, 0.85)', 'rgba(75, 192, 192, 0.85)',
+        'rgba(255, 206, 86, 0.85)', 'rgba(153, 102, 255, 0.85)',
+        'rgba(255, 159, 64, 0.85)', 'rgba(255, 99, 132, 0.85)'
+    ];
+    const BORDER_COLORS = [
+        'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
+        'rgba(255, 206, 86, 1)', 'rgba(153, 102, 255, 1)',
+        'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'
+    ];
+
+    // ===== Bar Chart =====
     const ctx = document.getElementById('scholarshipChart');
     if (ctx) {
         if (dashboardChart) dashboardChart.destroy();
@@ -186,16 +199,8 @@ async function applyDashboardData(stats, academicYear, semester) {
                 datasets: [{
                     label: 'จำนวนนักเรียนที่ได้รับทุน',
                     data: data,
-                    backgroundColor: [
-                        'rgba(54, 162, 235, 0.6)', 'rgba(75, 192, 192, 0.6)',
-                        'rgba(255, 206, 86, 0.6)', 'rgba(153, 102, 255, 0.6)',
-                        'rgba(255, 159, 64, 0.6)', 'rgba(255, 99, 132, 0.6)'
-                    ],
-                    borderColor: [
-                        'rgba(54, 162, 235, 1)', 'rgba(75, 192, 192, 1)',
-                        'rgba(255, 206, 86, 1)', 'rgba(153, 102, 255, 1)',
-                        'rgba(255, 159, 64, 1)', 'rgba(255, 99, 132, 1)'
-                    ],
+                    backgroundColor: COLORS,
+                    borderColor: BORDER_COLORS,
                     borderWidth: 2,
                     borderRadius: 8,
                 }]
@@ -207,10 +212,75 @@ async function applyDashboardData(stats, academicYear, semester) {
                     legend: { display: false },
                     title: {
                         display: true,
-                        text: `จำนวนนักเรียนที่ได้รับทุน จำแนกตามระดับชั้น (ปี ${academicYear} เทอม ${semester})`
+                        text: `จำนวนนักเรียนที่ได้รับทุน (ปี ${academicYear} เทอม ${semester})`,
+                        font: { size: 13, weight: '600' }
                     }
                 },
                 scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+            }
+        });
+    }
+
+    // ===== Pie Chart (Doughnut) — ใหม่ =====
+    const pieCtx = document.getElementById('scholarshipPieChart');
+    if (pieCtx) {
+        if (dashboardPieChart) dashboardPieChart.destroy();
+
+        // ✅ กรองเฉพาะระดับที่มีข้อมูล > 0
+        const pieLabels = [];
+        const pieData = [];
+        const pieColors = [];
+        const pieBorders = [];
+
+        labels.forEach((lbl, i) => {
+            if (data[i] > 0) {
+                pieLabels.push(lbl);
+                pieData.push(data[i]);
+                pieColors.push(COLORS[i]);
+                pieBorders.push(BORDER_COLORS[i]);
+            }
+        });
+
+        const hasData = pieData.length > 0;
+        const totalStudents = pieData.reduce((s, v) => s + v, 0);
+
+        dashboardPieChart = new Chart(pieCtx.getContext('2d'), {
+            type: 'doughnut',
+            data: {
+                labels: hasData ? pieLabels : ['ยังไม่มีข้อมูล'],
+                datasets: [{
+                    data: hasData ? pieData : [1],
+                    backgroundColor: hasData ? pieColors : ['#e2e8f0'],
+                    borderColor: hasData ? pieBorders : ['#cbd5e1'],
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom',
+                        labels: { padding: 12, font: { size: 12 }, usePointStyle: true }
+                    },
+                    title: {
+                        display: true,
+                        text: `สัดส่วนนักเรียนตามระดับชั้น (รวม ${totalStudents} คน)`,
+                        font: { size: 13, weight: '600' }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => {
+                                if (!hasData) return ' ยังไม่มีข้อมูล';
+                                const pct = totalStudents > 0
+                                    ? ((context.parsed / totalStudents) * 100).toFixed(1)
+                                    : 0;
+                                return ` ${context.label}: ${context.parsed} คน (${pct}%)`;
+                            }
+                        }
+                    }
+                },
+                cutout: '58%'
             }
         });
     }
@@ -225,12 +295,13 @@ window.clearDashboardCache = function () {
 
 // ==========================================
 // ฟังก์ชันกลางสำหรับแสดง DataTable ใน SweetAlert
+// ✅ เพิ่ม onClose — callback เมื่อปิด modal
 // ==========================================
-function showDataTableInSwal(title, columns, data, rowCallback) {
+function showDataTableInSwal(title, columns, data, rowCallback, onClose) {
     if (Swal.isVisible()) {
         Swal.close();
         setTimeout(() => {
-            showDataTableInSwal(title, columns, data, rowCallback);
+            showDataTableInSwal(title, columns, data, rowCallback, onClose);
         }, 200);
         return;
     }
@@ -277,6 +348,13 @@ function showDataTableInSwal(title, columns, data, rowCallback) {
                 $('#swal-data-table').DataTable().destroy();
                 $('#swal-data-table').empty();
             }
+
+            // ✅ เรียก onClose callback — เพื่อกลับไปเปิด modal ก่อนหน้า
+            if (typeof onClose === 'function') {
+                setTimeout(() => {
+                    try { onClose(); } catch (e) { console.warn('onClose error:', e); }
+                }, 280);  // รอ Swal ปิด animation ให้เสร็จก่อน
+            }
         }
     });
 }
@@ -308,7 +386,7 @@ function attachCardClickEvents() {
     }
 }
 
-// ---------- การ์ดที่ 1: ทุนทั้งหมด ----------
+// ---------- การ์ดที่ 1: ทุนทั้งหมด (คลิกชื่อทุนได้) ----------
 window.showScholarshipList = async function () {
     const academicYear = currentYear;
     const semester = currentTerm;
@@ -320,7 +398,7 @@ window.showScholarshipList = async function () {
     try {
         const { data, error } = await db
             .from('core_scholarships')
-            .select('scholarship_name, amount')
+            .select('scholarship_name, amount, student_id')
             .eq('academic_year', academicYear)
             .eq('semester', semester);
 
@@ -335,20 +413,22 @@ window.showScholarshipList = async function () {
         data.forEach(item => {
             const name = item.scholarship_name || 'ไม่ระบุชื่อทุน';
             if (!grouped[name]) {
-                grouped[name] = { count: 0, totalAmount: 0 };
+                grouped[name] = { count: 0, totalAmount: 0, studentIds: new Set() };
             }
             grouped[name].count += 1;
             grouped[name].totalAmount += (item.amount || 0);
+            if (item.student_id) grouped[name].studentIds.add(item.student_id);
         });
 
         let totalAllAmount = 0;
         const tableData = [];
         Object.keys(grouped).forEach(name => {
-            const { count, totalAmount } = grouped[name];
+            const { count, totalAmount, studentIds } = grouped[name];
             totalAllAmount += totalAmount;
             tableData.push({
                 scholarship_name: name,
                 count: count,
+                student_count: studentIds.size,
                 total_amount: totalAmount
             });
         });
@@ -356,19 +436,32 @@ window.showScholarshipList = async function () {
         tableData.push({
             scholarship_name: '📊 รวมทั้งหมด',
             count: data.length,
-            total_amount: totalAllAmount
+            student_count: new Set(data.map(d => d.student_id)).size,
+            total_amount: totalAllAmount,
+            _isTotal: true
         });
 
         const columns = [
-            { data: 'scholarship_name', title: 'ชื่อทุน', className: 'text-left' },
+            {
+                data: 'scholarship_name',
+                title: 'ชื่อทุน',
+                className: 'text-left',
+                render: function (data, type, row) {
+                    if (row._isTotal) {
+                        return `<span class="font-bold">${escapeHtml(data)}</span>`;
+                    }
+                    return `<button class="scholarship-name-btn text-blue-600 hover:text-blue-800 hover:underline font-bold text-left transition" data-name="${escapeHtml(data)}">
+                        <i class="fas fa-hand-pointer mr-1 text-xs"></i>${escapeHtml(data)}
+                    </button>`;
+                }
+            },
             { data: 'count', title: 'จำนวน (ทุน)', className: 'text-center' },
+            { data: 'student_count', title: 'จำนวน (คน)', className: 'text-center' },
             {
                 data: 'total_amount',
                 title: 'รวมเงิน (บาท)',
                 className: 'text-right',
-                render: function (data) {
-                    return data ? data.toLocaleString() : '0';
-                }
+                render: (data) => data ? data.toLocaleString() : '0'
             }
         ];
 
@@ -377,11 +470,17 @@ window.showScholarshipList = async function () {
             if (dt && typeof dt.rows === 'function') {
                 dt.rows().every(function () {
                     const rowData = this.data();
-                    if (rowData.scholarship_name === '📊 รวมทั้งหมด') {
+                    if (rowData._isTotal) {
                         $(this.node()).addClass('font-bold bg-slate-100');
                     }
                 });
             }
+
+            // ✅ ผูก event คลิกชื่อทุน
+            $('.scholarship-name-btn').off('click').on('click', function () {
+                const name = $(this).data('name');
+                showScholarshipStudents(name, academicYear, semester);
+            });
         };
 
         showDataTableInSwal('💰 รายการทุนทั้งหมด', columns, tableData, rowCallback);
@@ -389,6 +488,112 @@ window.showScholarshipList = async function () {
     } catch (err) {
         console.error(err);
         Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดข้อมูลได้', 'error');
+    }
+};
+
+// ==========================================
+// ✅ แสดงรายชื่อนักเรียนที่ได้รับทุนนั้น
+// ✅ เมื่อปิด → กลับไปเปิด Modal รายชื่อทุนเดิม
+// ==========================================
+window.showScholarshipStudents = async function (scholarshipName, academicYear, semester) {
+    try {
+        const { data: scholarships, error } = await db
+            .from('core_scholarships')
+            .select('id, student_id, amount, note, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .eq('scholarship_name', scholarshipName)
+            .eq('academic_year', academicYear)
+            .eq('semester', semester);
+
+        if (error) throw error;
+
+        if (!scholarships || scholarships.length === 0) {
+            Swal.fire('ไม่มีข้อมูล', `ไม่พบนักเรียนที่ได้รับทุน "${scholarshipName}"`, 'info');
+            return;
+        }
+
+        // ✅ ดึงชั้นเรียนล่าสุด
+        const studentIds = [...new Set(scholarships.map(s => s.student_id))];
+        let classroomMap = {};
+        try {
+            const { data: enrolls } = await db
+                .from('student_enrollments')
+                .select('student_id, core_classrooms(grade_level, room_number)')
+                .in('student_id', studentIds)
+                .eq('academic_year', academicYear)
+                .eq('semester', semester);
+
+            (enrolls || []).forEach(en => {
+                if (en.core_classrooms) {
+                    classroomMap[en.student_id] = `ม.${en.core_classrooms.grade_level}/${en.core_classrooms.room_number}`;
+                }
+            });
+        } catch (e) {
+            console.warn('โหลดชั้นเรียนไม่สำเร็จ:', e);
+        }
+
+        const totalAmount = scholarships.reduce((sum, s) => sum + (s.amount || 0), 0);
+
+        const tableData = scholarships.map(s => {
+            const std = s.core_students;
+            return {
+                grade: classroomMap[s.student_id] || '-',
+                id_card: std?.student_id_card || '-',
+                name: std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'ไม่พบข้อมูล',
+                amount: s.amount || 0,
+                note: s.note || '-'
+            };
+        });
+
+        // ✅ เพิ่มแถวรวมท้าย
+        tableData.push({
+            grade: '',
+            id_card: '',
+            name: `📊 รวมทั้งหมด ${scholarships.length} คน`,
+            amount: totalAmount,
+            note: '',
+            _isTotal: true
+        });
+
+        const columns = [
+            { data: 'grade', title: 'ชั้น', className: 'text-left' },
+            { data: 'id_card', title: 'เลขประจำตัว', className: 'text-left' },
+            { data: 'name', title: 'ชื่อ-สกุล', className: 'text-left font-medium' },
+            {
+                data: 'amount',
+                title: 'จำนวนเงิน (บาท)',
+                className: 'text-right font-bold text-emerald-700',
+                render: (d) => d.toLocaleString()
+            },
+            { data: 'note', title: 'หมายเหตุ', className: 'text-sm text-slate-500' }
+        ];
+
+        const rowCallback = function (api) {
+            const dt = (api && typeof api.rows === 'function') ? api : $(api).DataTable();
+            if (dt && typeof dt.rows === 'function') {
+                dt.rows().every(function () {
+                    const rowData = this.data();
+                    if (rowData._isTotal) {
+                        $(this.node()).addClass('font-bold bg-emerald-50');
+                    }
+                });
+            }
+        };
+
+        // ✅ ส่ง onClose → กลับไปเปิด Modal รายชื่อทุนเดิม
+        showDataTableInSwal(
+            `🏆 รายชื่อนักเรียนที่ได้รับทุน "${scholarshipName}"`,
+            columns,
+            tableData,
+            rowCallback,
+            () => {
+                // ✅ กลับมาเปิด Modal รายชื่อทุนอีกครั้ง
+                showScholarshipList();
+            }
+        );
+
+    } catch (err) {
+        console.error(err);
+        Swal.fire('ผิดพลาด', 'ไม่สามารถโหลดรายชื่อนักเรียนได้', 'error');
     }
 };
 
