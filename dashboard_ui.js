@@ -796,118 +796,11 @@ if (typeof window.changeMyPassword !== 'function') {
 }
 
 // =======================================================
-// ✅ initModuleSidebar — Helper กลางสำหรับทุกโมดูล
-// + breadcrumb support
-// + skipAutoRender — ให้โมดูลจัดการ render เอง
+// ✅ initModuleSidebar — ย้ายไปอยู่ที่ dashboard_sidebar.js แล้ว
+// - ลบออกจากไฟล์นี้เพื่อลดความซ้ำซ้อน
+// - dashboard_sidebar.js มีเวอร์ชันใหม่ที่มี Auto-Seed + Cache
+// - โหลด dashboard_sidebar.js หลัง dashboard_ui.js → ทับให้อัตโนมัติ
 // =======================================================
-async function initModuleSidebar(options = {}) {
-    const {
-        moduleKey = null,
-        fallbackConfig = null,
-        pageTitle = 'WRK System',
-        topbarButtons = [],
-        activeId = null,
-        onReady = null,
-        waitRole = true,
-        reRenderDelay = 0,
-        breadcrumb = null,
-        skipAutoRender = false       // ✅ ใหม่: ข้าม re-render ตอน window.load
-    } = options;
-
-    const renderFallback = () => {
-        try {
-            if (fallbackConfig) {
-                renderSidebar({ ...fallbackConfig, autoActivate: false });
-            }
-            renderTopbar({ pageTitle, buttons: topbarButtons, breadcrumb });
-            console.log('📦 initModuleSidebar: fallback rendered');
-            _applyOnReady();
-        } catch (e) {
-            console.error('❌ Fallback render error:', e);
-        }
-    };
-
-    const _applyOnReady = () => {
-        if (typeof onReady === 'function') {
-            try { onReady(); } catch (e) { console.warn('onReady error:', e); }
-        }
-        if (activeId) {
-            setTimeout(() => setActiveNavItem(activeId), 50);
-        }
-    };
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', renderFallback);
-    } else {
-        renderFallback();
-    }
-
-    window.addEventListener('load', async () => {
-        // ✅ skipAutoRender: ไม่ re-render (โมดูลจะจัดการเอง)
-        if (skipAutoRender) {
-            console.log('⏭️ initModuleSidebar: skip re-render (โมดูลจัดการเอง)');
-            _applyOnReady();
-            return;
-        }
-
-        if (waitRole) {
-            let waited = 0;
-            while (!window.currentUserRole && waited < 5000) {
-                await new Promise(r => setTimeout(r, 150));
-                waited += 150;
-            }
-        }
-
-        if (reRenderDelay > 0) {
-            await new Promise(r => setTimeout(r, reRenderDelay));
-        }
-
-        let dbConfig = null;
-        try {
-            if (moduleKey && typeof loadSidebarConfigFromDB === 'function') {
-                const keys = [moduleKey, window.currentUserRole, 'default'];
-                for (const key of keys) {
-                    if (!key) continue;
-                    const candidate = await loadSidebarConfigFromDB(key);
-                    if (!candidate || Object.keys(candidate).length === 0) continue;
-
-                    // ✅ Validate: ต้องมี mainMenu หรือ moduleMenus อย่างน้อย 1
-                    const hasMainMenu = Array.isArray(candidate.mainMenu) && candidate.mainMenu.length > 0;
-                    const hasModuleMenus = Array.isArray(candidate.moduleMenus) && candidate.moduleMenus.length > 0;
-                    const hasFooterMenu = Array.isArray(candidate.footerMenu) && candidate.footerMenu.length > 0;
-
-                    if (!hasMainMenu && !hasModuleMenus && !hasFooterMenu) {
-                        console.warn(`⚠️ initModuleSidebar: DB key="${key}" มีข้อมูลแต่ไม่ครบ → ข้าม`);
-                        continue;
-                    }
-
-                    dbConfig = candidate;
-                    console.log(`✅ initModuleSidebar: DB key="${key}"`);
-                    break;
-                }
-            }
-        } catch (e) {
-            console.warn('⚠️ Load DB config error:', e);
-        }
-
-        const finalConfig = (dbConfig && Object.keys(dbConfig).length > 0)
-            ? dbConfig
-            : fallbackConfig;
-
-        if (!finalConfig) {
-            console.warn('⚠️ initModuleSidebar: ไม่มี config ให้ render');
-            _applyOnReady();
-            return;
-        }
-
-        renderSidebar({ ...finalConfig, autoActivate: false });
-        renderTopbar({ pageTitle, buttons: topbarButtons, breadcrumb });
-        console.log('✅ initModuleSidebar: re-rendered');
-        _applyOnReady();
-    });
-}
-
-
 
 /* =======================================================
    🔗 Exports — Display Settings
@@ -925,7 +818,6 @@ window.closeDisplaySettingsModal = closeDisplaySettingsModal;
 window.resetDisplaySettings = resetDisplaySettings;
 window.initDisplaySettings = initDisplaySettings;
 window.toggleSettingsMenu = toggleSettingsMenu;
-window.initModuleSidebar = initModuleSidebar;
 
 /* ---------- Auto-init ---------- */
 if (document.readyState === 'loading') {

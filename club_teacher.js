@@ -4,6 +4,11 @@
 // ==========================================
 const MODULE_ID = 'club_system';
 
+// ==========================================
+// ✅ ระบบชุมนุมใช้ข้อมูลภาคเรียนที่ 1 เท่านั้น (ตรึงตายตัว)
+// ==========================================
+const CLUB_SEMESTER = '1';
+
 // Director Role Support
 const DIRECTOR_ROLE = 'director';
 const ALLOWED_ROLES = ['super_admin', 'admin', 'teacher', 'staff', DIRECTOR_ROLE];
@@ -110,7 +115,7 @@ async function initSystem() {
         if (schoolInfoRes.error) throw new Error('ดึงข้อมูลปีการศึกษาล้มเหลว');
         currentSchoolInfo = schoolInfoRes.data;
         _perfCache.schoolInfo = currentSchoolInfo;
-        $('#term-info').text(`ปีการศึกษา ${currentSchoolInfo.current_academic_year} / เทอม ${currentSchoolInfo.current_semester}`);
+        $('#term-info').text(`ปีการศึกษา ${currentSchoolInfo.current_academic_year} / เทอม ${CLUB_SEMESTER}`);
 
         allCategories = categoriesRes.data || [];
         _perfCache.categories = allCategories;
@@ -147,7 +152,7 @@ async function fetchSchoolInfo() {
     if (error) throw new Error('ดึงข้อมูลปีการศึกษาล้มเหลว');
     currentSchoolInfo = data;
     _perfCache.schoolInfo = data;
-    $('#term-info').text(`ปีการศึกษา ${data.current_academic_year} / เทอม ${data.current_semester}`);
+        $('#term-info').text(`ปีการศึกษา ${data.current_academic_year} / เทอม ${CLUB_SEMESTER}`);
 }
 
 async function loadCategories() {
@@ -244,7 +249,7 @@ async function loadMyClub() {
         .select(`*, club_categories(name)`)
         .eq('teacher_id', currentUser.id)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester)
+        .eq('semester', CLUB_SEMESTER)
         .order('club_name');
 
     if (clubs && clubs.length > 0) {
@@ -351,7 +356,7 @@ async function loadTeacherApplicants() {
         `)
         .eq('club_id', myClubInfo.id)
         .eq('academic_year', currentSchoolInfo.current_academic_year)
-        .eq('semester', currentSchoolInfo.current_semester);
+        .eq('semester', CLUB_SEMESTER);
 
     if (error) return;
 
@@ -361,7 +366,7 @@ async function loadTeacherApplicants() {
         const stu = m.core_students;
         const currentEnr = stu.student_enrollments?.find(e =>
             e.core_classrooms.academic_year === currentSchoolInfo.current_academic_year &&
-            e.core_classrooms.semester === currentSchoolInfo.current_semester
+            e.core_classrooms.semester === CLUB_SEMESTER
         );
 
         if (m.student_message) {
@@ -493,7 +498,7 @@ window.updateStatus = async (id, status, reason = null) => {
             .eq('club_id', myClubInfo.id)
             .eq('status', 'approved')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester);
+            .eq('semester', CLUB_SEMESTER);
 
         if (!countErr && count >= myClubInfo.max_capacity) {
             return Swal.fire({
@@ -602,7 +607,7 @@ window.viewClubStudents = async (clubId, clubName) => {
             const currentEnr = stu.student_enrollments?.find(e =>
                 e.core_classrooms &&
                 e.core_classrooms.academic_year === currentSchoolInfo.current_academic_year &&
-                e.core_classrooms.semester === currentSchoolInfo.current_semester
+                e.core_classrooms.semester === CLUB_SEMESTER
             );
             const classroom = currentEnr ? `ม.${currentEnr.core_classrooms.grade_level}/${currentEnr.core_classrooms.room_number}` : 'ไม่ระบุ';
             const statusText = m.status === 'approved' ? 'อนุมัติ' : m.status === 'rejected' ? 'ไม่อนุมัติ' : 'รอตรวจ';
@@ -705,7 +710,7 @@ async function loadAdminClubs() {
         db.from('club_lists')
             .select(`*, core_personnel(prefix, first_name, last_name, avatar_url), club_categories(name)`)
             .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester),
+            .eq('semester', CLUB_SEMESTER),
         db.from('club_registrations')
             .select('club_id, status')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
@@ -792,7 +797,7 @@ async function loadClubDashboardStats() {
                     core_students(student_id_card, prefix, first_name, last_name)
                 `)
                 .eq('core_classrooms.academic_year', currentSchoolInfo.current_academic_year)
-                .eq('core_classrooms.semester', currentSchoolInfo.current_semester),
+                .eq('core_classrooms.semester', CLUB_SEMESTER),
             db.from('club_registrations')
                 .select(`
                     student_id, status,
@@ -1012,7 +1017,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
         const { data: clubs } = await db.from('club_lists')
             .select('id, club_name, max_capacity')
             .eq('academic_year', currentSchoolInfo.current_academic_year)
-            .eq('semester', currentSchoolInfo.current_semester)
+            .eq('semester', CLUB_SEMESTER)
             .order('club_name');
 
         let clubOptions = '<option value="">-- พิมพ์เพื่อค้นหาชุมนุม... --</option>';
@@ -1079,7 +1084,7 @@ window.saManageClub = async (regId, studentId, currentClubId, currentStatus, stu
                     club_id: formValues.clubId,
                     status: formValues.status,
                     academic_year: currentSchoolInfo.current_academic_year,
-                    semester: currentSchoolInfo.current_semester,
+                    semester: CLUB_SEMESTER,
                     rejection_reason: formValues.status === 'rejected' ? 'Super/Module Admin ปฏิเสธ' : null
                 });
                 if (error) throw error;
@@ -1230,7 +1235,7 @@ window.importClubsFromExcel = async (event) => {
             const { data: existingClubs } = await db.from('club_lists')
                 .select('teacher_id')
                 .eq('academic_year', currentSchoolInfo.current_academic_year)
-                .eq('semester', currentSchoolInfo.current_semester);
+                .eq('semester', CLUB_SEMESTER);
 
             const teachersWithClub = new Set((existingClubs || []).map(c => c.teacher_id));
 
@@ -1278,7 +1283,7 @@ window.importClubsFromExcel = async (event) => {
                     location: location,
                     description: description,
                     academic_year: currentSchoolInfo.current_academic_year,
-                    semester: currentSchoolInfo.current_semester
+                    semester: CLUB_SEMESTER
                 }]);
 
                 if (insertErr) {
@@ -1354,7 +1359,7 @@ window.exportClubsToExcel = async () => {
     ws['!cols'] = [{ wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 22 }, { wch: 15 }, { wch: 20 }, { wch: 18 }, { wch: 30 }];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "รายชื่อชุมนุมทั้งหมด");
-    XLSX.writeFile(wb, `รายชื่อชุมนุมทั้งหมด_เทอม${currentSchoolInfo.current_semester}_ปี${currentSchoolInfo.current_academic_year}.xlsx`);
+    XLSX.writeFile(wb, `รายชื่อชุมนุมทั้งหมด_เทอม${CLUB_SEMESTER}_ปี${currentSchoolInfo.current_academic_year}.xlsx`);
 };
 
 window.importClubMembersExcel = (clubId, clubName) => {
@@ -1421,7 +1426,7 @@ async function processExcelImport(file, clubId) {
                 club_id: clubId, student_id: std.id,
                 status: 'approved', is_confirmed: true,
                 academic_year: currentSchoolInfo.current_academic_year,
-                semester: currentSchoolInfo.current_semester
+                semester: CLUB_SEMESTER
             });
 
             if (insErr) errorLogs.push(`แถวที่ ${i + 1}: ${insErr.message}`);
@@ -1564,7 +1569,7 @@ window.saveAdminClub = async (e) => {
         max_capacity: parseInt(document.getElementById('ac_capacity').value),
         description: document.getElementById('ac_desc').value.trim(),
         academic_year: currentSchoolInfo.current_academic_year,
-        semester: currentSchoolInfo.current_semester
+        semester: CLUB_SEMESTER
     };
 
     if (!payload.teacher_id) return Swal.fire('เตือน', 'กรุณาเลือกครู', 'warning');
@@ -1993,7 +1998,7 @@ function updateSidebarNav() {
     if (currentMode === 'admin') {
         titleKey = $('#admin-tab-clubs').hasClass('hidden') ? 'admin-students' : 'admin-clubs';
     }
-    $('#pageTitle').html(`${titles[titleKey]} <span id="term-info" class="text-xs font-bold text-slate-400">${currentSchoolInfo ? `ปี ${currentSchoolInfo.current_academic_year} / เทอม ${currentSchoolInfo.current_semester}` : ''}</span>`);
+    $('#pageTitle').html(`${titles[titleKey]} <span id="term-info" class="text-xs font-bold text-slate-400">${currentSchoolInfo ? `ปี ${currentSchoolInfo.current_academic_year} / เทอม ${CLUB_SEMESTER}` : ''}</span>`);
 }
 
 window.switchSidebarView = function (view, tab = null) {

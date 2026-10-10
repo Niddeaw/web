@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>รับทราบใบขอไปราชการ - หัวหน้ากลุ่มสาระฯ</title>
+
+    <script src="core_head.js"></script>
+    <script src="config.js"></script>
+    <script src="government_trip_core.js"></script>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="dashboard.css">
+
+    <style>
+        .btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; transition: all 0.15s; font-size: 12px; flex-shrink: 0; }
+        .btn-icon:hover { transform: scale(1.1); }
+        @media (max-width: 760px) {
+            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s !important; overflow-y: auto !important; }
+            .d-sidebar.open { transform: translateX(0) !important; }
+            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; z-index: 999 !important; opacity: 0; }
+            .d-overlay.open { display: block !important; opacity: 1; }
+            .d-main { margin-left: 0 !important; width: 100% !important; }
+            .d-app { display: block !important; }
+            .d-menu { display: flex !important; }
+            .d-collapse { display: none !important; }
+        }
+    </style>
+</head>
+
+<body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
+    <div class="d-app">
+        <aside class="d-sidebar" id="dSidebar"></aside>
+        <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
+
+        <main class="d-main" id="dMain">
+            <header class="d-topbar" id="dTopbar"></header>
+
+            <div style="padding:0 0 12px;" class="space-y-6">
+
+                <div id="deptHeadGroupFilterWrap" class="hidden flex justify-end">
+                    <select id="deptHeadGroupFilter" onchange="onTripDeptHeadGroupChange()" class="border border-purple-200 bg-purple-50 text-purple-800 font-bold rounded-2xl h-[38px] px-3 text-sm"></select>
+                </div>
+
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-amber-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i class="fas fa-clock text-amber-500 mr-1"></i> รอรับทราบ</p>
+                        <h3 class="text-3xl font-black text-amber-600"><span id="stat-pending">0</span></h3>
+                    </div>
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-emerald-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i class="fas fa-check-circle text-emerald-500 mr-1"></i> รับทราบแล้ว</p>
+                        <h3 class="text-3xl font-black text-emerald-600"><span id="stat-done">0</span></h3>
+                    </div>
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-blue-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i class="fas fa-users text-blue-500 mr-1"></i> ครูในกลุ่ม</p>
+                        <h3 class="text-3xl font-black text-blue-600"><span id="stat-teachers">0</span></h3>
+                    </div>
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-sky-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i class="fas fa-plane text-sky-500 mr-1"></i> ไปราชการวันนี้</p>
+                        <h3 class="text-3xl font-black text-sky-600"><span id="stat-today">0</span></h3>
+                    </div>
+                </div>
+
+                <div class="glass rounded-3xl p-6">
+                    <div class="flex gap-2 mb-4 border-b border-slate-100 pb-3">
+                        <button id="tabBtnPending" onclick="switchTripTab('pending')" class="px-4 py-2 rounded-xl font-bold text-sm bg-sky-600 text-white">รอรับทราบ</button>
+                        <button id="tabBtnDone" onclick="switchTripTab('done')" class="px-4 py-2 rounded-xl font-bold text-sm bg-slate-100 text-slate-600">รับทราบแล้ว</button>
+                    </div>
+                    <section id="tab-pending" class="tab-content">
+                        <div class="w-full overflow-x-auto">
+                            <table id="pendingTripTable" class="w-full text-left text-sm display nowrap">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-600">
+                                        <th class="text-center">วันที่ยื่น</th>
+                                        <th>ชื่อครู</th>
+                                        <th>เรื่อง</th>
+                                        <th>ช่วงวันที่</th>
+                                        <th class="text-center">วัน</th>
+                                        <th>สถานที่</th>
+                                        <th class="text-center w-32">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-pending-trip"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                    <section id="tab-done" class="tab-content hidden">
+                        <div class="w-full overflow-x-auto">
+                            <table id="doneTripTable" class="w-full text-left text-sm display nowrap">
+                                <thead>
+                                    <tr class="bg-slate-50 text-slate-600">
+                                        <th class="text-center">วันที่ยื่น</th>
+                                        <th>ชื่อครู</th>
+                                        <th>เรื่อง</th>
+                                        <th>ช่วงวันที่</th>
+                                        <th class="text-center">วัน</th>
+                                        <th class="text-center">วันที่รับทราบ</th>
+                                        <th class="text-center">สถานะ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tb-done-trip"></tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="viewTripModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-pink-600 rounded-t-2xl text-white">
+                <h3 class="font-bold text-base flex items-center gap-2"><i class="fas fa-file-alt"></i> รายละเอียด</h3>
+                <button onclick="closeViewTripModal()" class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center"><i class="fas fa-times text-sm"></i></button>
+            </div>
+            <div id="viewTripContent" class="p-5 overflow-y-auto flex-1"></div>
+            <div class="px-5 py-3 border-t border-slate-100 flex justify-end"><button onclick="closeViewTripModal()" class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button></div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar.js"></script>
+    <script src="government_trip_dept_head.js"></script>
+
+    <script>
+        function getTripDeptHeadFallback() {
+            return {
+                iconStyle: 'outline',
+                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Trip', subtitle: 'รับทราบใบขอไปราชการ' },
+                mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
+                mainMenu: [
+                    { id: 'btn-pending', icon: 'fa-clock', label: 'รอรับทราบ', onclick: "switchTripTab('pending')", class: 'active' },
+                    { id: 'btn-done', icon: 'fa-check-circle', label: 'รับทราบแล้ว', onclick: "switchTripTab('done')" }
+                ],
+                showAllDepartments: false, departmentsTitle: '', departments: [], moduleMenus: [],
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: [{ id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }],
+                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+            };
+        }
+
+        initModuleSidebar({
+            moduleKey: 'government_trip_dept_head',
+            pageTitle: 'รับทราบใบขอไปราชการ',
+            activeId: 'btn-pending',
+            topbarButtons: [
+                { id: 'btnNavTeacher', html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>', onclick: "window.location.href='government_trip_teacher.html'", class: 'hidden d-btn-mode teacher', title: 'ไปหน้าโหมดครู' },
+                { id: 'btnNavAdmin', html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>', onclick: "window.location.href='government_trip_admin.html'", class: 'hidden d-btn-mode admin', title: 'ไปหน้าโหมดแอดมิน' }
+            ],
+            fallbackConfig: getTripDeptHeadFallback(),
+            skipAutoRender: true,
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof window.refreshTripDeptHeadNavButtons === 'function') window.refreshTripDeptHeadNavButtons();
+            }
+        });
+    </script>
+</body>
+</html>

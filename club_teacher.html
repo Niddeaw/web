@@ -358,12 +358,11 @@
          ======================================================= -->
     <script>
         // =======================================================
-        // Fallback Config — Club System
-        // ID ต้องตรงกับที่ club_teacher.js ใช้ (updateSidebarNav)
+        // ✅ Fallback Sidebar Config — ใช้ Action Library
         // =======================================================
         function getClubFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -371,9 +370,7 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
-                ],
+                mainMenu: buildSidebarItems('club_system', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -383,43 +380,14 @@
                         sectionId: 'sec-club',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'nav-my-club',
-                                icon: 'fa-users-rectangle',
-                                label: 'ชุมนุมของฉัน',
-                                onclick: "switchSidebarView('teacher')"
-                            },
-                            {
-                                id: 'nav-manage-clubs',
-                                icon: 'fa-layer-group',
-                                label: 'จัดการชุมนุม',
-                                onclick: "switchSidebarView('admin', 'admin-tab-clubs')",
-                                hidden: true
-                            },
-                            {
-                                id: 'nav-check-students',
-                                icon: 'fa-users-viewfinder',
-                                label: 'ตรวจสอบนักเรียน',
-                                onclick: "switchSidebarView('admin', 'admin-tab-students')",
-                                hidden: true
-                            }
-                        ]
+                        items: buildSidebarItems('club_system', ['myClub', 'manageClubs', 'checkStudents'])
                     },
                     {
                         title: 'การตั้งค่า',
                         sectionId: 'sec-club-settings',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'btn-settings',
-                                icon: 'fa-users-gear',
-                                label: 'ตั้งค่าระบบ',
-                                onclick: 'openAdminSettings()',
-                                hidden: true
-                            }
-                        ]
+                        items: buildSidebarItems('club_system', ['settings'])
                     }
                 ],
                 footerMenuTitle: '',
@@ -440,7 +408,7 @@
         }
 
         // =======================================================
-        // ✅ Init Module Sidebar — จบในที่เดียว
+        // ✅ Init Module Sidebar
         // =======================================================
         initModuleSidebar({
             moduleKey: 'club_system',
@@ -456,8 +424,11 @@
                 }
             ],
             fallbackConfig: getClubFallbackConfig(),
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'ชุมนุม' }
+            ],
             onReady: () => {
-                // ✅ เรียก updateSidebarNav หลัง sidebar render ทุกครั้ง
                 if (typeof window.updateSidebarNav === 'function') {
                     try { window.updateSidebarNav(); } catch (e) { console.warn(e); }
                 }

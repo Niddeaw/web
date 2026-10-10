@@ -421,25 +421,23 @@
                 console.warn('⚠️ โหลด Sidebar config จาก DB ไม่สำเร็จ → ใช้ fallback:', e);
             }
 
-            const hasDbConfig = dbConfig && Object.keys(dbConfig).length > 0;
+            // ✅ แก้ตรงนี้ — นับ "departments" ด้วย
+            const hasDbConfig = dbConfig && (
+                (dbConfig.mainMenu?.length > 0) ||
+                (dbConfig.moduleMenus?.length > 0) ||
+                (dbConfig.departments?.length > 0 && dbConfig.showAllDepartments === true)
+            );
+
             const finalConfig = hasDbConfig ? dbConfig : getFallbackSidebarConfig();
 
             console.log(hasDbConfig
-                ? `✅ Sidebar: ใช้ config จาก DB → main=${finalConfig.mainMenu?.length || 0}, modules=${finalConfig.moduleMenus?.length || 0}`
-                : '📦 Sidebar: ใช้ fallback config');
+                ? `✅ Sidebar: DB → main=${finalConfig.mainMenu?.length || 0}, modules=${finalConfig.moduleMenus?.length || 0}, depts=${finalConfig.departments?.length || 0} (showAll=${finalConfig.showAllDepartments})`
+                : '📦 Sidebar: ใช้ fallback');
 
             renderSidebar({ ...finalConfig, autoActivate: false });
-
-            // ✅ ส่ง breadcrumb เริ่มต้นเข้า renderTopbar
             renderTopbar({
-                search: {
-                    id: 'appSearch',
-                    placeholder: 'ค้นหาระบบงาน หรือเมนูต่างๆ...',
-                    oninput: 'handleSearchInput()'
-                },
-                breadcrumb: [
-                    { label: 'หน้าหลัก' }
-                ]
+                search: { id: 'appSearch', placeholder: 'ค้นหาระบบงาน หรือเมนูต่างๆ...', oninput: 'handleSearchInput()' },
+                breadcrumb: [{ label: 'หน้าหลัก' }]
             });
         }
 

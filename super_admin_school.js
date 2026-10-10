@@ -28,7 +28,6 @@ async function loadSchoolInfo() {
         if (data) {
             document.getElementById('inp_current_year').value = data.current_academic_year || (new Date().getFullYear() + 543).toString();
             document.getElementById('inp_current_term').value = data.current_semester || '1';
-            document.getElementById('inp_term_start_date').value = data.term_start_date || '';
             document.getElementById('inp_school').value = data.school_name || '';
             document.getElementById('inp_dir').value = data.director_name || '';
             document.getElementById('inp_dep_acad').value = data.deputy_academic || '';
@@ -46,7 +45,6 @@ async function saveSchoolInfo(e) {
     const updates = {
         current_academic_year: document.getElementById('inp_current_year').value.trim(),
         current_semester: document.getElementById('inp_current_term').value,
-        term_start_date: document.getElementById('inp_term_start_date').value || null,
         school_name: document.getElementById('inp_school').value.trim(),
         director_name: document.getElementById('inp_dir').value.trim(),
         deputy_academic: document.getElementById('inp_dep_acad').value.trim(),

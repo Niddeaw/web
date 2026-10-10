@@ -36,7 +36,6 @@
 <body class="text-gray-800 min-h-screen opacity-0 transition-opacity duration-500" id="mainBody">
 
     <div class="d-app">
-        <!-- ================= Sidebar (placeholder) ================= -->
         <aside class="d-sidebar" id="dSidebar"></aside>
         <div class="d-overlay" id="dOverlay" onclick="toggleSidebar(false)"></div>
 
@@ -88,8 +87,7 @@
                                 </div>
                             </div>
                             <div class="flex items-center gap-2 flex-wrap">
-                                <span
-                                    class="text-sm font-bold text-slate-600 flex items-center gap-1 whitespace-nowrap">
+                                <span class="text-sm font-bold text-slate-600 flex items-center gap-1 whitespace-nowrap">
                                     <i class="fas fa-filter text-blue-500"></i> กรองคะแนน:
                                 </span>
                                 <input type="number" id="filter_score_val"
@@ -111,8 +109,7 @@
                                 <span id="filter_result_count" class="text-xs text-slate-400 ml-1"></span>
                             </div>
                         </div>
-                        <p class="text-[10px] text-slate-400 mt-2">เลือกห้องเพื่อแสดงรายชื่อ | คลิกการ์ดในหน้า Dashboard
-                            เพื่อกรองทั้งโรงเรียน</p>
+                        <p class="text-[10px] text-slate-400 mt-2">เลือกห้องเพื่อแสดงรายชื่อ | คลิกการ์ดในหน้า Dashboard เพื่อกรองทั้งโรงเรียน</p>
                     </div>
                 </div>
 
@@ -137,19 +134,15 @@
         </main>
     </div>
 
-    <!-- ================= Modals ================= -->
     <!-- Record Modal -->
     <div id="recordModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeRecordModal()"></div>
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                 <h3 id="modalTitle" class="text-lg font-bold flex items-center gap-2">
                     <i class="fas fa-edit"></i> บันทึกความประพฤติ
                 </h3>
-                <button onclick="closeRecordModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <button onclick="closeRecordModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -159,47 +152,36 @@
                     <input type="text" id="search_student" onkeyup="searchStudent(this.value)"
                         class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 focus:border-red-500 outline-none transition"
                         autocomplete="off" placeholder="พิมพ์เพื่อค้นหา...">
-                    <div id="search_results"
-                        class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1 hidden max-h-48 overflow-y-auto border border-slate-100">
-                    </div>
+                    <div id="search_results" class="absolute z-10 w-full bg-white shadow-xl rounded-xl mt-1 hidden max-h-48 overflow-y-auto border border-slate-100"></div>
                     <input type="hidden" id="selected_student_id">
                 </div>
-                <div id="selected_student_info"
-                    class="p-3 bg-red-50 border border-red-100 rounded-xl hidden text-red-700 text-sm font-bold justify-between items-center">
+                <div id="selected_student_info" class="p-3 bg-red-50 border border-red-100 rounded-xl hidden text-red-700 text-sm font-bold justify-between items-center">
                     <span id="selected_student_name"></span>
-                    <button onclick="clearSelectedStudent()" class="text-red-400 hover:text-red-600"><i
-                            class="fas fa-times-circle"></i></button>
+                    <button onclick="clearSelectedStudent()" class="text-red-400 hover:text-red-600"><i class="fas fa-times-circle"></i></button>
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-bold text-gray-700">รายการเกณฑ์</label>
-                        <select id="criteria_select" onchange="updateDefaultScore()"
-                            class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none bg-white"></select>
+                        <select id="criteria_select" onchange="updateDefaultScore()" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none bg-white"></select>
                     </div>
                     <div>
                         <label class="block text-sm font-bold text-gray-700">ระบุคะแนน</label>
-                        <input type="number" id="score_input"
-                            class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none text-center font-bold text-lg">
+                        <input type="number" id="score_input" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none text-center font-bold text-lg">
                     </div>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700">รายละเอียดเพิ่มเติม</label>
-                    <textarea id="description_text"
-                        class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none" rows="2"></textarea>
+                    <textarea id="description_text" class="w-full border-2 border-slate-200 rounded-xl p-3 mt-1 outline-none" rows="2"></textarea>
                 </div>
                 <div>
                     <label class="block text-sm font-bold text-gray-700">อัปโหลดรูปภาพหลักฐาน (ย่อขนาดอัตโนมัติ)</label>
-                    <input type="file" id="evidence_file" accept="image/*"
-                        class="w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
-                    <img id="evidence_preview"
-                        class="hidden mt-3 w-full max-h-40 object-contain rounded-lg border border-slate-200 bg-slate-50">
+                    <input type="file" id="evidence_file" accept="image/*" class="w-full text-sm mt-1 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700">
+                    <img id="evidence_preview" class="hidden mt-3 w-full max-h-40 object-contain rounded-lg border border-slate-200 bg-slate-50">
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                <button onclick="closeRecordModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ยกเลิก</button>
-                <button onclick="saveBehaviorRecord()"
-                    class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition">บันทึกข้อมูล</button>
+                <button onclick="closeRecordModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">ยกเลิก</button>
+                <button onclick="saveBehaviorRecord()" class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold shadow-md transition">บันทึกข้อมูล</button>
             </div>
         </div>
     </div>
@@ -207,10 +189,8 @@
     <!-- History Modal -->
     <div id="historyModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeHistoryModal()"></div>
-        <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
+        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-700 to-slate-800 text-white">
                 <div class="flex items-center gap-3">
                     <div id="historyAvatarWrap" class="hidden flex-shrink-0">
                         <img id="historyAvatar" src="" alt="รูปนักเรียน"
@@ -223,13 +203,11 @@
                             <i class="fas fa-history"></i><span id="historyStudentName">-</span>
                         </h3>
                         <p class="text-xs text-white/80 mt-0.5">
-                            คะแนนปัจจุบัน: <span id="historyStudentScore"
-                                class="font-black text-yellow-300 text-base ml-1">-</span>
+                            คะแนนปัจจุบัน: <span id="historyStudentScore" class="font-black text-yellow-300 text-base ml-1">-</span>
                         </p>
                     </div>
                 </div>
-                <button onclick="closeHistoryModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                <button onclick="closeHistoryModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -250,8 +228,7 @@
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                <button onclick="closeHistoryModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">
+                <button onclick="closeHistoryModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold transition">
                     <i class="fas fa-times mr-1"></i> ปิด
                 </button>
             </div>
@@ -267,11 +244,11 @@
 
     <script>
         // =======================================================
-        // ✅ Fallback Config (เฉพาะระบบงานปกครอง)
+        // ✅ Fallback Config — ดึง action จาก Library กลาง
         // =======================================================
         function getBehaviorFallbackCommon() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'งานปกครอง',
@@ -279,9 +256,7 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
-                ],
+                mainMenu: buildSidebarItems('behavior', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -291,20 +266,14 @@
                         sectionId: 'sec-behavior',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navDashboard', icon: 'fa-chart-pie', label: 'ภาพรวม', href: 'behavior_dashboard.html' },
-                            { id: 'navAdmin', icon: 'fa-users-cog', label: 'จัดการนักเรียน', href: 'behavior_admin.html' },
-                            { id: 'navTeacher', icon: 'fa-user-tie', label: 'ครูที่ปรึกษา', href: 'behavior_teacher.html' }
-                        ]
+                        items: buildSidebarItems('behavior', ['dashboard', 'admin', 'teacher'])
                     },
                     {
                         title: 'การตั้งค่า',
                         sectionId: 'sec-behavior-settings',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navSettings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', href: 'behavior_settings.html', roles: ['super_admin', 'admin'] }
-                        ]
+                        items: buildSidebarItems('behavior', ['settings'])
                     }
                 ],
                 footerMenuTitle: '',
@@ -325,47 +294,12 @@
         }
 
         // =======================================================
-        // ✅ Role Filter — ย้ายมาจาก behavior_sidebar.js
-        // =======================================================
-        async function applyBehaviorRoleFilterLocal() {
-            if (window.currentUserRole && typeof isAdminUser === 'function' && isAdminUser(window.currentUserRole, false)) {
-                return;
-            }
-            try {
-                const { data: { user } } = await db.auth.getUser();
-                if (!user) return;
-                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-                const year = sInfo?.current_academic_year;
-                const [discHead, gradeHead] = await Promise.all([
-                    year
-                        ? db.from('core_discipline_heads').select('id').eq('personnel_id', user.id).eq('academic_year', year).maybeSingle()
-                        : Promise.resolve({ data: null }),
-                    db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', user.id)
-                ]);
-                const hasAdmin = !!discHead.data || (gradeHead.data && gradeHead.data.length > 0);
-                if (!hasAdmin) {
-                    ['navDashboard', 'navAdmin'].forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.remove();
-                    });
-                    console.log('🔒 behavior_admin: ซ่อน navDashboard/navAdmin');
-                }
-            } catch (e) {
-                console.warn('applyBehaviorRoleFilterLocal error:', e);
-            }
-        }
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (เรียกทุกครั้งหลัง re-render)
-        //     แก้ปัญหา ชื่อ/role/avatar/ปุ่ม หายหลัง initModuleSidebar re-render
+        // ✅ Helper: Refresh Topbar UI
         // =======================================================
         function refreshBehaviorTopbarUI() {
-            // 1) วันที่
             if (typeof setTodayChip === 'function') {
                 try { setTodayChip(); } catch (e) { /* ignore */ }
             }
-
-            // 2) ข้อมูลผู้ใช้
             try {
                 if (typeof currentUser !== 'undefined' && currentUser) {
                     if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
@@ -373,11 +307,6 @@
                     if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
                 }
             } catch (e) { /* TDZ — ignore */ }
-
-            // 3) Sidebar visibility (re-apply role filter)
-            if (typeof applyBehaviorRoleFilterLocal === 'function') {
-                try { applyBehaviorRoleFilterLocal(); } catch (e) { /* ignore */ }
-            }
         }
         window.refreshBehaviorTopbarUI = refreshBehaviorTopbarUI;
 
@@ -393,7 +322,7 @@
                 icon: 'fas fa-chalkboard-user',
                 label: 'โหมดครู',
                 onclick: "window.location.href='behavior_teacher.html'",
-                class: 'hidden d-btn-mode teacher',   // ✅ เพิ่ม hidden
+                class: 'hidden d-btn-mode teacher',
                 title: 'โหมดครู'
             }],
             fallbackConfig: getBehaviorFallbackCommon(),

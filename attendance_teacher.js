@@ -696,208 +696,19 @@ function renderAcademicTermsTable() {
     if (!tbody) return;
 
     if (academicTerms.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-slate-400">ยังไม่มีข้อมูล</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="text-center py-4 text-slate-400 text-xs">ยังไม่มีข้อมูลภาคเรียน</td></tr>';
         return;
     }
 
     tbody.innerHTML = academicTerms.map(t => `
         <tr class="hover:bg-slate-50 transition">
-            <td class="px-3 py-2 font-bold text-indigo-600">เทอม ${t.semester}/${t.academic_year}</td>
+            <td class="px-3 py-2 font-bold text-indigo-600">${t.academic_year}</td>
+            <td class="px-3 py-2">เทอม ${t.semester}</td>
             <td class="px-3 py-2 text-xs text-slate-600">
                 ${formatThaiDate(t.start_date)} - ${formatThaiDate(t.end_date)}
             </td>
-            <td class="px-3 py-2 text-center whitespace-nowrap">
-                <button onclick="editAcademicTerm('${t.id}')" 
-                    class="text-amber-500 hover:text-amber-700 mx-1" title="แก้ไข">
-                    <i class="fas fa-pen-to-square"></i>
-                </button>
-                <button onclick="deleteAcademicTerm('${t.id}')" 
-                    class="text-rose-500 hover:text-rose-700 mx-1" title="ลบ">
-                    <i class="fas fa-trash"></i>
-                </button>
-            </td>
         </tr>
     `).join('');
-}
-
-async function addAcademicTerm() {
-    const year = document.getElementById('term-new-year').value.trim();
-    const sem = document.getElementById('term-new-sem').value;
-    const start = document.getElementById('term-new-start').value;
-    const end = document.getElementById('term-new-end').value;
-
-    if (!year || !sem || !start || !end) {
-        return Swal.fire('แจ้งเตือน', 'กรุณากรอกข้อมูลให้ครบถ้วน', 'warning');
-    }
-    if (start >= end) {
-        return Swal.fire('ผิดพลาด', 'วันเปิดต้องน้อยกว่าวันปิด', 'error');
-    }
-
-    try {
-        const { data, error } = await db.from('core_academic_terms')
-            .insert([{ academic_year: year, semester: sem, start_date: start, end_date: end }])
-            .select()
-            .single();
-        if (error) throw error;
-
-        academicTerms.push(data);
-        academicTerms.sort((a, b) => {
-            if (a.academic_year !== b.academic_year) return b.academic_year.localeCompare(a.academic_year);
-            return b.semester.localeCompare(a.semester);
-        });
-
-        populateTermSelect();
-        renderAcademicTermsTable();
-
-        document.getElementById('term-new-year').value = '';
-        document.getElementById('term-new-start').value = '';
-        document.getElementById('term-new-end').value = '';
-
-        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'เพิ่มภาคเรียนแล้ว', showConfirmButton: false, timer: 1500 });
-    } catch (err) {
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-async function editAcademicTerm(id) {
-    const term = academicTerms.find(t => t.id === id);
-    if (!term) return;
-
-    const { value: formValues } = await Swal.fire({
-        title: '<i class="fas fa-pen-to-square text-amber-500 mr-2"></i>แก้ไขภาคเรียน',
-        html: `
-            <div class="text-left space-y-3 mt-2">
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">ปีการศึกษา</label>
-                        <input id="swal-edit-year" value="${escapeHtml(term.academic_year)}"
-                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm font-bold">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">ภาคเรียน</label>
-                        <select id="swal-edit-sem" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm font-bold bg-white">
-                            <option value="1" ${term.semester === '1' ? 'selected' : ''}>เทอม 1</option>
-                            <option value="2" ${term.semester === '2' ? 'selected' : ''}>เทอม 2</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="grid grid-cols-2 gap-3">
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">วันเปิด</label>
-                        <input type="date" id="swal-edit-start" value="${term.start_date}"
-                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm">
-                    </div>
-                    <div>
-                        <label class="block text-xs font-bold text-slate-600 mb-1">วันปิด</label>
-                        <input type="date" id="swal-edit-end" value="${term.end_date}"
-                            class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:border-indigo-500 text-sm">
-                    </div>
-                </div>
-                <p class="text-[10px] text-amber-600 bg-amber-50 p-2 rounded-lg">
-                    <i class="fas fa-info-circle mr-1"></i>
-                    ระวัง! การเปลี่ยนวันเปิด-ปิดจะกระทบการกรองข้อมูลในหน้านี้
-                </p>
-            </div>
-        `,
-        width: 520,
-        showCancelButton: true,
-        confirmButtonColor: '#f59e0b',
-        confirmButtonText: '<i class="fas fa-save mr-1"></i> บันทึก',
-        cancelButtonText: 'ยกเลิก',
-        focusConfirm: false,
-        preConfirm: () => {
-            const year = document.getElementById('swal-edit-year').value.trim();
-            const sem = document.getElementById('swal-edit-sem').value;
-            const start = document.getElementById('swal-edit-start').value;
-            const end = document.getElementById('swal-edit-end').value;
-
-            if (!year || !sem || !start || !end) {
-                Swal.showValidationMessage('กรุณากรอกข้อมูลให้ครบถ้วน');
-                return false;
-            }
-            if (start >= end) {
-                Swal.showValidationMessage('วันเปิดต้องน้อยกว่าวันปิด');
-                return false;
-            }
-            return { year, sem, start, end };
-        }
-    });
-
-    if (!formValues) return;
-
-    try {
-        const { error } = await db.from('core_academic_terms')
-            .update({
-                academic_year: formValues.year,
-                semester: formValues.sem,
-                start_date: formValues.start,
-                end_date: formValues.end,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', id);
-
-        if (error) throw error;
-
-        const idx = academicTerms.findIndex(t => t.id === id);
-        if (idx !== -1) {
-            academicTerms[idx] = {
-                ...academicTerms[idx],
-                academic_year: formValues.year,
-                semester: formValues.sem,
-                start_date: formValues.start,
-                end_date: formValues.end
-            };
-        }
-
-        academicTerms.sort((a, b) => {
-            if (a.academic_year !== b.academic_year) return b.academic_year.localeCompare(a.academic_year);
-            return b.semester.localeCompare(a.semester);
-        });
-
-        populateTermSelect();
-        renderAcademicTermsTable();
-
-        if (selectedTerm && selectedTerm.id === id) {
-            selectedTerm = academicTerms.find(t => t.id === id);
-            termStartDate = selectedTerm.start_date;
-            termEndDate = selectedTerm.end_date;
-            applyDateConstraints();
-        }
-
-        Swal.fire({
-            toast: true,
-            position: 'top-end',
-            icon: 'success',
-            title: 'อัปเดตภาคเรียนแล้ว',
-            showConfirmButton: false,
-            timer: 1500
-        });
-    } catch (err) {
-        console.error('editAcademicTerm error:', err);
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
-}
-
-async function deleteAcademicTerm(id) {
-    const { isConfirmed } = await Swal.fire({
-        title: 'ยืนยันการลบ?',
-        text: 'ข้อมูลภาคเรียนนี้จะถูกลบอย่างถาวร',
-        icon: 'warning', showCancelButton: true,
-        confirmButtonColor: '#dc2626', cancelButtonColor: '#64748b',
-        confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก'
-    });
-    if (!isConfirmed) return;
-
-    try {
-        const { error } = await db.from('core_academic_terms').delete().eq('id', id);
-        if (error) throw error;
-        academicTerms = academicTerms.filter(t => t.id !== id);
-        populateTermSelect();
-        renderAcademicTermsTable();
-        Swal.fire({ toast: true, position: 'top-end', icon: 'info', title: 'ลบแล้ว', showConfirmButton: false, timer: 1500 });
-    } catch (err) {
-        Swal.fire('ผิดพลาด', err.message, 'error');
-    }
 }
 
 // ==========================================
@@ -2969,9 +2780,6 @@ window.loadStudentList = loadStudentList;
 window.formatThaiDateFull = formatThaiDateFull;
 window.formatThaiDate = formatThaiDate;
 window.loadHomeroomAdvisors = loadHomeroomAdvisors;
-window.addAcademicTerm = addAcademicTerm;
-window.editAcademicTerm = editAcademicTerm;
-window.deleteAcademicTerm = deleteAcademicTerm;
 window.onTermChanged = onTermChanged;
 window.updateUIBasedOnRole = updateUIBasedOnRole;
 

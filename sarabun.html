@@ -733,23 +733,22 @@
     <script src="sarabun.js"></script>
 
     <script>
-        // =======================================================
-        // Fallback Config — ระบบสารบรรณ
-        // =======================================================
+        // ============================================================
+        // Fallback Config — ดึง action จาก Library กลาง
+        // ============================================================
         function getSarabunFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
                     subtitle: 'ระบบสารบรรณ'
                 },
                 mainMenuTitle: 'เมนูหลัก',
+                mainMenuCollapsible: false,
                 mainMenu: [
-                    {
-                        id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html',
-                        icon_bg_color: '#64748b', icon_text_color: '#ffffff'
-                    }
+                    ...buildSidebarItems('sarabun', ['home']),
+                    getSidebarAction('sarabun', 'teacherView', { class: 'active' })
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -760,50 +759,23 @@
                         sectionId: 'sec-sarabun',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'nav-teacher-view',
-                                icon: 'fa-book-open',
-                                label: 'ทะเบียนหนังสือรับ',
-                                onclick: "switchSidebarView('teacherView')",
-                                class: 'active',
-                                icon_bg_color: '#3b82f6',
-                                icon_text_color: '#ffffff'
-                            },
-                            {
-                                id: 'nav-admin-view',
-                                icon: 'fa-pen-to-square',
-                                label: 'จัดการหนังสือ',
-                                onclick: "switchSidebarView('adminView')",
-                                hidden: true,
-                                icon_bg_color: '#8b5cf6',
-                                icon_text_color: '#ffffff'
-                            },
-                            {
-                                id: 'nav-new-doc',
-                                icon: 'fa-plus-circle',
-                                label: 'ลงรับหนังสือใหม่',
-                                onclick: "switchSidebarView('adminView', 'form')",
-                                hidden: true,
-                                icon_bg_color: '#10b981',
-                                icon_text_color: '#ffffff'
-                            }
-                        ]
+                        items: buildSidebarItems('sarabun', ['adminView', 'newDoc'], {
+                            adminView: { class: 'hidden' },
+                            newDoc: { class: 'hidden' }
+                        })
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
-                footerMenu: [
-                    {
-                        id: 'btn-settings',
-                        icon: 'fa-cog',
-                        label: 'ตั้งค่าระบบ',
-                        onclick: 'openSettingsModal()',
-                        hidden: true,
-                        icon_bg_color: '#475569',
-                        icon_text_color: '#ffffff'
-                    }
-                ],
-                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                footerCollapsible: false,
+                footerMenu: buildSidebarItems('sarabun', ['settings'], {
+                    settings: { class: 'hidden' }
+                }),
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -812,31 +784,29 @@
             };
         }
 
-        // =======================================================
-        // ✅ Init Module Sidebar — ใช้ fallback เท่านั้น
-        // 🚀 skipAutoRender: ให้ refreshSidebarUI จัดการ re-render เอง
-        // =======================================================
+        // ============================================================
+        // Init Module Sidebar — โหลด DB อัตโนมัติ
+        // ============================================================
         initModuleSidebar({
-            moduleKey: null,
-            skipAutoRender: true,          // ✅ FIX: ป้องกัน re-render ซ้ำ
+            moduleKey: 'sarabun',              // ✅ FIX: ระบุ key
             pageTitle: 'ทะเบียนหนังสือรับ',
             activeId: 'nav-teacher-view',
-            topbarButtons: [
-                {
-                    id: 'btnToggleMode',
-                    html: '<i id="mode-icon" class="fa-solid fa-user-shield"></i><span id="mode-text">โหมดแอดมิน</span>',
-                    onclick: 'toggleRoleView()',
-                    class: 'hidden d-btn-mode admin',
-                    title: 'สลับโหมด'
-                }
-            ],
+            topbarButtons: [{
+                id: 'btnToggleMode',
+                html: '<i id="mode-icon" class="fa-solid fa-user-shield"></i><span id="mode-text">โหมดแอดมิน</span>',
+                onclick: 'toggleRoleView()',
+                class: 'hidden d-btn-mode admin',
+                title: 'สลับโหมด'
+            }],
             fallbackConfig: getSarabunFallbackConfig(),
-            waitRole: true,
-            onReady: () => {
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'ระบบสารบรรณ' }
+            ],
+            onReady: async () => {
+                // ✅ onReady เหลือแค่ UI updates
+                if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
                 if (typeof setTodayChip === 'function') setTodayChip();
-                if (typeof window.refreshNavButtons === 'function') {
-                    window.refreshNavButtons();
-                }
             }
         });
     </script>

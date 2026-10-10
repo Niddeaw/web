@@ -160,26 +160,29 @@
                             โครงสร้างการบริหารโรงเรียนและการตั้งค่าระบบ
                         </h3>
                         <form id="schoolInfoForm" class="grid grid-cols-1 md:grid-cols-2 gap-5" onsubmit="saveSchoolInfo(event)">
-                            <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4 bg-amber-50 p-5 rounded-xl border border-amber-200 mb-2 shadow-inner transition-colors">
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-days text-amber-600 mr-1"></i> ปีการศึกษาปัจจุบัน *</label>
-                                    <input type="text" id="inp_current_year" required placeholder="เช่น 2569"
-                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-clock text-amber-600 mr-1"></i> ภาคเรียนปัจจุบัน *</label>
-                                    <select id="inp_current_term" required
-                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
-                                        <option value="1">ภาคเรียนที่ 1</option>
-                                        <option value="2">ภาคเรียนที่ 2</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-check text-emerald-600 mr-1"></i> วันเปิดภาคเรียน *</label>
-                                    <input type="date" id="inp_term_start_date" required
-                                        class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-emerald-700 text-lg transition-colors">
-                                </div>
-                            </div>
+                            <div class="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-4 bg-amber-50 p-5 rounded-xl border border-amber-200 mb-2 shadow-inner transition-colors">
+    <div>
+        <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-calendar-days text-amber-600 mr-1"></i> ปีการศึกษาปัจจุบัน *</label>
+        <input type="text" id="inp_current_year" required placeholder="เช่น 2569"
+            class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
+    </div>
+    <div>
+        <label class="block text-sm font-bold text-slate-800 mb-1"><i class="fa-solid fa-clock text-amber-600 mr-1"></i> ภาคเรียนปัจจุบัน *</label>
+        <select id="inp_current_term" required
+            class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:border-primary-500 bg-white font-bold text-blue-700 text-lg transition-colors">
+            <option value="1">ภาคเรียนที่ 1</option>
+            <option value="2">ภาคเรียนที่ 2</option>
+        </select>
+    </div>
+    <div class="md:col-span-2 text-xs text-amber-700 bg-amber-100 border border-amber-200 rounded-lg px-3 py-2 flex items-start gap-2">
+        <i class="fa-solid fa-circle-info mt-0.5"></i>
+        <span>
+            <b>หมายเหตุ:</b> วันเปิด-ปิดภาคเรียน กำหนดแยกในหัวข้อ
+            <a href="#academicTermForm" class="underline font-bold hover:text-amber-900">"จัดการภาคเรียน"</a>
+            ด้านล่างแล้ว
+        </span>
+    </div>
+</div>
 
                             <div class="md:col-span-2">
                                 <label class="block text-sm font-bold text-slate-700 mb-1">ชื่อโรงเรียน</label>
@@ -213,6 +216,88 @@
                             </div>
                         </form>
                     </div>
+
+                    <!-- ============================================ -->
+<!-- ✅ จัดการภาคเรียน (Academic Terms) -->
+<!-- ============================================ -->
+<div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mt-6">
+    <h3 class="text-lg font-bold text-slate-800 mb-4 border-b border-slate-100 pb-2 flex items-center gap-2">
+        <i class="fa-solid fa-calendar-days text-indigo-600"></i>
+        จัดการภาคเรียน (ปีการศึกษา / วันเปิด-ปิด)
+    </h3>
+    <p class="text-sm text-slate-500 mb-5">
+        กำหนดวันเปิด-ปิดของ <b>ภาคเรียนที่ 1</b> และ <b>ภาคเรียนที่ 2</b> สำหรับแต่ละปีการศึกษา
+        ระบบเช็คชื่อจะดึงข้อมูลจากที่นี่ไปใช้โดยอัตโนมัติ
+    </p>
+
+    <!-- Form -->
+    <form id="academicTermForm" onsubmit="saveAcademicTerms(event)"
+          class="bg-indigo-50/50 border border-indigo-200 rounded-xl p-5 mb-6">
+        <input type="hidden" id="at_edit_year">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 items-end">
+            <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">ปีการศึกษา *</label>
+                <input type="text" id="at_year" required placeholder="2569"
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 outline-none focus:border-indigo-500 bg-white font-bold text-indigo-700">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-emerald-700 mb-1">
+                    <i class="fa-solid fa-1 mr-0.5"></i> เปิด เทอม 1 *
+                </label>
+                <input type="date" id="at_t1_start" required
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 outline-none focus:border-emerald-500 bg-white text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-emerald-700 mb-1">
+                    <i class="fa-solid fa-flag-checkered mr-0.5"></i> ปิด เทอม 1 *
+                </label>
+                <input type="date" id="at_t1_end" required
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 outline-none focus:border-emerald-500 bg-white text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-rose-700 mb-1">
+                    <i class="fa-solid fa-2 mr-0.5"></i> เปิด เทอม 2 *
+                </label>
+                <input type="date" id="at_t2_start" required
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 outline-none focus:border-rose-500 bg-white text-sm">
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-rose-700 mb-1">
+                    <i class="fa-solid fa-flag-checkered mr-0.5"></i> ปิด เทอม 2 *
+                </label>
+                <input type="date" id="at_t2_end" required
+                    class="w-full border border-slate-300 rounded-lg px-3 py-2.5 outline-none focus:border-rose-500 bg-white text-sm">
+            </div>
+        </div>
+        <div class="flex justify-end gap-2 mt-4">
+            <button type="button" onclick="clearAcademicTermForm()"
+                class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg font-bold text-slate-700 text-sm transition">
+                <i class="fa-solid fa-eraser mr-1"></i> เคลียร์ฟอร์ม
+            </button>
+            <button type="submit"
+                class="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-bold text-sm shadow-sm transition">
+                <i class="fa-solid fa-save mr-1"></i> บันทึกภาคเรียน
+            </button>
+        </div>
+    </form>
+
+    <!-- Table -->
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm border-collapse">
+            <thead>
+                <tr class="bg-slate-50 text-slate-600 border-b">
+                    <th class="py-3 px-4 text-center w-32">ปีการศึกษา</th>
+                    <th class="py-3 px-4 text-center">ภาคเรียนที่ 1 (เปิด / ปิด)</th>
+                    <th class="py-3 px-4 text-center">ภาคเรียนที่ 2 (เปิด / ปิด)</th>
+                    <th class="py-3 px-4 text-center w-32">จัดการ</th>
+                </tr>
+            </thead>
+            <tbody id="tb-academic-terms" class="divide-y divide-gray-100">
+                <tr><td colspan="4" class="text-center py-6 text-gray-400">กำลังโหลด...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
 
                     <!-- Micro-services -->
                     <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
@@ -1289,6 +1374,7 @@
 
     <script src="super_admin_core.js"></script>
     <script src="super_admin_school.js"></script>
+    <script src="super_admin_terms.js"></script>
     <script src="super_admin_personnel.js"></script>
     <script src="super_admin_classroom.js"></script>
     <script src="super_admin_portal.js"></script>

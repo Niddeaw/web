@@ -12,8 +12,13 @@
     <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        .d-menu { display: none; }
-        .d-overlay { display: none; }
+        .d-menu {
+            display: none;
+        }
+
+        .d-overlay {
+            display: none;
+        }
 
         @media (max-width: 760px) {
             .d-sidebar {
@@ -29,10 +34,14 @@
                 overflow-y: auto !important;
                 box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
             }
-            .d-sidebar.open, .d-sidebar.show,
-            .d-sidebar.active, .d-sidebar.is-open {
+
+            .d-sidebar.open,
+            .d-sidebar.show,
+            .d-sidebar.active,
+            .d-sidebar.is-open {
                 transform: translateX(0) !important;
             }
+
             .d-overlay {
                 display: none !important;
                 position: fixed !important;
@@ -43,40 +52,60 @@
                 opacity: 0;
                 transition: opacity 0.3s ease;
             }
-            .d-overlay.open, .d-overlay.show,
-            .d-overlay.active, .d-overlay.is-open {
+
+            .d-overlay.open,
+            .d-overlay.show,
+            .d-overlay.active,
+            .d-overlay.is-open {
                 display: block !important;
                 opacity: 1;
             }
+
             .d-main {
                 margin-left: 0 !important;
                 padding-left: 0 !important;
                 width: 100% !important;
                 max-width: 100vw !important;
             }
-            .d-app { display: block !important; }
+
+            .d-app {
+                display: block !important;
+            }
+
             .d-menu {
                 display: flex !important;
                 align-items: center;
                 justify-content: center;
             }
-            .d-collapse { display: none !important; }
+
+            .d-collapse {
+                display: none !important;
+            }
+
             .d-topbar {
                 padding: 0 10px !important;
                 gap: 6px !important;
             }
-            .d-main > div {
+
+            .d-main>div {
                 max-width: 100vw;
                 overflow-x: hidden;
             }
-            .glass-panel { max-width: 100%; }
-            #stats-modal > div, #grade-overview-modal > div {
+
+            .glass-panel {
+                max-width: 100%;
+            }
+
+            #stats-modal>div,
+            #grade-overview-modal>div {
                 max-height: 95vh !important;
             }
         }
 
         @media (min-width: 761px) and (max-width: 1024px) {
-            .d-sidebar { width: 240px; }
+            .d-sidebar {
+                width: 240px;
+            }
         }
     </style>
 </head>
@@ -102,53 +131,68 @@
                         </div>
                         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
                             <div class="space-y-1 relative z-[60]">
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ปี / ภาคเรียน</label>
-                                <select id="term-select" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all font-semibold outline-none shadow-sm"></select>
+                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ปี /
+                                    ภาคเรียน</label>
+                                <select id="term-select"
+                                    class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-indigo-500 transition-all font-semibold outline-none shadow-sm"></select>
                             </div>
                             <div class="space-y-1 relative z-50">
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชั้นเรียน</label>
-                                <select id="classroom-select" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm"></select>
+                                <label
+                                    class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">ชั้นเรียน</label>
+                                <select id="classroom-select"
+                                    class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm"></select>
                             </div>
                             <div class="space-y-1">
-                                <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">วันที่</label>
-                                <input type="date" id="check-date" class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm">
+                                <label
+                                    class="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">วันที่</label>
+                                <input type="date" id="check-date"
+                                    class="w-full bg-white border-none ring-1 ring-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 transition-all font-semibold outline-none shadow-sm">
                             </div>
                         </div>
                         <div id="term-status-banner"></div>
                     </div>
 
-                    <div class="glass-panel p-5 bg-blue-50/50 flex flex-col justify-center border-blue-100 shadow-lg relative overflow-hidden rounded-2xl">
+                    <div
+                        class="glass-panel p-5 bg-blue-50/50 flex flex-col justify-center border-blue-100 shadow-lg relative overflow-hidden rounded-2xl">
                         <i class="fas fa-chart-pie absolute -right-4 -bottom-4 text-6xl text-blue-100/50 z-0"></i>
 
-                        <div id="homeroom-advisor-container" class="flex items-center gap-3 mb-4 z-10 transition-all duration-300">
-                            <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-200">
+                        <div id="homeroom-advisor-container"
+                            class="flex items-center gap-3 mb-4 z-10 transition-all duration-300">
+                            <div
+                                class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center shrink-0 shadow-sm border border-blue-200">
                                 <i class="fa-solid fa-chalkboard-user text-lg"></i>
                             </div>
                             <div>
-                                <p class="text-[10px] md:text-xs text-slate-500 font-bold uppercase mb-0.5">ครูที่ปรึกษาประจำชั้น</p>
-                                <h4 id="homeroom-advisor-names" class="text-sm md:text-base font-bold text-blue-900 leading-tight">
+                                <p class="text-[10px] md:text-xs text-slate-500 font-bold uppercase mb-0.5">
+                                    ครูที่ปรึกษาประจำชั้น</p>
+                                <h4 id="homeroom-advisor-names"
+                                    class="text-sm md:text-base font-bold text-blue-900 leading-tight">
                                     <i class="fa-solid fa-spinner fa-spin text-blue-400"></i> กำลังโหลดข้อมูล...
                                 </h4>
                             </div>
                         </div>
 
-                        <h3 class="text-sm font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2 z-10">ภาพรวมการเช็คชื่อ (เทอมนี้)</h3>
+                        <h3 class="text-sm font-bold text-blue-800 mb-2 border-b border-blue-200 pb-2 z-10">
+                            ภาพรวมการเช็คชื่อ (เทอมนี้)</h3>
 
                         <div class="grid grid-cols-3 gap-2 z-10">
                             <div>
                                 <p class="text-[10px] font-black text-slate-500 uppercase">วันทั้งหมด</p>
-                                <p class="text-2xl font-black text-slate-700"><span id="total-days-count">0</span> <span class="text-sm font-medium">วัน</span></p>
+                                <p class="text-2xl font-black text-slate-700"><span id="total-days-count">0</span> <span
+                                        class="text-sm font-medium">วัน</span></p>
                             </div>
                             <div>
                                 <p class="text-[10px] font-black text-slate-500 uppercase">เช็คแล้ว</p>
-                                <p class="text-2xl font-black text-blue-600 cursor-pointer hover:text-blue-800 transition-colors" onclick="showCheckedDates()">
+                                <p class="text-2xl font-black text-blue-600 cursor-pointer hover:text-blue-800 transition-colors"
+                                    onclick="showCheckedDates()">
                                     <span id="days-checked-count">0</span> <span class="text-sm font-medium">วัน</span>
                                     <i class="fas fa-info-circle text-[10px] align-top"></i>
                                 </p>
                             </div>
                             <div>
                                 <p class="text-[10px] font-black text-rose-500 uppercase">ลืมเช็ค/ขาดเช็ค</p>
-                                <p class="text-2xl font-black text-rose-600 cursor-pointer hover:text-rose-800 transition-colors" onclick="showMissingDates()">
+                                <p class="text-2xl font-black text-rose-600 cursor-pointer hover:text-rose-800 transition-colors"
+                                    onclick="showMissingDates()">
                                     <span id="missing-days-count">0</span> <span class="text-sm font-medium">วัน</span>
                                     <i class="fas fa-info-circle text-[10px] align-top"></i>
                                 </p>
@@ -161,25 +205,35 @@
 
                 <div class="flex flex-col sm:flex-row gap-3 justify-between items-center">
                     <div class="flex flex-wrap gap-2 w-full sm:w-auto">
-                        <button onclick="markAllAs('มา')" class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
+                        <button onclick="markAllAs('มา')"
+                            class="flex-1 sm:flex-none bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-blue-100 transition-all flex items-center justify-center gap-2">
                             <i class="fas fa-check-double"></i> มาครบทุกคน
                         </button>
-                        <button onclick="exportToExcel()" class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2">
+                        <button onclick="exportToExcel()"
+                            class="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-emerald-100 transition-all flex items-center justify-center gap-2">
                             <i class="fas fa-file-excel"></i> ส่งออก Excel
                         </button>
-                        <button onclick="generatePDFReport()" class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
+                        <button onclick="generatePDFReport()"
+                            class="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 transition-all flex items-center justify-center gap-2">
                             <i class="fas fa-file-pdf"></i> สรุปรายงาน PDF
                         </button>
-                        <button onclick="clearDailyData()" class="flex-1 sm:flex-none bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2" title="ล้างข้อมูลเฉพาะวันที่เลือกอยู่">
+                        <button onclick="clearDailyData()"
+                            class="flex-1 sm:flex-none bg-rose-500 hover:bg-rose-600 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-rose-100 transition-all flex items-center justify-center gap-2"
+                            title="ล้างข้อมูลเฉพาะวันที่เลือกอยู่">
                             <i class="fas fa-calendar-minus"></i> ล้างวันนี้
                         </button>
-                        <button onclick="clearAttendanceData()" class="flex-1 sm:flex-none bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2" title="ล้างข้อมูลหลายวัน เลือกห้องได้">
+                        <button onclick="clearAttendanceData()"
+                            class="flex-1 sm:flex-none bg-rose-700 hover:bg-rose-800 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-rose-200 transition-all flex items-center justify-center gap-2"
+                            title="ล้างข้อมูลหลายวัน เลือกห้องได้">
                             <i class="fas fa-trash-alt"></i> ล้างหลายวัน
                         </button>
                     </div>
-                    <div class="flex gap-4 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 text-sm font-bold">
-                        <span class="text-green-600"><i class="fas fa-user-check mr-1"></i> มา: <span id="stat-present">0</span></span>
-                        <span class="text-rose-600"><i class="fas fa-user-times mr-1"></i> อื่นๆ: <span id="stat-absent">0</span></span>
+                    <div
+                        class="flex gap-4 bg-white px-4 py-2 rounded-xl shadow-sm border border-slate-100 text-sm font-bold">
+                        <span class="text-green-600"><i class="fas fa-user-check mr-1"></i> มา: <span
+                                id="stat-present">0</span></span>
+                        <span class="text-rose-600"><i class="fas fa-user-times mr-1"></i> อื่นๆ: <span
+                                id="stat-absent">0</span></span>
                     </div>
                 </div>
 
@@ -196,9 +250,15 @@
                         <table class="w-full text-left border-collapse">
                             <thead>
                                 <tr class="bg-slate-50/50 text-slate-400 border-b border-slate-100">
-                                    <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] w-20 text-center">เลขที่</th>
-                                    <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em]">ชื่อ - นามสกุล <span class="text-slate-300 font-normal normal-case">(คลิกชื่อเพื่อดูประวัติ)</span></th>
-                                    <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-center">สถานะการมาเรียน</th>
+                                    <th
+                                        class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] w-20 text-center">
+                                        เลขที่</th>
+                                    <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em]">ชื่อ -
+                                        นามสกุล <span
+                                            class="text-slate-300 font-normal normal-case">(คลิกชื่อเพื่อดูประวัติ)</span>
+                                    </th>
+                                    <th class="px-6 py-4 text-[10px] font-black uppercase tracking-[0.2em] text-center">
+                                        สถานะการมาเรียน</th>
                                 </tr>
                             </thead>
                             <tbody id="student-list" class="divide-y divide-slate-50">
@@ -219,41 +279,54 @@
     <!-- ================= Modals ================= -->
 
     <!-- Stats Modal -->
-    <div id="stats-modal" class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity opacity-0">
-        <div class="bg-white w-full max-w-5xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300">
+    <div id="stats-modal"
+        class="fixed inset-0 z-[100] hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-opacity opacity-0">
+        <div
+            class="bg-white w-full max-w-5xl max-h-[95vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden transform scale-95 transition-transform duration-300">
             <div class="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/80">
                 <div class="flex items-center gap-3">
-                    <div class="bg-indigo-100 text-indigo-600 p-3 rounded-2xl"><i class="fas fa-chart-bar text-xl"></i></div>
+                    <div class="bg-indigo-100 text-indigo-600 p-3 rounded-2xl"><i class="fas fa-chart-bar text-xl"></i>
+                    </div>
                     <div>
                         <h3 class="text-xl font-black text-slate-800">รายงานสถิติการเช็คชื่อ</h3>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Attendance Statistics Report</p>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Attendance Statistics
+                            Report</p>
                     </div>
                     <div class="flex flex-col gap-0.5">
                         <p id="ui-stats-room-term" class="text-[11px] font-bold text-indigo-600"></p>
                         <p id="ui-stats-advisers" class="text-[10px] font-medium text-slate-500"></p>
                     </div>
                 </div>
-                <button onclick="closeStatsModal()" class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors"><i class="fas fa-times text-xl"></i></button>
+                <button onclick="closeStatsModal()"
+                    class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
 
             <div class="p-6 overflow-y-auto flex-1 custom-scrollbar">
                 <div class="flex flex-wrap items-end gap-4 mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-200">
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">ห้องเรียน</label>
-                        <select id="stat-classroom-select" class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium w-48">
+                        <select id="stat-classroom-select"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium w-48">
                             <option value="">-- เลือกห้องเรียน --</option>
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">ตั้งแต่วันที่</label>
-                        <input type="date" id="stat-start-date" class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
+                        <input type="date" id="stat-start-date"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-slate-500 mb-1">ถึงวันที่</label>
-                        <input type="date" id="stat-end-date" class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
+                        <input type="date" id="stat-end-date"
+                            class="px-4 py-2.5 rounded-xl border border-slate-300 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all text-sm font-medium">
                     </div>
-                    <button onclick="generateStats()" class="h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2"><i class="fas fa-search"></i> ดูสถิติ</button>
-                    <button onclick="printStatsPDF()" class="h-[42px] bg-rose-500 hover:bg-rose-600 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2 ml-auto"><i class="fas fa-file-pdf"></i> พิมพ์ PDF</button>
+                    <button onclick="generateStats()"
+                        class="h-[42px] bg-indigo-600 hover:bg-indigo-700 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2"><i
+                            class="fas fa-search"></i> ดูสถิติ</button>
+                    <button onclick="printStatsPDF()"
+                        class="h-[42px] bg-rose-500 hover:bg-rose-600 text-white px-6 rounded-xl font-bold transition shadow-sm flex items-center gap-2 ml-auto"><i
+                            class="fas fa-file-pdf"></i> พิมพ์ PDF</button>
                 </div>
 
                 <div id="stats-print-area" class="bg-white p-6 rounded-2xl border border-slate-100">
@@ -272,38 +345,50 @@
                         <canvas id="attendanceChart"></canvas>
                     </div>
 
-                    <div id="stats-student-lists" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 border-t border-slate-100 pt-6"></div>
+                    <div id="stats-student-lists"
+                        class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 border-t border-slate-100 pt-6"></div>
                 </div>
             </div>
         </div>
     </div>
 
     <!-- Student History Modal -->
-    <div id="student-history-modal" class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
+    <div id="student-history-modal"
+        class="fixed inset-0 z-50 hidden bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4">
         <div class="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-blue-50/50">
-                <h2 class="text-lg font-bold text-blue-900"><i class="fas fa-user-graduate mr-2"></i> ประวัติการมาเรียนรายบุคคล</h2>
-                <button onclick="closeStudentHistory()" class="text-slate-400 hover:text-rose-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+                <h2 class="text-lg font-bold text-blue-900"><i class="fas fa-user-graduate mr-2"></i>
+                    ประวัติการมาเรียนรายบุคคล</h2>
+                <button onclick="closeStudentHistory()" class="text-slate-400 hover:text-rose-500 transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1" id="student-history-content"></div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                <button onclick="closeStudentHistory()" class="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">ปิด</button>
-                <button id="btn-export-student-pdf" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold shadow-md transition-colors"><i class="fas fa-print mr-2"></i> พิมพ์ประวัติ (PDF)</button>
+                <button onclick="closeStudentHistory()"
+                    class="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">ปิด</button>
+                <button id="btn-export-student-pdf"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold shadow-md transition-colors"><i
+                        class="fas fa-print mr-2"></i> พิมพ์ประวัติ (PDF)</button>
             </div>
         </div>
     </div>
 
     <!-- Admin Modal -->
-    <div id="admin-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
-        <div class="bg-white/90 backdrop-blur-xl border border-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
+    <div id="admin-modal"
+        class="fixed inset-0 z-[100] hidden bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+        <div
+            class="bg-white/90 backdrop-blur-xl border border-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden transform transition-all">
             <div class="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-indigo-50/50">
-                <h2 class="text-lg font-bold text-indigo-900"><i class="fas fa-tools mr-2"></i> ตั้งค่าระบบเช็คชื่อ (Admin Only)</h2>
-                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-rose-500 transition-colors"><i class="fas fa-times text-xl"></i></button>
+                <h2 class="text-lg font-bold text-indigo-900"><i class="fas fa-tools mr-2"></i> ตั้งค่าระบบเช็คชื่อ
+                    (Admin Only)</h2>
+                <button onclick="closeAdminModal()" class="text-slate-400 hover:text-rose-500 transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto space-y-6 flex-1">
                 <!-- ===== ตั้งค่าทั่วไป ===== -->
                 <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">ตั้งค่าทั่วไป</h3>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">ตั้งค่าทั่วไป
+                    </h3>
                     <div class="flex justify-between items-center bg-slate-50 p-4 rounded-xl">
                         <div>
                             <p class="font-bold text-slate-700">อนุญาตเฉพาะวันจันทร์ - ศุกร์</p>
@@ -311,45 +396,48 @@
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="setting-weekdays" class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div
+                                class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
+                            </div>
                         </label>
                     </div>
                     <div class="flex justify-between items-center bg-slate-50 p-4 rounded-xl">
                         <div>
                             <p class="font-bold text-slate-700">ล็อคห้ามเช็คชื่อล่วงหน้า</p>
-                            <p class="text-[11px] text-slate-500">เปิดเพื่อป้องกันการเช็คชื่อข้ามวัน (ปิดเมื่อต้องการทดสอบ)</p>
+                            <p class="text-[11px] text-slate-500">เปิดเพื่อป้องกันการเช็คชื่อข้ามวัน
+                                (ปิดเมื่อต้องการทดสอบ)</p>
                         </div>
                         <label class="relative inline-flex items-center cursor-pointer">
                             <input type="checkbox" id="setting-lock-future" class="sr-only peer">
-                            <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                            <div
+                                class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600">
+                            </div>
                         </label>
                     </div>
                 </div>
 
-                <!-- ===== จัดการภาคเรียน ===== -->
+                <!-- ===== ข้อมูลภาคเรียน (อ่านเท่านั้น) ===== -->
                 <div class="space-y-4">
                     <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">
-                        <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i> จัดการภาคเรียน (วันเปิด-ปิด)
+                        <i class="fas fa-calendar-alt mr-1 text-indigo-500"></i> ภาคเรียนที่ใช้งานได้
                     </h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                        <input type="text" id="term-new-year" placeholder="ปีการศึกษา เช่น 2569" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm">
-                        <select id="term-new-sem" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm bg-white">
-                            <option value="1">เทอม 1</option>
-                            <option value="2">เทอม 2</option>
-                        </select>
-                        <input type="date" id="term-new-start" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm" title="วันเปิด">
-                        <input type="date" id="term-new-end" class="px-3 py-2 rounded-lg border border-slate-200 outline-none text-sm" title="วันปิด">
+                    <div
+                        class="bg-blue-50 border border-blue-200 rounded-xl p-3 text-xs text-blue-700 flex items-start gap-2">
+                        <i class="fas fa-info-circle mt-0.5"></i>
+                        <div>
+                            <b>กำหนดการเปิด-ปิดภาคเรียน</b> จัดการที่
+                            <a href="super_admin.html" class="underline font-bold hover:text-blue-900">หน้าผู้ดูแลระบบ
+                                (ส่วนกลาง)</a>
+                            — ที่นี่แสดงผลเพื่ออ้างอิงเท่านั้น
+                        </div>
                     </div>
-                    <button onclick="addAcademicTerm()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg font-bold transition-colors text-sm">
-                        <i class="fas fa-plus mr-1"></i> เพิ่มภาคเรียน
-                    </button>
-                    <div class="border border-slate-200 rounded-xl overflow-hidden max-h-52 overflow-y-auto">
+                    <div class="border border-slate-200 rounded-xl overflow-hidden max-h-60 overflow-y-auto">
                         <table class="w-full text-left text-sm">
                             <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10">
                                 <tr>
-                                    <th class="px-3 py-2">ปี/เทอม</th>
-                                    <th class="px-3 py-2">เปิด - ปิด</th>
-                                    <th class="px-3 py-2 text-center w-20">จัดการ</th>
+                                    <th class="px-3 py-2 w-24">ปีการศึกษา</th>
+                                    <th class="px-3 py-2 w-20">ภาคเรียน</th>
+                                    <th class="px-3 py-2">วันเปิด - วันปิด</th>
                                 </tr>
                             </thead>
                             <tbody id="academic-terms-table" class="divide-y divide-slate-100 bg-white"></tbody>
@@ -359,16 +447,24 @@
 
                 <!-- ===== จัดการวันหยุด ===== -->
                 <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">จัดการวันหยุด (ระบบบันทึก "มา" อัตโนมัติ)</h3>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2">จัดการวันหยุด
+                        (ระบบบันทึก "มา" อัตโนมัติ)</h3>
                     <div class="flex gap-2">
-                        <input type="date" id="new-holiday-date" class="flex-1 px-4 py-2 rounded-lg border border-slate-200 outline-none text-sm">
-                        <input type="text" id="new-holiday-desc" placeholder="ชื่อวันหยุด (เช่น วันพ่อ)" class="flex-2 w-full px-4 py-2 rounded-lg border border-slate-200 outline-none text-sm">
-                        <button onclick="addHoliday()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">เพิ่ม</button>
+                        <input type="date" id="new-holiday-date"
+                            class="flex-1 px-4 py-2 rounded-lg border border-slate-200 outline-none text-sm">
+                        <input type="text" id="new-holiday-desc" placeholder="ชื่อวันหยุด (เช่น วันพ่อ)"
+                            class="flex-2 w-full px-4 py-2 rounded-lg border border-slate-200 outline-none text-sm">
+                        <button onclick="addHoliday()"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold transition-colors">เพิ่ม</button>
                     </div>
                     <div class="border border-slate-200 rounded-xl overflow-hidden max-h-40 overflow-y-auto">
                         <table class="w-full text-left text-sm">
                             <thead class="bg-slate-50 text-slate-500 sticky top-0 z-10">
-                                <tr><th class="px-4 py-2">วันที่</th><th class="px-4 py-2">คำอธิบาย</th><th class="px-4 py-2 text-center">จัดการ</th></tr>
+                                <tr>
+                                    <th class="px-4 py-2">วันที่</th>
+                                    <th class="px-4 py-2">คำอธิบาย</th>
+                                    <th class="px-4 py-2 text-center">จัดการ</th>
+                                </tr>
                             </thead>
                             <tbody id="holiday-list-table" class="divide-y divide-slate-100 bg-white"></tbody>
                         </table>
@@ -377,44 +473,63 @@
 
                 <!-- ===== บันทึกย้อนหลัง ===== -->
                 <div class="space-y-4">
-                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2"><i class="fas fa-clock-rotate-left mr-1"></i> บันทึกมาเรียนย้อนหลัง (ทั้งโรงเรียน)</h3>
+                    <h3 class="text-sm font-bold text-slate-500 uppercase tracking-widest border-b pb-2"><i
+                            class="fas fa-clock-rotate-left mr-1"></i> บันทึกมาเรียนย้อนหลัง (ทั้งโรงเรียน)</h3>
                     <div class="flex flex-col sm:flex-row gap-2 items-end">
                         <div class="flex-1">
                             <label class="block text-xs font-bold text-slate-500 mb-1">เลือกวันที่</label>
-                            <input type="date" id="admin-batch-date" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
+                            <input type="date" id="admin-batch-date"
+                                class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500 outline-none text-sm">
                         </div>
-                        <button onclick="adminMarkAllPresentBatch()" class="w-full sm:w-auto h-[42px] bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2"><i class="fas fa-check-double"></i> บันทึกมาทุกคน</button>
+                        <button onclick="adminMarkAllPresentBatch()"
+                            class="w-full sm:w-auto h-[42px] bg-emerald-600 hover:bg-emerald-700 text-white px-6 rounded-xl font-bold text-sm transition-all shadow-md flex items-center justify-center gap-2"><i
+                                class="fas fa-check-double"></i> บันทึกมาทุกคน</button>
                     </div>
                     <div id="admin-batch-status" class="text-sm font-semibold mt-2"></div>
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2">
-                <button onclick="closeAdminModal()" class="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">ปิด</button>
-                <button onclick="saveAdminSettings()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold shadow-md shadow-indigo-200 transition-colors">บันทึกการตั้งค่า</button>
+                <button onclick="closeAdminModal()"
+                    class="px-6 py-2 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors">ปิด</button>
+                <button onclick="saveAdminSettings()"
+                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-xl font-bold shadow-md shadow-indigo-200 transition-colors">บันทึกการตั้งค่า</button>
             </div>
         </div>
     </div>
 
     <!-- Grade Overview Modal -->
-    <div id="grade-overview-modal" class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
-        <div class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden transform transition-transform">
+    <div id="grade-overview-modal"
+        class="fixed inset-0 z-[100] hidden bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity">
+        <div
+            class="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden transform transition-transform">
             <div class="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-purple-50/80">
                 <div class="flex items-center gap-3">
-                    <div class="bg-purple-100 text-purple-600 p-2.5 rounded-xl shadow-inner hidden sm:flex items-center justify-center"><i class="fas fa-layer-group text-lg"></i></div>
+                    <div
+                        class="bg-purple-100 text-purple-600 p-2.5 rounded-xl shadow-inner hidden sm:flex items-center justify-center">
+                        <i class="fas fa-layer-group text-lg"></i></div>
                     <div>
-                        <h2 class="text-xl font-black text-purple-900 leading-tight">สรุปการเช็คชื่อระดับชั้น <span id="grade-overview-title" class="text-purple-600 ml-1"></span></h2>
-                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Grade Overview Dashboard</p>
+                        <h2 class="text-xl font-black text-purple-900 leading-tight">สรุปการเช็คชื่อระดับชั้น <span
+                                id="grade-overview-title" class="text-purple-600 ml-1"></span></h2>
+                        <p class="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Grade Overview
+                            Dashboard</p>
                     </div>
                 </div>
-                <button onclick="closeGradeOverview()" class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors"><i class="fas fa-times text-xl"></i></button>
+                <button onclick="closeGradeOverview()"
+                    class="text-slate-400 hover:text-rose-500 hover:bg-rose-50 h-10 w-10 rounded-xl flex items-center justify-center transition-colors"><i
+                        class="fas fa-times text-xl"></i></button>
             </div>
             <div class="p-6 overflow-y-auto flex-1 bg-slate-50/50 custom-scrollbar">
-                <div class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+                <div
+                    class="mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
                     <div class="flex items-center gap-3 w-full sm:w-auto">
-                        <label class="font-bold text-slate-600 text-sm whitespace-nowrap"><i class="fas fa-calendar-alt text-purple-500 mr-1.5"></i> ประจำวันที่:</label>
-                        <input type="date" id="overview-date-select" onchange="loadGradeOverviewData()" class="flex-1 sm:flex-none text-sm font-bold text-purple-700 bg-purple-50 border border-purple-100 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer shadow-sm">
+                        <label class="font-bold text-slate-600 text-sm whitespace-nowrap"><i
+                                class="fas fa-calendar-alt text-purple-500 mr-1.5"></i> ประจำวันที่:</label>
+                        <input type="date" id="overview-date-select" onchange="loadGradeOverviewData()"
+                            class="flex-1 sm:flex-none text-sm font-bold text-purple-700 bg-purple-50 border border-purple-100 rounded-xl px-4 py-2.5 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all cursor-pointer shadow-sm">
                     </div>
-                    <button onclick="exportGradeOverviewPDF()" class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2"><i class="fas fa-print"></i> พิมพ์รายงานระดับชั้น</button>
+                    <button onclick="exportGradeOverviewPDF()"
+                        class="w-full sm:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-md transition-colors flex items-center justify-center gap-2"><i
+                            class="fas fa-print"></i> พิมพ์รายงานระดับชั้น</button>
                 </div>
                 <div class="bg-white overflow-x-auto rounded-xl border border-slate-200 shadow-sm">
                     <table class="w-full text-sm text-center">
@@ -435,7 +550,8 @@
                 </div>
             </div>
             <div class="px-6 py-4 border-t border-slate-100 bg-white flex justify-end">
-                <button onclick="closeGradeOverview()" class="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-800 transition-colors">ปิดหน้าต่าง</button>
+                <button onclick="closeGradeOverview()"
+                    class="px-6 py-2.5 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-800 transition-colors">ปิดหน้าต่าง</button>
             </div>
         </div>
     </div>
@@ -448,6 +564,9 @@
 
     <!-- ✅ Init Module Sidebar -->
     <script>
+        // ============================================================
+        // Fallback Config — ดึง action จาก Library กลาง
+        // ============================================================
         function getAttendanceFallbackConfig() {
             return {
                 iconStyle: 'outline',
@@ -459,8 +578,8 @@
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' },
-                    { id: 'nav-attendance', icon: 'fa-calendar-check', label: 'เช็คชื่อ', class: 'active' }
+                    ...buildSidebarItems('attendance', ['home']),
+                    getSidebarAction('attendance', 'check', { class: 'active' })
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -471,40 +590,16 @@
                         sectionId: 'sec-attendance-actions',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'btn-stats-report',
-                                icon: 'fa-chart-pie',
-                                label: 'รายงานสถิติ',
-                                onclick: 'openStatsModal()'
-                            },
-                            {
-                                id: 'btn-grade-overview',
-                                icon: 'fa-chart-bar',
-                                label: 'ภาพรวมระดับชั้น',
-                                onclick: 'openGradeOverview()',
-                                class: 'hidden'
-                            },
-                            {
-                                id: 'btn-history',
-                                icon: 'fa-history',
-                                label: 'ประวัติการเช็คชื่อ',
-                                onclick: 'openHistoryModal()'
-                            }
-                        ]
+                        items: buildSidebarItems('attendance', ['stats', 'grade', 'history'], {
+                            grade: { class: 'hidden' }
+                        })
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
-                footerMenu: [
-                    {
-                        id: 'admin-settings-btn',
-                        icon: 'fa-cog',
-                        label: 'ตั้งค่าระบบ',
-                        onclick: 'openAdminModal()',
-                        class: 'hidden'
-                    }
-                ],
+                footerMenu: buildSidebarItems('attendance', ['admin'], {
+                    admin: { class: 'hidden' }
+                }),
                 logoutItem: {
                     icon: 'fa-power-off',
                     label: 'ออกจากระบบ',
@@ -519,9 +614,11 @@
             };
         }
 
+        // ============================================================
+        // Init Module Sidebar — โหลด DB อัตโนมัติ (เหมือน behavior)
+        // ============================================================
         initModuleSidebar({
-            moduleKey: null,
-            skipAutoRender: true,
+            moduleKey: 'attendance',
             pageTitle: 'ระบบเช็คชื่อหน้าเสาธง',
             activeId: 'nav-attendance',
             topbarButtons: [{
@@ -533,29 +630,13 @@
                 title: 'สลับมุมมอง'
             }],
             fallbackConfig: getAttendanceFallbackConfig(),
-            onReady: () => {
-                if (typeof renderSidebar === 'function') {
-                    renderSidebar({ ...getAttendanceFallbackConfig(), autoActivate: false });
-                }
-                if (typeof renderTopbar === 'function') {
-                    renderTopbar({
-                        pageTitle: 'ระบบเช็คชื่อหน้าเสาธง',
-                        buttons: [{
-                            id: 'btnAdminMode',
-                            html: '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>',
-                            onclick: 'toggleRoleView()',
-                            class: 'hidden d-btn-mode admin',
-                            title: 'สลับมุมมอง'
-                        }],
-                        breadcrumb: [
-                            { label: 'หน้าหลัก', href: 'index.html' },
-                            { label: 'ระบบเช็คชื่อหน้าเสาธง' }
-                        ]
-                    });
-                }
-                if (typeof updateUIBasedOnRole === 'function') {
-                    updateUIBasedOnRole();
-                }
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'ระบบเช็คชื่อหน้าเสาธง' }
+            ],
+            onReady: async () => {
+                // ✅ UI updates หลัง render
+                if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
                 if (typeof setTodayChip === 'function') setTodayChip();
             }
         });

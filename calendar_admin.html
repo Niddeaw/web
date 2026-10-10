@@ -288,11 +288,12 @@
             general: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-200' }
         };
 
-        // =====================================================
-        // ✅ Fallback Sidebar Config
+                // =====================================================
+        // ✅ Fallback Sidebar Config — ใช้ Action Library
         // =====================================================
         function getCalendarFallbackConfig() {
             return {
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -300,9 +301,7 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
-                ],
+                mainMenu: buildSidebarItems('calendar', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -312,22 +311,14 @@
                         sectionId: 'sec-calendar',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-calendar', icon: 'fa-calendar-alt', label: 'จัดการปฏิทิน', href: 'calendar_admin.html' }
-                        ]
+                        items: buildSidebarItems('calendar', ['manage'], {
+                            manage: { class: 'active' }
+                        })
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
-                footerMenu: [
-                    {
-                        id: 'btn-settings',
-                        icon: 'fa-gear',
-                        label: 'ตั้งค่าระบบ',
-                        onclick: 'openSettings()',
-                        roles: ['super_admin', 'admin']
-                    }
-                ],
+                footerMenu: buildSidebarItems('calendar', ['settings']),
                 logoutItem: {
                     icon: 'fa-power-off',
                     label: 'ออกจากระบบ',
@@ -343,7 +334,7 @@
         }
 
         // =====================================================
-        // ✅ Init Module Sidebar (ทันที - ไม่ต้องรอ auth)
+        // ✅ Init Module Sidebar — โหลด DB อัตโนมัติ
         // =====================================================
         initModuleSidebar({
             moduleKey: 'calendar',
@@ -351,6 +342,10 @@
             activeId: 'nav-calendar',
             topbarButtons: [],
             fallbackConfig: getCalendarFallbackConfig(),
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'จัดการปฏิทิน' }
+            ],
             onReady: () => {
                 // เรียกหลัง sidebar render ทุกครั้ง
             }

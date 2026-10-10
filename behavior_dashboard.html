@@ -71,8 +71,7 @@
                         </div>
                     </div>
                     <div class="d-stat" style="cursor:pointer" onclick="openFilteredStudentsModal('sev_medium')">
-                        <div class="d-stat-icon d-gold" style="background:linear-gradient(145deg,#f97316,#fb923c)"><i
-                                class="fa-solid fa-circle"></i></div>
+                        <div class="d-stat-icon d-gold" style="background:linear-gradient(145deg,#f97316,#fb923c)"><i class="fa-solid fa-circle"></i></div>
                         <div>
                             <p>🔶 กลุ่ม 2 (60-89)</p>
                             <h3 id="stat_sev_medium">0</h3>
@@ -98,8 +97,7 @@
                     <div class="d-card">
                         <div class="d-card-head">
                             <div class="d-card-title">📈 สถิติการทำความดี</div>
-                            <select id="posGradeSelect" class="d-select"
-                                onchange="renderPositiveChartForGrade(this.value)">
+                            <select id="posGradeSelect" class="d-select" onchange="renderPositiveChartForGrade(this.value)">
                                 <option value="all">ทั้งหมด</option>
                                 <option value="1">ม.1</option>
                                 <option value="2">ม.2</option>
@@ -114,8 +112,7 @@
                     <div class="d-card">
                         <div class="d-card-head">
                             <div class="d-card-title">📊 สถิติระดับความผิด</div>
-                            <select id="sevGradeSelect" class="d-select"
-                                onchange="renderSeverityChartForGrade(this.value)">
+                            <select id="sevGradeSelect" class="d-select" onchange="renderSeverityChartForGrade(this.value)">
                                 <option value="all">ทั้งหมด</option>
                                 <option value="1">ม.1</option>
                                 <option value="2">ม.2</option>
@@ -151,8 +148,7 @@
                                 </thead>
                                 <tbody id="recent_positive_body">
                                     <tr>
-                                        <td colspan="8" class="py-6 text-center text-slate-300"><i
-                                                class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
+                                        <td colspan="8" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -179,8 +175,7 @@
                                 </thead>
                                 <tbody id="recent_negative_body">
                                     <tr>
-                                        <td colspan="8" class="py-6 text-center text-slate-300"><i
-                                                class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
+                                        <td colspan="8" class="py-6 text-center text-slate-300"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</td>
                                     </tr>
                                 </tbody>
                             </table>
@@ -195,19 +190,17 @@
         </main>
     </div>
 
-    <!-- ================= Modal Filtered Students ================= -->
+    <!-- Modal Filtered Students -->
     <div id="filteredStudentsModal" class="fixed inset-0 z-50 hidden items-center justify-center p-0">
         <div class="absolute inset-0 bg-slate-900/70 backdrop-blur-sm" onclick="closeFilteredStudentsModal()"></div>
         <div class="relative bg-white w-full h-full flex flex-col overflow-hidden z-10">
             <div class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0">
-                <div id="filteredStudentsModalIcon"
-                    class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
+                <div id="filteredStudentsModalIcon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
                 <div class="flex-1 min-w-0">
                     <h2 id="filteredStudentsTitle" class="text-lg font-black text-slate-800 truncate"></h2>
                     <p id="filteredStudentsSub" class="text-xs text-slate-400 font-medium mt-0.5"></p>
                 </div>
-                <button onclick="closeFilteredStudentsModal()"
-                    class="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
+                <button onclick="closeFilteredStudentsModal()" class="w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
@@ -220,12 +213,10 @@
                             placeholder="ค้นหาเลขประจำตัว / ชื่อ-สกุล / ชั้น..."
                             class="w-full pl-9 pr-3 py-2.5 border-2 border-slate-200 rounded-xl text-sm outline-none focus:border-blue-400 transition bg-white">
                     </div>
-                    <button onclick="exportFilteredStudents()"
-                        class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
+                    <button onclick="exportFilteredStudents()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
                         <i class="fas fa-file-excel"></i> ส่งออก Excel
                     </button>
-                    <button onclick="goToAdminWithFilter()"
-                        class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition shadow-sm">
+                    <button onclick="goToAdminWithFilter()" class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition shadow-sm">
                         <i class="fas fa-external-link-alt"></i> ไปหน้าจัดการ
                     </button>
                 </div>
@@ -251,65 +242,46 @@
             </div>
 
             <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex-shrink-0 flex justify-end">
-                <button onclick="closeFilteredStudentsModal()"
-                    class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm">
+                <button onclick="closeFilteredStudentsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm">
                     <i class="fas fa-times mr-1.5"></i> ปิด
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- ================= Modal Logs (fullscreen) ================= -->
-    <div id="logsModal"
-        class="fixed inset-0 bg-slate-900/70 hidden items-center justify-center z-50 backdrop-blur-sm p-0">
+    <!-- Modal Logs (fullscreen) -->
+    <div id="logsModal" class="fixed inset-0 bg-slate-900/70 hidden items-center justify-center z-50 backdrop-blur-sm p-0">
         <div class="bg-white w-full h-full flex flex-col overflow-hidden">
             <div id="logsModalHeader" class="px-6 py-4 flex items-center gap-3 border-b border-slate-100 flex-shrink-0">
-                <div id="logsModalIcon"
-                    class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
+                <div id="logsModalIcon" class="w-10 h-10 rounded-xl flex items-center justify-center text-lg flex-shrink-0"></div>
                 <div>
                     <h2 id="logsModalTitle" class="text-lg font-black text-slate-800"></h2>
                     <p id="logsModalSub" class="text-xs text-slate-400 font-medium mt-0.5"></p>
                 </div>
-                <button onclick="closeLogsModal()"
-                    class="ml-auto w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
+                <button onclick="closeLogsModal()" class="ml-auto w-9 h-9 flex items-center justify-center rounded-xl text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition text-lg flex-shrink-0">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
             <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex-shrink-0">
                 <div class="flex flex-wrap gap-3 items-center">
-                    <div
-                        class="flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-xs font-bold">
-                        <button id="logsTabDay" onclick="setLogsTab('day')"
-                            class="px-4 py-2.5 transition logs-tab-btn">รายวัน</button>
-                        <button id="logsTabWeek" onclick="setLogsTab('week')"
-                            class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายสัปดาห์</button>
-                        <button id="logsTabMonth" onclick="setLogsTab('month')"
-                            class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายเดือน</button>
+                    <div class="flex rounded-xl overflow-hidden border border-slate-200 bg-white shadow-sm text-xs font-bold">
+                        <button id="logsTabDay" onclick="setLogsTab('day')" class="px-4 py-2.5 transition logs-tab-btn">รายวัน</button>
+                        <button id="logsTabWeek" onclick="setLogsTab('week')" class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายสัปดาห์</button>
+                        <button id="logsTabMonth" onclick="setLogsTab('month')" class="px-4 py-2.5 transition logs-tab-btn border-l border-slate-200">รายเดือน</button>
                     </div>
                     <div id="filterDay" class="flex items-center gap-2">
                         <label class="text-xs font-bold text-slate-500">วันที่</label>
-                        <input type="date" id="logsPickerDay" onchange="fetchLogsData()"
-                            class="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 font-medium">
+                        <input type="date" id="logsPickerDay" onchange="fetchLogsData()" class="border-2 border-slate-200 rounded-xl px-3 py-2 text-sm outline-none focus:border-blue-400 font-medium">
                     </div>
                     <div id="filterWeek" class="hidden items-center gap-2">
-                        <button onclick="shiftWeek(-1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
-                                class="fas fa-chevron-left text-xs"></i></button>
-                        <span id="logsWeekLabel"
-                            class="text-sm font-bold text-slate-700 min-w-[180px] text-center"></span>
-                        <button onclick="shiftWeek(1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
-                                class="fas fa-chevron-right text-xs"></i></button>
+                        <button onclick="shiftWeek(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i class="fas fa-chevron-left text-xs"></i></button>
+                        <span id="logsWeekLabel" class="text-sm font-bold text-slate-700 min-w-[180px] text-center"></span>
+                        <button onclick="shiftWeek(1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i class="fas fa-chevron-right text-xs"></i></button>
                     </div>
                     <div id="filterMonth" class="hidden items-center gap-2">
-                        <button onclick="shiftMonth(-1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
-                                class="fas fa-chevron-left text-xs"></i></button>
-                        <span id="logsMonthLabel"
-                            class="text-sm font-bold text-slate-700 min-w-[120px] text-center"></span>
-                        <button onclick="shiftMonth(1)"
-                            class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i
-                                class="fas fa-chevron-right text-xs"></i></button>
+                        <button onclick="shiftMonth(-1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i class="fas fa-chevron-left text-xs"></i></button>
+                        <span id="logsMonthLabel" class="text-sm font-bold text-slate-700 min-w-[120px] text-center"></span>
+                        <button onclick="shiftMonth(1)" class="w-8 h-8 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-100 transition flex items-center justify-center"><i class="fas fa-chevron-right text-xs"></i></button>
                     </div>
                     <div id="logsCountBadge" class="ml-auto text-xs font-bold px-3 py-1.5 rounded-full hidden"></div>
                 </div>
@@ -320,26 +292,18 @@
                     <p class="text-slate-400 text-sm font-medium">กำลังโหลดข้อมูล...</p>
                 </div>
                 <div id="logsEmpty" class="hidden flex-col items-center justify-center py-20 gap-3 text-center flex-1">
-                    <div
-                        class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2">
+                    <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center text-2xl text-slate-300 mb-2">
                         <i class="fas fa-inbox"></i>
                     </div>
                     <p class="text-slate-500 font-bold">ไม่พบรายการในช่วงเวลานี้</p>
                     <p class="text-slate-400 text-xs">ลองเลือกช่วงเวลาอื่น</p>
                 </div>
-                <div id="logsTableWrap"
-                    class="hidden flex-1 overflow-hidden flex flex-col rounded-2xl border border-slate-100 shadow-sm">
+                <div id="logsTableWrap" class="hidden flex-1 overflow-hidden flex flex-col rounded-2xl border border-slate-100 shadow-sm">
                     <div class="flex-shrink-0 bg-slate-50 rounded-t-2xl overflow-hidden">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
-                                <col class="w-[44px]">
-                                <col class="w-[135px]">
-                                <col class="w-[70px]">
-                                <col class="w-[100px]">
-                                <col class="w-[160px]">
-                                <col class="w-[180px]">
-                                <col class="w-[72px]">
-                                <col class="w-[130px]">
+                                <col class="w-[44px]"><col class="w-[135px]"><col class="w-[70px]"><col class="w-[100px]">
+                                <col class="w-[160px]"><col class="w-[180px]"><col class="w-[72px]"><col class="w-[130px]">
                             </colgroup>
                             <thead>
                                 <tr class="text-slate-500 text-xs uppercase">
@@ -358,29 +322,23 @@
                     <div class="flex-1 overflow-y-auto">
                         <table class="w-full text-sm table-fixed">
                             <colgroup>
-                                <col class="w-[44px]">
-                                <col class="w-[135px]">
-                                <col class="w-[70px]">
-                                <col class="w-[100px]">
-                                <col class="w-[160px]">
-                                <col class="w-[180px]">
-                                <col class="w-[72px]">
-                                <col class="w-[130px]">
+                                <col class="w-[44px]"><col class="w-[135px]"><col class="w-[70px]"><col class="w-[100px]">
+                                <col class="w-[160px]"><col class="w-[180px]"><col class="w-[72px]"><col class="w-[130px]">
                             </colgroup>
                             <tbody id="logsTableBody"></tbody>
                         </table>
                     </div>
                 </div>
             </div>
-            <div
-                class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
-                <button id="logsExportBtn" onclick="exportLogsModal()"
-                    class="hidden items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between flex-shrink-0">
+                <button id="logsExportBtn" onclick="exportLogsModal()" class="hidden items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-700 transition shadow-sm">
                     <i class="fas fa-file-excel"></i> ส่งออก Excel
                 </button>
-                <div class="ml-auto"><button onclick="closeLogsModal()"
-                        class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm"><i
-                            class="fas fa-times mr-1.5"></i> ปิด</button></div>
+                <div class="ml-auto">
+                    <button onclick="closeLogsModal()" class="px-6 py-2.5 rounded-xl bg-slate-200 font-bold text-slate-600 hover:bg-slate-300 transition text-sm">
+                        <i class="fas fa-times mr-1.5"></i> ปิด
+                    </button>
+                </div>
             </div>
         </div>
     </div>
@@ -390,14 +348,19 @@
     <script src="dashboard_ui.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="behavior_dashboard.js"></script>
-    
+
     <script>
         function getBehaviorFallbackCommon() {
             return {
-                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'งานปกครอง', subtitle: 'ระบบงานปกครอง' },
+                iconStyle: 'outline',
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'งานปกครอง',
+                    subtitle: 'ระบบงานปกครอง'
+                },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [{ id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }],
+                mainMenu: buildSidebarItems('behavior', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -407,62 +370,37 @@
                         sectionId: 'sec-behavior',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navDashboard', icon: 'fa-chart-pie', label: 'ภาพรวม', href: 'behavior_dashboard.html' },
-                            { id: 'navAdmin', icon: 'fa-users-cog', label: 'จัดการนักเรียน', href: 'behavior_admin.html' },
-                            { id: 'navTeacher', icon: 'fa-user-tie', label: 'ครูที่ปรึกษา', href: 'behavior_teacher.html' }
-                        ]
+                        items: buildSidebarItems('behavior', ['dashboard', 'admin', 'teacher'])
                     },
                     {
                         title: 'การตั้งค่า',
                         sectionId: 'sec-behavior-settings',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navSettings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', href: 'behavior_settings.html', roles: ['super_admin', 'admin'] }
-                        ]
+                        items: buildSidebarItems('behavior', ['settings'])
                     }
                 ],
                 footerMenuTitle: '',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
-                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
             };
         }
 
-        async function applyBehaviorRoleFilterLocal() {
-            if (window.currentUserRole && typeof isAdminUser === 'function' && isAdminUser(window.currentUserRole, false)) return;
-            try {
-                const { data: { user } } = await db.auth.getUser();
-                if (!user) return;
-                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-                const year = sInfo?.current_academic_year;
-                const [discHead, gradeHead] = await Promise.all([
-                    year ? db.from('core_discipline_heads').select('id').eq('personnel_id', user.id).eq('academic_year', year).maybeSingle() : Promise.resolve({ data: null }),
-                    db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', user.id)
-                ]);
-                const hasAdmin = !!discHead.data || (gradeHead.data && gradeHead.data.length > 0);
-                if (!hasAdmin) {
-                    ['navDashboard', 'navAdmin'].forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.remove();
-                    });
-                }
-            } catch (e) { console.warn('applyBehaviorRoleFilterLocal error:', e); }
-        }
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (เรียกทุกครั้งหลัง re-render)
-        //     แก้ปัญหา ชื่อ/role/avatar/ปุ่ม หายหลัง initModuleSidebar re-render
-        // =======================================================
         function refreshBehaviorTopbarUI() {
-            // 1) วันที่
             if (typeof setTodayChip === 'function') {
                 try { setTodayChip(); } catch (e) { /* ignore */ }
             }
-
-            // 2) ข้อมูลผู้ใช้
             try {
                 if (typeof currentUser !== 'undefined' && currentUser) {
                     if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
@@ -470,11 +408,6 @@
                     if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
                 }
             } catch (e) { /* TDZ — ignore */ }
-
-            // 3) Sidebar visibility (re-apply role filter)
-            if (typeof applyBehaviorRoleFilterLocal === 'function') {
-                try { applyBehaviorRoleFilterLocal(); } catch (e) { /* ignore */ }
-            }
         }
         window.refreshBehaviorTopbarUI = refreshBehaviorTopbarUI;
 

@@ -75,11 +75,11 @@ function switchMenu(menuId) {
     if (window.innerWidth < 761) toggleSidebar(false);
 
     const allMenus = ['menu-school', 'menu-personnel', 'menu-students',
-                      'menu-student-portal', 'menu-calendar', 'menu-sidebar'];
+        'menu-student-portal', 'menu-calendar', 'menu-sidebar'];
     allMenus.forEach(id => document.getElementById(id)?.classList.add('hidden'));
 
     const allBtns = ['btn-menu-school', 'btn-menu-personnel', 'btn-menu-students',
-                     'btn-menu-student-portal', 'btn-menu-calendar', 'btn-menu-sidebar'];
+        'btn-menu-student-portal', 'btn-menu-calendar', 'btn-menu-sidebar'];
     allBtns.forEach(id => document.getElementById(id)?.classList.remove('active'));
 
     document.getElementById(menuId)?.classList.remove('hidden');
@@ -99,6 +99,7 @@ function switchMenu(menuId) {
     if (menuId === 'menu-school') {
         if (typeof loadSchoolInfo === 'function') loadSchoolInfo();
         if (typeof loadMicroServices === 'function') loadMicroServices();
+        if (typeof loadAcademicTerms === 'function') loadAcademicTerms();  // ✅ เพิ่ม
     }
     if (menuId === 'menu-personnel') {
         if (typeof loadPersonnel === 'function') loadPersonnel();

@@ -69,10 +69,15 @@
     <script>
         function getBehaviorFallbackCommon() {
             return {
-                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'งานปกครอง', subtitle: 'ระบบงานปกครอง' },
+                iconStyle: 'outline',
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'งานปกครอง',
+                    subtitle: 'ระบบงานปกครอง'
+                },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [{ id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }],
+                mainMenu: buildSidebarItems('behavior', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -82,62 +87,37 @@
                         sectionId: 'sec-behavior',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navDashboard', icon: 'fa-chart-pie', label: 'ภาพรวม', href: 'behavior_dashboard.html' },
-                            { id: 'navAdmin', icon: 'fa-users-cog', label: 'จัดการนักเรียน', href: 'behavior_admin.html' },
-                            { id: 'navTeacher', icon: 'fa-user-tie', label: 'ครูที่ปรึกษา', href: 'behavior_teacher.html' }
-                        ]
+                        items: buildSidebarItems('behavior', ['dashboard', 'admin', 'teacher'])
                     },
                     {
                         title: 'การตั้งค่า',
                         sectionId: 'sec-behavior-settings',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'navSettings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', href: 'behavior_settings.html', roles: ['super_admin', 'admin'] }
-                        ]
+                        items: buildSidebarItems('behavior', ['settings'])
                     }
                 ],
                 footerMenuTitle: '',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
-                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+                logoutItem: {
+                    icon: 'fa-power-off',
+                    label: 'ออกจากระบบ',
+                    onclick: 'logout()',
+                    class: 'logout'
+                },
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
             };
         }
 
-        async function applyBehaviorRoleFilterLocal() {
-            if (window.currentUserRole && typeof isAdminUser === 'function' && isAdminUser(window.currentUserRole, false)) return;
-            try {
-                const { data: { user } } = await db.auth.getUser();
-                if (!user) return;
-                const { data: sInfo } = await db.from('core_school_info').select('current_academic_year').single();
-                const year = sInfo?.current_academic_year;
-                const [discHead, gradeHead] = await Promise.all([
-                    year ? db.from('core_discipline_heads').select('id').eq('personnel_id', user.id).eq('academic_year', year).maybeSingle() : Promise.resolve({ data: null }),
-                    db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', user.id)
-                ]);
-                const hasAdmin = !!discHead.data || (gradeHead.data && gradeHead.data.length > 0);
-                if (!hasAdmin) {
-                    ['navDashboard', 'navAdmin'].forEach(id => {
-                        const el = document.getElementById(id);
-                        if (el) el.remove();
-                    });
-                }
-            } catch (e) { console.warn('applyBehaviorRoleFilterLocal error:', e); }
-        }
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (เรียกทุกครั้งหลัง re-render)
-        //     แก้ปัญหา ชื่อ/role/avatar/ปุ่ม หายหลัง initModuleSidebar re-render
-        // =======================================================
         function refreshBehaviorTopbarUI() {
-            // 1) วันที่
             if (typeof setTodayChip === 'function') {
                 try { setTodayChip(); } catch (e) { /* ignore */ }
             }
-
-            // 2) ข้อมูลผู้ใช้
             try {
                 if (typeof currentUser !== 'undefined' && currentUser) {
                     if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
@@ -145,11 +125,6 @@
                     if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
                 }
             } catch (e) { /* TDZ — ignore */ }
-
-            // 3) Sidebar visibility (re-apply role filter)
-            if (typeof applyBehaviorRoleFilterLocal === 'function') {
-                try { applyBehaviorRoleFilterLocal(); } catch (e) { /* ignore */ }
-            }
         }
         window.refreshBehaviorTopbarUI = refreshBehaviorTopbarUI;
 
@@ -177,7 +152,7 @@
 
     <script>
         // ============================================================
-        // behavior_teacher — Inline Logic
+        // behavior_teacher — Inline Logic (ไม่เปลี่ยน)
         // ============================================================
         let myClassroom = null;
         let studentData = [];
@@ -266,7 +241,6 @@
                 myClassroom = classroom;
                 await loadMyStudents();
 
-                // อัปเดต pageTitle
                 if (typeof updateRoomDisplay === 'function') updateRoomDisplay();
 
                 Swal.close();
