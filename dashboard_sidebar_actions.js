@@ -179,7 +179,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบชุมนุม (club_system) ----------
+    // ---------- ระบบชุมนุม (club_system) ----------
     club_system: {
         myClub: {
             id: 'nav-my-club',
@@ -221,20 +221,28 @@ window.WRK_SIDEBAR_ACTIONS = {
 
         // ---------- ระบบสารบรรณ (sarabun) ----------
     sarabun: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
         teacherView: {
             id: 'nav-teacher-view',
             icon: 'fa-book-open',
             label: 'ทะเบียนหนังสือรับ',
             onclick: "switchSidebarView('teacherView')",
             icon_bg_color: '#3b82f6',
-            icon_text_color: '#ffffff',
-            class: 'active'
+            icon_text_color: '#ffffff'
         },
         adminView: {
             id: 'nav-admin-view',
             icon: 'fa-pen-to-square',
             label: 'จัดการหนังสือ',
             onclick: "switchSidebarView('adminView')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],  // ✅ central filter
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -243,6 +251,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-plus-circle',
             label: 'ลงรับหนังสือใหม่',
             onclick: "switchSidebarView('adminView', 'form')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],  // ✅ central filter
             icon_bg_color: '#10b981',
             icon_text_color: '#ffffff'
         },
@@ -251,23 +260,746 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-cog',
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettingsModal()',
+            roles: ['super_admin'],  // ✅ central filter
             icon_bg_color: '#475569',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+    // ---------- ระบบประเมิน EQ (eq) ----------
+    eq: {
+        dashboard: {
+            id: 'nav-eq-dashboard',
+            icon: 'fa-brain',
+            label: 'แดชบอร์ด EQ',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff',
+            class: 'active'
+        },
+        settings: {
+            id: 'btn-settings',
+            icon: 'fa-gear',
+            label: 'ตั้งค่า',
+            onclick: 'openSettings()',
+            icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         }
     },
 
-    
+    // ---------- ระบบประเมินผล (evaluation) ----------
+    evaluation: {
+        dashboard: {
+            id: 'nav-dashboard',
+            icon: 'fa-user-check',
+            label: 'ประเมินผล',
+            href: 'evaluation.html',
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        admin: {
+            id: 'nav-admin',
+            icon: 'fa-user-shield',
+            label: 'ตั้งค่ากรรมการ',
+            href: 'evaluation_admin.html',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#4f46e5',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'nav-settings',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            href: 'evaluation_settings.html',
+            roles: ['super_admin'],
+            icon_bg_color: '#7c3aed',
+            icon_text_color: '#ffffff'
+        }
+    },
 
+    // ---------- ระบบแนะแนว ปพ.5 (guidance) ----------
+    guidance: {
+        teacher: {
+            id: 'nav-teacher',
+            icon: 'fa-chalkboard-user',
+            label: 'ครูผู้สอน',
+            href: 'guidance_teacher.html',
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        admin: {
+            id: 'nav-admin',
+            icon: 'fa-user-shield',
+            label: 'ผู้ดูแลระบบ',
+            href: 'guidance_admin.html',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#4f46e5',
+            icon_text_color: '#ffffff'
+        }
+    },
+
+    // ---------- ระบบเยี่ยมบ้าน (homevisit) ----------
+    homevisit: {
+        form: {
+            id: 'btn-tab-form',
+            icon: 'fa-pen-to-square',
+            label: 'กรอกฟอร์ม',
+            onclick: "switchTab('form')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        data: {
+            id: 'btn-tab-data',
+            icon: 'fa-chart-bar',
+            label: 'ดูภาพรวม',
+            onclick: "switchTab('data')",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        report: {
+            id: 'btn-tab-report',
+            icon: 'fa-chart-pie',
+            label: 'รายงาน',
+            onclick: "switchTab('report')",
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        overview: {
+            id: 'btn-open-overview',
+            icon: 'fa-table-list',
+            label: 'ภาพรวม Modal',
+            onclick: "openOverviewModal('overview')",
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'admin-settings-btn',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openAdminModal()',
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        importExcel: {
+            id: 'btn-import-excel',
+            icon: 'fa-file-excel',
+            label: 'นำเข้าข้อมูล',
+            onclick: 'importFromExcel()',
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        }
+    },
+    // ---------- ข้อมูลนักเรียน (info_student) ----------
+    info_student: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'student_index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        myInfo: {
+            id: 'nav-my-info',
+            icon: 'fa-id-card',
+            label: 'ข้อมูลของฉัน',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        homevisit: {
+            id: 'nav-shortcut-homevisit',
+            icon: 'fa-house-chimney-user',
+            label: 'เยี่ยมบ้านนักเรียน',
+            href: 'homevisit_student.html',
+            icon_bg_color: '#14b8a6',
+            icon_text_color: '#ffffff'
+        },
+        attendance: {
+            id: 'nav-shortcut-attend',
+            icon: 'fa-calendar-check',
+            label: 'สถิติการมาเรียน',
+            onclick: "scrollToTab('tab2')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        sdq: {
+            id: 'nav-shortcut-sdq',
+            icon: 'fa-brain',
+            label: 'ผลประเมิน SDQ/EQ',
+            onclick: "scrollToTab('tab3')",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        club: {
+            id: 'nav-shortcut-club',
+            icon: 'fa-people-group',
+            label: 'ชุมนุมที่เรียน',
+            onclick: "scrollToTab('tab4')",
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ข้อมูลนักเรียน 360° (info_teacher) ----------
+    info_teacher: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        studentInfo: {
+            id: 'nav-info-student',
+            icon: 'fa-user-graduate',
+            label: 'ข้อมูลนักเรียน',
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'btnSettingsSidebar',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openSettingsModal()',
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff',
+            hidden: true   // เปิด/ปิดผ่าน applyAdminVisibility()
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบการลา (leave_admin) ----------
+    leave_admin: {
+        dashboard: {
+            id: 'btn-dashboard',
+            icon: 'fa-chart-pie',
+            label: 'ภาพรวมสถิติ',
+            onclick: "switchTab('dashboard')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        manageLeave: {
+            id: 'btn-manage-leave',
+            icon: 'fa-list-check',
+            label: 'ตรวจสอบใบลา',
+            onclick: "switchTab('manage-leave')",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        attendance: {
+            id: 'btn-attendance',
+            icon: 'fa-user-clock',
+            label: 'บันทึกขาด/มาสาย',
+            onclick: "switchTab('attendance')",
+            icon_bg_color: '#14b8a6',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'btn-settings',
+            icon: 'fa-cog',
+            label: 'ตั้งค่าระบบ',
+            onclick: "switchTab('settings')",
+            roles: ['super_admin', 'admin'],
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        superAdmin: {
+            id: 'btnSuperAdmin',
+            icon: 'fa-crown',
+            label: 'ผู้ดูแลระบบสูงสุด',
+            href: 'super_admin.html',
+            roles: ['super_admin'],
+            icon_bg_color: '#dc2626',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+    // ---------- ระบบการลา (leave_dept_head) ----------
+    leave_dept_head: {
+        pending: {
+            id: 'btn-pending',
+            icon: 'fa-clock',
+            label: 'รอรับทราบ',
+            onclick: "switchTab('pending')",
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        done: {
+            id: 'btn-done',
+            icon: 'fa-check-circle',
+            label: 'รับทราบแล้ว',
+            onclick: "switchTab('done')",
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+    // ---------- ระบบการลา (leave_teacher) ----------
+    leave_teacher: {
+        history: {
+            id: 'nav-history',
+            icon: 'fa-list-ul',
+            label: 'ประวัติการลา',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        write: {
+            id: 'nav-write',
+            icon: 'fa-pen-nib',
+            label: 'เขียนใบลา',
+            onclick: "openLeaveModal()",
+            icon_bg_color: '#dc2626',
+            icon_text_color: '#ffffff'
+        },
+        signature: {
+            id: 'nav-signature',
+            icon: 'fa-signature',
+            label: 'ดูลายเซ็น',
+            onclick: "viewSignature()",
+            icon_bg_color: '#7c3aed',
+            icon_text_color: '#ffffff'
+        },
+        export: {
+            id: 'nav-export',
+            icon: 'fa-file-excel',
+            label: 'ส่งออก Excel',
+            onclick: "exportExcel()",
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบจองห้องประชุม (meeting_room) ----------
+    meeting_room: {
+        calendar: {
+            id: 'nav-calendar',
+            icon: 'fa-calendar-days',
+            label: 'ปฏิทินห้องประชุม',
+            onclick: "switchTab('calendar-tab')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        myBooking: {
+            id: 'nav-my-booking',
+            icon: 'fa-list',
+            label: 'การจองของฉัน',
+            onclick: "switchTab('my-booking-tab')",
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบประเมินพหุปัญญา (mit) ----------
+    mit: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        miDashboard: {
+            id: 'nav-mi-dashboard',
+            icon: 'fa-brain',
+            label: 'แดชบอร์ด MI',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบผู้ปกครองเครือข่าย (parent_network) ----------
+    parent_network: {
+        form: {
+            id: 'nav-form',
+            icon: 'fa-pen',
+            label: 'กรอกฟอร์ม',
+            onclick: "switchTab('form')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        data: {
+            id: 'nav-data',
+            icon: 'fa-chart-bar',
+            label: 'ดูภาพรวม',
+            onclick: "switchTab('data')",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบบริหารจัดการบุคลากร (personnel) ----------
+    personnel: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        personnelList: {
+            id: 'nav-personnel',
+            icon: 'fa-address-book',
+            label: 'ทะเบียนบุคลากร',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'btn-settings',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openSettings()',
+            roles: ['super_admin', 'admin'],
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบแฟ้มสะสมผลงาน (portfolio) ----------
+    portfolio: {
+        dashboard: {
+            id: 'nav-dashboard',
+            icon: 'fa-chart-pie',
+            label: 'แดชบอร์ดภาพรวม',
+            onclick: "switchTab('dashboard')",
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        work: {
+            id: 'nav-work',
+            icon: 'fa-trophy',
+            label: 'ผลงาน/รางวัล',
+            onclick: "switchTab('work')",
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        training: {
+            id: 'nav-training',
+            icon: 'fa-chalkboard-user',
+            label: 'ประวัติการอบรม',
+            onclick: "switchTab('training')",
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        export: {
+            id: 'nav-export',
+            icon: 'fa-file-excel',
+            label: 'ส่งออก Excel',
+            onclick: 'openExportModal()',
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        importExcel: {
+            id: 'nav-import',
+            icon: 'fa-file-import',
+            label: 'นำเข้าจาก Excel',
+            onclick: 'triggerImportExcel()',
+            roles: ['super_admin'],
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        template: {
+            id: 'nav-template',
+            icon: 'fa-download',
+            label: 'ดาวน์โหลด Template',
+            onclick: 'downloadImportTemplate()',
+            roles: ['super_admin'],
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        sheets: {
+            id: 'nav-sheets',
+            icon: 'fa-brands fa-google-drive',
+            label: 'นำเข้าจาก Google Sheets',
+            onclick: 'importFromGoogleSheets()',
+            roles: ['super_admin'],
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'nav-settings',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openSettingsModal()',
+            roles: ['super_admin'],
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบงานทะเบียน (regis) ----------
+    regis: {
+        dashboard: {
+            id: 'nav-regis-dashboard',
+            icon: 'fa-chart-pie',
+            label: 'ภาพรวมงานทะเบียน',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'nav-regis-settings',
+            icon: 'fa-gear',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openSettingsModal()',
+            roles: ['super_admin', 'admin'],
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        admins: {
+            id: 'nav-regis-admins',
+            icon: 'fa-user-shield',
+            label: 'ผู้ดูแลระบบโมดูล',
+            onclick: 'openAdminModal()',
+            roles: ['super_admin'],
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบประเมินบุคลิกภาพ RIASEC (riasec) ----------
+    riasec: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        riasecDashboard: {
+            id: 'nav-riasec-dashboard',
+            icon: 'fa-user-tie',
+            label: 'แดชบอร์ด RIASEC',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+    // ---------- ระบบทุนการศึกษา (scholarship) ----------
+    scholarship: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        recordScholarship: {
+            id: 'nav-record-scholarship',
+            icon: 'fa-save',
+            label: 'บันทึกทุน',
+            onclick: 'openRecordScholarshipModal()',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        applicantList: {
+            id: 'nav-applicant-list',
+            icon: 'fa-file-signature',
+            label: 'รายชื่อผู้ขอทุน',
+            onclick: 'openApplicantListModal()',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+        settings: {
+            id: 'admin-settings-btn',
+            icon: 'fa-cog',
+            label: 'ตั้งค่าระบบ',
+            onclick: 'openAdminModal()',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#475569',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+        // ---------- ระบบ SDQ (sdq) ----------
+    sdq: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#64748b',
+            icon_text_color: '#ffffff'
+        },
+        teacher: {
+            id: 'nav-sdq-teacher',
+            icon: 'fa-clipboard-question',
+            label: 'ข้อมูล SDQ',
+            href: 'sdq_teacher.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        admin: {
+            id: 'nav-sdq-admin',
+            icon: 'fa-chart-line',
+            label: 'แดชบอร์ด SDQ (Admin)',
+            href: 'sdq_admin.html',
+            roles: ['super_admin', 'admin'],
+            icon_bg_color: '#0ea5e9',
+            icon_text_color: '#ffffff'
+        },
+        adminManager: {
+            id: 'nav-sdq-admin-manager',
+            icon: 'fa-user-shield',
+            label: 'จัดการแอดมิน',
+            onclick: 'openAdminManager()',
+            roles: ['super_admin', 'admin'],
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
+
+    
     // ==========================================
     // ➕ เพิ่มโมดูลใหม่ที่นี่ (ที่เดียว ไม่ต้องแก้ HTML)
     // ==========================================
-    // ,
-    // eq: {
-    //     admin:   { id: 'nav-admin',   icon: 'fa-clipboard-list', label: 'จัดการแบบประเมิน', href: 'eq_admin.html' },
-    //     teacher: { id: 'nav-teacher', icon: 'fa-chalkboard-user', label: 'ทำแบบประเมิน', href: 'eq_teacher.html' },
-    //     stats:   { id: 'nav-stats',   icon: 'fa-chart-pie', label: 'สถิติ', onclick: 'openStats()' }
-    // },
-    // guidance: { ... }
 };
 
 // ==========================================

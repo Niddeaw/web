@@ -729,10 +729,11 @@
 
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="sarabun.js"></script>
 
-    <script>
+        <script>
         // ============================================================
         // Fallback Config — ดึง action จาก Library กลาง
         // ============================================================
@@ -746,10 +747,7 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    ...buildSidebarItems('sarabun', ['home']),
-                    getSidebarAction('sarabun', 'teacherView', { class: 'active' })
-                ],
+                mainMenu: buildSidebarItems('sarabun', ['home', 'teacherView']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -759,23 +757,13 @@
                         sectionId: 'sec-sarabun',
                         collapsible: false,
                         defaultOpen: true,
-                        items: buildSidebarItems('sarabun', ['adminView', 'newDoc'], {
-                            adminView: { class: 'hidden' },
-                            newDoc: { class: 'hidden' }
-                        })
+                        items: buildSidebarItems('sarabun', ['adminView', 'newDoc'])
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
-                footerMenu: buildSidebarItems('sarabun', ['settings'], {
-                    settings: { class: 'hidden' }
-                }),
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                footerMenu: buildSidebarItems('sarabun', ['settings']),
+                logoutItem: getSidebarAction('sarabun', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -785,10 +773,10 @@
         }
 
         // ============================================================
-        // Init Module Sidebar — โหลด DB อัตโนมัติ
+        // Init Module Sidebar
         // ============================================================
         initModuleSidebar({
-            moduleKey: 'sarabun',              // ✅ FIX: ระบุ key
+            moduleKey: 'sarabun',
             pageTitle: 'ทะเบียนหนังสือรับ',
             activeId: 'nav-teacher-view',
             topbarButtons: [{
@@ -803,12 +791,19 @@
                 { label: 'หน้าหลัก', href: 'index.html' },
                 { label: 'ระบบสารบรรณ' }
             ],
-            onReady: async () => {
-                // ✅ onReady เหลือแค่ UI updates
-                if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
+            onReady: () => {
                 if (typeof setTodayChip === 'function') setTodayChip();
+                // ✅ delay เล็กน้อยเพื่อรอ checkAuth() ตั้ง role + apply toggle
+                setTimeout(() => {
+                    if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
+                }, 100);
             }
         });
+
+        // ✅ Hook: เรียกหลัง renderTopbar re-render (ถ้ามี)
+        window.onTopbarRendered = function () {
+            if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
+        };
     </script>
 
 </body>

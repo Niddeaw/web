@@ -357,34 +357,29 @@
         </div>
     </div>
 
-    <!-- Libraries + Core -->
+    <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
-    <script src="dashboard_charts.js"></script>
     <script src="riasec_teacher.js"></script>
 
-    <!-- Init -->
     <script>
-        const MODULE_KEY = 'riasec';
-        const MODULE_NAME = 'ระบบประเมินบุคลิกภาพ RIASEC';
-
-        function getRIASECFallbackConfig() {
-            const adminRoles = ['super_admin', 'admin'];
+        // =======================================================
+        // Fallback Config — RIASEC
+        // =======================================================
+        function getRiasecFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK RIASEC',
-                    subtitle: 'ระบบประเมินบุคลิกภาพ (6 ด้าน)'
+                    subtitle: 'ระบบประเมินบุคลิกภาพ 6 ด้าน'
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html', icon_bg_color: '#64748b', icon_text_color: '#ffffff' },
-                    { id: 'nav-riasec-dashboard', icon: 'fa-user-tie', label: 'แดชบอร์ด RIASEC', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active', icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' }
-                ],
+                mainMenu: buildSidebarItems('riasec', ['home', 'riasecDashboard']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -392,12 +387,7 @@
                 footerMenuTitle: '',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                logoutItem: getSidebarAction('riasec', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -406,9 +396,12 @@
             };
         }
 
+        // =======================================================
+        // ✅ Init Module Sidebar — RIASEC
+        // =======================================================
         initModuleSidebar({
-            moduleKey: MODULE_KEY,
-            pageTitle: MODULE_NAME,
+            moduleKey: 'riasec',
+            pageTitle: 'ระบบประเมินบุคลิกภาพ RIASEC',
             activeId: 'nav-riasec-dashboard',
             topbarButtons: [
                 {
@@ -428,7 +421,7 @@
                     title: 'ตั้งค่าระบบ RIASEC'
                 }
             ],
-            fallbackConfig: getRIASECFallbackConfig(),
+            fallbackConfig: getRiasecFallbackConfig(),
             onReady: () => {
                 if (typeof setTodayChip === 'function') setTodayChip();
                 if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();

@@ -463,21 +463,22 @@
         <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300">&times;</button>
     </div>
 
-    <!-- ================= Scripts ================= -->
+        <!-- ================= Scripts ================= -->
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="info_teacher.js"></script>
 
     <!-- =======================================================
-         ✅ Init Module Sidebar + Topbar
+         ✅ Init Module Sidebar — Info Teacher (Student 360°)
          ======================================================= -->
     <script>
         // =======================================================
-        // Fallback Config — Info Teacher (Student 360°)
+        // Fallback Config — Info Teacher
         // =======================================================
         function getInfoTeacherFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -486,7 +487,7 @@
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                    getSidebarAction('info_teacher', 'home')
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -497,35 +498,20 @@
                         sectionId: 'sec-info-teacher',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-info-student', icon: 'fa-user-graduate', label: 'ข้อมูลนักเรียน' }
-                        ]
+                        items: buildSidebarItems('info_teacher', ['studentInfo'])
                     },
                     {
                         title: 'การตั้งค่า',
                         sectionId: 'sec-info-teacher-settings',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'btnSettingsSidebar',
-                                icon: 'fa-gear',
-                                label: 'ตั้งค่าระบบ',
-                                onclick: 'openSettingsModal()',
-                                hidden: true
-                            }
-                        ]
+                        items: buildSidebarItems('info_teacher', ['settings'])
                     }
                 ],
                 footerMenuTitle: '',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                logoutItem: getSidebarAction('info_teacher', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -533,32 +519,6 @@
                 }
             };
         }
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (เรียกทุกครั้งหลัง re-render)
-        //     ใช้ฟังก์ชันจาก info_teacher.js (โหลดมาหลัง inline script นี้)
-        // =======================================================
-        function refreshInfoTeacherTopbarUI() {
-            // 1) วันที่
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { /* ignore */ }
-            }
-
-            // 2) ข้อมูลผู้ใช้ (มาจาก info_teacher.js)
-            try {
-                if (typeof updateUserDisplay === 'function') {
-                    updateUserDisplay();
-                }
-            } catch (e) { /* info_teacher.js ยังไม่โหลด */ }
-
-            // 3) ปุ่ม visibility (มาจาก info_teacher.js)
-            try {
-                if (typeof applyAdminVisibility === 'function') {
-                    applyAdminVisibility();
-                }
-            } catch (e) { /* ignore */ }
-        }
-        window.refreshInfoTeacherTopbarUI = refreshInfoTeacherTopbarUI;
 
         // =======================================================
         // ✅ Init Module Sidebar
@@ -585,10 +545,11 @@
             ],
             fallbackConfig: getInfoTeacherFallbackConfig(),
             onReady: () => {
-                // เรียกทันที + delay เผื่อ info_teacher.js ยังโหลดไม่เสร็จ
-                refreshInfoTeacherTopbarUI();
-                setTimeout(refreshInfoTeacherTopbarUI, 200);
-                setTimeout(refreshInfoTeacherTopbarUI, 800);
+                // วันที่ (กลาง)
+                if (typeof setTodayChip === 'function') setTodayChip();
+                // Sync ข้อมูลผู้ใช้ + visibility (มาจาก info_teacher.js)
+                if (typeof updateUserDisplay === 'function') updateUserDisplay();
+                if (typeof applyAdminVisibility === 'function') applyAdminVisibility();
             }
         });
     </script>

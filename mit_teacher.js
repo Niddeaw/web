@@ -2041,6 +2041,9 @@ async function openStatusStudentList(type) {
 // ============================================================
 // 19. NAV BUTTONS + TOPBAR HELPERS
 // ============================================================
+// ============================================================
+// 19. NAV BUTTONS + TOPBAR HELPERS
+// ============================================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || currentUserRole;
     const isAdminRole = (role === 'super_admin' || role === 'admin') || isModuleAdmin;
@@ -2059,13 +2062,17 @@ window.refreshNavButtons = function () {
     }
 };
 
-function refreshTopbarUser() {
+// ✅ Topbar hook — เรียกทุกครั้งที่ renderTopbar re-render
+window.onTopbarRendered = function () {
     if (!window.currentProfile) return;
     if (typeof setUserDisplayName  === 'function') setUserDisplayName(window.currentProfile);
     if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentProfile.role);
     if (typeof renderUserAvatar    === 'function') renderUserAvatar(window.currentProfile);
-}
-window.refreshTopbarUser = refreshTopbarUser;
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+};
+
+// Backward-compat alias (ถ้ามีโค้ดเก่าเรียก)
+window.refreshTopbarUser = window.onTopbarRendered;
 
 // ============================================================
 // 20. GLOBAL EXPORTS

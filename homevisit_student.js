@@ -6,6 +6,12 @@
 // และแสดงรายการที่ขาดเฉพาะฟิลด์ที่จำเป็นสำหรับนักเรียน
 // รองรับการอัปโหลดรูปภาพผ่าน homevisit_upload.js
 // ==========================================
+// ==========================================
+// ✅ updateUIBasedOnRole — no-op (นักเรียนไม่มี role toggle)
+// ==========================================
+window.updateUIBasedOnRole = function () {
+    // Student view: ไม่มี role-based UI toggles
+};
 
 // ==========================================
 // 0. กำหนด stepColorConfigs ก่อนใช้งาน (ป้องกัน error)
@@ -109,6 +115,28 @@ $(document).ready(async function () {
         window.currentStudentId = currentStudentId;
         window.currentStudentCode = currentStudentCode;
 
+        // ✅ PATCH: set currentProfile สำหรับหน้านักเรียน
+        window.currentProfile = {
+            ...student,
+            // student เก็บที่ avatar_students_url → map เข้า avatar_url
+            avatar_url: student.avatar_students_url
+                || student.avatar_url
+                || student.profile_image
+                || null,
+            first_name: student.first_name,
+            last_name: student.last_name,
+            prefix: student.prefix,
+            full_name: `${student.prefix || ''}${student.first_name} ${student.last_name}`.trim()
+        };
+
+        // ✅ PATCH: render avatar
+        setTimeout(() => {
+            if (typeof window.renderUserAvatar === 'function') {
+                window.renderUserAvatar(window.currentProfile);
+                console.log('🎨 renderUserAvatar (student) called');
+            }
+        }, 400);
+
         const fullName = `${student.prefix || ''}${student.first_name} ${student.last_name}`;
         // ✅ รองรับทั้ง ID เก่าและใหม่
         const userNameEl = document.getElementById('userNameDisplay') || document.getElementById('userName');
@@ -125,20 +153,21 @@ $(document).ready(async function () {
             .single();
         if (sInfo) {
             currentYear = sInfo.current_academic_year;
-            currentTerm = sInfo.current_semester;
+            currentTerm = null;  // ✅ ไม่ใช้เทอมแล้ว
         }
 
         let currentEnrollment = null;
-        if (student.student_enrollments) {
-            currentEnrollment = student.student_enrollments.find(
-                e => e.academic_year == currentYear && e.semester == currentTerm
-            );
-            if (!currentEnrollment && student.student_enrollments.length > 0) {
-                currentEnrollment = student.student_enrollments[0];
-                if (!currentYear || !currentTerm) {
-                    currentYear = currentEnrollment.academic_year;
-                    currentTerm = currentEnrollment.semester || '1';
+        if (student.student_enrollments && student.student_enrollments.length > 0) {
+            // ✅ เรียงตามปีล่าสุด — ไม่กรองเทอมแล้ว
+            const sorted = [...student.student_enrollments].sort((a, b) => {
+                if (b.academic_year !== a.academic_year) {
+                    return parseInt(b.academic_year) - parseInt(a.academic_year);
                 }
+                return (b.semester || 0) - (a.semester || 0);
+            });
+            currentEnrollment = sorted.find(e => e.academic_year == currentYear) || sorted[0];
+            if (!currentYear && currentEnrollment) {
+                currentYear = currentEnrollment.academic_year;
             }
         }
 
@@ -266,9 +295,10 @@ async function loadExistingHomeVisit(studentId) {
             .select('*')
             .eq('student_id', studentId);
 
-        if (currentYear && currentTerm) {
-            query = query.eq('academic_year', currentYear).eq('semester', currentTerm);
+        if (currentYear) {
+            query = query.eq('academic_year', currentYear);
         }
+        // ❌ ลบ .eq('semester', currentTerm)
 
         const { data: records, error } = await query
             .order('created_at', { ascending: false })
@@ -649,7 +679,6 @@ function buildFormData(studentId, classroomId, teacherId) {
         classroom_id: classroomId,
         teacher_id: teacherId,
         academic_year: currentYear,
-        semester: currentTerm,
         visit_date: getVal('hv_date') || new Date().toISOString().split('T')[0],
         visit_status: getRadio('visit_status') || 'เยี่ยมแล้ว',
         visit_times: parseInt(getVal('visit_times')) || 1,
@@ -760,7 +789,7 @@ window.submitHomeVisit = async function () {
             .select('id')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
 
         if (selectError) throw selectError;
@@ -833,7 +862,7 @@ async function autoSaveStep() {
             .select('id')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
 
         if (selectError) throw selectError;
@@ -1424,7 +1453,8 @@ async function renderMissingBox(stepNumber) {
             .select('*')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (error) {

@@ -18,9 +18,12 @@
 
     <!-- jquery.Thailand.js -->
     <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/JQL.min.js"></script>
-    <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/typeahead.bundle.js"></script>
-    <link rel="stylesheet" href="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.css">
-    <script src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.js"></script>
+    <script
+        src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dependencies/typeahead.bundle.js"></script>
+    <link rel="stylesheet"
+        href="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.css">
+    <script
+        src="https://earthchie.github.io/jquery.Thailand.js/jquery.Thailand.js/dist/jquery.Thailand.min.js"></script>
 
     <!-- Tom Select -->
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.css" rel="stylesheet">
@@ -39,8 +42,14 @@
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
         }
 
-        .step-content { display: none; animation: fadeUp 0.35s; }
-        .step-content.active { display: block; }
+        .step-content {
+            display: none;
+            animation: fadeUp 0.35s;
+        }
+
+        .step-content.active {
+            display: block;
+        }
 
         #map {
             height: 380px;
@@ -50,17 +59,30 @@
         }
 
         @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(12px); }
-            to { opacity: 1; transform: translateY(0); }
+            from {
+                opacity: 0;
+                transform: translateY(12px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .hidden { display: none !important; }
+        .hidden {
+            display: none !important;
+        }
 
-        .locked-overlay { position: relative; }
+        .locked-overlay {
+            position: relative;
+        }
+
         .locked-overlay::before {
             content: "🔒 ข้อมูลถูกล็อกโดยครู";
             position: absolute;
-            top: 50%; left: 50%;
+            top: 50%;
+            left: 50%;
             transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.7);
             color: white;
@@ -71,13 +93,16 @@
             pointer-events: none;
             text-align: center;
         }
+
         .locked-overlay .step-content,
         .locked-overlay button:not(.disabled-btn) {
             opacity: 0.5;
             pointer-events: none;
         }
 
-        .ts-wrapper .ts-control { border-radius: 0.75rem; }
+        .ts-wrapper .ts-control {
+            border-radius: 0.75rem;
+        }
     </style>
 </head>
 
@@ -105,24 +130,28 @@
                                 <div>
                                     <label class="field-label text-xs font-bold text-slate-500">ชื่อ-นามสกุล</label>
                                     <div id="student-fullname-display"
-                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">-</div>
+                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">
+                                        -</div>
                                 </div>
                                 <div>
                                     <label class="field-label text-xs font-bold text-slate-500">รหัสประจำตัว</label>
                                     <div id="student-id-display"
-                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">-</div>
+                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">
+                                        -</div>
                                 </div>
                                 <div>
                                     <label class="field-label text-xs font-bold text-slate-500">ชั้น/เลขที่</label>
                                     <div id="student-class-display"
-                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">-</div>
+                                        class="px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-bold text-sm">
+                                        -</div>
                                 </div>
                             </div>
                         </div>
 
                         <div class="glass-card rounded-2xl p-5 relative overflow-hidden flex flex-col justify-center">
                             <i class="fas fa-check-circle absolute -right-4 -bottom-4 text-7xl text-slate-100"></i>
-                            <h2 class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">สถานะการเยี่ยมบ้าน</h2>
+                            <h2 class="text-[10px] font-black text-slate-400 mb-2 uppercase tracking-widest">
+                                สถานะการเยี่ยมบ้าน</h2>
                             <div id="status-badge"
                                 class="px-3 py-2 bg-amber-50 text-amber-600 rounded-xl text-center border border-amber-100">
                                 <p class="text-xs font-bold" id="status-text">ยังไม่มีข้อมูล</p>
@@ -141,32 +170,49 @@
                         class="border border-slate-200 rounded-3xl shadow-md overflow-hidden bg-white">
 
                         <!-- Progress Steps -->
-                        <div class="bg-white border-b border-slate-200 p-5 flex justify-between relative overflow-hidden">
-                            <div class="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2 rounded-full"></div>
+                        <div
+                            class="bg-white border-b border-slate-200 p-5 flex justify-between relative overflow-hidden">
+                            <div
+                                class="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -z-10 -translate-y-1/2 rounded-full">
+                            </div>
                             <div id="progressBar"
                                 class="absolute top-1/2 left-0 h-1 bg-sky-500 -z-10 -translate-y-1/2 rounded-full transition-all duration-300"
                                 style="width:0%"></div>
 
                             <div class="flex flex-col items-center gap-1.5 cursor-pointer z-10" onclick="goToStep(1)">
                                 <div id="circle-1"
-                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-red-600 text-white shadow-md shadow-red-100 transition-all">1</div>
-                                <span id="text-step-1" class="text-xs font-black text-red-700 transition-colors">1. ข้อมูลนักเรียน</span>
+                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-red-600 text-white shadow-md shadow-red-100 transition-all">
+                                    1</div>
+                                <span id="text-step-1" class="text-xs font-black text-red-700 transition-colors">1.
+                                    ข้อมูลนักเรียน</span>
                             </div>
                             <div class="flex flex-col items-center gap-1.5 cursor-pointer z-10" onclick="goToStep(2)">
-                                <div id="circle-2" class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">2</div>
-                                <span id="text-step-2" class="text-xs font-bold text-slate-400 transition-colors">2. ที่อยู่/พิกัด</span>
+                                <div id="circle-2"
+                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">
+                                    2</div>
+                                <span id="text-step-2" class="text-xs font-bold text-slate-400 transition-colors">2.
+                                    ที่อยู่/พิกัด</span>
                             </div>
                             <div class="flex flex-col items-center gap-1.5 cursor-pointer z-10" onclick="goToStep(3)">
-                                <div id="circle-3" class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">3</div>
-                                <span id="text-step-3" class="text-xs font-bold text-slate-400 transition-colors">3. ครอบครัว</span>
+                                <div id="circle-3"
+                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">
+                                    3</div>
+                                <span id="text-step-3" class="text-xs font-bold text-slate-400 transition-colors">3.
+                                    ครอบครัว</span>
                             </div>
                             <div class="flex flex-col items-center gap-1.5 cursor-pointer z-10" onclick="goToStep(4)">
-                                <div id="circle-4" class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">4</div>
-                                <span id="text-step-4" class="text-xs font-bold text-slate-400 transition-colors">4. อัพโหลดรูป</span>
+                                <div id="circle-4"
+                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">
+                                    4</div>
+                                <span id="text-step-4" class="text-xs font-bold text-slate-400 transition-colors">4.
+                                    อัพโหลดรูป</span>
                             </div>
                             <div class="flex flex-col items-center gap-1.5 cursor-pointer z-10" onclick="goToStep(5)">
-                                <div id="circle-5" class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">5</div>
-                                <span id="text-step-5" class="text-xs font-bold text-slate-400 transition-colors">5. ข้อห่วงใย</span>
+                                <div id="circle-5"
+                                    class="w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg bg-slate-100 text-slate-400 transition-all">
+                                    5</div>
+                                <span id="text-step-5" class="text-xs font-bold text-slate-400 transition-colors">5.
+                                    ข้อห่วงใย</span>
                             </div>
                         </div>
 
@@ -187,22 +233,26 @@
                                         class="w-full bg-slate-100 border border-slate-300 rounded-xl px-4 py-2.5 text-sm font-bold text-slate-700 outline-none">
                                 </div>
                                 <div>
-                                    <label class="form-label-lg text-slate-600">วันที่ออกเยี่ยมบ้าน <span class="text-rose-500">*</span></label>
+                                    <label class="form-label-lg text-slate-600">วันที่ออกเยี่ยมบ้าน <span
+                                            class="text-rose-500">*</span></label>
                                     <input type="text" id="hv_date" required
                                         class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500 font-medium">
                                 </div>
                             </div>
 
-                            <div class="bg-red-50/40 border border-red-100 rounded-2xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
+                            <div
+                                class="bg-red-50/40 border border-red-100 rounded-2xl p-5 mb-6 grid grid-cols-1 sm:grid-cols-3 gap-5">
                                 <div class="sm:col-span-3 flex items-center gap-4 pb-3 border-b border-red-100">
                                     <div class="relative flex-shrink-0">
                                         <div id="student-avatar-wrapper"
                                             class="w-20 h-20 rounded-2xl border-2 border-red-200 bg-white shadow-md overflow-hidden flex items-center justify-center">
-                                            <img id="student-avatar-img" class="hidden w-full h-full object-cover" src="" alt="รูปนักเรียน">
+                                            <img id="student-avatar-img" class="hidden w-full h-full object-cover"
+                                                src="" alt="รูปนักเรียน">
                                             <div id="student-avatar-placeholder"
                                                 class="flex flex-col items-center justify-center text-slate-300 gap-1 w-full h-full">
                                                 <i class="fas fa-user-graduate text-3xl"></i>
-                                                <span class="text-[9px] font-bold uppercase tracking-wider">ไม่มีรูป</span>
+                                                <span
+                                                    class="text-[9px] font-bold uppercase tracking-wider">ไม่มีรูป</span>
                                             </div>
                                         </div>
                                         <span id="student-avatar-badge"
@@ -211,9 +261,12 @@
                                         </span>
                                     </div>
                                     <div>
-                                        <p class="text-xs font-black text-red-900 uppercase tracking-wider mb-0.5">รูปโปรไฟล์นักเรียน</p>
-                                        <p id="student-avatar-status" class="text-xs text-slate-400 font-medium">— เลือกนักเรียนเพื่อดูรูป —</p>
-                                        <p class="text-[10px] text-slate-400 mt-1">รูปจะถูกใช้อัตโนมัติในส่วนแนบภาพ (Step 4)</p>
+                                        <p class="text-xs font-black text-red-900 uppercase tracking-wider mb-0.5">
+                                            รูปโปรไฟล์นักเรียน</p>
+                                        <p id="student-avatar-status" class="text-xs text-slate-400 font-medium">—
+                                            เลือกนักเรียนเพื่อดูรูป —</p>
+                                        <p class="text-[10px] text-slate-400 mt-1">รูปจะถูกใช้อัตโนมัติในส่วนแนบภาพ
+                                            (Step 4)</p>
                                     </div>
                                 </div>
 
@@ -241,7 +294,8 @@
                                         class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500 font-medium">
                                 </div>
                                 <div>
-                                    <label class="block text-xs font-bold text-red-950 mb-1">เบอร์โทรศัพท์นักเรียน</label>
+                                    <label
+                                        class="block text-xs font-bold text-red-950 mb-1">เบอร์โทรศัพท์นักเรียน</label>
                                     <input type="text" id="student_phone"
                                         class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500 font-medium">
                                 </div>
@@ -255,12 +309,14 @@
                             <div class="border border-red-200 rounded-2xl p-5 mb-6 bg-white shadow-sm">
                                 <label class="form-label-lg text-slate-700">สถานการณ์การเยี่ยมบ้าน</label>
                                 <div class="flex flex-wrap items-center gap-8 mt-2">
-                                    <label class="flex items-center gap-3 text-base font-bold text-slate-700 cursor-pointer">
+                                    <label
+                                        class="flex items-center gap-3 text-base font-bold text-slate-700 cursor-pointer">
                                         <input type="radio" name="visit_status" value="เยี่ยมแล้ว" checked
                                             class="w-5 h-5 text-red-600 border-slate-300 focus:ring-red-500">
                                         เยี่ยมแล้ว
                                     </label>
-                                    <div class="flex items-center gap-3 bg-red-50/50 border border-red-200 rounded-xl px-4 py-2">
+                                    <div
+                                        class="flex items-center gap-3 bg-red-50/50 border border-red-200 rounded-xl px-4 py-2">
                                         <span class="text-sm font-bold text-red-900">เยี่ยมบ้านครั้งที่</span>
                                         <input type="number" id="visit_times" min="1" value="1"
                                             class="w-20 border border-slate-300 rounded-lg px-3 py-1 text-base outline-none focus:border-red-500 text-center font-black text-red-700">
@@ -270,65 +326,107 @@
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                 <div class="border border-slate-200 rounded-2xl p-5 bg-red-50/10 shadow-sm">
-                                    <span class="block text-sm font-extrabold text-red-900 mb-3 border-b border-red-200 pb-2">
+                                    <span
+                                        class="block text-sm font-extrabold text-red-900 mb-3 border-b border-red-200 pb-2">
                                         <i class="fa-solid fa-user-tie mr-1"></i> ข้อมูลบิดา
                                     </span>
                                     <div class="space-y-4">
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">คำนำหน้าชื่อ-สกุลบิดา</label>
-                                            <input type="text" id="father_name" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">อาชีพของบิดา</label>
-                                            <input type="text" id="father_job" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">เบอร์โทรศัพท์บิดา</label>
-                                            <input type="text" id="father_phone" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">คำนำหน้าชื่อ-สกุลบิดา</label>
+                                            <input type="text" id="father_name"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">อาชีพของบิดา</label>
+                                            <input type="text" id="father_job"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">เบอร์โทรศัพท์บิดา</label>
+                                            <input type="text" id="father_phone"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="border border-slate-200 rounded-2xl p-5 bg-red-50/10 shadow-sm">
-                                    <span class="block text-sm font-extrabold text-red-900 mb-3 border-b border-red-200 pb-2">
+                                    <span
+                                        class="block text-sm font-extrabold text-red-900 mb-3 border-b border-red-200 pb-2">
                                         <i class="fa-solid fa-user-tie mr-1"></i> ข้อมูลมารดา
                                     </span>
                                     <div class="space-y-4">
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">คำนำหน้าชื่อ-สกุลมารดา</label>
-                                            <input type="text" id="mother_name" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">อาชีพของมารดา</label>
-                                            <input type="text" id="mother_job" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                        <div><label class="block text-xs font-bold text-slate-500 mb-1">เบอร์โทรศัพท์มารดา</label>
-                                            <input type="text" id="mother_phone" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">คำนำหน้าชื่อ-สกุลมารดา</label>
+                                            <input type="text" id="mother_name"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">อาชีพของมารดา</label>
+                                            <input type="text" id="mother_job"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
+                                        <div><label
+                                                class="block text-xs font-bold text-slate-500 mb-1">เบอร์โทรศัพท์มารดา</label>
+                                            <input type="text" id="mother_phone"
+                                                class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="border border-red-200 rounded-2xl p-5 bg-red-50/20 mb-6 shadow-sm">
-                                <span class="block text-sm font-extrabold text-red-950 mb-3 border-b border-red-200 pb-2">
+                                <span
+                                    class="block text-sm font-extrabold text-red-950 mb-3 border-b border-red-200 pb-2">
                                     <i class="fa-solid fa-users-gear mr-1"></i> ข้อมูลผู้ปกครองนักเรียน
                                 </span>
                                 <div class="flex flex-wrap gap-4 mb-5">
-                                    <label class="flex items-center gap-2.5 text-xs font-bold text-red-900 cursor-pointer bg-white border-red-200 border px-4 py-2.5 rounded-xl hover:bg-red-50 transition shadow-sm">
-                                        <input type="checkbox" id="chk_guardian_is_father" onchange="syncGuardianData('father')" class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
+                                    <label
+                                        class="flex items-center gap-2.5 text-xs font-bold text-red-900 cursor-pointer bg-white border-red-200 border px-4 py-2.5 rounded-xl hover:bg-red-50 transition shadow-sm">
+                                        <input type="checkbox" id="chk_guardian_is_father"
+                                            onchange="syncGuardianData('father')"
+                                            class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
                                         บิดาเป็นผู้ปกครอง (คัดลอกข้อมูลบิดา)
                                     </label>
-                                    <label class="flex items-center gap-2.5 text-xs font-bold text-red-900 cursor-pointer bg-white border-red-200 border px-4 py-2.5 rounded-xl hover:bg-red-50 transition shadow-sm">
-                                        <input type="checkbox" id="chk_guardian_is_mother" onchange="syncGuardianData('mother')" class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
+                                    <label
+                                        class="flex items-center gap-2.5 text-xs font-bold text-red-900 cursor-pointer bg-white border-red-200 border px-4 py-2.5 rounded-xl hover:bg-red-50 transition shadow-sm">
+                                        <input type="checkbox" id="chk_guardian_is_mother"
+                                            onchange="syncGuardianData('mother')"
+                                            class="w-4 h-4 text-red-600 rounded focus:ring-red-500">
                                         มารดาเป็นผู้ปกครอง (คัดลอกข้อมูลมารดา)
                                     </label>
                                 </div>
                                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                                    <div><label class="block text-xs font-bold text-slate-600 mb-1">คำนำหน้าชื่อ-สกุลผู้ปกครอง</label>
-                                        <input type="text" id="guardian_name" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                    <div><label class="block text-xs font-bold text-slate-600 mb-1">อาชีพผู้ปกครอง</label>
-                                        <input type="text" id="guardian_job" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                    <div><label class="block text-xs font-bold text-slate-600 mb-1">เบอร์โทรศัพท์ผู้ปกครอง</label>
-                                        <input type="text" id="guardian_phone" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"></div>
-                                    <div><label class="block text-xs font-bold text-slate-600 mb-1">ความสัมพันธ์กับนักเรียน</label>
-                                        <input type="text" id="guardian_relation" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500" placeholder="เช่น บิดา, ปู่, น้า"></div>
+                                    <div><label
+                                            class="block text-xs font-bold text-slate-600 mb-1">คำนำหน้าชื่อ-สกุลผู้ปกครอง</label>
+                                        <input type="text" id="guardian_name"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                    </div>
+                                    <div><label
+                                            class="block text-xs font-bold text-slate-600 mb-1">อาชีพผู้ปกครอง</label>
+                                        <input type="text" id="guardian_job"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                    </div>
+                                    <div><label
+                                            class="block text-xs font-bold text-slate-600 mb-1">เบอร์โทรศัพท์ผู้ปกครอง</label>
+                                        <input type="text" id="guardian_phone"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500">
+                                    </div>
+                                    <div><label
+                                            class="block text-xs font-bold text-slate-600 mb-1">ความสัมพันธ์กับนักเรียน</label>
+                                        <input type="text" id="guardian_relation"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"
+                                            placeholder="เช่น บิดา, ปู่, น้า">
+                                    </div>
                                     <div class="sm:col-span-2">
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">ปัจจุบันนักเรียนอาศัยอยู่กับ</label>
+                                        <label
+                                            class="block text-xs font-bold text-slate-600 mb-1">ปัจจุบันนักเรียนอาศัยอยู่กับ</label>
                                         <select id="living_with" class="w-full"></select>
                                         <input type="text" id="living_with_other"
                                             class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-red-500"
                                             placeholder="ระบุความสัมพันธ์ผู้อื่น...">
                                     </div>
                                     <div class="sm:col-span-3">
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">สถานภาพบิดาและมารดา</label>
+                                        <label
+                                            class="block text-xs font-bold text-slate-600 mb-1">สถานภาพบิดาและมารดา</label>
                                         <select id="parents_status" class="w-full"></select>
                                     </div>
                                 </div>
@@ -349,7 +447,8 @@
                             <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-orange-200">
                                 <div class="w-3.5 h-7 bg-orange-600 rounded-full animate-pulse"></div>
                                 <i class="fa-solid fa-map-location-dot text-orange-600 text-2xl"></i>
-                                <h3 class="text-base font-extrabold text-orange-950">ส่วนที่ 2: ข้อมูลที่อยู่ปัจจุบันและตำแหน่งพิกัดบ้าน</h3>
+                                <h3 class="text-base font-extrabold text-orange-950">ส่วนที่ 2:
+                                    ข้อมูลที่อยู่ปัจจุบันและตำแหน่งพิกัดบ้าน</h3>
                             </div>
 
                             <div class="bg-white border border-orange-200 rounded-2xl p-5 mb-6 shadow-sm">
@@ -358,17 +457,29 @@
                                 </span>
                                 <div class="grid grid-cols-2 sm:grid-cols-3 gap-4">
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">บ้านเลขที่</label>
-                                        <input type="text" id="addr_house" class="w-full bg-slate-50/50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_house"
+                                            class="w-full bg-slate-50/50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">หมู่ที่</label>
-                                        <input type="text" id="addr_moo" class="w-full bg-slate-50/50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_moo"
+                                            class="w-full bg-slate-50/50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">ตำบล / แขวง</label>
-                                        <input type="text" id="addr_subdistrict" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_subdistrict"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">อำเภอ / เขต</label>
-                                        <input type="text" id="addr_district" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_district"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">จังหวัด</label>
-                                        <input type="text" id="addr_province" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_province"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                     <div><label class="block text-xs font-bold text-slate-500 mb-1">รหัสไปรษณีย์</label>
-                                        <input type="text" id="addr_zipcode" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"></div>
+                                        <input type="text" id="addr_zipcode"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500">
+                                    </div>
                                 </div>
                             </div>
 
@@ -381,17 +492,22 @@
                                         placeholder="ระบุประเภทบ้านเช่า/อื่นๆ...">
                                 </div>
                                 <div>
-                                    <label for="travel_distance" class="form-label-lg text-slate-600">ระยะทางระหว่างบ้านไปโรงเรียน</label>
+                                    <label for="travel_distance"
+                                        class="form-label-lg text-slate-600">ระยะทางระหว่างบ้านไปโรงเรียน</label>
                                     <div class="relative">
                                         <input type="text" id="travel_distance" readonly
                                             class="w-full bg-slate-100 border border-slate-300 rounded-xl px-4 py-3 text-sm focus:border-orange-500 outline-none cursor-default">
-                                        <div class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400 text-sm font-bold">กิโลเมตร</div>
+                                        <div
+                                            class="absolute inset-y-0 right-0 pr-4 flex items-center pointer-events-none text-slate-400 text-sm font-bold">
+                                            กิโลเมตร</div>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 mt-1">* ระยะทางคำนวณอัตโนมัติจากตำแหน่งบ้านที่ปักหมุดบนแผนที่</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">*
+                                        ระยะทางคำนวณอัตโนมัติจากตำแหน่งบ้านที่ปักหมุดบนแผนที่</p>
                                 </div>
                                 <div>
                                     <label class="form-label-lg text-slate-600">ใช้เวลาเดินทางไปโรงเรียน</label>
-                                    <div class="flex items-center gap-2 bg-slate-100 p-2 border border-slate-300 rounded-xl">
+                                    <div
+                                        class="flex items-center gap-2 bg-slate-100 p-2 border border-slate-300 rounded-xl">
                                         <input type="number" id="travel_hour" min="0" value="0" readonly
                                             class="w-full border-none px-2 py-1 text-base text-center font-bold outline-none text-orange-600 bg-transparent">
                                         <span class="text-xs font-bold text-slate-400">ชั่วโมง</span>
@@ -399,7 +515,8 @@
                                             class="w-full border-none px-2 py-1 text-base text-center font-bold outline-none text-orange-600 bg-transparent">
                                         <span class="text-xs font-bold text-slate-400">นาที</span>
                                     </div>
-                                    <p class="text-[10px] text-slate-400 mt-1">* เวลาคำนวณอัตโนมัติจากตำแหน่งที่ปักหมุด</p>
+                                    <p class="text-[10px] text-slate-400 mt-1">* เวลาคำนวณอัตโนมัติจากตำแหน่งที่ปักหมุด
+                                    </p>
                                 </div>
                                 <div>
                                     <label class="form-label-lg text-slate-600">การเดินทางของนักเรียนไปโรงเรียน</label>
@@ -411,19 +528,24 @@
                             </div>
 
                             <div class="border border-orange-200 rounded-2xl p-5 mb-6 bg-white shadow-sm space-y-4">
-                                <span class="block text-xs font-black text-orange-950 uppercase tracking-wider border-b border-slate-100 pb-2">
+                                <span
+                                    class="block text-xs font-black text-orange-950 uppercase tracking-wider border-b border-slate-100 pb-2">
                                     <i class="fa-solid fa-images mr-1"></i> สภาพแวดล้อมและสาธารณูปโภค
                                 </span>
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                     <div><label class="block text-xs font-bold text-slate-600 mb-1">สภาพตัวบ้าน</label>
-                                        <select id="env_house_status" class="w-full"></select></div>
-                                    <div><label class="block text-xs font-bold text-slate-600 mb-1">ความสะอาดและระเบียบ</label>
+                                        <select id="env_house_status" class="w-full"></select>
+                                    </div>
+                                    <div><label
+                                            class="block text-xs font-bold text-slate-600 mb-1">ความสะอาดและระเบียบ</label>
                                         <select id="env_clean_status" class="w-full"></select>
                                         <input type="text" id="env_clean_other"
                                             class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"
-                                            placeholder="ระบุสภาพความสะอาดอื่นๆ..."></div>
+                                            placeholder="ระบุสภาพความสะอาดอื่นๆ...">
+                                    </div>
                                     <div class="sm:col-span-2">
-                                        <label class="block text-xs font-bold text-slate-600 mb-1">สภาพแวดล้อมที่อยู่อาศัย</label>
+                                        <label
+                                            class="block text-xs font-bold text-slate-600 mb-1">สภาพแวดล้อมที่อยู่อาศัย</label>
                                         <select id="env_location_status" class="w-full"></select>
                                         <input type="text" id="env_location_other"
                                             class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-orange-500"
@@ -435,36 +557,51 @@
                                     <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50">
                                         <span class="block text-xs font-bold text-slate-500 mb-2">ไฟฟ้า</span>
                                         <div class="flex gap-5">
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_electric" value="มีไฟฟ้า" checked class="w-4 h-4 text-orange-600"> มีไฟฟ้า</label>
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_electric" value="ไม่มีไฟฟ้า" class="w-4 h-4 text-orange-600"> ไม่มีไฟฟ้า</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_electric" value="มีไฟฟ้า" checked
+                                                    class="w-4 h-4 text-orange-600"> มีไฟฟ้า</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_electric" value="ไม่มีไฟฟ้า"
+                                                    class="w-4 h-4 text-orange-600"> ไม่มีไฟฟ้า</label>
                                         </div>
                                     </div>
                                     <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50">
-                                        <span class="block text-xs font-bold text-slate-500 mb-2">น้ำเพื่อให้อุปโภค/บริโภค</span>
+                                        <span
+                                            class="block text-xs font-bold text-slate-500 mb-2">น้ำเพื่อให้อุปโภค/บริโภค</span>
                                         <div class="flex gap-5">
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_water" value="มีน้ำ" checked class="w-4 h-4 text-orange-600"> มีน้ำ</label>
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_water" value="ไม่มีน้ำ" class="w-4 h-4 text-orange-600"> ไม่มีน้ำ</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_water" value="มีน้ำ" checked
+                                                    class="w-4 h-4 text-orange-600"> มีน้ำ</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_water" value="ไม่มีน้ำ"
+                                                    class="w-4 h-4 text-orange-600"> ไม่มีน้ำ</label>
                                         </div>
                                     </div>
                                     <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50">
                                         <span class="block text-xs font-bold text-slate-500 mb-2">ห้องสุขา</span>
                                         <div class="flex gap-5">
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_toilet" value="มีสุขา" checked class="w-4 h-4 text-orange-600"> มีสุขา</label>
-                                            <label class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
-                                                <input type="radio" name="utility_toilet" value="ไม่มีสุขา" class="w-4 h-4 text-orange-600"> ไม่มีสุขา</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_toilet" value="มีสุขา" checked
+                                                    class="w-4 h-4 text-orange-600"> มีสุขา</label>
+                                            <label
+                                                class="flex items-center gap-2 text-sm font-semibold text-slate-700 cursor-pointer">
+                                                <input type="radio" name="utility_toilet" value="ไม่มีสุขา"
+                                                    class="w-4 h-4 text-orange-600"> ไม่มีสุขา</label>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="mt-4 bg-white p-4 border border-orange-200 rounded-2xl shadow-sm">
-                                <label class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
-                                    <i class="fas fa-map-pin text-rose-500 text-sm"></i> ลากจุดปักหมุดแผนที่ (เลื่อนแผนที่หาตำแหน่งบ้านแล้วลากหมุดไปวาง)
+                                <label
+                                    class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
+                                    <i class="fas fa-map-pin text-rose-500 text-sm"></i> ลากจุดปักหมุดแผนที่
+                                    (เลื่อนแผนที่หาตำแหน่งบ้านแล้วลากหมุดไปวาง)
                                 </label>
                                 <div id="map" class="border border-slate-300 shadow-inner"></div>
 
@@ -472,11 +609,15 @@
                                     class="mt-3 bg-white border border-orange-200 rounded-2xl p-4 text-sm shadow-sm min-h-[60px]">
                                     <div class="grid grid-cols-2 gap-3">
                                         <div>
-                                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">📍 พิกัดโรงเรียน</p>
+                                            <p
+                                                class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
+                                                📍 พิกัดโรงเรียน</p>
                                             <p class="font-mono text-xs font-bold text-slate-600">รอการโหลดแผนที่...</p>
                                         </div>
                                         <div>
-                                            <p class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">🏠 พิกัดบ้านนักเรียน</p>
+                                            <p
+                                                class="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-0.5">
+                                                🏠 พิกัดบ้านนักเรียน</p>
                                             <p class="font-mono text-xs font-bold text-slate-400">ยังไม่ได้ปักหมุด</p>
                                         </div>
                                     </div>
@@ -495,12 +636,16 @@
                                 </button>
 
                                 <div class="mt-4 bg-white p-4 border border-orange-200 rounded-2xl shadow-sm">
-                                    <label class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
+                                    <label
+                                        class="block text-xs font-bold uppercase tracking-wider text-orange-900 mb-2.5 flex items-center gap-1">
                                         <i class="fas fa-map-pin text-rose-500 text-sm"></i> คัดลอกพิกัดจาก Google Maps
                                     </label>
-                                    <p class="text-[10px] text-slate-500 mb-2">เปิด Google Maps จากที่อยู่ → คลิกขวาที่ตำแหน่งบ้าน (PC) หรือแตะค้าง (มือถือ) → เลือกคัดลอกพิกัด → วางในช่องด้านล่าง</p>
+                                    <p class="text-[10px] text-slate-500 mb-2">เปิด Google Maps จากที่อยู่ →
+                                        คลิกขวาที่ตำแหน่งบ้าน (PC) หรือแตะค้าง (มือถือ) → เลือกคัดลอกพิกัด →
+                                        วางในช่องด้านล่าง</p>
                                     <div class="flex gap-2 mb-2">
-                                        <input type="text" id="coord-input" placeholder="13.740160996979197, 100.25988091557207"
+                                        <input type="text" id="coord-input"
+                                            placeholder="13.740160996979197, 100.25988091557207"
                                             class="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-orange-200">
                                         <button type="button" onclick="parseAndPinCoords()"
                                             class="px-4 py-2.5 bg-orange-500 text-white rounded-xl text-sm font-bold hover:bg-orange-600 transition">
@@ -539,53 +684,66 @@
                             <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-yellow-200">
                                 <div class="w-3.5 h-7 bg-yellow-600 rounded-full animate-pulse"></div>
                                 <i class="fa-solid fa-people-roof text-yellow-600 text-2xl"></i>
-                                <h3 class="text-base font-extrabold text-yellow-950">ส่วนที่ 3: ข้อมูลครอบครัวและสภาพแวดล้อม</h3>
+                                <h3 class="text-base font-extrabold text-yellow-950">ส่วนที่ 3:
+                                    ข้อมูลครอบครัวและสภาพแวดล้อม</h3>
                             </div>
 
-                            <div class="border border-yellow-300 rounded-2xl p-5 mb-6 space-y-4 bg-yellow-50/10 shadow-sm">
+                            <div
+                                class="border border-yellow-300 rounded-2xl p-5 mb-6 space-y-4 bg-yellow-50/10 shadow-sm">
                                 <span class="block text-xs font-black text-yellow-900 uppercase tracking-wider mb-2">
                                     <i class="fa-solid fa-calculator mr-1"></i> ข้อมูลจำนวนพี่น้องและสมาชิก
                                 </span>
 
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
-                                    <span class="text-sm font-bold text-slate-700">สมาชิกในครอบครัวนักเรียน (รวมตัวนักเรียน)</span>
+                                <div
+                                    class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
+                                    <span class="text-sm font-bold text-slate-700">สมาชิกในครอบครัวนักเรียน
+                                        (รวมตัวนักเรียน)</span>
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs text-slate-400 font-bold">รวม</span>
-                                        <input type="number" id="member_total" min="1" oninput="calcFemaleCount('member')"
+                                        <input type="number" id="member_total" min="1"
+                                            oninput="calcFemaleCount('member')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center font-black text-yellow-700 focus:border-yellow-500 outline-none">
                                     </div>
                                     <div class="flex gap-2">
-                                        <input type="number" id="member_male" min="0" placeholder="ชาย (คน)" oninput="calcFemaleCount('member')"
+                                        <input type="number" id="member_male" min="0" placeholder="ชาย (คน)"
+                                            oninput="calcFemaleCount('member')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center focus:border-yellow-500 outline-none">
                                         <input type="number" id="member_female" readonly placeholder="หญิง (คน)"
                                             class="w-full border bg-yellow-50/40 border-yellow-200 rounded-xl px-3 py-2 text-sm text-center font-extrabold text-yellow-700 outline-none">
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
-                                    <span class="text-sm font-bold text-slate-700">พี่น้องที่เกิดจากบิดามารดาเดียวกัน</span>
+                                <div
+                                    class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
+                                    <span
+                                        class="text-sm font-bold text-slate-700">พี่น้องที่เกิดจากบิดามารดาเดียวกัน</span>
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs text-slate-400 font-bold">รวม</span>
-                                        <input type="number" id="sib_same_total" min="0" oninput="calcFemaleCount('sib_same')"
+                                        <input type="number" id="sib_same_total" min="0"
+                                            oninput="calcFemaleCount('sib_same')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center font-black text-yellow-700 focus:border-yellow-500 outline-none">
                                     </div>
                                     <div class="flex gap-2">
-                                        <input type="number" id="sib_same_male" min="0" placeholder="ชาย (คน)" oninput="calcFemaleCount('sib_same')"
+                                        <input type="number" id="sib_same_male" min="0" placeholder="ชาย (คน)"
+                                            oninput="calcFemaleCount('sib_same')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center focus:border-yellow-500 outline-none">
                                         <input type="number" id="sib_same_female" readonly placeholder="หญิง (คน)"
                                             class="w-full border bg-yellow-50/40 border-yellow-200 rounded-xl px-3 py-2 text-sm text-center font-extrabold text-yellow-700 outline-none">
                                     </div>
                                 </div>
 
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
+                                <div
+                                    class="grid grid-cols-1 md:grid-cols-3 gap-4 items-center p-4 bg-white border border-yellow-200 rounded-xl shadow-sm">
                                     <span class="text-sm font-bold text-slate-700">พี่น้องที่เกิดจากต่างบิดามารดา</span>
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs text-slate-400 font-bold">รวม</span>
-                                        <input type="number" id="sib_diff_total" min="0" oninput="calcFemaleCount('sib_diff')"
+                                        <input type="number" id="sib_diff_total" min="0"
+                                            oninput="calcFemaleCount('sib_diff')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center font-black text-yellow-700 focus:border-yellow-500 outline-none">
                                     </div>
                                     <div class="flex gap-2">
-                                        <input type="number" id="sib_diff_male" min="0" placeholder="ชาย (คน)" oninput="calcFemaleCount('sib_diff')"
+                                        <input type="number" id="sib_diff_male" min="0" placeholder="ชาย (คน)"
+                                            oninput="calcFemaleCount('sib_diff')"
                                             class="w-full border border-slate-300 rounded-xl px-3 py-2 text-sm text-center focus:border-yellow-500 outline-none">
                                         <input type="number" id="sib_diff_female" readonly placeholder="หญิง (คน)"
                                             class="w-full border bg-yellow-50/40 border-yellow-200 rounded-xl px-3 py-2 text-sm text-center font-extrabold text-yellow-700 outline-none">
@@ -595,7 +753,8 @@
 
                             <div class="space-y-5 mb-6">
                                 <div>
-                                    <label class="form-label-lg text-slate-600">กรณีในครอบครัวมีผู้ที่ต้องการการช่วยเหลือเป็นกรณีพิเศษ</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">กรณีในครอบครัวมีผู้ที่ต้องการการช่วยเหลือเป็นกรณีพิเศษ</label>
                                     <textarea id="special_help_details" rows="3"
                                         class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-yellow-600 transition shadow-inner placeholder-slate-400"
                                         placeholder="หากไม่มีให้ขีด -"></textarea>
@@ -609,13 +768,17 @@
                                 </div>
                             </div>
 
-                            <div class="border border-yellow-200 rounded-2xl p-5 mb-6 overflow-x-auto bg-white shadow-sm">
-                                <span class="block text-sm font-extrabold text-yellow-900 uppercase tracking-wider mb-3">
-                                    <i class="fa-solid fa-table-list mr-1"></i> ความสัมพันธ์ระหว่างนักเรียนกับสมาชิกในครอบครัว
+                            <div
+                                class="border border-yellow-200 rounded-2xl p-5 mb-6 overflow-x-auto bg-white shadow-sm">
+                                <span
+                                    class="block text-sm font-extrabold text-yellow-900 uppercase tracking-wider mb-3">
+                                    <i class="fa-solid fa-table-list mr-1"></i>
+                                    ความสัมพันธ์ระหว่างนักเรียนกับสมาชิกในครอบครัว
                                 </span>
                                 <table class="w-full text-center text-sm border-collapse">
                                     <thead>
-                                        <tr class="bg-yellow-500/10 border-b border-yellow-200 text-yellow-950 font-bold">
+                                        <tr
+                                            class="bg-yellow-500/10 border-b border-yellow-200 text-yellow-950 font-bold">
                                             <th class="p-3 text-left">สมาชิก</th>
                                             <th class="p-3">ไม่มี</th>
                                             <th class="p-3">สนิทสนม</th>
@@ -624,7 +787,8 @@
                                             <th class="p-3">ขัดแย้ง</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="relationTableBody" class="font-medium text-slate-700 divide-y divide-slate-100"></tbody>
+                                    <tbody id="relationTableBody"
+                                        class="font-medium text-slate-700 divide-y divide-slate-100"></tbody>
                                 </table>
                             </div>
 
@@ -634,7 +798,8 @@
                                     <div class="relative">
                                         <input type="number" id="time_together_hours" min="0"
                                             class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-yellow-500 shadow-sm">
-                                        <span class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">ชั่วโมงต่อวัน</span>
+                                        <span
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">ชั่วโมงต่อวัน</span>
                                     </div>
                                 </div>
                                 <div>
@@ -642,7 +807,8 @@
                                     <div class="relative">
                                         <input type="number" id="family_income_monthly" min="0"
                                             class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm font-bold outline-none focus:border-yellow-500 shadow-sm">
-                                        <span class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">บาท</span>
+                                        <span
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">บาท</span>
                                     </div>
                                 </div>
                                 <div class="sm:col-span-2">
@@ -652,14 +818,19 @@
                                         placeholder="ระบุ...">
                                     <select id="student_allowance_source" class="w-full"></select>
                                 </div>
-                                <div class="sm:col-span-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-2 gap-4">
+                                <div
+                                    class="sm:col-span-2 p-4 bg-slate-50 border border-slate-200 rounded-2xl grid grid-cols-2 gap-4">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-500 mb-1">นักเรียนทำงานหารายได้ อาชีพ...</label>
-                                        <input type="text" id="student_job_name" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">นักเรียนทำงานหารายได้
+                                            อาชีพ...</label>
+                                        <input type="text" id="student_job_name"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500">
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-500 mb-1">รายได้วันละ (บาท)</label>
-                                        <input type="number" id="student_job_income" class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500 text-center font-bold">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">รายได้วันละ
+                                            (บาท)</label>
+                                        <input type="number" id="student_job_income"
+                                            class="w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500 text-center font-bold">
                                     </div>
                                 </div>
                                 <div>
@@ -667,14 +838,16 @@
                                     <div class="relative">
                                         <input type="number" id="money_to_school"
                                             class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm font-black text-yellow-900 outline-none focus:border-yellow-500 shadow-sm">
-                                        <span class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">บาทต่อวัน</span>
+                                        <span
+                                            class="absolute inset-y-0 right-4 flex items-center pointer-events-none text-slate-400 text-xs font-bold">บาทต่อวัน</span>
                                     </div>
                                 </div>
                             </div>
 
                             <div class="space-y-5 mb-6">
                                 <div>
-                                    <label class="form-label-lg text-slate-600">ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</label>
                                     <textarea id="responsibilities_details" rows="3"
                                         class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-yellow-500 placeholder-slate-400"
                                         placeholder="ระบุรายละเอียด..."></textarea>
@@ -686,7 +859,8 @@
                                         placeholder="ระบุรายละเอียด..."></textarea>
                                 </div>
                                 <div>
-                                    <label class="form-label-lg text-slate-600">กรณีที่ผู้ปกครองไม่อยู่บ้านฝากเด็กนักเรียนอยู่บ้านกับใคร</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">กรณีที่ผู้ปกครองไม่อยู่บ้านฝากเด็กนักเรียนอยู่บ้านกับใคร</label>
                                     <select id="leave_with_whom_details" class="w-full"></select>
                                     <input type="text" id="leave_with_whom_other"
                                         class="hidden mt-2 w-full bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-yellow-500"
@@ -695,46 +869,66 @@
                             </div>
 
                             <div class="border border-yellow-300 rounded-2xl p-5 bg-white space-y-6 shadow-sm">
-                                <span class="block text-sm font-black text-yellow-950 uppercase tracking-wider border-b border-slate-100 pb-2">
-                                    <i class="fa-solid fa-triangle-exclamation mr-1"></i> พฤติกรรมความเสี่ยงและความปลอดภัย
+                                <span
+                                    class="block text-sm font-black text-yellow-950 uppercase tracking-wider border-b border-slate-100 pb-2">
+                                    <i class="fa-solid fa-triangle-exclamation mr-1"></i>
+                                    พฤติกรรมความเสี่ยงและความปลอดภัย
                                 </span>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● ด้านสุขภาพ</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        ด้านสุขภาพ</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_health"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● สวัสดิการหรือความปลอดภัย</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        สวัสดิการหรือความปลอดภัย</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_welfare"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</span>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_responsibilities"></div>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5"
+                                        id="chk_group_responsibilities"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● กิจกรรมยามว่างหรืองานอดิเรก</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        กิจกรรมยามว่างหรืองานอดิเรก</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_hobbies"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● พฤติกรรมการใช้สารเสพติด</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        พฤติกรรมการใช้สารเสพติด</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_drugs"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● พฤติกรรมการใช้ความรุนแรง</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        พฤติกรรมการใช้ความรุนแรง</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_violence"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● พฤติกรรมทางเพศ</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        พฤติกรรมทางเพศ</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_sex"></div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● การติดเกม</span>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        การติดเกม</span>
                                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_gaming"></div>
                                 </div>
                                 <div class="p-4 border border-slate-200 rounded-xl bg-slate-50/50">
-                                    <span class="block text-sm font-extrabold text-yellow-950 mb-2">● การเข้าถึงสื่อคอมพิวเตอร์และอินเตอร์เน็ตที่บ้าน</span>
+                                    <span class="block text-sm font-extrabold text-yellow-950 mb-2">●
+                                        การเข้าถึงสื่อคอมพิวเตอร์และอินเตอร์เน็ตที่บ้าน</span>
                                     <div class="flex gap-6 mt-1 flex-wrap">
-                                        <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
-                                            <input type="radio" name="internet_access" value="สามารถเข้าถึง Internet ได้จากที่บ้าน" checked class="w-4 h-4 text-yellow-600">
+                                        <label
+                                            class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
+                                            <input type="radio" name="internet_access"
+                                                value="สามารถเข้าถึง Internet ได้จากที่บ้าน" checked
+                                                class="w-4 h-4 text-yellow-600">
                                             สามารถเข้าถึง Internet ได้จากที่บ้าน</label>
-                                        <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
-                                            <input type="radio" name="internet_access" value="ไม่สามารถเข้าถึง Internet ได้จากที่บ้าน" class="w-4 h-4 text-yellow-600">
+                                        <label
+                                            class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer">
+                                            <input type="radio" name="internet_access"
+                                                value="ไม่สามารถเข้าถึง Internet ได้จากที่บ้าน"
+                                                class="w-4 h-4 text-yellow-600">
                                             ไม่สามารถเข้าถึง Internet ได้จากที่บ้าน</label>
                                     </div>
                                 </div>
-                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">● การใช้เครื่องมือสื่อสารอิเล็กทรอนิกส์</span>
-                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_communication"></div>
+                                <div><span class="block text-sm font-extrabold text-yellow-600 mb-2.5">●
+                                        การใช้เครื่องมือสื่อสารอิเล็กทรอนิกส์</span>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5" id="chk_group_communication">
+                                    </div>
                                 </div>
                             </div>
 
@@ -757,13 +951,16 @@
                             <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-green-200">
                                 <div class="w-3.5 h-7 bg-green-600 rounded-full animate-pulse"></div>
                                 <i class="fa-solid fa-camera text-green-600 text-2xl"></i>
-                                <h3 class="text-base font-extrabold text-green-950">ส่วนที่ 4: แนบภาพถ่ายหลักฐานการเยี่ยมบ้าน (ย่อไฟล์อัตโนมัติบน Google Drive)</h3>
+                                <h3 class="text-base font-extrabold text-green-950">ส่วนที่ 4:
+                                    แนบภาพถ่ายหลักฐานการเยี่ยมบ้าน (ย่อไฟล์อัตโนมัติบน Google Drive)</h3>
                             </div>
 
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                                <div id="card_upload_1" class="border border-green-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
+                                <div id="card_upload_1"
+                                    class="border border-green-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                                     <div>
-                                        <span class="block text-sm font-extrabold text-slate-700 mb-2">1. ภาพถ่ายตัวนักเรียน</span>
+                                        <span class="block text-sm font-extrabold text-slate-700 mb-2">1.
+                                            ภาพถ่ายตัวนักเรียน</span>
 
                                         <div id="avatar-auto-banner"
                                             class="hidden mb-3 flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2 text-left">
@@ -771,28 +968,35 @@
                                                 class="w-10 h-10 rounded-lg object-cover border-2 border-emerald-300 shadow-sm flex-shrink-0"
                                                 src="" alt="รูปโปรไฟล์">
                                             <div class="flex-1 min-w-0">
-                                                <p class="text-[10px] font-black text-emerald-700 uppercase tracking-wider leading-none mb-0.5">
+                                                <p
+                                                    class="text-[10px] font-black text-emerald-700 uppercase tracking-wider leading-none mb-0.5">
                                                     <i class="fas fa-circle-check mr-0.5"></i> ดึงจากโปรไฟล์อัตโนมัติ
                                                 </p>
-                                                <p class="text-[10px] text-emerald-600 font-medium truncate">บันทึกใช้งานแล้ว — อัพโหลดใหม่เพื่อเปลี่ยน</p>
+                                                <p class="text-[10px] text-emerald-600 font-medium truncate">
+                                                    บันทึกใช้งานแล้ว — อัพโหลดใหม่เพื่อเปลี่ยน</p>
                                             </div>
                                         </div>
 
                                         <div id="avatar-missing-banner"
                                             class="hidden mb-3 flex items-center gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 text-left">
-                                            <i class="fas fa-circle-exclamation text-amber-500 text-lg flex-shrink-0"></i>
-                                            <p class="text-[10px] text-amber-700 font-bold leading-tight">ยังไม่มีรูปโปรไฟล์<br>
+                                            <i
+                                                class="fas fa-circle-exclamation text-amber-500 text-lg flex-shrink-0"></i>
+                                            <p class="text-[10px] text-amber-700 font-bold leading-tight">
+                                                ยังไม่มีรูปโปรไฟล์<br>
                                                 <span class="font-normal">กรุณาถ่ายหรือเลือกรูปนักเรียน</span>
                                             </p>
                                         </div>
 
                                         <div class="flex justify-center gap-2">
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
                                                 <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
-                                                <input type="file" id="pic_student_cam" accept="image/*" capture="environment" class="hidden"
+                                                <input type="file" id="pic_student_cam" accept="image/*"
+                                                    capture="environment" class="hidden"
                                                     onchange="syncCamToMain(this,'pic_student','preview1','cloud_btn1','del_btn1')">
                                             </label>
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
                                                 <i class="fa-solid fa-images text-sm"></i> คลังภาพ
                                                 <input type="file" id="pic_student" accept="image/*" class="hidden"
                                                     onchange="previewSelectedImage(this, 'preview1', 'cloud_btn1', 'del_btn1')">
@@ -817,16 +1021,21 @@
                                     </div>
                                 </div>
 
-                                <div id="card_upload_2" class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
+                                <div id="card_upload_2"
+                                    class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                                     <div>
-                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">2. ภาพถ่ายสภาพบ้าน (ภายนอก)</span>
+                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">2.
+                                            ภาพถ่ายสภาพบ้าน (ภายนอก)</span>
                                         <div class="flex justify-center gap-2">
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
                                                 <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
-                                                <input type="file" id="pic_outside_cam" accept="image/*" capture="environment" class="hidden"
+                                                <input type="file" id="pic_outside_cam" accept="image/*"
+                                                    capture="environment" class="hidden"
                                                     onchange="syncCamToMain(this,'pic_outside','preview2','cloud_btn2','del_btn2')">
                                             </label>
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
                                                 <i class="fa-solid fa-images text-sm"></i> คลังภาพ
                                                 <input type="file" id="pic_outside" accept="image/*" class="hidden"
                                                     onchange="previewSelectedImage(this, 'preview2', 'cloud_btn2', 'del_btn2')">
@@ -851,16 +1060,21 @@
                                     </div>
                                 </div>
 
-                                <div id="card_upload_3" class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
+                                <div id="card_upload_3"
+                                    class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                                     <div>
-                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">3. ภาพถ่ายสภาพบ้าน (ภายใน)</span>
+                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">3.
+                                            ภาพถ่ายสภาพบ้าน (ภายใน)</span>
                                         <div class="flex justify-center gap-2">
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
                                                 <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
-                                                <input type="file" id="pic_inside_cam" accept="image/*" capture="environment" class="hidden"
+                                                <input type="file" id="pic_inside_cam" accept="image/*"
+                                                    capture="environment" class="hidden"
                                                     onchange="syncCamToMain(this,'pic_inside','preview3','cloud_btn3','del_btn3')">
                                             </label>
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
                                                 <i class="fa-solid fa-images text-sm"></i> คลังภาพ
                                                 <input type="file" id="pic_inside" accept="image/*" class="hidden"
                                                     onchange="previewSelectedImage(this, 'preview3', 'cloud_btn3', 'del_btn3')">
@@ -885,16 +1099,21 @@
                                     </div>
                                 </div>
 
-                                <div id="card_upload_4" class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
+                                <div id="card_upload_4"
+                                    class="border border-slate-200 rounded-2xl p-5 bg-white text-center flex flex-col justify-between min-h-[240px] shadow-sm">
                                     <div>
-                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">4. ภาพครูกำลังเยี่ยมบ้านร่วมกับผู้ปกครอง</span>
+                                        <span class="block text-sm font-extrabold text-slate-700 mb-3">4.
+                                            ภาพครูกำลังเยี่ยมบ้านร่วมกับผู้ปกครอง</span>
                                         <div class="flex justify-center gap-2">
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-sky-50 border border-sky-200 rounded-xl text-xs font-bold text-sky-700 hover:bg-sky-100 transition shadow-sm">
                                                 <i class="fa-solid fa-camera text-sm"></i> เปิดกล้อง
-                                                <input type="file" id="pic_teacher_cam" accept="image/*" capture="environment" class="hidden"
+                                                <input type="file" id="pic_teacher_cam" accept="image/*"
+                                                    capture="environment" class="hidden"
                                                     onchange="syncCamToMain(this,'pic_teacher','preview4','cloud_btn4','del_btn4')">
                                             </label>
-                                            <label class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
+                                            <label
+                                                class="cursor-pointer inline-flex items-center gap-1.5 px-3 py-2 bg-green-50 border border-green-200 rounded-xl text-xs font-bold text-green-700 hover:bg-green-100 transition shadow-sm">
                                                 <i class="fa-solid fa-images text-sm"></i> คลังภาพ
                                                 <input type="file" id="pic_teacher" accept="image/*" class="hidden"
                                                     onchange="previewSelectedImage(this, 'preview4', 'cloud_btn4', 'del_btn4')">
@@ -939,24 +1158,29 @@
                             <div class="flex items-center gap-2.5 mb-6 pb-3 border-b border-sky-300">
                                 <div class="w-3.5 h-7 bg-sky-600 rounded-full animate-pulse"></div>
                                 <i class="fa-solid fa-comment-medical text-sky-600 text-2xl"></i>
-                                <h3 class="text-base font-extrabold text-sky-900">ส่วนที่ 5: ข้อห่วงใยและการบันทึกข้อมูลเพิ่มเติม</h3>
+                                <h3 class="text-base font-extrabold text-sky-900">ส่วนที่ 5:
+                                    ข้อห่วงใยและการบันทึกข้อมูลเพิ่มเติม</h3>
                             </div>
 
                             <div class="space-y-5 mb-6">
                                 <div>
-                                    <label class="form-label-lg text-slate-600">ข้อห่วงใยของผู้ปกครองที่มีต่อนักเรียน</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">ข้อห่วงใยของผู้ปกครองที่มีต่อนักเรียน</label>
                                     <textarea id="guardian_concerns_details" rows="4"
                                         class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-sky-500 transition placeholder-slate-400 shadow-inner"
                                         placeholder="กรอกข้อมูลข้อห่วงใย..."></textarea>
                                 </div>
                                 <div>
-                                    <label class="form-label-lg text-slate-600">สิ่งที่ผู้ปกครองต้องการให้โรงเรียนช่วยเหลือนักเรียน เช่น ด้านการเรียน ด้านพฤติกรรม ด้านเศรษฐกิจ (ขอรับทุน) อื่น ๆ</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">สิ่งที่ผู้ปกครองต้องการให้โรงเรียนช่วยเหลือนักเรียน
+                                        เช่น ด้านการเรียน ด้านพฤติกรรม ด้านเศรษฐกิจ (ขอรับทุน) อื่น ๆ</label>
                                     <textarea id="guardian_requests_details" rows="4"
                                         class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-sky-500 transition placeholder-slate-400 shadow-inner"
                                         placeholder="ระบุสิ่งที่ผู้ปกครองเสนอแนะความต้องการให้ทางโรงเรียนร่วมช่วยเหลือ..."></textarea>
                                 </div>
                                 <div>
-                                    <label class="form-label-lg text-slate-600">ความช่วยเหลือที่ครอบครัวเคยได้รับจากหน่วยงานหรือต้องการได้รับการช่วยเหลือ</label>
+                                    <label
+                                        class="form-label-lg text-slate-600">ความช่วยเหลือที่ครอบครัวเคยได้รับจากหน่วยงานหรือต้องการได้รับการช่วยเหลือ</label>
                                     <textarea id="past_welfare_details" rows="4"
                                         class="w-full border border-slate-300 rounded-2xl p-4 text-sm outline-none focus:border-sky-500 transition placeholder-slate-400 shadow-inner"
                                         placeholder="กรอกข้อมูลประวัติการรับสวัสดิการพึ่งพิง..."></textarea>
@@ -993,6 +1217,7 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
 
     <!-- =======================================================
@@ -1001,6 +1226,7 @@
     <script>
         function getHomevisitStudentFallbackConfig() {
             return {
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -1009,7 +1235,7 @@
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'student_index.html' }
+                    ...buildSidebarItems('homevisit', ['home'])
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -1021,7 +1247,14 @@
                         collapsible: false,
                         defaultOpen: true,
                         items: [
-                            { id: 'nav-visit-form', icon: 'fa-pen-to-square', label: 'กรอกข้อมูลเยี่ยมบ้าน' }
+                            {
+                                id: 'nav-visit-form',
+                                icon: 'fa-pen-to-square',
+                                label: 'กรอกข้อมูลเยี่ยมบ้าน',
+                                icon_bg_color: '#3b82f6',
+                                icon_text_color: '#ffffff',
+                                class: 'active'
+                            }
                         ]
                     }
                 ],
@@ -1042,33 +1275,19 @@
             };
         }
 
-        // ✅ Helper: Refresh Topbar UI
-        function refreshHomevisitStudentTopbarUI() {
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { /* ignore */ }
-            }
-            try {
-                if (typeof currentUser !== 'undefined' && currentUser && window._student) {
-                    const displayName = `${window._student.prefix || ''}${window._student.first_name} ${window._student.last_name}`;
-                    const nameEl = document.getElementById('userName');
-                    if (nameEl) nameEl.innerText = displayName;
-                    const roleEl = document.getElementById('userRole');
-                    if (roleEl) roleEl.innerText = 'นักเรียน';
-                }
-            } catch (e) { /* ignore */ }
-        }
-        window.refreshHomevisitStudentTopbarUI = refreshHomevisitStudentTopbarUI;
-
         initModuleSidebar({
             moduleKey: 'homevisit',
             pageTitle: 'ระบบเยี่ยมบ้านนักเรียน',
             activeId: 'nav-visit-form',
             topbarButtons: [],
             fallbackConfig: getHomevisitStudentFallbackConfig(),
-            waitRole: false,  // ✅ นักเรียนไม่มี role → ไม่ต้องรอ
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'student_index.html' },
+                { label: 'เยี่ยมบ้านนักเรียน' }
+            ],
             onReady: () => {
-                refreshHomevisitStudentTopbarUI();
-                setTimeout(refreshHomevisitStudentTopbarUI, 800);
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
             }
         });
     </script>

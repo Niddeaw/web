@@ -13,18 +13,71 @@
 
     <style>
         @media (max-width: 760px) {
-            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
-            .d-sidebar.open { transform: translateX(0) !important; }
-            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
-            .d-overlay.open { display: block !important; opacity: 1; }
-            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
-            .d-app { display: block !important; }
-            .d-menu { display: flex !important; align-items: center; justify-content: center; }
-            .d-collapse { display: none !important; }
-            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
+            .d-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                z-index: 1000 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .d-sidebar.open {
+                transform: translateX(0) !important;
+            }
+
+            .d-overlay {
+                display: none !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
+                z-index: 999 !important;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .d-overlay.open {
+                display: block !important;
+                opacity: 1;
+            }
+
+            .d-main {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .d-app {
+                display: block !important;
+            }
+
+            .d-menu {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .d-collapse {
+                display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
+            }
         }
+
         @media (min-width: 761px) and (max-width: 1024px) {
-            .d-sidebar { width: 240px; }
+            .d-sidebar {
+                width: 240px;
+            }
         }
     </style>
 </head>
@@ -42,35 +95,47 @@
 
                     <!-- Status bar -->
                     <div class="flex flex-wrap items-center gap-2">
-                        <span id="pageBadge" class="inline-block px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Admin View</span>
-                        <span id="mode-subtitle" class="text-[10px] text-rose-500 font-bold uppercase tracking-widest">SDQ Admin Dashboard</span>
+                        <span id="pageBadge"
+                            class="inline-block px-3 py-1 bg-rose-100 text-rose-700 rounded-full text-[10px] font-bold uppercase tracking-wider">Admin
+                            View</span>
+                        <span id="mode-subtitle"
+                            class="text-[10px] text-rose-500 font-bold uppercase tracking-widest">SDQ Admin
+                            Dashboard</span>
                     </div>
 
                     <!-- Stats -->
                     <div class="grid grid-cols-1 md:grid-cols-4 gap-5">
                         <div class="glass-card p-5 rounded-2xl border-l-4 border-indigo-500 flex items-center gap-4">
-                            <div class="h-12 w-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-users"></i></div>
+                            <div
+                                class="h-12 w-12 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-users"></i></div>
                             <div>
                                 <div class="text-slate-500 text-sm font-bold">ผู้ทำแบบประเมิน</div>
                                 <div class="text-2xl font-black text-slate-800" id="allCount">0</div>
                             </div>
                         </div>
                         <div class="glass-card p-5 rounded-2xl border-l-4 border-emerald-500 flex items-center gap-4">
-                            <div class="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-face-smile"></i></div>
+                            <div
+                                class="h-12 w-12 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-face-smile"></i></div>
                             <div>
                                 <div class="text-slate-500 text-sm font-bold">กลุ่มปกติ</div>
                                 <div class="text-2xl font-black text-emerald-600" id="normalCount">0</div>
                             </div>
                         </div>
                         <div class="glass-card p-5 rounded-2xl border-l-4 border-amber-500 flex items-center gap-4">
-                            <div class="h-12 w-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-face-meh"></i></div>
+                            <div
+                                class="h-12 w-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-face-meh"></i></div>
                             <div>
                                 <div class="text-slate-500 text-sm font-bold">กลุ่มเสี่ยง</div>
                                 <div class="text-2xl font-black text-amber-500" id="riskCount">0</div>
                             </div>
                         </div>
                         <div class="glass-card p-5 rounded-2xl border-l-4 border-rose-500 flex items-center gap-4">
-                            <div class="h-12 w-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-2xl"><i class="fa-solid fa-face-frown"></i></div>
+                            <div
+                                class="h-12 w-12 bg-rose-100 text-rose-600 rounded-xl flex items-center justify-center text-2xl">
+                                <i class="fa-solid fa-face-frown"></i></div>
                             <div>
                                 <div class="text-slate-500 text-sm font-bold">กลุ่มมีปัญหา</div>
                                 <div class="text-2xl font-black text-rose-600" id="probCount">0</div>
@@ -81,13 +146,16 @@
                     <!-- Charts -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="glass-card p-6 rounded-2xl">
-                            <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fa-solid fa-chart-pie text-indigo-500 mr-2"></i>ภาพรวมสถานะ SDQ</h3>
+                            <h3 class="text-lg font-bold text-slate-800 mb-4"><i
+                                    class="fa-solid fa-chart-pie text-indigo-500 mr-2"></i>ภาพรวมสถานะ SDQ</h3>
                             <div class="relative" style="height: 350px;"><canvas id="overviewChart"></canvas></div>
                         </div>
                         <div class="glass-card p-6 rounded-2xl">
                             <div class="flex justify-between items-center mb-4">
-                                <h3 class="text-lg font-bold text-slate-800"><i class="fa-solid fa-chart-bar text-emerald-500 mr-2"></i>แยกตามระดับชั้น</h3>
-                                <select id="chartGradeFilter" class="px-3 py-1.5 border border-slate-200 rounded-lg text-sm">
+                                <h3 class="text-lg font-bold text-slate-800"><i
+                                        class="fa-solid fa-chart-bar text-emerald-500 mr-2"></i>แยกตามระดับชั้น</h3>
+                                <select id="chartGradeFilter"
+                                    class="px-3 py-1.5 border border-slate-200 rounded-lg text-sm">
                                     <option value="all">ทุกชั้น</option>
                                 </select>
                             </div>
@@ -97,32 +165,43 @@
 
                     <!-- Score by grade -->
                     <div class="glass-card p-6 rounded-2xl">
-                        <h3 class="text-lg font-bold text-slate-800 mb-4"><i class="fa-solid fa-chart-line text-purple-500 mr-2"></i>คะแนนเฉลี่ยรายด้าน แยกตามระดับชั้น</h3>
+                        <h3 class="text-lg font-bold text-slate-800 mb-4"><i
+                                class="fa-solid fa-chart-line text-purple-500 mr-2"></i>คะแนนเฉลี่ยรายด้าน
+                            แยกตามระดับชั้น</h3>
                         <div class="relative" style="height: 400px;"><canvas id="scoreByGradeChart"></canvas></div>
                     </div>
 
                     <!-- Table + filters -->
                     <div class="glass-card p-6 rounded-2xl">
-                        <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 border-b border-slate-100 pb-4">
+                        <div
+                            class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4 border-b border-slate-100 pb-4">
                             <div class="flex flex-wrap gap-4 w-full md:w-auto">
                                 <div class="field-group flex-1 min-w-[150px]">
                                     <label class="field-label text-slate-600">ระดับชั้น</label>
-                                    <select id="filterGrade" class="field-input"><option value="">ทั้งหมด</option></select>
+                                    <select id="filterGrade" class="field-input">
+                                        <option value="">ทั้งหมด</option>
+                                    </select>
                                 </div>
                                 <div class="field-group flex-1 min-w-[150px]">
                                     <label class="field-label text-slate-600">ห้อง</label>
-                                    <select id="filterRoom" class="field-input"><option value="">ทั้งหมด</option></select>
+                                    <select id="filterRoom" class="field-input">
+                                        <option value="">ทั้งหมด</option>
+                                    </select>
                                 </div>
                             </div>
                             <div class="flex flex-wrap gap-2">
-                                <button onclick="exportData()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
+                                <button onclick="exportData()"
+                                    class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
                                     <i class="fas fa-file-excel mr-2"></i>ส่งออก Excel
                                 </button>
-                                <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm cursor-pointer">
+                                <label
+                                    class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm cursor-pointer">
                                     <i class="fas fa-upload mr-2"></i>นำเข้า Excel
-                                    <input type="file" class="hidden" accept=".xlsx, .xls" onchange="importExcel(this.files[0])">
+                                    <input type="file" class="hidden" accept=".xlsx, .xls"
+                                        onchange="importExcel(this.files[0])">
                                 </label>
-                                <button onclick="printSummaryPDF()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
+                                <button onclick="printSummaryPDF()"
+                                    class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm">
                                     <i class="fas fa-print mr-2"></i>พิมพ์สรุปภาพรวม
                                 </button>
                             </div>
@@ -153,21 +232,26 @@
     <div id="adminManagerModal" class="fixed inset-0 bg-black/50 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
             <div class="flex justify-between items-center p-6 border-b border-slate-200">
-                <h3 class="text-xl font-bold text-slate-800"><i class="fa-solid fa-user-shield text-indigo-500 mr-2"></i>จัดการผู้ดูแลระบบ SDQ</h3>
-                <button onclick="closeAdminManager()" class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
+                <h3 class="text-xl font-bold text-slate-800"><i
+                        class="fa-solid fa-user-shield text-indigo-500 mr-2"></i>จัดการผู้ดูแลระบบ SDQ</h3>
+                <button onclick="closeAdminManager()"
+                    class="text-slate-400 hover:text-slate-600 text-2xl leading-none">&times;</button>
             </div>
             <div class="p-6 overflow-y-auto flex-1">
                 <div class="mb-6 bg-slate-50 rounded-xl p-4">
-                    <h4 class="font-bold text-slate-700 mb-3"><i class="fa-solid fa-plus-circle text-emerald-500 mr-1"></i>เพิ่มผู้ดูแลใหม่</h4>
+                    <h4 class="font-bold text-slate-700 mb-3"><i
+                            class="fa-solid fa-plus-circle text-emerald-500 mr-1"></i>เพิ่มผู้ดูแลใหม่</h4>
                     <div class="flex gap-3">
                         <div class="flex-1">
                             <label class="block text-xs font-bold text-slate-500 mb-1">ค้นหาครู/บุคลากร</label>
-                            <select id="personnelSelect" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
+                            <select id="personnelSelect"
+                                class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500">
                                 <option value="">-- เลือกบุคลากร --</option>
                             </select>
                         </div>
                         <div class="flex items-end">
-                            <button onclick="addSDQAdmin()" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold">
+                            <button onclick="addSDQAdmin()"
+                                class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold">
                                 <i class="fa-solid fa-user-plus mr-1"></i> แต่งตั้ง
                             </button>
                         </div>
@@ -179,12 +263,16 @@
                         <span id="adminCount" class="text-sm font-normal text-slate-400 ml-2"></span>
                     </h4>
                     <div id="adminList" class="space-y-2">
-                        <div class="text-center text-slate-400 py-8"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p>กำลังโหลด...</p></div>
+                        <div class="text-center text-slate-400 py-8"><i
+                                class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i>
+                            <p>กำลังโหลด...</p>
+                        </div>
                     </div>
                 </div>
             </div>
             <div class="p-4 border-t border-slate-200 flex justify-end">
-                <button onclick="closeAdminManager()" class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">ปิด</button>
+                <button onclick="closeAdminManager()"
+                    class="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold">ปิด</button>
             </div>
         </div>
     </div>
@@ -195,23 +283,27 @@
 
     <!-- Core scripts -->
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="dashboard_charts.js"></script>
     <script src="sdq_admin.js"></script>
 
     <!-- Init -->
     <script>
-        const MODULE_KEY  = 'sdq';
+        const MODULE_KEY = 'sdq';
         const MODULE_NAME = 'ระบบ SDQ (Admin)';
 
         function getSDQAdminFallbackConfig() {
-            const adminRoles = ['super_admin', 'admin'];
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
-                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'SDQ Admin', subtitle: 'ระบบคัดกรองนักเรียน' },
+                iconStyle: 'outline',
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'SDQ Admin',
+                    subtitle: 'ระบบคัดกรองนักเรียน'
+                },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [{ id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }],
+                mainMenu: buildSidebarItems('sdq', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -221,18 +313,18 @@
                         sectionId: 'sec-sdq',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-sdq-teacher', icon: 'fa-clipboard-question', label: 'ข้อมูล SDQ', href: 'sdq_teacher.html', icon_bg_color: '#6366f1', icon_text_color: '#ffffff' },
-                            { id: 'nav-sdq-admin', icon: 'fa-chart-line', label: 'แดชบอร์ด SDQ (Admin)', href: 'sdq_admin.html', roles: adminRoles, icon_bg_color: '#0ea5e9', icon_text_color: '#ffffff' },
-                            { id: 'nav-sdq-admin-manager', icon: 'fa-user-shield', label: 'จัดการแอดมิน', onclick: 'openAdminManager()', roles: adminRoles, icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' }
-                        ]
+                        items: buildSidebarItems('sdq', ['teacher', 'admin', 'adminManager'])
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
-                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+                logoutItem: getSidebarAction('sdq', 'logout'),
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
             };
         }
 
@@ -241,10 +333,12 @@
             pageTitle: 'แดชบอร์ด SDQ สำหรับผู้ดูแลระบบ',
             activeId: 'nav-sdq-admin',
             topbarButtons: [],
-            fallbackConfig: getSDQAdminFallbackConfig()
+            fallbackConfig: getSDQAdminFallbackConfig(),
+            onReady: () => {
+                if (typeof setTodayChip === 'function') setTodayChip();
+            }
         });
     </script>
-
 </body>
 
 </html>

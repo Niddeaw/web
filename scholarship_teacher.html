@@ -1537,6 +1537,7 @@
     <!-- ===== SCRIPTS ===== -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="scholarship_dashboard.js"></script>
     <script src="scholarship_teacher.js"></script>
@@ -1546,21 +1547,16 @@
         // Fallback Config — ระบบทุนการศึกษา
         // =======================================================
         function getScholarshipFallbackConfig() {
-            const adminRoles = ['super_admin', 'admin', 'director', 'deputy'];
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK Scholarship',
                     subtitle: 'ระบบบริหารทุน'
                 },
                 mainMenuTitle: 'เมนูหลัก',
-                mainMenu: [
-                    {
-                        id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html',
-                        icon_bg_color: '#64748b', icon_text_color: '#ffffff'
-                    }
-                ],
+                mainMenuCollapsible: false,
+                mainMenu: buildSidebarItems('scholarship', ['home']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -1570,41 +1566,13 @@
                         sectionId: 'sec-scholarship',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'nav-record-scholarship',
-                                icon: 'fa-save',
-                                label: 'บันทึกทุน',
-                                onclick: 'openRecordScholarshipModal()',
-                                hidden: true,
-                                icon_bg_color: '#8b5cf6',
-                                icon_text_color: '#ffffff'
-                            },
-                            {
-                                id: 'nav-applicant-list',
-                                icon: 'fa-file-signature',
-                                label: 'รายชื่อผู้ขอทุน',
-                                onclick: 'openApplicantListModal()',
-                                hidden: true,
-                                icon_bg_color: '#3b82f6',
-                                icon_text_color: '#ffffff'
-                            }
-                        ]
+                        items: buildSidebarItems('scholarship', ['recordScholarship', 'applicantList'])
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
-                footerMenu: [
-                    {
-                        id: 'admin-settings-btn',
-                        icon: 'fa-cog',
-                        label: 'ตั้งค่าระบบ',
-                        onclick: 'openAdminModal()',
-                        hidden: true,
-                        icon_bg_color: '#475569',
-                        icon_text_color: '#ffffff'
-                    }
-                ],
-                logoutItem: { icon: 'fa-power-off', label: 'ออกจากระบบ', onclick: 'logout()', class: 'logout' },
+                footerCollapsible: false,
+                footerMenu: buildSidebarItems('scholarship', ['settings']),
+                logoutItem: getSidebarAction('scholarship', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -1614,11 +1582,10 @@
         }
 
         // =======================================================
-        // Init Module Sidebar
+        // Init Module Sidebar — ใช้ central pattern
         // =======================================================
         initModuleSidebar({
-            moduleKey: null,               // ✅ FIX: ไม่โหลด DB → ใช้ fallback เสมอ
-            skipAutoRender: true,          // ✅ FIX: ป้องกัน re-render ทับ
+            moduleKey: 'scholarship',                    // ✅ ใช้ key จริง → โหลด DB
             pageTitle: 'ระบบบริหารทุนการศึกษา',
             activeId: 'nav-record-scholarship',
             topbarButtons: [
@@ -1637,7 +1604,6 @@
             }
         });
     </script>
-
 </body>
 
 </html>

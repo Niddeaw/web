@@ -62,7 +62,6 @@ window.addEventListener('load', async () => {
     } finally {
         restoreSidebarCollapse();
         document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
-        if (typeof refreshNavButtons === 'function') refreshNavButtons();
     }
 });
 
@@ -809,14 +808,6 @@ async function removeSDQAdmin(id, name) {
     await loadPersonnelOptions();
 }
 
-function refreshNavButtons() {
-    const btn = document.getElementById('nav-sdq-admin-manager');
-    if (btn) {
-        const isAdminRole = isAdminUser(window.currentUserRole, false);
-        btn.classList.toggle('hidden', !isAdminRole);
-    }
-}
-
 // =======================================================
 // Expose globals
 // =======================================================
@@ -830,6 +821,5 @@ window.printSummaryPDF = printSummaryPDF;
 window.printStudentSDQ = printStudentSDQ;
 window.viewSDQ = viewSDQ;
 window.deleteAllAssessments = deleteAllAssessments;
-window.refreshNavButtons = refreshNavButtons;
 
 console.log('✅ sdq_admin.js loaded (standard template)');

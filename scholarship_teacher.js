@@ -111,10 +111,6 @@ window.addEventListener('load', async () => {
 
         isReadOnly = ['head_grade', 'head_discipline'].includes(currentViewRole);
 
-        // UI Setup
-        applyVisibilityByRole(actualRole, isGlobalAdmin || isModuleAdmin, {
-            settingsBtn: 'admin-settings-btn'
-        });
         updateUIByRole();
         updateAdminModeButton();
         initTomSelects();
@@ -128,7 +124,6 @@ window.addEventListener('load', async () => {
         // ✅ โหลด classrooms (blocking — ต้องใช้ก่อน switchTab)
         await loadClassrooms();
 
-        applyAdminVisibility();
         switchTab('recipients');
 
         // ✅ Defer: Dashboard (โหลดหลัง UI แสดงแล้ว)
@@ -139,17 +134,11 @@ window.addEventListener('load', async () => {
 
         console.log(`⚡ Total init: ${Math.round(performance.now() - t0)} ms`);
 
-                // ✅ FIX: Re-render sidebar ด้วย fallback (สำคัญ — กัน DB override)
-        await refreshSidebarUI();
-
         // ✅ Update standard topbar
         if (typeof window.refreshNavButtons === 'function') {
             window.refreshNavButtons();
         }
         
-        // ✅ Apply .admin-only visibility (page buttons)
-        applyAdminVisibility();
-
     } catch (err) {
         console.error('Initialization error:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -206,45 +195,38 @@ function updateAdminModeButton() {
 }
 
 // ==========================================
-// ✅ ปุ่มนำทาง — scholarship (แยกสิทธิ์ 2 ระดับ)
+// ✅ ปุ่มนำทาง — scholarship (topbar + module admin override)
+//    - Sidebar items: ใช้ roles ใน actions → central filter
+//    - Topbar toggle: จัดการที่นี่
+//    - Module Admin override: เพราะ central ไม่รู้จัก isModuleAdmin
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || actualRole;
+    if (!role) return;
 
-    if (!role) {
-        console.log('🔘 refreshNavButtons: รอ role...');
-        return;
-    }
-
-    // ✅ สิทธิ์ 1: admin (global + module) → เมนูจัดการ
     const isGlobalAdmin = isAdminUser(role, false);
     const canAdmin = isGlobalAdmin || isModuleAdmin;
-
-    // ✅ สิทธิ์ 2: super_admin เท่านั้น → ตั้งค่าระบบ
     const isSuperAdmin = (role === 'super_admin');
 
-    // ---------- Sidebar nav items (admin) ----------
-    ['nav-record-scholarship', 'nav-applicant-list'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) {
-            console.warn(`⚠️ ไม่พบ element #${id}`);
-            return;
-        }
-        el.classList.toggle('hidden', !canAdmin);
-    });
+    // ---------- Topbar toggle button ----------
+    const toggleBtn = document.getElementById('btnAdminMode');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('hidden', !canAdmin);
+        toggleBtn.classList.toggle('flex', canAdmin);
+    }
 
-    // ---------- Sidebar settings button (super_admin only) ----------
-    const settingsBtn = document.getElementById('admin-settings-btn');
-    if (settingsBtn) {
-        settingsBtn.classList.toggle('hidden', !isSuperAdmin);
-    } else {
-        console.warn('⚠️ ไม่พบ element #admin-settings-btn');
+    // ---------- Module Admin override: เปิด sidebar items ให้ ----------
+    //    (เพราะ central filter ซ่อนไปแล้ว ตาม roles)
+    if (isModuleAdmin && !isGlobalAdmin) {
+        ['nav-record-scholarship', 'nav-applicant-list', 'admin-settings-btn'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        });
     }
 
     // ---------- Page button: "บันทึกทุน" ----------
     const recordBtn = document.getElementById('btnRecordScholarship');
     if (recordBtn) {
-        // ลบ inline display:none ก่อน
         recordBtn.style.removeProperty('display');
         if (canAdmin) {
             recordBtn.classList.add('admin-only', 'visible');
@@ -252,63 +234,7 @@ window.refreshNavButtons = function () {
             recordBtn.classList.remove('visible');
         }
     }
-
-    // ---------- Toggle Mode button (topbar) ----------
-    const toggleBtn = document.getElementById('btnAdminMode');
-    if (toggleBtn) {
-        toggleBtn.classList.toggle('hidden', !canAdmin);
-        toggleBtn.classList.toggle('flex', canAdmin);
-    }
-
-    console.log('🔘 refreshNavButtons:', { role, canAdmin, isSuperAdmin });
 };
-
-// ==========================================
-// ✅ Re-render Sidebar (fallback เท่านั้น — ป้องกัน DB override)
-// ==========================================
-async function refreshSidebarUI() {
-    try {
-        if (typeof getScholarshipFallbackConfig !== 'function') {
-            console.warn('⚠️ ไม่พบ getScholarshipFallbackConfig()');
-            return;
-        }
-
-        const finalConfig = getScholarshipFallbackConfig();
-        console.log('📦 refreshSidebarUI: ใช้ fallback config');
-
-        if (typeof renderSidebar === 'function') {
-            renderSidebar({ ...finalConfig, autoActivate: false });
-        }
-
-        if (typeof renderTopbar === 'function') {
-            renderTopbar({
-                pageTitle: 'ระบบบริหารทุนการศึกษา',
-                buttons: [{
-                    id: 'btnAdminMode',
-                    html: '<i class="fa-solid fa-user-shield"></i><span class="hidden sm:inline">โหมดแอดมิน</span>',
-                    onclick: 'toggleRoleView()',
-                    class: 'hidden d-btn-mode admin',
-                    title: 'สลับโหมด'
-                }],
-                breadcrumb: [
-                    { label: 'หน้าหลัก', href: 'index.html' },
-                    { label: 'ระบบทุนการศึกษา' }
-                ]
-            });
-        }
-
-        if (typeof window.refreshNavButtons === 'function') {
-            window.refreshNavButtons();
-        }
-
-        if (typeof setTodayChip === 'function') setTodayChip();
-
-        console.log('✅ refreshSidebarUI: เสร็จสิ้น');
-    } catch (err) {
-        console.warn('⚠️ refreshSidebarUI error:', err);
-    }
-}
-window.refreshSidebarUI = refreshSidebarUI;
 
 // ==========================================
 // toggleRoleView (ใช้ isAdminUser จาก config)
@@ -330,8 +256,6 @@ window.toggleRoleView = function () {
     if (typeof window.refreshNavButtons === 'function') {
         window.refreshNavButtons();
     }
-    // ✅ อัปเดต .admin-only ใน tab content
-    applyAdminVisibility();
 
     logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'scholarship');
 
@@ -3085,6 +3009,27 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 });
+
+// ==========================================
+// ✅ Hook: sync หลัง renderTopbar re-render
+// ==========================================
+window.onTopbarRendered = function () {
+    if (!window.currentProfile) return;
+    if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+
+    // Re-apply custom role label
+    const roleText = (() => {
+        if (currentViewRole === 'super_admin') return 'ผู้ดูแลระบบสูงสุด';
+        if (currentViewRole === 'module_admin') return 'แอดมินโมดูลทุน';
+        if (currentViewRole === 'head_discipline') return 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
+        if (currentViewRole === 'head_grade') return 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
+        return 'ครูที่ปรึกษา';
+    })();
+    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(roleText);
+
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+};
 
 // ==========================================
 // ประกาศฟังก์ชัน global

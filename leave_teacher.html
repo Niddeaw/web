@@ -204,49 +204,30 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="leave_teacher.js"></script>
 
     <script>
         function getLeaveTeacherFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
-                brand: {
-                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
-                    name: 'WRK Leave',
-                    subtitle: 'ระบบการลาออนไลน์'
-                },
+                iconStyle: 'outline',
+                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Leave', subtitle: 'ระบบการลาออนไลน์' },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-history', icon: 'fa-list-ul', label: 'ประวัติการลา', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active' },
-                    { id: 'nav-write', icon: 'fa-pen-nib', label: 'เขียนใบลา', onclick: "openLeaveModal()" },
-                    { id: 'nav-signature', icon: 'fa-signature', label: 'ดูลายเซ็น', onclick: "viewSignature()" },
-                    { id: 'nav-export', icon: 'fa-file-excel', label: 'ส่งออก Excel', onclick: "exportExcel()" }
-                ],
+                mainMenu: buildSidebarItems('leave_teacher', ['history', 'write', 'signature', 'export']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
                 moduleMenus: [],
                 footerMenuTitle: 'ระบบกลาง',
                 footerCollapsible: false,
-                footerMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
-                ],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
-                facebook: {
-                    href: 'https://www.facebook.com/WRKOfficial',
-                    icon: 'fa-brands fa-facebook',
-                    label: 'ติดตามเพจโรงเรียน'
-                }
+                footerMenu: buildSidebarItems('leave_teacher', ['home']),
+                logoutItem: getSidebarAction('leave_teacher', 'logout'),
+                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
             };
         }
 
@@ -255,20 +236,8 @@
             pageTitle: 'ระบบการลาออนไลน์',
             activeId: 'nav-history',
             topbarButtons: [
-                {
-                    id: 'btnNavDeptHead',
-                    html: '<i class="fas fa-users"></i><span>หัวหน้ากลุ่มฯ</span>',
-                    onclick: "window.location.href='leave_dept_head.html'",
-                    class: 'hidden d-btn-mode depthead',
-                    title: 'ไปหน้าโหมดหัวหน้ากลุ่มฯ'
-                },
-                {
-                    id: 'btnNavAdmin',
-                    html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>',
-                    onclick: "window.location.href='leave_admin.html'",
-                    class: 'hidden d-btn-mode admin',
-                    title: 'ไปหน้าโหมดแอดมิน'
-                }
+                { id: 'btnNavDeptHead', html: '<i class="fas fa-users"></i><span>หัวหน้ากลุ่มฯ</span>', onclick: "window.location.href='leave_dept_head.html'", class: 'hidden d-btn-mode depthead', title: 'ไปหน้าโหมดหัวหน้ากลุ่มฯ' },
+                { id: 'btnNavAdmin', html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>', onclick: "window.location.href='leave_admin.html'", class: 'hidden d-btn-mode admin', title: 'ไปหน้าโหมดแอดมิน' }
             ],
             fallbackConfig: getLeaveTeacherFallbackConfig(),
             onReady: () => {
@@ -277,7 +246,5 @@
             }
         });
     </script>
-
 </body>
-
 </html>

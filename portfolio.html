@@ -469,10 +469,11 @@
         </div>
     </div>
 
-    <!-- ================= Scripts ================= -->
+        <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="portfolio.js"></script>
 
@@ -482,7 +483,7 @@
         // =======================================================
         function getPortfolioFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'E-PORTFOLIO',
@@ -490,11 +491,7 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-dashboard', icon: 'fa-chart-pie', label: 'แดชบอร์ดภาพรวม', onclick: "switchTab('dashboard')", class: 'active' },
-                    { id: 'nav-work', icon: 'fa-trophy', label: 'ผลงาน/รางวัล', onclick: "switchTab('work')" },
-                    { id: 'nav-training', icon: 'fa-chalkboard-user', label: 'ประวัติการอบรม', onclick: "switchTab('training')" }
-                ],
+                mainMenu: buildSidebarItems('portfolio', ['dashboard', 'work', 'training']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
@@ -504,25 +501,15 @@
                         sectionId: 'sec-manage',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-export', icon: 'fa-file-excel', label: 'ส่งออก Excel', onclick: 'openExportModal()' },
-                            { id: 'nav-import', icon: 'fa-file-import', label: 'นำเข้าจาก Excel', onclick: 'triggerImportExcel()', roles: ['super_admin'] },
-                            { id: 'nav-template', icon: 'fa-download', label: 'ดาวน์โหลด Template', onclick: 'downloadImportTemplate()', roles: ['super_admin'] },
-                            { id: 'nav-sheets', icon: 'fa-brands fa-google-drive', label: 'นำเข้าจาก Google Sheets', onclick: 'importFromGoogleSheets()', roles: ['super_admin'] }
-                        ]
+                        items: buildSidebarItems('portfolio', [
+                            'export', 'importExcel', 'template', 'sheets'
+                        ])
                     }
                 ],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
-                footerMenu: [
-                    { id: 'nav-settings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', onclick: 'openSettingsModal()', roles: ['super_admin'] }
-                ],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                footerMenu: buildSidebarItems('portfolio', ['settings']),
+                logoutItem: getSidebarAction('portfolio', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -551,21 +538,17 @@
             onReady: () => {
                 if (window.currentProfile) {
                     if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
+                    // ✅ Override role label เป็น department (custom เฉพาะระบบนี้)
                     const roleEl = document.getElementById('userRole');
                     if (roleEl) roleEl.innerText = window.currentProfile.department || 'ไม่ระบุกลุ่มสาระฯ';
                     if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
                 }
                 if (typeof setTodayChip === 'function') setTodayChip();
-
-                // ✅ ลบ injectPortfolioMenu ออก
-                // ✅ ใช้ sidebar จาก DB config หรือ fallbackConfig โดยตรง
-
                 if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
                 if (typeof window.restorePageTitle === 'function') window.restorePageTitle();
             }
         });
     </script>
-
 </body>
 
 </html>

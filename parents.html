@@ -304,10 +304,11 @@
         </div>
     </div>
 
-    <!-- ================= Scripts ================= -->
+        <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="parents.js"></script>
 
@@ -317,7 +318,7 @@
         // =======================================================
         function getParentNetworkFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'Parent Network',
@@ -325,25 +326,15 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-form', icon: 'fa-pen', label: 'กรอกฟอร์ม', onclick: "switchTab('form')", class: 'active' },
-                    { id: 'nav-data', icon: 'fa-chart-bar', label: 'ดูภาพรวม', onclick: "switchTab('data')" }
-                ],
+                mainMenu: buildSidebarItems('parent_network', ['form', 'data']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
                 moduleMenus: [],
                 footerMenuTitle: 'ระบบกลาง',
                 footerCollapsible: false,
-                footerMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
-                ],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                footerMenu: buildSidebarItems('parent_network', ['home']),
+                logoutItem: getSidebarAction('parent_network', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',

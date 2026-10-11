@@ -27,6 +27,43 @@ let _selectedSubGroupTargets = [];
 let _selectedSubGroupItems = [];
 
 // ==========================================
+// ✅ UI Toggle ตามสิทธิ์ — จัดการ class hidden ของ topbar buttons
+// ==========================================
+function updateUIBasedOnRole() {
+    const role = window.currentUserRole || (typeof currentUser !== 'undefined' && currentUser && currentUser.role) || null;
+    if (!role) {
+        console.log('🔘 updateUIBasedOnRole: รอ role...');
+        return;
+    }
+
+    const canSeeAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
+    const canSeeSettings = role === 'super_admin';
+
+    // ปุ่ม "ตั้งค่ากรรมการ"
+    const btnAdmin = document.getElementById('btn-goto-admin');
+    if (btnAdmin) btnAdmin.classList.toggle('hidden', !canSeeAdmin);
+
+    // ปุ่ม "ตั้งค่าระบบ"
+    const btnSettings = document.getElementById('btn-goto-settings');
+    if (btnSettings) btnSettings.classList.toggle('hidden', !canSeeSettings);
+
+    // ปุ่ม "ประเมินผล"
+    const btnDashboard = document.getElementById('btn-goto-dashboard');
+    if (btnDashboard) btnDashboard.classList.toggle('hidden', !canSeeAdmin);
+
+    // Round badge (เฉพาะ evaluation.html)
+    const badge = document.getElementById('eval_round_badge');
+    const display = document.getElementById('eval_round_display');
+    if (badge && display && typeof currentEvalRound !== 'undefined' && currentEvalRound) {
+        display.textContent = `${currentEvalRound.round_name} (ครั้งที่ ${currentEvalRound.round_number})`;
+        badge.classList.remove('hidden');
+    }
+
+    console.log('🔘 updateUIBasedOnRole:', { role, canSeeAdmin, canSeeSettings });
+}
+window.updateUIBasedOnRole = updateUIBasedOnRole;
+
+// ==========================================
 // ✅ Helper Functions สำหรับวิทยฐานะ (เพิ่มตรงนี้)
 // ==========================================
 
@@ -508,14 +545,6 @@ async function checkAuth() {
     updateUserRoleLabel(currentUser.role);
     renderUserAvatar(currentUser);
 
-    // ✅ Sidebar nav — แสดงปุ่มตามสิทธิ์
-    if (['admin', 'super_admin'].includes(currentUser.role)) {
-        $('#nav-admin').removeClass('hidden');
-    }
-    if (currentUser.role === 'super_admin') {
-        $('#nav-settings').removeClass('hidden');
-    }
-
     // ✅ PDF button
     const btnPDF = document.getElementById('btnViewPDF');
     if (btnPDF && currentUser) {
@@ -525,6 +554,9 @@ async function checkAuth() {
             btnPDF.onclick = () => window.open(pdfUrl, '_blank');
         }
     }
+
+    // ✅ FIX: อัปเดต topbar buttons ตาม role (onReady รันก่อน role set)
+    updateUIBasedOnRole();
 
     Swal.close();
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');

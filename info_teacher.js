@@ -153,66 +153,62 @@ function applyReadOnlyState() {
 }
 
 // ==========================================
-// อัปเดตชื่อและบทบาทใน Topbar
+// ✅ Role → ข้อความ label (เฉพาะ info_teacher)
+// ==========================================
+function getRoleDisplayText() {
+    if (isAdminMode) return 'ผู้ดูแลระบบ';
+    if (currentUserRole === 'super_admin') return 'ผู้ดูแลระบบสูงสุด';
+    if (currentUserRole === 'admin') return 'ผู้ดูแลระบบ';
+    if (currentUserRole === 'director') return 'ผู้อำนวยการ';
+    if (currentUserRole === 'deputy') return 'รองผู้อำนวยการ';
+    if (isHead) return 'หัวหน้า - ดูอย่างเดียว';
+    if (currentUserRole === 'teacher') return 'ครูที่ปรึกษา';
+    return 'บุคลากร';
+}
+
+// ==========================================
+// ✅ อัปเดตชื่อ + บทบาท + avatar ใน Topbar
+//    ใช้ฟังก์ชันกลางของ dashboard_sidebar.js
 // ==========================================
 function updateUserDisplay() {
     if (!currentUser) return;
 
-    const fullName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`;
-    let roleText = '';
-
-    if (isAdminMode) {
-        roleText = 'ผู้ดูแลระบบ';
-    } else if (currentUserRole === 'super_admin') {
-        roleText = 'ผู้ดูแลระบบสูงสุด';
-    } else if (currentUserRole === 'admin') {
-        roleText = 'ผู้ดูแลระบบ';
-    } else if (currentUserRole === 'director') {
-        roleText = 'ผู้อำนวยการ';
-    } else if (currentUserRole === 'deputy') {
-        roleText = 'รองผู้อำนวยการ';
-    } else if (isHead) {
-        roleText = 'หัวหน้า - ดูอย่างเดียว';
-    } else if (currentUserRole === 'teacher') {
-        roleText = 'ครูที่ปรึกษา';
-    } else {
-        roleText = 'บุคลากร';
+    // 1) ใช้ฟังก์ชันกลาง — ชื่อ-สกุล
+    if (typeof setUserDisplayName === 'function') {
+        setUserDisplayName(currentUser);
     }
 
-    // ✅ Topbar
-    const userNameEl = document.getElementById('userName');
+    // 2) ใช้ฟังก์ชันกลาง — avatar (รองรับ avatar_staff_url หลัง patch)
+    if (typeof renderUserAvatar === 'function') {
+        renderUserAvatar(currentUser);
+    }
+
+    // 3) Role label แบบ custom (ไม่ใช้ map กลาง)
     const userRoleEl = document.getElementById('userRole');
-    if (userNameEl) userNameEl.textContent = fullName;
-    if (userRoleEl) userRoleEl.textContent = roleText;
+    if (userRoleEl) userRoleEl.textContent = getRoleDisplayText();
 
-    // ✅ Topbar avatar
-    const avatarImg = document.getElementById('userAvatarImg');
-    const avatarInitial = document.getElementById('userAvatarInitial');
-    if (currentUser.avatar_staff_url) {
-        if (avatarImg) {
-            avatarImg.src = currentUser.avatar_staff_url;
-            avatarImg.style.display = 'block';
-        }
-        if (avatarInitial) avatarInitial.style.display = 'none';
-    } else {
-        if (avatarImg) {
-            avatarImg.src = '';
-            avatarImg.style.display = 'none';
-        }
-        if (avatarInitial) {
-            avatarInitial.style.display = '';
-            avatarInitial.textContent = (currentUser.first_name || '?').charAt(0).toUpperCase();
-        }
-    }
+    // 4) Sync กับ dashboard_sidebar.js (ให้ renderTopbar re-apply ได้)
+    window.currentProfile = currentUser;
 
-    // ✅ Legacy element (fallback)
+    // 5) Legacy element (fallback)
     const legacyDisplay = document.getElementById('user-display');
     if (legacyDisplay) {
+        const fullName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`.trim();
+        const roleText = getRoleDisplayText();
         legacyDisplay.textContent = fullName + (roleText ? ` (${roleText})` : '');
         legacyDisplay.classList.remove('hidden');
         legacyDisplay.classList.add('block');
     }
 }
+
+// ==========================================
+// ✅ Hook: เรียกทุกครั้งที่ renderTopbar() re-render
+//    (เผื่อ dashboard_sidebar.js ยิง callback นี้)
+// ==========================================
+window.onTopbarRendered = function () {
+    if (typeof updateUserDisplay === 'function') updateUserDisplay();
+    if (typeof applyAdminVisibility === 'function') applyAdminVisibility();
+};
 
 // ==========================================
 // โหลดปี/ภาคปัจจุบัน (ใช้ cache)

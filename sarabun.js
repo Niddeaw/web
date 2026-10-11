@@ -90,8 +90,10 @@ $(document).ready(async () => {
 });
 
 // ==========================================
-// ✅ UI Toggle ตามสิทธิ์ — จัดการ class hidden ของ sidebar items
-// ✅ แทนที่ refreshNavButtons + refreshSidebarUI เดิม
+// ✅ UI Toggle ตามสิทธิ์
+//    - Sidebar items: central filter จัดการผ่าน roles
+//    - Module Admin override: toggle sidebar items เพิ่ม
+//    - Topbar toggle button: จัดการที่นี่
 // ==========================================
 function updateUIBasedOnRole() {
     const role = window.currentUserRole || userRole;
@@ -100,14 +102,11 @@ function updateUIBasedOnRole() {
         return;
     }
 
-    // ✅ สิทธิ์ 1: admin (global + module) → เมนูจัดการ
     const isGlobalAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
-    const canAdmin = isAdminMode || isGlobalAdmin || isSarabunAdmin;
-
-    // ✅ สิทธิ์ 2: super_admin เท่านั้น → ตั้งค่าระบบ
     const isSuperAdmin = (role === 'super_admin');
 
-    // Toggle Mode button
+    // ✅ Topbar toggle button: show เฉพาะ admin หรือ module admin
+    const canAdmin = isAdminMode || isGlobalAdmin || isSarabunAdmin;
     const toggleBtn = document.getElementById('btnToggleMode');
     if (toggleBtn) {
         toggleBtn.classList.toggle('hidden', !canAdmin);
@@ -117,17 +116,13 @@ function updateUIBasedOnRole() {
         }
     }
 
-    // Sidebar nav items (admin menu)
-    ['nav-admin-view', 'nav-new-doc'].forEach(id => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.toggle('hidden', !canAdmin);
-    });
-
-    // Settings button (super_admin only)
-    const btnSettings = document.getElementById('btn-settings');
-    if (btnSettings) {
-        btnSettings.classList.toggle('hidden', !isSuperAdmin);
+    // ✅ Module Admin override: ถ้าเป็น module admin แต่ role ไม่ตรง → เปิด sidebar items ให้
+    //    (central filter ซ่อนไปแล้ว เพราะ role ไม่ตรง)
+    if (isSarabunAdmin && !isGlobalAdmin) {
+        ['nav-admin-view', 'nav-new-doc'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.classList.remove('hidden');
+        });
     }
 
     console.log('🔘 updateUIBasedOnRole:', { role, isAdminMode, isSarabunAdmin, canAdmin, isSuperAdmin });

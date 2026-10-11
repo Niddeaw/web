@@ -99,45 +99,6 @@ window.refreshNavButtons = function () {
     }
 };
 
-// ==========================================
-// ✅ Inject ปุ่ม ⚙️ ตั้งค่าระบบ เข้า Sidebar
-//    (ทำแบบ dynamic เพราะ DB config อาจไม่มีปุ่มนี้)
-// ==========================================
-window.injectPersonnelSettingsMenu = function () {
-    const nav = document.querySelector('#dSidebar .d-nav');
-    if (!nav) return;
-
-    // ✅ ลบปุ่มเก่าก่อน (ป้องกันซ้ำ)
-    const oldBtn = document.getElementById('btn-settings');
-    if (oldBtn) oldBtn.remove();
-
-    // ✅ ตรวจสอบสิทธิ์
-    const userRole = window.currentUserRole || currentProfile?.role;
-    const canSee = ['super_admin', 'admin'].includes(userRole);
-    if (!canSee) return;
-
-    // ✅ สร้างปุ่มใหม่
-    const newLink = document.createElement('a');
-    newLink.id = 'btn-settings';
-    newLink.href = 'javascript:void(0)';
-    newLink.title = 'ตั้งค่าระบบ';
-    newLink.setAttribute('onclick', 'openSettings()');
-    newLink.innerHTML = `
-        <span class="d-ico"><i class="fa-solid fa-gear"></i></span>
-        <span class="d-label">ตั้งค่าระบบ</span>
-    `;
-
-    // ✅ แทรกก่อนปุ่ม logout (ถ้ามี) หรือต่อท้ายสุด
-    const logoutLink = nav.querySelector('a.logout');
-    if (logoutLink) {
-        logoutLink.parentNode.insertBefore(newLink, logoutLink);
-    } else {
-        nav.appendChild(newLink);
-    }
-
-    console.log('✅ Injected btn-settings into sidebar');
-};
-
 function updateToggleModeButton() {
     const btn = document.getElementById('btnAdminMode');
     if (!btn) return;

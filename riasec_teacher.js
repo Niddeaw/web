@@ -1992,21 +1992,23 @@ async function openStatusStudentList(status) {
 }
 
 // ==========================================
-// ✅ ปุ่มนำทาง — riasec (กรองตาม role)
-// ใช้ applyVisibilityByRole() กลางจาก config.js
+// ✅ ปุ่มนำทาง — riasec (topbar เท่านั้น)
+//    - Sidebar items: ใช้ roles ใน actions → central filter
+//    - Topbar: settings (super_admin) + toggle mode (admin)
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || currentUserRole;
     const isAdminRole = (role === 'super_admin' || role === 'admin') || isModuleAdmin;
     const isSuperAdmin = role === 'super_admin';
 
-    // ✅ ใช้ helper กลาง
-    applyVisibilityByRole(role, isAdminRole, {
-        settingsBtn: 'btn-settings',
-        toggleBtn: 'btnToggleMode'
-    });
+    // ปุ่ม toggle mode (admin/director/deputy/super_admin/module admin)
+    const btnToggle = document.getElementById('btnToggleMode');
+    if (btnToggle) {
+        btnToggle.classList.toggle('hidden', !isAdminRole);
+        btnToggle.classList.toggle('flex', isAdminRole);
+    }
 
-    // ✅ override เฉพาะ settings: RIASEC บังคับ super_admin เท่านั้น
+    // ปุ่ม settings — เฉพาะ super_admin
     const btnSettings = document.getElementById('btn-settings');
     if (btnSettings) {
         btnSettings.classList.toggle('hidden', !isSuperAdmin);
@@ -2015,15 +2017,18 @@ window.refreshNavButtons = function () {
 };
 
 // ==========================================
-// ✅ Helper: อัปเดต Topbar User Info
+// ✅ Hook: sync topbar หลัง renderTopbar re-render
 // ==========================================
-function refreshTopbarUser() {
+window.onTopbarRendered = function () {
     if (!window.currentProfile) return;
-    if (typeof setUserDisplayName  === 'function') setUserDisplayName(window.currentProfile);
+    if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
     if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentProfile.role);
-    if (typeof renderUserAvatar    === 'function') renderUserAvatar(window.currentProfile);
-}
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(window.currentProfile);
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+};
 
+// Backward-compat alias
+window.refreshTopbarUser = window.onTopbarRendered;
 // ==========================================
 // ประกาศฟังก์ชัน global
 // ⚠️ ไม่ประกาศ logout() — ใช้ของ config.js
@@ -2051,6 +2056,5 @@ window.openDimStudentList = openDimStudentList;
 window.closeDimStudentModal = closeDimStudentModal;
 window.openStatusStudentList = openStatusStudentList;
 window.closeStatusStudentModal = closeStatusStudentModal;
-window.refreshTopbarUser = refreshTopbarUser;
 
 console.log('✅ riasec_teacher.js loaded (+ ใช้ helper กลาง — ไม่มี logout/toggleSidebar local)');

@@ -33,6 +33,36 @@ const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2'
 const STUDENT_STATUS_OPTIONS = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
 
 // ==========================================
+// ✅ UI Toggle ตามสิทธิ์ — จัดการ topbar + sidebar
+// ==========================================
+function updateUIBasedOnRole() {
+    const role = window.currentUserRole || currentUserRole;
+    if (!role) {
+        console.log('🔘 updateUIBasedOnRole: รอ role...');
+        return;
+    }
+
+    // guidance มี 2 mode: ครู / แอดมิน
+    const canAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role) || isModuleAdmin;
+    window._guidanceCanSeeAdmin = canAdmin;
+
+    // ปุ่ม Mode
+    const modeBtnId = window._guidanceModeBtnId || 'btnModeTeacher';
+    const btn = document.getElementById(modeBtnId);
+    if (btn) {
+        btn.classList.toggle('hidden', !canAdmin);
+        btn.classList.toggle('flex', canAdmin);
+    }
+
+    // Sidebar nav-admin
+    const navAdmin = document.getElementById('nav-admin');
+    if (navAdmin) navAdmin.classList.toggle('hidden', !canAdmin);
+
+    console.log('🔘 guidance updateUIBasedOnRole:', { role, canAdmin });
+}
+window.updateUIBasedOnRole = updateUIBasedOnRole;
+
+// ==========================================
 // 🔒 HELPER: Escape HTML
 // ==========================================
 function escapeHtml(str) {
@@ -102,30 +132,14 @@ $(document).ready(async function () {
         updateUserRoleLabel(role);
         renderUserAvatar(personnel);
 
-        // ✅ แจ้ง HTML helper ว่าผู้ใช้มีสิทธิ์เห็นปุ่ม/เมนูแอดมินหรือไม่
-        //    (แก้ปัญหาข้อมูลหายหลัง initModuleSidebar re-render)
-        if (typeof window.setGuidanceRoleVisibility === 'function') {
-            window.setGuidanceRoleVisibility(isAdmin || isModuleAdmin);
-        } else {
-            // Fallback (ก่อน HTML helper พร้อม)
-            if (isAdmin || isModuleAdmin) {
-                $('#nav-admin').removeClass('hidden');
-                $('#btnModeTeacher').removeClass('hidden').addClass('flex');
-                $('#nav-teacher').removeClass('hidden');
-            }
-        }
+        // ✅ แจ้ง updateUIBasedOnRole ว่ามีสิทธิ์ admin หรือไม่
+        updateUIBasedOnRole();
 
         await window.logUserAction('เข้าสู่ระบบแนะแนว (Admin)', 'guidance');
 
         await loadSystemSettings();
         // ✅ FIX: เรียกครั้งเดียว (โหลด + render ทั้ง monitoring + dashboard)
         await loadAdminOverview();
-
-        const { data: isGui } = await db.from('guidance_teachers').select('*').eq('teacher_id', user.id).maybeSingle();
-        if (isGui) {
-            const btnAdmin = document.getElementById('btnModeTeacher');
-            if (btnAdmin) btnAdmin.classList.remove('hidden');
-        }
 
         console.log(`⚡ Guidance Admin init: ${Math.round(performance.now() - t0)} ms`);
     } catch (err) {

@@ -872,10 +872,12 @@
             </div>
         </div>
     </div>
+
     <!-- ================= Scripts ================= -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="personnel.js"></script>
 
@@ -885,7 +887,7 @@
         // =======================================================
         function getPersonnelFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK Personnel',
@@ -893,25 +895,15 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' },
-                    { id: 'nav-personnel', icon: 'fa-address-book', label: 'ทะเบียนบุคลากร', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active' }
-                ],
+                mainMenu: buildSidebarItems('personnel', ['home', 'personnelList']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
                 moduleMenus: [],
                 footerMenuTitle: 'การตั้งค่า',
                 footerCollapsible: false,
-                footerMenu: [
-                    { id: 'btn-settings', icon: 'fa-gear', label: 'ตั้งค่าระบบ', onclick: 'openSettings()', roles: ['super_admin', 'admin'] }
-                ],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                footerMenu: buildSidebarItems('personnel', ['settings']),
+                logoutItem: getSidebarAction('personnel', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -958,15 +950,10 @@
                 if (typeof setTodayChip === 'function') setTodayChip();
                 if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
                 if (typeof window.updateBirthdayNotification === 'function') window.updateBirthdayNotification();
-
-                // ✅ NEW: Inject ปุ่มตั้งค่าระบบเข้า Sidebar
-                if (typeof window.injectPersonnelSettingsMenu === 'function') {
-                    window.injectPersonnelSettingsMenu();
-                }
+                // ⚠️ ไม่ต้องเรียก injectPersonnelSettingsMenu() อีก — ใช้ footerMenu + roles แทน
             }
         });
     </script>
-
 </body>
 
 </html>

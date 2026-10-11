@@ -635,6 +635,11 @@ window.renderTopbar = function (options = {}) {
 
     // ✅ Apply date
     setTodayChip();
+
+    // ✅ Hook: เรียก callback หลัง render เสร็จ
+    if (typeof window.onTopbarRendered === 'function') {
+        try { window.onTopbarRendered(); } catch (e) { /* ignore */ }
+    }
 };
 
 // ==========================================
@@ -702,7 +707,7 @@ window.renderUserAvatar = function (user) {
     const fullName = `${user.prefix || ''}${user.first_name || ''} ${user.last_name || ''}`.trim();
     const initial = (user.first_name || '?').charAt(0).toUpperCase();
 
-    const avatarUrl = user.avatar_students_url || user.avatar_url || user.profile_image_url;
+    const avatarUrl = user.avatar_students_url || user.avatar_staff_url || user.avatar_url || user.profile_image_url;
 
     if (avatarUrl) {
         let finalUrl = avatarUrl;

@@ -26,6 +26,9 @@ let isSubmitting = false;
 let isAutoSaving = false;
 let personnelCache = null;
 
+// ✅ เพิ่ม: flag ป้องกัน auto-save ระหว่างโหลดข้อมูลนักเรียน
+window._loadingStudent = false;
+
 const SCHOOL_LAT = 13.740269204697068;
 const SCHOOL_LNG = 100.25988109513965;
 const SCHOOL_NAME = 'โรงเรียนวัดไร่ขิงวิทยา';
@@ -37,7 +40,59 @@ let currentTerm = '';
 let currentStudentId = null;
 window.currentClassroomId = null;
 let overviewClassroomTom = null;
-let currentStudentAvatarUrl = null; // เพิ่มบรรทัดนี้
+let currentStudentAvatarUrl = null;
+
+// ==========================================
+// ✅ UI Toggle ตามสิทธิ์ — pattern กลาง (sidebar + topbar)
+// ==========================================
+function updateUIBasedOnRole() {
+    const role = window.currentUserRole || currentUserRole;
+    if (!role) {
+        console.log('🔘 updateUIBasedOnRole: รอ role...');
+        return;
+    }
+
+    const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
+    const canAdmin = isAdminEffective || isHead;
+
+    // ─── ปุ่ม Toggle Mode (โหมดภาพรวม ↔ โหมดครู) ───
+    const toggleBtn = document.getElementById('btnAdminMode');
+    if (toggleBtn) {
+        toggleBtn.classList.toggle('hidden', !canAdmin);
+        toggleBtn.classList.toggle('flex', canAdmin);
+
+        if (currentViewRole === 'teacher') {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดภาพรวม</span>';
+            toggleBtn.classList.remove('bg-blue-50', 'text-blue-600', 'hover:bg-blue-100', 'border-blue-200');
+            toggleBtn.classList.add('bg-purple-50', 'text-purple-600', 'hover:bg-purple-100', 'border-purple-200');
+        } else {
+            toggleBtn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
+            toggleBtn.classList.remove('bg-purple-50', 'text-purple-600', 'hover:bg-purple-100', 'border-purple-200');
+            toggleBtn.classList.add('bg-blue-50', 'text-blue-600', 'hover:bg-blue-100', 'border-blue-200');
+        }
+    }
+
+    // ─── Sidebar: settings + import Excel (super_admin/module_admin) ───
+    const settingsBtn = document.getElementById('admin-settings-btn');
+    if (settingsBtn) settingsBtn.classList.toggle('hidden', !isAdminEffective);
+
+    const importBtn = document.getElementById('btn-import-excel');
+    if (importBtn) importBtn.classList.toggle('hidden', !isAdminEffective);
+
+    // ─── Report tab ───
+    if (typeof applyReportVisibility === 'function') applyReportVisibility();
+
+    // ✅ Admin Export/Import — Topbar button
+    const exportImportBtn = document.getElementById('btn-export-import-topbar');
+    if (exportImportBtn) {
+        const canExportImport = ['super_admin', 'admin', 'module_admin', 'head_grade', 'head_discipline'].includes(currentUserRole);
+        exportImportBtn.classList.toggle('hidden', !canExportImport);
+        exportImportBtn.classList.toggle('flex', canExportImport);
+    }
+
+    console.log('🔘 homevisit updateUIBasedOnRole:', { role, canAdmin, isAdminEffective });
+}
+window.updateUIBasedOnRole = updateUIBasedOnRole;
 
 const templateFields = [
     'student_id_card',
@@ -180,8 +235,6 @@ function applyAdminVisibility() {
         adminManagerBtn: 'adminManagerBtn'
     });
 
-    // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา → แสดงปุ่มสลับโหมดด้วย
-    //    (applyVisibilityByRole อาจซ่อนปุ่มนี้ไป ต้องเปิดให้ถ้าเป็นหัวหน้าที่มีห้อง)
     if (isHead) {
         const toggleBtn = document.getElementById('btnAdminMode');
         if (toggleBtn) {
@@ -205,7 +258,21 @@ async function checkAuth() {
         currentUser = personnel;
         currentUserId = user.id;
         currentUserRole = role;
+        window.currentUserRole = role;
+        actualRole = role;
+        window.actualRole = role;
         isAdminMode = isAdmin;
+
+        // ✅ PATCH: set currentProfile ให้ renderUserAvatar ใช้งานได้
+        window.currentProfile = {
+            ...personnel,
+            // map avatar ให้ตรงกับ field ที่ renderUserAvatar() รู้จัก
+            avatar_url: personnel?.avatar_url
+                || personnel?.avatar_personnel_url
+                || personnel?.profile_image
+                || null,
+            full_name: `${personnel?.prefix || ''}${personnel?.first_name || ''} ${personnel?.last_name || ''}`.trim()
+        };
 
         isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
 
@@ -213,7 +280,7 @@ async function checkAuth() {
             .select('current_academic_year, current_semester')
             .single();
         currentYear = sInfo?.current_academic_year;
-        currentTerm = sInfo?.current_semester;
+        currentTerm = null;
 
         let isDisciplineHead = false;
         let isGradeHead = false;
@@ -232,13 +299,11 @@ async function checkAuth() {
         if (gradeHead) isGradeHead = true;
 
         // ✅ ตรวจสอบว่าครูคนนี้มีห้องที่ปรึกษาของตัวเองหรือไม่
-        //    (หัวหน้าระดับที่ยังเป็นครูที่ปรึกษาด้วย ต้องแก้ไขข้อมูลห้องตัวเองได้)
         let hasOwnClassroom = false;
         if (isDisciplineHead || isGradeHead) {
             const { data: ownClassrooms } = await db.from('core_classrooms')
                 .select('id')
                 .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
                 .or(`adviser_id_1.eq.${user.id},adviser_id_2.eq.${user.id}`)
                 .limit(1);
             hasOwnClassroom = !!(ownClassrooms && ownClassrooms.length > 0);
@@ -251,12 +316,10 @@ async function checkAuth() {
             currentViewRole = 'module_admin';
             isReadOnly = false;
         } else if (isDisciplineHead || isGradeHead) {
-            // ✅ ถ้าเป็นหัวหน้าระดับ/ปกครอง และมีห้องที่ปรึกษาด้วย
-            //    → เริ่มในโหมดครู (แก้ไขห้องตัวเองได้) แทนการล็อก read-only
             if (hasOwnClassroom) {
                 currentViewRole = 'teacher';
                 isReadOnly = false;
-                isHead = true; // ✅ flag บอกว่าเป็นหัวหน้าด้วย (สำหรับปุ่มสลับโหมด)
+                isHead = true;
             } else {
                 currentViewRole = isDisciplineHead ? 'head_discipline' : 'head_grade';
                 isReadOnly = true;
@@ -276,7 +339,6 @@ async function checkAuth() {
             if (toggleBtn) toggleBtn.classList.remove('hidden');
         }
 
-        // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา → แสดงปุ่มสลับโหมดและตั้งข้อความให้ถูกต้อง
         if (isHead) {
             const toggleBtn = document.getElementById('btnAdminMode');
             if (toggleBtn) {
@@ -288,7 +350,7 @@ async function checkAuth() {
         }
 
         const termDisplay = document.getElementById('term-display');
-        if (termDisplay) termDisplay.innerText = `${currentTerm}/${currentYear}`;
+        if (termDisplay) termDisplay.innerText = `ปีการศึกษา ${currentYear}`;
 
         await window.logUserAction('เข้าสู่ระบบเยี่ยมบ้าน', 'homevisit');
 
@@ -300,6 +362,17 @@ async function checkAuth() {
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
         Swal.close();
 
+        // ✅ PATCH: render avatar หลัง set profile (delay ให้ topbar พร้อม)
+        setTimeout(() => {
+            if (typeof window.renderUserAvatar === 'function') {
+                window.renderUserAvatar(window.currentProfile);
+                console.log('🎨 renderUserAvatar called with currentProfile');
+            }
+        }, 400);
+
+        // ✅ Debug: ยืนยันค่า
+        console.log('✅ checkAuth: actualRole =', actualRole, '| currentUserRole =', currentUserRole);
+
     } catch (error) {
         console.error("Auth Error:", error);
         Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถยืนยันตัวตนได้', 'error');
@@ -307,11 +380,9 @@ async function checkAuth() {
 }
 
 function applyReadOnlyState() {
-    // ✅ ล้าง banner เดิมก่อนเสมอ เพื่อรองรับการสลับโหมดกลับมา
     $('#readonly-alert-banner').remove();
 
     if (!isReadOnly) {
-        // ✅ คืนสถานะฟอร์มให้แก้ไขได้เมื่อสลับกลับโหมดครู
         $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
             if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
                 $(this).prop('disabled', false).removeClass('opacity-50 cursor-not-allowed');
@@ -326,7 +397,6 @@ function applyReadOnlyState() {
         return;
     }
 
-    // ✅ โหมด read-only
     $('.action-btn, .status-btn, #btnSaveAll, #btn-grade-overview, .btn-edit, .btn-delete, #btn-import, #btn-export-excel, .btn-import, .btn-export, .btn-hover-lift').each(function () {
         if (this.id !== 'btnAdminMode' && this.id !== 'btn-settings') {
             $(this).prop('disabled', true).addClass('opacity-50 cursor-not-allowed');
@@ -341,7 +411,6 @@ function applyReadOnlyState() {
 
     $('#btn-add-student, #btn-edit-student, #btn-delete-student, #btn-submit-homevisit, #btn-import').hide();
 
-    // ✅ แสดง banner พร้อม id เพื่อให้ลบได้เมื่อสลับโหมด
     const roleLabel = currentViewRole === 'head_grade'
         ? 'โหมดภาพรวมระดับ — ดูข้อมูลได้ทุกห้องในระดับ'
         : 'โหมดดูข้อมูลอย่างเดียว';
@@ -358,7 +427,6 @@ function applyReadOnlyState() {
 function updateUIByRole() {
     if (!currentUser) return;
 
-    // ✅ รองรับทั้ง ID เก่า (userNameDisplay) และ ID ใหม่จาก dashboard_ui.js (userName)
     const userNameEl = document.getElementById('userNameDisplay') || document.getElementById('userName');
     if (userNameEl) {
         userNameEl.innerText = `ครู${currentUser.first_name} ${currentUser.last_name}`;
@@ -369,7 +437,6 @@ function updateUIByRole() {
     else if (currentViewRole === 'module_admin') roleText = 'แอดมินโมดูลเยี่ยมบ้าน';
     else if (currentViewRole === 'head_discipline') roleText = 'หัวหน้างานปกครอง (ดูอย่างเดียว)';
     else if (currentViewRole === 'head_grade') roleText = 'หัวหน้าระดับชั้น (ดูอย่างเดียว)';
-    // ✅ หัวหน้าที่มีห้องที่ปรึกษา — แสดงสถานะให้ชัดเจน
     else if (currentViewRole === 'teacher' && isHead) roleText = 'หัวหน้าระดับ / ครูที่ปรึกษา';
 
     const userRoleEl = document.getElementById('userRoleDisplay') || document.getElementById('userRole');
@@ -393,7 +460,6 @@ function updateUIByRole() {
 
 window.toggleRoleView = function () {
     const isAdminEffective = isAdminMode || isModuleAdmin || currentUserRole === 'super_admin';
-    // ✅ หัวหน้าระดับที่มีห้องที่ปรึกษา สามารถสลับไปโหมดดูภาพรวมระดับได้ด้วย
     const isHeadWithClassroom = isHead;
 
     if (!isAdminEffective && !isHeadWithClassroom) {
@@ -402,38 +468,24 @@ window.toggleRoleView = function () {
     }
 
     if (currentViewRole === 'teacher') {
-        // ✅ สลับไปโหมดภาพรวม
         if (isModuleAdmin) {
             currentViewRole = 'module_admin';
         } else if (currentUserRole === 'super_admin') {
             currentViewRole = 'super_admin';
         } else if (isHeadWithClassroom) {
-            // หัวหน้าระดับที่มีห้องที่ปรึกษา → สลับไปโหมดดูภาพรวมระดับ (read-only สำหรับห้องอื่น)
             currentViewRole = 'head_grade';
-            isReadOnly = false; // head_grade โหมดดูได้ทุกห้องในระดับ (ไม่แก้ไข)
         } else {
             currentViewRole = 'admin';
         }
         isReadOnly = (currentViewRole === 'head_discipline' || currentViewRole === 'head_grade');
     } else {
-        // ✅ สลับกลับโหมดครู (แก้ไขได้เฉพาะห้องตัวเอง)
         currentViewRole = 'teacher';
         isReadOnly = false;
     }
 
-    const btn = document.getElementById('btnAdminMode');
-    if (btn) {
-        if (currentViewRole === 'teacher') {
-            btn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดภาพรวม</span>';
-            btn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-purple-50 text-purple-600 hover:bg-purple-100 transition border border-purple-200 shadow-sm';
-        } else {
-            btn.innerHTML = '<i class="fa-solid fa-chalkboard-user sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดครู</span>';
-            btn.className = 'flex h-10 px-3 items-center justify-center rounded-xl bg-blue-50 text-blue-600 hover:bg-blue-100 transition border border-blue-200 shadow-sm';
-        }
-    }
-
     window.logUserAction(`สลับโหมดเป็น ${currentViewRole}`, 'homevisit');
-    applyAdminVisibility();
+
+    updateUIBasedOnRole();
     applyReadOnlyState();
     updateUIByRole();
     loadClassrooms();
@@ -473,7 +525,16 @@ async function logout() {
 function applyReportVisibility() {
     const isReportEnabled = moduleSettings.show_report === 'true';
     const isSuperAdmin = (currentUserRole === 'super_admin' || currentViewRole === 'super_admin');
-    const navBtn = document.getElementById('nav-btn-report');
+    const navBtn = document.getElementById('btn-tab-report');
+    // ✅ Debug log
+    console.log('📊 applyReportVisibility:', {
+        show_report: moduleSettings.show_report,
+        isReportEnabled,
+        isSuperAdmin,
+        hasNavBtn: !!navBtn,
+        navBtnClasses: navBtn ? navBtn.className : null
+    });
+
     const tabBtnDesktop = document.getElementById('tab-report-btn');
     const tabBtnMobile = document.getElementById('tab-report-btn-mobile');
 
@@ -501,26 +562,33 @@ async function loadClassrooms() {
     let query = db.from('core_classrooms')
         .select('*')
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .order('grade_level').order('room_number');
 
     const isHighLevel = ['super_admin', 'module_admin', 'head_discipline'].includes(currentViewRole);
 
     if (currentViewRole === 'head_grade') {
-        // ✅ โหมดภาพรวมระดับ — ดูทุกห้องในระดับที่รับผิดชอบ (read-only สำหรับห้องที่ไม่ใช่ของตน)
         const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
         if (gh) query = query.eq('grade_level', gh.grade_level);
         else query = query.eq('id', '00000000-0000-0000-0000-000000000000');
     } else if (!isHighLevel) {
-        // ✅ โหมดครู (รวมหัวหน้าระดับที่สลับมาโหมดครู) — เห็นเฉพาะห้องที่ตนเป็นที่ปรึกษา
         query = query.or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
     }
 
     const { data: classrooms } = await query;
+
+    // ✅ Dedup by (grade_level, room_number)
+    const seen = new Set();
+    const deduped = (classrooms || []).filter(c => {
+        const key = `${c.grade_level}-${c.room_number}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
     const select = document.getElementById('select-classroom');
     if (tsClassroom) tsClassroom.destroy();
     select.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
-    (classrooms || []).forEach(c => {
+    deduped.forEach(c => {
         select.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
     });
 
@@ -543,8 +611,8 @@ async function loadClassrooms() {
         }
     });
 
-    if (currentViewRole === 'teacher' && classrooms && classrooms.length === 1) {
-        tsClassroom.setValue(classrooms[0].id);
+    if (currentViewRole === 'teacher' && deduped.length === 1) {
+        tsClassroom.setValue(deduped[0].id);
     }
 }
 
@@ -552,7 +620,6 @@ async function onClassroomSelected(classroomId) {
     window.currentClassroomId = classroomId;
     document.getElementById('no-classroom-selected')?.classList.add('hidden');
     document.getElementById('homeVisitForm')?.classList.remove('hidden');
-    // ✅ Bug #3 Fix: reset badge ก่อน loadStudents เพื่อไม่ให้ทับ badge ที่ loadExistingHomeVisit ตั้งไว้
     updateStatusBadge('empty');
     await loadStudentsForClassroom(classroomId);
     goToStep(1);
@@ -626,10 +693,18 @@ async function loadStudentsForClassroom(classroomId) {
     }
 }
 
+// ==========================================
+// ✅ PATCH: loadStudentInfo — กัน auto-save ระหว่างโหลด
+// ==========================================
 async function loadStudentInfo(studentId) {
     suppressDirty = true;
     clearStudentInfo();
     currentStudentId = studentId;
+
+    // ✅ Patch 1: Set flag ป้องกัน auto-save ระหว่างโหลด
+    window._loadingStudent = true;
+    console.log('🔒 loadStudentInfo: _loadingStudent = true');
+
     Swal.fire({ title: 'กำลังโหลดข้อมูลประวัติ...', didOpen: () => Swal.showLoading() });
 
     const { data: enroll, error } = await db.from('student_enrollments')
@@ -638,7 +713,12 @@ async function loadStudentInfo(studentId) {
         .eq('classroom_id', window.currentClassroomId)
         .maybeSingle();
 
-    if (error || !enroll) { Swal.close(); Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลนักเรียน', 'warning'); return; }
+    if (error || !enroll) {
+        Swal.close();
+        Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลนักเรียน', 'warning');
+        window._loadingStudent = false;  // ✅ reset flag ถ้า error
+        return;
+    }
 
     document.getElementById('student_code').value = enroll.core_students?.student_id_card || '';
     document.getElementById('student_fullname').value = `${enroll.core_students?.prefix || ''}${enroll.core_students?.first_name} ${enroll.core_students?.last_name}`;
@@ -646,7 +726,7 @@ async function loadStudentInfo(studentId) {
     document.getElementById('student_number').value = enroll.student_number || '';
 
     const avatarUrl = enroll.core_students?.avatar_students_url;
-    currentStudentAvatarUrl = avatarUrl || null; // ✅ เพิ่มบรรทัดนี้
+    currentStudentAvatarUrl = avatarUrl || null;
 
     const studentPicInput = document.getElementById('pic_student');
     const avatarImg = document.getElementById('student-avatar-img');
@@ -695,7 +775,6 @@ async function loadStudentInfo(studentId) {
 
     await loadExistingHomeVisit(studentId);
 
-    // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดทันทีที่เลือกนักเรียน
     if (typeof renderMissingBox === 'function') {
         const currentStep = document.querySelector('.step-content.active');
         if (currentStep) {
@@ -705,6 +784,13 @@ async function loadStudentInfo(studentId) {
     }
 
     Swal.close();
+
+    // ✅ Patch 2: Reset flag + suppressDirty หลัง delay (กัน event ค้าง 500ms)
+    setTimeout(() => {
+        window._loadingStudent = false;
+        suppressDirty = false;
+        console.log('🔓 loadStudentInfo: _loadingStudent = false');
+    }, 500);
 }
 
 function clearStudentInfo() {
@@ -813,7 +899,6 @@ function clearStudentInfo() {
     const timesInput = document.getElementById('visit_times');
     if (timesInput) timesInput.value = '1';
 
-    // ✅ Bug #5 Fix: แก้ indentation ให้อยู่ภายใน clearStudentInfo อย่างถูกต้อง
     if (window.map && window.marker) {
         window.marker.setLatLng([SCHOOL_LAT, SCHOOL_LNG]);
         window.map.setView([SCHOOL_LAT, SCHOOL_LNG], 10);
@@ -821,7 +906,9 @@ function clearStudentInfo() {
         if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
     }
 
-    suppressDirty = false;
+    // ✅ Patch 5: ลบ suppressDirty = false ที่นี่
+    //    ปล่อยให้ loadStudentInfo เป็นคน reset หลังโหลดเสร็จ
+    // suppressDirty = false;  // ❌ ลบออก
 }
 
 async function loadExistingHomeVisit(studentId) {
@@ -830,7 +917,7 @@ async function loadExistingHomeVisit(studentId) {
             .select('*')
             .eq('student_id', studentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
 
         if (error) throw error;
@@ -925,14 +1012,12 @@ async function loadExistingHomeVisit(studentId) {
             if (el) el.checked = true;
         });
 
-        // ✅ ใช้ risk_data ก่อน แล้วค่อย risk_factors (แก้ไขโครงสร้าง)
         const risk = data.risk_data || data.risk_factors || {};
         console.log('✅ Loaded risk data:', risk);
 
         const riskGroups = ['health', 'welfare', 'responsibilities', 'hobbies', 'drugs', 'violence', 'sex', 'gaming', 'communication'];
         riskGroups.forEach(group => {
             const values = risk[group] || [];
-            // ✅ ตรวจสอบว่าเป็น array
             if (!Array.isArray(values)) {
                 console.warn(`⚠️ risk.${group} is not an array:`, values);
                 return;
@@ -953,7 +1038,6 @@ async function loadExistingHomeVisit(studentId) {
             });
         });
 
-        // ✅ เพิ่มส่วนนี้เข้าไป (ดึง internet_access)
         if (risk.internet_access) {
             const radio = document.querySelector(`input[name="internet_access"][value="${risk.internet_access}"]`);
             if (radio) radio.checked = true;
@@ -1001,7 +1085,6 @@ async function loadExistingHomeVisit(studentId) {
         };
 
         loadPic('pic_student', 'preview1', 'cloud_btn1', 'del_btn1', data.photo_student);
-        // ✅ เพิ่มบรรทัดนี้ต่อท้าย (กันข้อมูลหายถ้าในตาราง module_home_visits ยังไม่มี photo_student)
         if (!data.photo_student && currentStudentAvatarUrl) {
             data.photo_student = currentStudentAvatarUrl;
             loadPic('pic_student', 'preview1', 'cloud_btn1', 'del_btn1', data.photo_student);
@@ -1043,7 +1126,6 @@ function updateStatusBadge(status) {
 // ==========================================
 // ✅ STEP NAVIGATION (ใช้ window.stepColorConfigs)
 // ==========================================
-// ✅ ใช้ window.stepColorConfigs เพื่อป้องกันการประกาศซ้ำ
 if (typeof window.stepColorConfigs === 'undefined') {
     window.stepColorConfigs = {
         1: { bg: 'bg-red-600', text: 'text-red-700', shadow: 'shadow-red-100' },
@@ -1059,7 +1141,6 @@ window.goToStep = function (step) {
     const targetStep = document.getElementById(`step-${step}`);
     if (targetStep) targetStep.classList.add('active');
 
-    // ✅ เพิ่มบรรทัดนี้เพื่อแสดงกล่องรายการที่ขาดในแต่ละขั้น
     if (typeof renderMissingBox === 'function') {
         renderMissingBox(step);
     }
@@ -1103,8 +1184,17 @@ window.prevStep = function (step) { goToStep(step); };
 // ==========================================
 // 5. FORM HANDLING & AUTO-SAVE
 // ==========================================
+
+// ✅ Patch 3: markDirty — เพิ่ม guard
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
+
+    // ✅ ป้องกันตอนโหลดข้อมูลนักเรียน
+    if (window._loadingStudent) {
+        console.log('⏸️ Skip markDirty: กำลังโหลดข้อมูลนักเรียน');
+        return;
+    }
+
     if (formIsDirty) return;
     formIsDirty = true;
     const badge = document.getElementById('status-badge');
@@ -1161,7 +1251,7 @@ function buildFormData(studentId, classroomId) {
 
     return {
         student_id: studentId, classroom_id: classroomId, teacher_id: currentUser.id,
-        academic_year: currentYear, semester: currentTerm,
+        academic_year: currentYear,
         visit_date: getVal('hv_date') || new Date().toISOString().split('T')[0],
         visit_status: getRadio('visit_status') || 'เยี่ยมแล้ว',
         visit_times: parseInt(getVal('visit_times')) || 1,
@@ -1208,7 +1298,6 @@ function buildFormData(studentId, classroomId) {
 
 async function autoSaveIfDirty() {
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) return false;
-    // ✅ Bug #4 Fix: ป้องกัน race condition กับ autoSaveStep
     if (isAutoSaving) return false;
     isAutoSaving = true;
     try {
@@ -1218,7 +1307,7 @@ async function autoSaveIfDirty() {
             .select('id')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
         const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
         let savedData, saveError;
@@ -1238,13 +1327,19 @@ async function autoSaveIfDirty() {
         console.warn('Auto-save failed:', err);
         return false;
     } finally {
-        // ✅ Bug #4 Fix: คืนค่า flag เสมอ ไม่ว่าจะสำเร็จหรือไม่
         isAutoSaving = false;
     }
 }
 
+// ✅ Patch 4: autoSaveStep — เพิ่ม guard
 async function autoSaveStep() {
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) {
+        return true;
+    }
+
+    // ✅ ป้องกัน auto-save ตอนโหลดข้อมูลนักเรียน
+    if (window._loadingStudent) {
+        console.log('⏸️ Skip auto-save: กำลังโหลดข้อมูลนักเรียน');
         return true;
     }
 
@@ -1274,7 +1369,7 @@ async function autoSaveStep() {
             .select('id')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
 
         if (selectError) throw selectError;
@@ -1372,7 +1467,7 @@ window.submitHomeVisit = async function (isAutoSave = false) {
             .select('id')
             .eq('student_id', studentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
             .limit(1);
         if (selectError) throw selectError;
         const existingRow = existingRecords && existingRecords.length > 0 ? existingRecords[0] : null;
@@ -1406,6 +1501,30 @@ window.submitHomeVisit = async function (isAutoSave = false) {
     }
 };
 
+// ==========================================
+// ✅ MutationObserver — keep report button in sync
+// ==========================================
+(function watchSidebar() {
+    const sidebar = document.getElementById('dSidebar');
+    if (!sidebar) return;
+
+    let debounce;
+    const observer = new MutationObserver(() => {
+        // ✅ Skip ถ้า admin modal เปิดอยู่ (กำลัง toggle ตั้งค่า)
+        const adminModal = document.getElementById('admin-modal');
+        if (adminModal && !adminModal.classList.contains('hidden')) return;
+
+        clearTimeout(debounce);
+        debounce = setTimeout(() => {
+            if (typeof applyReportVisibility === 'function') {
+                applyReportVisibility();
+            }
+        }, 300);
+    });
+
+    observer.observe(sidebar, { childList: true, subtree: true });
+    console.log('👁️ Sidebar MutationObserver active');
+})();
 // ==========================================
 // จบส่วน core
 // ==========================================

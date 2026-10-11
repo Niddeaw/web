@@ -31,45 +31,6 @@ function safeSetSrc(id, src) {
 }
 
 // ==========================================
-// ✅ PATCH: ตั้งค่าข้อมูลนักเรียนใน topbar
-// ==========================================
-function applyStudentToTopbar(student) {
-    if (!student) return;
-
-    // ชื่อ-นามสกุล (รองรับทั้ง ID เก่าและใหม่)
-    const fullName = `${student.prefix || ''}${student.first_name || ''} ${student.last_name || ''}`.trim();
-    const userNameEl = document.getElementById('userName') || document.getElementById('userNameDisplay');
-    if (userNameEl) userNameEl.textContent = fullName || 'นักเรียน';
-
-    // Role (รองรับทั้ง ID เก่าและใหม่)
-    const userRoleEl = document.getElementById('userRole') || document.getElementById('userRoleDisplay');
-    if (userRoleEl) userRoleEl.textContent = 'นักเรียน';
-
-    // Avatar (ถ้ามีรูป)
-    const avatarImg = document.getElementById('userAvatarImg');
-    const avatarInitial = document.getElementById('userAvatarInitial');
-
-    if (student.avatar_students_url) {
-        if (avatarImg) {
-            avatarImg.src = student.avatar_students_url;
-            avatarImg.style.display = 'block';
-        }
-        if (avatarInitial) avatarInitial.style.display = 'none';
-    } else {
-        if (avatarImg) {
-            avatarImg.src = '';
-            avatarImg.style.display = 'none';
-        }
-        if (avatarInitial) {
-            avatarInitial.style.display = '';
-            const initial = (student.first_name || '?').charAt(0).toUpperCase();
-            avatarInitial.textContent = initial;
-        }
-    }
-}
-window.applyStudentToTopbar = applyStudentToTopbar;
-
-// ==========================================
 // โหลดปี/ภาคปัจจุบัน
 // ==========================================
 async function loadCurrentYearAndSemester() {
@@ -650,15 +611,16 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-    currentStudentId = student.id;
+        currentStudentId = student.id;
 
-    // ✅ Cache student ไว้ใช้ใน refreshInfoStudentTopbarUI()
-    window._cachedStudent = student;
+    // ✅ Sync ข้อมูลนักเรียนเข้า topbar ผ่านระบบกลาง (dashboard_sidebar.js)
+    window.currentProfile = student;
+    if (typeof setUserDisplayName === 'function') setUserDisplayName(student);
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(student);
 
-    // ✅ PATCH: ตั้งค่า topbar ก่อนโหลดส่วนอื่น
-    if (typeof applyStudentToTopbar === 'function') {
-        applyStudentToTopbar(student);
-    }
+    // ✅ Set role label (นักเรียน)
+    const roleEl = document.getElementById('userRole');
+    if (roleEl) roleEl.textContent = 'นักเรียน';
 
     await loadCurrentYearAndSemester();
     await loadGasSettings();

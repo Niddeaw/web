@@ -21,6 +21,7 @@
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
             transition: transform 0.2s, box-shadow 0.2s;
         }
+
         .glass:hover {
             transform: translateY(-2px);
             box-shadow: 0 20px 35px -12px rgba(0, 0, 0, 0.1);
@@ -36,10 +37,12 @@
             color: #1e40af;
             transition: all 0.2s;
         }
+
         .ts-wrapper.focus .ts-control {
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
         }
+
         .ts-wrapper .ts-dropdown {
             border-radius: 1rem;
             margin-top: 4px;
@@ -48,6 +51,7 @@
             backdrop-filter: blur(8px);
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
         }
+
         .ts-wrapper .ts-dropdown .option.active {
             background-color: #dbeafe;
             color: #1e40af;
@@ -65,7 +69,12 @@
             cursor: pointer;
             margin-right: 4px;
         }
-        .tab-btn:hover { background: #e2e8f0; color: #0f172a; }
+
+        .tab-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
         .tab-btn.active {
             background: #2563eb;
             color: #ffffff;
@@ -78,6 +87,7 @@
             overflow: hidden;
             position: relative;
         }
+
         .tab-content.active {
             display: flex;
             flex-direction: column;
@@ -91,6 +101,7 @@
             scrollbar-width: thin;
             border-radius: 1rem;
         }
+
         .table-responsive table {
             min-width: 1200px;
             width: 100%;
@@ -98,6 +109,7 @@
             border-spacing: 0;
             font-size: 0.8rem;
         }
+
         .table-responsive .col-no {
             width: 50px;
             min-width: 50px;
@@ -107,6 +119,7 @@
             z-index: 20;
             box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
+
         .table-responsive .col-name {
             width: 180px;
             min-width: 180px;
@@ -116,6 +129,7 @@
             z-index: 20;
             box-shadow: 2px 0 5px -2px rgba(0, 0, 0, 0.1);
         }
+
         .table-responsive thead th {
             position: sticky;
             top: 0;
@@ -123,8 +137,16 @@
             z-index: 10;
             border-bottom: 1px solid #cbd5e1;
         }
-        .table-responsive tbody tr { border-bottom: 1px solid #e2e8f0; }
-        .table-responsive tbody tr:hover { background-color: #fef9c3; transition: 0.1s; }
+
+        .table-responsive tbody tr {
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .table-responsive tbody tr:hover {
+            background-color: #fef9c3;
+            transition: 0.1s;
+        }
+
         .table-responsive select.tiny-select {
             font-size: 0.7rem;
             padding: 2px 2px;
@@ -140,10 +162,12 @@
             outline: none;
             transition: all 0.2s;
         }
+
         .tiny-select:focus {
             border-color: #3b82f6;
             box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
         }
+
         #tb-attendance .tiny-select,
         #tb-attributes .tiny-select {
             cursor: pointer;
@@ -156,9 +180,17 @@
         .skeleton-pulse {
             animation: skeletonPulse 1.5s ease-in-out infinite;
         }
+
         @keyframes skeletonPulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
         }
     </style>
 </head>
@@ -178,7 +210,8 @@
             <header class="d-topbar" id="dTopbar"></header>
 
             <!-- ================= Content ================= -->
-            <div id="systemClosedBanner" class="bg-red-500 text-white text-center py-2 text-sm font-bold hidden shadow-md">
+            <div id="systemClosedBanner"
+                class="bg-red-500 text-white text-center py-2 text-sm font-bold hidden shadow-md">
                 ⚠️ แอดมินได้ทำการปิดระบบชั่วคราว ไม่สามารถบันทึกหรือแก้ไขข้อมูลได้ในขณะนี้
             </div>
 
@@ -200,9 +233,11 @@
             <!-- เนื้อหาจริง (ซ่อนก่อน) -->
             <div id="dashboardMain" class="hidden space-y-4" style="padding:0 0 12px;">
 
-                <div class="glass rounded-3xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+                <div
+                    class="glass rounded-3xl p-5 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
                     <div class="flex flex-col gap-2 w-full md:w-auto">
-                        <div class="flex flex-wrap gap-4 text-sm font-medium text-slate-600 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white">
+                        <div
+                            class="flex flex-wrap gap-4 text-sm font-medium text-slate-600 bg-white/60 backdrop-blur-sm p-3 rounded-2xl border border-white">
                             <span id="infoSubject" class="text-blue-700 font-bold">วิชา: -</span>
                             <span id="infoTerm">ภาคเรียน: -</span>
                             <span id="infoDirector">ผู้อำนวยการ: -</span>
@@ -210,15 +245,18 @@
                         <div id="classStatusContainer" class="flex flex-wrap gap-2 mt-1"></div>
                     </div>
                     <div class="flex items-center gap-3 w-full md:w-auto">
-                        <select id="classSelect" placeholder="-- กรุณาเลือกห้อง --" autocomplete="off" class="hidden"></select>
+                        <select id="classSelect" placeholder="-- กรุณาเลือกห้อง --" autocomplete="off"
+                            class="hidden"></select>
                         <div id="startDateDisplay" class="hidden md:flex flex-col items-end gap-1"></div>
                     </div>
                 </div>
 
                 <div class="glass rounded-3xl flex-1 flex flex-col overflow-hidden">
                     <div class="flex border-b border-gray-200 bg-white/50 shrink-0 overflow-x-auto px-2 pt-2">
-                        <button onclick="switchTab('tab-attendance', this)" class="tab-btn active whitespace-nowrap">เวลาเรียน</button>
-                        <button onclick="switchTab('tab-attributes', this)" class="tab-btn whitespace-nowrap">คุณลักษณะฯ</button>
+                        <button onclick="switchTab('tab-attendance', this)"
+                            class="tab-btn active whitespace-nowrap">เวลาเรียน</button>
+                        <button onclick="switchTab('tab-attributes', this)"
+                            class="tab-btn whitespace-nowrap">คุณลักษณะฯ</button>
                     </div>
 
                     <div id="tab-attendance" class="tab-content active">
@@ -227,8 +265,11 @@
                                 <thead class="sticky top-0 z-10 bg-white shadow-sm">
                                     <tr class="text-gray-600 bg-gray-100" id="att-header-row-1">
                                         <th rowspan="2" class="w-12 border-r border-gray-200">เลขที่</th>
-                                        <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                        <th rowspan="2" class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">รวม<br>เวลาเรียน</th>
+                                        <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ -
+                                            นามสกุล</th>
+                                        <th rowspan="2"
+                                            class="w-16 bg-green-50 text-green-700 border-l-2 border-green-200">
+                                            รวม<br>เวลาเรียน</th>
                                         <th rowspan="2" class="w-28 bg-gray-50 border-l-2 border-gray-200">สถานะ</th>
                                     </tr>
                                     <tr class="text-gray-500 text-xs font-normal" id="att-header-row-2"></tr>
@@ -244,14 +285,29 @@
                                 <thead class="sticky top-0 z-10 bg-white shadow-sm">
                                     <tr class="text-gray-600 bg-gray-100">
                                         <th rowspan="2" class="w-12 border-r border-gray-200">เลขที่</th>
-                                        <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ - นามสกุล</th>
-                                        <th colspan="4" class="border-r border-gray-200 border-b border-gray-200 text-blue-700 bg-blue-50/50 py-1">1. รักชาติ ศาสน์ กษัตริย์</th>
-                                        <th colspan="2" class="border-r border-gray-200 border-b border-gray-200 text-indigo-700 bg-indigo-50/50">2. ซื่อสัตย์สุจริต</th>
-                                        <th colspan="1" class="border-r border-gray-200 border-b border-gray-200 text-fuchsia-700 bg-fuchsia-50/50">3. มีวินัย</th>
-                                        <th colspan="5" class="border-r border-gray-200 border-b border-gray-200 text-orange-700 bg-orange-50/50">4. ใฝ่เรียนรู้</th>
-                                        <th rowspan="2" class="w-16 bg-blue-50/50 text-blue-700 leading-tight border-l-2 border-gray-300">สรุปผล<br>คุณลักษณะ</th>
-                                        <th rowspan="2" class="w-16 bg-indigo-50/50 text-indigo-700 leading-tight border-l border-gray-300">สรุปผล<br>เวลาเรียน</th>
-                                        <th rowspan="2" class="w-16 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">ผลการ<br>ประเมิน</th>
+                                        <th rowspan="2" class="w-48 text-left pl-4 border-r border-gray-200">ชื่อ -
+                                            นามสกุล</th>
+                                        <th colspan="4"
+                                            class="border-r border-gray-200 border-b border-gray-200 text-blue-700 bg-blue-50/50 py-1">
+                                            1. รักชาติ ศาสน์ กษัตริย์</th>
+                                        <th colspan="2"
+                                            class="border-r border-gray-200 border-b border-gray-200 text-indigo-700 bg-indigo-50/50">
+                                            2. ซื่อสัตย์สุจริต</th>
+                                        <th colspan="1"
+                                            class="border-r border-gray-200 border-b border-gray-200 text-fuchsia-700 bg-fuchsia-50/50">
+                                            3. มีวินัย</th>
+                                        <th colspan="5"
+                                            class="border-r border-gray-200 border-b border-gray-200 text-orange-700 bg-orange-50/50">
+                                            4. ใฝ่เรียนรู้</th>
+                                        <th rowspan="2"
+                                            class="w-16 bg-blue-50/50 text-blue-700 leading-tight border-l-2 border-gray-300">
+                                            สรุปผล<br>คุณลักษณะ</th>
+                                        <th rowspan="2"
+                                            class="w-16 bg-indigo-50/50 text-indigo-700 leading-tight border-l border-gray-300">
+                                            สรุปผล<br>เวลาเรียน</th>
+                                        <th rowspan="2"
+                                            class="w-16 bg-emerald-50 text-emerald-700 leading-tight border-l-2 border-emerald-300">
+                                            ผลการ<br>ประเมิน</th>
                                     </tr>
                                     <tr class="text-xs text-gray-500 font-normal bg-gray-50">
                                         <th class="w-10">1.1</th>
@@ -273,21 +329,27 @@
                         </div>
                     </div>
 
-                    <div class="p-4 bg-white/60 border-t border-white flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 rounded-b-3xl">
+                    <div
+                        class="p-4 bg-white/60 border-t border-white flex flex-col lg:flex-row justify-between items-center gap-4 shrink-0 rounded-b-3xl">
                         <div class="flex gap-2 w-full lg:w-auto justify-center lg:justify-start">
-                            <button onclick="exportExcelAll()" class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                            <button onclick="exportExcelAll()"
+                                class="bg-white border border-green-200 hover:bg-green-50 text-green-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
                                 <i class="fa-solid fa-file-export"></i> ส่งออก (Offline)
                             </button>
-                            <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden" onchange="importExcelAll(event)">
-                            <button onclick="document.getElementById('excelUploadAll').click()" class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
+                            <input type="file" id="excelUploadAll" accept=".xlsx, .xls" class="hidden"
+                                onchange="importExcelAll(event)">
+                            <button onclick="document.getElementById('excelUploadAll').click()"
+                                class="bg-white border border-blue-200 hover:bg-blue-50 text-blue-700 font-bold py-2 px-4 rounded-xl shadow-sm text-sm flex items-center gap-2 transition-colors">
                                 <i class="fa-solid fa-file-import"></i> นำเข้า Excel
                             </button>
                         </div>
                         <div class="flex gap-3 w-full lg:w-auto">
-                            <button onclick="printPDF_v7()" class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-6 rounded-xl shadow-sm text-sm w-full md:w-auto flex items-center justify-center gap-2 transition-colors">
+                            <button onclick="printPDF_v7()"
+                                class="bg-white border border-gray-300 hover:bg-gray-100 text-gray-700 font-bold py-2.5 px-6 rounded-xl shadow-sm text-sm w-full md:w-auto flex items-center justify-center gap-2 transition-colors">
                                 <i class="fa-solid fa-print text-gray-500"></i> พิมพ์ ปพ.5
                             </button>
-                            <button id="btnSaveAll" onclick="saveAllData()" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md hover:shadow-lg text-base w-full md:w-auto flex items-center justify-center gap-2 transition-all">
+                            <button id="btnSaveAll" onclick="saveAllData()"
+                                class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold py-2.5 px-8 rounded-xl shadow-md hover:shadow-lg text-base w-full md:w-auto flex items-center justify-center gap-2 transition-all">
                                 <i class="fa-solid fa-floppy-disk"></i> บันทึกข้อมูล
                             </button>
                         </div>
@@ -307,15 +369,11 @@
          ✅ Init Module Sidebar + Topbar
          ======================================================= -->
     <script>
-        // Mode button ID
         window._guidanceModeBtnId = 'btnModeAdmin';
 
-        // =======================================================
-        // Fallback Config — Guidance Teacher
-        // =======================================================
         function getGuidanceTeacherFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -324,7 +382,7 @@
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html' }
+                    ...buildSidebarItems('guidance', ['home'])
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -335,21 +393,9 @@
                         sectionId: 'sec-guidance',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            {
-                                id: 'nav-teacher',
-                                icon: 'fa-chalkboard-user',
-                                label: 'ครูผู้สอน'
-                                // หน้าปัจจุบัน
-                            },
-                            {
-                                id: 'nav-admin',
-                                icon: 'fa-user-shield',
-                                label: 'ผู้ดูแลระบบ',
-                                onclick: 'switchToAdminMode()',
-                                hidden: true
-                            }
-                        ]
+                        items: buildSidebarItems('guidance', ['teacher', 'admin'], {
+                            teacher: { class: 'active' }
+                        })
                     }
                 ],
                 footerMenuTitle: '',
@@ -369,61 +415,11 @@
             };
         }
 
-        // =======================================================
-        // ✅ Helper: Refresh Topbar + Sidebar UI
-        // =======================================================
-        function refreshGuidanceTopbarUI() {
-            // 1) วันที่
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { console.warn('setTodayChip:', e); }
-            }
-
-            // 2) ข้อมูลผู้ใช้
-            try {
-                if (typeof currentUserProfile !== 'undefined' && currentUserProfile) {
-                    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUserProfile);
-                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(window.currentUserRole || '');
-                    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUserProfile);
-                }
-            } catch (e) { /* TDZ — ignore */ }
-
-            // 3) Role-based visibility
-            applyGuidanceRoleUI();
-        }
-
-        function applyGuidanceRoleUI() {
-            const canSeeAdmin = window._guidanceCanSeeAdmin;
-            const modeBtnId = window._guidanceModeBtnId;
-
-            // Mode button
-            if (modeBtnId) {
-                const btn = document.getElementById(modeBtnId);
-                if (btn) {
-                    if (canSeeAdmin === true) btn.classList.remove('hidden');
-                    else if (canSeeAdmin === false) btn.classList.add('hidden');
-                }
-            }
-
-            // nav-admin visibility
-            if (canSeeAdmin === true) {
-                if (typeof showNavItem === 'function') showNavItem('nav-admin', true);
-            } else if (canSeeAdmin === false) {
-                if (typeof hideNavItem === 'function') hideNavItem('nav-admin');
-            }
-        }
-
-        window.refreshGuidanceTopbarUI = refreshGuidanceTopbarUI;
-        window.applyGuidanceRoleUI = applyGuidanceRoleUI;
-
-        // Helper: เรียกใช้จาก guidance_teacher.js หลัง auth
         window.setGuidanceRoleVisibility = function (canSee) {
             window._guidanceCanSeeAdmin = canSee === true;
-            refreshGuidanceTopbarUI();
+            updateUIBasedOnRole();
         };
 
-        // =======================================================
-        // ✅ Init Module Sidebar
-        // =======================================================
         initModuleSidebar({
             moduleKey: 'guidance',
             pageTitle: 'ปพ.5 กิจกรรมแนะแนว',
@@ -438,9 +434,14 @@
                 }
             ],
             fallbackConfig: getGuidanceTeacherFallbackConfig(),
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'ระบบ ปพ.5 แนะแนว' },
+                { label: 'ครูผู้สอน' }
+            ],
             onReady: () => {
-                refreshGuidanceTopbarUI();
-                setTimeout(refreshGuidanceTopbarUI, 800);
+                if (typeof setTodayChip === 'function') setTodayChip();
+                if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
             }
         });
     </script>
@@ -450,7 +451,7 @@
          ======================================================= -->
     <script>
         // Lazy load TomSelect
-        (function() {
+        (function () {
             const s = document.createElement('script');
             s.src = 'https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js';
             s.async = true;
@@ -458,7 +459,7 @@
         })();
 
         // Lazy load XLSX เมื่อใช้ครั้งแรก
-        window.loadXLSX = function() {
+        window.loadXLSX = function () {
             if (window.XLSX) return Promise.resolve();
             return new Promise((resolve, reject) => {
                 const s = document.createElement('script');

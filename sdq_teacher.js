@@ -99,7 +99,7 @@ window.addEventListener('load', async () => {
     } finally {
         restoreSidebarCollapse();
         document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
-        if (typeof refreshNavButtons === 'function') refreshNavButtons();
+        if (typeof window.onTopbarRendered === 'function') window.onTopbarRendered();
     }
 });
 
@@ -171,13 +171,6 @@ function applyRoleUI(role) {
             updateToggleModeUI(role, isCurrentAdminMode, 'btnAdminMode');
         }
     }
-
-    // ปุ่ม/เมนูจัดการแอดมิน
-    const adminManagerBtn = document.getElementById('nav-sdq-admin-manager');
-    if (adminManagerBtn) {
-        adminManagerBtn.classList.toggle('hidden', !isAdminRole);
-    }
-
     updateBadgeAndSubtitle();
 }
 
@@ -1115,16 +1108,20 @@ async function removeSDQAdmin(adminId, name) {
     await loadPersonnelOptions();
 }
 
-// =======================================================
-// Refresh nav buttons (role-based show/hide)
-// =======================================================
-function refreshNavButtons() {
-    const btnAdminManager = document.getElementById('nav-sdq-admin-manager');
-    if (btnAdminManager) {
-        const isAdminRole = isAdminUser(window.currentUserRole, false) || isModuleAdmin;
-        btnAdminManager.classList.toggle('hidden', !isAdminRole);
+// ==========================================
+// ✅ Hook: เรียกหลัง renderTopbar re-render
+// ==========================================
+window.onTopbarRendered = function () {
+    if (!currentProfile) return;
+    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentProfile);
+    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentProfile.role);
+    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentProfile);
+
+    // Re-apply topbar toggle button visibility
+    if (typeof applyRoleUI === 'function' && currentProfile) {
+        applyRoleUI(currentProfile.role);
     }
-}
+};
 
 // =======================================================
 // Expose globals
@@ -1144,6 +1141,5 @@ window.openAdminManager = openAdminManager;
 window.closeAdminManager = closeAdminManager;
 window.addSDQAdmin = addSDQAdmin;
 window.removeSDQAdmin = removeSDQAdmin;
-window.refreshNavButtons = refreshNavButtons;
 
 console.log('✅ sdq_teacher.js loaded (standard template)');

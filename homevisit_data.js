@@ -464,8 +464,8 @@ window.exportTeacherClassroom = async function () {
         const { data: visits } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
+
         const visitMap = {};
         (visits || []).forEach(v => { visitMap[v.student_id] = v; });
 
@@ -530,7 +530,6 @@ function buildVisitDataFromRow(headers, values, studentId, classroomId) {
         classroom_id: classroomId,
         teacher_id: currentUser.id,
         academic_year: currentYear,
-        semester: currentTerm,
         visit_date: getVal('visit_date', new Date().toISOString().split('T')[0]),
         visit_status: getVal('visit_status', 'เยี่ยมแล้ว'),
         visit_times: parseInt(getVal('visit_times')) || 1,
@@ -664,7 +663,6 @@ window.importFromExcel = function () {
                         classroom_id: stdInfo.classroom_id,
                         teacher_id: currentUser.id,
                         academic_year: currentYear,
-                        semester: currentTerm,
                         visit_date: vDate,
                         visit_status: vStatus,
                         visit_times: parseInt(row['ครั้งที่'] || row['visit_times']) || 1,
@@ -703,7 +701,8 @@ window.importFromExcel = function () {
                         .select('id')
                         .eq('student_id', formData.student_id)
                         .eq('academic_year', currentYear)
-                        .eq('semester', currentTerm)
+                        .order('created_at', { ascending: false })
+                        .limit(1)
                         .maybeSingle();
                     let opError;
                     if (existing) {
@@ -780,7 +779,7 @@ window.loadDataTable = async function () {
 
                 const { data: result, error } = await db.rpc('get_classroom_summary_datatable', {
                     p_year: currentYear,
-                    p_term: currentTerm,
+                    p_term: null,
                     p_search: searchValue,
                     p_order_column: orderCol,
                     p_order_dir: orderDir,
@@ -896,8 +895,7 @@ window.loadDataTable = async function () {
         const { data: visits, error: visitError } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
 
         if (visitError) throw visitError;
 
@@ -1070,7 +1068,7 @@ window.fetchOverviewStudentList = async function (type) {
 
     const { data, error } = await db.rpc('get_students_by_status', {
         p_year: currentYear,
-        p_term: currentTerm,
+        p_term: null,
         p_status: statusParam,
         p_grade_level: gradeLevel
     });
@@ -1240,7 +1238,6 @@ window.exportToExcel = async function () {
         let classQuery = db.from('core_classrooms')
             .select('*')
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
             .order('grade_level').order('room_number');
 
         if (currentViewRole === 'head_grade') {
@@ -1253,8 +1250,7 @@ window.exportToExcel = async function () {
             classQuery,
             db.from('module_home_visits')
                 .select('classroom_id, student_id, visit_status')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm),
+                .eq('academic_year', currentYear),
             getPersonnelMap()
         ]);
 
@@ -1536,13 +1532,20 @@ window.openAdminModal = async function () {
     document.getElementById('admin-modal').classList.remove('hidden');
     await loadAdminSettings();
 
+    // ✅ ใช้ currentUserRole แทน actualRole + แสดงให้ module_admin/admin ด้วย
     const toggleContainer = document.getElementById('report-toggle-container');
     if (toggleContainer) {
-        if (actualRole === 'super_admin') {
+        const canToggleReport = ['super_admin', 'admin', 'module_admin'].includes(currentUserRole);
+        if (canToggleReport) {
             toggleContainer.classList.remove('hidden');
         } else {
             toggleContainer.classList.add('hidden');
         }
+
+        // ✅ Debug
+        console.log('🔧 openAdminModal: currentUserRole =', currentUserRole,
+            '| canToggleReport =', canToggleReport,
+            '| toggle hidden =', toggleContainer.classList.contains('hidden'));
     }
 };
 
@@ -1553,17 +1556,25 @@ async function loadAdminSettings() {
     if (!window.isAdminUser(currentUserRole, isAdminMode)) return;
 
     await loadModuleSettings();
+
     document.getElementById('set-gas-url').value = moduleSettings.gas_url;
     document.getElementById('set-drive-folder-id').value = moduleSettings.drive_folder_id;
     document.getElementById('set-pdf-api-url').value = moduleSettings.pdf_api_url;
     document.getElementById('set-slide-id').value = moduleSettings.slide_template_url;
     document.getElementById('set-pdf-folder-id').value = moduleSettings.gd_pdf_folder_id;
+
     const reportTemplateEl = document.getElementById('set-report-template-id');
     if (reportTemplateEl) reportTemplateEl.value = moduleSettings.report_template_id;
+
     const showReportCheckbox = document.getElementById('setting-show-report');
     if (showReportCheckbox) {
         showReportCheckbox.checked = (moduleSettings.show_report === 'true');
+
+        // ✅ Debug
+        console.log('📊 loadAdminSettings: checkbox.checked =', showReportCheckbox.checked,
+            '| moduleSettings.show_report =', moduleSettings.show_report);
     }
+
     await Promise.all([loadTeachersForAppoint(), loadModuleAdminsList()]);
 }
 
@@ -1573,6 +1584,10 @@ async function saveAdminSettings() {
 
     const showReportCheckbox = document.getElementById('setting-show-report');
     const showReportValue = showReportCheckbox ? (showReportCheckbox.checked ? 'true' : 'false') : 'false';
+
+    // ✅ Debug
+    console.log('🔧 saveAdminSettings: saving show_report =', showReportValue);
+
     const payload = {
         gas_url: document.getElementById('set-gas-url').value.trim(),
         drive_folder_id: document.getElementById('set-drive-folder-id').value.trim(),
@@ -1582,12 +1597,27 @@ async function saveAdminSettings() {
         report_template_id: document.getElementById('set-report-template-id')?.value.trim() || "",
         show_report: showReportValue
     };
-    const { error } = await db.from('core_system_modules').update({ settings: payload }).eq('module_id', 'homevisit');
-    if (error) return Swal.fire('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + error.message, 'error');
+
+    const { error } = await db.from('core_system_modules')
+        .update({ settings: payload })
+        .eq('module_id', 'homevisit');
+
+    if (error) {
+        console.error('🔧 Save failed:', error);
+        return Swal.fire('ผิดพลาด', 'บันทึกไม่สำเร็จ: ' + error.message, 'error');
+    }
+
+    console.log('🔧 Saved to DB successfully');
+
     moduleSettings = payload;
     Swal.fire('สำเร็จ', 'บันทึกการตั้งค่าเรียบร้อยแล้ว', 'success');
     closeAdminModal();
-    applyReportVisibility();
+
+    // ✅ Re-apply หลัง delay
+    setTimeout(() => {
+        applyReportVisibility();
+        console.log('🔧 Applied after save. moduleSettings.show_report =', moduleSettings.show_report);
+    }, 200);
 }
 
 async function loadTeachersForAppoint() {
@@ -1763,7 +1793,6 @@ window.loadReport = async function () {
             const { data } = await db.from('core_classrooms')
                 .select('id')
                 .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
                 .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
             classIds = (data || []).map(c => c.id);
             if (classIds.length === 0) {
@@ -1781,7 +1810,6 @@ window.loadReport = async function () {
             const { data } = await db.from('core_classrooms')
                 .select('id')
                 .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
                 .eq('grade_level', grade);
             classIds = (data || []).map(c => c.id);
         } else if (scope === 'classroom') {
@@ -1790,8 +1818,7 @@ window.loadReport = async function () {
             // all
             const { data } = await db.from('core_classrooms')
                 .select('id')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm);
+                .eq('academic_year', currentYear);
             classIds = (data || []).map(c => c.id);
         }
 
@@ -1834,8 +1861,7 @@ window.loadReport = async function () {
         const { data: visits } = await db.from('module_home_visits')
             .select('*')
             .in('classroom_id', classIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
 
         const visitedMap = {};
         (visits || []).forEach(v => { visitedMap[v.student_id] = v; });
@@ -2279,7 +2305,6 @@ async function loadClassroomsForOverview() {
     let query = db.from('core_classrooms')
         .select('id, grade_level, room_number')
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .order('grade_level').order('room_number');
 
     if (currentViewRole === 'head_grade') {
@@ -2292,9 +2317,18 @@ async function loadClassroomsForOverview() {
 
     const { data: classrooms } = await query;
 
+    // ✅ dedup
+    const seen = new Set();
+    const deduped = (classrooms || []).filter(c => {
+        const key = `${c.grade_level}-${c.room_number}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
     if (overviewClassroomTom) overviewClassroomTom.destroy();
 
-    const options = (classrooms || []).map(c => ({
+    const options = deduped.map(c => ({
         value: c.id,
         text: `ม.${c.grade_level}/${c.room_number}`
     }));
@@ -2330,7 +2364,6 @@ async function loadReportClassrooms() {
     let query = db.from('core_classrooms')
         .select('id, grade_level, room_number')
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .order('grade_level').order('room_number');
 
     if (currentViewRole === 'head_grade') {
@@ -2341,8 +2374,19 @@ async function loadReportClassrooms() {
         if (gh) query = query.eq('grade_level', gh.grade_level);
     }
     const { data: classrooms } = await query;
+
+    // ✅ dedup
+    const seen = new Set();
+    const deduped = (classrooms || []).filter(c => {
+        const key = `${c.grade_level}-${c.room_number}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+
+    // ✅ เติม options ลงใน select
     select.innerHTML = '<option value="">-- เลือกห้อง --</option>';
-    (classrooms || []).forEach(c => {
+    deduped.forEach(c => {
         select.innerHTML += `<option value="${c.id}">ม.${c.grade_level}/${c.room_number}</option>`;
     });
 }
@@ -2382,8 +2426,7 @@ window.loadOverviewByClassroom = async function () {
         const { data: visits, error: visitError } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
 
         if (visitError) throw visitError;
 
@@ -2491,7 +2534,6 @@ async function updateOverviewAdvisorName() {
         const { data: classrooms } = await db.from('core_classrooms')
             .select('grade_level, room_number')
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
             .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`)
             .limit(1);
 
@@ -2577,7 +2619,6 @@ async function loadTeacherOverview() {
         const { data: classrooms, error: classError } = await db.from('core_classrooms')
             .select('id')
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
             .or(`adviser_id_1.eq.${currentUser.id},adviser_id_2.eq.${currentUser.id}`);
 
         if (classError) throw classError;
@@ -2620,8 +2661,7 @@ async function loadTeacherOverview() {
         const { data: visits, error: visitError } = await db.from('module_home_visits')
             .select('*')
             .in('student_id', studentIds)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
 
         if (visitError) throw visitError;
 
@@ -2700,7 +2740,7 @@ async function loadAdminOverview() {
 
     try {
         let roomQuery = db.from('core_classrooms').select('id, grade_level, room_number')
-            .eq('academic_year', currentYear).eq('semester', currentTerm).order('grade_level').order('room_number');
+            .eq('academic_year', currentYear).order('grade_level').order('room_number');
 
         if (currentViewRole === 'head_grade') {
             const { data: gh } = await db.from('behavior_grade_heads').select('grade_level').eq('teacher_id', currentUser.id).single();
@@ -2729,7 +2769,7 @@ async function loadAdminOverview() {
 
         const { data: visits } = await db.from('module_home_visits')
             .select('*')
-            .eq('academic_year', currentYear).eq('semester', currentTerm)
+            .eq('academic_year', currentYear)
             .in('classroom_id', classIds);
 
         const visitMap = {};
@@ -2783,8 +2823,10 @@ window.editHomeVisit = async function (studentId) {
 
         // 2. ลองหาจาก student_enrollments (โดยไม่กรองปี/เทอม ก่อน)
         let { data: enroll, error } = await db.from('student_enrollments')
-            .select('classroom_id')
+            .select('classroom_id, academic_year')
             .eq('student_id', studentId)
+            .order('academic_year', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (error) {
@@ -2830,7 +2872,6 @@ window.editHomeVisit = async function (studentId) {
                 .select('student_id, core_students(id, student_id_card, prefix, first_name, last_name)')
                 .eq('classroom_id', classroomId)
                 .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
                 .order('student_number');
 
             const ts = window.studentTomSelect || studentTomSelect;
@@ -2995,7 +3036,6 @@ window.showMissingFields = async function (studentId) {
         .select('*')
         .eq('student_id', studentId)
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .maybeSingle();
 
     const completeness = getCompletenessStatus(visit, student?.avatar_students_url);
@@ -3158,6 +3198,11 @@ $(document).ready(async () => {
         initAllTomSelects();
         initDirtyTracking();
 
+        // ✅ เพิ่ม: init ปุ่ม Admin Export/Import
+        if (typeof initAdminExportImport === 'function') {
+            initAdminExportImport();
+        }
+
         const reportScope = document.getElementById('report-scope');
         if (reportScope) {
             reportScope.addEventListener('change', function () {
@@ -3215,7 +3260,8 @@ $(document).ready(async () => {
                         try {
                             const { data: existing } = await db.from('module_home_visits')
                                 .select('id').eq('student_id', studentId)
-                                .eq('academic_year', currentYear).eq('semester', currentTerm).maybeSingle();
+                                .eq('academic_year', currentYear)
+                                .order('created_at', { ascending: false }).limit(1).maybeSingle();
                             let resError;
                             if (existing) {
                                 const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
@@ -3304,29 +3350,46 @@ async function renderMissingBox(stepNumber) {
     const box = document.getElementById(`missing-box-step-${stepNumber}`);
     if (!box) return;
 
-    // ถ้ายังไม่มีนักเรียนที่เลือก ให้ซ่อนกล่อง
     if (!currentStudentId) {
         box.innerHTML = '';
         return;
     }
 
     try {
-        // ดึงข้อมูลการเยี่ยมบ้านล่าสุดของนักเรียนคนนี้
-        const { data: visit, error } = await db
+        // ✅ ดึงข้อมูลจาก DB
+        const { data: dbVisit, error } = await db
             .from('module_home_visits')
             .select('*')
             .eq('student_id', currentStudentId)
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
         if (error) {
             console.error('Error loading visit for missing box:', error);
-            box.innerHTML = '';
-            return;
         }
 
-        const completeness = getCompletenessStatus(visit, window.currentStudentAvatarUrl);
+        // ✅ ประกอบข้อมูลจากฟอร์มปัจจุบัน (source of truth)
+        const formData = (typeof buildFormData === 'function' && window.currentClassroomId)
+            ? buildFormData(currentStudentId, window.currentClassroomId)
+            : {};
+
+        // ✅ Merge: form ทับ DB
+        const mergedVisit = {
+            ...(dbVisit || {}),
+            ...formData,
+            photo_student: document.getElementById('pic_student')?.dataset.uploadedUrl
+                || dbVisit?.photo_student || null,
+            photo_outside: document.getElementById('pic_outside')?.dataset.uploadedUrl
+                || dbVisit?.photo_outside || null,
+            photo_inside: document.getElementById('pic_inside')?.dataset.uploadedUrl
+                || dbVisit?.photo_inside || null,
+            photo_teacher: document.getElementById('pic_teacher')?.dataset.uploadedUrl
+                || dbVisit?.photo_teacher || null,
+        };
+
+        const completeness = getCompletenessStatus(mergedVisit, window.currentStudentAvatarUrl);
         const missingFields = completeness.missingFields || [];
         const stepMissing = getMissingFieldsByStep(missingFields, stepNumber);
 
@@ -3362,3 +3425,623 @@ async function renderMissingBox(stepNumber) {
         box.innerHTML = '';
     }
 }
+
+// ==========================================
+// ✅ Admin Export/Import (เลือกห้องได้ + Filter + Preview)
+// ==========================================
+let _adminRoomsCache = [];
+let _importPreviewData = []; // เก็บข้อมูล preview ทั้งหมด
+let _importPreviewFilter = 'all';
+let _importFileCache = null; // เก็บไฟล์ import ชั่วคราว
+
+window.openAdminExportModal = async function () {
+    if (currentViewRole === 'teacher') {
+        return Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+    }
+
+    const modal = document.getElementById('admin-export-modal');
+    if (!modal) return;
+
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+
+    await loadRoomsForExportModal();
+};
+
+window.closeAdminExportModal = function () {
+    const modal = document.getElementById('admin-export-modal');
+    if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+};
+
+async function loadRoomsForExportModal() {
+    const container = document.getElementById('admin-rooms-checklist');
+    if (!container) return;
+
+    container.innerHTML = '<div class="col-span-full text-center py-4 text-slate-400"><i class="fas fa-spinner fa-spin"></i> กำลังโหลด...</div>';
+
+    let query = db.from('core_classrooms')
+        .select('id, grade_level, room_number')
+        .eq('academic_year', currentYear)
+        .order('grade_level').order('room_number');
+
+    if (currentViewRole === 'head_grade') {
+        const { data: gh } = await db.from('behavior_grade_heads')
+            .select('grade_level').eq('teacher_id', currentUser.id).single();
+        if (gh) query = query.eq('grade_level', gh.grade_level);
+    }
+
+    const { data: classrooms } = await query;
+
+    // ✅ FIX: Dedup โดยเลือก record ที่มี enrollments เยอะสุด
+    // (เพราะทุกห้องอาจมี 2 records — ตัวหนึ่งมีนักเรียน อีกตัวว่างเปล่า)
+    const roomList = classrooms || [];
+
+    // นับ enrollments ของทุก classroom พร้อมกัน
+    const roomIds = roomList.map(c => c.id);
+    const { data: enrollCounts } = await db
+        .from('student_enrollments')
+        .select('classroom_id')
+        .in('classroom_id', roomIds)
+        .eq('academic_year', currentYear);
+
+    const countMap = {};
+    (enrollCounts || []).forEach(e => {
+        countMap[e.classroom_id] = (countMap[e.classroom_id] || 0) + 1;
+    });
+
+    // group by grade-room แล้วเลือกตัวที่ enrolls มากสุด
+    const byKey = {};
+    for (const c of roomList) {
+        const key = `${c.grade_level}-${c.room_number}`;
+        const cnt = countMap[c.id] || 0;
+        if (!byKey[key] || cnt > (countMap[byKey[key].id] || 0)) {
+            byKey[key] = c;
+        }
+    }
+    _adminRoomsCache = Object.values(byKey);
+
+    console.log('🔍 [Rooms]', {
+        total: roomList.length,
+        deduped: _adminRoomsCache.length,
+        sampleKept: _adminRoomsCache.slice(0, 3).map(c => ({
+            room: `ม.${c.grade_level}/${c.room_number}`,
+            enrolls: countMap[c.id] || 0
+        }))
+    });
+
+    if (_adminRoomsCache.length === 0) {
+        container.innerHTML = '<div class="col-span-full text-center py-4 text-slate-400">ไม่พบห้องเรียน</div>';
+        return;
+    }
+
+    container.innerHTML = _adminRoomsCache.map(c => `
+        <label class="flex items-center gap-2 p-2.5 border border-slate-200 rounded-xl cursor-pointer hover:bg-emerald-50 transition text-sm">
+            <input type="checkbox" class="admin-room-cb w-4 h-4 text-emerald-600 rounded"
+                data-room-id="${c.id}"
+                onchange="updateAdminRoomCount()">
+            <span class="font-bold text-slate-700">ม.${c.grade_level}/${c.room_number}</span>
+        </label>
+    `).join('');
+
+    updateAdminRoomCount();
+}
+
+window.toggleAllRooms = function (checked) {
+    document.querySelectorAll('.admin-room-cb').forEach(cb => cb.checked = checked);
+    updateAdminRoomCount();
+};
+
+window.updateAdminRoomCount = function () {
+    const checked = document.querySelectorAll('.admin-room-cb:checked').length;
+    const total = document.querySelectorAll('.admin-room-cb').length;
+    const countEl = document.getElementById('admin-selected-count');
+    if (countEl) countEl.textContent = `${checked} / ${total} ห้อง`;
+
+    const selectAllEl = document.getElementById('admin-select-all-rooms');
+    if (selectAllEl) {
+        selectAllEl.checked = checked === total && total > 0;
+        selectAllEl.indeterminate = checked > 0 && checked < total;
+    }
+};
+
+function getSelectedRoomIds() {
+    return Array.from(document.querySelectorAll('.admin-room-cb:checked'))
+        .map(cb => cb.dataset.roomId);
+}
+
+// ==========================================
+// Execute Admin Export
+// ==========================================
+window.executeAdminExport = async function () {
+    const selectedRoomIds = getSelectedRoomIds();
+
+    if (selectedRoomIds.length === 0) {
+        return Swal.fire('แจ้งเตือน', 'กรุณาเลือกอย่างน้อย 1 ห้อง', 'warning');
+    }
+
+    const visitedOnly = document.getElementById('admin-export-visited-only')?.checked || false;
+    const separateSheets = document.getElementById('admin-export-separate-sheets')?.checked !== false;
+
+    Swal.fire({ title: 'กำลังเตรียมข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        // ── 1. โหลด enrollments (กรองปีการศึกษาปัจจุบัน) ──
+        const { data: enrolls, error: enrollError } = await db.from('student_enrollments')
+            .select('student_number, student_id, classroom_id, core_students(id, student_id_card, prefix, first_name, last_name)')
+            .in('classroom_id', selectedRoomIds)
+            .eq('academic_year', currentYear)
+            .order('classroom_id').order('student_number');
+
+        if (enrollError) {
+            console.error('❌ enrollments error:', enrollError);
+            throw enrollError;
+        }
+
+        if (!enrolls || enrolls.length === 0) {
+            Swal.close();
+            return Swal.fire('ไม่มีข้อมูล', 'ไม่พบนักเรียนในห้องที่เลือก', 'info');
+        }
+
+        // ── 2. โหลด visits ผ่าน RPC (รองรับ 3,000+ คน) ──
+        const { data: visits, error: visitsError } = await db.rpc('get_home_visits_by_classrooms', {
+            p_year: currentYear,
+            p_classroom_ids: selectedRoomIds
+        });
+
+        if (visitsError) {
+            console.error('❌ RPC error:', visitsError);
+            throw visitsError;
+        }
+
+        console.log('🔍 [Export Debug]', {
+            rooms: selectedRoomIds.length,
+            enrolls: enrolls.length,
+            visits: visits?.length || 0,
+            currentYear
+        });
+
+        const visitMap = {};
+        (visits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        // ── 3. เตรียมข้อมูลห้อง ──
+        const roomMap = {};
+        const roomInfo = {};
+        _adminRoomsCache.forEach(c => {
+            roomMap[c.id] = `ม.${c.grade_level}/${c.room_number}`;
+            roomInfo[c.id] = {
+                grade: c.grade_level,
+                room: c.room_number,
+                label: `ม.${c.grade_level}/${c.room_number}`,
+                students: []
+            };
+        });
+
+        // ── 4. จัดกลุ่มนักเรียนตามห้อง ──
+        enrolls.forEach(e => {
+            const s = e.core_students;
+            const v = visitMap[s.id] || null;
+            const isVisited = v && v.visit_status === 'เยี่ยมแล้ว';
+
+            if (visitedOnly && !isVisited) return;
+
+            if (roomInfo[e.classroom_id]) {
+                roomInfo[e.classroom_id].students.push({ enroll: e, student: s, visit: v });
+            }
+        });
+
+        // ── 5. เตรียม header + row builder ──
+        const photoHeaders = ['URL รูปนักเรียน', 'URL รูปภายนอกบ้าน', 'URL รูปภายในบ้าน', 'URL รูปครู'];
+        const fullHeaders = ['ห้องเรียน'].concat(templateHeadersThai, photoHeaders);
+
+        const buildStudentRow = (e) => {
+            const s = e.student;
+            const v = e.visit;
+            const fullName = `${s.prefix || ''}${s.first_name} ${s.last_name}`.trim();
+            const baseRow = buildTemplateRowFromVisit(v || {}, s.student_id_card || '', fullName);
+            const photoUrls = v ? [
+                v.photo_student || '',
+                v.photo_outside || '',
+                v.photo_inside || '',
+                v.photo_teacher || ''
+            ] : ['', '', '', ''];
+            return baseRow.concat(photoUrls);
+        };
+
+        const wb = XLSX.utils.book_new();
+
+        // ── 6. Sheet สรุปรวม ──
+        const summaryRows = [fullHeaders];
+        let totalStudents = 0;
+
+        Object.values(roomInfo).forEach(room => {
+            room.students.forEach(st => {
+                summaryRows.push([room.label].concat(buildStudentRow(st)));
+                totalStudents++;
+            });
+        });
+
+        const wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+        wsSummary['!cols'] = fullHeaders.map(() => ({ wch: 22 }));
+        XLSX.utils.book_append_sheet(wb, wsSummary, 'สรุปรวม');
+
+        // ── 7. Sheet แยกต่อห้อง ──
+        if (separateSheets) {
+            Object.values(roomInfo).forEach(room => {
+                if (room.students.length === 0) return;
+
+                const rows = [fullHeaders];
+                room.students.forEach(st => {
+                    rows.push([room.label].concat(buildStudentRow(st)));
+                });
+
+                const ws = XLSX.utils.aoa_to_sheet(rows);
+                ws['!cols'] = fullHeaders.map(() => ({ wch: 22 }));
+
+                const sheetName = `ม.${room.grade}-${room.room}`.slice(0, 31);
+                XLSX.utils.book_append_sheet(wb, ws, sheetName);
+            });
+        }
+
+        // ── 8. Save ──
+        const fileName = visitedOnly
+            ? `เยี่ยมบ้าน_เฉพาะเยี่ยมแล้ว_${selectedRoomIds.length}ห้อง_ปี${currentYear}.xlsx`
+            : `เยี่ยมบ้าน_ทั้งโรงเรียน_${selectedRoomIds.length}ห้อง_ปี${currentYear}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+
+        Swal.close();
+        Swal.fire('สำเร็จ', `ส่งออก ${totalStudents} คน จาก ${selectedRoomIds.length} ห้อง`, 'success');
+        closeAdminExportModal();
+
+    } catch (err) {
+        console.error('executeAdminExport error:', err);
+        Swal.close();
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ==========================================
+// Admin Import — Step 1: อ่านไฟล์ + Preview
+// ==========================================
+window.triggerAdminImport = function () {
+    const selectedRoomIds = getSelectedRoomIds();
+
+    const fileInput = document.getElementById('adminSchoolFileInput');
+    if (fileInput) {
+        fileInput.value = '';
+        fileInput.dataset.filterRoomIds = JSON.stringify(selectedRoomIds);
+        fileInput.click();
+    }
+};
+
+// ==========================================
+// ✅ Preview Import
+// ==========================================
+async function previewImport(file, filterRoomIds) {
+    try {
+        Swal.fire({ title: 'กำลังอ่านไฟล์...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+        // ── 1. อ่าน Excel ──
+        const data = new Uint8Array(await file.arrayBuffer());
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+        if (rows.length < 2) throw new Error('ไฟล์ต้องมีอย่างน้อยหัวคอลัมน์และข้อมูล 1 แถว');
+
+        const headers = rows[0];
+        const dataRows = rows.slice(1);
+
+        // ── 2. โหลด enrollments (กรองปีการศึกษาปัจจุบัน) ──
+        let enrollQuery = db.from('student_enrollments')
+            .select('student_id, classroom_id, academic_year, core_students(student_id_card, prefix, first_name, last_name)')
+            .eq('academic_year', currentYear);
+
+        if (filterRoomIds.length > 0) {
+            enrollQuery = enrollQuery.in('classroom_id', filterRoomIds);
+        }
+
+        const { data: enrolls, error: enrollErr } = await enrollQuery;
+        if (enrollErr) throw enrollErr;
+
+        const studentMap = {};
+        (enrolls || []).forEach(e => {
+            if (e.core_students?.student_id_card) {
+                studentMap[e.core_students.student_id_card] = {
+                    id: e.student_id,
+                    classroom_id: e.classroom_id,
+                    name: `${e.core_students.prefix || ''}${e.core_students.first_name} ${e.core_students.last_name}`
+                };
+            }
+        });
+
+        // ── 3. โหลด visits ที่มีอยู่ ผ่าน RPC ──
+        const roomIdsForImport = filterRoomIds.length > 0
+            ? filterRoomIds
+            : [...new Set(Object.values(studentMap).map(s => s.classroom_id))];
+
+        const { data: existingVisits, error: visitErr } = await db.rpc('get_home_visits_by_classrooms', {
+            p_year: currentYear,
+            p_classroom_ids: roomIdsForImport
+        });
+
+        if (visitErr) throw visitErr;
+
+        console.log('🔍 [Preview Import Debug]', {
+            rooms: roomIdsForImport.length,
+            enrolls: enrolls?.length || 0,
+            visits: existingVisits?.length || 0
+        });
+
+        const visitMap = {};
+        (existingVisits || []).forEach(v => { visitMap[v.student_id] = v; });
+
+        // ── 4. โหลด room map ──
+        const roomIds = [...new Set(Object.values(studentMap).map(s => s.classroom_id))];
+        const { data: rooms } = await db.from('core_classrooms')
+            .select('id, grade_level, room_number')
+            .in('id', roomIds);
+        const roomMap = {};
+        (rooms || []).forEach(r => { roomMap[r.id] = `ม.${r.grade_level}/${r.room_number}`; });
+
+        // ── 5. สร้าง preview data ──
+        _importPreviewData = [];
+        let newCount = 0, overwriteCount = 0, notFoundCount = 0;
+
+        for (const row of dataRows) {
+            const studentIdCard = String(
+                row[headers.indexOf('รหัสนักเรียน')] ||
+                row[headers.indexOf('รหัสประจำตัว')] ||
+                ''
+            ).trim();
+
+            if (!studentIdCard) continue;
+
+            const stdInfo = studentMap[studentIdCard];
+            if (!stdInfo) {
+                notFoundCount++;
+                _importPreviewData.push({
+                    status: 'notfound',
+                    student_id_card: studentIdCard,
+                    name: '-',
+                    room: '-',
+                    changes: 'หารหัสไม่พบในระบบ'
+                });
+                continue;
+            }
+
+            const existing = visitMap[stdInfo.id];
+            if (existing) {
+                const newVisitDate = String(row[headers.indexOf('วันที่เยี่ยม')] || '').trim();
+                const newVisitStatus = String(row[headers.indexOf('สถานะการเยี่ยม')] || '').trim();
+                const newNickname = String(row[headers.indexOf('ชื่อเล่น')] || '').trim();
+
+                const changes = [];
+                if (newVisitDate && newVisitDate !== existing.visit_date?.split('T')[0]) changes.push('วันที่');
+                if (newVisitStatus && newVisitStatus !== existing.visit_status) changes.push('สถานะ');
+                if (newNickname && newNickname !== existing.student_nickname) changes.push('ชื่อเล่น');
+
+                overwriteCount++;
+                _importPreviewData.push({
+                    status: 'overwrite',
+                    student_id_card: studentIdCard,
+                    name: stdInfo.name,
+                    room: roomMap[stdInfo.classroom_id] || '-',
+                    changes: changes.length > 0 ? changes.join(', ') : '(ไม่มีการเปลี่ยนแปลง)',
+                    student_id: stdInfo.id,
+                    classroom_id: stdInfo.classroom_id,
+                    row_data: row,
+                    headers: headers
+                });
+            } else {
+                newCount++;
+                _importPreviewData.push({
+                    status: 'new',
+                    student_id_card: studentIdCard,
+                    name: stdInfo.name,
+                    room: roomMap[stdInfo.classroom_id] || '-',
+                    changes: 'สร้างใหม่',
+                    student_id: stdInfo.id,
+                    classroom_id: stdInfo.classroom_id,
+                    row_data: row,
+                    headers: headers
+                });
+            }
+        }
+
+        Swal.close();
+
+        // ── 6. เก็บ file + filter ──
+        _importFileCache = {
+            file: file,
+            filterRoomIds: filterRoomIds,
+            headers: headers
+        };
+
+        // ── 7. แสดง modal ──
+        const modal = document.getElementById('admin-import-preview-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        document.getElementById('preview-total').textContent = _importPreviewData.length;
+        document.getElementById('preview-new').textContent = newCount;
+        document.getElementById('preview-overwrite').textContent = overwriteCount;
+        document.getElementById('preview-notfound').textContent = notFoundCount;
+
+        _importPreviewFilter = 'all';
+        renderPreviewTable();
+
+    } catch (err) {
+        Swal.close();
+        console.error('previewImport error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+}
+
+window.closeImportPreviewModal = function () {
+    const modal = document.getElementById('admin-import-preview-modal');
+    if (modal) {
+        modal.classList.remove('flex');
+        modal.classList.add('hidden');
+    }
+};
+
+window.filterPreview = function (filter) {
+    _importPreviewFilter = filter;
+    // อัปเดต button states
+    ['all', 'new', 'overwrite', 'notfound'].forEach(f => {
+        const btn = document.getElementById(`preview-filter-${f}`);
+        if (!btn) return;
+        if (f === filter) {
+            btn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-indigo-600 text-white';
+        } else {
+            btn.className = 'px-4 py-2 rounded-xl text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200';
+        }
+    });
+    renderPreviewTable();
+};
+
+function renderPreviewTable() {
+    const tbody = document.getElementById('preview-tbody');
+    if (!tbody) return;
+
+    const filtered = _importPreviewFilter === 'all'
+        ? _importPreviewData
+        : _importPreviewData.filter(d => d.status === _importPreviewFilter);
+
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="p-4 text-center text-slate-400">ไม่มีข้อมูลในหมวดนี้</td></tr>';
+        return;
+    }
+
+    tbody.innerHTML = filtered.map((d, idx) => {
+        let statusBadge = '';
+        if (d.status === 'new') {
+            statusBadge = '<span class="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">รายการใหม่</span>';
+        } else if (d.status === 'overwrite') {
+            statusBadge = '<span class="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-full text-xs font-bold">เขียนทับ</span>';
+        } else {
+            statusBadge = '<span class="px-2 py-0.5 bg-rose-100 text-rose-700 rounded-full text-xs font-bold">ไม่พบรหัส</span>';
+        }
+
+        return `
+            <tr class="hover:bg-slate-50">
+                <td class="p-2 text-center font-mono text-xs">${idx + 1}</td>
+                <td class="p-2 font-mono text-xs">${d.student_id_card}</td>
+                <td class="p-2 font-bold text-slate-700">${d.name}</td>
+                <td class="p-2 text-center text-xs">${d.room}</td>
+                <td class="p-2 text-center">${statusBadge}</td>
+                <td class="p-2 text-center text-xs text-slate-500">${d.changes}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// ==========================================
+// ✅ Confirm Import — Step 2: นำเข้าจริง
+// ==========================================
+window.confirmImport = async function () {
+    if (!_importFileCache) {
+        return Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลไฟล์ กรุณาเลือกใหม่อีกครั้ง', 'error');
+    }
+
+    const importable = _importPreviewData.filter(d => d.status === 'new' || d.status === 'overwrite');
+
+    if (importable.length === 0) {
+        return Swal.fire('ไม่มีข้อมูล', 'ไม่มีรายการที่สามารถนำเข้าได้', 'info');
+    }
+
+    const result = await Swal.fire({
+        title: 'ยืนยันนำเข้า?',
+        html: `จะนำเข้า <b>${importable.length}</b> รายการ<br>
+               <span class="text-sm text-slate-500">(รายการใหม่ + เขียนทับ)</span>`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'ยืนยันนำเข้า',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#ea580c'
+    });
+
+    if (!result.isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังนำเข้า...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    try {
+        const { headers } = _importFileCache;
+        let successCount = 0, errorCount = 0;
+
+        for (const item of importable) {
+            try {
+                const formData = buildVisitDataFromRow(headers, item.row_data, item.student_id, item.classroom_id);
+                if (!formData) continue;
+
+                const { data: existing } = await db.from('module_home_visits')
+                    .select('id').eq('student_id', item.student_id)
+                    .eq('academic_year', currentYear)
+                    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+                let resError;
+                if (existing) {
+                    const { error } = await db.from('module_home_visits').update(formData).eq('id', existing.id);
+                    resError = error;
+                } else {
+                    const { error } = await db.from('module_home_visits').insert([formData]);
+                    resError = error;
+                }
+                if (resError) throw resError;
+                successCount++;
+            } catch (err) {
+                console.error('Import error for', item.student_id_card, err);
+                errorCount++;
+            }
+        }
+
+        Swal.close();
+        closeImportPreviewModal();
+        closeAdminExportModal();
+
+        await Swal.fire({
+            title: 'นำเข้าเสร็จสิ้น',
+            html: `สำเร็จ <b>${successCount}</b> รายการ${errorCount > 0 ? `<br><span class="text-rose-500">ผิดพลาด ${errorCount} รายการ</span>` : ''}`,
+            icon: 'success'
+        });
+
+        if (typeof loadDataTable === 'function') loadDataTable();
+
+    } catch (err) {
+        Swal.close();
+        console.error('confirmImport error:', err);
+        Swal.fire('ผิดพลาด', err.message, 'error');
+    }
+};
+
+// ==========================================
+// ✅ Init: ปุ่ม Admin Export/Import + Listener
+// ==========================================
+window.initAdminExportImport = function () {
+    // ✅ Topbar button แสดงตาม role
+    const topbarBtn = document.getElementById('btn-export-import-topbar');
+    if (topbarBtn) {
+        const canExportImport = ['super_admin', 'admin', 'module_admin', 'head_grade', 'head_discipline'].includes(currentUserRole);
+        topbarBtn.classList.toggle('hidden', !canExportImport);
+        topbarBtn.classList.toggle('flex', canExportImport);
+    }
+
+    // Listener file input (ผูกครั้งเดียว)
+    const adminSchoolInput = document.getElementById('adminSchoolFileInput');
+    if (adminSchoolInput && !adminSchoolInput.dataset.bound) {
+        adminSchoolInput.dataset.bound = '1';
+        adminSchoolInput.addEventListener('change', async function (event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const filterRoomIds = JSON.parse(event.target.dataset.filterRoomIds || '[]');
+
+            // ✅ เปลี่ยน: เรียก previewImport แทน import ตรงๆ
+            await previewImport(file, filterRoomIds);
+        });
+    }
+};

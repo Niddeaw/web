@@ -370,12 +370,14 @@
         <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300">&times;</button>
     </div>
 
-    <!-- ================= Scripts ================= -->
+    <    <!-- ================= Scripts ================= -->
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
+    <script src="info_student.js"></script>
 
     <!-- =======================================================
-         ✅ Init Module Sidebar — Student Info (Student Portal)
+         ✅ Init Module Sidebar — Student Info
          ======================================================= -->
     <script>
         // =======================================================
@@ -383,7 +385,7 @@
         // =======================================================
         function getInfoStudentFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -392,7 +394,7 @@
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
                 mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'student_index.html' }
+                    getSidebarAction('info_student', 'home')
                 ],
                 showAllDepartments: false,
                 departmentsTitle: '',
@@ -403,32 +405,22 @@
                         sectionId: 'sec-my-info',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-my-info', icon: 'fa-id-card', label: 'ข้อมูลของฉัน' }
-                        ]
+                        items: buildSidebarItems('info_student', ['myInfo'])
                     },
                     {
                         title: 'ทางลัด',
                         sectionId: 'sec-shortcuts',
                         collapsible: false,
                         defaultOpen: true,
-                        items: [
-                            { id: 'nav-shortcut-homevisit', icon: 'fa-house-chimney-user', label: 'เยี่ยมบ้านนักเรียน', href: 'homevisit_student.html' },
-                            { id: 'nav-shortcut-attend', icon: 'fa-calendar-check', label: 'สถิติการมาเรียน', onclick: "scrollToTab('tab2')" },
-                            { id: 'nav-shortcut-sdq', icon: 'fa-brain', label: 'ผลประเมิน SDQ/EQ', onclick: "scrollToTab('tab3')" },
-                            { id: 'nav-shortcut-club', icon: 'fa-people-group', label: 'ชุมนุมที่เรียน', onclick: "scrollToTab('tab4')" }
-                        ]
+                        items: buildSidebarItems('info_student', [
+                            'homevisit', 'attendance', 'sdq', 'club'
+                        ])
                     }
                 ],
                 footerMenuTitle: '',
                 footerCollapsible: false,
                 footerMenu: [],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                logoutItem: getSidebarAction('info_student', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -436,25 +428,6 @@
                 }
             };
         }
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (เรียกทุกครั้งหลัง re-render)
-        //     นักเรียน: ใช้ applyStudentToTopbar() ที่อยู่ใน info_student.js
-        // =======================================================
-        function refreshInfoStudentTopbarUI() {
-            // 1) วันที่
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { /* ignore */ }
-            }
-
-            // 2) ข้อมูลนักเรียน (ใช้ข้อมูลที่ info_student.js เก็บไว้)
-            try {
-                if (typeof applyStudentToTopbar === 'function' && window._cachedStudent) {
-                    applyStudentToTopbar(window._cachedStudent);
-                }
-            } catch (e) { /* ignore */ }
-        }
-        window.refreshInfoStudentTopbarUI = refreshInfoStudentTopbarUI;
 
         // =======================================================
         // ✅ Init Module Sidebar
@@ -465,15 +438,28 @@
             activeId: 'nav-my-info',
             topbarButtons: [],
             fallbackConfig: getInfoStudentFallbackConfig(),
-            waitRole: false,  // ✅ นักเรียนไม่มี role — ไม่ต้องรอ
+            waitRole: false,  // นักเรียนไม่มี role
             onReady: () => {
-                refreshInfoStudentTopbarUI();
-                setTimeout(refreshInfoStudentTopbarUI, 800);
+                if (typeof setTodayChip === 'function') setTodayChip();
             }
         });
     </script>
 
     <script src="info_student.js"></script>
+
+    <!-- ✅ Patch: scrollToTab helper -->
+    <script>
+        function scrollToTab(tabId) {
+            if (typeof switchTab === 'function') {
+                switchTab(tabId);
+                setTimeout(() => {
+                    const wrapper = document.querySelector('#studentDetailModal .glass-card');
+                    if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 100);
+            }
+        }
+        window.scrollToTab = scrollToTab;
+    </script>
 
     <!-- ✅ Patch: scrollToTab helper -->
     <script>

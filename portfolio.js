@@ -27,26 +27,19 @@ let globalEntries = [];
 let teacherSelectInstance = null;
 
 // ==========================================
-// ✅ ปุ่มนำทาง — portfolio (topbar + sidebar)
+// ✅ ปุ่มนำทาง — portfolio (topbar เท่านั้น)
+//    - Sidebar items (import/template/sheets/settings): ใช้ roles ใน actions → central filter
+//    - Topbar: toggleRoleView (admin only)
 // ==========================================
 window.refreshNavButtons = function () {
-    const role = window.currentUserRole || currentRole;
-    const isSuperAdmin = role === 'super_admin';
-
-    // ปุ่มสลับโหมด (topbar)
     const btnToggle = document.getElementById('btnToggleMode');
-    if (btnToggle) {
-        btnToggle.classList.toggle('hidden', !actualIsAdmin);
-        if (actualIsAdmin && typeof updateToggleModeUI === 'function') {
-            updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
-        }
-    }
+    if (!btnToggle) return;
 
-    // Sidebar: ตั้งค่า + นำเข้า — แสดงเฉพาะ super_admin
-    ['nav-settings', 'nav-import', 'nav-template', 'nav-sheets'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.classList.toggle('hidden', !isSuperAdmin);
-    });
+    btnToggle.classList.toggle('hidden', !actualIsAdmin);
+
+    if (actualIsAdmin && typeof updateToggleModeUI === 'function') {
+        updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
+    }
 };
 
 // ==========================================

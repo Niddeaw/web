@@ -12,6 +12,30 @@ let allPersonnel = [];
 let isSuperAdmin = false;
 
 // ==========================================
+// ✅ UI Toggle ตามสิทธิ์ (เฉพาะ Settings page)
+// ==========================================
+function updateUIBasedOnRole() {
+    const role = window.currentUserRole || (currentUser && currentUser.role) || null;
+    if (!role) return;
+
+    const canSeeAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
+    const isSuperAdmin = role === 'super_admin';
+
+    // Badge super_admin
+    const badge = document.getElementById('super-admin-badge');
+    if (badge) badge.classList.toggle('hidden', !isSuperAdmin);
+
+    // ปุ่มไป Dashboard
+    const btnDashboard = document.getElementById('btn-goto-dashboard');
+    if (btnDashboard) btnDashboard.classList.toggle('hidden', !canSeeAdmin);
+
+    // ปุ่มไป Admin
+    const btnAdmin = document.getElementById('btn-goto-admin');
+    if (btnAdmin) btnAdmin.classList.toggle('hidden', !canSeeAdmin);
+}
+window.updateUIBasedOnRole = updateUIBasedOnRole;
+
+// ==========================================
 // Init
 // ==========================================
 $(document).ready(async function () {
@@ -67,7 +91,7 @@ async function checkAuth() {
         isSuperAdmin = true;
         // หมายเหตุ: ไม่ต้อง $('nav-settings').removeClass('hidden') อีก
         //          เพราะ role filter ใน dashboard_sidebar.js จัดการให้แล้ว
-    } else {
+        } else {
         isSuperAdmin = false;
         await Swal.fire({
             icon: 'error',
@@ -77,10 +101,8 @@ async function checkAuth() {
         });
     }
 
-    // ✅ Refresh topbar UI หลังโหลดโปรไฟล์
-    if (typeof window.refreshEvaluationTopbarUI === 'function') {
-        try { window.refreshEvaluationTopbarUI(); } catch (e) { /* ignore */ }
-    }
+    // ✅ FIX: อัปเดต topbar buttons ตาม role (onReady รันก่อน role set)
+    updateUIBasedOnRole();
 }
 
 // ==========================================

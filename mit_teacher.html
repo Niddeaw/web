@@ -445,13 +445,12 @@
 
     <!-- Core scripts -->
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="dashboard_charts.js"></script>
-
-    <!-- Module script -->
     <script src="mit_teacher.js"></script>
 
-    <!-- =======================================================
+        <!-- =======================================================
          Fallback Config + Init Module Sidebar
          ======================================================= -->
     <script>
@@ -459,9 +458,8 @@
         const MODULE_NAME = 'ระบบประเมินพหุปัญญา (MI)';
 
         function getMIFallbackConfig() {
-            const adminRoles = ['super_admin', 'admin'];
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK MI',
@@ -469,23 +467,15 @@
                 },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'หน้าหลัก', href: 'index.html', icon_bg_color: '#64748b', icon_text_color: '#ffffff' },
-                    { id: 'nav-mi-dashboard', icon: 'fa-brain', label: 'แดชบอร์ด MI', onclick: "window.scrollTo({top:0,behavior:'smooth'})", class: 'active', icon_bg_color: '#8b5cf6', icon_text_color: '#ffffff' }
-                ],
+                mainMenu: buildSidebarItems('mit', ['home', 'miDashboard']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
                 moduleMenus: [],
                 footerMenuTitle: '',
                 footerCollapsible: false,
-                footerMenu: [],  // ✅ ไม่มี settings ที่นี่ — ย้ายไป Topbar แล้ว
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
+                footerMenu: [],
+                logoutItem: getSidebarAction('mit', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
                     icon: 'fa-brands fa-facebook',
@@ -524,6 +514,7 @@
             }
         });
     </script>
+</body>
 </body>
 
 </html>

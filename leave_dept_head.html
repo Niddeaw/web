@@ -130,47 +130,30 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_ui.js"></script>
+    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="leave_dept_head.js"></script>
 
     <script>
         function getLeaveDeptHeadFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
-                brand: {
-                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
-                    name: 'WRK Dept Head',
-                    subtitle: 'รับทราบการลาของครู'
-                },
+                iconStyle: 'outline',
+                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Dept Head', subtitle: 'รับทราบการลาของครู' },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: [
-                    { id: 'btn-pending', icon: 'fa-clock', label: 'รอรับทราบ', onclick: "switchTab('pending')", class: 'active' },
-                    { id: 'btn-done', icon: 'fa-check-circle', label: 'รับทราบแล้ว', onclick: "switchTab('done')" }
-                ],
+                mainMenu: buildSidebarItems('leave_dept_head', ['pending', 'done']),
                 showAllDepartments: false,
                 departmentsTitle: '',
                 departments: [],
                 moduleMenus: [],
                 footerMenuTitle: 'ระบบกลาง',
                 footerCollapsible: false,
-                footerMenu: [
-                    { id: 'nav-home', icon: 'fa-house', label: 'กลับหน้าหลัก', href: 'index.html' }
-                ],
-                logoutItem: {
-                    icon: 'fa-power-off',
-                    label: 'ออกจากระบบ',
-                    onclick: 'logout()',
-                    class: 'logout'
-                },
-                facebook: {
-                    href: 'https://www.facebook.com/WRKOfficial',
-                    icon: 'fa-brands fa-facebook',
-                    label: 'ติดตามเพจโรงเรียน'
-                }
+                footerMenu: buildSidebarItems('leave_dept_head', ['home']),
+                logoutItem: getSidebarAction('leave_dept_head', 'logout'),
+                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
             };
         }
 
@@ -179,20 +162,8 @@
             pageTitle: 'รับทราบการลา',
             activeId: 'btn-pending',
             topbarButtons: [
-                {
-                    id: 'btnNavTeacher',
-                    html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>',
-                    onclick: "window.location.href='leave_teacher.html'",
-                    class: 'hidden d-btn-mode teacher',
-                    title: 'ไปหน้าโหมดครู'
-                },
-                {
-                    id: 'btnNavAdmin',
-                    html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>',
-                    onclick: "window.location.href='leave_admin.html'",
-                    class: 'hidden d-btn-mode admin',
-                    title: 'ไปหน้าโหมดแอดมิน'
-                }
+                { id: 'btnNavTeacher', html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>', onclick: "window.location.href='leave_teacher.html'", class: 'hidden d-btn-mode teacher', title: 'ไปหน้าโหมดครู' },
+                { id: 'btnNavAdmin', html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>', onclick: "window.location.href='leave_admin.html'", class: 'hidden d-btn-mode admin', title: 'ไปหน้าโหมดแอดมิน' }
             ],
             fallbackConfig: getLeaveDeptHeadFallbackConfig(),
             onReady: () => {
@@ -202,5 +173,4 @@
         });
     </script>
 </body>
-
 </html>
