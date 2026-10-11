@@ -3,7 +3,8 @@
  * ✅ Template-compliant: initModuleSidebar + dashboard_sidebar.js + dashboard_ui.js
  * ✅ ใช้ฟังก์ชันกลาง: setUserDisplayName, renderUserAvatar, handleLogout
  * ✅ ปุ่มนำทางใน topbar ผ่าน refreshNavButtons()
- * Updated: 2026-10-06
+ * ✅ VERSION: ไม่กรองเทอม (semester) — ใช้ academic_year เท่านั้น
+ * Updated: 2026-10-11
  */
 
 // ==========================================
@@ -12,10 +13,10 @@
 let currentUser = null;
 let currentProfile = null;
 let currentYear = '';
-let currentTerm = '';
+let currentTerm = '';           // เก็บไว้ใช้ default (ไม่ใช้กรอง)
 let currentStep = 1;
-let actualRole = '';               // Role จริงจาก DB
-let currentViewRole = '';          // Role ที่กำลังแสดงผล
+let actualRole = '';            // Role จริงจาก DB
+let currentViewRole = '';       // Role ที่กำลังแสดงผล
 let moduleSettings = {};
 let tsClassroom = null;
 let tsTeacherAppoint = null;
@@ -124,9 +125,10 @@ async function checkAuth() {
 
         if (sInfo) {
             currentYear = sInfo.current_academic_year;
-            currentTerm = sInfo.current_semester;
+            currentTerm = sInfo.current_semester;   // เก็บไว้ใช้ default
             const termEl = document.getElementById('term-display');
-            if (termEl) termEl.innerText = `${currentTerm}/${currentYear}`;
+            // ✅ แสดงแค่ปีการศึกษา (ไม่แสดงเทอม)
+            if (termEl) termEl.innerText = `ปีการศึกษา ${currentYear}`;
         }
 
         // ✅ ตรวจสอบสิทธิ์ Module Admin
@@ -284,15 +286,15 @@ function applyModeUI() {
 }
 
 // ==========================================
-// 4. โหลดห้องเรียน
+// 4. โหลดห้องเรียน — ✅ ไม่กรองเทอม
 // ==========================================
 async function loadClassrooms() {
-    console.log('[loadClassrooms] currentViewRole:', currentViewRole, '| actualRole:', actualRole, '| year:', currentYear, '| term:', currentTerm);
+    console.log('[loadClassrooms] currentViewRole:', currentViewRole, '| actualRole:', actualRole, '| year:', currentYear);
 
+    // ✅ ลบ .eq('semester', currentTerm) ออก — ดึงทุกเทอมของปี
     let query = db.from('core_classrooms')
         .select('*')
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .order('grade_level', { ascending: true })
         .order('room_number', { ascending: true });
 
@@ -304,13 +306,23 @@ async function loadClassrooms() {
     const { data, error } = await query;
     if (error) return console.error("Load Classrooms Error:", error);
 
-    allClassrooms = data || [];
+    // ✅ ลบซ้ำ (กรณีมีห้องเดิมในหลายเทอม)
+    const uniqueClassrooms = [];
+    const seen = new Set();
+    (data || []).forEach(c => {
+        const key = `${c.grade_level}-${c.room_number}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            uniqueClassrooms.push(c);
+        }
+    });
+    allClassrooms = uniqueClassrooms;
 
     const select = document.getElementById('select-classroom');
     if (tsClassroom) tsClassroom.destroy();
 
     select.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>';
-    data.forEach(cls => {
+    uniqueClassrooms.forEach(cls => {
         select.innerHTML += `<option value="${cls.id}">ม.${cls.grade_level}/${cls.room_number}</option>`;
     });
 
@@ -414,7 +426,7 @@ function initJqueryThailand() {
 }
 
 // ==========================================
-// 7. โหลด / บันทึก / ล้างข้อมูลห้องเรียน
+// 7. โหลด / บันทึก / ล้างข้อมูลห้องเรียน — ✅ ไม่กรองเทอม
 // ==========================================
 async function loadClassroomData() {
     const classId = document.getElementById('select-classroom').value;
@@ -423,11 +435,11 @@ async function loadClassroomData() {
     Swal.fire({ title: 'กำลังดึงข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
     await generateForm();
 
+    // ✅ ลบ .eq('semester', currentTerm) ออก
     const { data, error } = await db.from('module_parent_network')
         .select('*')
         .eq('classroom_id', classId)
         .eq('academic_year', currentYear)
-        .eq('semester', currentTerm)
         .maybeSingle();
 
     if (data) {
@@ -495,10 +507,11 @@ async function clearRoomData() {
 
     if (result.isConfirmed) {
         Swal.fire({ title: 'กำลังลบ...', didOpen: () => Swal.showLoading() });
+
+        // ✅ ลบ .eq('semester', currentTerm) ออก
         const { error } = await db.from('module_parent_network').delete()
             .eq('classroom_id', classId)
-            .eq('academic_year', currentYear)
-            .eq('semester', currentTerm);
+            .eq('academic_year', currentYear);
 
         if (!error) {
             document.getElementById('network-form').reset();
@@ -515,7 +528,7 @@ async function clearRoomData() {
 }
 
 // ==========================================
-// 8. บันทึกข้อมูล & อัปโหลดรูป
+// 8. บันทึกข้อมูล & อัปโหลดรูป — ✅ ไม่กรองเทอม
 // ==========================================
 async function saveNetworkData(e) {
     e.preventDefault();
@@ -554,10 +567,10 @@ async function saveNetworkData(e) {
     });
 
     try {
+        // ✅ ลบ semester ออกจาก payload
         const payload = {
             classroom_id: classId,
             academic_year: currentYear,
-            semester: currentTerm,
             updated_at: new Date()
         };
 
@@ -586,8 +599,10 @@ async function saveNetworkData(e) {
         }
 
         Swal.update({ html: 'กำลังบันทึกข้อมูลลงฐานระบบ...' });
+
+        // ✅ เปลี่ยน onConflict — ไม่รวม semester
         const { error } = await db.from('module_parent_network').upsert(payload, {
-            onConflict: 'classroom_id,academic_year,semester'
+            onConflict: 'classroom_id,academic_year'
         });
 
         if (error) throw error;
@@ -907,7 +922,7 @@ function getGoogleDriveDirectUrl(url) {
 }
 
 // ==========================================
-// 11. DataTable & Dashboard
+// 11. DataTable & Dashboard — ✅ ไม่กรองเทอม
 // ==========================================
 async function getPersonnelMap() {
     if (personnelCache) return personnelCache;
@@ -934,10 +949,10 @@ async function loadDataTable() {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10"><i class="fas fa-spinner fa-spin mr-2"></i>กำลังดึงข้อมูล...</td></tr>';
 
     try {
+        // ✅ ลบ .eq('semester', currentTerm) ออก
         let classQuery = db.from('core_classrooms')
             .select('*')
             .eq('academic_year', currentYear)
-            .eq('semester', currentTerm)
             .order('grade_level')
             .order('room_number');
 
@@ -956,6 +971,7 @@ async function loadDataTable() {
             }
         }
 
+        // ✅ ลบ semester จาก networks query
         const [
             { data: classrooms, error: classErr },
             { data: networks, error: netErr },
@@ -964,16 +980,26 @@ async function loadDataTable() {
             classQuery,
             db.from('module_parent_network')
                 .select('classroom_id, pdf_url')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm),
+                .eq('academic_year', currentYear),
             getPersonnelMap()
         ]);
 
         if (classErr) throw classErr;
         if (netErr) throw netErr;
 
-        if (!classrooms || classrooms.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในความรับผิดชอบของภาคเรียนนี้</td></tr>';
+        // ✅ ลบซ้ำห้อง (กรณีมีในหลายเทอม)
+        const uniqueClassrooms = [];
+        const seen = new Set();
+        (classrooms || []).forEach(c => {
+            const key = `${c.grade_level}-${c.room_number}`;
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniqueClassrooms.push(c);
+            }
+        });
+
+        if (uniqueClassrooms.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center py-10 text-slate-400">ไม่พบข้อมูลห้องเรียนในความรับผิดชอบของปีนี้</td></tr>';
             renderDashboard(0, 0);
             return;
         }
@@ -985,7 +1011,7 @@ async function loadDataTable() {
 
         let actualCompletedCount = 0;
 
-        tbody.innerHTML = classrooms.map(cls => {
+        tbody.innerHTML = uniqueClassrooms.map(cls => {
             const room = `ม.${cls.grade_level}/${cls.room_number}`;
 
             const adv1 = staffMap[cls.adviser_id_1];
@@ -1050,7 +1076,7 @@ async function loadDataTable() {
             </tr>`;
         }).join('');
 
-        renderDashboard(classrooms.length, actualCompletedCount);
+        renderDashboard(uniqueClassrooms.length, actualCompletedCount);
 
     } catch (error) {
         console.error("Table Load Error:", error);
@@ -1108,6 +1134,7 @@ async function exportToExcel() {
     });
 
     try {
+        // ✅ ลบ semester
         const [
             { data: networkData, error: netError },
             { data: ghData },
@@ -1115,14 +1142,13 @@ async function exportToExcel() {
         ] = await Promise.all([
             db.from('module_parent_network')
                 .select('*, core_classrooms(id, grade_level, room_number, adviser_id_1, adviser_id_2)')
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm),
+                .eq('academic_year', currentYear),
             db.from('behavior_grade_heads').select('grade_level, teacher_id'),
             getPersonnelMap()
         ]);
 
         if (netError) throw netError;
-        if (!networkData?.length) return Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการบันทึกในเทอม/ปีการศึกษานี้', 'info');
+        if (!networkData?.length) return Swal.fire('ไม่พบข้อมูล', 'ไม่มีข้อมูลการบันทึกในปีการศึกษานี้', 'info');
 
         const gradeHeadMap = {};
         (ghData || []).forEach(gh => {
@@ -1187,7 +1213,7 @@ async function exportToExcel() {
         const ws = XLSX.utils.aoa_to_sheet(excelRows);
         ws['!cols'] = headers.map(() => ({ wch: 25 }));
         XLSX.utils.book_append_sheet(wb, ws, "NetworkReport");
-        XLSX.writeFile(wb, `รายงานเครือข่ายผู้ปกครอง_${currentTerm}_${currentYear}.xlsx`);
+        XLSX.writeFile(wb, `รายงานเครือข่ายผู้ปกครอง_${currentYear}.xlsx`);
 
         await logUserAction('ส่งออกรายงานเครือข่ายผู้ปกครอง (Excel)', 'parent_network');
         Swal.fire('สำเร็จ', 'ส่งออกไฟล์ Excel เรียบร้อยแล้ว', 'success');
@@ -1199,7 +1225,7 @@ async function exportToExcel() {
 }
 
 // ==========================================
-// 13. Navigation & PDF
+// 13. Navigation & PDF — ✅ ไม่กรองเทอม
 // ==========================================
 function switchTab(tabId) {
     document.getElementById('tab-form').classList.toggle('hidden', tabId !== 'form');
@@ -1247,12 +1273,12 @@ async function printPDF(classroomId, forceGenerate = false) {
     });
 
     try {
+        // ✅ ลบ .eq('semester', currentTerm) ออก
         const [{ data: network, error }, staffMap] = await Promise.all([
             db.from('module_parent_network')
                 .select('*, core_classrooms(grade_level, room_number, adviser_id_1, adviser_id_2)')
                 .eq('classroom_id', classroomId)
                 .eq('academic_year', currentYear)
-                .eq('semester', currentTerm)
                 .single(),
             getPersonnelMap()
         ]);
@@ -1287,9 +1313,10 @@ async function printPDF(classroomId, forceGenerate = false) {
             gradeHeadImage = ghObj.avatar_url || '';
         }
 
+        // ✅ เปลี่ยน {{TERM}} เป็น "ทั้งปี"
         const replacements = {
             "{{CLASSROOM}}": room,
-            "{{TERM}}": currentTerm,
+            "{{TERM}}": "ทั้งปี",
             "{{YEAR}}": currentYear,
             "{{ADVISER1}}": adviser1Name,
             "{{ADVISER2}}": adviser2Name,
@@ -1320,7 +1347,7 @@ async function printPDF(classroomId, forceGenerate = false) {
             action: 'generate_pdf',
             templateId: moduleSettings.slide_template_url,
             pdfFolderId: moduleSettings.gd_pdf_folder_id || moduleSettings.gd_folder_id,
-            fileName: `เครือข่าย_${room}_${currentTerm}_${currentYear}`,
+            fileName: `เครือข่าย_${room}_${currentYear}`,
             replacements
         };
 
@@ -1339,11 +1366,11 @@ async function printPDF(classroomId, forceGenerate = false) {
         }
 
         if (result.status === 'success' && result.url) {
+            // ✅ ลบ .eq('semester', currentTerm) ออก
             await db.from('module_parent_network')
                 .update({ pdf_url: result.url })
                 .eq('classroom_id', classroomId)
-                .eq('academic_year', currentYear)
-                .eq('semester', currentTerm);
+                .eq('academic_year', currentYear);
 
             await logUserAction(`สร้าง PDF เครือข่ายผู้ปกครองห้อง ${room}`, 'parent_network');
             Swal.close();
@@ -1381,4 +1408,4 @@ window.appointModuleAdmin = appointModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.loadDataTable = loadDataTable;
 
-console.log('✅ parents.js loaded (template-compliant + nav buttons)');
+console.log('✅ parents.js loaded (template-compliant + nav buttons + ไม่กรองเทอม)');
