@@ -219,7 +219,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบสารบรรณ (sarabun) ----------
+    // ---------- ระบบสารบรรณ (sarabun) ----------
     sarabun: {
         home: {
             id: 'nav-home',
@@ -242,7 +242,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-pen-to-square',
             label: 'จัดการหนังสือ',
             onclick: "switchSidebarView('adminView')",
-            roles: ['super_admin', 'admin', 'director', 'deputy'],  // ✅ central filter
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -251,7 +251,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-plus-circle',
             label: 'ลงรับหนังสือใหม่',
             onclick: "switchSidebarView('adminView', 'form')",
-            roles: ['super_admin', 'admin', 'director', 'deputy'],  // ✅ central filter
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
             icon_bg_color: '#10b981',
             icon_text_color: '#ffffff'
         },
@@ -260,7 +260,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-cog',
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettingsModal()',
-            roles: ['super_admin'],  // ✅ central filter
+            roles: ['super_admin', 'admin'],   // ✅ ใส่ admin ด้วย (ถ้าต้องการให้ admin เห็น)
             icon_bg_color: '#475569',
             icon_text_color: '#ffffff'
         },
@@ -452,7 +452,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ข้อมูลนักเรียน 360° (info_teacher) ----------
+    // ---------- ข้อมูลนักเรียน 360° (info_teacher) ----------
     info_teacher: {
         home: {
             id: 'nav-home',
@@ -486,7 +486,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบการลา (leave_admin) ----------
+    // ---------- ระบบการลา (leave_admin) ----------
     leave_admin: {
         dashboard: {
             id: 'btn-dashboard',
@@ -630,7 +630,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบจองห้องประชุม (meeting_room) ----------
+    // ---------- ระบบจองห้องประชุม (meeting_room) ----------
     meeting_room: {
         calendar: {
             id: 'nav-calendar',
@@ -664,7 +664,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบประเมินพหุปัญญา (mit) ----------
+    // ---------- ระบบประเมินพหุปัญญา (mit) ----------
     mit: {
         home: {
             id: 'nav-home',
@@ -690,7 +690,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบผู้ปกครองเครือข่าย (parent_network) ----------
+    // ---------- ระบบผู้ปกครองเครือข่าย (parent_network) ----------
     parent_network: {
         form: {
             id: 'nav-form',
@@ -724,7 +724,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบบริหารจัดการบุคลากร (personnel) ----------
+    // ---------- ระบบบริหารจัดการบุคลากร (personnel) ----------
     personnel: {
         home: {
             id: 'nav-home',
@@ -759,7 +759,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบแฟ้มสะสมผลงาน (portfolio) ----------
+    // ---------- ระบบแฟ้มสะสมผลงาน (portfolio) ----------
     portfolio: {
         dashboard: {
             id: 'nav-dashboard',
@@ -837,7 +837,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบงานทะเบียน (regis) ----------
+    // ---------- ระบบงานทะเบียน (regis) ----------
     regis: {
         dashboard: {
             id: 'nav-regis-dashboard',
@@ -881,7 +881,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบประเมินบุคลิกภาพ RIASEC (riasec) ----------
+    // ---------- ระบบประเมินบุคลิกภาพ RIASEC (riasec) ----------
     riasec: {
         home: {
             id: 'nav-home',
@@ -952,7 +952,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-        // ---------- ระบบ SDQ (sdq) ----------
+    // ---------- ระบบ SDQ (sdq) ----------
     sdq: {
         home: {
             id: 'nav-home',
@@ -996,7 +996,7 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
-    
+
     // ==========================================
     // ➕ เพิ่มโมดูลใหม่ที่นี่ (ที่เดียว ไม่ต้องแก้ HTML)
     // ==========================================

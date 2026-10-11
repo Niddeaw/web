@@ -85,8 +85,8 @@ function _readSidebarCache(moduleKey) {
         const raw = sessionStorage.getItem(`wrk_sidebar_cfg_${moduleKey}`);
         if (!raw) return null;
         const parsed = JSON.parse(raw);
-        // TTL 5 นาที
-        if (parsed.ts && Date.now() - parsed.ts < 5 * 60 * 1000) {
+        // ✅ TTL 30 วินาที (ลดจาก 5 นาที)
+        if (parsed.ts && Date.now() - parsed.ts < 30 * 1000) {
             return parsed.data;
         }
         return null;
@@ -944,6 +944,142 @@ function _escapeHtml(str) {
 function _escapeAttr(str) {
     return _escapeHtml(str);
 }
+
+// ==========================================
+// ✅ BroadcastChannel — Sync config ข้ามแท็บ
+// ==========================================
+(function initSidebarSyncChannel() {
+    try {
+        const bc = new BroadcastChannel('wrk_sidebar_sync');
+        
+        bc.onmessage = (event) => {
+            const { action, moduleKey } = event.data || {};
+            if (action === 'clear_cache') {
+                if (moduleKey) {
+                    // ล้างเฉพาะ module
+                    sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
+                    console.log(`🔄 Sync: ล้าง cache ของ "${moduleKey}"`);
+                } else {
+                    // ล้างทั้งหมด
+                    Object.keys(sessionStorage).forEach(k => {
+                        if (k.startsWith('wrk_sidebar_cfg_')) {
+                            sessionStorage.removeItem(k);
+                        }
+                    });
+                    console.log('🔄 Sync: ล้าง cache ทั้งหมด');
+                }
+                
+                // ✅ Reload หน้า (ถ้าไม่ได้อยู่ในหน้า admin)
+                if (!window.location.pathname.includes('sidebar_admin')) {
+                    setTimeout(() => window.location.reload(), 300);
+                }
+            }
+        };
+        
+        window._wrkSidebarSyncChannel = bc;
+        console.log('✅ Sidebar sync channel ready');
+    } catch (e) {
+        console.warn('⚠️ BroadcastChannel ไม่รองรับ:', e);
+    }
+})();
+
+// ==========================================
+// ✅ ฟังก์ชัน global — บรอดแคสต์ให้ทุกแท็บล้าง cache
+// ==========================================
+window.broadcastSidebarUpdate = function (moduleKey = null) {
+    try {
+        if (window._wrkSidebarSyncChannel) {
+            window._wrkSidebarSyncChannel.postMessage({
+                action: 'clear_cache',
+                moduleKey
+            });
+            console.log(`📡 Broadcasted: clear_cache (${moduleKey || 'all'})`);
+        }
+    } catch (e) {
+        console.warn('⚠️ Broadcast error:', e);
+    }
+    
+    // ล้าง cache ในแท็บปัจจุบันด้วย
+    if (moduleKey) {
+        sessionStorage.removeItem(`wrk_sidebar_cfg_${moduleKey}`);
+    } else {
+        Object.keys(sessionStorage).forEach(k => {
+            if (k.startsWith('wrk_sidebar_cfg_')) {
+                sessionStorage.removeItem(k);
+            }
+        });
+    }
+};
+
+// ==========================================
+// ✅ AUTO-SYNC: Re-render sidebar เมื่อ config + role พร้อม
+// ----------------------------------------------------
+// แก้ปัญหา: renderSidebar() อาจถูกเรียกก่อน role set
+//          → items ที่มี roles filter ถูกทิ้ง
+// ----------------------------------------------------
+// Logic: retry ทุก 200ms จนกว่าจะมี **ทั้ง config + role**
+// ==========================================
+(function autoRerenderOnRoleSet() {
+    let _lastAppliedRole = null;
+    let _attempts = 0;
+    const MAX_ATTEMPTS = 50;   // 10 วินาที
+
+    const _watch = setInterval(() => {
+        _attempts++;
+        const currentRole = window.currentUserRole;
+
+        // ✅ ต้องมีทั้ง config + role + ยังไม่ apply role นี้
+        if (_currentSidebarConfig && currentRole && _lastAppliedRole !== currentRole) {
+            _lastAppliedRole = currentRole;
+            console.log(`🔄 Auto-rerender sidebar (role: ${currentRole})`);
+
+            try {
+                renderSidebar(_currentSidebarConfig);
+                if (_currentActiveId) {
+                    setTimeout(() => setActiveNavItem(_currentActiveId), 50);
+                }
+                console.log('✅ Sidebar re-rendered successfully');
+            } catch (err) {
+                console.warn('⚠️ Re-render failed:', err);
+            }
+        }
+
+        // ✅ Timeout — เฉพาะกรณีที่ apply role ไปแล้ว
+        if (_lastAppliedRole && _attempts >= MAX_ATTEMPTS) {
+            clearInterval(_watch);
+        }
+
+        // ✅ Timeout — กรณีไม่เจอ role/config เลย
+        if (!_lastAppliedRole && _attempts >= MAX_ATTEMPTS) {
+            clearInterval(_watch);
+            console.warn('⚠️ Auto-rerender timeout: role หรือ config ไม่พร้อมใน 10 วินาที');
+        }
+    }, 200);
+
+    // ✅ Expose global
+    window.rerenderSidebar = function () {
+        if (_currentSidebarConfig) {
+            console.log('🔄 Manual rerender (role:', window.currentUserRole, ')');
+            renderSidebar(_currentSidebarConfig);
+            if (_currentActiveId) {
+                setTimeout(() => setActiveNavItem(_currentActiveId), 50);
+            }
+        } else {
+            console.warn('⚠️ rerenderSidebar: ไม่มี config');
+        }
+    };
+
+    // ✅ DEBUG: Expose getter ให้ console เข้าถึงได้
+    window.getSidebarState = function () {
+        return {
+            hasConfig: !!_currentSidebarConfig,
+            configKey: _currentSidebarConfig?.brand?.name || 'n/a',
+            currentRole: window.currentUserRole,
+            lastAppliedRole: _lastAppliedRole,
+            attempts: _attempts
+        };
+    };
+})();
 
 // ==========================================
 // Exports
