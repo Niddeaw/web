@@ -501,7 +501,7 @@ window.setActiveNavItem = function (id) {
 };
 
 // ==========================================
-// ✅ Render Topbar
+// ✅ Render Topbar (เวอร์ชันแก้ไข — รองรับ search + icon buttons)
 // ==========================================
 window.renderTopbar = function (options = {}) {
     const topbar = document.getElementById('dTopbar');
@@ -510,7 +510,10 @@ window.renderTopbar = function (options = {}) {
     const {
         pageTitle = '',
         buttons = [],
-        breadcrumb = []
+        breadcrumb = [],
+        search = null,              // ✅ ใหม่ — inline search input
+        showGlobalSearch = true,    // ✅ ใหม่ — ปุ่มค้นหา (GlobalSearch)
+        showNotification = true     // ✅ ใหม่ — ปุ่มแจ้งเตือน (NotificationCenter)
     } = options;
 
     const currentRole = window.currentUserRole || '';
@@ -532,7 +535,48 @@ window.renderTopbar = function (options = {}) {
         }).join('');
     }
 
-    // Buttons HTML
+    // ✅ Inline Search (ถ้าส่งมา)
+    let searchHtml = '';
+    if (search && search.id) {
+        searchHtml = `
+            <div class="d-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input id="${_escapeAttr(search.id)}"
+                       type="text"
+                       placeholder="${_escapeAttr(search.placeholder || 'ค้นหา...')}"
+                       ${search.oninput ? `oninput="${_escapeAttr(search.oninput)}"` : ''}
+                       ${search.onkeyup ? `onkeyup="${_escapeAttr(search.onkeyup)}"` : ''}
+                       ${search.value ? `value="${_escapeAttr(search.value)}"` : ''}
+                       autocomplete="off">
+            </div>
+        `;
+    }
+
+    // ✅ Icon Buttons (ค้นหา + แจ้งเตือน)
+    let iconButtonsHtml = '';
+
+    if (showGlobalSearch) {
+        iconButtonsHtml += `
+            <button class="d-icon-btn"
+                    onclick="if(window.GlobalSearch)GlobalSearch.open()"
+                    title="ค้นหา (Ctrl+K)">
+                <i class="fa-solid fa-magnifying-glass"></i>
+            </button>
+        `;
+    }
+
+    if (showNotification) {
+        iconButtonsHtml += `
+            <button class="d-icon-btn"
+                    onclick="if(window.NotificationCenter)NotificationCenter.open()"
+                    title="การแจ้งเตือน">
+                <i class="fa-solid fa-bell"></i>
+                <span id="wrkNotifBadge" class="d-notif-badge hidden">0</span>
+            </button>
+        `;
+    }
+
+    // Buttons HTML (ของเดิม)
     let buttonsHtml = '';
     if (buttons.length > 0) {
         buttonsHtml = buttons.map(btn => {
@@ -564,15 +608,19 @@ window.renderTopbar = function (options = {}) {
 
         ${breadcrumbHtml ? `<div class="hidden md:flex items-center text-xs ml-2">${breadcrumbHtml}</div>` : ''}
 
+        ${searchHtml}
+
         <div class="d-spacer"></div>
+
+        ${iconButtonsHtml}
 
         ${buttonsHtml}
 
-        <!-- Settings Button (แสดงเฉพาะผู้มีสิทธิ์) -->
+        <!-- Settings Button -->
         <div class="d-settings-wrap">
             <button class="d-settings-btn ${canManageSettings ? '' : 'hidden'}" 
                     id="admin-settings-btn"
-                    onclick="if(typeof openSettingsModal==='function')openSettingsModal()"
+                    onclick="if(typeof openSettingsModal==='function')openSettingsModal();else if(typeof openDisplaySettingsModal==='function')openDisplaySettingsModal()"
                     title="ตั้งค่าการแสดงผล">
                 <i class="fa-solid fa-sliders"></i>
                 <span class="hidden sm:inline">แสดงผล</span>
@@ -613,7 +661,7 @@ window.renderTopbar = function (options = {}) {
         </div>
     `;
 
-    // ✅ Restore collapse icon state
+    // Restore collapse icon state
     const collapsed = document.body.classList.contains('sidebar-collapsed');
     const collapseBtn = document.getElementById('collapseBtn');
     if (collapseBtn && collapsed) {
@@ -624,7 +672,7 @@ window.renderTopbar = function (options = {}) {
         }
     }
 
-    // ✅ Apply user info
+    // Apply user info
     if (window.currentProfile) {
         setUserDisplayName(window.currentProfile);
         renderUserAvatar(window.currentProfile);
@@ -633,10 +681,16 @@ window.renderTopbar = function (options = {}) {
         updateUserRoleLabel(window.currentUserRole);
     }
 
-    // ✅ Apply date
     setTodayChip();
 
-    // ✅ Hook: เรียก callback หลัง render เสร็จ
+    // ✅ อัปเดต badge หลัง render เสร็จ
+    setTimeout(() => {
+        if (window.NotificationCenter && typeof NotificationCenter._updateBadge === 'function') {
+            try { NotificationCenter._updateBadge(); } catch (e) {}
+        }
+    }, 300);
+
+    // Hook: เรียก callback หลัง render เสร็จ
     if (typeof window.onTopbarRendered === 'function') {
         try { window.onTopbarRendered(); } catch (e) { /* ignore */ }
     }

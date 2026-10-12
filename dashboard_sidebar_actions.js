@@ -996,6 +996,41 @@ window.WRK_SIDEBAR_ACTIONS = {
         }
     },
 
+    // ---------- ระบบขอไปราชการ (government_trip) ----------
+    government_trip: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
+        teacher: {
+            id: 'nav-trip-teacher',
+            icon: 'fa-plane-departure',
+            label: 'ขอไปราชการ',
+            href: 'government_trip_teacher.html',
+            icon_bg_color: '#0ea5e9',
+            icon_text_color: '#ffffff'
+        },
+        // ✅ ลบ deptHead ออก — ใช้ topbar button แทน
+        admin: {
+            id: 'nav-trip-admin',
+            icon: 'fa-user-shield',
+            label: 'จัดการระบบ (Admin)',
+            href: 'government_trip_admin.html',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            icon_bg_color: '#ef4444',
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
+        }
+    },
 
     // ==========================================
     // ➕ เพิ่มโมดูลใหม่ที่นี่ (ที่เดียว ไม่ต้องแก้ HTML)

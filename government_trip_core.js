@@ -431,7 +431,7 @@ window.generateTripPDF = async function (id, systemSettings) {
             headName = `${h.prefix || ''}${h.first_name} ${h.last_name}`;
         }
 
-        const thMonths = window.getTripThaiMonths();
+                const thMonths = window.getTripThaiMonths();
         const sDate = new Date(trip.start_date);
         const eDate = new Date(trip.end_date);
         const writeDate = trip.submitted_date ? new Date(trip.submitted_date) : new Date(trip.created_at);
@@ -439,10 +439,104 @@ window.generateTripPDF = async function (id, systemSettings) {
         const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
         const fullPosition = `${p.position || ''}${p.rank ? ' ' + p.rank : ''}${p.academic_standing ? ' ' + p.academic_standing : ''}`;
 
+        // ==========================================
+        // ✅ ดึงข้อมูลผู้ร่วมเดินทาง
+        // ==========================================
+        const companions = await window.fetchTripCompanions(trip);
+        const companionHtml = window.buildCompanionsHtml(companions);
+
+        // ==========================================
+        // ✅ Helper: แปลง Time (HH:MM:SS) → "HH.MM น."
+        // ==========================================
+        const formatTime = (t) => {
+            if (!t) return '-';
+            const parts = String(t).split(':');
+            return `${parts[0]}.${parts[1]} น.`;
+        };
+
+        // ==========================================
+        // ✅ Helper: แปลงวันที่สำหรับแสดงในบริบทต่างๆ
+        // ==========================================
+        const fmtDateThai = (iso) => {
+            if (!iso) return '-';
+            const d = new Date(iso);
+            if (isNaN(d.getTime())) return '-';
+            return `${d.getDate()} ${thMonths[d.getMonth()]} ${d.getFullYear() + 543}`;
+        };
+
+        // ==========================================
+        // ✅ Purpose (ความประสงค์)
+        // ==========================================
+        const purposeText = trip.purpose || '-';
+        const purposeOtherText = trip.purpose_other || '';
+
+        // ตัวเลือกติ๊กถูก/ไม่ติ๊กถูก สำหรับเช็คบ็อกซ์
+        const checkPurpose = (val) => (trip.purpose === val ? '☑' : '☐');
+        const checkPurposeMeeting = checkPurpose('เข้าร่วมประชุม/อบรม/สัมมนา');
+        const checkPurposeStudy = checkPurpose('ศึกษาดูงาน');
+        const checkPurposeSpeaker = checkPurpose('เป็นวิทยากร');
+        const checkPurposeOther = checkPurpose('อื่นๆ');
+
+        // ==========================================
+        // ✅ Companion counts
+        // ==========================================
+        const companionTotal = companions.total || 1;
+        const companionTeachersCount = companions.teachers.length;
+        const companionStudentsCount = companions.students.length;
+        const hasCompanions = companionTotal > 1;
+        const hasCompanionsText = hasCompanions ? 'มี' : 'ไม่มี';
+
+        // ==========================================
+        // ✅ Companion: รายชื่อครู (comma-separated)
+        // ==========================================
+        const companionTeachersNames = companions.teachers.length > 0
+            ? companions.teachers.map(t => t.name).join(', ')
+            : '-';
+
+        // ==========================================
+        // ✅ Companion: รายชื่อนักเรียน (comma-separated)
+        // ==========================================
+        const companionStudentsNames = companions.students.length > 0
+            ? companions.students.map(s => `${s.name} (${s.class_text})`).join(', ')
+            : '-';
+
+        // ==========================================
+        // ✅ Doc date
+        // ==========================================
+        const docDateText = trip.doc_date ? fmtDateThai(trip.doc_date) : '-';
+
+        // ==========================================
+        // ✅ Depart / Return
+        // ==========================================
+        const departFromDateText = trip.depart_from_date ? fmtDateThai(trip.depart_from_date) : '-';
+        const returnToDateText = trip.return_to_date ? fmtDateThai(trip.return_to_date) : '-';
+        const departFromTimeText = formatTime(trip.depart_from_time);
+        const returnToTimeText = formatTime(trip.return_to_time);
+
+        // ==========================================
+        // ✅ Req (ขอความอนุเคราะห์)
+        // ==========================================
+        const reqOfficialText = trip.req_official_letter ? '☑' : '☐';
+        const reqParentText = trip.req_parent_notice ? '☑' : '☐';
+        const reqTravelExpenseText = trip.req_travel_expense ? '☑' : '☐';
+        const reqSchoolCarText = trip.req_school_car ? '☑' : '☐';
+        const reqOtherText = trip.req_other ? '☑' : '☐';
+        const travelExpenseAmountText = trip.travel_expense_amount
+            ? Number(trip.travel_expense_amount).toLocaleString('th-TH')
+            : '-';
+        const reqOtherDetail = trip.req_other_text || '';
+
+        // ==========================================
+        // ✅ REPLACEMENTS
+        // ==========================================
         const replacements = {
+            // ---------- วันที่เขียนใบ ----------
             '{{W_DAY}}': writeDate.getDate().toString(),
             '{{W_MONTH}}': thMonths[writeDate.getMonth()],
             '{{W_YEAR}}': (writeDate.getFullYear() + 543).toString(),
+            '{{WRITE_DATE}}': `${writeDate.getDate()} ${thMonths[writeDate.getMonth()]} ${writeDate.getFullYear() + 543}`,
+
+            // ---------- วันเริ่ม/สิ้นสุด ----------
             '{{START_D}}': sDate.getDate().toString(),
             '{{START_M}}': thMonths[sDate.getMonth()],
             '{{START_Y}}': (sDate.getFullYear() + 543).toString(),
@@ -452,26 +546,81 @@ window.generateTripPDF = async function (id, systemSettings) {
             '{{START_DATE}}': window.formatTripDateThai(trip.start_date),
             '{{END_DATE}}': window.formatTripDateThai(trip.end_date),
             '{{TOTAL_DAYS}}': trip.total_days.toString(),
+
+            // ---------- โรงเรียน / ผู้ขอ ----------
             '{{SCHOOL_NAME}}': schoolName,
             '{{FULL_NAME}}': fullName,
             '{{POSITION}}': p.position || '-',
+            '{{RANK}}': p.rank || '',
+            '{{ACADEMIC_STANDING}}': p.academic_standing || '',
             '{{FULL_POSITION}}': fullPosition,
             '{{DEPARTMENT}}': p.department || '-',
+
+            // ---------- ความประสงค์ ----------
+            '{{PURPOSE}}': purposeText,
+            '{{PURPOSE_OTHER}}': purposeOtherText,
+            '{{CHECK_PURPOSE_MEETING}}': checkPurposeMeeting,
+            '{{CHECK_PURPOSE_STUDY}}': checkPurposeStudy,
+            '{{CHECK_PURPOSE_SPEAKER}}': checkPurposeSpeaker,
+            '{{CHECK_PURPOSE_OTHER}}': checkPurposeOther,
+
+            // ---------- รายละเอียดการไป ----------
             '{{TRIP_TYPE}}': trip.trip_type || 'ไปราชการ',
             '{{TITLE}}': trip.title,
             '{{OBJECTIVE}}': trip.objective || '-',
             '{{LOCATION}}': trip.location || '-',
+
+            // ---------- หนังสือราชการ ----------
+            '{{DOC_NUMBER}}': trip.doc_number || '-',
+            '{{DOC_DATE}}': docDateText,
+
+            // ---------- การเดินทาง ----------
             '{{TRAVEL_BY}}': trip.travel_by || '-',
+            '{{TRAVEL_VEHICLE}}': trip.travel_vehicle || '-',
             '{{VEHICLE}}': trip.vehicle_registration || '-',
+            '{{DEPART_FROM_DATE}}': departFromDateText,
+            '{{DEPART_FROM_TIME}}': departFromTimeText,
+            '{{RETURN_TO_DATE}}': returnToDateText,
+            '{{RETURN_TO_TIME}}': returnToTimeText,
+
+            // ---------- งบประมาณ ----------
             '{{BUDGET_SOURCE}}': trip.budget_source || '-',
-            '{{BUDGET_AMOUNT}}': trip.budget_amount ? Number(trip.budget_amount).toLocaleString('th-TH') : '-',
+            '{{BUDGET_AMOUNT}}': trip.budget_amount
+                ? Number(trip.budget_amount).toLocaleString('th-TH')
+                : '-',
+
+            // ---------- ขอความอนุเคราะห์ ----------
+            '{{REQ_OFFICIAL_LETTER}}': reqOfficialText,
+            '{{REQ_PARENT_NOTICE}}': reqParentText,
+            '{{REQ_TRAVEL_EXPENSE}}': reqTravelExpenseText,
+            '{{TRAVEL_EXPENSE_AMOUNT}}': travelExpenseAmountText,
+            '{{REQ_SCHOOL_CAR}}': reqSchoolCarText,
+            '{{REQ_OTHER}}': reqOtherText,
+            '{{REQ_OTHER_TEXT}}': reqOtherDetail,
+
+            // ---------- ติดต่อ ----------
             '{{CONTACT_PHONE}}': trip.contact_phone || '-',
             '{{CONTACT_ADDRESS}}': trip.contact_address || '-',
+
+            // ---------- ผู้ร่วมเดินทาง (Companions) ----------
+            '{{HAS_COMPANIONS}}': hasCompanionsText,
+            '{{COMPANION_COUNT}}': companionTotal.toString(),
+            '{{COMPANION_TEACHERS_COUNT}}': companionTeachersCount.toString(),
+            '{{COMPANION_STUDENTS_COUNT}}': companionStudentsCount.toString(),
+            '{{COMPANION_TEACHERS_NAMES}}': companionTeachersNames,
+            '{{COMPANION_STUDENTS_NAMES}}': companionStudentsNames,
+            '{{COMPANION_LIST_HTML}}': companionHtml,
+
+            // ---------- ผู้ลงนาม ----------
             '{{HEAD_NAME}}': headName || '...................................................',
             '{{DEPUTY_ACADEMIC_NAME}}': deputyAcademicName,
             '{{DEPUTY_HR_NAME}}': deputyHrName,
             '{{DIRECTOR_NAME}}': directorName,
-            '{{PERSONNEL_SIGNATURE_IMAGE}}': p.signature_file_id ? `https://drive.google.com/uc?id=${p.signature_file_id}` : ''
+
+            // ---------- ลายเซ็น ----------
+            '{{PERSONNEL_SIGNATURE_IMAGE}}': p.signature_file_id
+                ? `https://drive.google.com/uc?id=${p.signature_file_id}`
+                : ''
         };
 
         const payload = {
@@ -513,6 +662,139 @@ window.generateTripPDF = async function (id, systemSettings) {
         Swal.fire('ผิดพลาด', errorMsg, 'error');
         return false;
     }
+};
+
+// ==========================================
+// ✅ Helper: ดึงข้อมูลผู้ร่วมเดินทาง
+// ==========================================
+window.fetchTripCompanions = async function (trip) {
+    const result = { teachers: [], students: [], total: 0 };
+    
+    try {
+        // 1. ดึงครู
+        const teacherIds = Array.isArray(trip.companion_teachers) ? trip.companion_teachers : [];
+        if (teacherIds.length > 0) {
+            const { data: teachers } = await window.db.from('core_personnel')
+                .select('id, prefix, first_name, last_name, position, department')
+                .in('id', teacherIds);
+            
+            // เรียงตามลำดับที่เลือกไว้
+            result.teachers = teacherIds
+                .map(id => (teachers || []).find(t => t.id === id))
+                .filter(Boolean)
+                .map(t => ({
+                    id: t.id,
+                    name: `${t.prefix || ''}${t.first_name} ${t.last_name}`,
+                    position: t.position || '',
+                    department: t.department || ''
+                }));
+        }
+        
+        // 2. ดึงนักเรียน + enrollment ปัจจุบัน
+        const studentIds = Array.isArray(trip.companion_students) ? trip.companion_students : [];
+        if (studentIds.length > 0) {
+            // ดึง core_students
+            const { data: students } = await window.db.from('core_students')
+                .select('id, prefix, first_name, last_name, student_id_card')
+                .in('id', studentIds);
+            
+            // ดึง enrollment ล่าสุดของแต่ละคน
+            const { data: enrolls } = await window.db.from('student_enrollments')
+                .select(`
+                    student_id, student_number,
+                    core_classrooms(grade_level, room_number),
+                    academic_year, semester
+                `)
+                .in('student_id', studentIds)
+                .order('academic_year', { ascending: false })
+                .order('semester', { ascending: false });
+            
+            const enrollMap = {};
+            (enrolls || []).forEach(e => {
+                if (!enrollMap[e.student_id]) enrollMap[e.student_id] = e;
+            });
+            
+            result.students = studentIds
+                .map(id => (students || []).find(s => s.id === id))
+                .filter(Boolean)
+                .map(s => {
+                    const enr = enrollMap[s.id];
+                    const cls = enr?.core_classrooms;
+                    return {
+                        id: s.id,
+                        name: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                        student_id_card: s.student_id_card || '',
+                        class_text: cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-',
+                        student_number: enr?.student_number || '-'
+                    };
+                });
+        }
+        
+        result.total = 1 + result.teachers.length + result.students.length;
+        return result;
+    } catch (err) {
+        console.error('fetchTripCompanions error:', err);
+        return result;
+    }
+};
+
+// ==========================================
+// ✅ Helper: สร้าง HTML รายชื่อ (สำหรับ PDF)
+// ==========================================
+window.buildCompanionsHtml = function (companions) {
+    if (!companions || companions.total <= 1) return '';
+    
+    let html = '';
+    
+    // ส่วนที่ 1: ครู
+    if (companions.teachers.length > 0) {
+        html += `<div style="margin-top:8px;padding:6px;background:#f0f9ff;border-left:3px solid #0ea5e9;border-radius:4px;">
+            <div style="font-weight:bold;font-size:12px;color:#0369a1;margin-bottom:4px;">
+                👨‍🏫 ครูผู้ร่วมเดินทาง (${companions.teachers.length} คน)
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="background:#e0f2fe;">
+                    <th style="padding:3px;border:1px solid #bae6fd;text-align:center;width:40px;">ที่</th>
+                    <th style="padding:3px;border:1px solid #bae6fd;text-align:left;">ชื่อ-สกุล</th>
+                    <th style="padding:3px;border:1px solid #bae6fd;text-align:left;">ตำแหน่ง/กลุ่มสาระ</th>
+                </tr></thead>
+                <tbody>`;
+        companions.teachers.forEach((t, idx) => {
+            html += `<tr>
+                <td style="padding:3px;border:1px solid #e0f2fe;text-align:center;">${idx + 1}</td>
+                <td style="padding:3px;border:1px solid #e0f2fe;">${t.name}</td>
+                <td style="padding:3px;border:1px solid #e0f2fe;">${t.position}${t.department ? ` (${t.department})` : ''}</td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+    
+    // ส่วนที่ 2: นักเรียน
+    if (companions.students.length > 0) {
+        html += `<div style="margin-top:8px;padding:6px;background:#f0fdf4;border-left:3px solid #10b981;border-radius:4px;">
+            <div style="font-weight:bold;font-size:12px;color:#065f46;margin-bottom:4px;">
+                🎓 นักเรียนผู้ร่วมเดินทาง (${companions.students.length} คน)
+            </div>
+            <table style="width:100%;border-collapse:collapse;font-size:11px;">
+                <thead><tr style="background:#d1fae5;">
+                    <th style="padding:3px;border:1px solid #a7f3d0;text-align:center;width:40px;">ที่</th>
+                    <th style="padding:3px;border:1px solid #a7f3d0;text-align:left;">ชื่อ-สกุล</th>
+                    <th style="padding:3px;border:1px solid #a7f3d0;text-align:center;width:80px;">ชั้น</th>
+                    <th style="padding:3px;border:1px solid #a7f3d0;text-align:center;width:60px;">เลขที่</th>
+                </tr></thead>
+                <tbody>`;
+        companions.students.forEach((s, idx) => {
+            html += `<tr>
+                <td style="padding:3px;border:1px solid #d1fae5;text-align:center;">${idx + 1}</td>
+                <td style="padding:3px;border:1px solid #d1fae5;">${s.name}</td>
+                <td style="padding:3px;border:1px solid #d1fae5;text-align:center;">${s.class_text}</td>
+                <td style="padding:3px;border:1px solid #d1fae5;text-align:center;">${s.student_number}</td>
+            </tr>`;
+        });
+        html += `</tbody></table></div>`;
+    }
+    
+    return html;
 };
 
 console.log('✅ government_trip_core.js loaded (ฉบับสมบูรณ์ + academic ack)');

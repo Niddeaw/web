@@ -12,19 +12,31 @@
     <link rel="stylesheet" href="dashboard.css">
 
     <style>
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
-        .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
 
         .info-card {
             transition: box-shadow 0.15s ease, transform 0.15s ease;
         }
+
         .info-card:hover {
             box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
             transform: translateY(-1px);
         }
 
-        .upload-spinner { display: none; }
-        .upload-spinner.active { display: flex; }
+        .upload-spinner {
+            display: none;
+        }
+
+        .upload-spinner.active {
+            display: flex;
+        }
 
         /* Profile hero modal */
         .profile-hero {
@@ -32,20 +44,26 @@
             position: relative;
             overflow: hidden;
         }
+
         .profile-hero::before {
             content: '';
             position: absolute;
-            top: -50%; right: -20%;
-            width: 400px; height: 400px;
-            background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%);
+            top: -50%;
+            right: -20%;
+            width: 400px;
+            height: 400px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.15) 0%, transparent 70%);
             pointer-events: none;
         }
+
         .profile-hero::after {
             content: '';
             position: absolute;
-            bottom: -60%; left: -10%;
-            width: 300px; height: 300px;
-            background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+            bottom: -60%;
+            left: -10%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
             pointer-events: none;
         }
 
@@ -64,14 +82,18 @@
             letter-spacing: 0.03em;
             border-bottom: 1px solid #e2e8f0;
         }
+
         #studentDataTable tbody tr:hover {
             background-color: #f8fafc;
         }
 
         /* ซ่อนข้อความบนปุ่ม topbar ในมือถือ (เผื่อ universal rule ไม่ครอบ) */
         @media (max-width: 760px) {
-            .d-topbar #btnToggleMode > span,
-            .d-topbar #btnSettings > span { display: none !important; }
+
+            .d-topbar #btnToggleMode>span,
+            .d-topbar #btnSettings>span {
+                display: none !important;
+            }
         }
     </style>
 </head>
@@ -96,7 +118,8 @@
                 <!-- Info bar -->
                 <div class="glass-card rounded-2xl p-4 flex justify-between items-center flex-wrap gap-3">
                     <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200">
+                        <div
+                            class="w-10 h-10 rounded-xl bg-gradient-to-br from-green-500 to-emerald-600 text-white flex items-center justify-center shadow-md shadow-green-200">
                             <i class="fa-solid fa-user-graduate"></i>
                         </div>
                         <div>
@@ -104,7 +127,9 @@
                             <p id="pageBadge" class="text-xs text-slate-500">มุมมองครูที่ปรึกษา (Teacher View)</p>
                         </div>
                     </div>
-                    <div id="termDisplay" class="text-xs font-bold text-green-600 px-3 py-1.5 bg-green-50 rounded-xl border border-green-100"></div>
+                    <div id="termDisplay"
+                        class="text-xs font-bold text-green-600 px-3 py-1.5 bg-green-50 rounded-xl border border-green-100">
+                    </div>
                 </div>
 
                 <!-- Admin dropdown -->
@@ -157,7 +182,8 @@
     <div id="settingsModal"
         class="hidden fixed inset-0 bg-slate-900/50 z-[200] flex items-center justify-center backdrop-blur-sm">
         <div class="bg-white w-full max-w-md mx-4 rounded-3xl shadow-2xl overflow-hidden">
-            <div class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4 flex justify-between items-center">
+            <div
+                class="bg-gradient-to-r from-amber-500 to-orange-500 text-white px-6 py-4 flex justify-between items-center">
                 <div class="flex items-center gap-3">
                     <div class="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
                         <i class="fa-solid fa-gear text-lg"></i>
@@ -184,8 +210,7 @@
                     <label class="block text-sm font-bold text-slate-700 mb-1.5">
                         <i class="fa-brands fa-google-drive text-green-600 mr-1"></i> Google Drive Folder ID
                     </label>
-                    <input type="text" id="settingsFolderId"
-                        placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
+                    <input type="text" id="settingsFolderId" placeholder="1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgVE2upms"
                         class="w-full border border-slate-300 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-amber-500 focus:ring-2 focus:ring-amber-100 transition font-mono" />
                     <p class="text-xs text-slate-400 mt-1">ID โฟลเดอร์ Google Drive สำหรับเก็บรูปโปรไฟล์</p>
                 </div>
@@ -210,7 +235,8 @@
     <!-- ================= Student Detail Modal ================= -->
     <div id="studentDetailModal"
         class="hidden fixed inset-0 bg-slate-900/60 z-[100] flex items-center justify-center backdrop-blur-sm transition-opacity">
-        <div class="bg-white w-full h-full md:w-[95vw] md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
+        <div
+            class="bg-white w-full h-full md:w-[95vw] md:h-[95vh] md:rounded-3xl shadow-2xl flex flex-col overflow-hidden relative">
 
             <!-- Header bar -->
             <div class="bg-slate-800 text-white px-6 py-3 flex justify-between items-center shrink-0">
@@ -220,14 +246,16 @@
                     </div>
                     <span class="font-bold text-sm">Student 360° Report</span>
                 </div>
-                <button onclick="closeStudentModal()" class="text-white hover:text-red-200 transition-colors h-9 w-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
+                <button onclick="closeStudentModal()"
+                    class="text-white hover:text-red-200 transition-colors h-9 w-9 flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20">
                     <i class="fa-solid fa-xmark text-lg"></i>
                 </button>
             </div>
 
             <!-- Profile Hero -->
             <div class="profile-hero shrink-0">
-                <div class="relative z-10 px-6 sm:px-8 py-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
+                <div
+                    class="relative z-10 px-6 sm:px-8 py-6 flex flex-col md:flex-row gap-6 items-center md:items-start">
                     <!-- Avatar -->
                     <div class="flex flex-col items-center gap-3 shrink-0">
                         <div class="relative">
@@ -237,7 +265,8 @@
                                     src="https://ui-avatars.com/api/?name=Student&background=dbeafe&color=1d4ed8&size=128&font-size=0.4"
                                     class="w-full h-full object-cover" />
                             </div>
-                            <span class="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
+                            <span
+                                class="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center">
                                 <i class="fas fa-check text-white text-[10px]"></i>
                             </span>
                         </div>
@@ -268,19 +297,23 @@
 
                     <!-- Info -->
                     <div class="flex-1 text-white text-center md:text-left min-w-0">
-                        <h3 id="modalStudentName" class="text-2xl sm:text-3xl font-black leading-tight">กำลังโหลด...</h3>
+                        <h3 id="modalStudentName" class="text-2xl sm:text-3xl font-black leading-tight">กำลังโหลด...
+                        </h3>
                         <p id="modalStudentCode" class="text-sm opacity-90 mt-1 font-mono">รหัสประจำตัว: -</p>
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-4 text-xs sm:text-sm">
-                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
+                            <div
+                                class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
                                 <i class="fa-solid fa-school opacity-80"></i>
                                 <span id="view_class_info" class="font-bold truncate">-</span>
                             </div>
-                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
+                            <div
+                                class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2">
                                 <i class="fa-solid fa-user opacity-80"></i>
                                 <span id="view_fullname" class="font-bold truncate">-</span>
                             </div>
-                            <div class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2 sm:col-span-2">
+                            <div
+                                class="bg-white/15 backdrop-blur-sm rounded-xl px-3 py-2 border border-white/20 flex items-center gap-2 sm:col-span-2">
                                 <i class="fa-solid fa-id-badge opacity-80"></i>
                                 <span id="view_national_id" class="font-mono tracking-widest font-bold">-</span>
                             </div>
@@ -290,7 +323,8 @@
             </div>
 
             <!-- Tabs bar -->
-            <div class="bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex gap-2 overflow-x-auto shrink-0 hide-scrollbar">
+            <div
+                class="bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex gap-2 overflow-x-auto shrink-0 hide-scrollbar">
                 <button onclick="switchTab('tab1')" id="btn-tab1"
                     class="tab-btn px-4 py-2.5 rounded-xl font-bold text-blue-700 bg-blue-100 shadow-sm hover:bg-blue-200 transition whitespace-nowrap flex items-center gap-2">
                     <i class="fa-solid fa-house-user"></i>
@@ -343,9 +377,12 @@
                                     <i class="fa-solid fa-person text-blue-500"></i> ข้อมูลบิดา
                                 </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_father_name" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_father_job" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_father_phone" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_father_name"
+                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_father_job"
+                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_father_phone"
+                                            class="font-semibold">-</span></p>
                                 </div>
                             </div>
                             <div class="p-4 bg-slate-50 rounded-xl border border-slate-100">
@@ -353,20 +390,28 @@
                                     <i class="fa-solid fa-person-dress text-pink-500"></i> ข้อมูลมารดา
                                 </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_mother_name" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_mother_job" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_mother_phone" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_mother_name"
+                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_mother_job"
+                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_mother_phone"
+                                            class="font-semibold">-</span></p>
                                 </div>
                             </div>
                             <div class="p-4 bg-blue-50/50 rounded-xl border border-blue-100 ring-1 ring-blue-200">
-                                <h5 class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1 flex items-center gap-1">
+                                <h5
+                                    class="font-bold text-blue-800 mb-2 border-b border-blue-200 pb-1 flex items-center gap-1">
                                     <i class="fa-solid fa-user-shield"></i> ผู้ปกครอง (ผู้ดูแลปัจจุบัน)
                                 </h5>
                                 <div class="space-y-1 text-sm">
-                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_guardian_name" class="font-bold text-blue-700">-</span></p>
-                                    <p><span class="text-slate-500">เกี่ยวข้องเป็น:</span> <span id="view_guardian_relation" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_guardian_job" class="font-semibold">-</span></p>
-                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_guardian_phone" class="font-bold">-</span></p>
+                                    <p><span class="text-slate-500">ชื่อ-สกุล:</span> <span id="view_guardian_name"
+                                            class="font-bold text-blue-700">-</span></p>
+                                    <p><span class="text-slate-500">เกี่ยวข้องเป็น:</span> <span
+                                            id="view_guardian_relation" class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">อาชีพ:</span> <span id="view_guardian_job"
+                                            class="font-semibold">-</span></p>
+                                    <p><span class="text-slate-500">เบอร์โทร:</span> <span id="view_guardian_phone"
+                                            class="font-bold">-</span></p>
                                 </div>
                             </div>
                         </div>
@@ -387,15 +432,21 @@
                             <h4 class="font-bold text-indigo-800 mb-4 border-b pb-2 flex items-center gap-2">
                                 <i class="fa-solid fa-calendar-check"></i>
                                 สถิติการมาเรียน
-                                <span class="text-xs font-normal text-slate-500">(วันเปิดเรียน <span id="total_school_days">0</span> วัน)</span>
+                                <span class="text-xs font-normal text-slate-500">(วันเปิดเรียน <span
+                                        id="total_school_days">0</span> วัน)</span>
                             </h4>
                             <div class="relative h-64 w-full"><canvas id="attendanceChart"></canvas></div>
                             <div class="grid grid-cols-5 gap-2 mt-4 text-center text-xs font-bold">
-                                <div class="bg-emerald-50 p-2 rounded-lg text-emerald-700">มา<br><span id="stat_present" class="text-lg">0</span></div>
-                                <div class="bg-rose-50 p-2 rounded-lg text-rose-700">ขาด<br><span id="stat_absent" class="text-lg">0</span></div>
-                                <div class="bg-orange-50 p-2 rounded-lg text-orange-700">สาย<br><span id="stat_late" class="text-lg">0</span></div>
-                                <div class="bg-yellow-50 p-2 rounded-lg text-yellow-700">ลากิจ<br><span id="stat_pleave" class="text-lg">0</span></div>
-                                <div class="bg-blue-50 p-2 rounded-lg text-blue-700">ลาป่วย<br><span id="stat_sleave" class="text-lg">0</span></div>
+                                <div class="bg-emerald-50 p-2 rounded-lg text-emerald-700">มา<br><span id="stat_present"
+                                        class="text-lg">0</span></div>
+                                <div class="bg-rose-50 p-2 rounded-lg text-rose-700">ขาด<br><span id="stat_absent"
+                                        class="text-lg">0</span></div>
+                                <div class="bg-orange-50 p-2 rounded-lg text-orange-700">สาย<br><span id="stat_late"
+                                        class="text-lg">0</span></div>
+                                <div class="bg-yellow-50 p-2 rounded-lg text-yellow-700">ลากิจ<br><span id="stat_pleave"
+                                        class="text-lg">0</span></div>
+                                <div class="bg-blue-50 p-2 rounded-lg text-blue-700">ลาป่วย<br><span id="stat_sleave"
+                                        class="text-lg">0</span></div>
                             </div>
                         </div>
                         <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
@@ -436,7 +487,8 @@
                                 <i class="fa-solid fa-heart-pulse"></i> ผลการประเมิน EQ
                             </h4>
                             <div id="view_eq_container"
-                                class="flex flex-col items-center justify-center min-h-[12rem] bg-slate-50 rounded-xl p-4"></div>
+                                class="flex flex-col items-center justify-center min-h-[12rem] bg-slate-50 rounded-xl p-4">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -444,7 +496,8 @@
                 <!-- ===== TAB 4 ===== -->
                 <div id="tab4" class="tab-content hidden">
                     <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-200 text-center">
-                        <div class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto shadow-lg shadow-blue-200">
+                        <div
+                            class="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 text-white rounded-2xl flex items-center justify-center text-3xl mb-4 mx-auto shadow-lg shadow-blue-200">
                             <i class="fa-solid fa-people-group"></i>
                         </div>
                         <h4 class="font-bold text-slate-500 mb-1">ชุมนุมที่เลือกเรียน (เทอมปัจจุบัน)</h4>
@@ -463,9 +516,9 @@
         <button class="absolute top-4 right-4 text-white text-4xl hover:text-gray-300">&times;</button>
     </div>
 
-        <!-- ================= Scripts ================= -->
+    <!-- ================= Scripts ================= -->
+    <script src="dashboard_extras.js"></script>
     <script src="dashboard_ui.js"></script>
-    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="info_teacher.js"></script>
 

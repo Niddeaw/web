@@ -15,19 +15,81 @@
 
     <style>
         @media (max-width: 760px) {
-            .d-sidebar { position: fixed !important; top: 0 !important; left: 0 !important; height: 100vh !important; width: 280px !important; max-width: 85vw !important; z-index: 1000 !important; transform: translateX(-100%) !important; transition: transform 0.3s ease-in-out !important; overflow-y: auto !important; box-shadow: 4px 0 20px rgba(0,0,0,0.15); }
-            .d-sidebar.open, .d-sidebar.show, .d-sidebar.active, .d-sidebar.is-open { transform: translateX(0) !important; }
-            .d-overlay { display: none !important; position: fixed !important; inset: 0 !important; background: rgba(15,23,42,0.55) !important; backdrop-filter: blur(2px); z-index: 999 !important; opacity: 0; transition: opacity 0.3s ease; }
-            .d-overlay.open, .d-overlay.show, .d-overlay.active, .d-overlay.is-open { display: block !important; opacity: 1; }
-            .d-main { margin-left: 0 !important; padding-left: 0 !important; width: 100% !important; max-width: 100vw !important; }
-            .d-app { display: block !important; }
-            .d-menu { display: flex !important; align-items: center; justify-content: center; }
-            .d-collapse { display: none !important; }
-            .d-topbar { padding: 0 10px !important; gap: 6px !important; }
-            .glass-panel { max-width: 100%; }
+            .d-sidebar {
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                height: 100vh !important;
+                width: 280px !important;
+                max-width: 85vw !important;
+                z-index: 1000 !important;
+                transform: translateX(-100%) !important;
+                transition: transform 0.3s ease-in-out !important;
+                overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+            }
+
+            .d-sidebar.open,
+            .d-sidebar.show,
+            .d-sidebar.active,
+            .d-sidebar.is-open {
+                transform: translateX(0) !important;
+            }
+
+            .d-overlay {
+                display: none !important;
+                position: fixed !important;
+                inset: 0 !important;
+                background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
+                z-index: 999 !important;
+                opacity: 0;
+                transition: opacity 0.3s ease;
+            }
+
+            .d-overlay.open,
+            .d-overlay.show,
+            .d-overlay.active,
+            .d-overlay.is-open {
+                display: block !important;
+                opacity: 1;
+            }
+
+            .d-main {
+                margin-left: 0 !important;
+                padding-left: 0 !important;
+                width: 100% !important;
+                max-width: 100vw !important;
+            }
+
+            .d-app {
+                display: block !important;
+            }
+
+            .d-menu {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .d-collapse {
+                display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
+            }
+
+            .glass-panel {
+                max-width: 100%;
+            }
         }
+
         @media (min-width: 761px) and (max-width: 1024px) {
-            .d-sidebar { width: 240px; }
+            .d-sidebar {
+                width: 240px;
+            }
         }
     </style>
 </head>
@@ -43,30 +105,37 @@
             <div style="padding:0 0 12px;" class="space-y-6">
 
                 <div id="fiscal-badge-wrap" class="flex justify-end">
-                    <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="fiscal-badge">ปี...</span></div>
+                    <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="fiscal-badge">ปี...</span>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-blue-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-head-side-cough text-blue-500 mr-1"></i> ลาป่วย (รอบนี้)</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
+                                class="fas fa-head-side-cough text-blue-500 mr-1"></i> ลาป่วย (รอบนี้)</p>
                         <h3 class="text-2xl font-black text-blue-600"><span id="stat-sick-count">0</span> ครั้ง</h3>
                         <p class="text-sm text-slate-600"><span id="stat-sick-days">0</span> วัน</p>
                         <p class="text-[10px] text-slate-400 mt-1">ไม่เกิน 60 วัน/ปีงบประมาณ</p>
                     </div>
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-orange-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-briefcase text-orange-500 mr-1"></i> ลากิจส่วนตัว (รอบนี้)</p>
-                        <h3 class="text-2xl font-black text-orange-600"><span id="stat-personal-count">0</span> ครั้ง</h3>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
+                                class="fas fa-briefcase text-orange-500 mr-1"></i> ลากิจส่วนตัว (รอบนี้)</p>
+                        <h3 class="text-2xl font-black text-orange-600"><span id="stat-personal-count">0</span> ครั้ง
+                        </h3>
                         <p class="text-sm text-slate-600"><span id="stat-personal-days">0</span> วัน</p>
                         <p class="text-[10px] text-slate-400 mt-1">ไม่เกิน 45 วัน/ปีงบประมาณ</p>
                     </div>
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-rose-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-baby text-rose-500 mr-1"></i> ลาคลอด / ลาดูแลภริยา</p>
-                        <h3 class="text-2xl font-black text-rose-600"><span id="stat-maternity-count">0</span> ครั้ง</h3>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
+                                class="fas fa-baby text-rose-500 mr-1"></i> ลาคลอด / ลาดูแลภริยา</p>
+                        <h3 class="text-2xl font-black text-rose-600"><span id="stat-maternity-count">0</span> ครั้ง
+                        </h3>
                         <p class="text-sm text-slate-600"><span id="stat-maternity-days">0</span> วัน</p>
                         <p class="text-[10px] text-slate-400 mt-1">คลอด 90 วัน | ดูแล 15 วันทำการ</p>
                     </div>
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-emerald-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i class="fas fa-chart-line text-emerald-500 mr-1"></i> รวมทั้งหมด (รอบนี้)</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
+                                class="fas fa-chart-line text-emerald-500 mr-1"></i> รวมทั้งหมด (รอบนี้)</p>
                         <h3 class="text-2xl font-black text-emerald-600"><span id="stat-total-count">0</span> ครั้ง</h3>
                         <p class="text-sm text-slate-600"><span id="stat-total-days">0</span> วัน</p>
                         <p class="text-[10px] text-slate-400 mt-1">นับรวมการลาทุกประเภท</p>
@@ -74,12 +143,20 @@
                 </div>
 
                 <div class="glass rounded-3xl p-6">
-                    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
-                        <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-list-ul text-rose-500 mr-2"></i> ประวัติการลาของคุณ</h2>
+                    <div
+                        class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
+                        <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-list-ul text-rose-500 mr-2"></i>
+                            ประวัติการลาของคุณ</h2>
                         <div class="flex gap-2 w-full sm:w-auto flex-wrap">
-                            <button onclick="viewSignature()" class="flex-1 sm:flex-none bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i class="fas fa-signature"></i> ดูลายเซ็น</button>
-                            <button onclick="exportExcel()" class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i class="fas fa-file-excel"></i> ส่งออก Excel</button>
-                            <button onclick="openLeaveModal()" class="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-rose-200 transition flex items-center justify-center gap-2"><i class="fas fa-plus"></i> เขียนใบลา</button>
+                            <button onclick="viewSignature()"
+                                class="flex-1 sm:flex-none bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i
+                                    class="fas fa-signature"></i> ดูลายเซ็น</button>
+                            <button onclick="exportExcel()"
+                                class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i
+                                    class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                            <button onclick="openLeaveModal()"
+                                class="flex-1 sm:flex-none bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-rose-200 transition flex items-center justify-center gap-2"><i
+                                    class="fas fa-plus"></i> เขียนใบลา</button>
                         </div>
                     </div>
                     <div class="w-full overflow-x-auto">
@@ -107,78 +184,122 @@
     <!-- leaveModal -->
     <div id="leaveModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeLeaveModal()"></div>
-        <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-orange-500 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-pen-nib"></i> แบบฟอร์มขออนุญาตลา</h3>
-                <button type="button" onclick="closeLeaveModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+        <div
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-rose-600 to-orange-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-pen-nib"></i> แบบฟอร์มขออนุญาตลา
+                </h3>
+                <button type="button" onclick="closeLeaveModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <form id="leaveForm" onsubmit="saveLeave(event)" class="p-6 overflow-y-auto">
                 <input type="hidden" id="leave_id">
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
                     <div class="md:col-span-7 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 text-sm flex items-center"><i class="fas fa-file-alt text-rose-500 mr-2"></i> ข้อมูลการลา</h4>
+                        <h4
+                            class="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 text-sm flex items-center">
+                            <i class="fas fa-file-alt text-rose-500 mr-2"></i> ข้อมูลการลา</h4>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">ประเภทการลา *</label>
-                            <select id="leave_type" required onchange="updateLeaveGuide()" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 bg-white transition text-sm font-medium">
+                            <select id="leave_type" required onchange="updateLeaveGuide()"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 bg-white transition text-sm font-medium">
                                 <option value="">-- กรุณาเลือกประเภท --</option>
                                 <option value="ลาป่วย">ลาป่วย</option>
                                 <option value="ลาคลอดบุตร">ลาคลอดบุตร</option>
                                 <option value="ลาไปช่วยเหลือภริยาที่คลอดบุตร">ลาไปช่วยเหลือภริยาที่คลอดบุตร</option>
                                 <option value="ลากิจส่วนตัว">ลากิจส่วนตัว</option>
                                 <option value="ลาพักผ่อน">ลาพักผ่อน</option>
-                                <option value="ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์">ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์</option>
-                                <option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
-                                <option value="ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน">ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน</option>
-                                <option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">ลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option>
+                                <option value="ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์">ลาอุปสมบทหรือการไปประกอบพิธีฮัจย์
+                                </option>
+                                <option value="ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล">
+                                    ลาเข้ารับการตรวจเลือกหรือเข้ารับการเตรียมพล</option>
+                                <option value="ลาไปศึกษา ฝึกอบรม ปฏิบัติการวิจัย หรือดูงาน">ลาไปศึกษา ฝึกอบรม
+                                    ปฏิบัติการวิจัย หรือดูงาน</option>
+                                <option value="ลาไปปฏิบัติงานในองค์การระหว่างประเทศ">
+                                    ลาไปปฏิบัติงานในองค์การระหว่างประเทศ</option>
                                 <option value="ลาติดตามคู่สมรส">ลาติดตามคู่สมรส</option>
                                 <option value="ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ">ลาไปฟื้นฟูสมรรถภาพด้านอาชีพ</option>
                             </select>
                         </div>
-                        <div id="leave_guide" class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl flex gap-2 items-start font-medium"></div>
+                        <div id="leave_guide"
+                            class="hidden bg-blue-50 border border-blue-200 text-blue-700 text-xs p-3 rounded-xl flex gap-2 items-start font-medium">
+                        </div>
                         <div class="grid grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่ *</label>
-                                <input type="text" id="start_date" required placeholder="เลือกวันที่..." class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
+                                <input type="text" id="start_date" required placeholder="เลือกวันที่..."
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
                                 <input type="hidden" id="start_date_iso">
                             </div>
                             <div>
                                 <label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label>
-                                <input type="text" id="end_date" required placeholder="เลือกวันที่..." class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
+                                <input type="text" id="end_date" required placeholder="เลือกวันที่..."
+                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm bg-white cursor-pointer">
                                 <input type="hidden" id="end_date_iso">
                             </div>
                             <div class="flex items-center gap-4 mt-2 col-span-2">
-                                <label class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input type="checkbox" id="is_half_day" onchange="calculateDays()" class="w-5 h-5 accent-rose-500"> ลาครึ่งวัน</label>
+                                <label
+                                    class="flex items-center gap-2 text-sm font-bold text-slate-700 cursor-pointer"><input
+                                        type="checkbox" id="is_half_day" onchange="calculateDays()"
+                                        class="w-5 h-5 accent-rose-500"> ลาครึ่งวัน</label>
                                 <span class="text-xs text-slate-400">(นับเป็น 0.5 วัน)</span>
                             </div>
                         </div>
                         <div>
-                            <label class="block text-sm font-bold text-slate-700 mb-1">วันที่ส่งใบลา (ถ้าไม่ระบุจะใช้วันที่ปัจจุบัน)</label>
-                            <input type="text" id="submitted_date" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 leave-datepicker">
+                            <label class="block text-sm font-bold text-slate-700 mb-1">วันที่ส่งใบลา
+                                (ถ้าไม่ระบุจะใช้วันที่ปัจจุบัน)</label>
+                            <input type="text" id="submitted_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 leave-datepicker">
                             <input type="hidden" id="submitted_date_iso">
                         </div>
                         <div>
                             <label class="block text-sm font-bold text-slate-700 mb-1">เนื่องจาก (สาเหตุ) *</label>
-                            <input type="text" id="leave_reason" required placeholder="เช่น เป็นไข้หวัด, ติดต่อราชการ" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm">
+                            <input type="text" id="leave_reason" required placeholder="เช่น เป็นไข้หวัด, ติดต่อราชการ"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm">
                         </div>
-                        <div class="bg-rose-50 border border-rose-200 p-4 rounded-xl flex justify-between items-center mt-2">
+                        <div
+                            class="bg-rose-50 border border-rose-200 p-4 rounded-xl flex justify-between items-center mt-2">
                             <span class="font-bold text-rose-800 text-sm">รวมระยะเวลาลา:</span>
-                            <div class="text-2xl font-black text-rose-600"><span id="calc_days">0</span> <span class="text-sm font-bold text-rose-800">วัน</span></div>
+                            <div class="text-2xl font-black text-rose-600"><span id="calc_days">0</span> <span
+                                    class="text-sm font-bold text-rose-800">วัน</span></div>
                         </div>
                         <div id="evidence_upload_wrapper" class="hidden">
-                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์) <span class="text-red-500">*</span></label>
-                            <input type="file" id="evidence_file" accept=".pdf,.jpg,.jpeg,.png" class="w-full border-2 border-slate-200 rounded-xl p-3">
-                            <div id="existing_evidence" class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2"><i class="fas fa-paperclip text-blue-500"></i><span id="existing_evidence_name" class="font-medium text-blue-700"></span><button type="button" onclick="document.getElementById('evidence_file').value=''; document.getElementById('existing_evidence').classList.add('hidden');" class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button></div>
+                            <label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์หลักฐาน (เช่น ใบรับรองแพทย์)
+                                <span class="text-red-500">*</span></label>
+                            <input type="file" id="evidence_file" accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full border-2 border-slate-200 rounded-xl p-3">
+                            <div id="existing_evidence"
+                                class="hidden mt-2 text-sm bg-blue-50 border border-blue-200 rounded-xl p-2 flex items-center gap-2">
+                                <i class="fas fa-paperclip text-blue-500"></i><span id="existing_evidence_name"
+                                    class="font-medium text-blue-700"></span><button type="button"
+                                    onclick="document.getElementById('evidence_file').value=''; document.getElementById('existing_evidence').classList.add('hidden');"
+                                    class="text-xs text-rose-500 hover:text-rose-700">ลบไฟล์นี้</button></div>
                         </div>
                     </div>
                     <div class="md:col-span-5 space-y-4">
-                        <h4 class="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 text-sm flex items-center"><i class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ระหว่างลา *</label><textarea id="contact_address" required rows="4" placeholder="ระบุบ้านเลขที่, ตำบล, อำเภอ, จังหวัด" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm resize-none"></textarea></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์โทรติดต่อ *</label><input type="tel" id="phone_number" required placeholder="เช่น 0812345678" pattern="[0-9]{9,10}" class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm"></div>
+                        <h4
+                            class="font-bold text-slate-800 border-b border-slate-100 pb-2 mb-2 text-sm flex items-center">
+                            <i class="fas fa-address-book text-orange-500 mr-2"></i> ข้อมูลติดต่อระหว่างลา</h4>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ระหว่างลา
+                                *</label><textarea id="contact_address" required rows="4"
+                                placeholder="ระบุบ้านเลขที่, ตำบล, อำเภอ, จังหวัด"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm resize-none"></textarea>
+                        </div>
+                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์โทรติดต่อ *</label><input
+                                type="tel" id="phone_number" required placeholder="เช่น 0812345678"
+                                pattern="[0-9]{9,10}"
+                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-rose-500 transition text-sm">
+                        </div>
                     </div>
                 </div>
                 <div class="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
-                    <button type="button" onclick="closeLeaveModal()" class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ยกเลิก</button>
-                    <button type="submit" id="btn-submit" class="px-8 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-bold shadow-lg shadow-rose-200 transition flex items-center gap-2"><i class="fas fa-paper-plane"></i> ส่งใบลา</button>
+                    <button type="button" onclick="closeLeaveModal()"
+                        class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ยกเลิก</button>
+                    <button type="submit" id="btn-submit"
+                        class="px-8 py-3 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-bold shadow-lg shadow-rose-200 transition flex items-center gap-2"><i
+                            class="fas fa-paper-plane"></i> ส่งใบลา</button>
                 </div>
             </form>
         </div>
@@ -188,26 +309,36 @@
     <div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSignatureModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg overflow-hidden flex flex-col">
-            <div class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-violet-600 to-indigo-500 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-signature"></i> ลายเซ็นของคุณ</h3>
-                <button type="button" onclick="closeSignatureModal()" class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i class="fas fa-times"></i></button>
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-violet-600 to-indigo-500 text-white">
+                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-signature"></i> ลายเซ็นของคุณ
+                </h3>
+                <button type="button" onclick="closeSignatureModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
+                        class="fas fa-times"></i></button>
             </div>
             <div class="p-6 space-y-4">
                 <p class="text-sm text-slate-500 text-center">ลายเซ็นนี้จะถูกใช้ในเอกสารใบลา (PDF) ของคุณ</p>
-                <div id="sig-preview-box" class="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center min-h-[180px] overflow-hidden">
-                    <div id="sig-loading" class="flex flex-col items-center gap-2 text-slate-400 text-sm"><i class="fas fa-spinner fa-spin text-2xl text-violet-400"></i><span>กำลังโหลดลายเซ็น...</span></div>
+                <div id="sig-preview-box"
+                    class="border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 flex items-center justify-center min-h-[180px] overflow-hidden">
+                    <div id="sig-loading" class="flex flex-col items-center gap-2 text-slate-400 text-sm"><i
+                            class="fas fa-spinner fa-spin text-2xl text-violet-400"></i><span>กำลังโหลดลายเซ็น...</span>
+                    </div>
                     <img id="sig-img" src="" alt="ลายเซ็น" class="hidden max-h-44 max-w-full object-contain p-4">
-                    <div id="sig-empty" class="hidden flex-col items-center gap-2 text-slate-400 text-sm"><i class="fas fa-pen-nib text-4xl text-slate-300"></i><span>ยังไม่มีลายเซ็นในระบบ</span></div>
+                    <div id="sig-empty" class="hidden flex-col items-center gap-2 text-slate-400 text-sm"><i
+                            class="fas fa-pen-nib text-4xl text-slate-300"></i><span>ยังไม่มีลายเซ็นในระบบ</span></div>
                 </div>
             </div>
-            <div class="px-6 pb-6 flex justify-end"><button onclick="closeSignatureModal()" class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ปิด</button></div>
+            <div class="px-6 pb-6 flex justify-end"><button onclick="closeSignatureModal()"
+                    class="px-6 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ปิด</button>
+            </div>
         </div>
     </div>
 
-        <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="dashboard_extras.js"></script>
     <script src="dashboard_ui.js"></script>
-    <script src="dashboard_sidebar_actions.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="leave_teacher.js"></script>
 
@@ -247,4 +378,5 @@
         });
     </script>
 </body>
+
 </html>

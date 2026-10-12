@@ -35,7 +35,7 @@ function getDefaultTripSettings() {
         fiscal_year: (new Date().getFullYear() + 543).toString(),
         eval_round: '1',
         sign_admin: '',
-        gas_url: '', slide_template_id: '', pdf_folder_id: '', 
+        gas_url: '', slide_template_id: '', pdf_folder_id: '',
         evidence_folder_id: '', signature_folder_id: ''
     };
 }
@@ -430,8 +430,10 @@ async function loadTripDashboardStats() {
                 fallbackData.forEach(t => { t.core_personnel = pmap[t.personnel_id] || {}; });
             }
             allTripsData = fallbackData || [];
+            window.allTripsData = allTripsData;  // ✅ sync
         } else {
             allTripsData = data || [];
+            window.allTripsData = allTripsData;  // ✅ sync ให้ global
         }
 
         console.log('✅ Loaded trips:', allTripsData.length);
@@ -575,9 +577,9 @@ function renderTripTable() {
             const ackHtml = `
                 <div class="flex flex-col items-start text-xs space-y-0.5">
                     ${needsAcademic
-                        ? `<span class="font-medium ${t.ack_academic ? 'text-emerald-600' : 'text-amber-600'}">รองวิชาการ: ${t.ack_academic ? '✅' : '⏳'}</span>`
-                        : `<span class="font-medium text-${headStatus.color}-600">หัวหน้ากลุ่มฯ: ${headStatus.icon}</span>`
-                    }
+                    ? `<span class="font-medium ${t.ack_academic ? 'text-emerald-600' : 'text-amber-600'}">รองวิชาการ: ${t.ack_academic ? '✅' : '⏳'}</span>`
+                    : `<span class="font-medium text-${headStatus.color}-600">หัวหน้ากลุ่มฯ: ${headStatus.icon}</span>`
+                }
                     <span class="font-medium text-slate-600">แอดมิน: ${t.ack_admin ? '✅' : '⏳'}</span>
                     <span class="font-medium text-slate-600">รอง ผอ.บุคคล: ${t.ack_deputy_hr ? '✅' : '⏳'}</span>
                     ${t.status === 'อนุมัติ' ? '<span class="font-bold text-emerald-600">ผอ.: ✅</span>' : ''}
@@ -639,11 +641,13 @@ function renderTripTable() {
 
             const dateDisplay = t.submitted_date ? fmt(t.submitted_date) : new Date(t.created_at).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' });
             const dateOrder = t.submitted_date || t.created_at || '';
+            // ✅ ใช้ purpose แทน trip_type
+            const purposeLabel = t.purpose || t.trip_type || '-';
 
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="text-center text-slate-600 text-sm font-medium" data-order="${dateOrder}">${dateDisplay}</td>
                 <td class="font-bold text-slate-700">${fullName}</td>
-                <td class="font-bold text-sky-700 text-sm">${t.trip_type || '-'}</td>
+                <td class="font-bold text-sky-700 text-sm">${purposeLabel}</td>
                 <td class="text-slate-700 text-sm max-w-[200px] truncate" title="${t.title}">${t.title}</td>
                 <td class="text-slate-600 text-sm" data-order="${t.start_date}">${fmt(t.start_date)} - ${fmt(t.end_date)}</td>
                 <td class="text-center font-black text-sky-600">${displayDays}</td>
@@ -906,13 +910,24 @@ window.viewAdminTrip = function (id) {
             <div class="border border-slate-200 rounded-xl p-3 space-y-2">
                 <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ชื่อ</span><span class="font-bold text-slate-800">${fullName}</span></div>
                 <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">กลุ่มสาระฯ</span><span class="font-bold text-slate-800">${t.core_personnel.department || '-'}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ประเภท</span><span class="font-bold text-slate-800">${t.trip_type || '-'}</span></div>
+                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ประเภท</span><span class="font-bold text-slate-800">${t.purpose || t.trip_type || '-'}</span></div>
                 <div class="flex justify-between items-start gap-2"><span class="text-sm font-bold text-slate-600 flex-shrink-0">เรื่อง</span><span class="font-bold text-slate-800 text-right">${t.title}</span></div>
                 <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">สถานที่</span><span class="font-bold text-slate-800">${t.location || '-'}</span></div>
                 <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ช่วงวันที่</span><span class="font-bold text-slate-800">${fmt(t.start_date)} - ${fmt(t.end_date)}</span></div>
                 <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">จำนวนวัน</span><span class="font-bold text-slate-800">${t.total_days} วัน</span></div>
                 ${t.attachment_file_id ? `<div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ไฟล์แนบ</span><a href="https://lh5.googleusercontent.com/d/${t.attachment_file_id}" target="_blank" class="text-blue-600 hover:underline text-sm">ดูไฟล์</a></div>` : ''}
             </div>
+
+            ${(t.companion_count > 1) ? `
+                <div class="border border-indigo-200 bg-indigo-50/50 rounded-xl p-3">
+                    <p class="text-xs font-bold text-indigo-700 mb-2">
+                        <i class="fas fa-users mr-1"></i>ผู้ร่วมเดินทาง (รวม ${t.companion_count} คน)
+                    </p>
+                    <div id="view-trip-companions-${t.id}" class="text-sm">
+                        <div class="text-center text-slate-400 py-2 text-xs"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</div>
+                    </div>
+                </div>
+            ` : ''}
 
             <div class="border border-slate-200 rounded-xl p-3 space-y-2">
                 <p class="text-xs font-bold text-slate-500 mb-2"><i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ/อนุมัติ</p>
@@ -921,35 +936,35 @@ window.viewAdminTrip = function (id) {
                     <div class="flex items-center justify-between">
                         <span><i class="fas fa-user-graduate text-rose-400 mr-1.5"></i>รอง ผอ.กลุ่มบริหารวิชาการ</span>
                         ${t.ack_academic
-                            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_academic_at ? ' (' + window.formatTripDateThai(t.ack_academic_at) + ')' : ''}</span>`
-                            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
+                ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_academic_at ? ' (' + window.formatTripDateThai(t.ack_academic_at) + ')' : ''}</span>`
+                : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
                     </div>` : ''}
                     ${!needsAcademic ? `
                     <div class="flex items-center justify-between">
                         <span><i class="fas fa-users text-purple-400 mr-1.5"></i>หัวหน้ากลุ่มสาระฯ</span>
                         ${t.ack_head
-                            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_head_at ? ' (' + window.formatTripDateThai(t.ack_head_at) + ')' : ''}</span>`
-                            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
+                ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_head_at ? ' (' + window.formatTripDateThai(t.ack_head_at) + ')' : ''}</span>`
+                : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
                     </div>` : ''}
                     <div class="flex items-center justify-between">
                         <span><i class="fas fa-user-shield text-teal-400 mr-1.5"></i>แอดมิน</span>
                         ${t.ack_admin
-                            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_admin_at ? ' (' + window.formatTripDateThai(t.ack_admin_at) + ')' : ''}</span>`
-                            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
+            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_admin_at ? ' (' + window.formatTripDateThai(t.ack_admin_at) + ')' : ''}</span>`
+            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
                     </div>
                     <div class="flex items-center justify-between">
                         <span><i class="fas fa-user-tie text-indigo-400 mr-1.5"></i>รอง ผอ.กลุ่มบุคคล</span>
                         ${t.ack_deputy_hr
-                            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_deputy_hr_at ? ' (' + window.formatTripDateThai(t.ack_deputy_hr_at) + ')' : ''}</span>`
-                            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
+            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> รับทราบแล้ว${t.ack_deputy_hr_at ? ' (' + window.formatTripDateThai(t.ack_deputy_hr_at) + ')' : ''}</span>`
+            : `<span class="text-slate-400 font-bold">ยังไม่รับทราบ</span>`}
                     </div>
                     <div class="flex items-center justify-between">
                         <span><i class="fas fa-crown text-amber-400 mr-1.5"></i>ผู้อำนวยการ</span>
                         ${t.status === 'อนุมัติ'
-                            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> อนุมัติแล้ว${t.approved_date ? ' (' + fmt(t.approved_date) + ')' : ''}</span>`
-                            : (t.status === 'ไม่อนุมัติ'
-                                ? `<span class="text-rose-600 font-bold"><i class="fas fa-times"></i> ไม่อนุมัติ</span>`
-                                : `<span class="text-slate-400 font-bold">รออนุมัติ</span>`)}
+            ? `<span class="text-emerald-600 font-bold"><i class="fas fa-check-double"></i> อนุมัติแล้ว${t.approved_date ? ' (' + fmt(t.approved_date) + ')' : ''}</span>`
+            : (t.status === 'ไม่อนุมัติ'
+                ? `<span class="text-rose-600 font-bold"><i class="fas fa-times"></i> ไม่อนุมัติ</span>`
+                : `<span class="text-slate-400 font-bold">รออนุมัติ</span>`)}
                     </div>
                 </div>
             </div>
@@ -960,6 +975,36 @@ window.viewAdminTrip = function (id) {
     document.getElementById('viewTripContent').innerHTML = html;
     document.getElementById('viewTripModal').classList.remove('hidden');
     document.getElementById('viewTripModal').classList.add('flex');
+
+    // ✅ โหลด companions
+    if (t.companion_count > 1 && typeof window.fetchTripCompanions === 'function') {
+        window.fetchTripCompanions(t).then(comp => {
+            const container = document.getElementById(`view-trip-companions-${t.id}`);
+            if (!container) return;
+
+            let innerHtml = '';
+
+            if (comp.teachers.length > 0) {
+                innerHtml += `<div class="mb-2">
+                    <div class="text-xs font-bold text-sky-700 mb-1">👨‍🏫 ครู (${comp.teachers.length} คน)</div>
+                    <ul class="ml-4 text-xs space-y-0.5">
+                        ${comp.teachers.map((tc, i) => `<li>${i + 1}. ${tc.name} <span class="text-slate-500">${tc.department ? `(${tc.department})` : ''}</span></li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+
+            if (comp.students.length > 0) {
+                innerHtml += `<div>
+                    <div class="text-xs font-bold text-emerald-700 mb-1">🎓 นักเรียน (${comp.students.length} คน)</div>
+                    <ul class="ml-4 text-xs space-y-0.5">
+                        ${comp.students.map((s, i) => `<li>${i + 1}. ${s.name} <span class="text-slate-500">(${s.class_text} เลขที่ ${s.student_number})</span></li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+
+            container.innerHTML = innerHtml || '<div class="text-xs text-slate-400 text-center">ไม่มีข้อมูล</div>';
+        });
+    }
 };
 
 window.closeViewTripModal = function () {
@@ -1153,7 +1198,7 @@ window.exportTripReport = function () {
         'กลุ่มสาระฯ': t.core_personnel.department || '-',
         'ปีงบประมาณ': t.fiscal_year,
         'รอบ': t.eval_round,
-        'ประเภท': t.trip_type || '-',
+        'ประเภท': t.purpose || t.trip_type || '-',
         'เรื่อง': t.title,
         'สถานที่': t.location || '-',
         'เริ่ม': fmt(t.start_date),

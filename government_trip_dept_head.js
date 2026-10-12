@@ -1,5 +1,6 @@
 // ============================================================
 // government_trip_dept_head.js — รับทราบใบขอไปราชการ (หัวหน้ากลุ่มสาระฯ)
+// ✅ Pattern กลาง + Companion view + ฟิลด์ใหม่
 // ============================================================
 
 window.currentUser = null;
@@ -14,6 +15,7 @@ window.doneTripDT = null;
 window.isSuperAdmin = false;
 window.allDeptHeads = [];
 window.academicPersonnelId = null;
+window.currentGroupFilter = null;
 
 // ==========================================
 // Nav buttons
@@ -104,7 +106,7 @@ $(document).ready(async function () {
         await window.loadTripDeptTeachersCount();
         window.refreshTripDeptHeadNavButtons();
 
-        await window.logUserAction(`เข้าสู่ระบบรับทราบใบไปราชการ`, 'government_trip');
+        await window.logUserAction('เข้าสู่ระบบรับทราบใบไปราชการ', 'government_trip');
         Swal.close();
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
@@ -136,7 +138,6 @@ window.loadTripDeptHeadRequests = async function () {
         const { data, error } = await query;
         if (error) throw error;
 
-        // ✅ Filter: เฉพาะครูในกลุ่ม (head ตัวเองแสดงเฉพาะของตัวเอง)
         const filtered = (data || []).filter(t => {
             const cat = window.getTripPersonnelCategory(t, window.allDeptHeads || []);
             if (cat === 'head') {
@@ -207,10 +208,13 @@ window.renderTripDeptTables = function () {
     if (window.pendingTrips.length > 0) {
         tbPending.innerHTML = window.pendingTrips.map(t => {
             const name = `${t.core_personnel.prefix || ''}${t.core_personnel.first_name} ${t.core_personnel.last_name}`;
+            const compBadge = (t.companion_count > 1)
+                ? `<span class="text-[10px] text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded-full font-bold ml-1"><i class="fas fa-users mr-0.5"></i>${t.companion_count}</span>`
+                : '';
             return `<tr class="hover:bg-slate-50">
                 <td class="text-center text-slate-500 text-xs">${fmtTripFull(t.submitted_date || t.created_at)}</td>
                 <td class="font-bold text-slate-700">${name}</td>
-                <td class="text-slate-700 font-medium">${t.title}</td>
+                <td class="text-slate-700 font-medium">${t.title} ${compBadge}</td>
                 <td class="text-slate-600 text-sm">${fmtTripShort(t.start_date)} - ${fmtTripShort(t.end_date)}</td>
                 <td class="text-center font-black text-sky-600">${t.total_days}</td>
                 <td class="text-slate-600 text-xs max-w-[200px] truncate">${t.location || '-'}</td>
@@ -326,32 +330,158 @@ window.switchTripTab = function (tabId) {
 };
 
 // ==========================================
-// View modal
+// View trip modal (ฉบับเต็ม — พร้อม companions)
 // ==========================================
 window.viewTrip = function (id) {
     const t = [...window.pendingTrips, ...window.doneTrips].find(x => x.id === id);
     if (!t) return;
+
     const fullName = `${t.core_personnel.prefix || ''}${t.core_personnel.first_name} ${t.core_personnel.last_name}`;
+    const hasCompanions = (t.companion_count > 1);
+
+    // Format helpers
+    const fmtDateThai = (iso) => {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '-';
+        const months = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+        return `${d.getDate()} ${months[d.getMonth()]} ${(d.getFullYear() + 543).toString().slice(-2)}`;
+    };
+    const fmtTime = (tm) => {
+        if (!tm) return '-';
+        const p = String(tm).split(':');
+        return `${p[0]}.${p[1]} น.`;
+    };
 
     const html = `
-        <div class="space-y-4">
+        <div class="space-y-3 text-sm">
+            <!-- ข้อมูลการไปราชการ -->
             <div class="border border-slate-200 rounded-xl p-3 space-y-2">
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ชื่อครู</span><span class="font-bold text-slate-800">${fullName}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">กลุ่มสาระฯ</span><span class="font-bold text-slate-800">${t.core_personnel.department || '-'}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ประเภท</span><span class="font-bold text-slate-800">${t.trip_type || '-'}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">เรื่อง</span><span class="font-bold text-slate-800 text-right">${t.title}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">สถานที่</span><span class="font-bold text-slate-800">${t.location || '-'}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">ช่วงวันที่</span><span class="font-bold text-slate-800">${fmtTripShort(t.start_date)} - ${fmtTripShort(t.end_date)}</span></div>
-                <div class="flex justify-between"><span class="text-sm font-bold text-slate-600">จำนวนวัน</span><span class="font-bold text-slate-800">${t.total_days} วัน</span></div>
-                ${t.ack_head ? `<div class="flex justify-between"><span class="text-sm font-bold text-slate-600">หัวหน้ารับทราบ</span><span class="text-emerald-600 text-sm font-bold">${window.formatTripDateThai(t.ack_head_at)}</span></div>` : ''}
-                ${t.ack_academic ? `<div class="flex justify-between"><span class="text-sm font-bold text-slate-600">รองวิชาการรับทราบ</span><span class="text-rose-600 text-sm font-bold">${window.formatTripDateThai(t.ack_academic_at)}</span></div>` : ''}
+                <div class="text-xs font-bold text-sky-700 mb-2">
+                    <i class="fas fa-plane-departure mr-1"></i>รายละเอียดการไปราชการ
+                </div>
+                <div class="flex justify-between"><span class="text-slate-600">ชื่อครู</span><span class="font-bold text-slate-800">${fullName}</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">กลุ่มสาระฯ</span><span class="font-bold text-slate-800">${t.core_personnel.department || '-'}</span></div>
+                ${t.purpose ? `<div class="flex justify-between"><span class="text-slate-600">ความประสงค์</span><span class="font-bold text-slate-800">${t.purpose}${t.purpose_other ? ` (${t.purpose_other})` : ''}</span></div>` : ''}
+                <div class="flex justify-between items-start gap-2"><span class="text-slate-600 flex-shrink-0">เรื่อง</span><span class="font-bold text-slate-800 text-right">${t.title}</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">สถานที่</span><span class="font-bold text-slate-800">${t.location || '-'}</span></div>
+                ${t.doc_number ? `<div class="flex justify-between"><span class="text-slate-600">ตามหนังสือที่</span><span class="font-bold text-slate-800">${t.doc_number}${t.doc_date ? ` ลงวันที่ ${fmtDateThai(t.doc_date)}` : ''}</span></div>` : ''}
+                <div class="flex justify-between"><span class="text-slate-600">ช่วงวันที่</span><span class="font-bold text-slate-800">${fmtTripShort(t.start_date)} - ${fmtTripShort(t.end_date)}</span></div>
+                <div class="flex justify-between"><span class="text-slate-600">จำนวนวัน</span><span class="font-bold text-slate-800">${t.total_days} วัน</span></div>
             </div>
-            ${!t.ack_head ? `<button onclick="window.acknowledgeTripHead('${t.id}'); closeViewTripModal();" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg transition flex items-center justify-center gap-2"><i class="fas fa-user-check"></i> รับทราบใบนี้</button>` : ''}
+
+            <!-- วันเวลาเดินทาง -->
+            ${(t.depart_from_date || t.return_to_date) ? `
+                <div class="border border-amber-200 bg-amber-50/50 rounded-xl p-3 space-y-2">
+                    <div class="text-xs font-bold text-amber-700 mb-2">
+                        <i class="fas fa-clock mr-1"></i>วันเวลาเดินทาง
+                    </div>
+                    ${t.depart_from_date ? `<div class="flex justify-between"><span class="text-slate-600">ออกจากที่พัก</span><span class="font-bold text-slate-800">${fmtDateThai(t.depart_from_date)} เวลา ${fmtTime(t.depart_from_time)}</span></div>` : ''}
+                    ${t.return_to_date ? `<div class="flex justify-between"><span class="text-slate-600">กลับถึงที่พัก</span><span class="font-bold text-slate-800">${fmtDateThai(t.return_to_date)} เวลา ${fmtTime(t.return_to_time)}</span></div>` : ''}
+                    ${t.travel_vehicle ? `<div class="flex justify-between"><span class="text-slate-600">พาหนะ</span><span class="font-bold text-slate-800">${t.travel_vehicle}</span></div>` : ''}
+                </div>
+            ` : ''}
+
+            <!-- ผู้ร่วมเดินทาง -->
+            ${hasCompanions ? `
+                <div class="border border-indigo-200 bg-indigo-50/50 rounded-xl p-3">
+                    <div class="text-xs font-bold text-indigo-700 mb-2">
+                        <i class="fas fa-users mr-1"></i>ผู้ร่วมเดินทาง (รวม ${t.companion_count} คน)
+                    </div>
+                    <div id="dept-view-trip-companions-${t.id}" class="text-xs">
+                        <div class="text-center text-slate-400 py-2"><i class="fas fa-spinner fa-spin mr-1"></i>กำลังโหลด...</div>
+                    </div>
+                </div>
+            ` : ''}
+
+            <!-- ขอความอนุเคราะห์ -->
+            ${(t.req_official_letter || t.req_parent_notice || t.req_travel_expense || t.req_school_car || t.req_other) ? `
+                <div class="border border-purple-200 bg-purple-50/50 rounded-xl p-3">
+                    <div class="text-xs font-bold text-purple-700 mb-2">
+                        <i class="fas fa-hand-holding-heart mr-1"></i>ขอความอนุเคราะห์
+                    </div>
+                    <ul class="text-xs space-y-1 text-slate-700">
+                        ${t.req_official_letter ? '<li><i class="fas fa-file-signature text-purple-500 mr-1"></i>หนังสือไปราชการ</li>' : ''}
+                        ${t.req_parent_notice ? '<li><i class="fas fa-bullhorn text-purple-500 mr-1"></i>หนังสือแจ้งผู้ปกครอง</li>' : ''}
+                        ${t.req_school_car ? '<li><i class="fas fa-bus text-purple-500 mr-1"></i>รถยนต์โรงเรียน</li>' : ''}
+                        ${t.req_travel_expense ? `<li><i class="fas fa-money-bill-wave text-purple-500 mr-1"></i>ค่าพาหนะเดินทาง${t.travel_expense_amount ? ` (${Number(t.travel_expense_amount).toLocaleString('th-TH')} บาท)` : ''}</li>` : ''}
+                        ${t.req_other ? `<li><i class="fas fa-ellipsis text-purple-500 mr-1"></i>${t.req_other_text || 'อื่นๆ'}</li>` : ''}
+                    </ul>
+                </div>
+            ` : ''}
+
+            <!-- สถานะการรับทราบ -->
+            <div class="border border-slate-200 rounded-xl p-3 space-y-2">
+                <div class="text-xs font-bold text-slate-500 mb-2">
+                    <i class="fas fa-signature mr-1 text-indigo-400"></i>สถานะการรับทราบ/อนุมัติ
+                </div>
+                ${t.ack_academic ? `<div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-600"><i class="fas fa-user-graduate text-rose-400 mr-1"></i>รองวิชาการ</span>
+                    <span class="text-emerald-600 font-bold"><i class="fas fa-check-double mr-1"></i>${fmtDateThai(t.ack_academic_at)}</span>
+                </div>` : ''}
+                ${t.ack_head ? `<div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-600"><i class="fas fa-user-check text-emerald-400 mr-1"></i>หัวหน้ากลุ่มฯ</span>
+                    <span class="text-emerald-600 font-bold"><i class="fas fa-check-double mr-1"></i>${fmtDateThai(t.ack_head_at)}</span>
+                </div>` : ''}
+                ${t.ack_admin ? `<div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-600"><i class="fas fa-user-shield text-teal-400 mr-1"></i>แอดมิน</span>
+                    <span class="text-emerald-600 font-bold"><i class="fas fa-check-double mr-1"></i>${fmtDateThai(t.ack_admin_at)}</span>
+                </div>` : ''}
+                ${t.ack_deputy_hr ? `<div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-600"><i class="fas fa-user-tie text-indigo-400 mr-1"></i>รอง ผอ.บุคคล</span>
+                    <span class="text-emerald-600 font-bold"><i class="fas fa-check-double mr-1"></i>${fmtDateThai(t.ack_deputy_hr_at)}</span>
+                </div>` : ''}
+                ${t.status === 'อนุมัติ' ? `<div class="flex justify-between items-center text-xs">
+                    <span class="text-slate-600"><i class="fas fa-crown text-amber-400 mr-1"></i>ผู้อำนวยการ</span>
+                    <span class="text-emerald-600 font-bold"><i class="fas fa-check-double mr-1"></i>อนุมัติแล้ว</span>
+                </div>` : ''}
+            </div>
+
+            ${t.reject_comment ? `
+                <div class="bg-rose-50 border border-rose-200 p-3 rounded-xl text-xs">
+                    <b class="text-rose-700">เหตุผลที่ไม่อนุมัติ:</b><br>
+                    <span class="text-rose-800">${t.reject_comment}</span>
+                </div>
+            ` : ''}
+
+            ${!t.ack_head ? `
+                <button onclick="window.acknowledgeTripHead('${t.id}'); closeViewTripModal();" 
+                    class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg transition flex items-center justify-center gap-2">
+                    <i class="fas fa-user-check"></i> รับทราบใบนี้
+                </button>
+            ` : ''}
         </div>
     `;
+
     document.getElementById('viewTripContent').innerHTML = html;
     document.getElementById('viewTripModal').classList.remove('hidden');
     document.getElementById('viewTripModal').classList.add('flex');
+
+    // ✅ โหลด companions
+    if (hasCompanions && typeof window.fetchTripCompanions === 'function') {
+        window.fetchTripCompanions(t).then(comp => {
+            const container = document.getElementById(`dept-view-trip-companions-${t.id}`);
+            if (!container) return;
+            let innerHtml = '';
+            if (comp.teachers.length > 0) {
+                innerHtml += `<div class="mb-2">
+                    <div class="font-bold text-sky-700 mb-1">👨‍🏫 ครู (${comp.teachers.length} คน)</div>
+                    <ul class="ml-3 space-y-0.5">
+                        ${comp.teachers.map((tc, i) => `<li>${i + 1}. ${tc.name}${tc.department ? ` <span class="text-slate-500">(${tc.department})</span>` : ''}</li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            if (comp.students.length > 0) {
+                innerHtml += `<div>
+                    <div class="font-bold text-emerald-700 mb-1">🎓 นักเรียน (${comp.students.length} คน)</div>
+                    <ul class="ml-3 space-y-0.5">
+                        ${comp.students.map((s, i) => `<li>${i + 1}. ${s.name} <span class="text-slate-500">(${s.class_text} เลขที่ ${s.student_number})</span></li>`).join('')}
+                    </ul>
+                </div>`;
+            }
+            container.innerHTML = innerHtml || '<div class="text-slate-400 text-center">ไม่มีข้อมูล</div>';
+        });
+    }
 };
 
 window.closeViewTripModal = function () {
@@ -400,4 +530,4 @@ window.switchTripTab = window.switchTripTab;
 window.acknowledgeTripHead = window.acknowledgeTripHead;
 window.editTripAckDate = window.editTripAckDate;
 
-console.log('✅ government_trip_dept_head.js loaded (ฉบับสมบูรณ์)');
+console.log('✅ government_trip_dept_head.js loaded (v2.0 + Companions)');
