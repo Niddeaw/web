@@ -1,12 +1,33 @@
 // ==========================================================================
-// sarabun.js — ระบบสารบรรณ (v3.0 — Patched for Central Sidebar Pattern)
+// sarabun.js — ระบบสารบรรณ (v3.1 — Module Admin via Sidebar Filter)
 // --------------------------------------------------------------------------
-// ✅ Pattern ตรงกับ behavior / attendance / calendar / club_system
-// ✅ ลบ refreshNavButtons + refreshSidebarUI (ใช้ dashboard_sidebar.js แทน)
-// ✅ เพิ่ม updateUIBasedOnRole() สำหรับ toggle class hidden ของ sidebar items
-// ✅ toggleRoleView() สะอาด ไม่มี manual DOM toggle
-// ✅ onReady ใน HTML เหลือแค่ UI updates
+// ✅ Pattern: ใช้ moduleAdmin field ใน sidebar filter (ไม่ override DOM)
+// ✅ ตั้ง _userModuleAdmins ทันทีตอนโหลดไฟล์ (จาก cache)
+// ✅ updateUIBasedOnRole() → rerenderSidebar() แทน DOM toggle
+// ✅ ใช้ได้กับทุกโมดูล — ไม่ต้อง hook เฉพาะ
 // ==========================================================================
+
+// ==========================================
+// 🚀 BOOTSTRAP: ตั้ง _userModuleAdmins ทันที
+//    ต้องทำก่อน initModuleSidebar() ใน HTML
+// ==========================================
+(function bootstrapModuleAdmin() {
+    try {
+        const raw = sessionStorage.getItem('sarabun_auth_cache');
+        if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed?.data?.isSarabunAdmin === true) {
+                window._userModuleAdmins = ['sarabun'];
+                console.log('⚡ Bootstrap: _userModuleAdmins = ["sarabun"] (จาก cache)');
+                return;
+            }
+        }
+    } catch (e) { /* ignore */ }
+
+    // Default: ว่าง
+    window._userModuleAdmins = window._userModuleAdmins || [];
+    console.log('⚡ Bootstrap: _userModuleAdmins = [] (ไม่มี cache)');
+})();
 
 // ==========================================
 // State
@@ -26,7 +47,7 @@ let adminTable = null;
 // 🚀 Performance: Auth Cache
 // ==========================================
 const AUTH_CACHE_KEY = 'sarabun_auth_cache';
-const AUTH_CACHE_TTL = 5 * 60 * 1000; // 5 นาที
+const AUTH_CACHE_TTL = 5 * 60 * 1000;
 
 function _readAuthCache() {
     try {
@@ -91,9 +112,9 @@ $(document).ready(async () => {
 
 // ==========================================
 // ✅ UI Toggle ตามสิทธิ์
-//    - Sidebar items: central filter จัดการผ่าน roles
-//    - Module Admin override: toggle sidebar items เพิ่ม
+//    - Sidebar items: central filter ใช้ roles + moduleAdmin
 //    - Topbar toggle button: จัดการที่นี่
+//    - ไม่ override DOM — ใช้ rerenderSidebar() แทน
 // ==========================================
 function updateUIBasedOnRole() {
     const role = window.currentUserRole || userRole;
@@ -103,9 +124,8 @@ function updateUIBasedOnRole() {
     }
 
     const isGlobalAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
-    const isSuperAdmin = (role === 'super_admin');
 
-    // ✅ Topbar toggle button: show เฉพาะ admin หรือ module admin
+    // ✅ Topbar toggle button
     const canAdmin = isAdminMode || isGlobalAdmin || isSarabunAdmin;
     const toggleBtn = document.getElementById('btnToggleMode');
     if (toggleBtn) {
@@ -116,16 +136,22 @@ function updateUIBasedOnRole() {
         }
     }
 
-    // ✅ Module Admin override: ถ้าเป็น module admin แต่ role ไม่ตรง → เปิด sidebar items ให้
-    //    (central filter ซ่อนไปแล้ว เพราะ role ไม่ตรง)
-    if (isSarabunAdmin && !isGlobalAdmin) {
-        ['nav-admin-view', 'nav-new-doc'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove('hidden');
-        });
+    // ✅ อัปเดต _userModuleAdmins (ให้ sidebar filter ใช้ค่าล่าสุด)
+    const newAdminList = isSarabunAdmin ? ['sarabun'] : [];
+    const changed = JSON.stringify(window._userModuleAdmins || []) !== JSON.stringify(newAdminList);
+    window._userModuleAdmins = newAdminList;
+
+    // ✅ ถ้ามีการเปลี่ยนแปลง → re-render sidebar
+    //    (central filter จะเปิด/ปิดเมนูตาม moduleAdmin ให้เอง)
+    if (changed && typeof window.rerenderSidebar === 'function') {
+        console.log('🔄 updateUIBasedOnRole: rerenderSidebar (admin list changed)');
+        window.rerenderSidebar();
     }
 
-    console.log('🔘 updateUIBasedOnRole:', { role, isAdminMode, isSarabunAdmin, canAdmin, isSuperAdmin });
+    console.log('🔘 updateUIBasedOnRole:', {
+        role, isAdminMode, isSarabunAdmin, canAdmin, isGlobalAdmin,
+        _userModuleAdmins: window._userModuleAdmins
+    });
 }
 window.updateUIBasedOnRole = updateUIBasedOnRole;
 
@@ -170,8 +196,6 @@ async function checkAuth() {
             updateUserRoleLabel(roleText);
 
             updatePageTitle('teacherView');
-
-            // ✅ อัปเดต UI (ไม่ต้อง re-render sidebar — dashboard_sidebar.js จัดการแล้ว)
             updateUIBasedOnRole();
 
             console.log('⚡ Auth จาก cache');
@@ -241,7 +265,7 @@ async function checkAuth() {
             isAdminMode
         });
 
-        // ✅ อัปเดต UI หลัง role set (ไม่ re-render sidebar)
+        // ✅ อัปเดต UI หลัง role set
         updateUIBasedOnRole();
 
     } catch (error) {
@@ -270,7 +294,7 @@ async function toggleRoleView() {
         _writeAuthCache(cached);
     }
 
-    // ✅ อัปเดต UI ทั้งหมด (toggle button + sidebar items + settings btn)
+    // ✅ อัปเดต UI ทั้งหมด
     updateUIBasedOnRole();
 
     // ✅ ถ้าออกจากโหมด admin แล้วยังค้างที่ adminView → กลับ teacherView
@@ -363,7 +387,6 @@ function updatePageTitle(viewId, panel = null) {
 // 4. UI Components
 // ==========================================
 function initUIComponents() {
-    // TomSelect Single
     document.querySelectorAll('.tom-select-single').forEach(el => {
         if (el.id === 'doc_speed' || el.id === 'doc_secret' ||
             el.id === 'edit_speed_level' || el.id === 'edit_secret_level') {
@@ -377,7 +400,6 @@ function initUIComponents() {
         });
     });
 
-    // TomSelect Multi
     document.querySelectorAll('.tom-select-multi').forEach(el => {
         if (el.tomselect) el.tomselect.destroy();
         new TomSelect(el, {
@@ -519,7 +541,6 @@ async function submitDocument(e) {
 
         logUserAction(`บันทึกหนังสือรับ เรื่อง: ${docData.doc_subject}`, 'sarabun');
 
-        // Fire-and-forget: Telegram
         if (systemSettings.telegram_token && systemSettings.telegram_chat_id) {
             const telegramData = {
                 ...docData,
@@ -771,7 +792,7 @@ async function _loadStatsFallback() {
 }
 
 // ==========================================
-// 9. Server-side Load — estimated count
+// 9. Server-side Load
 // ==========================================
 async function loadTableDataServerSide(dtParams, callback, tableType) {
     const { start, length, search, order, draw } = dtParams;
@@ -1208,7 +1229,7 @@ function switchTab(tabId) {
 }
 
 // ==========================================
-// 12. Settings Modal — 🚀 เปิดทันที + โหลด parallel
+// 12. Settings Modal
 // ==========================================
 async function openSettingsModal() {
     if (!requireAdmin(userRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
@@ -1468,6 +1489,12 @@ async function appointModuleAdmin() {
     Swal.fire({ icon: 'success', title: 'แต่งตั้งสำเร็จ', timer: 1500, showConfirmButton: false });
     await loadTeachersForAppoint();
     await loadModuleAdmins();
+
+    // ✅ ถ้าแต่งตั้งตัวเอง → refresh หน้าเพื่ออัปเดตสิทธิ์
+    if (userId === currentUser.id) {
+        _clearAuthCache();
+        setTimeout(() => window.location.reload(), 800);
+    }
 }
 
 async function removeModuleAdmin(recordId) {
@@ -1853,4 +1880,4 @@ window.loadDashboardStats = loadDashboardStats;
 window.switchSidebarView = switchSidebarView;
 window.updateUIBasedOnRole = updateUIBasedOnRole;
 
-console.log('✅ sarabun.js loaded (v3.0 — Central Sidebar Pattern)');
+console.log('✅ sarabun.js loaded (v3.1 — Module Admin via Sidebar Filter)');

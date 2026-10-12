@@ -243,6 +243,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'จัดการหนังสือ',
             onclick: "switchSidebarView('adminView')",
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'sarabun',   // ✅ เพิ่มบรรทัดนี้
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -252,6 +253,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ลงรับหนังสือใหม่',
             onclick: "switchSidebarView('adminView', 'form')",
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'sarabun',   // ✅ เพิ่มบรรทัดนี้
             icon_bg_color: '#10b981',
             icon_text_color: '#ffffff'
         },

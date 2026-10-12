@@ -251,11 +251,48 @@ function _buildIconTag(iconValue, color = '') {
 // ✅ Role Filter Helper
 // ==========================================
 function _isItemVisibleByRole(item) {
-    if (!item.roles || !Array.isArray(item.roles) || item.roles.length === 0) {
-        return true; // ไม่ระบุ roles → ทุกคนเห็น
-    }
     const currentRole = window.currentUserRole || '';
-    return item.roles.includes(currentRole);
+
+    // ✅ Dynamic lookup: ถ้า item ไม่มี moduleAdmin (config เก่า)
+    //    → ค้นหาจาก WRK_SIDEBAR_ACTIONS ตาม item.id
+    let moduleAdmin = item.moduleAdmin;
+    if (!moduleAdmin && item.id) {
+        moduleAdmin = _lookupModuleAdminById(item.id);
+    }
+
+    const hasRoles = item.roles && Array.isArray(item.roles) && item.roles.length > 0;
+    const hasModuleAdmin = !!moduleAdmin;
+
+    // ไม่มีทั้ง roles และ moduleAdmin → ทุกคนเห็น
+    if (!hasRoles && !hasModuleAdmin) return true;
+
+    // ✅ ตรวจ roles
+    if (hasRoles && item.roles.includes(currentRole)) return true;
+
+    // ✅ ตรวจ moduleAdmin
+    if (hasModuleAdmin) {
+        const adminModules = window._userModuleAdmins || [];
+        if (adminModules.includes(moduleAdmin)) return true;
+    }
+
+    return false;
+}
+
+// ✅ Helper: หา moduleAdmin จาก WRK_SIDEBAR_ACTIONS ตาม id
+function _lookupModuleAdminById(itemId) {
+    if (!itemId || !window.WRK_SIDEBAR_ACTIONS) return null;
+    const lib = window.WRK_SIDEBAR_ACTIONS;
+    for (const moduleKey of Object.keys(lib)) {
+        const moduleLib = lib[moduleKey];
+        if (!moduleLib || typeof moduleLib !== 'object') continue;
+        for (const actionKey of Object.keys(moduleLib)) {
+            const action = moduleLib[actionKey];
+            if (action && action.id === itemId && action.moduleAdmin) {
+                return action.moduleAdmin;
+            }
+        }
+    }
+    return null;
 }
 
 // ==========================================
