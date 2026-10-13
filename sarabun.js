@@ -1,10 +1,10 @@
 // ==========================================================================
-// sarabun.js — ระบบสารบรรณ (v3.1 — Full Central Sidebar Pattern)
+// sarabun.js — ระบบสารบรรณ (v3.2 — Fixed WRKModuleAdmin + Performance)
 // --------------------------------------------------------------------------
-// ✅ Pattern ตรงกับ attendance / homevisit / leave / meeting_room / personnel / portfolio / regis
+// ✅ Pattern ตรงกับ attendance / homevisit / leave / meeting_room / personnel
 // ✅ WRKModuleAdmin bootstrap + sync + onSidebarRendered + logout reset
-// ✅ ลบ manual DOM toggle workaround (ไม่ทำงาน — item ไม่อยู่ใน DOM)
-// ✅ onReady ใน HTML เหลือแค่ UI updates
+// ✅ FIX Bug 1: ลบ sync(false) ที่กลืน sync(true) → sidebar ไม่ rerender
+// ✅ FIX Bug 2: ลด query ซ้ำ (settings/stats โหลดรอบเดียว)
 // ==========================================================================
 
 // ==========================================
@@ -124,6 +124,7 @@ function updateUIBasedOnRole() {
 
     // ✅ Sync WRKModuleAdmin → sidebar re-render
     //    (rerender=true เพราะ sidebar items {moduleAdmin:'sarabun'} ต้องแสดง/ซ่อนตามสิทธิ์)
+    //    ✅ v3.2: จุดนี้เป็น "จุดเดียว" ที่เรียก sync → ป้องกัน sync(false) กลืน sync(true)
     if (typeof WRKModuleAdmin !== 'undefined') {
         WRKModuleAdmin.sync('sarabun', isSarabunAdmin, true);
     }
@@ -134,6 +135,8 @@ window.updateUIBasedOnRole = updateUIBasedOnRole;
 
 // ==========================================
 // 1. Auth — 🚀 Parallel + Cache
+//    ✅ v3.2: FIX — โหลดเฉพาะ auth ไม่รอ settings/stats
+//    ✅ v3.2: FIX — ลบ sync(false) ที่ซ้ำซ้อน → ปล่อยให้ updateUIBasedOnRole จัดการ
 // ==========================================
 async function checkAuth() {
     try {
@@ -152,10 +155,7 @@ async function checkAuth() {
             window.isAdminMode = isAdminMode;
             window.isSarabunAdmin = isSarabunAdmin;
 
-            // ✅ Sync WRKModuleAdmin → sidebar รู้จัก sarabun (จาก cache)
-            if (typeof WRKModuleAdmin !== 'undefined') {
-                WRKModuleAdmin.sync('sarabun', isSarabunAdmin, false);
-            }
+            // ✅ v3.2: ไม่ sync ที่นี่ — updateUIBasedOnRole() ด้านล่างจะ sync(true) ให้
 
             setUserDisplayName(currentProfile);
             renderUserAvatar(currentProfile);
@@ -179,7 +179,7 @@ async function checkAuth() {
 
             updatePageTitle('teacherView');
 
-            // ✅ อัปเดต UI
+            // ✅ อัปเดต UI (จะ sync(true) ให้เอง)
             updateUIBasedOnRole();
 
             console.log('⚡ Auth จาก cache');
@@ -206,17 +206,13 @@ async function checkAuth() {
             recorderDisplay.innerText = `${currentProfile.prefix || ''}${currentProfile.first_name} ${currentProfile.last_name}`;
         }
 
-        // ---------- 🚀 PARALLEL: ตรวจสิทธิ์ + โหลด settings + stats ----------
+        // ---------- 🚀 v3.2: ตรวจสิทธิ์เท่านั้น (ไม่รอ settings/stats) ----------
         const isGlobalAdmin = isAdminUser(userRole, false);
         const isOffice = isOfficeUser(userRole);
 
-        const [isModuleAdminResult] = await Promise.all([
-            isGlobalAdmin
-                ? Promise.resolve(true)
-                : hasModuleAccess(userRole, 'sarabun', currentUser.id).catch(() => false),
-            loadSettings().catch(e => console.warn('loadSettings:', e)),
-            loadDashboardStats().catch(e => console.warn('loadDashboardStats:', e))
-        ]);
+        const isModuleAdminResult = isGlobalAdmin
+            ? true
+            : await hasModuleAccess(userRole, 'sarabun', currentUser.id).catch(() => false);
 
         const isModuleAdmin = isGlobalAdmin ? true : isModuleAdminResult;
 
@@ -226,10 +222,7 @@ async function checkAuth() {
         window.isAdminMode = isAdminMode;
         window.isSarabunAdmin = isSarabunAdmin;
 
-        // ✅ Sync WRKModuleAdmin → sidebar รู้จัก sarabun
-        if (typeof WRKModuleAdmin !== 'undefined') {
-            WRKModuleAdmin.sync('sarabun', isSarabunAdmin, false);
-        }
+        // ✅ v3.2: ไม่ sync ที่นี่ — updateUIBasedOnRole() ด้านล่างจะ sync(true) ให้
 
         // ---------- Role label ----------
         let roleText = 'Teacher';
@@ -254,7 +247,7 @@ async function checkAuth() {
             isAdminMode
         });
 
-        // ✅ อัปเดต UI หลัง role set
+        // ✅ อัปเดต UI หลัง role set (จะ sync(true) ให้เอง)
         updateUIBasedOnRole();
 
     } catch (error) {
@@ -1876,4 +1869,4 @@ window.onSidebarRendered = function () {
     console.log('🔄 onSidebarRendered: re-applied UI for sarabun');
 };
 
-console.log('✅ sarabun.js loaded (v3.1 — Full Central Sidebar Pattern)');
+console.log('✅ sarabun.js loaded (v3.2 — Fixed WRKModuleAdmin + Performance)');

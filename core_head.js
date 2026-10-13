@@ -75,8 +75,11 @@ const coreHeadHTML = `
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
     
-    <!-- ✅ Sidebar Actions Library (โหลดก่อน dashboard_sidebar.js) -->
+        <!-- ✅ Sidebar Actions Library (โหลดก่อน dashboard_sidebar.js) -->
     <script src="dashboard_sidebar_actions.js"></script>
+    
+    <!-- ✅ Module Admin Helper (ใช้ร่วมทุกโมดูล) -->
+    <script src="wrk_module_admin.js"></script>
 `;
 
 document.write(coreHeadHTML);
