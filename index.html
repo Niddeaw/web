@@ -34,6 +34,80 @@
             font-size: 11px;
             font-weight: 600;
         }
+
+        /* ============================================================
+            Birthday Notification Badge
+            ============================================================ */
+        @keyframes wiggle-blink {
+
+            0%,
+            100% {
+                transform: rotate(0deg);
+                opacity: 1;
+            }
+
+            25% {
+                transform: rotate(-8deg);
+                opacity: 0.7;
+            }
+
+            50% {
+                transform: rotate(0deg);
+                opacity: 0.4;
+            }
+
+            75% {
+                transform: rotate(8deg);
+                opacity: 0.7;
+            }
+        }
+
+        .birthday-notification-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #fce7f3;
+            color: #be185d;
+            padding: 0.3rem 0.9rem;
+            border-radius: 9999px;
+            border: 1px solid #fbcfe8;
+            box-shadow: 0 2px 6px rgba(190, 24, 93, 0.15);
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+
+        .birthday-notification-badge.animated {
+            animation: wiggle-blink 1.2s ease-in-out 3;
+        }
+
+        .birthday-notification-badge:hover {
+            transform: scale(1.05);
+            background: #fce4ec;
+        }
+
+        #birthday-notification.hidden {
+            display: none !important;
+        }
+
+        /* มือถือ: เหลือแค่ emoji 🎂 */
+        @media (max-width: 760px) {
+            #birthday-notification {
+                font-size: 0 !important;
+                padding: 8px 10px !important;
+                min-width: 36px;
+                justify-content: center !important;
+                gap: 0 !important;
+            }
+
+            #birthday-notification::before {
+                content: '🎂';
+                font-size: 1rem;
+                line-height: 1;
+            }
+        }
     </style>
 </head>
 
@@ -208,6 +282,30 @@
                 </section>
 
             </main>
+        </div>
+    </div>
+
+    <!-- ================= Modal รายชื่อวันเกิด ================= -->
+    <div id="birthday-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4">
+        <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeBirthdayModal()"></div>
+        <div
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
+            <div
+                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-pink-500 to-rose-500 text-white flex-shrink-0">
+                <div class="flex items-center gap-2">
+                    <i class="fas fa-birthday-cake text-lg"></i>
+                    <h3 class="font-bold text-base">🎂 รายชื่อวันเกิด</h3>
+                </div>
+                <button onclick="closeBirthdayModal()"
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div id="birthday-modal-content" class="p-5 overflow-y-auto flex-1"></div>
+            <div class="px-6 py-3 border-t border-slate-100 bg-slate-50 flex justify-end flex-shrink-0">
+                <button onclick="closeBirthdayModal()"
+                    class="px-5 py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-sm transition">ปิด</button>
+            </div>
         </div>
     </div>
 
@@ -439,6 +537,10 @@
                 search: { id: 'appSearch', placeholder: 'ค้นหาระบบงาน หรือเมนูต่างๆ...', oninput: 'handleSearchInput()' },
                 breadcrumb: [{ label: 'หน้าหลัก' }]
             });
+            // ✅ เพิ่ม 2 บรรทัดนี้
+            if (typeof initIndexBirthdayNotification === 'function') {
+                await initIndexBirthdayNotification();
+            }
         }
 
         // =======================================================
@@ -458,6 +560,10 @@
                     .select('module_id')
                     .eq('user_id', result.user.id);
                 userAdminModules = moduleAdmins ? moduleAdmins.map(m => m.module_id) : [];
+
+                // ✅ NEW: sync เข้า window._userModuleAdmins → ให้ sidebar filter ใช้
+                window._userModuleAdmins = [...userAdminModules];
+                console.log('🔑 index: _userModuleAdmins =', window._userModuleAdmins);
 
                 const { data: allCustomModules } = await db
                     .from('core_system_modules')
@@ -992,6 +1098,213 @@
         window.getDesiredCategory = getDesiredCategory;
     </script>
 
+    <script>
+        // ============================================================
+        // 🎂 Birthday Notification — index.html
+        // ============================================================
+        let _indexBirthdayCache = { today: [], upcoming: [] };
+
+        const _BD_AVATAR_COLORS = ['#6366f1', '#3b82f6', '#8b5cf6', '#10b981', '#f43f5e', '#f59e0b', '#06b6d4', '#ec4899'];
+        function _bdAvatarColor(n) {
+            let h = 0;
+            for (let c of (n || 'ก')) h = c.charCodeAt(0) + ((h << 5) - h);
+            return _BD_AVATAR_COLORS[Math.abs(h) % _BD_AVATAR_COLORS.length];
+        }
+
+        // ✅ 1) Inject badge หลัง .d-spacer ใน topbar (เรียกซ้ำได้ ปลอดภัย)
+        async function initIndexBirthdayNotification() {
+            const topbar = document.getElementById('dTopbar');
+            if (!topbar) return;
+
+            // ถ้ามีอยู่แล้ว → ไม่อินเจคซ้ำ
+            if (!topbar.querySelector('#birthday-notification')) {
+                const spacer = topbar.querySelector('.d-spacer');
+                if (!spacer) return;
+                const span = document.createElement('span');
+                span.id = 'birthday-notification';
+                span.className = 'hidden';
+                spacer.insertAdjacentElement('afterend', span);
+            }
+
+            await updateBirthdayNotification();
+        }
+
+        // ✅ 2) ดึงข้อมูลวันเกิดจาก core_personnel แล้วอัปเดต badge
+        async function updateBirthdayNotification() {
+            const el = document.getElementById('birthday-notification');
+            if (!el) return;
+
+            try {
+                // ดึงเฉพาะฟิลด์ที่ใช้ — query เบา
+                const { data, error } = await db
+                    .from('core_personnel')
+                    .select('id, prefix, first_name, last_name, birth_date, position, department, avatar_url')
+                    .not('birth_date', 'is', null);
+
+                if (error) throw error;
+
+                const today = dayjs();
+                const currentYear = today.year();
+                const birthdayToday = [];
+                const upcoming = [];
+
+                (data || []).forEach(p => {
+                    const bd = dayjs(p.birth_date);
+                    const thisYearBD = bd.set('year', currentYear);
+                    const diffDays = thisYearBD.diff(today, 'day');
+
+                    if (diffDays === 0) birthdayToday.push(p);
+                    else if (diffDays > 0 && diffDays <= 7) upcoming.push({ days: diffDays, person: p });
+                });
+
+                _indexBirthdayCache = { today: birthdayToday, upcoming };
+
+                if (birthdayToday.length === 0 && upcoming.length === 0) {
+                    el.classList.add('hidden');
+                    el.classList.remove('birthday-notification-badge', 'animated');
+                    return;
+                }
+
+                el.classList.remove('hidden', 'animated');
+                el.classList.add('birthday-notification-badge');
+                el.onclick = () => openBirthdayModal();
+
+                let msg = '';
+                if (birthdayToday.length > 0) {
+                    msg = birthdayToday.length > 1
+                        ? `🎂 วันเกิดวันนี้ ${birthdayToday.length} คน`
+                        : `🎂 วันเกิดวันนี้: ${birthdayToday[0].prefix || ''}${birthdayToday[0].first_name} ${birthdayToday[0].last_name}`;
+                } else {
+                    const sorted = [...upcoming].sort((a, b) => a.days - b.days);
+                    const d = sorted[0].days;
+                    msg = `🎉 จะมีวันเกิดใน ${d} วัน (${sorted.length} คน)`;
+                }
+                el.textContent = msg;
+
+                void el.offsetWidth;
+                el.classList.add('animated');
+            } catch (err) {
+                console.warn('⚠️ updateBirthdayNotification error:', err);
+                el.classList.add('hidden');
+            }
+        }
+
+        // ✅ 3) Modal
+        function openBirthdayModal() {
+            const { today: bdToday, upcoming } = _indexBirthdayCache;
+            if (bdToday.length === 0 && upcoming.length === 0) return;
+
+            const modal = document.getElementById('birthday-modal');
+            const content = document.getElementById('birthday-modal-content');
+            if (!modal || !content) return;
+
+            let html = '';
+
+            // --- ส่วนที่ 1: วันเกิดวันนี้ ---
+            if (bdToday.length > 0) {
+                html += `
+            <div class="mb-5">
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-pink-500 to-rose-500 text-white flex items-center justify-center shadow-sm">
+                        <i class="fas fa-birthday-cake text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm text-slate-800">วันเกิดวันนี้</h4>
+                        <p class="text-[10px] text-slate-400">${bdToday.length} คน</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    ${bdToday.map(p => `
+                        <div class="flex items-center gap-3 p-3 bg-gradient-to-r from-pink-50 to-rose-50 border border-pink-100 rounded-xl">
+                            <div style="width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;color:#fff;background:${_bdAvatarColor(p.first_name)};flex-shrink:0;">
+                                ${(p.first_name || '?').charAt(0)}
+                            </div>
+                            <div class="min-w-0 flex-1">
+                                <p class="font-bold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                                <p class="text-[11px] text-slate-500 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+                            </div>
+                            <div class="text-2xl flex-shrink-0">🎂</div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+            }
+
+            // --- ส่วนที่ 2: กำลังจะมาถึง (≤ 7 วัน) ---
+            if (upcoming.length > 0) {
+                const grouped = {};
+                upcoming.forEach(item => {
+                    if (!grouped[item.days]) grouped[item.days] = [];
+                    grouped[item.days].push(item.person);
+                });
+                const sortedDays = Object.keys(grouped).map(Number).sort((a, b) => a - b);
+
+                html += `
+            <div>
+                <div class="flex items-center gap-2 mb-3 px-1">
+                    <div class="w-8 h-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 text-white flex items-center justify-center shadow-sm">
+                        <i class="fas fa-calendar-alt text-sm"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-sm text-slate-800">วันเกิดที่กำลังจะมาถึง</h4>
+                        <p class="text-[10px] text-slate-400">ภายใน 7 วัน • ${upcoming.length} คน</p>
+                    </div>
+                </div>
+                <div class="space-y-3">
+                    ${sortedDays.map(days => `
+                        <div class="border border-slate-200 rounded-xl overflow-hidden">
+                            <div class="px-3 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                                <i class="fas fa-clock text-amber-500 text-xs"></i>
+                                <span class="font-bold text-xs text-slate-700">อีก ${days} วัน</span>
+                                <span class="text-[10px] text-slate-400 ml-auto">${grouped[days].length} คน</span>
+                            </div>
+                            <div class="divide-y divide-slate-100 bg-white">
+                                ${grouped[days].map(p => {
+                    const bdThisYear = dayjs(p.birth_date).set('year', dayjs().year());
+                    // ✅ ใช้ Array ชื่อเดือนไทย — ไม่พึ่ง dayjs locale
+                    const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+                        'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+                    const dateStr = `${bdThisYear.date()} ${THAI_MONTHS[bdThisYear.month()]}`;
+                    return `
+                                        <div class="flex items-center gap-3 p-2.5">
+                                            <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${_bdAvatarColor(p.first_name)};flex-shrink:0;">
+                                                ${(p.first_name || '?').charAt(0)}
+                                            </div>
+                                            <div class="min-w-0 flex-1">
+                                                <p class="font-semibold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                                                <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+                                            </div>
+                                            <div class="text-xs font-bold text-amber-600 flex-shrink-0">${dateStr}</div>
+                                        </div>
+                                    `;
+                }).join('')}
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+            }
+
+            content.innerHTML = html;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeBirthdayModal() {
+            const modal = document.getElementById('birthday-modal');
+            if (!modal) return;
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // ✅ Expose globals
+        window.initIndexBirthdayNotification = initIndexBirthdayNotification;
+        window.updateBirthdayNotification = updateBirthdayNotification;
+        window.openBirthdayModal = openBirthdayModal;
+        window.closeBirthdayModal = closeBirthdayModal;
+    </script>
 </body>
 
 </html>
