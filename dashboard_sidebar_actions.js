@@ -1080,14 +1080,63 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon_bg_color: '#0ea5e9',
             icon_text_color: '#ffffff'
         },
+        deptHead: {
+            id: 'nav-trip-depthead',
+            icon: 'fa-users',
+            label: 'หัวหน้ากลุ่มฯ',
+            href: 'government_trip_dept_head.html',
+            icon_bg_color: '#a855f7',
+            icon_text_color: '#ffffff'
+        },
         admin: {
             id: 'nav-trip-admin',
             icon: 'fa-user-shield',
             label: 'จัดการระบบ (Admin)',
             href: 'government_trip_admin.html',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
-            moduleAdmin: 'government_trip',   // ✅ เพิ่ม
+            moduleAdmin: 'government_trip',
             icon_bg_color: '#ef4444',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ dashboard — เปลี่ยน id
+        dashboard: {
+            id: 'trip-btn-dashboard',       // ← จาก 'btn-dashboard'
+            icon: 'fa-chart-pie',
+            label: 'ภาพรวมสถิติ',
+            onclick: "switchTripAdminTab('dashboard')",
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ manage — เปลี่ยน id
+        manage: {
+            id: 'trip-btn-manage',           // ← จาก 'btn-manage'
+            icon: 'fa-list-check',
+            label: 'ตรวจสอบการขอไปราชการ',
+            onclick: "switchTripAdminTab('manage')",
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ settings — เปลี่ยน id (สำคัญที่สุด!)
+        settings: {
+            id: 'trip-btn-settings',         // ← จาก 'btn-settings'
+            icon: 'fa-cog',
+            label: 'ตั้งค่าระบบ',
+            onclick: "switchTripAdminTab('settings')",
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'government_trip',
+            icon_bg_color: '#f59e0b',
+            icon_text_color: '#ffffff'
+        },
+        superAdmin: {
+            id: 'btnSuperAdmin',
+            icon: 'fa-crown',
+            label: 'ผู้ดูแลระบบสูงสุด',
+            href: 'super_admin.html',
+            roles: ['super_admin'],
+            icon_bg_color: '#dc2626',
             icon_text_color: '#ffffff'
         },
         logout: {

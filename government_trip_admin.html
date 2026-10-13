@@ -473,30 +473,52 @@
         function getTripAdminFallbackConfig() {
             return {
                 iconStyle: 'outline',
-                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Trip Admin', subtitle: 'ระบบจัดการขอไปราชการ' },
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK Trip Admin',
+                    subtitle: 'ระบบจัดการขอไปราชการ'
+                },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: buildSidebarItems('government_trip', ['home', 'teacher']),
-                showAllDepartments: false, departmentsTitle: '', departments: [],
+
+                // ✅ เปลี่ยนจาก ['home', 'teacher'] → ['dashboard', 'manage', 'settings']
+                mainMenu: buildSidebarItems('government_trip', [
+                    'dashboard',      // ภาพรวมสถิติ
+                    'manage',         // ตรวจสอบการขอไปราชการ
+                    'settings'        // ตั้งค่าระบบ (เฉพาะ super_admin / admin / moduleAdmin)
+                ]),
+
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
                 moduleMenus: [
                     {
                         title: 'จัดการ',
                         sectionId: 'sec-trip-admin',
                         collapsible: false,
                         defaultOpen: true,
-                        items: buildSidebarItems('government_trip', ['admin'])
+                        items: buildSidebarItems('government_trip', ['teacher', 'deptHead'])
                     }
                 ],
-                footerMenuTitle: '', footerCollapsible: false, footerMenu: [],
+
+                // ✅ เพิ่ม footer menu — Super Admin + กลับหน้าหลัก
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: buildSidebarItems('government_trip', ['superAdmin', 'home']),
+
                 logoutItem: getSidebarAction('government_trip', 'logout'),
-                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
             };
         }
 
         initModuleSidebar({
             moduleKey: 'government_trip',
             pageTitle: 'แดชบอร์ดขอไปราชการ',
-            activeId: 'nav-trip-admin',
+            activeId: 'trip-btn-dashboard',
             topbarButtons: [
                 { id: 'btnNavTeacher', html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>', onclick: "window.location.href='government_trip_teacher.html'", class: 'hidden d-btn-mode teacher', title: 'ไปหน้าโหมดครู' },
                 { id: 'btnNavDeptHead', html: '<i class="fas fa-users"></i><span>หัวหน้ากลุ่มฯ</span>', onclick: "window.location.href='government_trip_dept_head.html'", class: 'hidden d-btn-mode depthead', title: 'ไปหน้าโหมดหัวหน้ากลุ่มฯ' }

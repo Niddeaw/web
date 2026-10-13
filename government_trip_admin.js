@@ -170,8 +170,14 @@ window.switchTripAdminTab = function (tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
 
-    const navMap = { 'dashboard': 'btn-dashboard', 'manage': 'btn-manage', 'settings': 'btn-settings' };
-    if (navMap[tabId] && typeof setActiveNavItem === 'function') setActiveNavItem(navMap[tabId]);
+    // ✅ เปลี่ยน navMap ให้ตรง ID ใหม่
+    const navMap = { 
+        'dashboard': 'trip-btn-dashboard', 
+        'manage': 'trip-btn-manage', 
+        'settings': 'trip-btn-settings' 
+    };
+    if (navMap[tabId] && typeof setActiveNavItem === 'function') 
+        setActiveNavItem(navMap[tabId]);
 
     const titles = {
         'dashboard': 'แดชบอร์ดขอไปราชการ',
