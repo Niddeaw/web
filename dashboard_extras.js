@@ -730,25 +730,79 @@ async function initExtras() {
                 label: 'นักเรียน',
                 icon: 'fa-user-graduate',
                 color: '#8b5cf6',
+                // search: async (q) => {
+                //     try {
+                //         const { data } = await db.from('core_students')
+                //             .select('id, prefix, first_name, last_name, student_id_card')
+                //             .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,student_id_card.ilike.%${q}%`)
+                //             .limit(8);
+                //         return (data || []).map(s => ({
+                //             id: s.id,
+                //             title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                //             subtitle: `รหัส: ${s.student_id_card || '-'}`,
+                //             icon: 'fa-user-graduate',
+                //             onSelect: () => Swal.fire({
+                //                 title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                //                 html: `<div class="text-sm">รหัส: <b>${s.student_id_card || '-'}</b></div>`,
+                //                 icon: 'info'
+                //             })
+                //         }));
+                //     } catch (e) { return []; }
+                // }
                 search: async (q) => {
-                    try {
-                        const { data } = await db.from('core_students')
-                            .select('id, prefix, first_name, last_name, student_id_card')
-                            .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,student_id_card.ilike.%${q}%`)
-                            .limit(8);
-                        return (data || []).map(s => ({
-                            id: s.id,
-                            title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
-                            subtitle: `รหัส: ${s.student_id_card || '-'}`,
-                            icon: 'fa-user-graduate',
-                            onSelect: () => Swal.fire({
-                                title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
-                                html: `<div class="text-sm">รหัส: <b>${s.student_id_card || '-'}</b></div>`,
-                                icon: 'info'
-                            })
-                        }));
-                    } catch (e) { return []; }
-                }
+    // 1) หานักเรียนก่อน
+    const { data: students } = await db.from('core_students')
+        .select('id, prefix, first_name, last_name, student_id_card')
+        .or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,student_id_card.ilike.%${q}%`)
+        .limit(8);
+    if (!students?.length) return [];
+
+    // 2) ดึง enrollment + classroom + adviser_id
+    const { data: enrs } = await db.from('student_enrollments')
+        .select(`student_id, core_classrooms(grade_level, room_number, adviser_id_1, adviser_id_2)`)
+        .in('student_id', students.map(s => s.id));
+
+    // 3) ดึงชื่อครูที่ปรึกษา
+    const advIds = new Set();
+    (enrs || []).forEach(e => {
+        if (e.core_classrooms?.adviser_id_1) advIds.add(e.core_classrooms.adviser_id_1);
+        if (e.core_classrooms?.adviser_id_2) advIds.add(e.core_classrooms.adviser_id_2);
+    });
+    const { data: personnel } = advIds.size
+        ? await db.from('core_personnel').select('id, prefix, first_name, last_name').in('id', [...advIds])
+        : { data: [] };
+    const advMap = Object.fromEntries((personnel || []).map(p =>
+        [p.id, `${p.prefix || ''}${p.first_name} ${p.last_name}`]
+    ));
+
+    // 4) ประกอบผลลัพธ์
+    const enrMap = {};
+    (enrs || []).forEach(e => { if (!enrMap[e.student_id]) enrMap[e.student_id] = e; });
+
+    return students.map(s => {
+        const cls = enrMap[s.id]?.core_classrooms;
+        const room = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '';
+        const adv1 = cls?.adviser_id_1 ? advMap[cls.adviser_id_1] : '';
+        const adv2 = cls?.adviser_id_2 ? advMap[cls.adviser_id_2] : '';
+        const advisers = [adv1, adv2].filter(Boolean).join(' และ ');
+
+        return {
+            id: s.id,
+            title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+            subtitle: [room, advisers && `ครูที่ปรึกษา: ${advisers}`].filter(Boolean).join(' • '),
+            icon: 'fa-user-graduate',
+            onSelect: () => Swal.fire({
+                title: `${s.prefix || ''}${s.first_name} ${s.last_name}`,
+                html: `<div class="text-sm text-left space-y-1">
+                    <p>รหัส: <b>${s.student_id_card || '-'}</b></p>
+                    ${room ? `<p>ชั้นเรียน: <b>${room}</b></p>` : ''}
+                    ${advisers ? `<p>ครูที่ปรึกษา: <b>${advisers}</b></p>` : ''}
+                </div>`,
+                icon: 'info'
+            })
+        };
+    });
+}
             },
             {
                 id: 'personnel',
