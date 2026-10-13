@@ -110,8 +110,8 @@ async function loadResultsTable() {
 
         let html = '';
         let stats = { total: 0, finalized: 0, pending: 0, noData: 0 };
-        // ✅ [SECURITY] ตรวจสอบสิทธิ์สำหรับการจัดการคะแนน
-        const canManageScores = currentUser && ['admin', 'super_admin'].includes(currentUser.role);
+        // ✅ [SECURITY] ตรวจสอบสิทธิ์สำหรับการจัดการคะแนน (จาก config กลาง)
+        const canManageScores = currentUser && window.EVAL_ROLES.canManage(currentUser.role);
         combinedData.forEach(({ teacher, final, groupsEvaluated }) => {
             stats.total++;
 
@@ -307,7 +307,7 @@ function calculateMode(arr) {
 // ==========================================
 async function triggerGenerateAllFinalScores() {
     // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์
-    if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+    if (!currentUser || !window.EVAL_ROLES.canManage(currentUser.role)) {
         return Swal.fire({
             icon: 'error',
             title: '🔒 ไม่มีสิทธิ์',
@@ -1052,7 +1052,7 @@ async function generateCommitteeSheetData(roundId, mainGroupId) {
     // ==========================================
     // ✅ โค้ดที่เหลือ ใช้เหมือนเดิมทุกอย่าง
     // ==========================================
-    
+
     // 2. รวบรวม department targets จากทุก group
     const deptSet = new Set();
     subGroups.forEach(sub => {

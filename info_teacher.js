@@ -1,12 +1,19 @@
 // ==========================================
 // info_teacher.js — สำหรับครู/แอดมินดูข้อมูลนักเรียน
 // (Performance Optimized: parallel queries + cache)
+// (Module Admin Support)
 // ==========================================
 // สิทธิ์:
 // 1. super_admin, admin, director, deputy, teacher → เข้าใช้งานได้ (อัปโหลดรูปได้)
-// 2. หัวหน้างานปกครอง, หัวหน้าระดับ → เข้าใช้งานได้ (ดูอย่างเดียว, ไม่สามารถอัปโหลดรูปได้)
-// 3. staff, office → ไม่สามารถเข้าใช้งานได้ (แจ้งเตือนและ redirect)
+// 2. หัวหน้างานปกครอง, หัวหน้าระดับ → เข้าใช้งานได้ (ดูอย่างเดียว)
+// 3. Module Admin (info_teacher) → เทียบเท่า admin
+// 4. staff, office → ไม่สามารถเข้าใช้งานได้
 // ==========================================
+
+// ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+WRKModuleAdmin.bootstrap('info_teacher', 'info_teacher_auth_cache', 'isModuleAdmin');
 
 // ==========================================
 // ตัวแปร Global
@@ -34,7 +41,7 @@ const _perfCache = {
     classrooms: null,
     classroomsKey: null,
     students: {},
-    gradeHeadLevel: undefined,   // undefined = ยังไม่โหลด | null = ไม่ใช่ | number = ระดับที่ดูแล
+    gradeHeadLevel: undefined,
     isDisciplineHeadCached: undefined,
     moduleAccess: undefined
 };
@@ -47,7 +54,7 @@ function safeSetHtml(id, html) { const el = document.getElementById(id); if (el)
 function safeSetSrc(id, src) { const el = document.getElementById(id); if (el) el.src = src; else console.warn(`Element ${id} not found`); }
 
 // ==========================================
-// ฟังก์ชันอัปเดต UI ตามสิทธิ์ (ใช้ config.js)
+// ✅ อัปเดต UI ตามสิทธิ์ (รองรับ Module Admin)
 // ==========================================
 function applyAdminVisibility() {
     const isAdmin = isAdminMode;
@@ -57,7 +64,21 @@ function applyAdminVisibility() {
         toggleBtn: 'btnToggleMode'
     });
 
-    window.updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
+    // ✅ Module Admin → override ปุ่ม topbar (เพราะ role='teacher' จะโดนซ่อน)
+    if (isModuleAdmin) {
+        const topbarSettings = document.getElementById('btnSettings');
+        if (topbarSettings) {
+            topbarSettings.classList.remove('hidden');
+            topbarSettings.classList.add('flex');
+        }
+        const topbarToggle = document.getElementById('btnToggleMode');
+        if (topbarToggle) {
+            topbarToggle.classList.remove('hidden');
+            topbarToggle.classList.add('flex');
+        }
+    }
+
+    window.updateToggleModeUI(currentUserRole, isAdminMode || isModuleAdmin, 'btnToggleMode');
 
     // ✅ adminFilterSection
     const filterSection = document.getElementById('adminFilterSection');
@@ -74,7 +95,7 @@ function applyAdminVisibility() {
     // ✅ badge
     const badge = document.getElementById('pageBadge');
     if (badge) {
-        if (isAdminMode) {
+        if (isAdminMode || isModuleAdmin) {
             badge.innerText = 'มุมมองผู้ดูแลระบบ (Admin View - เลือกดูทีละห้อง)';
         } else if (isHead) {
             badge.innerText = 'มุมมองหัวหน้าระดับ/ปกครอง (ดูอย่างเดียว - เลือกห้องเรียนได้)';
@@ -83,7 +104,7 @@ function applyAdminVisibility() {
         }
     }
 
-    // ✅ ปุ่มสลับโหมด
+    // ✅ ปุ่มสลับโหมด — จัดการ label + style
     const toggleBtn = document.getElementById('btnToggleMode');
     if (toggleBtn) {
         if (isAdminMode) {
@@ -91,7 +112,7 @@ function applyAdminVisibility() {
             toggleBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-all shadow-sm';
             toggleBtn.classList.remove('hidden');
             toggleBtn.classList.add('flex');
-        } else if (isAdminUser(currentUserRole, false)) {
+        } else if (isModuleAdmin || isAdminUser(currentUserRole, false)) {
             toggleBtn.innerHTML = '<i class="fa-solid fa-user-shield sm:mr-1"></i> <span class="hidden sm:inline text-sm font-bold">โหมดแอดมิน</span>';
             toggleBtn.className = 'flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold bg-purple-50 text-purple-600 hover:bg-purple-100 border border-purple-200 transition-all shadow-sm';
             toggleBtn.classList.remove('hidden');
@@ -102,7 +123,7 @@ function applyAdminVisibility() {
         }
     }
 
-    // ✅ Sync sidebar settings button
+    // ✅ Sidebar settings button (ถ้ามี module admin, sidebar จะแสดงอัตโนมัติ)
     const sidebarSettings = document.getElementById('btnSettingsSidebar');
     if (sidebarSettings) {
         if (isAdminMode || isModuleAdmin) {
@@ -114,6 +135,11 @@ function applyAdminVisibility() {
 
     // ✅ โหมดอ่านอย่างเดียว
     applyReadOnlyState();
+
+    // ✅ Sync WRKModuleAdmin → sidebar รู้จัก info_teacher
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('info_teacher', isModuleAdmin, true);
+    }
 }
 
 // ==========================================
@@ -122,7 +148,6 @@ function applyAdminVisibility() {
 function applyReadOnlyState() {
     if (!isReadOnly) return;
 
-    // 1. ปิดปุ่มอัปโหลด
     const uploadBtns = document.querySelectorAll('#profileFileInput, #cloudUploadBtn');
     uploadBtns.forEach(btn => {
         if (btn) {
@@ -131,11 +156,9 @@ function applyReadOnlyState() {
         }
     });
 
-    // 2. ซ่อนปุ่มลบรูป
     const deleteBtn = document.querySelector('button[onclick="deleteProfilePicture()"]');
     if (deleteBtn) deleteBtn.style.display = 'none';
 
-    // 3. แสดง banner
     const existingBanner = document.getElementById('readonly-banner');
     if (!existingBanner) {
         const banner = document.createElement('div');
@@ -153,10 +176,11 @@ function applyReadOnlyState() {
 }
 
 // ==========================================
-// ✅ Role → ข้อความ label (เฉพาะ info_teacher)
+// ✅ Role → ข้อความ label
 // ==========================================
 function getRoleDisplayText() {
     if (isAdminMode) return 'ผู้ดูแลระบบ';
+    if (isModuleAdmin) return 'Module Admin (ข้อมูลนักเรียน)';
     if (currentUserRole === 'super_admin') return 'ผู้ดูแลระบบสูงสุด';
     if (currentUserRole === 'admin') return 'ผู้ดูแลระบบ';
     if (currentUserRole === 'director') return 'ผู้อำนวยการ';
@@ -168,29 +192,23 @@ function getRoleDisplayText() {
 
 // ==========================================
 // ✅ อัปเดตชื่อ + บทบาท + avatar ใน Topbar
-//    ใช้ฟังก์ชันกลางของ dashboard_sidebar.js
 // ==========================================
 function updateUserDisplay() {
     if (!currentUser) return;
 
-    // 1) ใช้ฟังก์ชันกลาง — ชื่อ-สกุล
     if (typeof setUserDisplayName === 'function') {
         setUserDisplayName(currentUser);
     }
 
-    // 2) ใช้ฟังก์ชันกลาง — avatar (รองรับ avatar_staff_url หลัง patch)
     if (typeof renderUserAvatar === 'function') {
         renderUserAvatar(currentUser);
     }
 
-    // 3) Role label แบบ custom (ไม่ใช้ map กลาง)
     const userRoleEl = document.getElementById('userRole');
     if (userRoleEl) userRoleEl.textContent = getRoleDisplayText();
 
-    // 4) Sync กับ dashboard_sidebar.js (ให้ renderTopbar re-apply ได้)
     window.currentProfile = currentUser;
 
-    // 5) Legacy element (fallback)
     const legacyDisplay = document.getElementById('user-display');
     if (legacyDisplay) {
         const fullName = `${currentUser.prefix || ''}${currentUser.first_name} ${currentUser.last_name}`.trim();
@@ -202,12 +220,17 @@ function updateUserDisplay() {
 }
 
 // ==========================================
-// ✅ Hook: เรียกทุกครั้งที่ renderTopbar() re-render
-//    (เผื่อ dashboard_sidebar.js ยิง callback นี้)
+// ✅ Hooks: re-apply หลัง sidebar/topbar render
 // ==========================================
 window.onTopbarRendered = function () {
     if (typeof updateUserDisplay === 'function') updateUserDisplay();
     if (typeof applyAdminVisibility === 'function') applyAdminVisibility();
+};
+
+window.onSidebarRendered = function () {
+    if (typeof updateUserDisplay === 'function') updateUserDisplay();
+    if (typeof applyAdminVisibility === 'function') applyAdminVisibility();
+    console.log('🔄 onSidebarRendered: re-applied UI for info_teacher');
 };
 
 // ==========================================
@@ -216,7 +239,6 @@ window.onTopbarRendered = function () {
 async function loadCurrentYearAndSemester() {
     if (currentAcademicYear !== null && currentSemester !== null) return;
 
-    // ✅ ใช้ cache
     if (_perfCache.schoolInfo) {
         currentAcademicYear = _perfCache.schoolInfo.current_academic_year || 2569;
         currentSemester = _perfCache.schoolInfo.current_semester || 1;
@@ -254,7 +276,6 @@ function updateTermDisplay() {
 async function loadGasSettings() {
     if (gasSettingsCache) return gasSettingsCache;
 
-    // ✅ ใช้ cache จาก schoolInfo
     if (_perfCache.schoolInfo) {
         gasSettingsCache = _perfCache.schoolInfo;
         moduleSettings.gas_avatar_api_url = _perfCache.schoolInfo.gas_avatar_api_url || '';
@@ -392,7 +413,6 @@ async function uploadPendingProfile() {
     if (driveUrl) {
         await db.from('core_students').update({ avatar_students_url: driveUrl }).eq('id', activeStudentId);
         safeSetSrc('profileImage', driveUrl);
-        // ✅ Clear cache ของห้องนั้นๆ
         _perfCache.students = {};
         Swal.fire({ icon: 'success', title: 'อัปโหลดสำเร็จ', timer: 1500, showConfirmButton: false });
         pendingProfileFile = null;
@@ -423,7 +443,6 @@ async function deleteProfilePicture() {
         const fullName = document.getElementById('modalStudentName')?.innerText || '';
         el.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`;
     }
-    // ✅ Clear cache
     _perfCache.students = {};
     pendingProfileFile = null;
     Swal.fire({ icon: 'success', title: 'ลบรูปเรียบร้อยแล้ว', timer: 1500, showConfirmButton: false });
@@ -436,18 +455,28 @@ function openLightbox(src) { if (src) { const img = document.getElementById('lig
 function closeLightbox() { document.getElementById('lightboxModal')?.classList.add('hidden'); }
 
 // ==========================================
-// Settings Modal
+// ✅ Settings Modal — รองรับ Module Admin
 // ==========================================
 async function openSettingsModal() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
+    const canOpen = window.isAdminUser(currentUserRole, isAdminMode) || isModuleAdmin;
+    if (!canOpen) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+        return;
+    }
     await loadGasSettings();
     document.getElementById('settingsGasUrl').value = moduleSettings.gas_avatar_api_url;
     document.getElementById('settingsFolderId').value = moduleSettings.gas_avatar_folder_id;
     document.getElementById('settingsModal')?.classList.remove('hidden');
 }
+
 function closeSettingsModal() { document.getElementById('settingsModal')?.classList.add('hidden'); }
+
 async function saveSettings() {
-    if (!window.requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) return;
+    const canSave = window.isAdminUser(currentUserRole, isAdminMode) || isModuleAdmin;
+    if (!canSave) {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้', 'warning');
+        return;
+    }
     const gasUrl = document.getElementById('settingsGasUrl')?.value.trim() || '';
     const folderId = document.getElementById('settingsFolderId')?.value.trim() || '';
     if (!gasUrl) return Swal.fire('กรุณากรอก GAS URL', '', 'warning');
@@ -461,10 +490,11 @@ async function saveSettings() {
 }
 
 // ==========================================
-// Toggle Mode
+// ✅ Toggle Mode — รองรับ Module Admin
 // ==========================================
 async function toggleTeacherAdminMode() {
-    if (!window.isAdminUser(currentUserRole, isAdminMode)) {
+    const canToggle = window.isAdminUser(currentUserRole, isAdminMode) || isModuleAdmin;
+    if (!canToggle) {
         Swal.fire('ไม่มีสิทธิ์', 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
         return;
     }
@@ -497,7 +527,6 @@ async function toggleTeacherAdminMode() {
     const table = document.getElementById('studentDataTable');
     if (table) table.classList.add('hidden');
 
-    // ✅ Clear classroom cache เพราะเปลี่ยน role
     _perfCache.classrooms = null;
     _perfCache.classroomsKey = null;
     console.log('🗑️ cleared classroom cache (mode switch)');
@@ -511,7 +540,6 @@ async function toggleTeacherAdminMode() {
 async function loadClassrooms() {
     await loadCurrentYearAndSemester();
 
-    // ✅ Sync filter section
     const filterSection = document.getElementById('adminFilterSection');
     if (filterSection) {
         if (isAdminMode || isHead) {
@@ -523,7 +551,6 @@ async function loadClassrooms() {
         }
     }
 
-    // ✅ Cache key
     const cacheKey = `${currentAcademicYear}-${currentSemester}-${isAdminMode ? 'admin' : isHead ? 'head' : 'teacher'}-${currentUserId}`;
     let classrooms;
 
@@ -541,13 +568,11 @@ async function loadClassrooms() {
             query = query.or(`adviser_id_1.eq.${currentUserId},adviser_id_2.eq.${currentUserId}`);
         }
 
-        // ✅ ใช้ cache grade head level แทน query ซ้ำ
         if (isHead && !isAdminMode && currentUserRole !== 'super_admin' && currentUserRole !== 'admin') {
             const gradeLevel = _perfCache.gradeHeadLevel;
             if (gradeLevel !== null && gradeLevel !== undefined) {
                 query = query.eq('grade_level', gradeLevel);
             }
-            // null = discipline head → ไม่กรองระดับ
         }
 
         const { data, error } = await query;
@@ -562,7 +587,6 @@ async function loadClassrooms() {
         console.log(`⚡ loadClassrooms (from DB): ${classrooms.length} rooms`);
     }
 
-    // ✅ Admin/Head → dropdown
     if (isAdminMode || isHead) {
         document.getElementById('adminFilterSection')?.classList.remove('hidden');
         document.getElementById('no-classroom-msg')?.classList.remove('hidden');
@@ -647,12 +671,10 @@ async function loadStudentsData(classroomId) {
     let error = null;
     let usedFallback = false;
 
-    // ✅ Check cache
     if (_perfCache.students[classroomId]) {
         data = _perfCache.students[classroomId];
         console.log('📦 students from cache');
     } else {
-        // ✅ Query
         const res = await db.from('student_enrollments')
             .select(`id, student_number, core_classrooms(grade_level, room_number), core_students(id, student_id_card, prefix, first_name, last_name, national_id, status, avatar_students_url)`)
             .eq('classroom_id', classroomId)
@@ -663,7 +685,6 @@ async function loadStudentsData(classroomId) {
         data = res.data;
         error = res.error;
 
-        // Fallback ถ้าไม่พบข้อมูลในปี/ภาค
         if (!error && (!data || data.length === 0)) {
             const { data: allData, error: allError } = await db.from('student_enrollments')
                 .select(`id, student_number, core_classrooms(grade_level, room_number), core_students(id, student_id_card, prefix, first_name, last_name, national_id, status, avatar_students_url)`)
@@ -675,13 +696,11 @@ async function loadStudentsData(classroomId) {
             }
         }
 
-        // ✅ Save to cache
         if (!error && data && data.length > 0) {
             _perfCache.students[classroomId] = data;
         }
     }
 
-    // Destroy DataTable เก่า
     if ($.fn.DataTable.isDataTable('#studentDataTable')) $('#studentDataTable').DataTable().destroy();
 
     const tbody = document.getElementById('tb-students');
@@ -699,7 +718,6 @@ async function loadStudentsData(classroomId) {
 
     if (usedFallback) Swal.fire({ icon: 'warning', title: 'แสดงข้อมูลจากปี/ภาคอื่น', html: `ไม่พบข้อมูลในปี ${currentAcademicYear} ภาค ${currentSemester}<br>กำลังแสดงข้อมูลทั้งหมด`, timer: 3000, showConfirmButton: false });
 
-    // Render rows
     if (tbody) {
         tbody.innerHTML = data.map(enr => {
             const st = enr.core_students;
@@ -763,7 +781,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
     const overlay = document.getElementById('modalLoadingOverlay');
     if (overlay) overlay.classList.remove('hidden');
 
-    // Pre-fill ข้อมูลจากตาราง
     safeSetText('modalStudentName', fullName);
     safeSetText('modalStudentCode', `รหัสประจำตัว: ${studentCode || '-'}`);
     safeSetSrc('profileImage', `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=128`);
@@ -774,7 +791,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
     document.getElementById('view_class_info').innerText = classInfo;
 
     try {
-        // ✅ Parallel: 7 queries พร้อมกัน
         const [studentRes, homeVisitRes, attRes, behaviorRes, sdqRes, eqRes, clubName] = await Promise.all([
             db.from('core_students').select('*').eq('id', studentId).maybeSingle(),
             db.from('module_home_visits').select('*').eq('student_id', studentId).order('visit_date', { ascending: false }).maybeSingle(),
@@ -785,12 +801,10 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
             fetchStudentClub(studentId)
         ]);
 
-        // ✅ Student
         const student = studentRes.data;
         if (student?.avatar_students_url) safeSetSrc('profileImage', student.avatar_students_url);
         if (student?.national_id) safeSetText('view_national_id', formatNationalId(student.national_id));
 
-        // ✅ Home visit
         const homeVisit = homeVisitRes.data;
         if (homeVisit) {
             safeSetText('view_parent_status', `สถานะครอบครัว: ${homeVisit.parents_status || 'ไม่ระบุ'}`);
@@ -819,7 +833,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
             safeSetText('view_address', 'ยังไม่มีการบันทึกข้อมูลเยี่ยมบ้าน');
         }
 
-        // ✅ Attendance
         let present = 0, absent = 0, late = 0, pleave = 0, sleave = 0;
         (attRes.data || []).forEach(r => {
             if (r.status === 'มา') present++;
@@ -836,7 +849,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
         safeSetText('stat_sleave', sleave);
         renderAttendanceChart(present, absent, late, pleave, sleave);
 
-        // ✅ Behavior
         let added = 0, deducted = 0;
         (behaviorRes.data || []).forEach(b => {
             if (b.score_change > 0) added += b.score_change;
@@ -846,7 +858,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
         safeSetText('score_deducted', `-${deducted}`);
         safeSetText('view_behavior_score', 100 + added - deducted);
 
-        // ✅ SDQ
         const sdqData = sdqRes.data;
         const sdqDiv = document.getElementById('view_sdq');
         if (sdqDiv) {
@@ -861,7 +872,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
             }
         }
 
-        // ✅ EQ (ใช้โครงสร้างเดียวกับ info_student)
         const eqData = eqRes.data;
         const eqDiv = document.getElementById('view_eq_container');
         if (eqDiv) {
@@ -888,7 +898,6 @@ async function openStudentFullData(studentId, fullName, studentCode, extraInfo =
             }
         }
 
-        // ✅ Club
         safeSetText('view_club_name', clubName);
 
         console.log(`⚡ openStudentFullData: ${Math.round(performance.now() - t0)} ms`);
@@ -954,7 +963,7 @@ async function fetchStudentClub(id) {
 }
 
 // ==========================================
-// LOGOUT
+// ✅ LOGOUT — reset module admin
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -968,6 +977,7 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
         await db.auth.signOut();
         window.location.replace("login.html");
     }
@@ -979,14 +989,12 @@ async function logout() {
 window.onload = async () => {
     const t0 = performance.now();
     try {
-        // ✅ 1. Session
         const { data: { session } } = await db.auth.getSession();
         if (!session) {
             window.location.href = 'login.html';
             return;
         }
 
-        // ✅ 2. Parallel: personnel + session role + school info
         const [personnelRes, sessionRoleRes, schoolInfoRes] = await Promise.all([
             db.from('core_personnel').select('*').eq('id', session.user.id).single(),
             window.checkSessionAndRole('info_teacher', ['super_admin', 'admin', 'director', 'deputy', 'teacher']),
@@ -1005,7 +1013,6 @@ window.onload = async () => {
 
         const role = personnel.role;
 
-        // ✅ ตรวจสิทธิ์ staff/office
         if (role === 'staff' || role === 'office') {
             await Swal.fire({ icon: 'error', title: 'ไม่มีสิทธิ์เข้าใช้งาน', text: 'คุณไม่ได้รับอนุญาตให้ใช้ระบบข้อมูลนักเรียน กรุณาติดต่อผู้ดูแลระบบ', confirmButtonText: 'กลับหน้าหลัก' });
             window.location.href = 'index.html';
@@ -1019,15 +1026,16 @@ window.onload = async () => {
         currentUser = personnel;
         currentUserId = user.id;
         currentUserRole = role;
+        window.currentUserRole = role;   // ✅ sync
+        window.actualRole = role;
         isAdminMode = isAdmin;
 
-        // ✅ Cache school info
         _perfCache.schoolInfo = schoolInfoRes.data || {};
         currentAcademicYear = schoolInfoRes.data?.current_academic_year || 2569;
         currentSemester = schoolInfoRes.data?.current_semester || 1;
         updateTermDisplay();
 
-        // ✅ 3. Parallel: discipline head + grade head + module access
+        // ✅ Parallel: discipline head + grade head + module access
         const [discHeadRes, gradeHeadRes, moduleAccess] = await Promise.all([
             db.from('core_discipline_heads')
                 .select('id')
@@ -1038,13 +1046,12 @@ window.onload = async () => {
                 .select('grade_level')
                 .eq('teacher_id', user.id)
                 .maybeSingle(),
-            window.hasModuleAccess(role, 'info_teacher', user.id)
+            window.hasModuleAccess(role, 'info_teacher', user.id).catch(() => false)
         ]);
 
         const isDisciplineHead = !!discHeadRes.data;
         const isGradeHead = !!gradeHeadRes.data;
 
-        // ✅ Cache
         _perfCache.isDisciplineHeadCached = isDisciplineHead;
         _perfCache.gradeHeadLevel = isGradeHead ? gradeHeadRes.data.grade_level : null;
 
@@ -1056,13 +1063,20 @@ window.onload = async () => {
             isReadOnly = false;
         }
 
-        isModuleAdmin = moduleAccess;
-        _perfCache.moduleAccess = moduleAccess;
+        // ✅ Module Admin (ถ้าไม่ใช่ admin)
+        if (!isAdmin) {
+            isModuleAdmin = moduleAccess;
+            window.isModuleAdmin = isModuleAdmin;
+        }
+        _perfCache.moduleAccess = isModuleAdmin;
+
+        // ✅ Sync WRKModuleAdmin → sidebar รู้จัก info_teacher
+        WRKModuleAdmin.sync('info_teacher', isModuleAdmin, false);
 
         updateUserDisplay();
         applyAdminVisibility();
 
-        // แสดงปุ่มตามสิทธิ์
+        // แสดงปุ่มตามสิทธิ์ (fallback — applyAdminVisibility ก็จัดการแล้ว)
         if (isAdmin || isModuleAdmin) {
             document.getElementById('btnSettings')?.classList.remove('hidden');
             document.getElementById('btnToggleMode')?.classList.remove('hidden');
@@ -1071,23 +1085,18 @@ window.onload = async () => {
             document.getElementById('btnToggleMode')?.classList.add('hidden');
         }
 
-        // ✅ 4. Gas settings (ใช้ cache)
         await loadGasSettings();
 
-        // ผูก event listeners
         document.getElementById('profileFileInput')?.addEventListener('change', onFileSelected);
         document.getElementById('cloudUploadBtn')?.addEventListener('click', uploadPendingProfile);
 
-        // ✅ 5. Load classrooms
         await loadClassrooms();
 
-        // ✅ 6. Fire-and-forget log
         window.logUserAction('เข้าสู่ระบบข้อมูลนักเรียน', 'info_teacher').catch(console.error);
 
-        // ✅ 7. Show page
         document.getElementById('mainBody')?.classList.replace('opacity-0', 'opacity-100');
 
-        console.log(`⚡ info_teacher init: ${Math.round(performance.now() - t0)} ms`);
+        console.log(`⚡ info_teacher init: ${Math.round(performance.now() - t0)} ms | isModuleAdmin=${isModuleAdmin}`);
     } catch (err) {
         console.error('Error initializing:', err);
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
@@ -1101,3 +1110,21 @@ window.onload = async () => {
 document.getElementById('settingsModal')?.addEventListener('click', e => {
     if (e.target === document.getElementById('settingsModal')) closeSettingsModal();
 });
+
+// ==========================================
+// Global Exports
+// ==========================================
+window.applyAdminVisibility = applyAdminVisibility;
+window.updateUserDisplay = updateUserDisplay;
+window.toggleTeacherAdminMode = toggleTeacherAdminMode;
+window.openSettingsModal = openSettingsModal;
+window.closeSettingsModal = closeSettingsModal;
+window.saveSettings = saveSettings;
+window.openLightbox = openLightbox;
+window.closeLightbox = closeLightbox;
+window.closeStudentModal = closeStudentModal;
+window.deleteProfilePicture = deleteProfilePicture;
+window.switchTab = switchTab;
+window.logout = logout;
+
+console.log('✅ info_teacher.js loaded (Module Admin Support)');

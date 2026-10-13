@@ -814,6 +814,27 @@
                 width: 240px;
             }
         }
+
+        /* ✅ Fix TomSelect dropdown ใน Modal */
+        .ts-dropdown {
+            z-index: 99999 !important;
+            position: absolute !important;
+        }
+
+        .ts-wrapper {
+            position: relative !important;
+            z-index: 1 !important;
+        }
+
+        /* ✅ Modal z-index ต้องต่ำกว่า dropdown */
+        #admin-modal {
+            z-index: 9998 !important;
+        }
+
+        /* ✅ ทุก ts-dropdown ใน modal */
+        #admin-modal .ts-dropdown {
+            z-index: 99999 !important;
+        }
     </style>
 </head>
 

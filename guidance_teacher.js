@@ -29,6 +29,11 @@ let isModuleAdmin = false;
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const STUDENT_STATUS_OPTIONS = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
 
+// 🚀 Bootstrap Module Admin (อ่านจาก cache ก่อน auth เสร็จ)
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('guidance', 'guidance_teacher_auth_cache', 'isModuleAdmin');
+}
+
 // ==========================================
 // ✅ UI Toggle ตามสิทธิ์ — จัดการ topbar + sidebar
 // ==========================================
@@ -42,7 +47,7 @@ function updateUIBasedOnRole() {
     const canAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role) || isModuleAdmin;
     window._guidanceCanSeeAdmin = canAdmin;
 
-    // ปุ่ม Mode
+    // ปุ่ม Mode (topbar)
     const modeBtnId = window._guidanceModeBtnId || 'btnModeAdmin';
     const btn = document.getElementById(modeBtnId);
     if (btn) {
@@ -50,13 +55,24 @@ function updateUIBasedOnRole() {
         btn.classList.toggle('flex', canAdmin);
     }
 
-    // Sidebar nav-admin
-    const navAdmin = document.getElementById('nav-admin');
-    if (navAdmin) navAdmin.classList.toggle('hidden', !canAdmin);
+    // ❌ ไม่ต้อง manipulate #nav-admin — ใช้ roles + moduleAdmin จาก actions library แทน
 
     console.log('🔘 guidance updateUIBasedOnRole:', { role, canAdmin });
 }
 window.updateUIBasedOnRole = updateUIBasedOnRole;
+
+// ✅ Alias ตาม pattern
+window.refreshNavButtons = window.updateUIBasedOnRole;
+
+// ✅ Hook หลัง sidebar render
+window.onSidebarRendered = function () {
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('guidance', isModuleAdmin, true);
+    }
+    if (typeof window.refreshNavButtons === 'function') {
+        window.refreshNavButtons();
+    }
+};
 
 // ==========================================
 // 🔒 HELPER
@@ -80,6 +96,14 @@ function switchToAdminMode() {
 // LOGOUT
 // ==========================================
 async function logout() {
+    // ✅ ใช้ handleLogout กลาง
+    if (typeof handleLogout === 'function') {
+        try { WRKModuleAdmin.reset(); } catch (e) {}
+        localStorage.removeItem('activeMode');
+        sessionStorage.removeItem('guidance_settings_cache');
+        return handleLogout();
+    }
+    // Fallback
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         text: "คุณต้องการออกจากระบบใช่หรือไม่",
@@ -91,6 +115,7 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        try { WRKModuleAdmin.reset(); } catch (e) {}
         localStorage.removeItem('activeMode');
         sessionStorage.removeItem('guidance_settings_cache');
         await db.auth.signOut();
@@ -135,9 +160,14 @@ $(document).ready(async function () {
             }
         }
 
-        setUserDisplayName(personnel);
+                setUserDisplayName(personnel);
         updateUserRoleLabel(role);
         renderUserAvatar(personnel);
+
+        // ✅ Sync module admin ไป Sidebar กลาง
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('guidance', isModuleAdmin, false);
+        }
 
         // ✅ แจ้ง updateUIBasedOnRole ว่ามีสิทธิ์ admin หรือไม่
         updateUIBasedOnRole();
@@ -149,6 +179,11 @@ $(document).ready(async function () {
         window.logUserAction('เข้าสู่ระบบแนะแนว (ครู)', 'guidance').catch(console.error);
 
         await initDashboard(user.id, personnel);
+
+        // ✅ Sync module admin อีกครั้ง (rerender sidebar)
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('guidance', isModuleAdmin, true);
+        }
 
         console.log(`⚡ Guidance Teacher init: ${Math.round(performance.now() - t0)} ms`);
     } catch (err) {

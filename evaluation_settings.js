@@ -12,30 +12,6 @@ let allPersonnel = [];
 let isSuperAdmin = false;
 
 // ==========================================
-// ✅ UI Toggle ตามสิทธิ์ (เฉพาะ Settings page)
-// ==========================================
-function updateUIBasedOnRole() {
-    const role = window.currentUserRole || (currentUser && currentUser.role) || null;
-    if (!role) return;
-
-    const canSeeAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
-    const isSuperAdmin = role === 'super_admin';
-
-    // Badge super_admin
-    const badge = document.getElementById('super-admin-badge');
-    if (badge) badge.classList.toggle('hidden', !isSuperAdmin);
-
-    // ปุ่มไป Dashboard
-    const btnDashboard = document.getElementById('btn-goto-dashboard');
-    if (btnDashboard) btnDashboard.classList.toggle('hidden', !canSeeAdmin);
-
-    // ปุ่มไป Admin
-    const btnAdmin = document.getElementById('btn-goto-admin');
-    if (btnAdmin) btnAdmin.classList.toggle('hidden', !canSeeAdmin);
-}
-window.updateUIBasedOnRole = updateUIBasedOnRole;
-
-// ==========================================
 // Init
 // ==========================================
 $(document).ready(async function () {
@@ -86,12 +62,10 @@ async function checkAuth() {
         renderUserAvatar(profile);
     }
 
-    // ✅ ตรวจสอบสิทธิ์
-    if (profile && profile.role === 'super_admin') {
+    // ✅ ตรวจสอบสิทธิ์ด้วย config กลาง
+    if (profile && window.EVAL_ROLES.canSettings(profile.role)) {
         isSuperAdmin = true;
-        // หมายเหตุ: ไม่ต้อง $('nav-settings').removeClass('hidden') อีก
-        //          เพราะ role filter ใน dashboard_sidebar.js จัดการให้แล้ว
-        } else {
+    } else {
         isSuperAdmin = false;
         await Swal.fire({
             icon: 'error',
@@ -101,8 +75,10 @@ async function checkAuth() {
         });
     }
 
-    // ✅ FIX: อัปเดต topbar buttons ตาม role (onReady รันก่อน role set)
-    updateUIBasedOnRole();
+    // ✅ ใช้จาก evaluation_config.js (Single Source of Truth)
+    if (typeof window.refreshEvaluationTopbarUI === 'function') {
+        window.refreshEvaluationTopbarUI();
+    }
 }
 
 // ==========================================

@@ -8,6 +8,7 @@
 
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+    <script src="evaluation_config.js"></script> <!-- ✅ ใหม่ -->
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
@@ -738,15 +739,12 @@
     <script src="dashboard_sidebar.js"></script>
 
     <!-- =======================================================
-         ✅ Init Module Sidebar + Topbar
+         ✅ Init Module Sidebar
          ======================================================= -->
     <script>
-        // =======================================================
-        // Fallback Config — Evaluation Admin
-        // =======================================================
         function getEvaluationAdminFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -767,12 +765,7 @@
                         collapsible: false,
                         defaultOpen: true,
                         items: [
-                            {
-                                id: 'nav-dashboard',
-                                icon: 'fa-user-check',
-                                label: 'ประเมินผล',
-                                href: 'evaluation.html'
-                            },
+                            { id: 'nav-dashboard', icon: 'fa-user-check', label: 'ประเมินผล', href: 'evaluation.html' },
                             {
                                 id: 'nav-admin',
                                 icon: 'fa-user-shield',
@@ -815,81 +808,7 @@
             };
         }
 
-        // =======================================================
-        // ✅ Role ที่เห็นปุ่มนำทาง
-        // =======================================================
-        // ปุ่ม "ประเมินผล" — ทุก role ที่เข้าไฟล์นี้ได้ (admin, super_admin)
-        const EVAL_NAV_DASHBOARD_ROLES = ['super_admin', 'admin', 'director', 'deputy'];
-        // ปุ่ม "ตั้งค่าระบบ" — super_admin เท่านั้น
-        const EVAL_NAV_SETTINGS_ROLES = ['super_admin'];
-
-        // =======================================================
-        // ✅ Helper: Apply role-based visibility สำหรับ topbar buttons
-        // =======================================================
-        function applyEvaluationTopbarRoleUI() {
-            const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : null;
-            if (!role) return false;
-
-            const btnDashboard = document.getElementById('btn-goto-dashboard');
-            const btnSettings = document.getElementById('btn-goto-settings');
-
-            if (btnDashboard) {
-                const canSee = EVAL_NAV_DASHBOARD_ROLES.includes(role);
-                btnDashboard.classList.toggle('hidden', !canSee);
-            }
-            if (btnSettings) {
-                const canSee = EVAL_NAV_SETTINGS_ROLES.includes(role);
-                btnSettings.classList.toggle('hidden', !canSee);
-            }
-            return true;
-        }
-        window.applyEvaluationTopbarRoleUI = applyEvaluationTopbarRoleUI;
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (user + date + role buttons + active nav)
-        // =======================================================
-        function refreshEvaluationTopbarUI() {
-            // 1) วันที่วันนี้
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { console.warn('setTodayChip:', e); }
-            }
-
-            // 2) ข้อมูลผู้ใช้ (ชื่อ, role, avatar)
-            try {
-                if (typeof currentUser !== 'undefined' && currentUser) {
-                    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
-                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentUser.role);
-                    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
-                }
-            } catch (e) { console.warn('refresh user info:', e); }
-
-            // 3) Sidebar — set active nav-admin (ไฟล์นี้เป็นหน้าตั้งค่ากรรมการ)
-            try {
-                if (typeof setActiveNavItem === 'function') {
-                    setActiveNavItem('nav-admin');
-                }
-            } catch (e) { /* ignore */ }
-
-            // 4) ✅ ปุ่มนำทาง — apply ตาม role
-            applyEvaluationTopbarRoleUI();
-        }
-        window.refreshEvaluationTopbarUI = refreshEvaluationTopbarUI;
-
-        // =======================================================
-        // ✅ Nav functions
-        // =======================================================
-        window.goToEvaluationDashboard = function () {
-            window.location.href = 'evaluation.html';
-        };
-        window.goToEvaluationSettings = function () {
-            window.location.href = 'evaluation_settings.html';
-        };
-
-        // =======================================================
-        // ✅ Init Module Sidebar
-        // =======================================================
-        initModuleSidebar({
-            moduleKey: 'evaluation',
+        window.initEvaluationSidebar({
             pageTitle: 'จัดการระบบประเมินผล',
             activeId: 'nav-admin',
             topbarButtons: [
@@ -905,19 +824,10 @@
                     html: '<i class="fa-solid fa-gear"></i><span>ตั้งค่าระบบ</span>',
                     onclick: 'goToEvaluationSettings()',
                     class: 'hidden eval-nav-btn eval-nav-settings',
-                    title: 'ไปหน้าตั้งค่าระบบ (super_admin)'
+                    title: 'ไปหน้าตั้งค่าระบบ'
                 }
             ],
-            fallbackConfig: getEvaluationAdminFallbackConfig(),
-            onReady: () => {
-                // ✅ re-apply topbar UI ทุกครั้งหลัง render
-                refreshEvaluationTopbarUI();
-
-                // ✅ Fallback: เผื่อ currentUser ยังโหลดไม่เสร็จตอน onReady
-                setTimeout(() => {
-                    refreshEvaluationTopbarUI();
-                }, 800);
-            }
+            fallbackConfig: getEvaluationAdminFallbackConfig()
         });
     </script>
 

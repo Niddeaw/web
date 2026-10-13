@@ -436,6 +436,8 @@
     <script src="dashboard_extras.js"></script>
     <script src="dashboard_ui.js"></script>
     <script src="dashboard_sidebar.js"></script>
+
+    <!-- ✅ โหลด info_student.js แค่ครั้งเดียว -->
     <script src="info_student.js"></script>
 
     <!-- =======================================================
@@ -500,30 +502,13 @@
             activeId: 'nav-my-info',
             topbarButtons: [],
             fallbackConfig: getInfoStudentFallbackConfig(),
-            waitRole: false,  // นักเรียนไม่มี role
             onReady: () => {
                 if (typeof setTodayChip === 'function') setTodayChip();
             }
         });
     </script>
 
-    <script src="info_student.js"></script>
-
-    <!-- ✅ Patch: scrollToTab helper -->
-    <script>
-        function scrollToTab(tabId) {
-            if (typeof switchTab === 'function') {
-                switchTab(tabId);
-                setTimeout(() => {
-                    const wrapper = document.querySelector('#studentDetailModal .glass-card');
-                    if (wrapper) wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                }, 100);
-            }
-        }
-        window.scrollToTab = scrollToTab;
-    </script>
-
-    <!-- ✅ Patch: scrollToTab helper -->
+    <!-- ✅ scrollToTab helper (ประกาศครั้งเดียว) -->
     <script>
         function scrollToTab(tabId) {
             if (typeof switchTab === 'function') {

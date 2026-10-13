@@ -32,8 +32,14 @@ let isModuleAdmin = false;
 const ATTR_COLS = ['1.1', '1.2', '1.3', '1.4', '2.1', '2.2', '3.1', '4.1', '4.2', '4.3', '4.4', '4.5'];
 const STUDENT_STATUS_OPTIONS = ['ปกติ', 'พักการเรียน', 'ขาดนาน', 'ลาออก', 'ย้ายสถานศึกษา'];
 
+// 🚀 Bootstrap Module Admin (อ่านจาก cache ก่อน auth เสร็จ)
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('guidance', 'guidance_admin_auth_cache', 'isModuleAdmin');
+}
+
 // ==========================================
-// ✅ UI Toggle ตามสิทธิ์ — จัดการ topbar + sidebar
+// ✅ UI Toggle ตามสิทธิ์ — เฉพาะ topbar buttons
+//    (Sidebar items ใช้ roles/moduleAdmin จาก actions library — central filter จัดการ)
 // ==========================================
 function updateUIBasedOnRole() {
     const role = window.currentUserRole || currentUserRole;
@@ -46,7 +52,7 @@ function updateUIBasedOnRole() {
     const canAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role) || isModuleAdmin;
     window._guidanceCanSeeAdmin = canAdmin;
 
-    // ปุ่ม Mode
+    // ปุ่ม Mode (topbar)
     const modeBtnId = window._guidanceModeBtnId || 'btnModeTeacher';
     const btn = document.getElementById(modeBtnId);
     if (btn) {
@@ -54,13 +60,26 @@ function updateUIBasedOnRole() {
         btn.classList.toggle('flex', canAdmin);
     }
 
-    // Sidebar nav-admin
-    const navAdmin = document.getElementById('nav-admin');
-    if (navAdmin) navAdmin.classList.toggle('hidden', !canAdmin);
+    // ❌ ไม่ต้อง manipulate #nav-admin — ใช้ roles + moduleAdmin จาก actions library แทน
+    //    dashboard_sidebar.js จะ filter ให้อัตโนมัติ
 
     console.log('🔘 guidance updateUIBasedOnRole:', { role, canAdmin });
 }
 window.updateUIBasedOnRole = updateUIBasedOnRole;
+
+// ✅ Alias ตาม pattern ของโมดูลอื่น
+window.refreshNavButtons = window.updateUIBasedOnRole;
+
+// ✅ Hook หลัง sidebar render — re-apply UI
+window.onSidebarRendered = function () {
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('guidance', isModuleAdmin, true);
+    }
+    if (typeof window.refreshNavButtons === 'function') {
+        window.refreshNavButtons();
+    }
+};
+
 
 // ==========================================
 // 🔒 HELPER: Escape HTML
@@ -90,6 +109,14 @@ window.switchToTeacherMode = switchToTeacherMode;
 // LOGOUT
 // ==========================================
 async function logout() {
+    // ✅ ใช้ handleLogout กลางจาก dashboard_ui.js (ถ้ามี)
+    if (typeof handleLogout === 'function') {
+        try { WRKModuleAdmin.reset(); } catch (e) { }
+        localStorage.removeItem('activeMode');
+        sessionStorage.removeItem('guidance_settings_cache');
+        return handleLogout();
+    }
+    // Fallback
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         text: "คุณต้องการออกจากระบบใช่หรือไม่",
@@ -101,7 +128,9 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
-        localStorage.removeItem('activeMode');   // ✅ เพิ่มบรรทัดนี้
+        try { WRKModuleAdmin.reset(); } catch (e) { }
+        localStorage.removeItem('activeMode');
+        sessionStorage.removeItem('guidance_settings_cache');
         await db.auth.signOut();
         window.location.replace("login.html");
     }
@@ -132,6 +161,11 @@ $(document).ready(async function () {
         updateUserRoleLabel(role);
         renderUserAvatar(personnel);
 
+        // ✅ Sync module admin ไป Sidebar กลาง (ก่อน render)
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('guidance', isModuleAdmin, false);
+        }
+
         // ✅ แจ้ง updateUIBasedOnRole ว่ามีสิทธิ์ admin หรือไม่
         updateUIBasedOnRole();
 
@@ -140,6 +174,11 @@ $(document).ready(async function () {
         await loadSystemSettings();
         // ✅ FIX: เรียกครั้งเดียว (โหลด + render ทั้ง monitoring + dashboard)
         await loadAdminOverview();
+
+        // ✅ Sync module admin อีกครั้ง พร้อม rerender sidebar
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('guidance', isModuleAdmin, true);
+        }
 
         console.log(`⚡ Guidance Admin init: ${Math.round(performance.now() - t0)} ms`);
     } catch (err) {
@@ -252,7 +291,11 @@ async function loadAdminOverview() {
         const [progressRes, guiTeachersRes, mappedClassesRes] = await Promise.all([
             db.rpc('get_guidance_progress', { p_semester: currentSemester, p_year: currentYear }),
             db.from('guidance_teachers').select('teacher_id, core_personnel(id, first_name, last_name, email)'),
-            db.from('guidance_classes').select('*')
+            // ✅ กรองเฉพาะ classrooms ของเทอมปัจจุบัน
+            db.from('guidance_classes')
+                .select('*, core_classrooms!inner(semester, academic_year)')
+                .eq('core_classrooms.semester', String(currentSemester))
+                .eq('core_classrooms.academic_year', String(currentYear))
         ]);
 
         if (progressRes.error) throw progressRes.error;
@@ -612,14 +655,30 @@ async function openTeacherModal(teacherId, name) {
     currentTeacherId = teacherId;
     document.getElementById('modalTeacherName').innerText = name;
 
-    const { data: tClasses } = await db.from('guidance_classes').select('*').eq('teacher_id', teacherId);
+    // ✅ กรองเฉพาะ classrooms ของเทอม/ปีการศึกษาปัจจุบัน
+    const currentSemester = String(globalSystemSettings.current_semester);
+    const currentYear = String(globalSystemSettings.current_academic_year);
+
+    const { data: tClasses, error } = await db.from('guidance_classes')
+        .select('classroom_id, start_date, core_classrooms!inner(semester, academic_year)')
+        .eq('teacher_id', teacherId)
+        .eq('core_classrooms.semester', currentSemester)
+        .eq('core_classrooms.academic_year', currentYear);
+
+    if (error) {
+        console.error('openTeacherModal error:', error);
+        return Swal.fire('ผิดพลาด', error.message, 'error');
+    }
+
     const groups = {};
     (tClasses || []).forEach(c => {
         const d = c.start_date || '';
         if (!groups[d]) groups[d] = [];
         groups[d].push(c.classroom_id);
     });
-    teacherModalData = Object.keys(groups).map(date => ({ date: date, classes: groups[date] }));
+    teacherModalData = Object.keys(groups)
+        .sort()  // ✅ เรียงวันที่ ascending
+        .map(date => ({ date: date, classes: groups[date] }));
 
     const defaultDate = globalSystemSettings.term_start_date || '';
     if (teacherModalData.length === 0) teacherModalData.push({ date: defaultDate, classes: [] });
@@ -705,8 +764,19 @@ async function saveTeacherClasses() {
 
     Swal.fire({ title: 'กำลังบันทึกข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        await db.from('guidance_classes').delete().eq('teacher_id', currentTeacherId);
+        // ✅ ลบเฉพาะ classrooms ที่อยู่ในเทอมปัจจุบัน (ไม่แตะเทอมอื่น)
+        const currentSemesterClassIds = allSystemClasses.map(c => c.id);
 
+        if (currentSemesterClassIds.length > 0) {
+            const { error: delErr } = await db.from('guidance_classes')
+                .delete()
+                .eq('teacher_id', currentTeacherId)
+                .in('classroom_id', currentSemesterClassIds);
+
+            if (delErr) throw delErr;
+        }
+
+        // ✅ Insert เฉพาะห้องที่เลือกในเทอมนี้
         const toInsert = [];
         teacherModalData.forEach(row => {
             row.classes.forEach(clsId => {
@@ -723,11 +793,12 @@ async function saveTeacherClasses() {
             if (error) throw error;
         }
 
-        await window.logUserAction(`บันทึกการจัดห้องสอนของครู ID ${currentTeacherId}`, 'guidance');
+        await window.logUserAction(`บันทึกการจัดห้องสอนของครู ID ${currentTeacherId} (เทอม ${globalSystemSettings.current_semester})`, 'guidance');
         Swal.fire({ icon: 'success', title: 'บันทึกสำเร็จ', timer: 1500, showConfirmButton: false });
         closeTeacherModal();
         await loadAdminOverview();
     } catch (error) {
+        console.error('saveTeacherClasses error:', error);
         Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
     }
 }

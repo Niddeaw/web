@@ -4,7 +4,16 @@
 // ✅ ใช้เทมเพลตมาตรฐาน: setUserDisplayName, updateUserRoleLabel, renderUserAvatar
 // ✅ ปุ่ม "ตั้งค่าห้องประชุม" อยู่บน topbar แสดงเฉพาะ super_admin + โหมดแอดมิน
 // ✅ บันทึก/restore โหมดผ่าน sessionStorage
+// ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
+// ✅ FIX: modal centering (add/remove flex), duplicate openRoomFormModal, logout reset
 // ============================================================
+
+// ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('meeting_room', 'meeting_room_auth_cache', 'isMeetingRoomModuleAdmin');
+}
 
 // ==========================================
 // ตัวแปร Global
@@ -23,20 +32,25 @@ let responsibleSelect = null;
 let editFlatStart = null;
 let editFlatEnd = null;
 let editResponsibleSelect = null;
-// ✅ ใหม่: Settings Modal states
+// ✅ Settings Modal states
 let currentSettingsTab = 'rooms';
 let tsTeacherAppoint = null;
 let moduleAdminsCache = [];
 
 // ==========================================
 // ✅ ปุ่มนำทาง — meeting_room
-//    - ปุ่มสลับโหมด (ใน topbar): admin/director/deputy/super_admin
+//    - ปุ่มสลับโหมด (ใน topbar): admin/director/deputy/super_admin/module_admin
 //    - ปุ่มตั้งค่าห้องประชุม (ใน topbar): เฉพาะ super_admin + โหมดแอดมิน
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || currentUserRole;
     const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
-    const canAdmin = allowedRoles.includes(role) || isModuleAdmin;
+
+    // ✅ ตรวจ Module Admin จาก 2 แหล่ง (memory + WRKModuleAdmin)
+    const isModuleAdminEffective = isModuleAdmin
+        || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('meeting_room'));
+
+    const canAdmin = allowedRoles.includes(role) || isModuleAdminEffective;
 
     // ✅ ปุ่มสลับโหมด (ใน topbar) — แสดงถ้าเป็น admin
     const btnToggle = document.getElementById('btnToggleMode');
@@ -51,6 +65,11 @@ window.refreshNavButtons = function () {
     if (btnMeetingSettings) {
         const shouldShow = isSuperAdmin && currentMode === 'admin';
         btnMeetingSettings.classList.toggle('hidden', !shouldShow);
+    }
+
+    // ✅ Sync WRKModuleAdmin (rerender=false เพราะ sidebar ไม่มี item ที่ใช้ moduleAdmin field)
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('meeting_room', isModuleAdminEffective, false);
     }
 };
 
@@ -76,7 +95,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
     } catch (err) {
         console.error('Initialization error:', err);
-        Swal.close();  // ✅ ปิด loading เสมอ
+        Swal.close();
         Swal.fire('เกิดข้อผิดพลาด', err.message, 'error');
     }
 });
@@ -115,6 +134,12 @@ async function checkAuth() {
     }
     isAdmin = isAdminByRole || isModuleAdmin;
 
+    // ✅ Sync WRKModuleAdmin → sidebar รู้จัก meeting_room
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('meeting_room', isModuleAdmin, false);
+    }
+    window.isModuleAdmin = isModuleAdmin;
+
     sessionStorage.setItem('wrk_meeting_room_is_admin', isAdmin ? '1' : '0');
 
     // ✅ Restore โหมดล่าสุดที่ผู้ใช้เลือกไว้ (ถ้าเคยสลับเป็น admin)
@@ -125,7 +150,7 @@ async function checkAuth() {
         currentMode = 'teacher';
     }
 
-    // ✅ เรียก refreshNavButtons หลัง auth เสร็จ (จะแสดง/ซ่อนปุ่มตามโหมด)
+    // ✅ เรียก refreshNavButtons หลัง auth เสร็จ
     if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     await logUserAction('เข้าสู่ระบบจองห้องประชุม', 'meeting_room');
@@ -154,7 +179,7 @@ function toggleTeacherAdminMode() {
     }
     currentMode = currentMode === 'teacher' ? 'admin' : 'teacher';
 
-    // ✅ บันทึกโหมดลง sessionStorage (ให้ restore ได้หลัง refresh)
+    // ✅ บันทึกโหมดลง sessionStorage
     sessionStorage.setItem('wrk_meeting_room_mode', currentMode);
 
     updateToggleModeButton();
@@ -391,13 +416,18 @@ function closeSettingsModal() {
     document.getElementById('settingsModal').classList.remove('flex');
 }
 
+// ✅ เปิด Modal เพิ่ม/แก้ไขห้องประชุม (ตัวทำงานจริง — เก็บไว้ตัวเดียว)
 function openRoomFormModal() {
     const role = window.currentUserRole || currentUserRole;
-    if (role !== 'super_admin') return;
+    if (role !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'warning');
+        return;
+    }
     document.getElementById('roomForm').reset();
     document.getElementById('r_id').value = '';
     document.getElementById('roomModalTitle').innerText = 'เพิ่มห้องประชุมใหม่';
     document.getElementById('roomModal').classList.remove('hidden');
+    document.getElementById('roomModal').classList.add('flex');
 }
 
 function closeRoomModal() {
@@ -418,6 +448,7 @@ async function editRoom(id) {
 
     document.getElementById('roomModalTitle').innerText = 'แก้ไขห้องประชุม';
     document.getElementById('roomModal').classList.remove('hidden');
+    document.getElementById('roomModal').classList.add('flex');
 }
 
 async function saveRoom(e) {
@@ -643,7 +674,7 @@ async function appointModuleAdmin() {
             showConfirmButton: false
         });
 
-        // ✅ อัปเดต refreshNavButtons (เผื่อ admin ปัจจุบันเป็น module admin)
+        // ✅ อัปเดต refreshNavButtons
         if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
     } catch (err) {
@@ -691,17 +722,6 @@ async function removeModuleAdmin(recordId, adminName) {
         console.error('removeModuleAdmin error:', err);
         Swal.fire('ผิดพลาด', err.message, 'error');
     }
-}
-
-// ✅ ปุ่ม "ตั้งค่า" เก็บข้อมูลเก่าไว้ (ถ้าเรียกจากที่อื่น)
-function openRoomFormModal() {
-    const role = window.currentUserRole || currentUserRole;
-    if (role !== 'super_admin') return;
-    document.getElementById('roomForm').reset();
-    document.getElementById('r_id').value = '';
-    document.getElementById('roomModalTitle').innerText = 'เพิ่มห้องประชุมใหม่';
-    document.getElementById('roomModal').classList.remove('hidden');
-    document.getElementById('roomModal').classList.add('flex');
 }
 
 // ==========================================
@@ -1103,10 +1123,12 @@ async function openEditBookingModal(id) {
     });
 
     document.getElementById('editBookingModal').classList.remove('hidden');
+    document.getElementById('editBookingModal').classList.add('flex');
 }
 
 function closeEditBookingModal() {
     document.getElementById('editBookingModal').classList.add('hidden');
+    document.getElementById('editBookingModal').classList.remove('flex');
     if (editFlatStart) { editFlatStart.destroy(); editFlatStart = null; }
     if (editFlatEnd) { editFlatEnd.destroy(); editFlatEnd = null; }
     if (editResponsibleSelect) { editResponsibleSelect.destroy(); editResponsibleSelect = null; }
@@ -1272,4 +1294,38 @@ window.rejectBooking = rejectBooking;
 window.loadMyBookings = loadMyBookings;
 window.loadAdminBookings = loadAdminBookings;
 
-console.log('✅ meeting_room.js loaded (template-compliant + settings in topbar for super_admin only)');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+    console.log('🔄 onSidebarRendered: re-applied topbar buttons for meeting_room');
+};
+
+// ==========================================
+// ✅ Logout — reset Module Admin cache
+// ==========================================
+window.logout = async function () {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
+        try {
+            sessionStorage.removeItem('wrk_meeting_room_role');
+            sessionStorage.removeItem('wrk_meeting_room_is_admin');
+            sessionStorage.removeItem('wrk_meeting_room_mode');
+        } catch (e) { }
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+};
+
+console.log('✅ meeting_room.js loaded (template-compliant + WRKModuleAdmin + settings topbar)');

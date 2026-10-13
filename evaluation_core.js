@@ -27,43 +27,6 @@ let _selectedSubGroupTargets = [];
 let _selectedSubGroupItems = [];
 
 // ==========================================
-// ✅ UI Toggle ตามสิทธิ์ — จัดการ class hidden ของ topbar buttons
-// ==========================================
-function updateUIBasedOnRole() {
-    const role = window.currentUserRole || (typeof currentUser !== 'undefined' && currentUser && currentUser.role) || null;
-    if (!role) {
-        console.log('🔘 updateUIBasedOnRole: รอ role...');
-        return;
-    }
-
-    const canSeeAdmin = ['super_admin', 'admin', 'director', 'deputy'].includes(role);
-    const canSeeSettings = role === 'super_admin';
-
-    // ปุ่ม "ตั้งค่ากรรมการ"
-    const btnAdmin = document.getElementById('btn-goto-admin');
-    if (btnAdmin) btnAdmin.classList.toggle('hidden', !canSeeAdmin);
-
-    // ปุ่ม "ตั้งค่าระบบ"
-    const btnSettings = document.getElementById('btn-goto-settings');
-    if (btnSettings) btnSettings.classList.toggle('hidden', !canSeeSettings);
-
-    // ปุ่ม "ประเมินผล"
-    const btnDashboard = document.getElementById('btn-goto-dashboard');
-    if (btnDashboard) btnDashboard.classList.toggle('hidden', !canSeeAdmin);
-
-    // Round badge (เฉพาะ evaluation.html)
-    const badge = document.getElementById('eval_round_badge');
-    const display = document.getElementById('eval_round_display');
-    if (badge && display && typeof currentEvalRound !== 'undefined' && currentEvalRound) {
-        display.textContent = `${currentEvalRound.round_name} (ครั้งที่ ${currentEvalRound.round_number})`;
-        badge.classList.remove('hidden');
-    }
-
-    console.log('🔘 updateUIBasedOnRole:', { role, canSeeAdmin, canSeeSettings });
-}
-window.updateUIBasedOnRole = updateUIBasedOnRole;
-
-// ==========================================
 // ✅ Helper Functions สำหรับวิทยฐานะ (เพิ่มตรงนี้)
 // ==========================================
 
@@ -306,9 +269,22 @@ const PART3_ITEMS = [
 
 
 // ==========================================
-// ฟังก์ชันเริ่มต้น
+// ฟังก์ชันเริ่มต้น — Guard double-init
 // ==========================================
 $(document).ready(async () => {
+    // ✅ Guard: ป้องกัน double-init เมื่อโหลดร่วมกับ evaluation_admin.js
+    if (window._evalCoreInitialized) {
+        console.log('ℹ️ evaluation_core.js: already initialized — skip');
+        return;
+    }
+    window._evalCoreInitialized = true;
+
+    // ✅ ถ้าหน้านี้เป็น evaluation_admin.html → ให้ admin.js จัดการ auth
+    if (typeof checkAdminAuth === 'function') {
+        console.log('ℹ️ evaluation_core.js: admin page detected — admin.js handles auth');
+        return;
+    }
+
     const t0 = performance.now();
     try {
         await checkAuth();
@@ -484,12 +460,11 @@ async function checkAuth() {
     currentUser = profile;
     currentTermData = schoolInfo;
 
-    // ✅ จำกัดสิทธิ์เข้าระบบประเมินนี้
-    const allowedRoles = ['teacher', 'deputy', 'director', 'admin', 'super_admin'];
+    // ✅ ใช้ EVAL_ROLES จาก config (Single Source of Truth)
     const allowedAcademicStanding = ['ครูผู้ช่วย', 'ไม่มีวิทยฐานะ', 'ครูชำนาญการ', 'ครูชำนาญการพิเศษ'];
     const blockedAcademicStanding = ['ครูอัตราจ้าง', 'ครูพี่เลี้ยง', 'พนักงานราชการ'];
 
-    if (!allowedRoles.includes(currentUser.role)) {
+    if (!window.EVAL_ROLES.canEvaluate(currentUser.role)) {
         await Swal.fire({ icon: 'error', title: 'ไม่มีสิทธิ์เข้าใช้งาน', text: 'ระบบนี้สำหรับผู้บริหารและข้าราชการครูเท่านั้น (ไม่รวมเจ้าหน้าที่สำนักงาน)', confirmButtonText: 'ตกลง' });
         window.location.replace('index.html');
         return;
@@ -500,8 +475,6 @@ async function checkAuth() {
         window.location.replace('index.html');
         return;
     }
-
-    // ⛔ ลบบรรทัด header_* เก่าออกแล้ว (ไม่มีในเทมเพลตใหม่)
 
     // ✅ กำหนดสิทธิ์ประเมินตนเอง
     const selfEvalRoles = ['teacher', 'super_admin', 'admin', 'deputy'];
@@ -555,8 +528,10 @@ async function checkAuth() {
         }
     }
 
-    // ✅ FIX: อัปเดต topbar buttons ตาม role (onReady รันก่อน role set)
-    updateUIBasedOnRole();
+    // ✅ ใช้จาก evaluation_config.js (Single Source of Truth)
+    if (typeof window.refreshEvaluationTopbarUI === 'function') {
+        window.refreshEvaluationTopbarUI();
+    }
 
     Swal.close();
     document.getElementById('mainBody').classList.replace('opacity-0', 'opacity-100');
@@ -1551,6 +1526,11 @@ async function checkAndPickupImpersonation() {
 // LOGOUT
 // ==========================================
 async function logout() {
+    // ✅ ใช้ handleLogout กลางจาก dashboard_ui.js (ถ้ามี)
+    if (typeof handleLogout === 'function') {
+        return handleLogout();
+    }
+    // Fallback (กรณี dashboard_ui.js ไม่โหลด)
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         icon: 'warning',
@@ -1560,6 +1540,7 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        try { WRKModuleAdmin.reset(); } catch (e) { }
         await db.auth.signOut();
         window.location.replace('login.html');
     }
@@ -1580,6 +1561,8 @@ function getSelectedSubGroupItems() {
 // ✅ Export ฟังก์ชันที่จำเป็นทั้งหมด
 // ==========================================
 window.checkAuth = checkAuth;
+// ✅ Aliases เพื่อให้สอดคล้องกับ pattern ของโมดูลอื่น
+//    (onSidebarRendered / refreshNavButtons / updateUIBasedOnRole อยู่ใน evaluation_config.js แล้ว)
 window.formatDate = formatDate;
 window.loadMyEvaluationStatus = loadMyEvaluationStatus;
 window.loadSystemConfigs = loadSystemConfigs;

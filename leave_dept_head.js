@@ -1,7 +1,14 @@
 // ============================================================
 // leave_dept_head.js — ระบบรับทราบการลาสำหรับหัวหน้ากลุ่มสาระฯ [ฉบับสมบูรณ์]
 // ✅ initModuleSidebar + refreshNavButtons + onReady
+// ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
+// ✅ FIX: set window.isModuleAdmin เพื่อให้ switchToAdminMode ทำงาน
 // ============================================================
+
+// 🚀 Bootstrap Module Admin
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('leave', 'leave_auth_cache', 'isLeaveModuleAdmin');
+}
 
 window.currentUser = null;
 window.currentProfile = null;
@@ -44,6 +51,13 @@ $(document).ready(async function () {
         if (!profile) { await db.auth.signOut(); window.location.href = 'login.html'; return; }
         window.currentProfile = profile;
         window.currentUserRole = profile.role || 'teacher';
+
+        // ✅ ตรวจ Module Admin (dept head อาจเป็น module admin ด้วย)
+        const _isLeaveAdmin = await window.hasModuleAccess(profile.role, 'leave', session.user.id).catch(() => false);
+        window.isModuleAdmin = _isLeaveAdmin;   // ✅ FIX: set global ให้ switchToAdminMode ใช้งานได้
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('leave', _isLeaveAdmin, false);
+        }
 
         // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันกลาง
         setUserDisplayName(profile);
@@ -428,4 +442,34 @@ window.onDeptHeadGroupChange = async function () {
     await window.loadDepartmentTeachersCount();
 };
 
-console.log('✅ leave_dept_head.js loaded (template-compliant + nav buttons)');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+};
+
+// ==========================================
+// ✅ Logout — reset Module Admin cache
+// ==========================================
+window.logout = async function () {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
+        try {
+            sessionStorage.removeItem('wrk_leave_role');
+            sessionStorage.removeItem('wrk_leave_is_module_admin');
+        } catch (e) { }
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+};
+
+console.log('✅ leave_dept_head.js loaded (template-compliant + nav buttons + WRKModuleAdmin + isModuleAdmin fix)');

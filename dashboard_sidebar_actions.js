@@ -2,6 +2,7 @@
 // dashboard_sidebar_actions.js
 // Central Action Library — ใช้ร่วมทุกโมดูลในหน้า Dashboard
 // ----------------------------------------------------
+// Version: 2.0 — เพิ่ม moduleAdmin field
 // ใช้คู่กับ: dashboard_sidebar.js (initModuleSidebar)
 // โหลดหลัง: config.js
 // โหลดก่อน: dashboard_sidebar.js
@@ -108,6 +109,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             href: 'behavior_settings.html',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'behavior',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         }
@@ -153,6 +155,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: 'openAdminModal()',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'attendance',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         }
@@ -160,11 +163,21 @@ window.WRK_SIDEBAR_ACTIONS = {
 
     // ---------- ระบบปฏิทิน (calendar) ----------
     calendar: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
         manage: {
             id: 'nav-calendar',
             icon: 'fa-calendar-alt',
             label: 'จัดการปฏิทิน',
             href: 'calendar_admin.html',
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'calendar_system',   // ✅ เพิ่ม
             icon_bg_color: '#6366f1',
             icon_text_color: '#ffffff'
         },
@@ -174,48 +187,71 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettings()',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'calendar_system',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
         }
     },
 
     // ---------- ระบบชุมนุม (club_system) ----------
     club_system: {
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'หน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
         myClub: {
             id: 'nav-my-club',
             icon: 'fa-users-rectangle',
             label: 'ชุมนุมของฉัน',
             onclick: "switchSidebarView('teacher')",
             icon_bg_color: '#6366f1',
-            icon_text_color: '#ffffff',
-            class: 'active'
+            icon_text_color: '#ffffff'
         },
         manageClubs: {
             id: 'nav-manage-clubs',
             icon: 'fa-layer-group',
             label: 'จัดการชุมนุม',
             onclick: "switchSidebarView('admin', 'admin-tab-clubs')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'club_system',   // ✅ เพิ่ม
             icon_bg_color: '#8b5cf6',
-            icon_text_color: '#ffffff',
-            hidden: true
+            icon_text_color: '#ffffff'
         },
         checkStudents: {
             id: 'nav-check-students',
             icon: 'fa-users-viewfinder',
             label: 'ตรวจสอบนักเรียน',
             onclick: "switchSidebarView('admin', 'admin-tab-students')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'club_system',   // ✅ เพิ่ม
             icon_bg_color: '#14b8a6',
-            icon_text_color: '#ffffff',
-            hidden: true
+            icon_text_color: '#ffffff'
         },
         settings: {
             id: 'btn-settings',
             icon: 'fa-users-gear',
             label: 'ตั้งค่าระบบ',
             onclick: 'openAdminSettings()',
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'club_system',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
-            icon_text_color: '#ffffff',
-            hidden: true
+            icon_text_color: '#ffffff'
+        },
+        logout: {
+            icon: 'fa-power-off',
+            label: 'ออกจากระบบ',
+            onclick: 'logout()',
+            class: 'logout'
         }
     },
 
@@ -243,7 +279,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'จัดการหนังสือ',
             onclick: "switchSidebarView('adminView')",
             roles: ['super_admin', 'admin', 'director', 'deputy'],
-            moduleAdmin: 'sarabun',   // ✅ เพิ่มบรรทัดนี้
+            moduleAdmin: 'sarabun',   // ✅ เพิ่ม
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -253,7 +289,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ลงรับหนังสือใหม่',
             onclick: "switchSidebarView('adminView', 'form')",
             roles: ['super_admin', 'admin', 'director', 'deputy'],
-            moduleAdmin: 'sarabun',   // ✅ เพิ่มบรรทัดนี้
+            moduleAdmin: 'sarabun',   // ✅ เพิ่ม
             icon_bg_color: '#10b981',
             icon_text_color: '#ffffff'
         },
@@ -262,7 +298,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-cog',
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettingsModal()',
-            roles: ['super_admin', 'admin'],   // ✅ ใส่ admin ด้วย (ถ้าต้องการให้ admin เห็น)
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'sarabun',   // ✅ เพิ่ม
             icon_bg_color: '#475569',
             icon_text_color: '#ffffff'
         },
@@ -290,6 +327,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-gear',
             label: 'ตั้งค่า',
             onclick: 'openSettings()',
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'eq',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         }
@@ -311,6 +350,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่ากรรมการ',
             href: 'evaluation_admin.html',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'evaluation',   // ✅ เพิ่ม
             icon_bg_color: '#4f46e5',
             icon_text_color: '#ffffff'
         },
@@ -341,6 +381,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ผู้ดูแลระบบ',
             href: 'guidance_admin.html',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'guidance',   // ✅ เพิ่ม
             icon_bg_color: '#4f46e5',
             icon_text_color: '#ffffff'
         }
@@ -385,6 +426,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-gear',
             label: 'ตั้งค่าระบบ',
             onclick: 'openAdminModal()',
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'homevisit',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         },
@@ -393,6 +436,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-file-excel',
             label: 'นำเข้าข้อมูล',
             onclick: 'importFromExcel()',
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'homevisit',   // ✅ เพิ่ม
             icon_bg_color: '#10b981',
             icon_text_color: '#ffffff'
         }
@@ -476,9 +521,11 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon: 'fa-gear',
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettingsModal()',
+            roles: ['super_admin', 'admin'],
+            moduleAdmin: 'info_teacher',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff',
-            hidden: true   // เปิด/ปิดผ่าน applyAdminVisibility()
+            hidden: true
         },
         logout: {
             icon: 'fa-power-off',
@@ -520,6 +567,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: "switchTab('settings')",
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'leave',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         },
@@ -750,6 +798,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettings()',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'personnel',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         },
@@ -763,6 +812,15 @@ window.WRK_SIDEBAR_ACTIONS = {
 
     // ---------- ระบบแฟ้มสะสมผลงาน (portfolio) ----------
     portfolio: {
+        // ✅ NEW: ปุ่มกลับหน้าหลัก
+        home: {
+            id: 'nav-home',
+            icon: 'fa-house',
+            label: 'กลับหน้าหลัก',
+            href: 'index.html',
+            icon_bg_color: '#6366f1',
+            icon_text_color: '#ffffff'
+        },
         dashboard: {
             id: 'nav-dashboard',
             icon: 'fa-chart-pie',
@@ -855,6 +913,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: 'openSettingsModal()',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'regis',   // ✅ เพิ่ม
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         },
@@ -925,6 +984,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'บันทึกทุน',
             onclick: 'openRecordScholarshipModal()',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'scholarship',   // ✅ NEW
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -934,6 +994,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'รายชื่อผู้ขอทุน',
             onclick: 'openApplicantListModal()',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'scholarship',   // ✅ NEW
             icon_bg_color: '#3b82f6',
             icon_text_color: '#ffffff'
         },
@@ -943,6 +1004,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'ตั้งค่าระบบ',
             onclick: 'openAdminModal()',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'scholarship',   // ✅ NEW
             icon_bg_color: '#475569',
             icon_text_color: '#ffffff'
         },
@@ -978,6 +1040,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'แดชบอร์ด SDQ (Admin)',
             href: 'sdq_admin.html',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'sdq',   // ✅ เพิ่ม
             icon_bg_color: '#0ea5e9',
             icon_text_color: '#ffffff'
         },
@@ -987,6 +1050,7 @@ window.WRK_SIDEBAR_ACTIONS = {
             label: 'จัดการแอดมิน',
             onclick: 'openAdminManager()',
             roles: ['super_admin', 'admin'],
+            moduleAdmin: 'sdq',   // ✅ เพิ่ม
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
@@ -1016,13 +1080,13 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon_bg_color: '#0ea5e9',
             icon_text_color: '#ffffff'
         },
-        // ✅ ลบ deptHead ออก — ใช้ topbar button แทน
         admin: {
             id: 'nav-trip-admin',
             icon: 'fa-user-shield',
             label: 'จัดการระบบ (Admin)',
             href: 'government_trip_admin.html',
             roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'government_trip',   // ✅ เพิ่ม
             icon_bg_color: '#ef4444',
             icon_text_color: '#ffffff'
         },
@@ -1063,4 +1127,4 @@ window.buildSidebarItems = function (moduleKey, actionKeys = [], overrides = {})
         .filter(Boolean);
 };
 
-console.log('✅ dashboard_sidebar_actions.js loaded');
+console.log('✅ dashboard_sidebar_actions.js loaded (v2.0 + moduleAdmin support)');

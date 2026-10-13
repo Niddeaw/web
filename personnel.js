@@ -1,5 +1,12 @@
 dayjs.locale('th');
 
+// ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('personnel', 'personnel_auth_cache', 'isPersonnelModuleAdmin');
+}
+
 /* ── State ─────────────────── */
 let personnelTable = null;
 let allPersonnelData = [];
@@ -24,6 +31,8 @@ const isAdmin = () => {
     if (currentProfile?.role === 'super_admin') return true;
     if (isAdminUser(currentProfile?.role, false)) return true;
     if (moduleAdminChecked && isModuleAdmin) return true;
+    // ✅ fallback WRKModuleAdmin
+    if (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel')) return true;
     const localAdmins = window._personnelSettings?.local_admins || [];
     return localAdmins.includes(currentProfile?.id);
 };
@@ -32,7 +41,15 @@ const isTeacher = () => !isAdmin();
 
 const canManagePersonnelSettings = () => {
     if (forceTeacherMode) return false;
-    return window.canManageSettings(currentProfile?.role);
+    // ✅ role-based (super_admin, admin)
+    if (window.canManageSettings(currentProfile?.role)) return true;
+    // ✅ module admin (from WRKModuleAdmin)
+    if (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel')) return true;
+    if (moduleAdminChecked && isModuleAdmin) return true;
+    // ✅ local admin (from settings)
+    const localAdmins = window._personnelSettings?.local_admins || [];
+    if (localAdmins.includes(currentProfile?.id)) return true;
+    return false;
 };
 
 const canEditRecord = (id) => isAdmin() || currentProfile?.id === id;
@@ -89,13 +106,27 @@ function switchTab(id, btn) {
 
 // ==========================================
 // ✅ ปุ่มนำทาง — personnel
-//    แสดงปุ่มสลับโหมดสำหรับ admin
+//    แสดงปุ่มสลับโหมดสำหรับ admin / module admin
 // ==========================================
 window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentProfile?.role;
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+
+    // ✅ ตรวจ Module Admin จาก 2 แหล่ง (memory + WRKModuleAdmin)
+    const isModuleAdminEffective = isModuleAdmin
+        || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('personnel'));
+
+    const canToggle = allowedRoles.includes(role) || isModuleAdminEffective || actualIsAdmin;
+
     const btnToggle = document.getElementById('btnAdminMode');
     if (btnToggle) {
-        btnToggle.classList.toggle('hidden', !actualIsAdmin);
-        if (actualIsAdmin) updateToggleModeButton();
+        btnToggle.classList.toggle('hidden', !canToggle);
+        if (canToggle) updateToggleModeButton();
+    }
+
+    // ✅ Sync WRKModuleAdmin (rerender=false เพราะ sidebar item ใช้ roles อยู่แล้ว)
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('personnel', isModuleAdminEffective, false);
     }
 };
 
@@ -138,6 +169,12 @@ window.onload = async () => {
         // ✅ ตรวจสอบ Module Admin
         moduleAdminChecked = true;
         isModuleAdmin = await hasModuleAccess(currentProfile.role, 'personnel', currentUser.id);
+
+        // ✅ Sync WRKModuleAdmin → sidebar รู้จัก personnel
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('personnel', isModuleAdmin, false);
+        }
+        window.isModuleAdmin = isModuleAdmin;
 
         // ✅ ตรวจสอบสิทธิ์
         const isAdminByRole = isAdminUser(currentProfile.role, false);
@@ -659,7 +696,6 @@ function syncPaInfoPanel() {
     document.getElementById('pa-info-duration').textContent = document.getElementById('out-pos-duration').value || '-';
 }
 
-/* ── PA Inputs ──────────────── */
 /* ── PA Inputs ──────────────── */
 // ✅ Default: ถ้า admin ยังไม่ตั้งค่า จะใช้ชุดนี้
 const DEFAULT_PA3_CONFIG = [
@@ -2136,4 +2172,34 @@ window.updateCustomRoleLabel = updateCustomRoleLabel;
 window.openBirthdayModal = openBirthdayModal;
 window.closeBirthdayModal = closeBirthdayModal;
 
-console.log('✅ personnel.js loaded (template-compliant + refreshNavButtons)');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+    if (typeof updateCustomRoleLabel === 'function') updateCustomRoleLabel();
+    console.log('🔄 onSidebarRendered: re-applied topbar for personnel');
+};
+
+// ==========================================
+// ✅ Logout — reset Module Admin cache
+// ==========================================
+window.logout = async function () {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+};
+
+console.log('✅ personnel.js loaded (template-compliant + WRKModuleAdmin + refreshNavButtons)');

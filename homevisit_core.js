@@ -4,6 +4,11 @@
 // ==========================================
 
 // ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+WRKModuleAdmin.bootstrap('homevisit', 'homevisit_auth_cache', 'isModuleAdmin');
+
+// ==========================================
 // 1. GLOBAL VARIABLES & CONSTANTS
 // ==========================================
 let currentUser = null;
@@ -90,7 +95,12 @@ function updateUIBasedOnRole() {
         exportImportBtn.classList.toggle('flex', canExportImport);
     }
 
-    console.log('🔘 homevisit updateUIBasedOnRole:', { role, canAdmin, isAdminEffective });
+    // ✅ sync กับ sidebar → trigger rerender (ให้เมนู moduleAdmin แสดง/ซ่อนตามสิทธิ์)
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('homevisit', isModuleAdmin, true);
+    }
+
+    console.log('🔘 homevisit updateUIBasedOnRole:', { role, canAdmin, isAdminEffective, isModuleAdmin });
 }
 window.updateUIBasedOnRole = updateUIBasedOnRole;
 
@@ -266,7 +276,6 @@ async function checkAuth() {
         // ✅ PATCH: set currentProfile ให้ renderUserAvatar ใช้งานได้
         window.currentProfile = {
             ...personnel,
-            // map avatar ให้ตรงกับ field ที่ renderUserAvatar() รู้จัก
             avatar_url: personnel?.avatar_url
                 || personnel?.avatar_personnel_url
                 || personnel?.profile_image
@@ -274,7 +283,12 @@ async function checkAuth() {
             full_name: `${personnel?.prefix || ''}${personnel?.first_name || ''} ${personnel?.last_name || ''}`.trim()
         };
 
-        isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id);
+        // ✅ Module Admin — sync กับ sidebar
+        if (!isAdmin) {
+            isModuleAdmin = await window.hasModuleAccess(role, 'homevisit', user.id).catch(() => false);
+            window.isModuleAdmin = isModuleAdmin;
+        }
+        WRKModuleAdmin.sync('homevisit', isModuleAdmin, false);
 
         const { data: sInfo } = await db.from('core_school_info')
             .select('current_academic_year, current_semester')
@@ -370,8 +384,7 @@ async function checkAuth() {
             }
         }, 400);
 
-        // ✅ Debug: ยืนยันค่า
-        console.log('✅ checkAuth: actualRole =', actualRole, '| currentUserRole =', currentUserRole);
+        console.log('✅ checkAuth: actualRole =', actualRole, '| currentUserRole =', currentUserRole, '| isModuleAdmin =', isModuleAdmin);
 
     } catch (error) {
         console.error("Auth Error:", error);
@@ -517,6 +530,7 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
         await db.auth.signOut();
         window.location.replace("login.html");
     }
@@ -526,7 +540,6 @@ function applyReportVisibility() {
     const isReportEnabled = moduleSettings.show_report === 'true';
     const isSuperAdmin = (currentUserRole === 'super_admin' || currentViewRole === 'super_admin');
     const navBtn = document.getElementById('btn-tab-report');
-    // ✅ Debug log
     console.log('📊 applyReportVisibility:', {
         show_report: moduleSettings.show_report,
         isReportEnabled,
@@ -701,7 +714,6 @@ async function loadStudentInfo(studentId) {
     clearStudentInfo();
     currentStudentId = studentId;
 
-    // ✅ Patch 1: Set flag ป้องกัน auto-save ระหว่างโหลด
     window._loadingStudent = true;
     console.log('🔒 loadStudentInfo: _loadingStudent = true');
 
@@ -716,7 +728,7 @@ async function loadStudentInfo(studentId) {
     if (error || !enroll) {
         Swal.close();
         Swal.fire('ผิดพลาด', 'ไม่พบข้อมูลนักเรียน', 'warning');
-        window._loadingStudent = false;  // ✅ reset flag ถ้า error
+        window._loadingStudent = false;
         return;
     }
 
@@ -785,7 +797,6 @@ async function loadStudentInfo(studentId) {
 
     Swal.close();
 
-    // ✅ Patch 2: Reset flag + suppressDirty หลัง delay (กัน event ค้าง 500ms)
     setTimeout(() => {
         window._loadingStudent = false;
         suppressDirty = false;
@@ -905,10 +916,6 @@ function clearStudentInfo() {
         if (window.routeLayer) { window.map.removeLayer(window.routeLayer); window.routeLayer = null; }
         if (typeof updateRouteInfoPanel === 'function') updateRouteInfoPanel(null);
     }
-
-    // ✅ Patch 5: ลบ suppressDirty = false ที่นี่
-    //    ปล่อยให้ loadStudentInfo เป็นคน reset หลังโหลดเสร็จ
-    // suppressDirty = false;  // ❌ ลบออก
 }
 
 async function loadExistingHomeVisit(studentId) {
@@ -1184,12 +1191,9 @@ window.prevStep = function (step) { goToStep(step); };
 // ==========================================
 // 5. FORM HANDLING & AUTO-SAVE
 // ==========================================
-
-// ✅ Patch 3: markDirty — เพิ่ม guard
 function markDirty() {
     if (suppressDirty || !currentStudentId) return;
 
-    // ✅ ป้องกันตอนโหลดข้อมูลนักเรียน
     if (window._loadingStudent) {
         console.log('⏸️ Skip markDirty: กำลังโหลดข้อมูลนักเรียน');
         return;
@@ -1331,13 +1335,11 @@ async function autoSaveIfDirty() {
     }
 }
 
-// ✅ Patch 4: autoSaveStep — เพิ่ม guard
 async function autoSaveStep() {
     if (!formIsDirty || !currentStudentId || !window.currentClassroomId || isReadOnly) {
         return true;
     }
 
-    // ✅ ป้องกัน auto-save ตอนโหลดข้อมูลนักเรียน
     if (window._loadingStudent) {
         console.log('⏸️ Skip auto-save: กำลังโหลดข้อมูลนักเรียน');
         return true;
@@ -1510,7 +1512,6 @@ window.submitHomeVisit = async function (isAutoSave = false) {
 
     let debounce;
     const observer = new MutationObserver(() => {
-        // ✅ Skip ถ้า admin modal เปิดอยู่ (กำลัง toggle ตั้งค่า)
         const adminModal = document.getElementById('admin-modal');
         if (adminModal && !adminModal.classList.contains('hidden')) return;
 
@@ -1525,6 +1526,16 @@ window.submitHomeVisit = async function (isAutoSave = false) {
     observer.observe(sidebar, { childList: true, subtree: true });
     console.log('👁️ Sidebar MutationObserver active');
 })();
+
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่ (สำหรับ Module Admin)
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof updateUIBasedOnRole === 'function') updateUIBasedOnRole();
+    if (typeof applyReportVisibility === 'function') applyReportVisibility();
+    console.log('🔄 onSidebarRendered: re-applied UI for homevisit');
+};
+
 // ==========================================
 // จบส่วน core
 // ==========================================

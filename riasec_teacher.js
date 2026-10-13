@@ -1,16 +1,30 @@
 /**
  * riasec_teacher.js — ระบบบริหารบุคลิกภาพ RIASEC 6 ด้าน
- * เวอร์ชัน 2.0 — ลบ logout() local (ใช้จาก config.js)
- *                 + refreshNavButtons() ใช้ applyVisibilityByRole() กลาง
+ * v2.0 — ยึดปีการศึกษา (ไม่กรองเทอม) + Multi-classroom Group + Module Admin
+ * 
+ * ✅ ใช้ academic_year เดียว (unique ต่อปี)
+ * ✅ Upsert key: student_id, academic_year (ไม่มี semester)
+ * ✅ Settings key: academic_year (ไม่มี semester)
+ * ✅ Admin: จัดกลุ่มห้องตาม (grade_level, room_number) — รวม classroom ซ้ำ
+ * ✅ Dedupe enrollment: เรียง semester ASC → เก็บเทอม 1
+ * ✅ Module Admin Support
  */
 
+// ============================================================
+// 1. CONSTANTS
+// ============================================================
 const MODULE_ID = 'riasec';
 const TOTAL_QUESTIONS = RIASEC_QUESTIONS.length;
 const TOTAL_MAX_SCORE = RIASEC_DIMENSIONS.reduce((sum, d) => sum + d.maxScore, 0);
 
-// ==========================================
-// ตัวแปร Global
-// ==========================================
+// 🚀 Bootstrap Module Admin
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('riasec', 'riasec_auth_cache', 'isModuleAdmin');
+}
+
+// ============================================================
+// 2. GLOBAL STATE
+// ============================================================
 let currentUser = null;
 let currentProfile = null;
 let currentUserId = null;
@@ -23,13 +37,35 @@ let allResults = [];
 let allClassrooms = [];
 let importMode = 'excel';
 let adviserMap = {};
-let currentSelectedClassroomId = null;
+
+// ✅ เก็บ array ของ classroom_ids
+let currentSelectedClassroomIds = null;
+
 let riasecBarChartInstance = null;
 let riasecDoughnutChartInstance = null;
 
-// ==========================================
-// INIT
-// ==========================================
+// ============================================================
+// 3. HELPERS
+// ============================================================
+function canManageRiasec() {
+    return isAdminMode || isModuleAdmin;
+}
+
+function requireRiasecAdmin(message) {
+    if (canManageRiasec()) return true;
+    Swal.fire('ไม่มีสิทธิ์', message || 'เฉพาะผู้ดูแลระบบเท่านั้น', 'warning');
+    return false;
+}
+
+function _normalizeRoomIds(input) {
+    if (Array.isArray(input)) return input.filter(Boolean);
+    if (input) return [input];
+    return null;
+}
+
+// ============================================================
+// 4. INIT
+// ============================================================
 window.addEventListener('load', async () => {
     try {
         const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'teacher'];
@@ -41,21 +77,24 @@ window.addEventListener('load', async () => {
         currentUserId   = currentUser.id;
         currentUserRole = result.role;
 
-        // ✅ ตั้ง window.* ให้ Topbar/Sidebar อ่านได้
         window.currentUser     = currentUser;
         window.currentProfile  = currentProfile;
         window.currentUserRole = currentUserRole;
 
         const isAdminByRole = isAdminUser(currentUserRole, false);
-        isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId);
+        isModuleAdmin = await hasModuleAccess(currentUserRole, MODULE_ID, currentUserId).catch(() => false);
         isAdminMode = isAdminByRole || isModuleAdmin;
 
-        // ✅ ตั้งค่า UI ผู้ใช้มาตรฐาน
+        window.isModuleAdmin = isModuleAdmin;
+
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('riasec', isModuleAdmin, false);
+        }
+
         if (typeof setUserDisplayName  === 'function') setUserDisplayName(currentProfile);
         if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentUserRole);
         if (typeof renderUserAvatar    === 'function') renderUserAvatar(currentProfile);
 
-        // ✅ อัปเดต Toggle Mode UI
         if (typeof updateToggleModeUI === 'function') {
             updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
         }
@@ -63,11 +102,11 @@ window.addEventListener('load', async () => {
         const { data: si } = await db.from('core_school_info').select('*').single();
         schoolInfo = si;
 
+        // ✅ โหลด settings — academic_year เดียว
         if (si) {
             const { data: s } = await db.from('riasec_settings')
                 .select('*')
                 .eq('academic_year', String(si.current_academic_year))
-                .eq('semester', String(si.current_semester))
                 .maybeSingle();
             if (s) {
                 const delayEl  = document.getElementById('set-delay');
@@ -78,7 +117,12 @@ window.addEventListener('load', async () => {
         }
 
         await loadClassrooms();
+        await loadStats();
         await logUserAction('เข้าสู่ระบบบริหาร RIASEC', MODULE_ID);
+
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('riasec', isModuleAdmin, true);
+        }
 
     } catch (err) {
         console.error('Init error:', err);
@@ -91,12 +135,11 @@ window.addEventListener('load', async () => {
     }
 });
 
-// ==========================================
-// สลับโหมด
-// ==========================================
+// ============================================================
+// 5. TOGGLE MODE
+// ============================================================
 async function toggleMode() {
-    const canAdmin = isModuleAdmin || isAdminUser(currentUserRole, false);
-    if (!canAdmin) {
+    if (!canManageRiasec()) {
         Swal.fire('ไม่มีสิทธิ์', 'คุณไม่สามารถใช้โหมดผู้ดูแลระบบได้', 'warning');
         return;
     }
@@ -106,22 +149,29 @@ async function toggleMode() {
         updateToggleModeUI(currentUserRole, isAdminMode, 'btnToggleMode');
     }
 
+    if (typeof window.refreshNavButtons === 'function') {
+        window.refreshNavButtons();
+    }
+
     if (riasecTable) { riasecTable.destroy(); riasecTable = null; }
-    document.getElementById('riasec-tbody').innerHTML = '';
+    const tbody = document.getElementById('riasec-tbody');
+    if (tbody) tbody.innerHTML = '';
+
     await loadClassrooms();
     await loadStats();
     await logUserAction(`สลับโหมดเป็น ${isAdminMode ? 'Admin' : 'Teacher'}`, MODULE_ID);
 }
 
-// ==========================================
-// โหลดห้องเรียน
-// ==========================================
+// ============================================================
+// 6. LOAD CLASSROOMS — Group by (grade_level, room_number)
+// ============================================================
 async function loadClassrooms() {
+    // ✅ ไม่กรอง semester
     let q = db.from('core_classrooms')
-        .select('id, grade_level, room_number, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
+        .select('id, grade_level, room_number, academic_year, core_personnel_1:core_personnel!adviser_id_1(prefix, first_name, last_name), core_personnel_2:core_personnel!adviser_id_2(prefix, first_name, last_name)')
         .eq('academic_year', String(schoolInfo?.current_academic_year))
-        .eq('semester', String(schoolInfo?.current_semester))
-        .order('grade_level').order('room_number');
+        .order('grade_level')
+        .order('room_number');
 
     if (!isAdminMode) {
         q = q.or(`adviser_id_1.eq.${currentUserId},adviser_id_2.eq.${currentUserId}`);
@@ -142,54 +192,97 @@ async function loadClassrooms() {
     const teacherBar = document.getElementById('teacherActionBar');
 
     if (isAdminMode) {
-        adminFilter.classList.remove('hidden');
-        teacherBar.classList.add('hidden');
-        const sel = document.getElementById('sel-classroom');
-        if (sel.tomselect) sel.tomselect.destroy();
-        sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>' +
-            allClassrooms.map(r => `<option value="${r.id}">ม.${r.grade_level}/${r.room_number}</option>`).join('');
-        new TomSelect('#sel-classroom', {
-            placeholder: 'พิมพ์หรือเลือกห้องเรียน...',
-            allowEmptyOption: true,
-            maxOptions: null,
-            onChange(value) {
-                const div = document.getElementById('adviserDisplay');
-                const nameEl = document.getElementById('adviserNames');
-                if (value && adviserMap[value]) {
-                    nameEl.textContent = adviserMap[value];
-                    div.classList.remove('hidden');
-                } else {
-                    div.classList.add('hidden');
-                }
-                currentSelectedClassroomId = value || null;
-                if (value) {
-                    loadResults(value);
-                    loadStats(value);
-                } else {
-                    loadResults();
-                    loadStats();
-                }
+        if (adminFilter) adminFilter.classList.remove('hidden');
+        if (teacherBar)  teacherBar.classList.add('hidden');
+
+        // ✅ จัดกลุ่มห้อง
+        const grouped = new Map();
+        for (const c of allClassrooms) {
+            const key = `${c.grade_level}/${c.room_number}`;
+            if (!grouped.has(key)) {
+                grouped.set(key, {
+                    key,
+                    label: `ม.${c.grade_level}/${c.room_number}`,
+                    grade_level: c.grade_level,
+                    room_number: c.room_number,
+                    classroomIds: [],
+                    adviser: null
+                });
             }
-        });
+            const g = grouped.get(key);
+            g.classroomIds.push(c.id);
+            if (!g.adviser && adviserMap[c.id]) {
+                g.adviser = adviserMap[c.id];
+            }
+        }
+
+        const uniqueRooms = Array.from(grouped.values());
+
+        console.log('📋 [loadClassrooms] unique rooms:', uniqueRooms.map(r => ({
+            label: r.label,
+            ids_count: r.classroomIds.length,
+            ids: r.classroomIds
+        })));
+
+        window._classroomGroups = Object.fromEntries(
+            uniqueRooms.map(r => [r.key, { ids: r.classroomIds, adviser: r.adviser }])
+        );
+
+        const sel = document.getElementById('sel-classroom');
+        if (sel) {
+            if (sel.tomselect) sel.tomselect.destroy();
+            sel.innerHTML = '<option value="">-- เลือกห้องเรียน --</option>' +
+                uniqueRooms.map(r => `<option value="${r.key}">${r.label}</option>`).join('');
+
+            new TomSelect('#sel-classroom', {
+                placeholder: 'พิมพ์หรือเลือกห้องเรียน...',
+                allowEmptyOption: true,
+                maxOptions: null,
+                dropdownParent: 'body',
+                onChange(value) {
+                    const div    = document.getElementById('adviserDisplay');
+                    const nameEl = document.getElementById('adviserNames');
+                    const groupInfo = value ? window._classroomGroups[value] : null;
+
+                    if (groupInfo && groupInfo.adviser) {
+                        nameEl.textContent = groupInfo.adviser;
+                        div.classList.remove('hidden');
+                    } else {
+                        div.classList.add('hidden');
+                    }
+
+                    currentSelectedClassroomIds = groupInfo ? groupInfo.ids : null;
+
+                    if (currentSelectedClassroomIds) {
+                        loadResults(currentSelectedClassroomIds);
+                        loadStats(currentSelectedClassroomIds);
+                    } else {
+                        loadResults();
+                        loadStats();
+                    }
+                }
+            });
+        }
     } else {
-        adminFilter.classList.add('hidden');
-        teacherBar.classList.remove('hidden');
+        if (adminFilter) adminFilter.classList.add('hidden');
+        if (teacherBar)  teacherBar.classList.remove('hidden');
+
         if (allClassrooms.length > 0) {
-            const firstRoomId = allClassrooms[0].id;
-            currentSelectedClassroomId = firstRoomId;
-            await loadResults(firstRoomId);
-            await loadStats(firstRoomId);
+            const roomIds = allClassrooms.map(r => r.id);
+            currentSelectedClassroomIds = roomIds;
+            await loadResults(roomIds);
+            await loadStats(roomIds);
         } else {
-            currentSelectedClassroomId = null;
-            Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในภาคเรียนนี้', 'info');
+            currentSelectedClassroomIds = null;
+            Swal.fire('แจ้งเตือน', 'ไม่พบห้องเรียนที่ปรึกษาในปีการศึกษานี้', 'info');
             await loadStats();
         }
     }
 }
 
-// ==========================================
-// ฟังก์ชันเสริมสำหรับสถิติ
-// ==========================================
+// ============================================================
+// 7. STATS + CHARTS — ยึดปีการศึกษา + dedupe
+// ============================================================
 function getDimIconRIASEC(key) {
     const map = {
         realistic: 'fa-hard-hat',
@@ -202,58 +295,66 @@ function getDimIconRIASEC(key) {
     return map[key] || 'fa-user';
 }
 
-// ==========================================
-// โหลดสถิติ
-// ==========================================
 async function loadStats(forceClassroomId = null) {
     const academicYear = String(schoolInfo?.current_academic_year);
-    const semester = String(schoolInfo?.current_semester);
+    const roomIdsFilter = _normalizeRoomIds(forceClassroomId);
 
+    // ✅ ไม่กรอง semester
     let query = db.from('riasec_assessments')
         .select('student_id, classroom_id, score_realistic, score_investigative, score_artistic, score_social, score_enterprising, score_conventional')
-        .eq('academic_year', academicYear)
-        .eq('semester', semester);
+        .eq('academic_year', academicYear);
 
-    if (forceClassroomId) {
-        query = query.eq('classroom_id', forceClassroomId);
-    }
-
-    const { data: riasecs, error: riasecErr } = await query;
-    if (riasecErr) console.error('loadStats error:', riasecErr);
-
-    let visibleStudentIds = [];
-    if (!isAdminMode) {
+    if (roomIdsFilter && roomIdsFilter.length > 0) {
+        query = query.in('classroom_id', roomIdsFilter);
+    } else if (!isAdminMode) {
         const roomIds = allClassrooms.map(r => r.id);
         if (roomIds.length === 0) {
             const emptyDimStats = RIASEC_DIMENSIONS.map(d => ({ key: d.key, label: d.label, count: 0, icon: getDimIconRIASEC(d.key) }));
             renderStatsCards(0, 0, 0, emptyDimStats);
             return;
         }
-        const { data: enrolls } = await db.from('student_enrollments')
-            .select('student_id')
-            .in('classroom_id', roomIds);
-        visibleStudentIds = (enrolls || []).map(e => e.student_id);
-    } else {
-        if (forceClassroomId) {
-            const { data: enrolls } = await db.from('student_enrollments')
-                .select('student_id')
-                .eq('classroom_id', forceClassroomId);
-            visibleStudentIds = (enrolls || []).map(e => e.student_id);
-        } else {
-            const { data: allStd } = await db.from('core_students').select('id');
-            visibleStudentIds = (allStd || []).map(s => s.id);
-        }
+        query = query.in('classroom_id', roomIds);
     }
 
-    const totalStudents = visibleStudentIds.length;
-    const filteredAssessments = (riasecs || []).filter(m => visibleStudentIds.includes(m.student_id));
-    const assessedCount = filteredAssessments.length;
+    const { data: rawRiasecs, error: riasecErr } = await query;
+    if (riasecErr) console.error('loadStats error:', riasecErr);
+
+    // ✅ Dedupe by student_id
+    const uniqueMap = new Map();
+    (rawRiasecs || []).forEach(m => {
+        if (!uniqueMap.has(m.student_id)) uniqueMap.set(m.student_id, m);
+    });
+    const riasecs = Array.from(uniqueMap.values());
+
+    // ✅ นับนักเรียน UNIQUE ของปีการศึกษา
+    let totalStudents = 0;
+    if (roomIdsFilter && roomIdsFilter.length > 0) {
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id')
+            .eq('academic_year', academicYear)
+            .in('classroom_id', roomIdsFilter);
+        totalStudents = new Set((enrolls || []).map(e => e.student_id)).size;
+    } else if (!isAdminMode) {
+        const roomIds = allClassrooms.map(r => r.id);
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id')
+            .eq('academic_year', academicYear)
+            .in('classroom_id', roomIds);
+        totalStudents = new Set((enrolls || []).map(e => e.student_id)).size;
+    } else {
+        const { data: enrolls } = await db.from('student_enrollments')
+            .select('student_id')
+            .eq('academic_year', academicYear);
+        totalStudents = new Set((enrolls || []).map(e => e.student_id)).size;
+    }
+
+    const assessedCount = riasecs.length;
     const notAssessedCount = totalStudents - assessedCount;
 
     const dimKeys = RIASEC_DIMENSIONS.map(d => d.key);
     const topCount = {};
     dimKeys.forEach(key => { topCount[key] = 0; });
-    filteredAssessments.forEach(m => {
+    riasecs.forEach(m => {
         let maxScore = -1;
         let topKey = null;
         dimKeys.forEach(key => {
@@ -270,6 +371,15 @@ async function loadStats(forceClassroomId = null) {
         icon: getDimIconRIASEC(d.key)
     }));
 
+    console.log('🔍 [loadStats]', {
+        mode: isAdminMode ? 'ADMIN' : 'TEACHER',
+        academicYear,
+        roomIdsFilter,
+        totalStudents,
+        assessedCount,
+        notAssessedCount
+    });
+
     renderStatsCards(totalStudents, assessedCount, notAssessedCount, dimStats);
 }
 
@@ -279,30 +389,9 @@ function renderStatsCards(total, assessed, notAssessed, dimStats) {
 
     let html = `<div class="grid grid-cols-1 sm:grid-cols-3 gap-4">`;
     const mainCards = [
-        {
-            label: 'นักเรียนทั้งหมด',
-            value: total,
-            icon: 'fa-users',
-            color: 'blue',
-            clickable: false,
-            status: null
-        },
-        {
-            label: 'สำรวจแล้ว',
-            value: assessed,
-            icon: 'fa-check-circle',
-            color: 'green',
-            clickable: true,
-            status: 'done'
-        },
-        {
-            label: 'ยังไม่สำรวจ',
-            value: notAssessed,
-            icon: 'fa-clock',
-            color: 'amber',
-            clickable: true,
-            status: 'pending'
-        }
+        { label: 'นักเรียนทั้งหมด', value: total,       icon: 'fa-users',         color: 'blue',  clickable: false, status: null },
+        { label: 'สำรวจแล้ว',       value: assessed,    icon: 'fa-check-circle',  color: 'green', clickable: true,  status: 'done' },
+        { label: 'ยังไม่สำรวจ',     value: notAssessed, icon: 'fa-clock',         color: 'amber', clickable: true,  status: 'pending' }
     ];
     mainCards.forEach(card => {
         const cursorCls = card.clickable ? ' cursor-pointer hover:shadow-md transition-shadow' : '';
@@ -469,21 +558,14 @@ function renderRIASECCharts(dimStats) {
     }
 }
 
-// ==========================================
-// โหลดผลการประเมิน
-// ==========================================
+// ============================================================
+// 8. LOAD RESULTS — ยึดปีการศึกษา + dedupe (เทอม 1)
+// ============================================================
 async function loadResults(forceClassroomId = null) {
     Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
-        const sel = document.getElementById('sel-classroom');
-        const classroomId = forceClassroomId || (isAdminMode && sel ? (sel.tomselect ? sel.tomselect.getValue() : sel.value) : null);
-
-        let roomIds = [];
-        if (classroomId) {
-            roomIds = [classroomId];
-        } else if (isAdminMode) {
-            roomIds = allClassrooms.map(r => r.id);
-        } else {
+        let roomIds = _normalizeRoomIds(forceClassroomId);
+        if (!roomIds || roomIds.length === 0) {
             roomIds = allClassrooms.map(r => r.id);
         }
 
@@ -494,27 +576,48 @@ async function loadResults(forceClassroomId = null) {
             return;
         }
 
-        let riasecMap = {};
+        const academicYear = String(schoolInfo?.current_academic_year);
+
+        // ✅ Assessments — ไม่กรอง semester
         const { data: riasecs, error: riasecErr } = await db.from('riasec_assessments')
             .select('*')
-            .eq('academic_year', String(schoolInfo?.current_academic_year))
-            .eq('semester', String(schoolInfo?.current_semester))
+            .eq('academic_year', academicYear)
             .in('classroom_id', roomIds);
 
         if (riasecErr) console.error('loadResults riasec error:', riasecErr);
-        (riasecs || []).forEach(e => { riasecMap[e.student_id] = e; });
 
+        const riasecMap = {};
+        (riasecs || []).forEach(e => {
+            if (!riasecMap[e.student_id]) riasecMap[e.student_id] = e;
+        });
+
+        // ✅ Enrollments — filter ปี + order semester ASC (เก็บเทอม 1)
         let { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
-            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .select('student_id, student_number, classroom_id, academic_year, semester, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .eq('academic_year', academicYear)
             .in('classroom_id', roomIds)
+            .order('semester', { ascending: true })
             .order('student_number');
 
         if (enrollErr) {
+            console.warn('Query enrolls failed, retry fallback...', enrollErr);
             const fallback = await db.from('student_enrollments')
-                .select('student_id, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
-                .in('classroom_id', roomIds);
+                .select('student_id, student_number, classroom_id, academic_year, semester, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+                .eq('academic_year', academicYear)
+                .in('classroom_id', roomIds)
+                .order('semester', { ascending: true });
             enrolls = fallback.data;
             if (fallback.error) throw fallback.error;
+        }
+
+        // ✅ Dedupe: เก็บเทอม 1 (ascending → เทอม 1 มาก่อน)
+        if (enrolls && enrolls.length > 0) {
+            const seen = new Set();
+            enrolls = enrolls.filter(e => {
+                if (seen.has(e.student_id)) return false;
+                seen.add(e.student_id);
+                return true;
+            }).sort((a, b) => (a.student_number || 0) - (b.student_number || 0));
         }
 
         Swal.close();
@@ -541,15 +644,10 @@ function renderTable(rows) {
     const getLevelBadge = (level) => {
         if (!level) return '<span class="text-slate-300">-</span>';
         let cls = '';
-        if (level === 'สูง') {
-            cls = 'bg-green-100 text-green-700';
-        } else if (level === 'ปานกลาง') {
-            cls = 'bg-blue-100 text-blue-700';
-        } else if (level === 'ต่ำ') {
-            cls = 'bg-amber-100 text-amber-700';
-        } else {
-            cls = 'bg-slate-100 text-slate-600';
-        }
+        if (level === 'สูง') cls = 'bg-green-100 text-green-700';
+        else if (level === 'ปานกลาง') cls = 'bg-blue-100 text-blue-700';
+        else if (level === 'ต่ำ') cls = 'bg-amber-100 text-amber-700';
+        else cls = 'bg-slate-100 text-slate-600';
         return `<span class="text-xs font-bold px-2 py-0.5 rounded-full ${cls}">${level}</span>`;
     };
 
@@ -577,7 +675,7 @@ function renderTable(rows) {
         const dimScores = dimKeys.map(key => riasec[`score_${key}`] || 0);
         const totalScore = dimScores.reduce((a, b) => a + b, 0);
 
-        const canEdit = isAdminMode;
+        const canEdit = canManageRiasec();
         const actions = `<div class="flex gap-1 justify-center">
             <button onclick='openViewResult("${r.student_id}")' class="h-7 w-7 rounded-lg bg-teal-50 text-teal-600 hover:bg-teal-100" title="ดูผล"><i class="fas fa-eye text-xs"></i></button>
             ${canEdit ? `<button onclick='openEditForStudent("${r.student_id}")' class="h-7 w-7 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100" title="แก้ไข"><i class="fas fa-pen text-xs"></i></button>` : ''}
@@ -608,9 +706,9 @@ function renderTable(rows) {
     } catch (err) { console.error('DataTable init error:', err); }
 }
 
-// ==========================================
-// ฟังก์ชันดูผล, แก้ไข, ลบ, ส่งออก
-// ==========================================
+// ============================================================
+// 9. VIEW RESULT — ยึดปีการศึกษา
+// ============================================================
 function closeViewModal() {
     const modal = document.getElementById('view-result-modal');
     if (modal) {
@@ -624,17 +722,22 @@ async function openViewResult(studentId) {
 
     if (!row) {
         Swal.fire({ title: 'กำลังโหลด...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+        const academicYear = String(schoolInfo?.current_academic_year);
+
         const { data: enroll } = await db.from('student_enrollments')
             .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
             .eq('student_id', studentId)
-            .single();
+            .eq('academic_year', academicYear)
+            .order('semester', { ascending: true })
+            .limit(1)
+            .maybeSingle();
 
+        // ✅ ไม่กรอง semester
         const { data: riasec } = await db.from('riasec_assessments')
             .select('*')
             .eq('student_id', studentId)
-            .eq('academic_year', String(schoolInfo?.current_academic_year))
-            .eq('semester', String(schoolInfo?.current_semester))
-            .single();
+            .eq('academic_year', academicYear)
+            .maybeSingle();
 
         if (!enroll) {
             Swal.close();
@@ -673,18 +776,11 @@ async function openViewResult(studentId) {
     const totalLvl = riasec.level_total || '';
 
     const getLevelStyle = (level) => {
-        if (!level) {
-            return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
-        }
-        if (level === 'สูง') {
-            return { badge: 'bg-green-100 text-green-700', bar: '#10b981', bg: 'bg-green-500' };
-        } else if (level === 'ปานกลาง') {
-            return { badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6', bg: 'bg-blue-500' };
-        } else if (level === 'ต่ำ') {
-            return { badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b', bg: 'bg-amber-500' };
-        } else {
-            return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
-        }
+        if (!level) return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
+        if (level === 'สูง') return { badge: 'bg-green-100 text-green-700', bar: '#10b981', bg: 'bg-green-500' };
+        if (level === 'ปานกลาง') return { badge: 'bg-blue-100 text-blue-700', bar: '#3b82f6', bg: 'bg-blue-500' };
+        if (level === 'ต่ำ') return { badge: 'bg-amber-100 text-amber-700', bar: '#f59e0b', bg: 'bg-amber-500' };
+        return { badge: 'bg-slate-100 text-slate-600', bar: '#94a3b8', bg: 'bg-slate-500' };
     };
 
     const totalStyle = getLevelStyle(totalLvl);
@@ -726,18 +822,27 @@ async function openViewResult(studentId) {
     document.getElementById('view-result-modal').classList.add('flex');
 }
 
+// ============================================================
+// 10. EDIT MODAL
+// ============================================================
 function closeEditModal() {
     document.getElementById('edit-modal').classList.add('hidden');
     document.getElementById('edit-modal').classList.remove('flex');
 }
 
 async function openEditForStudent(studentId) {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถแก้ไขผลการประเมินได้')) return;
+
     let row = allResults.find(r => r.student_id === studentId);
     if (!row) {
+        const academicYear = String(schoolInfo?.current_academic_year);
         const { data: enroll } = await db.from('student_enrollments')
             .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name)')
             .eq('student_id', studentId)
-            .single();
+            .eq('academic_year', academicYear)
+            .order('semester', { ascending: true })
+            .limit(1)
+            .maybeSingle();
         if (!enroll) {
             Swal.fire('ไม่พบข้อมูลนักเรียน', '', 'error');
             return;
@@ -760,13 +865,19 @@ async function openEditForStudent(studentId) {
 }
 
 async function saveEdit() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขผลการประเมินได้')) return;
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่แก้ไขผลการประเมินได้')) return;
 
     const studentId = document.getElementById('edit-student-id').value;
+    const academicYear = String(schoolInfo?.current_academic_year);
+
+    // ✅ หา enrollment เทอม 1
     const { data: enroll, error: enrollErr } = await db.from('student_enrollments')
         .select('classroom_id')
         .eq('student_id', studentId)
-        .single();
+        .eq('academic_year', academicYear)
+        .order('semester', { ascending: true })
+        .limit(1)
+        .maybeSingle();
     if (enrollErr || !enroll) {
         Swal.fire('ไม่พบข้อมูลการลงทะเบียนเรียนของนักเรียน', '', 'error');
         return;
@@ -793,8 +904,8 @@ async function saveEdit() {
     const payload = {
         student_id: studentId,
         classroom_id: classroomId,
-        academic_year: schoolInfo.current_academic_year,
-        semester: schoolInfo.current_semester,
+        academic_year: academicYear,
+        semester: '1',   // ✅ default
         answers: {},
         score_realistic: scores.realistic,
         score_investigative: scores.investigative,
@@ -815,7 +926,9 @@ async function saveEdit() {
         completed_at: new Date().toISOString()
     };
 
-    const { error } = await db.from('riasec_assessments').upsert(payload, { onConflict: 'student_id,academic_year,semester' });
+    // ✅ Upsert on (student_id, academic_year)
+    const { error } = await db.from('riasec_assessments')
+        .upsert(payload, { onConflict: 'student_id,academic_year' });
     if (error) {
         Swal.fire('บันทึกไม่สำเร็จ', error.message, 'error');
         return;
@@ -823,12 +936,12 @@ async function saveEdit() {
     await logUserAction(`แก้ไขผล RIASEC ของนักเรียน ${studentId}`, MODULE_ID);
     Swal.fire({ icon: 'success', title: 'บันทึกแล้ว', timer: 1500, showConfirmButton: false });
     closeEditModal();
-    loadResults();
-    loadStats();
+    loadResults(currentSelectedClassroomIds);
+    loadStats(currentSelectedClassroomIds);
 }
 
 async function deleteResult(studentId) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้')) return;
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถลบผลการประเมินได้')) return;
 
     const { isConfirmed } = await Swal.fire({
         title: 'ลบผลการประเมิน?',
@@ -839,10 +952,10 @@ async function deleteResult(studentId) {
     });
     if (!isConfirmed) return;
 
+    // ✅ ลบด้วย academic_year เท่านั้น
     const { error } = await db.from('riasec_assessments').delete()
         .eq('student_id', studentId)
-        .eq('academic_year', String(schoolInfo.current_academic_year))
-        .eq('semester', String(schoolInfo.current_semester));
+        .eq('academic_year', String(schoolInfo.current_academic_year));
 
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
@@ -850,8 +963,8 @@ async function deleteResult(studentId) {
     }
     await logUserAction(`ลบผล RIASEC ของนักเรียน ${studentId}`, MODULE_ID);
     Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1400, showConfirmButton: false });
-    loadResults();
-    loadStats();
+    loadResults(currentSelectedClassroomIds);
+    loadStats(currentSelectedClassroomIds);
 }
 
 function exportExcel() {
@@ -880,22 +993,26 @@ function exportExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'RIASEC_6dim');
     XLSX.writeFile(wb, `RIASEC_${isAdminMode ? 'admin' : 'teacher'}_${new Date().toLocaleDateString('th-TH').replace(/\//g, '-')}.xlsx`);
+
+    logUserAction(`ส่งออก Excel RIASEC (${isAdminMode ? 'Admin' : 'Teacher'})`, MODULE_ID);
 }
 
-// ==========================================
-// พิมพ์ PDF
-// ==========================================
+// ============================================================
+// 11. PRINT PDF — ยึดปีการศึกษา
+// ============================================================
 async function printStudentPdf(studentId) {
     Swal.fire({ title: 'กำลังเตรียมเอกสาร PDF...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
     try {
         if (!studentId) throw new Error('ไม่พบรหัสนักเรียน');
 
+        const academicYear = String(schoolInfo.current_academic_year);
+
+        // ✅ ไม่กรอง semester
         const { data: assessment, error: assessErr } = await db.from('riasec_assessments')
             .select('*')
             .eq('student_id', studentId)
-            .eq('academic_year', String(schoolInfo.current_academic_year))
-            .eq('semester', String(schoolInfo.current_semester))
-            .single();
+            .eq('academic_year', academicYear)
+            .maybeSingle();
 
         if (assessErr || !assessment) {
             console.error('❌ Assessment not found:', assessErr);
@@ -909,12 +1026,7 @@ async function printStudentPdf(studentId) {
 
         if (stdErr) {
             console.warn('⚠️ Student data not found:', stdErr);
-            assessment.core_students = {
-                prefix: '',
-                first_name: 'ไม่พบชื่อ',
-                last_name: '',
-                avatar_students_url: null
-            };
+            assessment.core_students = { prefix: '', first_name: 'ไม่พบชื่อ', last_name: '', avatar_students_url: null };
         } else {
             assessment.core_students = student;
         }
@@ -924,12 +1036,8 @@ async function printStudentPdf(studentId) {
                 .select('grade_level, room_number')
                 .eq('id', assessment.classroom_id)
                 .single();
-
-            if (!clsErr && cls) {
-                assessment.core_classrooms = cls;
-            } else {
-                assessment.core_classrooms = null;
-            }
+            if (!clsErr && cls) assessment.core_classrooms = cls;
+            else assessment.core_classrooms = null;
         } else {
             assessment.core_classrooms = null;
         }
@@ -956,8 +1064,7 @@ async function printStudentPdf(studentId) {
 
         const schoolLogo = schoolInfo?.logo_url || 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png';
         const schoolName = schoolInfo?.school_name || 'โรงเรียนวัดไร่ขิงวิทยา';
-        const academicYear = assessment.academic_year;
-        const semester = assessment.semester;
+        const semester = assessment.semester || '1';
 
         const std = assessment.core_students;
         const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
@@ -972,9 +1079,9 @@ async function printStudentPdf(studentId) {
     }
 }
 
-// ==========================================
-// buildRIASECPdfHtml
-// ==========================================
+// ============================================================
+// buildRIASECPdfHtml — ✅ คงเดิมทั้งหมด
+// ============================================================
 function buildRIASECPdfHtml(opts) {
     var assessment = opts.assessment || {};
     var schoolName = opts.schoolName || '';
@@ -1014,7 +1121,6 @@ function buildRIASECPdfHtml(opts) {
 
     var DC = ['#ef4444', '#3b82f6', '#8b5cf6', '#22c55e', '#f59e0b', '#14b8a6'];
 
-    // ---- PIE SVG ----
     var pieTot = 0;
     for (var i = 0; i < dims.length; i++) pieTot += dims[i].score;
     if (pieTot === 0) pieTot = 1;
@@ -1034,7 +1140,6 @@ function buildRIASECPdfHtml(opts) {
     }
     var piesvg = '<svg width="110" height="110" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><rect width="120" height="120" fill="white"/>' + slices + '</svg>';
 
-    // ---- LEGEND ----
     var legend = '';
     for (var i = 0; i < dims.length; i++) {
         legend += '<div style="margin-bottom:3px;font-size:11px;color:#374151;">' +
@@ -1042,7 +1147,6 @@ function buildRIASECPdfHtml(opts) {
             '<span style="vertical-align:middle;">' + dims[i].label + ' (' + dims[i].score + '/' + dims[i].max + ')</span></div>';
     }
 
-    // ---- RADAR SVG ----
     var rcx = 90, rcy = 90, rr = 55, n = dims.length;
     var grid = '', axes = '', lbs = '', dts = '', rpts = [];
     for (var i = 0; i < n; i++) {
@@ -1070,7 +1174,6 @@ function buildRIASECPdfHtml(opts) {
         '<polygon points="' + rpts.join(' ') + '" fill="#e0e7ff" stroke="#6366f1" stroke-width="1.5" stroke-linejoin="round"/>' +
         dts + lbs + '</svg>';
 
-    // ---- อาชีพแนะนำ ----
     var careerHtml = '';
     if (top3.length > 0) {
         careerHtml = '<div class="box" style="margin-top:5px;margin-bottom:4px;">' +
@@ -1091,7 +1194,6 @@ function buildRIASECPdfHtml(opts) {
         careerHtml += '</div></div>';
     }
 
-    // ---- BAR CHART ----
     var bars = '';
     for (var i = 0; i < dims.length; i++) {
         var pct = dims[i].max > 0 ? (dims[i].score / dims[i].max * 100) : 0;
@@ -1105,7 +1207,6 @@ function buildRIASECPdfHtml(opts) {
             '</div></div>';
     }
 
-    // ---- TABLE ROWS ----
     var trows = '';
     for (var i = 0; i < dims.length; i++) {
         var pct = dims[i].max > 0 ? Math.round(dims[i].score / dims[i].max * 100) : 0;
@@ -1159,7 +1260,7 @@ function buildRIASECPdfHtml(opts) {
         '</td></tr></table>' +
         '</td>' +
         '<td width="40%" align="right" valign="bottom" style="font-size:10px;line-height:1.5;">' +
-        '<div><b>ภาคเรียนที่ ' + semester + '</b> ปีการศึกษา ' + academicYear + '</div>' +
+        '<div><b>ปีการศึกษา ' + academicYear + '</b></div>' +
         '<div>ครูที่ปรึกษา: ' + advLine + '</div>' +
         '<div>วันที่ประเมิน: ' + dateStr + '</div>' +
         '</td>' +
@@ -1227,9 +1328,6 @@ function buildRIASECPdfHtml(opts) {
     return html;
 }
 
-// ==========================================
-// generateStudentPDFRIASEC
-// ==========================================
 function generateStudentPDFRIASEC(assessment, schoolName, academicYear, semester, adviser1, adviser2, logoUrl, fullName, avatarUrl) {
     const getLevel = (score, norm) => {
         if (score < norm.min) return 'ต่ำ';
@@ -1292,22 +1390,17 @@ function generateStudentPdfFromHtml(html, fullName) {
         margin: [0.45, 0.45, 0.7, 0.45],
         filename: 'RIASEC_' + fullName + '.pdf',
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-            scale: 2,
-            useCORS: true,
-            letterRendering: true,
-            windowWidth: 794,
-            logging: false
-        },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true, windowWidth: 794, logging: false },
         jsPDF: { unit: 'cm', format: 'a4', orientation: 'portrait' }
     };
     html2pdf().set(opt).from(html, 'string').save();
 }
 
-// ==========================================
-// นำเข้า (Import)
-// ==========================================
+// ============================================================
+// 12. IMPORT — ยึดปีการศึกษา
+// ============================================================
 function openImportModal() {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) return;
     document.getElementById('import-modal').classList.remove('hidden');
 }
 
@@ -1324,6 +1417,10 @@ function setImportMode(mode) {
 }
 
 async function handleFileImport(input) {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) {
+        input.value = '';
+        return;
+    }
     const file = input.files[0];
     if (!file) return;
     const reader = new FileReader();
@@ -1337,6 +1434,7 @@ async function handleFileImport(input) {
 }
 
 async function handleSheetsImport() {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) return;
     const url = document.getElementById('sheets-url').value.trim();
     const m = url.match(/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
     if (!m) return Swal.fire('URL ไม่ถูกต้อง', '', 'error');
@@ -1363,6 +1461,8 @@ async function handleSheetsImport() {
 }
 
 async function processImportRows(rows) {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถนำเข้าข้อมูลได้')) return;
+
     const dimMap = {
         'Realistic': 'realistic',
         'Investigative': 'investigative',
@@ -1374,8 +1474,34 @@ async function processImportRows(rows) {
     const dataRows = rows.filter(r => r['รหัสนักเรียน']);
     if (!dataRows.length) return Swal.fire('ไม่พบข้อมูล', '', 'warning');
     Swal.fire({ title: `พบ ${dataRows.length} รายการ`, text: 'กำลังนำเข้า...', didOpen: () => Swal.showLoading() });
-    const { data: stds } = await db.from('core_students').select('id, student_id_card, classroom_id');
-    const stdMap = Object.fromEntries((stds || []).map(s => [String(s.student_id_card).trim(), s]));
+
+    const academicYear = String(schoolInfo.current_academic_year);
+
+    // ✅ ดึงนักเรียนผ่าน enrollment เฉพาะปีการศึกษา (dedupe เก็บเทอม 1)
+    const { data: enrollRecs } = await db.from('student_enrollments')
+        .select('student_id, classroom_id, academic_year, semester, core_students(id, student_id_card)')
+        .eq('academic_year', academicYear)
+        .order('semester', { ascending: true });
+
+    const stdMap = {};
+    (enrollRecs || []).forEach(e => {
+        const sid = e.core_students?.student_id_card;
+        if (sid && !stdMap[String(sid).trim()]) {
+            stdMap[String(sid).trim()] = {
+                id: e.core_students.id,
+                student_id_card: sid,
+                classroom_id: e.classroom_id
+            };
+        }
+    });
+
+    // ✅ allowed classroom_ids
+    let allowedClassroomIds = null;
+    if (Array.isArray(currentSelectedClassroomIds) && currentSelectedClassroomIds.length > 0) {
+        allowedClassroomIds = currentSelectedClassroomIds;
+    } else if (!isAdminMode) {
+        allowedClassroomIds = allClassrooms.map(c => c.id);
+    }
 
     const getLevel = (score, norm) => {
         if (score < norm.min) return 'ต่ำ';
@@ -1386,6 +1512,10 @@ async function processImportRows(rows) {
     for (const row of dataRows) {
         const std = stdMap[String(row['รหัสนักเรียน']).trim()];
         if (!std) { fail++; continue; }
+        if (allowedClassroomIds && !allowedClassroomIds.includes(std.classroom_id)) {
+            fail++;
+            continue;
+        }
         const scores = {};
         for (const [eng, key] of Object.entries(dimMap)) {
             scores[key] = parseInt(row[eng]) || 0;
@@ -1393,7 +1523,8 @@ async function processImportRows(rows) {
         const total = Object.values(scores).reduce((a, b) => a + b, 0);
         const payload = {
             student_id: std.id, classroom_id: std.classroom_id,
-            academic_year: schoolInfo.current_academic_year, semester: schoolInfo.current_semester,
+            academic_year: academicYear,
+            semester: '1',   // ✅ default
             answers: {}, recorder_id: currentUser.id,
             score_realistic: scores.realistic,
             score_investigative: scores.investigative,
@@ -1410,21 +1541,23 @@ async function processImportRows(rows) {
             level_conventional: getLevel(scores.conventional, RIASEC_NORM.conventional),
             level_total: getLevel(total, RIASEC_NORM.total)
         };
-        const { error } = await db.from('riasec_assessments').upsert(payload, { onConflict: 'student_id,academic_year,semester' });
+        // ✅ Upsert on (student_id, academic_year)
+        const { error } = await db.from('riasec_assessments')
+            .upsert(payload, { onConflict: 'student_id,academic_year' });
         if (error) fail++; else success++;
     }
     Swal.close(); closeImportModal();
     await logUserAction(`นำเข้าข้อมูล RIASEC ${success} รายการ (ล้มเหลว ${fail} รายการ)`, MODULE_ID);
     Swal.fire({ icon: success > 0 ? 'success' : 'error', title: 'นำเข้าเสร็จ', html: `สำเร็จ ${success} รายการ<br>ล้มเหลว ${fail} รายการ` });
-    loadResults();
-    loadStats();
+    loadResults(currentSelectedClassroomIds);
+    loadStats(currentSelectedClassroomIds);
 }
 
-// ==========================================
-// ตั้งค่าระบบ (Settings) — รวม Admin Management
-// ==========================================
+// ============================================================
+// 13. SETTINGS — ยึดปีการศึกษา
+// ============================================================
 function openSettings() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบเท่านั้นที่ตั้งค่าระบบได้')) {
         return;
     }
     const modal = document.getElementById('settings-modal');
@@ -1432,11 +1565,11 @@ function openSettings() {
     modal.classList.remove('hidden');
     modal.classList.add('flex');
 
+    // ✅ โหลด settings — academic_year เดียว
     if (schoolInfo) {
         db.from('riasec_settings')
             .select('*')
             .eq('academic_year', String(schoolInfo.current_academic_year))
-            .eq('semester', String(schoolInfo.current_semester))
             .maybeSingle()
             .then(({ data }) => {
                 if (data) {
@@ -1464,15 +1597,16 @@ function closeSettings() {
 }
 
 async function saveSettings() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบ')) return;
     const delay = parseInt(document.getElementById('set-delay').value) || 0;
     const active = document.getElementById('set-active').checked;
+    // ✅ Upsert on academic_year เท่านั้น
     const { error } = await db.from('riasec_settings').upsert({
-        academic_year: schoolInfo.current_academic_year,
-        semester: schoolInfo.current_semester,
+        academic_year: String(schoolInfo.current_academic_year),
+        semester: '1',
         delay_seconds: delay,
         is_active: active
-    }, { onConflict: 'academic_year,semester' });
+    }, { onConflict: 'academic_year' });
     if (error) {
         Swal.fire('ผิดพลาด', error.message, 'error');
     } else {
@@ -1482,6 +1616,9 @@ async function saveSettings() {
     }
 }
 
+// ============================================================
+// 14. MODULE ADMIN MANAGEMENT
+// ============================================================
 async function loadPersonnelOptions() {
     try {
         const { data: currentAdmins } = await db
@@ -1562,58 +1699,54 @@ async function loadCurrentAdmins() {
         let html = '';
         let totalCount = 0;
 
-        if (superAdmins && superAdmins.length > 0) {
-            superAdmins.forEach(admin => {
-                const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
-                html += `
-                    <div class="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
-                                <i class="fa-solid fa-crown text-amber-600"></i>
-                            </div>
-                            <div>
-                                <div class="font-bold text-slate-800">${fullName}</div>
-                                <div class="text-xs text-slate-500">${admin.position || ''}${admin.department ? ` · ${admin.department}` : ''}</div>
-                                <span class="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">
-                                    <i class="fa-solid fa-star mr-1"></i>Super Admin
-                                </span>
-                            </div>
+        (superAdmins || []).forEach(admin => {
+            const fullName = `${admin.prefix || ''}${admin.first_name} ${admin.last_name}`;
+            html += `
+                <div class="flex items-center justify-between p-4 bg-amber-50 border border-amber-200 rounded-xl">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center">
+                            <i class="fa-solid fa-crown text-amber-600"></i>
                         </div>
-                        <span class="text-xs text-slate-400">ถาวร</span>
+                        <div>
+                            <div class="font-bold text-slate-800">${fullName}</div>
+                            <div class="text-xs text-slate-500">${admin.position || ''}${admin.department ? ` · ${admin.department}` : ''}</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full font-bold">
+                                <i class="fa-solid fa-star mr-1"></i>Super Admin
+                            </span>
+                        </div>
                     </div>
-                `;
-                totalCount++;
-            });
-        }
+                    <span class="text-xs text-slate-400">ถาวร</span>
+                </div>
+            `;
+            totalCount++;
+        });
 
-        if (moduleAdmins && moduleAdmins.length > 0) {
-            moduleAdmins.forEach(admin => {
-                const p = admin.core_personnel;
-                const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
-                const createdDate = admin.created_at ? new Date(admin.created_at).toLocaleDateString('th-TH') : 'ไม่ระบุ';
-                html += `
-                    <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl">
-                        <div class="flex items-center gap-3">
-                            <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
-                                <i class="fa-solid fa-user-shield text-indigo-600"></i>
-                            </div>
-                            <div>
-                                <div class="font-bold text-slate-800">${fullName}</div>
-                                <div class="text-xs text-slate-500">${p.position || ''}${p.department ? ` · ${p.department}` : ''}</div>
-                                <span class="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">
-                                    <i class="fa-solid fa-clock mr-1"></i>ตั้งแต่ ${createdDate}
-                                </span>
-                            </div>
+        moduleAdmins.forEach(admin => {
+            const p = admin.core_personnel;
+            const fullName = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+            const createdDate = admin.created_at ? new Date(admin.created_at).toLocaleDateString('th-TH') : 'ไม่ระบุ';
+            html += `
+                <div class="flex items-center justify-between p-4 bg-white border border-slate-200 rounded-xl">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center">
+                            <i class="fa-solid fa-user-shield text-indigo-600"></i>
                         </div>
-                        <button onclick="removeModuleAdmin('${admin.id}', '${fullName}')" 
-                                class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-sm font-bold transition-colors">
-                            <i class="fa-solid fa-trash mr-1"></i>ถอดถอน
-                        </button>
+                        <div>
+                            <div class="font-bold text-slate-800">${fullName}</div>
+                            <div class="text-xs text-slate-500">${p.position || ''}${p.department ? ` · ${p.department}` : ''}</div>
+                            <span class="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs rounded-full font-medium">
+                                <i class="fa-solid fa-clock mr-1"></i>ตั้งแต่ ${createdDate}
+                            </span>
+                        </div>
                     </div>
-                `;
-                totalCount++;
-            });
-        }
+                    <button onclick="removeModuleAdmin('${admin.id}', '${fullName}')" 
+                            class="px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-sm font-bold transition-colors">
+                        <i class="fa-solid fa-trash mr-1"></i>ถอดถอน
+                    </button>
+                </div>
+            `;
+            totalCount++;
+        });
 
         if (html === '') {
             html = `<div class="text-center text-slate-400 py-8"><i class="fa-solid fa-user-slash text-3xl mb-2"></i><p>ยังไม่มีผู้ดูแลระบบ RIASEC</p></div>`;
@@ -1627,7 +1760,7 @@ async function loadCurrentAdmins() {
 }
 
 async function addModuleAdmin() {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบ')) return;
 
     const select = document.getElementById('personnelSelect');
     const personnelId = select.tomselect ? select.tomselect.getValue() : select.value;
@@ -1669,7 +1802,7 @@ async function addModuleAdmin() {
 }
 
 async function removeModuleAdmin(adminId, adminName) {
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบ')) return;
+    if (!requireRiasecAdmin('เฉพาะผู้ดูแลระบบ')) return;
 
     const result = await Swal.fire({
         title: 'ยืนยันการถอดถอน?',
@@ -1695,9 +1828,9 @@ async function removeModuleAdmin(adminId, adminName) {
     }
 }
 
-// ==========================================
-// รายชื่อนักเรียนตามด้าน (Dim Student List)
-// ==========================================
+// ============================================================
+// 15. DIM STUDENT LIST — ยึดปีการศึกษา + array
+// ============================================================
 function closeDimStudentModal() {
     const modal = document.getElementById('dim-student-modal');
     if (!modal) return;
@@ -1717,37 +1850,33 @@ async function openDimStudentList(dimKey) {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        let query = db.from('riasec_assessments')
-            .select('student_id, classroom_id, score_realistic, score_investigative, score_artistic, score_social, score_enterprising, score_conventional')
-            .eq('academic_year', String(schoolInfo?.current_academic_year))
-            .eq('semester', String(schoolInfo?.current_semester));
-
-        if (currentSelectedClassroomId) {
-            query = query.eq('classroom_id', currentSelectedClassroomId);
+        const academicYear = String(schoolInfo?.current_academic_year);
+        let roomIds = _normalizeRoomIds(currentSelectedClassroomIds);
+        if (!roomIds || roomIds.length === 0) {
+            roomIds = allClassrooms.map(r => r.id);
         }
-
-        const { data: riasecs, error: riasecErr } = await query;
-        if (riasecErr) throw riasecErr;
-
-        let filterRoomIds = [];
-        if (currentSelectedClassroomId) {
-            filterRoomIds = [currentSelectedClassroomId];
-        } else {
-            filterRoomIds = allClassrooms.map(r => r.id);
-        }
-
-        if (filterRoomIds.length === 0) {
+        if (roomIds.length === 0) {
             Swal.close();
             Swal.fire('ไม่มีข้อมูล', 'ไม่พบห้องเรียนในระบบ', 'info');
             return;
         }
 
+        // ✅ ไม่กรอง semester
+        const { data: riasecs, error: riasecErr } = await db.from('riasec_assessments')
+            .select('student_id, classroom_id, score_realistic, score_investigative, score_artistic, score_social, score_enterprising, score_conventional')
+            .eq('academic_year', academicYear)
+            .in('classroom_id', roomIds);
+        if (riasecErr) throw riasecErr;
+
         const targetStudentIds = [];
         const topScoreMap = {};
         const dimKeys = RIASEC_DIMENSIONS.map(d => d.key);
+        const seenIds = new Set();
 
         (riasecs || []).forEach(m => {
-            if (!filterRoomIds.includes(m.classroom_id)) return;
+            if (seenIds.has(m.student_id)) return;
+            seenIds.add(m.student_id);
+
             let maxScore = -1;
             let topKey = null;
             dimKeys.forEach(key => {
@@ -1760,36 +1889,34 @@ async function openDimStudentList(dimKey) {
             }
         });
 
+        const tbody = document.getElementById('dim-student-tbody');
+        if (!tbody) return;
+
         if (targetStudentIds.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500 font-medium">ยังไม่มีนักเรียนที่ถนัดด้านนี้เป็นอันดับ 1</td></tr>`;
             Swal.close();
-            const tbody = document.getElementById('dim-student-tbody');
-            if (tbody) tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-500 font-medium">ยังไม่มีนักเรียนที่ถนัดด้านนี้เป็นอันดับ 1</td></tr>`;
             const modal = document.getElementById('dim-student-modal');
-            if (modal) {
-                modal.classList.remove('hidden');
-                modal.classList.add('flex');
-            }
+            if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
             return;
         }
 
-        let enrollQuery = db.from('student_enrollments')
+        // ✅ Enrollments — filter ปี + dedupe + เก็บเทอม 1
+        const { data: rawEnrolls, error: enrollErr } = await db.from('student_enrollments')
             .select('student_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
-            .in('student_id', targetStudentIds);
-
-        if (currentSelectedClassroomId) {
-            enrollQuery = enrollQuery.eq('classroom_id', currentSelectedClassroomId);
-        } else {
-            const roomIds = allClassrooms.map(r => r.id);
-            if (roomIds.length > 0) {
-                enrollQuery = enrollQuery.in('classroom_id', roomIds);
-            }
-        }
-
-        const { data: enrolls, error: enrollErr } = await enrollQuery;
+            .eq('academic_year', academicYear)
+            .in('student_id', targetStudentIds)
+            .in('classroom_id', roomIds)
+            .order('semester', { ascending: true });
         if (enrollErr) throw enrollErr;
-        const validEnrolls = enrolls || [];
 
-        validEnrolls.sort((a, b) => {
+        const dedupSeen = new Set();
+        const enrolls = (rawEnrolls || []).filter(e => {
+            if (dedupSeen.has(e.student_id)) return false;
+            dedupSeen.add(e.student_id);
+            return true;
+        });
+
+        enrolls.sort((a, b) => {
             const scoreA = topScoreMap[a.student_id] || 0;
             const scoreB = topScoreMap[b.student_id] || 0;
             if (scoreB !== scoreA) return scoreB - scoreA;
@@ -1798,10 +1925,8 @@ async function openDimStudentList(dimKey) {
             return nameA.localeCompare(nameB);
         });
 
-        const tbody = document.getElementById('dim-student-tbody');
-        if (!tbody) return;
         let html = '';
-        validEnrolls.forEach(r => {
+        enrolls.forEach(r => {
             const std = r.core_students;
             const cls = r.core_classrooms;
             const fullName = `${std?.prefix || ''}${std?.first_name || ''} ${std?.last_name || ''}`;
@@ -1826,10 +1951,7 @@ async function openDimStudentList(dimKey) {
 
         Swal.close();
         const modal = document.getElementById('dim-student-modal');
-        if (modal) {
-            modal.classList.remove('hidden');
-            modal.classList.add('flex');
-        }
+        if (modal) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
 
         if (window.dimStudentTable) {
             window.dimStudentTable.destroy();
@@ -1853,9 +1975,9 @@ async function openDimStudentList(dimKey) {
     }
 }
 
-// ==========================================
-// รายชื่อนักเรียนตามสถานะ
-// ==========================================
+// ============================================================
+// 16. STATUS STUDENT LIST — ยึดปีการศึกษา + dedupe
+// ============================================================
 function closeStatusStudentModal() {
     const modal = document.getElementById('status-student-modal');
     if (!modal) return;
@@ -1890,36 +2012,43 @@ async function openStatusStudentList(status) {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     try {
-        let roomIds = [];
-        if (currentSelectedClassroomId) {
-            roomIds = [currentSelectedClassroomId];
-        } else {
+        const academicYear = String(schoolInfo?.current_academic_year);
+
+        let roomIds = _normalizeRoomIds(currentSelectedClassroomIds);
+        if (!roomIds || roomIds.length === 0) {
             roomIds = allClassrooms.map(r => r.id);
         }
-
         if (roomIds.length === 0) {
             Swal.close();
             if (tbody) tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-500">ไม่พบห้องเรียนในระบบ</td></tr>`;
             return;
         }
 
+        // ✅ Assessments — ไม่กรอง semester
         const { data: riasecs, error: riasecErr } = await db.from('riasec_assessments')
             .select('student_id')
-            .eq('academic_year', String(schoolInfo?.current_academic_year))
-            .eq('semester', String(schoolInfo?.current_semester))
+            .eq('academic_year', academicYear)
             .in('classroom_id', roomIds);
-
         if (riasecErr) throw riasecErr;
         const assessedIds = new Set((riasecs || []).map(r => r.student_id));
 
-        const { data: enrolls, error: enrollErr } = await db.from('student_enrollments')
-            .select('student_id, student_number, classroom_id, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+        // ✅ Enrollments — filter ปี + order semester ASC + dedupe
+        const { data: rawEnrolls, error: enrollErr } = await db.from('student_enrollments')
+            .select('student_id, student_number, classroom_id, academic_year, semester, core_students(prefix, first_name, last_name, student_id_card), core_classrooms(grade_level, room_number)')
+            .eq('academic_year', academicYear)
             .in('classroom_id', roomIds)
+            .order('semester', { ascending: true })
             .order('student_number');
-
         if (enrollErr) throw enrollErr;
 
-        const filtered = (enrolls || []).filter(e => {
+        const seenIds = new Set();
+        const enrolls = (rawEnrolls || []).filter(e => {
+            if (seenIds.has(e.student_id)) return false;
+            seenIds.add(e.student_id);
+            return true;
+        });
+
+        const filtered = enrolls.filter(e => {
             const isAssessed = assessedIds.has(e.student_id);
             return isDone ? isAssessed : !isAssessed;
         });
@@ -1991,34 +2120,28 @@ async function openStatusStudentList(status) {
     }
 }
 
-// ==========================================
-// ✅ ปุ่มนำทาง — riasec (topbar เท่านั้น)
-//    - Sidebar items: ใช้ roles ใน actions → central filter
-//    - Topbar: settings (super_admin) + toggle mode (admin)
-// ==========================================
+// ============================================================
+// 17. NAV BUTTONS + HOOKS
+// ============================================================
 window.refreshNavButtons = function () {
-    const role = window.currentUserRole || currentUserRole;
-    const isAdminRole = (role === 'super_admin' || role === 'admin') || isModuleAdmin;
-    const isSuperAdmin = role === 'super_admin';
-
-    // ปุ่ม toggle mode (admin/director/deputy/super_admin/module admin)
     const btnToggle = document.getElementById('btnToggleMode');
     if (btnToggle) {
-        btnToggle.classList.toggle('hidden', !isAdminRole);
-        btnToggle.classList.toggle('flex', isAdminRole);
+        const show = canManageRiasec();
+        btnToggle.classList.toggle('hidden', !show);
+        btnToggle.classList.toggle('flex', show);
     }
 
-    // ปุ่ม settings — เฉพาะ super_admin
     const btnSettings = document.getElementById('btn-settings');
     if (btnSettings) {
-        btnSettings.classList.toggle('hidden', !isSuperAdmin);
-        btnSettings.classList.toggle('flex', isSuperAdmin);
+        const show = canManageRiasec();
+        btnSettings.classList.toggle('hidden', !show);
+        btnSettings.classList.toggle('flex', show);
     }
 };
 
-// ==========================================
-// ✅ Hook: sync topbar หลัง renderTopbar re-render
-// ==========================================
+// ✅ Alias ตาม pattern
+window.updateUIBasedOnRole = window.refreshNavButtons;
+
 window.onTopbarRendered = function () {
     if (!window.currentProfile) return;
     if (typeof setUserDisplayName === 'function') setUserDisplayName(window.currentProfile);
@@ -2027,12 +2150,21 @@ window.onTopbarRendered = function () {
     if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 };
 
-// Backward-compat alias
 window.refreshTopbarUser = window.onTopbarRendered;
-// ==========================================
-// ประกาศฟังก์ชัน global
-// ⚠️ ไม่ประกาศ logout() — ใช้ของ config.js
-// ==========================================
+
+// ✅ Hook: re-apply UI หลัง sidebar render
+window.onSidebarRendered = function () {
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('riasec', isModuleAdmin, true);
+    }
+    if (typeof window.refreshNavButtons === 'function') {
+        window.refreshNavButtons();
+    }
+};
+
+// ============================================================
+// 18. GLOBAL EXPORTS
+// ============================================================
 window.toggleMode = toggleMode;
 window.openViewResult = openViewResult;
 window.closeViewModal = closeViewModal;
@@ -2057,4 +2189,4 @@ window.closeDimStudentModal = closeDimStudentModal;
 window.openStatusStudentList = openStatusStudentList;
 window.closeStatusStudentModal = closeStatusStudentModal;
 
-console.log('✅ riasec_teacher.js loaded (+ ใช้ helper กลาง — ไม่มี logout/toggleSidebar local)');
+console.log('✅ riasec_teacher.js loaded (v2.0 — ยึดปีการศึกษา + Multi-classroom Group)');

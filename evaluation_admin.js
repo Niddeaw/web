@@ -134,7 +134,7 @@ const STANDARD_FULL_ITEMS = [
 $(document).ready(async function () {
     const t0 = performance.now();
     try {
-        await checkAuth();
+        await checkAdminAuth();
         console.log(`⚡ Admin init: ${Math.round(performance.now() - t0)} ms`);
     } catch (err) {
         console.error('Init error:', err);
@@ -145,9 +145,11 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// ตรวจสอบสิทธิ์ (แก้ไขสำหรับเทมเพลตใหม่)
+// ตรวจสอบสิทธิ์ (admin page)
+// ✅ ใช้ชื่อ checkAdminAuth เพื่อไม่ชนกับ evaluation_core.js
+// ✅ อนุญาตให้ director/deputy เข้าดูได้ (view mode)
 // ==========================================
-async function checkAuth() {
+async function checkAdminAuth() {
     Swal.fire({ title: 'กำลังโหลดระบบ...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
 
     const { data: { session } } = await db.auth.getSession();
@@ -157,14 +159,24 @@ async function checkAuth() {
         .select('*')
         .eq('id', session.user.id)
         .single();
-    currentUser = profile;
 
-    // ✅ ตรวจสอบสิทธิ์ Admin
-    if (!['admin', 'super_admin'].includes(currentUser.role)) {
+    if (!profile) {
+        Swal.close();
+        return window.location.replace('index.html');
+    }
+
+    currentUser = profile;
+    window.currentUser = profile;
+    window.currentProfile = profile;
+    window.currentUserRole = profile.role;
+
+    // ✅ Role check ผ่าน EVAL_ROLES (single source of truth)
+    if (!window.EVAL_ROLES.canViewAdmin(currentUser.role)) {
+        Swal.close();
         await Swal.fire({
             icon: 'error',
             title: 'ไม่มีสิทธิ์เข้าใช้งาน',
-            text: 'เฉพาะผู้ดูแลระบบเท่านั้นที่สามารถเข้าใช้งานหน้านี้ได้',
+            text: 'เฉพาะผู้ดูแลระบบและผู้บริหารเท่านั้นที่สามารถเข้าใช้งานหน้านี้ได้',
             confirmButtonText: 'ตกลง'
         });
         window.location.replace('evaluation.html');
@@ -176,11 +188,9 @@ async function checkAuth() {
     updateUserRoleLabel(currentUser.role);
     renderUserAvatar(currentUser);
 
-    // ✅ Sidebar nav
-    $('#nav-admin').removeClass('hidden').addClass('active');
-    if (currentUser.role === 'super_admin') {
-        $('#nav-settings').removeClass('hidden');
-    }
+    // ✅ หมายเหตุ: ไม่ต้อง $('nav-admin').addClass('active') เอง
+    //    เพราะ initModuleSidebar({ activeId: 'nav-admin' }) จัดการให้แล้ว
+    //    ไม่ต้องซ่อน/แสดง nav-settings เอง เพราะ role filter ใน dashboard_sidebar.js จัดการให้แล้ว
 
     // ✅ โหลดข้อมูลพื้นฐาน
     await loadSchoolInfo();
@@ -199,6 +209,9 @@ async function checkAuth() {
 
     Swal.close();
 }
+
+// ✅ Expose ไว้ให้ evaluation_core.js ตรวจสอบว่าหน้านี้เป็น admin page
+window.checkAdminAuth = checkAdminAuth;
 
 // ==========================================
 // โหลดข้อมูลโรงเรียน
@@ -937,6 +950,9 @@ async function showNotEvaluated(groupId, groupName, departments) {
 // LOGOUT
 // ==========================================
 async function logout() {
+    if (typeof handleLogout === 'function') {
+        return handleLogout();
+    }
     const { isConfirmed } = await Swal.fire({
         title: 'ออกจากระบบ?',
         icon: 'warning',

@@ -8,6 +8,7 @@
 
     <script src="core_head.js"></script>
     <script src="config.js"></script>
+    <script src="evaluation_config.js"></script> <!-- ✅ ใหม่: Single Source of Truth -->
 
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="dashboard.css">
@@ -1000,13 +1001,13 @@
     <!-- =======================================================
          ✅ Init Module Sidebar + Topbar
          ======================================================= -->
+    <!-- =======================================================
+         ✅ Init Module Sidebar — ใช้ helper จาก evaluation_config.js
+         ======================================================= -->
     <script>
-        // =======================================================
-        // Fallback Config — Evaluation System
-        // =======================================================
         function getEvaluationFallbackConfig() {
             return {
-                iconStyle: 'outline',        /* ✅ เพิ่มบรรทัดนี้ */
+                iconStyle: 'outline',
                 brand: {
                     logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
                     name: 'WRK System',
@@ -1038,7 +1039,6 @@
                                 icon: 'fa-user-shield',
                                 label: 'ตั้งค่ากรรมการ',
                                 href: 'evaluation_admin.html',
-                                // ✅ อัปเดต roles — เพิ่ม director, deputy
                                 roles: ['super_admin', 'admin', 'director', 'deputy']
                             }
                         ]
@@ -1076,85 +1076,8 @@
             };
         }
 
-        // =======================================================
-        // ✅ Role ที่เห็นปุ่มนำทาง
-        // =======================================================
-        const EVAL_NAV_ADMIN_ROLES = ['super_admin', 'admin', 'director', 'deputy'];
-        const EVAL_NAV_SETTINGS_ROLES = ['super_admin'];
-
-        // =======================================================
-        // ✅ Helper: Apply role-based visibility สำหรับ topbar buttons
-        // =======================================================
-        function applyEvaluationTopbarRoleUI() {
-            const role = (typeof currentUser !== 'undefined' && currentUser) ? currentUser.role : null;
-            if (!role) return false;
-
-            const btnAdmin = document.getElementById('btn-goto-admin');
-            const btnSettings = document.getElementById('btn-goto-settings');
-
-            if (btnAdmin) {
-                const canSee = EVAL_NAV_ADMIN_ROLES.includes(role);
-                btnAdmin.classList.toggle('hidden', !canSee);
-            }
-            if (btnSettings) {
-                const canSee = EVAL_NAV_SETTINGS_ROLES.includes(role);
-                btnSettings.classList.toggle('hidden', !canSee);
-            }
-            return true;
-        }
-        window.applyEvaluationTopbarRoleUI = applyEvaluationTopbarRoleUI;
-
-        // =======================================================
-        // ✅ Helper: Refresh Topbar UI (user + date + badge + role buttons)
-        //     ใช้ได้ทั้ง fallback render + full re-render + หลัง checkAuth
-        // =======================================================
-        function refreshEvaluationTopbarUI() {
-            // 1) วันที่วันนี้
-            if (typeof setTodayChip === 'function') {
-                try { setTodayChip(); } catch (e) { console.warn('setTodayChip:', e); }
-            }
-
-            // 2) ข้อมูลผู้ใช้ (ชื่อ, role, avatar)
-            try {
-                if (typeof currentUser !== 'undefined' && currentUser) {
-                    if (typeof setUserDisplayName === 'function') setUserDisplayName(currentUser);
-                    if (typeof updateUserRoleLabel === 'function') updateUserRoleLabel(currentUser.role);
-                    if (typeof renderUserAvatar === 'function') renderUserAvatar(currentUser);
-                }
-            } catch (e) { console.warn('refresh user info:', e); }
-
-            // 3) Badge รอบการประเมิน
-            try {
-                if (typeof currentEvalRound !== 'undefined' && currentEvalRound) {
-                    const badge = document.getElementById('eval_round_badge');
-                    const display = document.getElementById('eval_round_display');
-                    if (badge && display) {
-                        display.textContent = `${currentEvalRound.round_name} (ครั้งที่ ${currentEvalRound.round_number})`;
-                        badge.classList.remove('hidden');
-                    }
-                }
-            } catch (e) { /* ignore */ }
-
-            // 4) ✅ ปุ่มนำทาง — apply ตาม role
-            applyEvaluationTopbarRoleUI();
-        }
-        window.refreshEvaluationTopbarUI = refreshEvaluationTopbarUI;
-
-        // =======================================================
-        // ✅ Nav functions
-        // =======================================================
-        window.goToEvaluationAdmin = function () {
-            window.location.href = 'evaluation_admin.html';
-        };
-        window.goToEvaluationSettings = function () {
-            window.location.href = 'evaluation_settings.html';
-        };
-
-        // =======================================================
-        // ✅ Init Module Sidebar
-        // =======================================================
-        initModuleSidebar({
-            moduleKey: 'evaluation',
+        // ✅ ใช้ helper จาก evaluation_config.js
+        window.initEvaluationSidebar({
             pageTitle: 'ประเมินผลการปฏิบัติงาน',
             activeId: 'nav-dashboard',
             topbarButtons: [
@@ -1169,33 +1092,19 @@
                     html: '<i class="fa-solid fa-user-shield"></i><span>ตั้งค่ากรรมการ</span>',
                     onclick: 'goToEvaluationAdmin()',
                     class: 'hidden eval-nav-btn eval-nav-admin',
-                    title: 'ไปหน้าตั้งค่ากรรมการ (super_admin, admin, director, deputy)'
+                    title: 'ไปหน้าตั้งค่ากรรมการ'
                 },
                 {
                     id: 'btn-goto-settings',
                     html: '<i class="fa-solid fa-gear"></i><span>ตั้งค่าระบบ</span>',
                     onclick: 'goToEvaluationSettings()',
                     class: 'hidden eval-nav-btn eval-nav-settings',
-                    title: 'ไปหน้าตั้งค่าระบบ (super_admin)'
+                    title: 'ไปหน้าตั้งค่าระบบ'
                 }
             ],
-            fallbackConfig: getEvaluationFallbackConfig(),
-            onReady: () => {
-                // ✅ re-apply topbar UI ทุกครั้งหลัง render
-                refreshEvaluationTopbarUI();
-
-                // ✅ Fallback: เผื่อ currentUser ยังโหลดไม่เสร็จตอน onReady
-                //     ลอง re-apply อีกครั้งหลัง 800ms
-                setTimeout(() => {
-                    refreshEvaluationTopbarUI();
-                }, 800);
-            }
+            fallbackConfig: getEvaluationFallbackConfig()
         });
     </script>
-
-    <!-- =======================================================
-         Module Scripts (Deferred — โหลดหลัง DOM พร้อม)
-         ======================================================= -->
 
 </body>
 

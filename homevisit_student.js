@@ -6,6 +6,12 @@
 // และแสดงรายการที่ขาดเฉพาะฟิลด์ที่จำเป็นสำหรับนักเรียน
 // รองรับการอัปโหลดรูปภาพผ่าน homevisit_upload.js
 // ==========================================
+
+// ✅ Bootstrap Module Admin (student ไม่มี module admin — แต่ต้องเรียกเพื่อไม่ให้ error)
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('homevisit_student', 'homevisit_student_auth_cache', 'isStudentModuleAdmin');
+}
+
 // ==========================================
 // ✅ updateUIBasedOnRole — no-op (นักเรียนไม่มี role toggle)
 // ==========================================
@@ -89,6 +95,11 @@ $(document).ready(async function () {
         return;
     }
     currentUser = session.user;
+
+    // ✅ set role สำหรับ sidebar filtering
+    window.currentUserRole = 'student';
+    window.currentRole = 'student';
+
     try {
         await loadModuleSettings();
 

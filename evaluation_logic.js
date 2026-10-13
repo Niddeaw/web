@@ -420,7 +420,7 @@ async function calculateFinalAverageScore(evaluateeId, evalRoundId, context = nu
         const p1s2ByKey = {};   // key → [scores]
         const p2All = [];       // [levels]
         const p3ByKey = {};     // key → [scores]
-        
+
         let validGroupCount = 0;
         const usedEvaluatorIds = new Set();
         const usedGroupIds = new Set();
@@ -558,7 +558,7 @@ async function saveFinalScore(evaluateeId, evalRoundId, options = {}) {
     // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์ — เฉพาะ admin/super_admin เท่านั้น
     //    การสรุปผลคะแนนเป็น privileged operation
     //    Bulk mode (silent=true) มาจาก generateAllFinalScores ซึ่ง admin เท่านั้นที่เรียกได้
-    if (!currentUser || !['admin', 'super_admin'].includes(currentUser.role)) {
+    if (!currentUser || !window.EVAL_ROLES.canManage(currentUser.role)) {
         console.error('[SECURITY] saveFinalScore: ปฏิเสธการเข้าถึงจาก', currentUser?.role);
         return {
             success: false,
@@ -4164,6 +4164,7 @@ async function viewEvaluatorDetail(evaluatorId) {
 async function editEvaluatorScore(evaluatorId) {
     // ✅ [SECURITY FIX] ตรวจสอบสิทธิ์ก่อน — เฉพาะ super_admin เท่านั้น
     if (!currentUser || currentUser.role !== 'super_admin') {
+        // ใช้ super_admin เท่านั้น (ไม่เปลี่ยน เพราะเป็น special case)
         return Swal.fire({
             icon: 'error',
             title: '🔒 ไม่มีสิทธิ์แก้ไข',

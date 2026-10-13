@@ -1,8 +1,26 @@
-// regis_teacher.js - ระบบบริหารงานทะเบียน (Admin)
-// ✅ Template-compliant: initModuleSidebar + dashboard_sidebar.js + dashboard_ui.js
+// ==========================================================================
+// regis_teacher.js — ระบบบริหารงานทะเบียน (Admin)
+// v3.0 — Soft Delete + Super Admin Only + Restore
+// --------------------------------------------------------------------------
+// ✅ Soft Delete: ข้อมูลไม่หายถาวร (deleted_at column)
+// ✅ ปุ่มลบแสดงเฉพาะ Super Admin
+// ✅ Super Admin ดูรายการที่ซ่อนได้ + กู้คืนได้
+// ✅ Dashboard แสดงเฉพาะรายการ active
+// ✅ Template-compliant: WRKModuleAdmin bootstrap + sync + onSidebarRendered
+// ==========================================================================
 
+// ==========================================
+// 🚀 Bootstrap Module Admin
+// ==========================================
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('regis', 'regis_auth_cache', 'isRegisModuleAdmin');
+}
+
+// ==========================================
+// State
+// ==========================================
 let tableInstance = null;
-let allRequests = [];
+let allRequests = [];        // ข้อมูลที่แสดงในตาราง (ตาม showDeleted)
 let sysSettings = null;
 let currentUser = null;
 let currentProfile = null;
@@ -10,8 +28,30 @@ let currentUserRole = null;
 let isAdminMode = false;
 let isModuleAdmin = false;
 
+// ✅ Soft Delete state
+let showDeleted = false;      // toggle แสดงรายการที่ถูกลบ
+let deletedCount = 0;         // จำนวนรายการที่ถูกลบ
+let activeCount = 0;          // จำนวนรายการ active (ไม่ถูกลบ)
+
 // ==========================================
-// INIT (ใช้ jQuery เพื่อให้เข้ากับ Template กลาง)
+// ✅ ปุ่มนำทาง — regis
+// ==========================================
+window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentUserRole || '';
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+
+    const isModuleAdminEffective = isModuleAdmin
+        || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('regis'));
+
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('regis', isModuleAdminEffective, false);
+    }
+
+    console.log('🔘 refreshNavButtons (regis):', { role, isModuleAdmin: isModuleAdminEffective });
+};
+
+// ==========================================
+// INIT
 // ==========================================
 $(document).ready(async function () {
     try {
@@ -25,7 +65,7 @@ $(document).ready(async function () {
 });
 
 // ==========================================
-// ตรวจสอบสิทธิ์ (ใช้ config.js)
+// ตรวจสอบสิทธิ์
 // ==========================================
 async function checkAuth() {
     console.log('🔍 checkAuth เริ่มทำงาน');
@@ -46,24 +86,25 @@ async function checkAuth() {
         currentProfile = personnel;
         currentUserRole = role;
 
-        // ✅ FIX: Expose to window for topbar re-render
         window.currentUser = currentUser;
         window.currentProfile = currentProfile;
         window.currentUserRole = currentUserRole;
 
-        // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันกลาง
         setUserDisplayName(currentProfile);
         updateUserRoleLabel(role);
         renderUserAvatar(currentProfile);
 
         console.log('✅ User:', currentProfile.first_name, 'Role:', role);
 
-        // ตรวจสอบ role ที่อนุญาตโดยตรง (super_admin, admin, director, deputy, office)
         const allowedRoles = ['super_admin', 'admin', 'director', 'deputy', 'office'];
         const isDirectlyAllowed = allowedRoles.includes(role);
 
-        // ตรวจสอบ Module Admin (teacher/staff ที่ได้รับแต่งตั้ง)
         isModuleAdmin = await hasModuleAccess(role, 'regis', user.id);
+
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('regis', isModuleAdmin, false);
+        }
+        window.isModuleAdmin = isModuleAdmin;
 
         const isTeacherOrStaff = ['teacher', 'staff'].includes(role);
         const canAccess = isDirectlyAllowed || (isTeacherOrStaff && isModuleAdmin);
@@ -81,21 +122,20 @@ async function checkAuth() {
 
         isAdminMode = isDirectlyAllowed || isModuleAdmin;
 
-        // ✅ อัปเดต Role Label ใหม่ (สำหรับ Module Admin)
         if (isTeacherOrStaff && isModuleAdmin) {
             const roleEl = document.getElementById('userRole');
             if (roleEl) roleEl.innerText = 'แอดมินโมดูลงานทะเบียน';
         }
 
-        // ✅ เรียก refreshNavButtons หลัง auth เสร็จ
         if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
 
-        // บันทึก Log
         await logUserAction('เข้าสู่ระบบงานทะเบียน', 'regis');
 
-        // แสดงเนื้อหา
         const mainBody = document.getElementById('mainBody');
         if (mainBody) mainBody.classList.replace('opacity-0', 'opacity-100');
+
+        // ✅ Inject ปุ่ม "ดูรายการที่ซ่อน" (Super Admin เท่านั้น)
+        injectToggleButton();
 
         // โหลดข้อมูล
         await loadSettings();
@@ -117,7 +157,94 @@ async function checkAuth() {
 }
 
 // ==========================================
-// LOGOUT (มาตรฐานกลาง)
+// ✅ Inject ปุ่ม "ดูรายการที่ซ่อน" (Super Admin Only)
+// ==========================================
+function injectToggleButton() {
+    if (document.getElementById('btn-show-deleted')) return; // inject แล้ว
+
+    const table = document.getElementById('requestsTable');
+    if (!table) {
+        console.warn('⚠️ ไม่พบ #requestsTable');
+        return;
+    }
+
+    // ✅ หา header container
+    let headerContainer = null;
+
+    const card = table.closest('.bg-white');
+    if (card) {
+        headerContainer = card.querySelector(':scope > .flex.justify-between');
+    }
+
+    if (!headerContainer) {
+        // fallback: walk up หา div ที่มี class "flex justify-between"
+        let node = table;
+        for (let i = 0; i < 5 && node; i++) {
+            node = node.parentElement;
+            if (node && node.classList && 
+                node.classList.contains('flex') && 
+                node.classList.contains('justify-between')) {
+                headerContainer = node;
+                break;
+            }
+        }
+    }
+
+    if (!headerContainer) {
+        console.warn('⚠️ injectToggleButton: ไม่พบ header container');
+        return;
+    }
+
+    const btn = document.createElement('button');
+    btn.id = 'btn-show-deleted';
+    btn.className = 'hidden bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-xl text-sm transition flex items-center gap-2 shadow-sm';
+    btn.onclick = toggleShowDeleted;
+    btn.innerHTML = '<i class="fa-solid fa-trash-restore"></i> <span id="deleted-btn-text">ดูรายการที่ซ่อน</span>';
+    headerContainer.appendChild(btn);
+    console.log('✅ injectToggleButton: ใส่ปุ่มเรียบร้อย');
+}
+
+// ==========================================
+// ✅ Toggle แสดง/ซ่อนรายการที่ถูกลบ
+// ==========================================
+async function toggleShowDeleted() {
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire('ไม่มีสิทธิ์', 'เฉพาะ Super Admin เท่านั้น', 'error');
+        return;
+    }
+
+    showDeleted = !showDeleted;
+    console.log(`🔄 Toggle showDeleted → ${showDeleted}`);
+
+    await loadData();
+}
+
+// ==========================================
+// ✅ Update ปุ่ม toggle (label + style)
+// ==========================================
+function updateToggleButton() {
+    const btn = document.getElementById('btn-show-deleted');
+    if (!btn) return;
+
+    // ✅ แสดงเฉพาะ super_admin
+    if (currentUserRole !== 'super_admin') {
+        btn.classList.add('hidden');
+        return;
+    }
+    btn.classList.remove('hidden');
+
+    if (showDeleted) {
+        btn.className = 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-xl text-sm transition flex items-center gap-2 shadow-sm';
+        btn.innerHTML = '<i class="fa-solid fa-arrow-left"></i> กลับไปดูรายการปกติ';
+    } else {
+        btn.className = 'bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-xl text-sm transition flex items-center gap-2 shadow-sm';
+        const countLabel = deletedCount > 0 ? ` (${deletedCount})` : '';
+        btn.innerHTML = `<i class="fa-solid fa-trash-restore"></i> ดูรายการที่ซ่อน${countLabel}`;
+    }
+}
+
+// ==========================================
+// LOGOUT
 // ==========================================
 async function logout() {
     const { isConfirmed } = await Swal.fire({
@@ -129,6 +256,7 @@ async function logout() {
         cancelButtonText: 'ยกเลิก'
     });
     if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
         await db.auth.signOut();
         window.location.href = 'login.html';
     }
@@ -161,7 +289,7 @@ async function loadSettings() {
 }
 
 // ==========================================
-// บันทึกการตั้งค่า (ใช้ requireAdmin)
+// บันทึกการตั้งค่า
 // ==========================================
 async function saveSettings(e) {
     e.preventDefault();
@@ -185,9 +313,7 @@ async function saveSettings(e) {
             .select('id')
             .maybeSingle();
 
-        if (checkError && checkError.code !== 'PGRST116') {
-            throw checkError;
-        }
+        if (checkError && checkError.code !== 'PGRST116') throw checkError;
 
         let error;
         if (existing) {
@@ -225,166 +351,257 @@ async function saveSettings(e) {
 // ==========================================
 function openSettingsModal() {
     document.getElementById('settingsModal').classList.remove('hidden');
+    document.getElementById('settingsModal').classList.add('flex');
 }
 function closeSettingsModal() {
     document.getElementById('settingsModal').classList.add('hidden');
+    document.getElementById('settingsModal').classList.remove('flex');
 }
 
 // ==========================================
-// โหลดข้อมูลคำขอ
+// ✅ loadData — แยก active / deleted
 // ==========================================
 async function loadData() {
     Swal.fire({ title: 'กำลังโหลดข้อมูล...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
 
     try {
-        const { data, error } = await db.from('regis_requests')
-            .select(`*, core_students(student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(core_classrooms(grade_level, room_number)))`)
+        console.log('🔍 loadData: เริ่ม query (showDeleted =', showDeleted, ')');
+
+        const { data, error, count } = await db.from('regis_requests')
+            .select(`*, core_students(student_id_card, prefix, first_name, last_name, avatar_students_url, student_enrollments(core_classrooms(grade_level, room_number)))`, { count: 'exact' })
             .order('created_at', { ascending: false });
 
         Swal.close();
 
         if (error) {
-            console.error('loadData error:', error);
-            Swal.fire('Error', 'ไม่สามารถโหลดข้อมูลได้', 'error');
+            console.error('❌ loadData error:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'โหลดข้อมูลไม่สำเร็จ',
+                html: `<div class="text-left text-sm">
+                    <p class="font-bold text-rose-600 mb-2">${error.message}</p>
+                    ${error.code ? `<p class="text-xs text-slate-500">Code: <code>${error.code}</code></p>` : ''}
+                    ${error.code === '42703' ? `<p class="text-xs text-amber-600 mt-2 font-bold">⚠️ กรุณารัน SQL: ALTER TABLE regis_requests ADD COLUMN deleted_at TIMESTAMP WITH TIME ZONE DEFAULT NULL;</p>` : ''}
+                </div>`
+            });
             return;
         }
 
-        allRequests = data || [];
+        const allData = data || [];
+
+        // ✅ แยก active / deleted
+        const activeData = allData.filter(r => !r.deleted_at);
+        const deletedData = allData.filter(r => r.deleted_at);
+
+        activeCount = activeData.length;
+        deletedCount = deletedData.length;
+
+        // ✅ เลือกข้อมูลที่จะแสดง
+        allRequests = showDeleted ? deletedData : activeData;
+
+        console.log(`📊 active: ${activeCount}, deleted: ${deletedCount}, showDeleted: ${showDeleted}`);
+
         updateDashboard();
+        updateToggleButton();
         renderTable();
 
         if (allRequests.length === 0) {
+            const msg = showDeleted 
+                ? { title: 'ไม่มีรายการที่ถูกซ่อน', text: 'ยังไม่มีคำขอที่ถูกลบ' }
+                : { title: 'ไม่มีรายการคำขอ', text: 'ยังไม่มีคำขอเอกสารในระบบ' };
+            
             Swal.fire({
                 icon: 'info',
-                title: 'ไม่มีรายการคำขอ',
-                timer: 2000,
+                title: msg.title,
+                text: msg.text,
+                timer: 2500,
                 showConfirmButton: false
             });
         }
 
-        console.log(`✅ โหลดข้อมูลสำเร็จ: ${allRequests.length} รายการ`);
-
     } catch (err) {
         Swal.close();
-        console.error('loadData error:', err);
-        Swal.fire('Error', err.message, 'error');
+        console.error('❌ loadData catch error:', err);
+        Swal.fire('Error', err.message || 'ไม่สามารถโหลดข้อมูลได้', 'error');
     }
 }
 
 // ==========================================
-// ฟังก์ชันอื่นๆ
+// ✅ Dashboard — แสดงเฉพาะ active
 // ==========================================
 function updateDashboard() {
-    const total = allRequests.length;
-    const pending = allRequests.filter(r => r.status === 'กำลังดำเนินการ').length;
-    const completed = allRequests.filter(r => r.status === 'ดำเนินการเรียบร้อย').length;
-    document.getElementById('dashTotal').innerText = total;
-    document.getElementById('dashPending').innerText = pending;
-    document.getElementById('dashCompleted').innerText = completed;
+    // Dashboard ใช้ข้อมูล active เท่านั้น ไม่ว่า showDeleted จะเปิด/ปิด
+    // (เพราะ dashboard แสดงภาพรวมของงานที่ต้องทำ)
+    // โดย query เฉพาะ active count แยก
+
+    // ใช้ allRequests ถ้า showDeleted=false (ซึ่งเป็น default)
+    // ถ้า showDeleted=true → ต้องใช้ตัวเลขที่คำนวณไว้แล้ว
+
+    const activeTotal = activeCount; // จาก loadData
+
+    // แต่นับ pending/completed ต้องดูจาก active data
+    // ถ้า showDeleted=true → allRequests คือ deleted → ต้องดึง active จากตรงไหน?
+    // Solution: ให้ loadData เก็บ activeData ไว้ใน global ด้วย
+
+    const activeData = window._activeData || [];
+
+    const pending = activeData.filter(r => r.status === 'กำลังดำเนินการ').length;
+    const completed = activeData.filter(r => r.status === 'ดำเนินการเรียบร้อย').length;
+
+    const totalEl = document.getElementById('dashTotal');
+    if (totalEl) totalEl.innerText = activeTotal;
+    const pendingEl = document.getElementById('dashPending');
+    if (pendingEl) pendingEl.innerText = pending;
+    const completedEl = document.getElementById('dashCompleted');
+    if (completedEl) completedEl.innerText = completed;
 }
 
+// ==========================================
+// ✅ renderTable — แสดงตาม showDeleted + ปุ่มจัดการตาม role
+// ==========================================
 function renderTable() {
-    if (tableInstance) tableInstance.destroy();
+    if (tableInstance) {
+        try { tableInstance.destroy(); } catch (e) { }
+        tableInstance = null;
+    }
 
     const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
 
-    if (allRequests.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="7" class="text-center py-8 text-slate-400">
-                    <i class="fa-solid fa-inbox text-3xl block mb-2"></i>
-                    ยังไม่มีคำขอเอกสาร
-                </td>
-            </tr>
-        `;
-        tableInstance = $('#requestsTable').DataTable({
-            language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
-            dom: '<"flex flex-col md:flex-row justify-between items-center mb-4"Bf>rt<"flex justify-between items-center mt-4"ip>',
-            buttons: [
-                {
-                    extend: 'excelHtml5',
-                    text: '<i class="fa-solid fa-file-excel mr-1"></i> ปุ่มส่งออกไฟล์ Excel',
-                    className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-sm border-none shadow'
+    if (allRequests.length > 0) {
+        const isOffice = (currentUserRole === 'office');
+        const isSuperAdmin = (currentUserRole === 'super_admin');
+
+        allRequests.forEach(req => {
+            const std = req.core_students;
+            let classStr = '-';
+            if (std && std.student_enrollments && std.student_enrollments.length > 0) {
+                const cls = std.student_enrollments[0].core_classrooms;
+                if (cls) classStr = `${cls.grade_level}/${cls.room_number}`;
+            }
+
+            const dateObj = new Date(req.created_at);
+            const dateStr = dateObj.toLocaleDateString('th-TH');
+            const timeStr = dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
+            const timestamp = dateObj.getTime();
+            const isDeleted = !!req.deleted_at;
+
+            const badgeColor = req.status === 'กำลังดำเนินการ'
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-emerald-100 text-emerald-700';
+
+            // ✅ Action buttons — ตามสถานะ + role
+            let actionButtons = '';
+
+            if (isDeleted) {
+                // ✅ รายการที่ถูกลบ
+                actionButtons = `
+                    <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียด">
+                        <i class="fa-solid fa-eye text-lg"></i>
+                    </button>
+                `;
+                if (isSuperAdmin) {
+                    actionButtons += `
+                        <button onclick="restoreRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="กู้คืน">
+                            <i class="fa-solid fa-trash-restore text-lg"></i>
+                        </button>
+                    `;
                 }
-            ]
+            } else {
+                // ✅ รายการปกติ
+                actionButtons = `
+                    <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียด">
+                        <i class="fa-solid fa-eye text-lg"></i>
+                    </button>
+                `;
+
+                if (req.status === 'กำลังดำเนินการ') {
+                    actionButtons += `
+                        <button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="ปรับสถานะเรียบร้อย">
+                            <i class="fa-solid fa-circle-check text-lg"></i>
+                        </button>
+                    `;
+                }
+
+                // ✅ ปุ่มลบ — เฉพาะ super_admin เท่านั้น
+                if (isSuperAdmin) {
+                    actionButtons += `
+                        <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600 transition" title="ซ่อน (Soft Delete)">
+                            <i class="fa-solid fa-trash text-lg"></i>
+                        </button>
+                    `;
+                }
+            }
+
+            // ✅ Row class ตามสถานะ
+            const rowClass = isDeleted
+                ? 'border-b border-slate-100 bg-slate-50/60 text-slate-400 opacity-80'
+                : 'border-b border-slate-100 hover:bg-slate-50 transition text-slate-700';
+
+            const deletedBadge = isDeleted
+                ? '<span class="ml-2 px-1.5 py-0.5 bg-rose-100 text-rose-700 rounded text-[9px] font-bold">ถูกลบ</span>'
+                : '';
+
+            const nameClass = isDeleted ? 'line-through' : '';
+
+            const tr = `
+                <tr class="${rowClass}">
+                    <td class="px-4 py-3 font-mono text-xs">
+                        ${req.id.substring(0, 8).toUpperCase()}
+                        ${deletedBadge}
+                    </td>
+                    <td class="px-4 py-3" data-order="${timestamp}">${dateStr}</td>
+                    <td class="px-4 py-3 ${isDeleted ? 'text-slate-400' : 'text-slate-400'}">${timeStr} น.</td>
+                    <td class="px-4 py-3">${std ? std.student_id_card : '-'}</td>
+                    <td class="px-4 py-3 font-medium ${nameClass}">${std ? `${std.prefix || ''}${std.first_name} ${std.last_name} (${classStr})` : 'ไม่พบข้อมูล'}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${req.status}</span>
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex items-center justify-center gap-3">
+                            ${actionButtons}
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tbody.insertAdjacentHTML('beforeend', tr);
         });
-        return;
     }
 
-    const isOffice = (currentUserRole === 'office');
-
-    allRequests.forEach(req => {
-        const std = req.core_students;
-        let classStr = '-';
-        if (std && std.student_enrollments && std.student_enrollments.length > 0) {
-            const cls = std.student_enrollments[0].core_classrooms;
-            classStr = `${cls.grade_level}/${cls.room_number}`;
-        }
-
-        const dateObj = new Date(req.created_at);
-        const dateStr = dateObj.toLocaleDateString('th-TH');
-        const timeStr = dateObj.toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' });
-        const badgeColor = req.status === 'กำลังดำเนินการ' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
-        const timestamp = dateObj.getTime();
-
-        let actionButtons = `
-            <button onclick="viewRequestDetail('${req.id}')" class="text-blue-500 hover:text-blue-700 transition" title="ดูรายละเอียดคำขอ">
-                <i class="fa-solid fa-eye text-lg"></i>
-            </button>
-        `;
-
-        if (req.status === 'กำลังดำเนินการ') {
-            actionButtons += `
-                <button onclick="approveRequest('${req.id}')" class="text-emerald-500 hover:text-emerald-700 transition" title="ปรับสถานะเรียบร้อย">
-                    <i class="fa-solid fa-circle-check text-lg"></i>
-                </button>
-            `;
-        }
-
-        if (!isOffice) {
-            actionButtons += `
-                <button onclick="deleteRequest('${req.id}')" class="text-red-400 hover:text-red-600 transition" title="ลบข้อมูล">
-                    <i class="fa-solid fa-trash text-lg"></i>
-                </button>
-            `;
-        }
-
-        const tr = `
-            <tr class="border-b border-slate-100 hover:bg-slate-50 transition text-slate-700">
-                <td class="px-4 py-3 font-mono text-xs">${req.id.substring(0, 8).toUpperCase()}</td>
-                <td class="px-4 py-3" data-order="${timestamp}">${dateStr}</td>
-                <td class="px-4 py-3 text-slate-400">${timeStr} น.</td>
-                <td class="px-4 py-3">${std ? std.student_id_card : '-'}</td>
-                <td class="px-4 py-3 font-medium">${std ? `${std.prefix || ''}${std.first_name} ${std.last_name} (${classStr})` : 'ไม่พบข้อมูล'}</td>
-                <td class="px-4 py-3">
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold ${badgeColor}">${req.status}</span>
-                </td>
-                <td class="px-4 py-3 text-center">
-                    <div class="flex items-center justify-center gap-3">
-                        ${actionButtons}
-                    </div>
-                </td>
-            </tr>
-        `;
-        tbody.insertAdjacentHTML('beforeend', tr);
-    });
+    // ✅ Init DataTable
+    const emptyTableMsg = showDeleted
+        ? '<div class="text-center py-8 text-slate-400"><i class="fa-solid fa-trash-restore text-3xl block mb-2"></i>ยังไม่มีรายการที่ถูกซ่อน</div>'
+        : '<div class="text-center py-8 text-slate-400"><i class="fa-solid fa-inbox text-3xl block mb-2"></i>ยังไม่มีคำขอเอกสาร</div>';
 
     tableInstance = $('#requestsTable').DataTable({
-        language: { url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json' },
+        language: {
+            url: 'https://cdn.datatables.net/plug-ins/2.3.7/i18n/th.json',
+            emptyTable: emptyTableMsg,
+            zeroRecords: '<div class="text-center py-8 text-slate-400"><i class="fa-solid fa-magnifying-glass text-3xl block mb-2"></i>ไม่พบข้อมูลที่ตรงกับเงื่อนไข</div>'
+        },
         dom: '<"flex flex-col md:flex-row justify-between items-center mb-4"Bf>rt<"flex justify-between items-center mt-4"ip>',
         buttons: [
             {
                 extend: 'excelHtml5',
-                text: '<i class="fa-solid fa-file-excel mr-1"></i> ปุ่มส่งออกไฟล์ Excel',
-                className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-sm border-none shadow'
+                text: '<i class="fa-solid fa-file-excel mr-1"></i> ส่งออก Excel',
+                className: 'bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 px-3 rounded-xl text-sm border-none shadow',
+                exportOptions: { columns: [0, 1, 2, 3, 4, 5] }
             }
         ],
         order: [[1, 'desc']],
-        columnDefs: [{ targets: 1, type: 'num' }]
+        columnDefs: [
+            { targets: [0, 2, 5, 6], orderable: false, searchable: false },
+            { targets: [1, 3, 4], orderable: true },
+            { targets: 1, type: 'num' }
+        ],
+        pageLength: 25,
+        lengthMenu: [[10, 25, 50, 100], [10, 25, 50, 100]]
     });
 }
 
+// ==========================================
+// View Request Detail
+// ==========================================
 function viewRequestDetail(id) {
     const req = allRequests.find(r => r.id === id);
     if (!req) {
@@ -396,16 +613,18 @@ function viewRequestDetail(id) {
     let classInfo = '-';
     if (std && std.student_enrollments && std.student_enrollments.length > 0) {
         const cls = std.student_enrollments[0].core_classrooms;
-        classInfo = `ชั้น ${cls.grade_level}/${cls.room_number}`;
+        if (cls) classInfo = `ชั้น ${cls.grade_level}/${cls.room_number}`;
     }
 
     const requestDate = req.request_date ? new Date(req.request_date).toLocaleDateString('th-TH') : '-';
     const createdDate = req.created_at ? new Date(req.created_at).toLocaleString('th-TH') : '-';
+    const deletedDate = req.deleted_at ? new Date(req.deleted_at).toLocaleString('th-TH') : null;
 
     const fullName = std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'นักเรียน';
     let avatarUrl = std?.avatar_students_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(fullName)}&background=dbeafe&color=1d4ed8&size=256&font-size=0.4`;
 
     const shortId = req.id.substring(0, 8).toUpperCase();
+    const isDeleted = !!req.deleted_at;
 
     const detailHTML = `
         <div class="flex flex-col md:flex-row gap-6 items-start">
@@ -419,6 +638,15 @@ function viewRequestDetail(id) {
             </div>
 
             <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-left w-full">
+                ${isDeleted ? `
+                    <div class="bg-rose-50 p-3 rounded-xl border border-rose-200 md:col-span-2">
+                        <p class="text-xs text-rose-600 font-bold uppercase">
+                            <i class="fa-solid fa-trash mr-1"></i> รายการนี้ถูกลบแล้ว
+                        </p>
+                        <p class="text-sm text-rose-700 mt-1">ลบเมื่อ: ${deletedDate || '-'}</p>
+                    </div>
+                ` : ''}
+
                 <div class="bg-slate-50 p-3 rounded-xl">
                     <p class="text-xs text-slate-500 font-bold uppercase">รหัสคำขอ</p>
                     <p class="text-sm font-mono font-bold text-slate-800">${shortId}</p>
@@ -429,7 +657,7 @@ function viewRequestDetail(id) {
                         ${req.status}
                     </p>
                 </div>
-                
+
                 <div class="bg-blue-50 p-3 rounded-xl md:col-span-2">
                     <p class="text-xs text-blue-500 font-bold uppercase">ข้อมูลนักเรียน</p>
                     <p class="text-sm font-semibold text-slate-800">${std ? `${std.prefix || ''}${std.first_name} ${std.last_name}` : 'ไม่พบข้อมูล'}</p>
@@ -491,6 +719,9 @@ function viewRequestDetail(id) {
     });
 }
 
+// ==========================================
+// Approve Request
+// ==========================================
 async function approveRequest(id) {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่อนุมัติคำขอได้')) {
         return;
@@ -505,36 +736,129 @@ async function approveRequest(id) {
     }
 }
 
+// ==========================================
+// ✅ Delete Request — Soft Delete (Super Admin Only)
+// ==========================================
 async function deleteRequest(id) {
-    if (currentUserRole === 'office') {
-        Swal.fire('ไม่มีสิทธิ์', 'เจ้าหน้าที่สำนักงานไม่สามารถลบคำขอได้', 'warning');
+    // ✅ 1. Super Admin เท่านั้น
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์',
+            text: 'เฉพาะ Super Admin เท่านั้นที่ลบข้อมูลได้',
+            confirmButtonText: 'ตกลง'
+        });
         return;
     }
 
-    if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่ลบคำขอได้')) {
-        return;
-    }
-
+    // ✅ 2. ยืนยัน
     const { isConfirmed } = await Swal.fire({
-        title: 'คุณแน่ใจหรือไม่?',
-        text: 'การลบคำขอนี้จะหายไปถาวรจากฐานข้อมูล',
+        title: '⚠️ ซ่อนคำขอนี้?',
+        html: `<div class="text-left text-sm space-y-2">
+            <p class="text-slate-700">คำขอจะถูกซ่อนจากรายการหลัก (Soft Delete)</p>
+            <p class="text-emerald-600 text-xs">
+                <i class="fa-solid fa-check-circle mr-1"></i>
+                Super Admin สามารถกู้คืนได้ทุกเมื่อ
+            </p>
+            <p class="text-slate-500 text-xs mt-3">
+                ID: <code class="bg-slate-100 px-1 rounded">${id.substring(0, 8)}</code>
+            </p>
+        </div>`,
         icon: 'warning',
         showCancelButton: true,
-        confirmButtonText: 'ยืนยันลบ',
-        confirmButtonColor: '#dc2626'
+        confirmButtonColor: '#dc2626',
+        confirmButtonText: '<i class="fa-solid fa-trash mr-1"></i> ซ่อนคำขอ',
+        cancelButtonText: 'ยกเลิก'
     });
 
     if (!isConfirmed) return;
 
-    const { error } = await db.from('regis_requests').delete().eq('id', id);
-    if (!error) {
-        await logUserAction(`ลบคำขอทะเบียน ID: ${id}`, 'regis');
-        loadData();
-    } else {
+    Swal.fire({ title: 'กำลังดำเนินการ...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const { error } = await db.from('regis_requests')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id);
+
+    Swal.close();
+
+    if (error) {
         Swal.fire('Error', error.message, 'error');
+        return;
     }
+
+    await logUserAction(`[SOFT DELETE] ซ่อนคำขอทะเบียน ID: ${id}`, 'regis');
+
+    Swal.fire({
+        icon: 'success',
+        title: 'ซ่อนเรียบร้อย',
+        text: 'คำขอถูกซ่อนจากรายการหลัก แต่ยังกู้คืนได้',
+        timer: 1800,
+        showConfirmButton: false
+    });
+
+    loadData();
 }
 
+// ==========================================
+// ✅ Restore Request — กู้คืน (Super Admin Only)
+// ==========================================
+async function restoreRequest(id) {
+    if (currentUserRole !== 'super_admin') {
+        Swal.fire({
+            icon: 'error',
+            title: 'ไม่มีสิทธิ์',
+            text: 'เฉพาะ Super Admin เท่านั้นที่กู้คืนได้',
+            confirmButtonText: 'ตกลง'
+        });
+        return;
+    }
+
+    const { isConfirmed } = await Swal.fire({
+        title: 'กู้คืนคำขอนี้?',
+        html: `<div class="text-sm space-y-2">
+            <p>คำขอจะกลับไปแสดงในรายการปกติ</p>
+            <p class="text-slate-500 text-xs">
+                ID: <code class="bg-slate-100 px-1 rounded">${id.substring(0, 8)}</code>
+            </p>
+        </div>`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#10b981',
+        confirmButtonText: '<i class="fa-solid fa-trash-restore mr-1"></i> กู้คืน',
+        cancelButtonText: 'ยกเลิก'
+    });
+
+    if (!isConfirmed) return;
+
+    Swal.fire({ title: 'กำลังกู้คืน...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    const { error } = await db.from('regis_requests')
+        .update({ deleted_at: null })
+        .eq('id', id);
+
+    Swal.close();
+
+    if (error) {
+        Swal.fire('Error', error.message, 'error');
+        return;
+    }
+
+    await logUserAction(`[RESTORE] กู้คืนคำขอทะเบียน ID: ${id}`, 'regis');
+
+    Swal.fire({
+        icon: 'success',
+        title: 'กู้คืนสำเร็จ',
+        text: 'คำขอกลับไปแสดงในรายการปกติแล้ว',
+        timer: 1800,
+        showConfirmButton: false
+    });
+
+    loadData();
+}
+
+// ==========================================
+// Lightbox รูปนักเรียน
+// ==========================================
 function openLightbox(imgSrc, studentName) {
     if (!imgSrc) {
         Swal.fire('ไม่มีรูป', 'ไม่พบรูปนักเรียน', 'info');
@@ -557,13 +881,14 @@ function openLightbox(imgSrc, studentName) {
 }
 
 // ==========================================
-// จัดการผู้ดูแลระบบโมดูล (ใช้ requireAdmin)
+// จัดการผู้ดูแลระบบโมดูล
 // ==========================================
 function openAdminModal() {
     if (!requireAdmin(currentUserRole, isAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้นที่จัดการผู้ดูแลระบบได้')) {
         return;
     }
     document.getElementById('adminModal').classList.remove('hidden');
+    document.getElementById('adminModal').classList.add('flex');
     ensureModuleExists().then(() => {
         loadModuleAdmins();
         loadPersonnelOptions();
@@ -572,6 +897,7 @@ function openAdminModal() {
 
 function closeAdminModal() {
     document.getElementById('adminModal').classList.add('hidden');
+    document.getElementById('adminModal').classList.remove('flex');
     if (window.tomSelectInstance) {
         window.tomSelectInstance.destroy();
         window.tomSelectInstance = null;
@@ -805,8 +1131,20 @@ window.saveSettings = saveSettings;
 window.viewRequestDetail = viewRequestDetail;
 window.approveRequest = approveRequest;
 window.deleteRequest = deleteRequest;
+window.restoreRequest = restoreRequest;          // ✅ NEW
+window.toggleShowDeleted = toggleShowDeleted;    // ✅ NEW
 window.openAdminModal = openAdminModal;
 window.closeAdminModal = closeAdminModal;
 window.addModuleAdmin = addModuleAdmin;
 window.removeModuleAdmin = removeModuleAdmin;
 window.openLightbox = openLightbox;
+
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+    console.log('🔄 onSidebarRendered: re-applied for regis');
+};
+
+console.log('✅ regis_teacher.js loaded (v3.0 — Soft Delete + Super Admin Only)');

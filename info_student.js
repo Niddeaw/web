@@ -3,6 +3,11 @@
 // (ปรับปรุง: topbar display + topbar avatar sync + loading hide)
 // ==========================================
 
+// ✅ Bootstrap Module Admin (student ไม่มี module admin — แต่ต้องเรียกเพื่อความสม่ำเสมอ)
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('info_student', 'info_student_auth_cache', 'isStudentModuleAdmin');
+}
+
 let currentStudentId = null;
 let chartInstance = null;
 let gasSettingsCache = null;
@@ -595,6 +600,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { data: { session } } = await db.auth.getSession();
     if (!session) return window.location.replace('login.html');
 
+    // ✅ set role สำหรับ sidebar filtering + auto-rerender
+    window.currentUserRole = 'student';
+    window.currentRole = 'student';
+
     const userEmail = session.user.email;
     const studentIdCard = userEmail.split('@')[0];
 
@@ -611,7 +620,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
     }
 
-        currentStudentId = student.id;
+    currentStudentId = student.id;
 
     // ✅ Sync ข้อมูลนักเรียนเข้า topbar ผ่านระบบกลาง (dashboard_sidebar.js)
     window.currentProfile = student;

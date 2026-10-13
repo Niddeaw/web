@@ -1,7 +1,15 @@
 // ==========================================
 // portfolio.js — ระบบแฟ้มสะสมผลงานครู
 // ✅ Template-compliant: initModuleSidebar + dashboard_sidebar.js + dashboard_ui.js
+// ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered + logout reset
 // ==========================================
+
+// ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('portfolio', 'portfolio_auth_cache', 'isPortfolioModuleAdmin');
+}
 
 let currentUser = null;
 let currentPersonnel = null;
@@ -29,16 +37,30 @@ let teacherSelectInstance = null;
 // ==========================================
 // ✅ ปุ่มนำทาง — portfolio (topbar เท่านั้น)
 //    - Sidebar items (import/template/sheets/settings): ใช้ roles ใน actions → central filter
-//    - Topbar: toggleRoleView (admin only)
+//    - Topbar: toggleRoleView (admin / module admin)
 // ==========================================
 window.refreshNavButtons = function () {
+    const role = window.currentUserRole || currentRole;
+    const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
+
+    // ✅ ตรวจ Module Admin จาก 2 แหล่ง (memory + WRKModuleAdmin)
+    const isModuleAdminEffective = isModuleAdmin
+        || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('portfolio'));
+
+    const canToggle = allowedRoles.includes(role) || isModuleAdminEffective || actualIsAdmin;
+
     const btnToggle = document.getElementById('btnToggleMode');
     if (!btnToggle) return;
 
-    btnToggle.classList.toggle('hidden', !actualIsAdmin);
+    btnToggle.classList.toggle('hidden', !canToggle);
 
-    if (actualIsAdmin && typeof updateToggleModeUI === 'function') {
-        updateToggleModeUI(currentRole, forceTeacherMode, 'btnToggleMode');
+    if (canToggle && typeof updateToggleModeUI === 'function') {
+        updateToggleModeUI(role, forceTeacherMode, 'btnToggleMode');
+    }
+
+    // ✅ Sync WRKModuleAdmin
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('portfolio', isModuleAdminEffective, false);
     }
 };
 
@@ -102,6 +124,12 @@ async function initPortfolio() {
     isModuleAdmin = await hasModuleAccess(currentRole, MODULE_KEY, currentUser.id);
     actualIsAdmin = WRK_ROLES.ADMIN.includes(currentRole) || isModuleAdmin;
 
+    // ✅ Sync WRKModuleAdmin → sidebar รู้จัก portfolio
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('portfolio', isModuleAdmin, false);
+    }
+    window.isModuleAdmin = isModuleAdmin;
+
     // ✅ ใช้ฟังก์ชันกลาง
     setUserDisplayName(currentPersonnel);
     renderUserAvatar(currentPersonnel);
@@ -137,11 +165,16 @@ async function initPortfolio() {
 // ==========================================
 function isAdminView() {
     if (forceTeacherMode) return false;
-    return WRK_ROLES.ADMIN.includes(currentRole) || isModuleAdmin;
+    if (WRK_ROLES.ADMIN.includes(currentRole)) return true;
+    if (moduleAdminChecked && isModuleAdmin) return true;
+    // ✅ fallback WRKModuleAdmin
+    if (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('portfolio')) return true;
+    return false;
 }
 
 function canManagePortfolioSettings() {
     if (forceTeacherMode) return false;
+    // ✅ super_admin เท่านั้น (design ตาม sidebar_actions)
     return currentRole === 'super_admin';
 }
 
@@ -2049,6 +2082,12 @@ async function addModuleAdmin() {
         }
 
         await logUserAction(`เพิ่มแอดมินโมดูล Portfolio: ${userId}`, 'portfolio');
+
+        // ✅ Sync WRKModuleAdmin → list
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('portfolio', true, false);
+        }
+
         await refreshModuleAdmins();
 
         if (tomSelectInstance) {
@@ -2247,9 +2286,38 @@ window.loadAllData = loadAllData;
 window.toggleEntryType = toggleEntryType;
 window.initTeacherSelect = initTeacherSelect;
 
-// ✅ Globals ใหม่สำหรับเทมเพลต
+// ✅ Globals สำหรับเทมเพลต
 window.refreshNavButtons = window.refreshNavButtons;
 window.restorePageTitle = restorePageTitle;
 window.getPageTitle = getPageTitle;
 
-console.log('✅ portfolio.js loaded (template-compliant + nav buttons)');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+    console.log('🔄 onSidebarRendered: re-applied topbar for portfolio');
+};
+
+// ==========================================
+// ✅ Logout — reset Module Admin cache
+// ==========================================
+window.logout = async function () {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: 'คุณต้องการออกจากระบบใช่หรือไม่',
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
+        await db.auth.signOut();
+        window.location.replace('login.html');
+    }
+};
+
+console.log('✅ portfolio.js loaded (template-compliant + WRKModuleAdmin + nav buttons)');

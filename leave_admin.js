@@ -7,7 +7,15 @@
 // - ✅ PATCH: loadSystemSettings() merge กับ default + auto-fix
 // - ✅ PATCH: saveSystemSettings() ใช้ upsert แทน update
 // - ✅ PATCH: loadDashboardStats() fallback แทน throw
+// - ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
 // ============================================================
+
+// ==========================================
+// 🚀 Bootstrap Module Admin (ต้องอยู่ก่อน init)
+// ==========================================
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('leave', 'leave_auth_cache', 'isLeaveModuleAdmin');
+}
 
 let currentUser = null;
 let currentProfile = null;
@@ -45,7 +53,9 @@ function getDefaultLeaveSettings() {
 // ==========================================
 window.refreshNavButtons = function () {
     const role = window.currentUserRole || sessionStorage.getItem('wrk_leave_role') || '';
-    const isModuleAdminCached = isModuleAdmin || sessionStorage.getItem('wrk_leave_is_module_admin') === '1';
+    const isModuleAdminCached = isModuleAdmin
+        || (typeof WRKModuleAdmin !== 'undefined' && WRKModuleAdmin.has('leave'))
+        || sessionStorage.getItem('wrk_leave_is_module_admin') === '1';
     const allowedRoles = ['super_admin', 'admin', 'director', 'deputy'];
     const canSee = allowedRoles.includes(role) || isModuleAdminCached;
 
@@ -115,6 +125,12 @@ $(document).ready(async function () {
         window.currentUserRole = role;
 
         isModuleAdmin = await hasModuleAccess(role, 'leave', user.id);
+
+        // ✅ Sync WRKModuleAdmin → sidebar รู้จัก leave (rerender=true เพื่อให้เมนู settings แสดงทันที)
+        if (typeof WRKModuleAdmin !== 'undefined') {
+            WRKModuleAdmin.sync('leave', isModuleAdmin, true);
+        }
+        window.isModuleAdmin = isModuleAdmin;
 
         sessionStorage.setItem('wrk_leave_role', role);
         sessionStorage.setItem('wrk_leave_is_module_admin', isModuleAdmin ? '1' : '0');
@@ -202,6 +218,11 @@ function updateUI() {
     }
 
     if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+
+    // ✅ Sync WRKModuleAdmin → trigger sidebar rerender (ให้เมนู settings แสดง/ซ่อนถูกต้อง)
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('leave', isModuleAdmin, true);
+    }
 }
 
 // ==========================================
@@ -319,7 +340,7 @@ async function loadSystemSettings() {
         const signAdminEl = document.getElementById('sign_leave_admin');
         if (signAdminEl) {
             if (signAdminEl.tomselect) {
-                try { signAdminEl.tomselect.setValue(systemSettings.sign_leave_admin || ''); } catch (e) {}
+                try { signAdminEl.tomselect.setValue(systemSettings.sign_leave_admin || ''); } catch (e) { }
             } else {
                 signAdminEl.value = systemSettings.sign_leave_admin || '';
             }
@@ -2963,4 +2984,38 @@ window.viewSignatureImage = viewSignatureImage;
 window.closeViewSignatureImageModal = closeViewSignatureImageModal;
 window.exportSignatureExcel = exportSignatureExcel;
 
-console.log('✅ leave_admin.js loaded [PATCHED] — loadSystemSettings + saveSystemSettings upsert + loadDashboardStats fallback');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof updateUI === 'function') updateUI();
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+    console.log('🔄 onSidebarRendered: re-applied UI for leave_admin');
+};
+
+// ==========================================
+// ✅ Logout — reset Module Admin cache
+// ==========================================
+window.logout = async function () {
+    const { isConfirmed } = await Swal.fire({
+        title: 'ออกจากระบบ?',
+        text: "คุณต้องการออกจากระบบใช่หรือไม่",
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+        confirmButtonText: 'ออกจากระบบ',
+        cancelButtonText: 'ยกเลิก'
+    });
+    if (isConfirmed) {
+        if (typeof WRKModuleAdmin !== 'undefined') WRKModuleAdmin.reset();
+        try {
+            sessionStorage.removeItem('wrk_leave_role');
+            sessionStorage.removeItem('wrk_leave_is_module_admin');
+        } catch (e) { }
+        await db.auth.signOut();
+        window.location.replace("login.html");
+    }
+};
+
+console.log('✅ leave_admin.js loaded [PATCHED] — loadSystemSettings + saveSystemSettings upsert + loadDashboardStats fallback + WRKModuleAdmin');

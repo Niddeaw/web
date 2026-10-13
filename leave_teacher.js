@@ -1,7 +1,13 @@
 // ============================================================
 // leave_teacher.js — ระบบการลา (ฝ่ายผู้ใช้งาน/ครู) [ฉบับสมบูรณ์]
 // ✅ initModuleSidebar + refreshNavButtons + onReady
+// ✅ NEW: WRKModuleAdmin bootstrap + sync + onSidebarRendered
 // ============================================================
+
+// 🚀 Bootstrap Module Admin
+if (typeof WRKModuleAdmin !== 'undefined') {
+    WRKModuleAdmin.bootstrap('leave', 'leave_auth_cache', 'isLeaveModuleAdmin');
+}
 
 window.currentUser = null;
 window.currentProfile = null;
@@ -58,6 +64,11 @@ window.checkAuth = async function () {
     window.currentUserRole = role;
     window.isAdminMode = isAdmin;
     window.isModuleAdmin = await window.hasModuleAccess(role, 'leave', user.id);
+
+    // ✅ Sync WRKModuleAdmin → sidebar รู้จัก leave
+    if (typeof WRKModuleAdmin !== 'undefined') {
+        WRKModuleAdmin.sync('leave', window.isModuleAdmin, false);
+    }
 
     // ✅ ตั้งค่า UI ผู้ใช้ด้วยฟังก์ชันกลาง
     setUserDisplayName(personnel);
@@ -659,4 +670,11 @@ window.closeSignatureModal = function () {
     $('#signatureModal').addClass('hidden').removeClass('flex');
 };
 
-console.log('✅ leave_teacher.js loaded (template-compliant + nav buttons)');
+// ==========================================
+// ✅ Hook: re-apply UI หลัง sidebar render ใหม่
+// ==========================================
+window.onSidebarRendered = function () {
+    if (typeof window.refreshNavButtons === 'function') window.refreshNavButtons();
+};
+
+console.log('✅ leave_teacher.js loaded (template-compliant + nav buttons + WRKModuleAdmin)');
