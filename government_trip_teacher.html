@@ -85,50 +85,89 @@
 
             <div style="padding:0 0 12px;" class="space-y-6">
 
+                <!-- Fiscal Badge -->
                 <div id="fiscal-badge-wrap" class="flex justify-end">
-                    <div class="d-chip"><i class="fa-regular fa-calendar mr-1"></i> <span id="fiscal-badge">ปี...</span>
+                    <div class="d-chip">
+                        <i class="fa-regular fa-calendar mr-1"></i>
+                        <span id="fiscal-badge">ปี...</span>
                     </div>
                 </div>
 
+                <!-- ============================================ -->
+                <!-- ✅ Stats Cards — เหมือนระบบการลา -->
+                <!-- ============================================ -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- ไปราชการ -->
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-sky-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
-                                class="fas fa-plane-departure text-sky-500 mr-1"></i> รายการทั้งหมด</p>
-                        <h3 class="text-3xl font-black text-sky-600"><span id="stat-total-count">0</span></h3>
-                        <p class="text-xs text-slate-500 mt-1">รายการ (รอบนี้)</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-plane-departure text-sky-500 mr-1"></i> ไปราชการ (รอบนี้)
+                        </p>
+                        <h3 class="text-2xl font-black text-sky-600">
+                            <span id="stat-trip-count">0</span> ครั้ง
+                        </h3>
+                        <p class="text-sm text-slate-600"><span id="stat-trip-days">0</span> วัน</p>
+                        <p class="text-[10px] text-slate-400 mt-1">ไปราชการ/ปฏิบัติงานนอกสถานที่</p>
                     </div>
+
+                    <!-- ประชุม/อบรม -->
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-indigo-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-chalkboard-teacher text-indigo-500 mr-1"></i> ประชุม/อบรม (รอบนี้)
+                        </p>
+                        <h3 class="text-2xl font-black text-indigo-600">
+                            <span id="stat-meeting-count">0</span> ครั้ง
+                        </h3>
+                        <p class="text-sm text-slate-600"><span id="stat-meeting-days">0</span> วัน</p>
+                        <p class="text-[10px] text-slate-400 mt-1">เข้าร่วมประชุม/อบรม/สัมมนา</p>
+                    </div>
+
+                    <!-- ศึกษาดูงาน -->
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-amber-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
-                                class="fas fa-clock text-amber-500 mr-1"></i> รออนุมัติ</p>
-                        <h3 class="text-3xl font-black text-amber-600"><span id="stat-pending">0</span></h3>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-binoculars text-amber-500 mr-1"></i> ศึกษาดูงาน (รอบนี้)
+                        </p>
+                        <h3 class="text-2xl font-black text-amber-600">
+                            <span id="stat-study-count">0</span> ครั้ง
+                        </h3>
+                        <p class="text-sm text-slate-600"><span id="stat-study-days">0</span> วัน</p>
+                        <p class="text-[10px] text-slate-400 mt-1">ศึกษาดูงาน/เป็นวิทยากร</p>
                     </div>
+
+                    <!-- รวมทั้งหมด -->
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-emerald-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
-                                class="fas fa-check-circle text-emerald-500 mr-1"></i> อนุมัติแล้ว</p>
-                        <h3 class="text-3xl font-black text-emerald-600"><span id="stat-approved">0</span></h3>
-                    </div>
-                    <div class="glass p-5 rounded-3xl border-b-4 border-b-rose-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1"><i
-                                class="fas fa-calendar-days text-rose-500 mr-1"></i> รวมวันเดินทาง</p>
-                        <h3 class="text-3xl font-black text-rose-600"><span id="stat-total-days">0</span></h3>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-chart-line text-emerald-500 mr-1"></i> รวมทั้งหมด (รอบนี้)
+                        </p>
+                        <h3 class="text-2xl font-black text-emerald-600">
+                            <span id="stat-total-count">0</span> ครั้ง
+                        </h3>
+                        <p class="text-sm text-slate-600"><span id="stat-total-days">0</span> วัน</p>
+                        <p class="text-[10px] text-slate-400 mt-1">นับรวมทุกความประสงค์</p>
                     </div>
                 </div>
 
+                <!-- ============================================ -->
+                <!-- ✅ History Table — เหมือนระบบการลา -->
+                <!-- ============================================ -->
                 <div class="glass rounded-3xl p-6">
                     <div
                         class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 border-b border-slate-100 pb-4">
-                        <h2 class="text-xl font-bold text-slate-800"><i class="fas fa-list-ul text-sky-500 mr-2"></i>
-                            ประวัติการขอไปราชการ</h2>
+                        <h2 class="text-xl font-bold text-slate-800">
+                            <i class="fas fa-list-ul text-sky-500 mr-2"></i> ประวัติการขอไปราชการ
+                        </h2>
                         <div class="flex gap-2 w-full sm:w-auto flex-wrap">
                             <button onclick="viewTripSignature()"
-                                class="flex-1 sm:flex-none bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i
-                                    class="fas fa-signature"></i> ดูลายเซ็น</button>
+                                class="flex-1 sm:flex-none bg-violet-50 text-violet-600 border border-violet-200 hover:bg-violet-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                                <i class="fas fa-signature"></i> ดูลายเซ็น
+                            </button>
                             <button onclick="exportTripExcel()"
-                                class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"><i
-                                    class="fas fa-file-excel"></i> ส่งออก Excel</button>
+                                class="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 border border-emerald-200 hover:bg-emerald-100 px-4 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2">
+                                <i class="fas fa-file-excel"></i> ส่งออก Excel
+                            </button>
                             <button onclick="openTripModal()"
-                                class="flex-1 sm:flex-none bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-sky-200 transition flex items-center justify-center gap-2"><i
-                                    class="fas fa-plus"></i> เขียนใบขอไปราชการ</button>
+                                class="flex-1 sm:flex-none bg-sky-600 hover:bg-sky-700 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-md shadow-sky-200 transition flex items-center justify-center gap-2">
+                                <i class="fas fa-plus"></i> เขียนใบขอไปราชการ
+                            </button>
                         </div>
                     </div>
                     <div class="w-full overflow-x-auto">
@@ -136,10 +175,10 @@
                             <thead>
                                 <tr class="bg-slate-50 text-slate-600">
                                     <th class="text-center rounded-tl-xl">วันที่บันทึก</th>
-                                    <th>ประเภท</th>
+                                    <th>ประเภท/ความประสงค์</th>
                                     <th>เรื่อง</th>
-                                    <th>ช่วงวันที่</th>
-                                    <th class="text-center">วัน</th>
+                                    <th>ตั้งแต่วันที่ - ถึงวันที่</th>
+                                    <th class="text-center">จำนวน (วัน)</th>
                                     <th>สถานที่</th>
                                     <th class="text-center">สถานะ</th>
                                     <th class="text-center rounded-tr-xl">จัดการ</th>
@@ -153,7 +192,9 @@
         </main>
     </div>
 
-    <!-- Trip Modal -->
+    <!-- ============================================ -->
+    <!-- ✅ Trip Modal (เดิม — ไม่แก้) -->
+    <!-- ============================================ -->
     <div id="tripModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeTripModal()"></div>
         <div
@@ -508,7 +549,9 @@
         </div>
     </div>
 
-    <!-- Signature Modal -->
+    <!-- ============================================ -->
+    <!-- ✅ Signature Modal (เดิม — ไม่แก้) -->
+    <!-- ============================================ -->
     <div id="signatureModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeSignatureModal()"></div>
         <div class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-lg overflow-hidden flex flex-col">
@@ -536,13 +579,16 @@
         </div>
     </div>
 
+    <!-- ============================================ -->
+    <!-- Scripts -->
+    <!-- ============================================ -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_extras.js"></script>
     <script src="dashboard_ui.js"></script>
     <script src="dashboard_sidebar.js"></script>
     <script src="government_trip_teacher.js"></script>
 
+    <!-- Init Module Sidebar -->
     <script>
         function getTripTeacherFallbackConfig() {
             return {
@@ -560,16 +606,16 @@
                 departments: [],
                 moduleMenus: [
                     {
-                        title: 'จัดการ',
+                        title: 'เครื่องมือ',
                         sectionId: 'sec-trip',
                         collapsible: false,
                         defaultOpen: true,
-                        items: buildSidebarItems('government_trip', ['deptHead', 'admin'])
+                        items: buildSidebarItems('government_trip', ['history', 'write', 'export'])
                     }
                 ],
-                footerMenuTitle: '',
+                footerMenuTitle: 'ระบบกลาง',
                 footerCollapsible: false,
-                footerMenu: [],
+                footerMenu: buildSidebarItems('government_trip', ['deptHead', 'admin']),
                 logoutItem: getSidebarAction('government_trip', 'logout'),
                 facebook: {
                     href: 'https://www.facebook.com/WRKOfficial',
@@ -580,9 +626,9 @@
         }
 
         initModuleSidebar({
-            moduleKey: 'government_trip',
+            moduleKey: 'government_trip_teacher',
             pageTitle: 'ระบบขอไปราชการ',
-            activeId: 'nav-trip-teacher',
+            activeId: 'nav-history',
             topbarButtons: [
                 {
                     id: 'btnNavDeptHead',

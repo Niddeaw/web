@@ -1099,29 +1099,63 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon_text_color: '#ffffff'
         },
 
-        // ✅ dashboard — เปลี่ยน id
-        dashboard: {
-            id: 'trip-btn-dashboard',       // ← จาก 'btn-dashboard'
-            icon: 'fa-chart-pie',
-            label: 'ภาพรวมสถิติ',
-            onclick: "switchTripAdminTab('dashboard')",
-            icon_bg_color: '#3b82f6',
-            icon_text_color: '#ffffff'
-        },
-
-        // ✅ manage — เปลี่ยน id
-        manage: {
-            id: 'trip-btn-manage',           // ← จาก 'btn-manage'
-            icon: 'fa-list-check',
-            label: 'ตรวจสอบการขอไปราชการ',
-            onclick: "switchTripAdminTab('manage')",
+        // ✅ NEW — Teacher mode: ประวัติการขอไปราชการ
+        history: {
+            id: 'nav-history',
+            icon: 'fa-list-ul',
+            label: 'ประวัติการขอไปราชการ',
+            onclick: "window.scrollTo({top:0,behavior:'smooth'})",
             icon_bg_color: '#8b5cf6',
             icon_text_color: '#ffffff'
         },
 
-        // ✅ settings — เปลี่ยน id (สำคัญที่สุด!)
+        // ✅ NEW — Teacher mode: เขียนใบขอ
+        write: {
+            id: 'nav-write',
+            icon: 'fa-pen-nib',
+            label: 'เขียนใบขอ',
+            onclick: "openTripModal()",
+            icon_bg_color: '#dc2626',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ NEW — Teacher mode: ส่งออก Excel
+        export: {
+            id: 'nav-export',
+            icon: 'fa-file-excel',
+            label: 'ส่งออก Excel',
+            onclick: "exportTripExcel()",
+            icon_bg_color: '#10b981',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ Admin mode: ภาพรวมสถิติ
+        dashboard: {
+            id: 'trip-btn-dashboard',
+            icon: 'fa-chart-pie',
+            label: 'ภาพรวมสถิติ',
+            onclick: "switchTripAdminTab('dashboard')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'government_trip',
+            icon_bg_color: '#3b82f6',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ Admin mode: ตรวจสอบการขอไปราชการ
+        manage: {
+            id: 'trip-btn-manage',
+            icon: 'fa-list-check',
+            label: 'ตรวจสอบการขอไปราชการ',
+            onclick: "switchTripAdminTab('manage')",
+            roles: ['super_admin', 'admin', 'director', 'deputy'],
+            moduleAdmin: 'government_trip',
+            icon_bg_color: '#8b5cf6',
+            icon_text_color: '#ffffff'
+        },
+
+        // ✅ Admin mode: ตั้งค่าระบบ
         settings: {
-            id: 'trip-btn-settings',         // ← จาก 'btn-settings'
+            id: 'trip-btn-settings',
             icon: 'fa-cog',
             label: 'ตั้งค่าระบบ',
             onclick: "switchTripAdminTab('settings')",
@@ -1130,6 +1164,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon_bg_color: '#f59e0b',
             icon_text_color: '#ffffff'
         },
+
+        // ✅ Footer: Super Admin
         superAdmin: {
             id: 'btnSuperAdmin',
             icon: 'fa-crown',
@@ -1139,6 +1175,8 @@ window.WRK_SIDEBAR_ACTIONS = {
             icon_bg_color: '#dc2626',
             icon_text_color: '#ffffff'
         },
+
+        // ✅ Logout
         logout: {
             icon: 'fa-power-off',
             label: 'ออกจากระบบ',

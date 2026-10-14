@@ -165,7 +165,8 @@ window.calculateTripDaysClient = function () {
 // ==========================================
 window.loadTripData = async function () {
     const { data, error } = await db.from('government_trip_requests')
-        .select('*').eq('personnel_id', window.currentUser.id)
+        .select('*')
+        .eq('personnel_id', window.currentUser.id)
         .order('created_at', { ascending: false });
     if (error) { console.error(error); return; }
     window.allMyTrips = data || [];
@@ -175,14 +176,36 @@ window.loadTripData = async function () {
         t.eval_round === window.systemSettings.eval_round
     );
 
-    const pending = thisRound.filter(t => t.status === 'รออนุมัติ').length;
-    const approved = thisRound.filter(t => t.status === 'อนุมัติ').length;
-    const totalDays = thisRound.filter(t => t.status === 'อนุมัติ').reduce((s, t) => s + Number(t.total_days || 0), 0);
+    // ✅ Group by purpose
+    let tripCount = 0, tripDays = 0;
+    let meetingCount = 0, meetingDays = 0;
+    let studyCount = 0, studyDays = 0;
+    let totalCount = 0, totalDays = 0;
 
-    $('#stat-total-count').text(thisRound.length);
-    $('#stat-pending').text(pending);
-    $('#stat-approved').text(approved);
-    $('#stat-total-days').text(totalDays);
+    thisRound.forEach(t => {
+        const days = parseFloat(t.total_days) || 0;
+        const purpose = t.purpose || t.trip_type || '';
+
+        if (purpose === 'ไปราชการ') {
+            tripCount++; tripDays += days;
+        } else if (purpose.includes('ประชุม') || purpose.includes('อบรม') || purpose.includes('สัมมนา')) {
+            meetingCount++; meetingDays += days;
+        } else if (purpose.includes('ศึกษาดูงาน') || purpose.includes('วิทยากร')) {
+            studyCount++; studyDays += days;
+        }
+
+        totalCount++; totalDays += days;
+    });
+
+    // ✅ อัปเดต stats cards
+    document.getElementById('stat-trip-count').textContent = tripCount;
+    document.getElementById('stat-trip-days').textContent = tripDays;
+    document.getElementById('stat-meeting-count').textContent = meetingCount;
+    document.getElementById('stat-meeting-days').textContent = meetingDays;
+    document.getElementById('stat-study-count').textContent = studyCount;
+    document.getElementById('stat-study-days').textContent = studyDays;
+    document.getElementById('stat-total-count').textContent = totalCount;
+    document.getElementById('stat-total-days').textContent = totalDays;
 
     window.renderTripTable();
 };
@@ -199,12 +222,21 @@ window.renderTripTable = function () {
             const createDate = new Date(t.created_at).toLocaleDateString('th-TH', {
                 year: '2-digit', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
             });
-            const fmt = (iso) => { if (!iso) return '-'; const p = iso.split('-'); return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`; };
+            const fmt = (iso) => {
+                if (!iso) return '-';
+                const p = iso.split('-');
+                return `${p[2]}/${p[1]}/${parseInt(p[0]) + 543}`;
+            };
             const isRejected = t.status === 'ไม่อนุมัติ';
             const displayDays = isRejected ? 0 : t.total_days;
 
-            // ✅ ใช้ purpose แทน trip_type
             const purposeLabel = t.purpose || t.trip_type || '-';
+            const purposeClass = purposeLabel.includes('ประชุม') || purposeLabel.includes('อบรม')
+                ? 'text-indigo-600'
+                : purposeLabel.includes('ศึกษา') || purposeLabel.includes('วิทยากร')
+                    ? 'text-amber-600'
+                    : 'text-sky-600';
+            const typeClass = isRejected ? 'text-slate-400 line-through' : purposeClass;
 
             const ackBadge = t.ack_academic
                 ? `<span class="text-[10px] text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full font-bold"><i class="fas fa-user-graduate mr-0.5"></i>รองวิชาการรับทราบ</span>`
@@ -228,7 +260,7 @@ window.renderTripTable = function () {
                     ? t.reject_comment.replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, '<br>')
                     : 'ไม่มีการระบุเหตุผล';
                 statusHtml = `<div class="flex flex-col items-center gap-1">
-                    <button onclick="window.showTripRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition shadow-sm">
+                    <button onclick="window.showTripRejectComment('${safeComment}')" class="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-bold border border-rose-300 cursor-pointer hover:bg-rose-200 transition">
                         <i class="fas fa-times-circle mr-1"></i> ไม่อนุมัติ
                     </button>
                     ${ackBadge}
@@ -254,17 +286,17 @@ window.renderTripTable = function () {
 
             return `<tr class="hover:bg-slate-50 transition-colors">
                 <td class="py-3 px-4 text-center text-slate-500 text-xs" data-order="${new Date(t.created_at).getTime()}">${createDate} น.</td>
-                <td class="py-3 px-4 font-bold text-sky-700">${purposeLabel}</td>
+                <td class="py-3 px-4 font-bold ${typeClass}">${purposeLabel}</td>
                 <td class="py-3 px-4 text-slate-700 font-medium">${t.title} ${compBadge}</td>
                 <td class="py-3 px-4 text-slate-600">${fmt(t.start_date)} - ${fmt(t.end_date)}</td>
-                <td class="py-3 px-4 text-center font-black text-sky-600">${displayDays}</td>
+                <td class="py-3 px-4 text-center font-black ${typeClass}">${displayDays}</td>
                 <td class="py-3 px-4 text-slate-600 text-xs max-w-[200px] truncate" title="${t.location || ''}">${t.location || '-'}</td>
                 <td class="py-3 px-4 text-center">${statusHtml}</td>
                 <td class="py-3 px-4 text-center whitespace-nowrap">${btnHtml}</td>
             </tr>`;
         }).join('');
     } else {
-        tbody.innerHTML = '';
+        tbody.innerHTML = '<tr><td colspan="8" class="text-center py-8 text-slate-400">ยังไม่มีประวัติการขอไปราชการ</td></tr>';
     }
 
     window.tripDataTable = $('#tripTable').DataTable({
@@ -517,10 +549,11 @@ window.closeTripModal = function () {
 // ==========================================
 // Edit
 // ==========================================
-window.editTrip = function (id) {
+window.editTrip = async function (id) {
     const t = window.allMyTrips.find(item => item.id === id);
     if (!t) return;
 
+    // ===== ข้อมูลพื้นฐาน =====
     $('#trip_id').val(t.id);
     $('#title').val(t.title);
     $('#location').val(t.location || '');
@@ -534,6 +567,7 @@ window.editTrip = function (id) {
     const reqEl = document.getElementById('requester_name');
     if (reqEl) reqEl.value = reqName;
 
+    // ===== วันที่ (flatpickr) =====
     const setFp = (iso, idDisplay) => {
         if (!iso) return;
         const parts = iso.split('-');
@@ -552,20 +586,7 @@ window.editTrip = function (id) {
     if (t.depart_from_date) setFp(t.depart_from_date, 'depart_from_date');
     if (t.return_to_date) setFp(t.return_to_date, 'return_to_date');
 
-    // Companions
-    const compTeachers = Array.isArray(t.companion_teachers) ? t.companion_teachers : [];
-    const compStudents = Array.isArray(t.companion_students) ? t.companion_students : [];
-    if (compTeachers.length > 0 || compStudents.length > 0) {
-        document.getElementById('has_companions').checked = true;
-        document.getElementById('companionsPanel').classList.remove('hidden');
-        setTimeout(() => {
-            if (tripTsTeachers) tripTsTeachers.setValue(compTeachers);
-            if (tripTsStudents) tripTsStudents.setValue(compStudents);
-            updateTotalCompanions();
-        }, 200);
-    }
-
-    // Purpose
+    // ===== ความประสงค์ =====
     if (t.purpose) {
         const radio = document.querySelector(`input[name="purpose"][value="${t.purpose}"]`);
         if (radio) radio.checked = true;
@@ -575,15 +596,12 @@ window.editTrip = function (id) {
         }
     }
 
-    // Doc
+    // ===== Doc / Travel / Req =====
     if (t.doc_number) document.getElementById('doc_number').value = t.doc_number;
-
-    // Travel vehicle
     if (t.travel_vehicle) document.getElementById('travel_vehicle').value = t.travel_vehicle;
     if (t.depart_from_time) document.getElementById('depart_from_time').value = t.depart_from_time;
     if (t.return_to_time) document.getElementById('return_to_time').value = t.return_to_time;
 
-    // Req
     if (t.req_official_letter) document.getElementById('req_official_letter').checked = true;
     if (t.req_parent_notice) document.getElementById('req_parent_notice').checked = true;
     if (t.req_school_car) document.getElementById('req_school_car').checked = true;
@@ -604,6 +622,90 @@ window.editTrip = function (id) {
         $('#existing_attachment').data('fileId', t.attachment_file_id);
     }
 
+    // ============================================================
+    // ✅ FIX: Companions — โหลดข้อมูลจริงก่อน setValue
+    // ============================================================
+    const compTeachers = Array.isArray(t.companion_teachers) ? t.companion_teachers : [];
+    const compStudents = Array.isArray(t.companion_students) ? t.companion_students : [];
+
+    if (compTeachers.length > 0 || compStudents.length > 0) {
+        document.getElementById('has_companions').checked = true;
+        document.getElementById('companionsPanel').classList.remove('hidden');
+
+        // ✅ 1) Ensure TomSelect initialized
+        if (!tripTsTeachers || !tripTsStudents) {
+            await initTripCompanionSelects();
+        }
+
+        // ✅ 2) Fetch + add options สำหรับครู
+        if (compTeachers.length > 0 && tripTsTeachers) {
+            try {
+                const { data: teachers } = await db.from('core_personnel')
+                    .select('id, prefix, first_name, last_name, department, position')
+                    .in('id', compTeachers);
+
+                (teachers || []).forEach(tc => {
+                    tripTsTeachers.addOption({
+                        id: tc.id,
+                        name: `${tc.prefix || ''}${tc.first_name} ${tc.last_name}`,
+                        department: tc.department || '',
+                        position: tc.position || ''
+                    });
+                });
+                tripTsTeachers.setValue(compTeachers);
+            } catch (err) {
+                console.warn('⚠️ editTrip: load teachers error:', err);
+            }
+        }
+
+        // ✅ 3) Fetch + add options สำหรับนักเรียน
+        if (compStudents.length > 0 && tripTsStudents) {
+            try {
+                const acadYear = String(window.schoolInfo?.current_academic_year || '');
+                const sem = String(window.schoolInfo?.current_semester || '1');
+
+                const { data: students } = await db.from('core_students')
+                    .select(`id, prefix, first_name, last_name, student_id_card,
+                        student_enrollments(student_number, academic_year, semester,
+                            core_classrooms(grade_level, room_number))`)
+                    .in('id', compStudents);
+
+                (students || []).forEach(s => {
+                    const enrList = s.student_enrollments || [];
+                    const current = enrList.find(e =>
+                        String(e.academic_year) === acadYear && String(e.semester) === sem
+                    ) || enrList[0];
+                    const cls = current?.core_classrooms;
+                    const classText = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
+                    const numText = current?.student_number ? `เลขที่ ${current.student_number}` : '';
+                    const name = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+
+                    tripTsStudents.addOption({
+                        id: s.id,
+                        name: name,
+                        display: `${name} (${classText} ${numText}) - ${s.student_id_card}`,
+                        class_text: classText,
+                        student_number: current?.student_number || '-',
+                        student_id_card: s.student_id_card
+                    });
+                });
+                tripTsStudents.setValue(compStudents);
+            } catch (err) {
+                console.warn('⚠️ editTrip: load students error:', err);
+            }
+        }
+
+        updateTotalCompanions();
+    } else {
+        // ✅ Clear companion state ถ้าไม่มีผู้ร่วมเดินทาง
+        document.getElementById('has_companions').checked = false;
+        document.getElementById('companionsPanel').classList.add('hidden');
+        if (tripTsTeachers) tripTsTeachers.clear();
+        if (tripTsStudents) tripTsStudents.clear();
+        updateTotalCompanions();
+    }
+
+    // ===== แสดง Modal =====
     $('#tripModal').removeClass('hidden').addClass('flex');
 };
 

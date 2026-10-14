@@ -1,5 +1,7 @@
 // ============================================================
-// government_trip_admin.js — ระบบขอไปราชการ (ฝ่ายบริหาร) ฉบับสมบูรณ์
+// government_trip_admin.js — ระบบขอไปราชการ (ฝ่ายบริหาร) v2.0
+// ✅ ฟอร์มเขียนใบแทนเหมือนกับ teacher.html ทุกจุด
+// ✅ เพิ่ม Companion (ครู/นักเรียน), purpose radio, travel_vehicle, req_*
 // ============================================================
 
 let tripCurrentUser = null;
@@ -13,6 +15,10 @@ let allTripsData = [];
 let allPersonnelData = [];
 let tripAcademicPersonnelId = null;
 window.academicPersonnelId = null;
+
+// ✅ Admin Trip TomSelect (สำหรับผู้ร่วมเดินทาง)
+let adminTsTeachers = null;
+let adminTsStudents = null;
 
 // ==========================================
 // Nav buttons
@@ -170,13 +176,12 @@ window.switchTripAdminTab = function (tabId) {
     $('.tab-content').addClass('hidden');
     $(`#tab-${tabId}`).removeClass('hidden');
 
-    // ✅ เปลี่ยน navMap ให้ตรง ID ใหม่
-    const navMap = { 
-        'dashboard': 'trip-btn-dashboard', 
-        'manage': 'trip-btn-manage', 
-        'settings': 'trip-btn-settings' 
+    const navMap = {
+        'dashboard': 'trip-btn-dashboard',
+        'manage': 'trip-btn-manage',
+        'settings': 'trip-btn-settings'
     };
-    if (navMap[tabId] && typeof setActiveNavItem === 'function') 
+    if (navMap[tabId] && typeof setActiveNavItem === 'function')
         setActiveNavItem(navMap[tabId]);
 
     const titles = {
@@ -418,47 +423,49 @@ async function loadTripDashboardStats() {
             .eq('fiscal_year', tripSystemSettings.fiscal_year)
             .eq('eval_round', tripSystemSettings.eval_round);
 
-        if (error) {
-            console.error('Query error:', error);
-            // Fallback
-            const { data: fallbackData } = await db.from('government_trip_requests')
-                .select('*')
-                .eq('fiscal_year', tripSystemSettings.fiscal_year)
-                .eq('eval_round', tripSystemSettings.eval_round);
+        allTripsData = (data || []).filter(t => t.status !== 'ไม่อนุมัติ');
+        window.allTripsData = allTripsData;
 
-            if (fallbackData && fallbackData.length > 0) {
-                const pids = [...new Set(fallbackData.map(t => t.personnel_id))];
-                const { data: personnel } = await db.from('core_personnel')
-                    .select('id, prefix, first_name, last_name, department, position, role')
-                    .in('id', pids);
-                const pmap = {};
-                (personnel || []).forEach(p => { pmap[p.id] = p; });
-                fallbackData.forEach(t => { t.core_personnel = pmap[t.personnel_id] || {}; });
-            }
-            allTripsData = fallbackData || [];
-            window.allTripsData = allTripsData;  // ✅ sync
-        } else {
-            allTripsData = data || [];
-            window.allTripsData = allTripsData;  // ✅ sync ให้ global
-        }
-
-        console.log('✅ Loaded trips:', allTripsData.length);
-
-        const approved = allTripsData.filter(t => t.status === 'อนุมัติ');
         const pending = allTripsData.filter(t => t.status === 'รออนุมัติ');
-        const rejected = allTripsData.filter(t => t.status === 'ไม่อนุมัติ');
+        const approved = allTripsData.filter(t => t.status === 'อนุมัติ');
+        const rejected = (data || []).filter(t => t.status === 'ไม่อนุมัติ');
 
-        $('#total-all').html(`${allTripsData.length} <span class="text-sm font-medium text-slate-500">รายการ</span>`);
-        $('#total-pending').html(`${pending.length}`);
-        $('#total-approved').html(`${approved.length}`);
-        $('#total-rejected').html(`${rejected.length}`);
+        let tripDays = 0, tripPending = 0;
+        let meetingDays = 0, meetingPending = 0;
+        const peopleSet = new Set();
+        const pendingPeopleSet = new Set();
+
+        allTripsData.forEach(t => {
+            const days = parseFloat(t.total_days) || 0;
+            const purpose = t.purpose || t.trip_type || '';
+            const isPending = t.status === 'รออนุมัติ';
+
+            if (purpose === 'ไปราชการ') {
+                tripDays += days;
+                if (isPending) tripPending += days;
+            } else if (purpose.includes('ประชุม') || purpose.includes('อบรม') || purpose.includes('สัมมนา')) {
+                meetingDays += days;
+                if (isPending) meetingPending += days;
+            }
+
+            peopleSet.add(t.personnel_id);
+            if (isPending) pendingPeopleSet.add(t.personnel_id);
+        });
+
+        document.getElementById('stat-trip-days').textContent = tripDays;
+        document.getElementById('stat-trip-pending').textContent = tripPending;
+        document.getElementById('stat-meeting-days').textContent = meetingDays;
+        document.getElementById('stat-meeting-pending').textContent = meetingPending;
+        document.getElementById('total-pending').textContent = pending.length;
+        document.getElementById('stat-total-people').textContent = peopleSet.size;
+        document.getElementById('stat-pending-people').textContent = pendingPeopleSet.size;
 
         renderTripAlerts(pending);
         renderTripTable();
 
     } catch (err) {
         console.error('loadTripDashboardStats error:', err);
-        $('#alert-zone').html(`<div class="text-red-500 text-sm">${err.message}</div>`);
+        document.getElementById('alert-zone').innerHTML = `<div class="text-red-500 text-sm">${err.message}</div>`;
         allTripsData = [];
         try { renderTripTable(); } catch (e) { console.error(e); }
     }
@@ -604,7 +611,6 @@ function renderTripTable() {
 
             let ackBtn = '';
 
-            // ปุ่มรับทราบแทนรองวิชาการ
             const isAcademicUser = (tripCurrentUser?.id === window.academicPersonnelId);
             if (needsTripAcademicAck(t) && !t.ack_academic) {
                 if (isSuperAdmin) {
@@ -614,19 +620,16 @@ function renderTripTable() {
                 }
             }
 
-            // ปุ่มหัวหน้ากลุ่มฯ
             if (isSuperAdmin && needsTripHeadAck(t) && !t.ack_head) {
                 ackBtn += `<button onclick="window.acknowledgeTripHead('${t.id}')" class="btn-icon bg-purple-50 text-purple-600 hover:bg-purple-500 hover:text-white" title="รับทราบแทนหัวหน้ากลุ่มฯ"><i class="fas fa-user-check"></i></button>`;
             }
 
-            // ปุ่มแอดมิน
             if (isSuperAdmin && !t.ack_admin) {
                 ackBtn += `<button onclick="acknowledgeTripAdmin('${t.id}')" class="btn-icon bg-teal-50 text-teal-600 hover:bg-teal-500 hover:text-white" title="รับทราบแทนแอดมิน"><i class="fas fa-check"></i></button>`;
             } else if (isAdmin && !t.ack_admin) {
                 ackBtn += `<button onclick="acknowledgeTripAdmin('${t.id}')" class="btn-icon bg-teal-50 text-teal-600 hover:bg-teal-500 hover:text-white" title="รับทราบ"><i class="fas fa-check"></i></button>`;
             }
 
-            // ปุ่มรอง ผอ.บุคคล
             if (isSuperAdmin && !t.ack_deputy_hr) {
                 ackBtn += `<button onclick="acknowledgeTripDeputyHR('${t.id}')" class="btn-icon bg-indigo-50 text-indigo-600 hover:bg-indigo-500 hover:text-white" title="รับทราบแทนรอง ผอ.บุคคล"><i class="fas fa-user-tie"></i></button>`;
             } else if (isDeputy && !t.ack_deputy_hr) {
@@ -647,7 +650,6 @@ function renderTripTable() {
 
             const dateDisplay = t.submitted_date ? fmt(t.submitted_date) : new Date(t.created_at).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' });
             const dateOrder = t.submitted_date || t.created_at || '';
-            // ✅ ใช้ purpose แทน trip_type
             const purposeLabel = t.purpose || t.trip_type || '-';
 
             return `<tr class="hover:bg-slate-50 transition-colors">
@@ -982,7 +984,6 @@ window.viewAdminTrip = function (id) {
     document.getElementById('viewTripModal').classList.remove('hidden');
     document.getElementById('viewTripModal').classList.add('flex');
 
-    // ✅ โหลด companions
     if (t.companion_count > 1 && typeof window.fetchTripCompanions === 'function') {
         window.fetchTripCompanions(t).then(comp => {
             const container = document.getElementById(`view-trip-companions-${t.id}`);
@@ -1019,31 +1020,40 @@ window.closeViewTripModal = function () {
 };
 
 // ==========================================
-// Admin: เขียนใบแทน
+// Flatpickr (Admin Trip — Extended)
 // ==========================================
 function initAdminTripFlatpickr() {
     function updateYear(instance) {
         const yearEl = instance.calendarContainer?.querySelector('.cur-year');
         if (yearEl && parseInt(yearEl.value) < 2400) yearEl.value = parseInt(yearEl.value) + 543;
     }
-    const config = {
-        locale: 'th', dateFormat: 'd/m/Y',
-        onChange: function (selectedDates, dateStr, instance) {
-            if (selectedDates[0]) {
-                const id = instance.element.id;
-                const d = selectedDates[0];
-                $(`#${id}_iso`).val(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
-                instance.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+
+    const makeCfg = (hiddenId) => ({
+        locale: 'th',
+        dateFormat: 'd/m/Y',
+        onChange: function (dates, str, inst) {
+            if (dates[0]) {
+                const d = dates[0];
+                if (hiddenId) {
+                    $(`#${hiddenId}`).val(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+                }
+                inst.element.value = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear() + 543}`;
+                if (hiddenId === 'admin_trip_start_date_iso' || hiddenId === 'admin_trip_end_date_iso') {
+                    window.adminTripCalculateDays();
+                }
             }
-            adminTripCalculateDays();
         },
         onReady: (_, __, inst) => updateYear(inst),
         onMonthChange: (_, __, inst) => updateYear(inst),
         onYearChange: (_, __, inst) => updateYear(inst)
-    };
-    flatpickr("#admin_trip_start_date", config);
-    flatpickr("#admin_trip_end_date", config);
-    flatpickr("#admin_trip_submitted_date", config);
+    });
+
+    ['start_date', 'end_date', 'submitted_date', 'doc_date', 'depart_from_date', 'return_to_date'].forEach(field => {
+        const el = document.getElementById(`admin_trip_${field}`);
+        if (el && !el._flatpickr) {
+            flatpickr(el, makeCfg(`admin_trip_${field}_iso`));
+        }
+    });
 }
 
 window.adminTripCalculateDays = function () {
@@ -1053,16 +1063,233 @@ window.adminTripCalculateDays = function () {
     $('#admin_trip_calc_days').text(days);
 };
 
+// ==========================================
+// TomSelect — Companion pickers (Admin)
+// ==========================================
+async function initAdminTripCompanionSelects() {
+    // ---- ครู ----
+    const teacherEl = document.getElementById('admin_companion_teachers');
+    if (teacherEl && !adminTsTeachers) {
+        adminTsTeachers = new TomSelect(teacherEl, {
+            valueField: 'id',
+            labelField: 'name',
+            searchField: ['name'],
+            plugins: ['remove_button'],
+            placeholder: 'พิมพ์ชื่อครูอย่างน้อย 2 ตัวอักษร...',
+            dropdownParent: 'body',
+            maxItems: null,
+            preload: false,
+            load: async function (query, callback) {
+                if (query.length < 2) return callback();
+                try {
+                    const { data } = await db.from('core_personnel')
+                        .select('id, prefix, first_name, last_name, department, position')
+                        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%`)
+                        .order('first_name').limit(30);
+
+                    callback((data || []).map(t => ({
+                        id: t.id,
+                        name: `${t.prefix || ''}${t.first_name} ${t.last_name}`,
+                        department: t.department || '',
+                        position: t.position || ''
+                    })));
+                } catch (err) { console.error(err); callback(); }
+            },
+            render: {
+                option: (data, escape) => `<div class="p-2 border-b border-slate-50">
+                    <div class="font-bold text-slate-800">${escape(data.name)}</div>
+                    <div class="text-xs text-slate-500">${escape(data.position)} ${data.department ? `• ${escape(data.department)}` : ''}</div>
+                </div>`,
+                item: (data, escape) => `<div class="text-xs">${escape(data.name)}</div>`
+            },
+            onChange: () => updateAdminTotalCompanions()
+        });
+    }
+
+    // ---- นักเรียน ----
+    const studentEl = document.getElementById('admin_companion_students');
+    if (studentEl && !adminTsStudents) {
+        adminTsStudents = new TomSelect(studentEl, {
+            valueField: 'id',
+            labelField: 'display',
+            searchField: ['display', 'name', 'student_id_card'],
+            plugins: ['remove_button'],
+            placeholder: 'พิมพ์ชื่อ/รหัส/เลขที่นักเรียน...',
+            dropdownParent: 'body',
+            maxItems: null,
+            preload: false,
+            load: async function (query, callback) {
+                if (query.length < 2) return callback();
+                try {
+                    const { data: school } = await db.from('core_school_info')
+                        .select('current_academic_year, current_semester').single();
+                    const acadYear = String(school?.current_academic_year || '');
+                    const sem = String(school?.current_semester || '1');
+
+                    const { data: students } = await db.from('core_students')
+                        .select(`id, prefix, first_name, last_name, student_id_card,
+                            student_enrollments(student_number, academic_year, semester,
+                                core_classrooms(grade_level, room_number))`)
+                        .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,student_id_card.ilike.%${query}%`)
+                        .order('first_name').limit(30);
+
+                    callback((students || []).map(s => {
+                        const enrList = s.student_enrollments || [];
+                        const current = enrList.find(e =>
+                            String(e.academic_year) === acadYear && String(e.semester) === sem
+                        ) || enrList[0];
+                        const cls = current?.core_classrooms;
+                        const classText = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
+                        const numText = current?.student_number ? `เลขที่ ${current.student_number}` : '';
+                        const name = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+
+                        return {
+                            id: s.id,
+                            name: name,
+                            display: `${name} (${classText} ${numText}) - ${s.student_id_card}`,
+                            class_text: classText,
+                            student_number: current?.student_number || '-',
+                            student_id_card: s.student_id_card
+                        };
+                    }));
+                } catch (err) { console.error(err); callback(); }
+            },
+            render: {
+                option: (data, escape) => `<div class="p-2 border-b border-slate-50">
+                    <div class="font-bold text-slate-800">${escape(data.name)}</div>
+                    <div class="text-xs text-slate-500">${escape(data.class_text)} • เลขที่ ${escape(data.student_number)} • ${escape(data.student_id_card)}</div>
+                </div>`,
+                item: (data, escape) => `<div class="text-xs">${escape(data.name)} <span class="text-slate-400">(${escape(data.class_text)})</span></div>`
+            },
+            onChange: () => updateAdminTotalCompanions()
+        });
+    }
+}
+
+// ==========================================
+// Toggle / Update Companions (Admin)
+// ==========================================
+window.toggleAdminCompanions = function () {
+    const checked = document.getElementById('admin_trip_has_companions').checked;
+    const panel = document.getElementById('adminCompanionsPanel');
+    if (checked) {
+        panel.classList.remove('hidden');
+        if (!adminTsTeachers) initAdminTripCompanionSelects();
+        updateAdminTotalCompanions();
+    } else {
+        panel.classList.add('hidden');
+        if (adminTsTeachers) adminTsTeachers.clear();
+        if (adminTsStudents) adminTsStudents.clear();
+        updateAdminTotalCompanions();
+    }
+};
+
+window.updateAdminTotalCompanions = function () {
+    const tc = adminTsTeachers ? adminTsTeachers.items.length : 0;
+    const sc = adminTsStudents ? adminTsStudents.items.length : 0;
+    const el = document.getElementById('admin_total_companions');
+    if (el) el.textContent = 1 + tc + sc;
+};
+
+// ==========================================
+// Purpose / Req toggles (Admin)
+// ==========================================
+window.onAdminPurposeChange = function () {
+    const selected = document.querySelector('input[name="admin_purpose"]:checked');
+    const wrap = document.getElementById('adminPurposeOtherWrap');
+    if (selected?.value === 'อื่นๆ') wrap.classList.remove('hidden');
+    else {
+        wrap.classList.add('hidden');
+        document.getElementById('admin_trip_purpose_other').value = '';
+    }
+};
+
+window.toggleAdminExpenseAmount = function () {
+    const checked = document.getElementById('admin_trip_req_travel_expense').checked;
+    const wrap = document.getElementById('adminExpenseAmountWrap');
+    if (checked) wrap.classList.remove('hidden');
+    else {
+        wrap.classList.add('hidden');
+        document.getElementById('admin_trip_travel_expense_amount').value = '';
+    }
+};
+
+window.toggleAdminOtherReq = function () {
+    const checked = document.getElementById('admin_trip_req_other').checked;
+    const wrap = document.getElementById('adminOtherReqWrap');
+    if (checked) wrap.classList.remove('hidden');
+    else {
+        wrap.classList.add('hidden');
+        document.getElementById('admin_trip_req_other_text').value = '';
+    }
+};
+
+// ==========================================
+// Open Modal (Admin)
+// ==========================================
 window.openAdminTripModal = function () {
     if (!tripIsModuleAdmin && !requireAdmin(tripCurrentUserRole, tripIsAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
 
-    $('#adminTripForm')[0].reset();
+    document.getElementById('adminTripForm').reset();
     $('#admin_trip_id').val('');
-    $('#admin_trip_start_date_iso, #admin_trip_end_date_iso, #admin_trip_submitted_date_iso').val('');
-    $('#admin_trip_calc_days').text('0');
 
-    const el = document.getElementById('admin_trip_personnel_id');
-    if (el && el.tomselect) el.tomselect.clear();
+    // ล้าง hidden ISO
+    ['start_date_iso', 'end_date_iso', 'submitted_date_iso', 'doc_date_iso', 'depart_from_date_iso', 'return_to_date_iso'].forEach(f => {
+        const el = document.getElementById(`admin_trip_${f}`);
+        if (el) el.value = '';
+    });
+
+    // ล้าง flatpickr
+    ['start_date', 'end_date', 'submitted_date', 'doc_date', 'depart_from_date', 'return_to_date'].forEach(f => {
+        const fp = $(`#admin_trip_${f}`)[0]?._flatpickr;
+        if (fp) fp.clear();
+    });
+
+    // Reset ชื่อผู้ขอ
+    const reqNameEl = document.getElementById('admin_trip_requester_name');
+    if (reqNameEl) reqNameEl.value = '';
+
+    // Reset companions
+    document.getElementById('admin_trip_has_companions').checked = false;
+    document.getElementById('adminCompanionsPanel').classList.add('hidden');
+    if (adminTsTeachers) adminTsTeachers.clear();
+    if (adminTsStudents) adminTsStudents.clear();
+    updateAdminTotalCompanions();
+
+    // Reset purpose
+    document.querySelectorAll('input[name="admin_purpose"]').forEach(r => r.checked = false);
+    document.getElementById('adminPurposeOtherWrap').classList.add('hidden');
+
+    // Reset reqs
+    ['req_official_letter', 'req_parent_notice', 'req_travel_expense', 'req_school_car', 'req_other'].forEach(f => {
+        const el = document.getElementById(`admin_trip_${f}`);
+        if (el) el.checked = false;
+    });
+    document.getElementById('adminExpenseAmountWrap').classList.add('hidden');
+    document.getElementById('adminOtherReqWrap').classList.add('hidden');
+    document.getElementById('admin_trip_calc_days').textContent = '0';
+    document.getElementById('admin_existing_attachment').classList.add('hidden');
+
+    // Clear TomSelect personnel
+    const personnelEl = document.getElementById('admin_trip_personnel_id');
+    if (personnelEl && personnelEl.tomselect) {
+        personnelEl.tomselect.clear();
+    }
+
+    // ✅ Set listener: เลือกบุคลากร → แสดงชื่อผู้ขอ
+    if (personnelEl && !personnelEl._requesterListener) {
+        personnelEl.addEventListener('change', function () {
+            const id = this.value;
+            const p = allPersonnelData.find(x => x.id === id);
+            const nameEl = document.getElementById('admin_trip_requester_name');
+            if (p && nameEl) {
+                nameEl.value = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+            }
+        });
+        personnelEl._requesterListener = true;
+    }
+
+    initAdminTripFlatpickr();
 
     $('#adminTripModal').removeClass('hidden').addClass('flex');
 };
@@ -1071,6 +1298,9 @@ window.closeAdminTripModal = function () {
     $('#adminTripModal').addClass('hidden').removeClass('flex');
 };
 
+// ==========================================
+// Save Trip (Admin) — ใช้ Schema ใหม่
+// ==========================================
 window.saveTripForAdmin = async function (e) {
     e.preventDefault();
     if (!tripIsModuleAdmin && !requireAdmin(tripCurrentUserRole, tripIsAdminMode, 'เฉพาะผู้ดูแลระบบเท่านั้น')) return;
@@ -1079,23 +1309,58 @@ window.saveTripForAdmin = async function (e) {
     const personnelId = $('#admin_trip_personnel_id').val();
     if (!personnelId) return Swal.fire('แจ้งเตือน', 'กรุณาเลือกบุคลากร', 'warning');
 
-    const trip_type = $('#admin_trip_type').val();
+    // ---------- Section 2 ----------
+    const purposeRadio = document.querySelector('input[name="admin_purpose"]:checked');
+    const purpose = purposeRadio?.value || '';
+    const purposeOther = purpose === 'อื่นๆ' ? document.getElementById('admin_trip_purpose_other').value.trim() : '';
+    if (!purpose) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกความประสงค์', 'warning');
+    if (purpose === 'อื่นๆ' && !purposeOther) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาระบุความประสงค์อื่นๆ', 'warning');
+
     const title = $('#admin_trip_title').val().trim();
     const location = $('#admin_trip_location').val().trim();
+    if (!title || !location) return Swal.fire('ข้อมูลไม่ครบ', 'กรอกเรื่องและสถานที่', 'warning');
+
+    const docNumber = $('#admin_trip_doc_number').val().trim();
+    const docDateIso = $('#admin_trip_doc_date_iso').val() || null;
+
+    // ---------- Section 3 ----------
     const startDate = $('#admin_trip_start_date_iso').val();
     const endDate = $('#admin_trip_end_date_iso').val();
     const totalDays = parseFloat($('#admin_trip_calc_days').text());
-    const travel_by = $('#admin_trip_travel_by').val();
-    const budget_source = $('#admin_trip_budget_source').val();
-    const budget_amount = $('#admin_trip_budget_amount').val();
-    const contact_phone = $('#admin_trip_phone').val().trim();
+    if (!startDate || !endDate) return Swal.fire('ข้อมูลไม่ครบ', 'กรุณาเลือกวันที่ไป-กลับ', 'warning');
+    if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันต้องมากกว่า 0', 'warning');
+
+    const travelVehicle = $('#admin_trip_travel_vehicle').val().trim();
+    const departFromDateIso = $('#admin_trip_depart_from_date_iso').val() || null;
+    const departFromTime = $('#admin_trip_depart_from_time').val() || null;
+    const returnToDateIso = $('#admin_trip_return_to_date_iso').val() || null;
+    const returnToTime = $('#admin_trip_return_to_time').val() || null;
+
+    // ---------- Section 4 ----------
+    const reqOfficial = document.getElementById('admin_trip_req_official_letter').checked;
+    const reqParent = document.getElementById('admin_trip_req_parent_notice').checked;
+    const reqSchoolCar = document.getElementById('admin_trip_req_school_car').checked;
+    const reqExpense = document.getElementById('admin_trip_req_travel_expense').checked;
+    const expenseAmount = reqExpense ? parseFloat($('#admin_trip_travel_expense_amount').val()) || null : null;
+    const reqOther = document.getElementById('admin_trip_req_other').checked;
+    const reqOtherText = reqOther ? $('#admin_trip_req_other_text').val().trim() : '';
+
+    // ---------- Section 5 ----------
+    const contact_phone = $('#admin_trip_contact_phone').val().trim();
     const contact_address = $('#admin_trip_contact_address').val().trim();
     const submittedDateIso = $('#admin_trip_submitted_date_iso').val() || null;
 
-    if (totalDays <= 0) return Swal.fire('ข้อมูลไม่ถูกต้อง', 'จำนวนวันต้องมากกว่า 0', 'warning');
+    // ---------- Companions ----------
+    const companionsChecked = document.getElementById('admin_trip_has_companions').checked;
+    const companionTeachers = companionsChecked && adminTsTeachers ? adminTsTeachers.getValue() : [];
+    const companionStudents = companionsChecked && adminTsStudents ? adminTsStudents.getValue() : [];
+    const companionCount = 1 + companionTeachers.length + companionStudents.length;
 
+    // ---------- File upload ----------
     let attachmentFileId = null;
     const fileInput = document.getElementById('admin_trip_attachment');
+    const existingFileId = $('#admin_existing_attachment').data('fileId') || null;
+
     if (fileInput && fileInput.files && fileInput.files.length > 0) {
         const file = fileInput.files[0];
         if (file.size > 5 * 1024 * 1024) return Swal.fire('ไฟล์ใหญ่เกินไป', 'ไม่เกิน 5MB', 'warning');
@@ -1104,21 +1369,49 @@ window.saveTripForAdmin = async function (e) {
         } catch (err) {
             Swal.fire('อัปโหลดไม่สำเร็จ', err.message, 'error'); return;
         }
+    } else if (existingFileId) {
+        attachmentFileId = existingFileId;
     }
 
     Swal.fire({ title: 'กำลังบันทึก...', didOpen: () => Swal.showLoading(), allowOutsideClick: false });
+
+    // ✅ Payload — ใช้ field ใหม่ทั้งหมด เหมือน teacher
     const payload = {
         personnel_id: personnelId,
         fiscal_year: tripSystemSettings.fiscal_year,
         eval_round: tripSystemSettings.eval_round,
-        trip_type, title, location,
-        start_date: startDate, end_date: endDate, total_days: totalDays,
-        travel_by, budget_source,
-        budget_amount: budget_amount ? parseFloat(budget_amount) : null,
+        purpose: purpose,
+        purpose_other: purposeOther || null,
+        title, location,
+        start_date: startDate,
+        end_date: endDate,
+        total_days: totalDays,
         contact_phone, contact_address,
         attachment_file_id: attachmentFileId,
+        pdf_url: null,
         submitted_date: submittedDateIso,
-        status: 'รออนุมัติ'
+        status: 'รออนุมัติ',
+        // Companion
+        companion_teachers: companionTeachers,
+        companion_students: companionStudents,
+        companion_count: companionCount,
+        // Doc
+        doc_number: docNumber || null,
+        doc_date: docDateIso,
+        // Travel
+        travel_vehicle: travelVehicle || null,
+        depart_from_date: departFromDateIso,
+        depart_from_time: departFromTime,
+        return_to_date: returnToDateIso,
+        return_to_time: returnToTime,
+        // Req
+        req_official_letter: reqOfficial,
+        req_parent_notice: reqParent,
+        req_travel_expense: reqExpense,
+        travel_expense_amount: expenseAmount,
+        req_school_car: reqSchoolCar,
+        req_other: reqOther,
+        req_other_text: reqOtherText || null
     };
 
     try {
@@ -1140,42 +1433,153 @@ window.saveTripForAdmin = async function (e) {
 };
 
 // ==========================================
-// Edit (from admin table)
+// Edit (from admin table) — Extended
 // ==========================================
-window.editAdminTrip = function (id) {
+window.editAdminTrip = async function (id) {
     const t = allTripsData.find(x => x.id === id);
     if (!t) return;
 
-    $('#adminTripForm')[0].reset();
+    document.getElementById('adminTripForm').reset();
     $('#admin_trip_id').val(t.id);
-    $('#admin_trip_calc_days').text(t.total_days);
 
-    const el = document.getElementById('admin_trip_personnel_id');
-    if (el && el.tomselect) el.tomselect.setValue(t.personnel_id);
+    // Personnel
+    const personnelEl = document.getElementById('admin_trip_personnel_id');
+    if (personnelEl && personnelEl.tomselect) personnelEl.tomselect.setValue(t.personnel_id);
 
-    $('#admin_trip_type').val(t.trip_type || '');
+    // ชื่อผู้ขอ
+    const p = allPersonnelData.find(x => x.id === t.personnel_id);
+    const reqNameEl = document.getElementById('admin_trip_requester_name');
+    if (p && reqNameEl) reqNameEl.value = `${p.prefix || ''}${p.first_name} ${p.last_name}`;
+
+    // Purpose
+    if (t.purpose) {
+        const radio = document.querySelector(`input[name="admin_purpose"][value="${t.purpose}"]`);
+        if (radio) radio.checked = true;
+        if (t.purpose === 'อื่นๆ' && t.purpose_other) {
+            document.getElementById('adminPurposeOtherWrap').classList.remove('hidden');
+            $('#admin_trip_purpose_other').val(t.purpose_other);
+        }
+    }
+
+    // Section 2
     $('#admin_trip_title').val(t.title);
     $('#admin_trip_location').val(t.location || '');
-    $('#admin_trip_travel_by').val(t.travel_by || '');
-    $('#admin_trip_budget_source').val(t.budget_source || '');
-    $('#admin_trip_budget_amount').val(t.budget_amount || '');
-    $('#admin_trip_phone').val(t.contact_phone || '');
+    $('#admin_trip_doc_number').val(t.doc_number || '');
+
+    // Section 3
+    $('#admin_trip_travel_vehicle').val(t.travel_vehicle || '');
+    if (t.depart_from_time) $('#admin_trip_depart_from_time').val(t.depart_from_time);
+    if (t.return_to_time) $('#admin_trip_return_to_time').val(t.return_to_time);
+
+    // Section 4
+    if (t.req_official_letter) document.getElementById('admin_trip_req_official_letter').checked = true;
+    if (t.req_parent_notice) document.getElementById('admin_trip_req_parent_notice').checked = true;
+    if (t.req_school_car) document.getElementById('admin_trip_req_school_car').checked = true;
+    if (t.req_travel_expense) {
+        document.getElementById('admin_trip_req_travel_expense').checked = true;
+        document.getElementById('adminExpenseAmountWrap').classList.remove('hidden');
+        $('#admin_trip_travel_expense_amount').val(t.travel_expense_amount || '');
+    }
+    if (t.req_other) {
+        document.getElementById('admin_trip_req_other').checked = true;
+        document.getElementById('adminOtherReqWrap').classList.remove('hidden');
+        $('#admin_trip_req_other_text').val(t.req_other_text || '');
+    }
+
+    // Section 5
+    $('#admin_trip_contact_phone').val(t.contact_phone || '');
     $('#admin_trip_contact_address').val(t.contact_address || '');
 
-    const setFp = (iso, idDisplay) => {
+    if (t.attachment_file_id) {
+        $('#admin_existing_attachment').removeClass('hidden');
+        $('#admin_existing_attachment_name').text(`ไฟล์เดิม ID: ${t.attachment_file_id}`);
+        $('#admin_existing_attachment').data('fileId', t.attachment_file_id);
+    }
+
+    // ---------- วันที่ (flatpickr) ----------
+    const setFp = (iso, fieldId) => {
         if (!iso) return;
         const parts = iso.split('-');
         const y = parseInt(parts[0]), m = parseInt(parts[1]), d = parseInt(parts[2]);
-        const fp = $(`#${idDisplay}`)[0]._flatpickr;
+        const fp = $(`#admin_trip_${fieldId}`)[0]?._flatpickr;
         if (fp) {
             fp.setDate(new Date(y, m - 1, d), false);
-            $(`#${idDisplay}`).val(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`);
-            $(`#${idDisplay}_iso`).val(iso);
+            $(`#admin_trip_${fieldId}`).val(`${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y + 543}`);
+            $(`#admin_trip_${fieldId}_iso`).val(iso);
         }
     };
-    setFp(t.start_date, 'admin_trip_start_date');
-    setFp(t.end_date, 'admin_trip_end_date');
-    if (t.submitted_date) setFp(t.submitted_date, 'admin_trip_submitted_date');
+    setFp(t.start_date, 'start_date');
+    setFp(t.end_date, 'end_date');
+    if (t.submitted_date) setFp(t.submitted_date, 'submitted_date');
+    if (t.doc_date) setFp(t.doc_date, 'doc_date');
+    if (t.depart_from_date) setFp(t.depart_from_date, 'depart_from_date');
+    if (t.return_to_date) setFp(t.return_to_date, 'return_to_date');
+    adminTripCalculateDays();
+
+    // ---------- Companions ----------
+    const compTeachers = Array.isArray(t.companion_teachers) ? t.companion_teachers : [];
+    const compStudents = Array.isArray(t.companion_students) ? t.companion_students : [];
+
+    if (compTeachers.length > 0 || compStudents.length > 0) {
+        document.getElementById('admin_trip_has_companions').checked = true;
+        document.getElementById('adminCompanionsPanel').classList.remove('hidden');
+        if (!adminTsTeachers || !adminTsStudents) await initAdminTripCompanionSelects();
+
+        // ครู
+        if (compTeachers.length > 0 && adminTsTeachers) {
+            const { data: teachers } = await db.from('core_personnel')
+                .select('id, prefix, first_name, last_name, department, position').in('id', compTeachers);
+            (teachers || []).forEach(tc => adminTsTeachers.addOption({
+                id: tc.id,
+                name: `${tc.prefix || ''}${tc.first_name} ${tc.last_name}`,
+                department: tc.department || '',
+                position: tc.position || ''
+            }));
+            adminTsTeachers.setValue(compTeachers);
+        }
+
+        // นักเรียน
+        if (compStudents.length > 0 && adminTsStudents) {
+            const { data: school } = await db.from('core_school_info')
+                .select('current_academic_year, current_semester').single();
+            const acadYear = String(school?.current_academic_year || '');
+            const sem = String(school?.current_semester || '1');
+
+            const { data: students } = await db.from('core_students')
+                .select(`id, prefix, first_name, last_name, student_id_card,
+                    student_enrollments(student_number, academic_year, semester,
+                        core_classrooms(grade_level, room_number))`)
+                .in('id', compStudents);
+
+            (students || []).forEach(s => {
+                const enrList = s.student_enrollments || [];
+                const current = enrList.find(e =>
+                    String(e.academic_year) === acadYear && String(e.semester) === sem
+                ) || enrList[0];
+                const cls = current?.core_classrooms;
+                const classText = cls ? `ม.${cls.grade_level}/${cls.room_number}` : '-';
+                const numText = current?.student_number ? `เลขที่ ${current.student_number}` : '';
+                const name = `${s.prefix || ''}${s.first_name} ${s.last_name}`;
+
+                adminTsStudents.addOption({
+                    id: s.id,
+                    name: name,
+                    display: `${name} (${classText} ${numText}) - ${s.student_id_card}`,
+                    class_text: classText,
+                    student_number: current?.student_number || '-',
+                    student_id_card: s.student_id_card
+                });
+            });
+            adminTsStudents.setValue(compStudents);
+        }
+        updateAdminTotalCompanions();
+    } else {
+        document.getElementById('admin_trip_has_companions').checked = false;
+        document.getElementById('adminCompanionsPanel').classList.add('hidden');
+        if (adminTsTeachers) adminTsTeachers.clear();
+        if (adminTsStudents) adminTsStudents.clear();
+        updateAdminTotalCompanions();
+    }
 
     $('#adminTripModal').removeClass('hidden').addClass('flex');
 };
@@ -1210,9 +1614,10 @@ window.exportTripReport = function () {
         'เริ่ม': fmt(t.start_date),
         'สิ้นสุด': fmt(t.end_date),
         'จำนวนวัน': t.status === 'ไม่อนุมัติ' ? 0 : t.total_days,
-        'เดินทางโดย': t.travel_by || '-',
+        'เดินทางโดย': t.travel_by || t.travel_vehicle || '-',
         'งบประมาณ': t.budget_source || '-',
         'จำนวนเงิน': t.budget_amount || 0,
+        'ผู้ร่วมเดินทาง': t.companion_count || 1,
         'สถานะ': t.status,
         'หัวหน้ารับทราบ': t.ack_head ? '✓' : '-',
         'รองวิชาการ': t.ack_academic ? '✓' : '-',
@@ -1368,8 +1773,15 @@ window.showTripRejectComment = window.showTripRejectComment;
 window.acknowledgeTripHead = window.acknowledgeTripHead;
 window.acknowledgeTripAcademic = window.acknowledgeTripAcademic;
 
+// ✅ NEW: Companion + Purpose + Req
+window.toggleAdminCompanions = window.toggleAdminCompanions;
+window.updateAdminTotalCompanions = window.updateAdminTotalCompanions;
+window.onAdminPurposeChange = window.onAdminPurposeChange;
+window.toggleAdminExpenseAmount = window.toggleAdminExpenseAmount;
+window.toggleAdminOtherReq = window.toggleAdminOtherReq;
+
 // Trip state globals
 window.allTripsData = allTripsData;
 window.allPersonnelData = allPersonnelData;
 
-console.log('✅ government_trip_admin.js loaded (ฉบับสมบูรณ์ + academic ack)');
+console.log('✅ government_trip_admin.js v2.0 loaded (Form เหมือน teacher + Companion + Purpose + Req)');

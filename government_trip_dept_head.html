@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รับทราบใบขอไปราชการ - หัวหน้ากลุ่มสาระฯ</title>
+    <title>รับทราบใบขอไปราชการ | WRK System</title>
 
     <script src="core_head.js"></script>
     <script src="config.js"></script>
@@ -42,6 +42,7 @@
                 transform: translateX(-100%) !important;
                 transition: transform 0.3s !important;
                 overflow-y: auto !important;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
             }
 
             .d-sidebar.open {
@@ -53,8 +54,10 @@
                 position: fixed !important;
                 inset: 0 !important;
                 background: rgba(15, 23, 42, 0.55) !important;
+                backdrop-filter: blur(2px);
                 z-index: 999 !important;
                 opacity: 0;
+                transition: opacity 0.3s ease;
             }
 
             .d-overlay.open {
@@ -64,6 +67,7 @@
 
             .d-main {
                 margin-left: 0 !important;
+                padding-left: 0 !important;
                 width: 100% !important;
             }
 
@@ -77,6 +81,11 @@
 
             .d-collapse {
                 display: none !important;
+            }
+
+            .d-topbar {
+                padding: 0 10px !important;
+                gap: 6px !important;
             }
         }
     </style>
@@ -92,41 +101,65 @@
 
             <div style="padding:0 0 12px;" class="space-y-6">
 
+                <!-- ============================================ -->
+                <!-- Super Admin Filter (เฉพาะ super_admin) -->
+                <!-- ============================================ -->
                 <div id="deptHeadGroupFilterWrap" class="hidden flex justify-end">
                     <select id="deptHeadGroupFilter" onchange="onTripDeptHeadGroupChange()"
-                        class="border border-purple-200 bg-purple-50 text-purple-800 font-bold rounded-2xl h-[38px] px-3 text-sm"></select>
+                        class="border border-purple-200 bg-purple-50 text-purple-800 font-bold rounded-2xl h-[38px] px-3 text-sm outline-none focus:border-purple-400">
+                    </select>
                 </div>
 
+                <!-- ============================================ -->
+                <!-- Stats Cards — 4 ใบ -->
+                <!-- ============================================ -->
                 <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-amber-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i
-                                class="fas fa-clock text-amber-500 mr-1"></i> รอรับทราบ</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-clock text-amber-500 mr-1"></i> รอรับทราบ
+                        </p>
                         <h3 class="text-3xl font-black text-amber-600"><span id="stat-pending">0</span></h3>
+                        <p class="text-xs text-slate-500 mt-1">รายการ</p>
                     </div>
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-emerald-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i
-                                class="fas fa-check-circle text-emerald-500 mr-1"></i> รับทราบแล้ว</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-check-circle text-emerald-500 mr-1"></i> รับทราบแล้ว
+                        </p>
                         <h3 class="text-3xl font-black text-emerald-600"><span id="stat-done">0</span></h3>
+                        <p class="text-xs text-slate-500 mt-1">รายการ</p>
                     </div>
                     <div class="glass p-5 rounded-3xl border-b-4 border-b-blue-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i
-                                class="fas fa-users text-blue-500 mr-1"></i> ครูในกลุ่ม</p>
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-users text-blue-500 mr-1"></i> ครูในกลุ่ม
+                        </p>
                         <h3 class="text-3xl font-black text-blue-600"><span id="stat-teachers">0</span></h3>
+                        <p class="text-xs text-slate-500 mt-1">คน</p>
                     </div>
-                    <div class="glass p-5 rounded-3xl border-b-4 border-b-sky-500">
-                        <p class="text-slate-500 text-xs font-bold uppercase mb-1"><i
-                                class="fas fa-plane text-sky-500 mr-1"></i> ไปราชการวันนี้</p>
-                        <h3 class="text-3xl font-black text-sky-600"><span id="stat-today">0</span></h3>
+                    <div class="glass p-5 rounded-3xl border-b-4 border-b-rose-500">
+                        <p class="text-slate-500 text-xs font-bold uppercase tracking-wider mb-1">
+                            <i class="fas fa-plane text-rose-500 mr-1"></i> ไปราชการวันนี้
+                        </p>
+                        <h3 class="text-3xl font-black text-rose-600"><span id="stat-today">0</span></h3>
+                        <p class="text-xs text-slate-500 mt-1">คน</p>
                     </div>
                 </div>
 
+                <!-- ============================================ -->
+                <!-- Tabs: Pending / Done -->
+                <!-- ============================================ -->
                 <div class="glass rounded-3xl p-6">
                     <div class="flex gap-2 mb-4 border-b border-slate-100 pb-3">
                         <button id="tabBtnPending" onclick="switchTripTab('pending')"
-                            class="px-4 py-2 rounded-xl font-bold text-sm bg-sky-600 text-white">รอรับทราบ</button>
+                            class="px-4 py-2 rounded-xl font-bold text-sm bg-sky-600 text-white transition-all">
+                            <i class="fas fa-clock mr-1.5"></i> รอรับทราบ
+                        </button>
                         <button id="tabBtnDone" onclick="switchTripTab('done')"
-                            class="px-4 py-2 rounded-xl font-bold text-sm bg-slate-100 text-slate-600">รับทราบแล้ว</button>
+                            class="px-4 py-2 rounded-xl font-bold text-sm bg-slate-100 text-slate-600 transition-all hover:bg-slate-200">
+                            <i class="fas fa-check-circle mr-1.5"></i> รับทราบแล้ว
+                        </button>
                     </div>
+
+                    <!-- Tab: Pending -->
                     <section id="tab-pending" class="tab-content">
                         <div class="w-full overflow-x-auto">
                             <table id="pendingTripTable" class="w-full text-left text-sm display nowrap">
@@ -145,6 +178,8 @@
                             </table>
                         </div>
                     </section>
+
+                    <!-- Tab: Done -->
                     <section id="tab-done" class="tab-content hidden">
                         <div class="w-full overflow-x-auto">
                             <table id="doneTripTable" class="w-full text-left text-sm display nowrap">
@@ -156,7 +191,7 @@
                                         <th>ช่วงวันที่</th>
                                         <th class="text-center">วัน</th>
                                         <th class="text-center">วันที่รับทราบ</th>
-                                        <th class="text-center">สถานะ</th>
+                                        <th class="text-center">สถานะใบขอ</th>
                                     </tr>
                                 </thead>
                                 <tbody id="tb-done-trip"></tbody>
@@ -168,23 +203,37 @@
         </main>
     </div>
 
-    <div id="viewTripModal"
-        class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
+    <!-- ============================================ -->
+    <!-- View Trip Modal -->
+    <!-- ============================================ -->
+    <div id="viewTripModal" class="hidden fixed inset-0 bg-slate-900/60 backdrop-blur-sm items-center justify-center z-[70] p-4">
         <div class="bg-white w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
-            <div
-                class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-pink-600 rounded-t-2xl text-white">
-                <h3 class="font-bold text-base flex items-center gap-2"><i class="fas fa-file-alt"></i> รายละเอียด</h3>
+            <div class="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-pink-600 rounded-t-2xl text-white flex-shrink-0">
+                <h3 class="font-bold text-base flex items-center gap-2">
+                    <i class="fas fa-file-alt"></i> รายละเอียดใบขอไปราชการ
+                </h3>
                 <button onclick="closeViewTripModal()"
-                    class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center"><i
-                        class="fas fa-times text-sm"></i></button>
+                    class="w-8 h-8 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fas fa-times text-sm"></i>
+                </button>
             </div>
-            <div id="viewTripContent" class="p-5 overflow-y-auto flex-1"></div>
-            <div class="px-5 py-3 border-t border-slate-100 flex justify-end"><button onclick="closeViewTripModal()"
-                    class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">ปิด</button>
+            <div id="viewTripContent" class="p-5 overflow-y-auto flex-1">
+                <div class="text-center text-slate-400 py-8">
+                    <i class="fas fa-spinner fa-spin text-2xl"></i>
+                </div>
+            </div>
+            <div class="px-5 py-3 border-t border-slate-100 flex justify-end flex-shrink-0">
+                <button onclick="closeViewTripModal()"
+                    class="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm transition">
+                    ปิด
+                </button>
             </div>
         </div>
     </div>
 
+    <!-- ============================================ -->
+    <!-- Scripts -->
+    <!-- ============================================ -->
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="dashboard_extras.js"></script>
@@ -192,42 +241,78 @@
     <script src="dashboard_sidebar.js"></script>
     <script src="government_trip_dept_head.js"></script>
 
+    <!-- ============================================ -->
+    <!-- Init Module Sidebar -->
+    <!-- ============================================ -->
     <script>
         function getTripDeptHeadFallbackConfig() {
             return {
                 iconStyle: 'outline',
-                brand: { logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png', name: 'WRK Trip', subtitle: 'รับทราบใบขอไปราชการ' },
+                brand: {
+                    logo: 'https://i.ibb.co/94wLv5v/WRK-PNG-200px.png',
+                    name: 'WRK Trip',
+                    subtitle: 'รับทราบใบขอไปราชการ'
+                },
                 mainMenuTitle: 'เมนูหลัก',
                 mainMenuCollapsible: false,
-                mainMenu: buildSidebarItems('government_trip', ['home', 'teacher']),
-                showAllDepartments: false, departmentsTitle: '', departments: [],
-                moduleMenus: [
-                    {
-                        title: 'จัดการ',
-                        sectionId: 'sec-trip-depthead',
-                        collapsible: false,
-                        defaultOpen: true,
-                        items: buildSidebarItems('government_trip', ['admin'])
-                    }
-                ],
-                footerMenuTitle: '', footerCollapsible: false, footerMenu: [],
+
+                // ✅ หน้าหลัก + ขอไปราชการ + หัวหน้ากลุ่มฯ (active)
+                mainMenu: buildSidebarItems('government_trip', ['home', 'teacher', 'deptHead']),
+
+                showAllDepartments: false,
+                departmentsTitle: '',
+                departments: [],
+                moduleMenus: [],
+
+                // ✅ Footer: admin (super_admin/admin/deputy/director) + กลับหน้าหลัก
+                footerMenuTitle: 'ระบบกลาง',
+                footerCollapsible: false,
+                footerMenu: buildSidebarItems('government_trip', ['admin']),
+
                 logoutItem: getSidebarAction('government_trip', 'logout'),
-                facebook: { href: 'https://www.facebook.com/WRKOfficial', icon: 'fa-brands fa-facebook', label: 'ติดตามเพจโรงเรียน' }
+                facebook: {
+                    href: 'https://www.facebook.com/WRKOfficial',
+                    icon: 'fa-brands fa-facebook',
+                    label: 'ติดตามเพจโรงเรียน'
+                }
             };
         }
 
         initModuleSidebar({
-            moduleKey: 'government_trip',
+            moduleKey: 'government_trip_dept_head',
             pageTitle: 'รับทราบใบขอไปราชการ',
-            activeId: null,
+            activeId: 'nav-trip-depthead',
+
             topbarButtons: [
-                { id: 'btnNavTeacher', html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>', onclick: "window.location.href='government_trip_teacher.html'", class: 'hidden d-btn-mode teacher', title: 'ไปหน้าโหมดครู' },
-                { id: 'btnNavAdmin', html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>', onclick: "window.location.href='government_trip_admin.html'", class: 'hidden d-btn-mode admin', title: 'ไปหน้าโหมดแอดมิน' }
+                {
+                    id: 'btnNavTeacher',
+                    html: '<i class="fas fa-chalkboard-user"></i><span>โหมดครู</span>',
+                    onclick: "window.location.href='government_trip_teacher.html'",
+                    class: 'hidden d-btn-mode teacher',
+                    title: 'ไปหน้าโหมดครู'
+                },
+                {
+                    id: 'btnNavAdmin',
+                    html: '<i class="fas fa-user-shield"></i><span>โหมดแอดมิน</span>',
+                    onclick: "window.location.href='government_trip_admin.html'",
+                    class: 'hidden d-btn-mode admin',
+                    title: 'ไปหน้าโหมดแอดมิน'
+                }
             ],
+
             fallbackConfig: getTripDeptHeadFallbackConfig(),
+
+            breadcrumb: [
+                { label: 'หน้าหลัก', href: 'index.html' },
+                { label: 'ระบบขอไปราชการ' },
+                { label: 'หัวหน้ากลุ่มสาระฯ' }
+            ],
+
             onReady: () => {
                 if (typeof setTodayChip === 'function') setTodayChip();
-                if (typeof window.refreshTripDeptHeadNavButtons === 'function') window.refreshTripDeptHeadNavButtons();
+                if (typeof window.refreshTripDeptHeadNavButtons === 'function') {
+                    window.refreshTripDeptHeadNavButtons();
+                }
             }
         });
     </script>

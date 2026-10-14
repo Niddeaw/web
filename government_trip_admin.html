@@ -95,36 +95,59 @@
                 <!-- Dashboard -->
                 <section id="tab-dashboard" class="tab-content">
                     <div class="flex items-center justify-between mb-4">
-                        <h2 class="font-bold text-slate-700 text-lg"><i
-                                class="fas fa-chart-pie text-sky-500 mr-2"></i>ภาพรวมระบบ <span id="dash-fiscal-badge"
-                                class="text-sky-600">ปี...</span></h2>
+                        <h2 class="font-bold text-slate-700 text-lg">
+                            <i class="fas fa-calendar-check text-sky-500 mr-2"></i>ข้อมูลประจำ
+                            <span id="dash-fiscal-badge" class="text-sky-600">ปี...</span>
+                        </h2>
                         <button onclick="loadTripDashboardStats()"
-                            class="text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 font-bold text-slate-600"><i
-                                class="fas fa-sync-alt mr-1"></i> รีเฟรช</button>
+                            class="text-sm bg-white border border-slate-200 px-3 py-1.5 rounded-lg shadow-sm hover:bg-slate-50 font-bold text-slate-600">
+                            <i class="fas fa-sync-alt mr-1"></i> รีเฟรช
+                        </button>
                     </div>
+
+                    <!-- ✅ Stats Cards — เหมือนระบบการลา -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-sky-500">
-                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">รายการทั้งหมด</p>
-                            <h3 id="total-all" class="text-3xl font-black text-sky-600">0 <span
+                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-b-4 border-b-sky-500">
+                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">
+                                <i class="fas fa-plane-departure text-sky-500 mr-1"></i> ไปราชการ (รวม)
+                            </p>
+                            <h3 class="text-3xl font-black text-sky-600"><span id="stat-trip-days">0</span> <span
+                                    class="text-sm font-medium text-slate-500">วัน</span></h3>
+                            <p class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ <span
+                                    id="stat-trip-pending">0</span> วัน</p>
+                        </div>
+                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-b-4 border-b-indigo-500">
+                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">
+                                <i class="fas fa-chalkboard-teacher text-indigo-500 mr-1"></i> ประชุม/อบรม (รวม)
+                            </p>
+                            <h3 class="text-3xl font-black text-indigo-600"><span id="stat-meeting-days">0</span> <span
+                                    class="text-sm font-medium text-slate-500">วัน</span></h3>
+                            <p class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ <span
+                                    id="stat-meeting-pending">0</span> วัน</p>
+                        </div>
+                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-b-4 border-b-rose-500">
+                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">
+                                <i class="fas fa-clock text-rose-500 mr-1"></i> รอการอนุมัติ
+                            </p>
+                            <h3 class="text-3xl font-black text-rose-600"><span id="total-pending">0</span> <span
                                     class="text-sm font-medium text-slate-500">รายการ</span></h3>
                         </div>
-                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-amber-500">
-                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">รออนุมัติ</p>
-                            <h3 id="total-pending" class="text-3xl font-black text-amber-600">0</h3>
-                        </div>
-                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-emerald-500">
-                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">อนุมัติแล้ว</p>
-                            <h3 id="total-approved" class="text-3xl font-black text-emerald-600">0</h3>
-                        </div>
-                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-l-4 border-l-rose-500">
-                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">ไม่อนุมัติ</p>
-                            <h3 id="total-rejected" class="text-3xl font-black text-rose-600">0</h3>
+                        <div class="glass-panel p-5 rounded-2xl shadow-sm border-b-4 border-b-emerald-500">
+                            <p class="text-slate-500 text-xs font-bold uppercase mb-1">
+                                <i class="fas fa-users text-emerald-500 mr-1"></i> บุคลากรที่ไปรอบนี้
+                            </p>
+                            <h3 class="text-3xl font-black text-emerald-600"><span id="stat-total-people">0</span> <span
+                                    class="text-sm font-medium text-slate-500">คน</span></h3>
+                            <p class="text-xs text-amber-500 font-medium mt-1">รออนุมัติ <span
+                                    id="stat-pending-people">0</span> คน</p>
                         </div>
                     </div>
 
+                    <!-- ✅ Alert Zone — รอการรับทราบ/อนุมัติ (5 stage) -->
                     <div class="glass-panel p-6 rounded-2xl shadow-sm">
-                        <h3 class="font-bold text-amber-600 mb-4 border-b border-slate-100 pb-2"><i
-                                class="fas fa-clock mr-2"></i>รอการรับทราบ/อนุมัติ</h3>
+                        <h3 class="font-bold text-rose-600 mb-4 border-b border-slate-100 pb-2">
+                            <i class="fas fa-bell mr-2"></i>แจ้งเตือน: รายการรอรับทราบ/อนุมัติ (ตามขั้นตอน)
+                        </h3>
                         <div id="alert-zone" class="space-y-2 pr-2">
                             <div class="text-center text-slate-400 py-4 text-sm">กำลังโหลด...</div>
                         </div>
@@ -199,47 +222,91 @@
                                 </div>
 
                                 <div class="border-t border-slate-100 pt-4 space-y-4">
-                                    <h4 class="text-sm font-bold text-slate-800"><i
-                                            class="fas fa-file-signature text-sky-500 mr-2"></i>ผู้ลงนามในใบขอไปราชการ
+                                    <h4 class="text-sm font-bold text-slate-800">
+                                        <i class="fas fa-file-signature text-sky-500 mr-2"></i>ผู้ลงนามในใบขอไปราชการ
+                                        (สำหรับการพิมพ์ PDF)
                                     </h4>
-                                    <div><label class="block text-sm font-bold text-slate-700 mb-1">แอดมินรับทราบ <span
-                                                class="text-rose-500">*</span></label><select id="trip_sign_admin"
-                                            class="w-full">
+
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            แอดมินรับทราบ <span class="text-rose-500">*ต้องเลือก</span>
+                                        </label>
+                                        <select id="trip_sign_admin" class="w-full">
                                             <option value="">-- เลือกผู้รับผิดชอบ --</option>
-                                        </select></div>
-                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label
-                                            class="block text-xs font-bold text-slate-500 mb-1">รองผู้อำนวยการกลุ่มบริหารงานบุคคล
-                                            (ดึงจากส่วนกลาง)</label>
+                                        </select>
+                                    </div>
+
+                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">
+                                            รองผู้อำนวยการกลุ่มบริหารงานบุคคล (ดึงจากส่วนกลาง)
+                                        </label>
                                         <div id="display_trip_deputy_hr" class="font-bold text-slate-700 text-sm">
                                             กำลังโหลด...</div>
                                     </div>
-                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200"><label
-                                            class="block text-xs font-bold text-slate-500 mb-1">ผู้อำนวยการโรงเรียน
-                                            (ดึงจากส่วนกลาง)</label>
+
+                                    <div class="bg-slate-50 p-3 rounded-xl border border-slate-200">
+                                        <label class="block text-xs font-bold text-slate-500 mb-1">
+                                            ผู้อำนวยการโรงเรียน (ดึงจากส่วนกลาง)
+                                        </label>
                                         <div id="display_trip_director" class="font-bold text-slate-700 text-sm">
                                             กำลังโหลด...</div>
                                     </div>
                                 </div>
 
                                 <div class="border-t border-slate-100 pt-6 mt-4 space-y-4">
-                                    <h4 class="text-sm font-bold text-slate-800"><i
-                                            class="fas fa-file-pdf text-red-500 mr-2"></i>ตั้งค่าการพิมพ์ PDF (ผ่าน GAS)
+                                    <h4 class="text-sm font-bold text-slate-800">
+                                        <i class="fas fa-file-pdf text-red-500 mr-2"></i>ตั้งค่าการพิมพ์ PDF (ผ่าน GAS)
                                     </h4>
-                                    <div><label class="block text-sm font-bold text-slate-700 mb-1">GAS Web App URL
-                                            *</label><input type="url" id="trip_gas_url"
+
+                                    <!-- GAS Web App URL -->
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            GAS Web App URL <span class="text-rose-500">*</span>
+                                        </label>
+                                        <input type="url" id="trip_gas_url"
                                             class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm"
-                                            placeholder="https://script.google.com/macros/s/xxxx/exec"></div>
-                                    <div><label class="block text-sm font-bold text-slate-700 mb-1">Slide Template ID
-                                            *</label><input type="text" id="trip_slide_template_id"
-                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm">
+                                            placeholder="https://script.google.com/macros/s/xxxx/exec">
                                     </div>
-                                    <div><label class="block text-sm font-bold text-slate-700 mb-1">PDF Folder ID
-                                            *</label><input type="text" id="trip_pdf_folder_id"
-                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono">
+
+                                    <!-- Slide Template ID -->
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            Slide Template ID <span class="text-rose-500">*</span>
+                                        </label>
+                                        <input type="text" id="trip_slide_template_id"
+                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono"
+                                            placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ...">
                                     </div>
-                                    <div><label class="block text-sm font-bold text-slate-700 mb-1">Evidence Folder ID
-                                            *</label><input type="text" id="trip_evidence_folder_id"
-                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono">
+
+                                    <!-- ✅ Google Drive Folder ID (สำหรับเก็บ PDF) -->
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            Google Drive Folder ID (สำหรับเก็บ PDF) <span class="text-rose-500">*</span>
+                                        </label>
+                                        <input type="text" id="trip_pdf_folder_id"
+                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono"
+                                            placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ...">
+                                    </div>
+
+                                    <!-- ✅ NEW: Google Drive Folder ID (สำหรับลายเซ็น) — ที่ขาดหายไป! -->
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            Google Drive Folder ID (สำหรับลายเซ็น) <span class="text-rose-500">*</span>
+                                        </label>
+                                        <input type="text" id="trip_signature_folder_id"
+                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono"
+                                            placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ...">
+                                    </div>
+
+                                    <!-- ✅ Google Drive Folder ID (สำหรับหลักฐานการไปราชการ) -->
+                                    <div>
+                                        <label class="block text-sm font-bold text-slate-700 mb-1">
+                                            Google Drive Folder ID (สำหรับหลักฐานการไปราชการ) <span
+                                                class="text-rose-500">*</span>
+                                        </label>
+                                        <input type="text" id="trip_evidence_folder_id"
+                                            class="w-full border-2 border-slate-200 rounded-xl p-3 outline-none focus:border-sky-500 text-sm font-mono"
+                                            placeholder="1aBcDeFgHiJkLmNoPqRsTuVwXyZ...">
                                     </div>
                                 </div>
 
@@ -311,102 +378,367 @@
     </div>
 
     <!-- Modals: Admin Trip, View, Signature -->
+    <!-- Admin Trip Modal -->
     <div id="adminTripModal" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
         <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onclick="closeAdminTripModal()"></div>
         <div
-            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+            class="relative bg-white rounded-3xl shadow-2xl z-10 w-full max-w-6xl overflow-hidden flex flex-col max-h-[95vh]">
+
+            <!-- Header -->
             <div
-                class="flex justify-between items-center px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-purple-600 to-indigo-500 text-white">
-                <h3 class="text-lg font-bold flex items-center gap-2"><i class="fas fa-user-pen"></i>
-                    เขียนใบขอไปราชการแทน</h3>
+                class="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-purple-600 to-indigo-500 text-white shrink-0">
+                <h3 class="text-lg font-bold flex items-center gap-2">
+                    <i class="fas fa-user-pen"></i> เขียนใบขอไปราชการแทน
+                </h3>
                 <button type="button" onclick="closeAdminTripModal()"
-                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition"><i
-                        class="fas fa-times"></i></button>
+                    class="h-9 w-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
+
+            <!-- Body -->
             <form id="adminTripForm" onsubmit="saveTripForAdmin(event)" class="p-6 overflow-y-auto">
-                <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div class="md:col-span-7 space-y-4">
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เลือกบุคลากร *</label><select
-                                id="admin_trip_personnel_id" class="w-full" required></select></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ประเภท *</label><select
-                                id="admin_trip_type" required
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 bg-white text-sm">
-                                <option value="">-- เลือก --</option>
-                                <option value="ไปราชการ">ไปราชการ</option>
-                                <option value="อบรม/สัมมนา">อบรม/สัมมนา</option>
-                                <option value="ประชุม">ประชุม</option>
-                                <option value="ศึกษาดูงาน">ศึกษาดูงาน</option>
-                                <option value="อื่นๆ">อื่นๆ</option>
-                            </select></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เรื่อง/หัวข้อ *</label><input
-                                type="text" id="admin_trip_title" required
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 text-sm">
+                <input type="hidden" id="admin_trip_id">
+
+                <!-- ════ หมวด 1: ผู้ขอและผู้ร่วมเดินทาง ════ -->
+                <div class="bg-sky-50/60 border border-sky-100 rounded-2xl p-5 mb-5">
+                    <h4 class="font-bold text-sky-900 mb-4 flex items-center gap-2 text-base">
+                        <span
+                            class="w-7 h-7 rounded-lg bg-sky-500 text-white flex items-center justify-center text-sm font-black">1</span>
+                        ผู้ขอและผู้ร่วมเดินทาง
+                    </h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">
+                                เลือกบุคลากร <span class="text-rose-500">*</span>
+                            </label>
+                            <select id="admin_trip_personnel_id" required></select>
                         </div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">สถานที่ *</label><input
-                                type="text" id="admin_trip_location" required
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 outline-none focus:border-purple-500 text-sm">
+
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ผู้ขอไปราชการ
+                                (ดึงจากระบบ)</label>
+                            <input type="text" id="admin_trip_requester_name" readonly
+                                placeholder="-- เลือกบุคลากรด้านซ้าย --"
+                                class="w-full bg-white border-2 border-sky-100 rounded-xl px-3 py-2.5 text-sm font-bold text-sky-800">
                         </div>
-                        <div class="grid grid-cols-2 gap-4">
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ตั้งแต่วันที่
-                                    *</label><input type="text" id="admin_trip_start_date" required
-                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-trip-datepicker"><input
-                                    type="hidden" id="admin_trip_start_date_iso"></div>
-                            <div><label class="block text-sm font-bold text-slate-700 mb-1">ถึงวันที่ *</label><input
-                                    type="text" id="admin_trip_end_date" required
-                                    class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-trip-datepicker"><input
-                                    type="hidden" id="admin_trip_end_date_iso"></div>
+
+                        <div class="md:col-span-3">
+                            <label
+                                class="flex items-center gap-3 cursor-pointer bg-white border-2 border-sky-100 rounded-xl px-4 py-2.5 hover:border-sky-300 transition">
+                                <input type="checkbox" id="admin_trip_has_companions" onchange="toggleAdminCompanions()"
+                                    class="w-5 h-5 accent-sky-500">
+                                <span class="font-bold text-slate-700 text-sm">
+                                    <i class="fas fa-users text-sky-500 mr-1"></i> พร้อมด้วย (ผู้ร่วมเดินทาง)
+                                </span>
+                            </label>
                         </div>
-                        <div class="bg-purple-50 border border-purple-200 p-4 rounded-xl">
-                            <span class="font-bold text-purple-800">รวมวัน:</span> <span id="admin_trip_calc_days"
-                                class="text-2xl font-black text-purple-600">0</span> วัน
-                        </div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ไฟล์แนบ</label><input
-                                type="file" id="admin_trip_attachment" accept=".pdf,.jpg,.jpeg,.png"
-                                class="w-full border-2 border-slate-200 rounded-xl p-3"></div>
                     </div>
-                    <div class="md:col-span-5 space-y-4">
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เดินทางโดย</label><select
-                                id="admin_trip_travel_by"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 bg-white text-sm">
-                                <option value="">-- เลือก --</option>
-                                <option value="รถยนต์ส่วนตัว">รถยนต์ส่วนตัว</option>
-                                <option value="รถยนต์ราชการ">รถยนต์ราชการ</option>
-                                <option value="รถโรงเรียน">รถโรงเรียน</option>
-                                <option value="รถโดยสารสาธารณะ">รถโดยสารสาธารณะ</option>
-                                <option value="เครื่องบิน">เครื่องบิน</option>
-                                <option value="รถไฟ">รถไฟ</option>
-                            </select></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">งบประมาณจาก</label><select
-                                id="admin_trip_budget_source"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 bg-white text-sm">
-                                <option value="">-- เลือก --</option>
-                                <option value="งบประมาณของโรงเรียน">งบประมาณของโรงเรียน</option>
-                                <option value="งบประมาณของหน่วยงานที่จัด">งบประมาณของหน่วยงานที่จัด</option>
-                                <option value="เบิกจ่ายจากต้นสังกัด">เบิกจ่ายจากต้นสังกัด</option>
-                                <option value="ออกค่าใช้จ่ายเอง">ออกค่าใช้จ่ายเอง</option>
-                            </select></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">จำนวนเงิน (บาท)</label><input
-                                type="number" id="admin_trip_budget_amount" step="0.01"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">เบอร์ติดต่อ *</label><input
-                                type="tel" id="admin_trip_phone" required pattern="[0-9]{9,10}"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm"></div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">ที่อยู่ติดต่อ</label><textarea
-                                id="admin_trip_contact_address" rows="3"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 text-sm resize-none"></textarea>
+
+                    <div id="adminCompanionsPanel" class="hidden mt-4 space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">
+                                <i class="fas fa-chalkboard-user text-blue-500 mr-1"></i> ครูที่ร่วมเดินทาง
+                            </label>
+                            <select id="admin_companion_teachers" multiple
+                                placeholder="พิมพ์ชื่อครูอย่างน้อย 2 ตัวอักษร..."></select>
                         </div>
-                        <div><label class="block text-sm font-bold text-slate-700 mb-1">วันที่ยื่น</label><input
-                                type="text" id="admin_trip_submitted_date"
-                                class="w-full border-2 border-slate-200 rounded-xl px-4 py-3 admin-trip-datepicker"><input
-                                type="hidden" id="admin_trip_submitted_date_iso"></div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">
+                                <i class="fas fa-user-graduate text-emerald-500 mr-1"></i> นักเรียนที่ร่วมเดินทาง
+                            </label>
+                            <select id="admin_companion_students" multiple
+                                placeholder="พิมพ์ชื่อ/รหัส/เลขที่นักเรียน..."></select>
+                        </div>
+
+                        <div
+                            class="bg-gradient-to-r from-indigo-50 to-sky-50 border-2 border-indigo-200 rounded-xl p-3 flex justify-between items-center">
+                            <span class="font-bold text-indigo-800 text-sm">
+                                <i class="fas fa-calculator mr-1"></i> รวมทั้งสิ้น
+                            </span>
+                            <div class="text-2xl font-black text-indigo-600">
+                                <span id="admin_total_companions">1</span> <span
+                                    class="text-sm font-bold text-indigo-800">คน</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
-                <div class="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
+
+                <!-- ════ หมวด 2: รายละเอียดการไปราชการ ════ -->
+                <div class="bg-emerald-50/60 border border-emerald-100 rounded-2xl p-5 mb-5">
+                    <h4 class="font-bold text-emerald-900 mb-4 flex items-center gap-2 text-base">
+                        <span
+                            class="w-7 h-7 rounded-lg bg-emerald-500 text-white flex items-center justify-center text-sm font-black">2</span>
+                        รายละเอียดการไปราชการ
+                    </h4>
+
+                    <div class="mb-4">
+                        <label class="block text-xs font-bold text-slate-600 mb-2">
+                            ความประสงค์ขออนุญาตไปราชการเพื่อ <span class="text-rose-500">*</span>
+                        </label>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+                            <label class="cursor-pointer">
+                                <input type="radio" name="admin_purpose" value="เข้าร่วมประชุม/อบรม/สัมมนา"
+                                    class="peer sr-only" onchange="onAdminPurposeChange()">
+                                <div
+                                    class="border-2 border-slate-200 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white transition-all">
+                                    <i class="fas fa-chalkboard-teacher mr-1"></i> ประชุม/อบรม
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="admin_purpose" value="ศึกษาดูงาน" class="peer sr-only"
+                                    onchange="onAdminPurposeChange()">
+                                <div
+                                    class="border-2 border-slate-200 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white transition-all">
+                                    <i class="fas fa-binoculars mr-1"></i> ศึกษาดูงาน
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="admin_purpose" value="เป็นวิทยากร" class="peer sr-only"
+                                    onchange="onAdminPurposeChange()">
+                                <div
+                                    class="border-2 border-slate-200 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white transition-all">
+                                    <i class="fas fa-microphone mr-1"></i> เป็นวิทยากร
+                                </div>
+                            </label>
+                            <label class="cursor-pointer">
+                                <input type="radio" name="admin_purpose" value="อื่นๆ" class="peer sr-only"
+                                    onchange="onAdminPurposeChange()">
+                                <div
+                                    class="border-2 border-slate-200 rounded-xl px-3 py-2.5 text-center text-sm font-bold text-slate-600 peer-checked:border-emerald-500 peer-checked:bg-emerald-500 peer-checked:text-white transition-all">
+                                    <i class="fas fa-ellipsis mr-1"></i> อื่นๆ
+                                </div>
+                            </label>
+                        </div>
+                        <div id="adminPurposeOtherWrap" class="hidden mt-3">
+                            <input type="text" id="admin_trip_purpose_other" placeholder="ระบุความประสงค์อื่นๆ..."
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-emerald-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">เรื่องที่ไปราชการ <span
+                                    class="text-rose-500">*</span></label>
+                            <input type="text" id="admin_trip_title" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                                placeholder="เช่น ประชุมเชิงปฏิบัติการพัฒนาหลักสูตร">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">สถานที่ไป <span
+                                    class="text-rose-500">*</span></label>
+                            <input type="text" id="admin_trip_location" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                                placeholder="เช่น โรงแรม...">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ตามหนังสือราชการที่</label>
+                            <input type="text" id="admin_trip_doc_number"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-emerald-500"
+                                placeholder="เช่น ที่ ศธ 04234/123">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ลงวันที่</label>
+                            <input type="text" id="admin_trip_doc_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer"
+                                placeholder="เลือกวันที่...">
+                            <input type="hidden" id="admin_trip_doc_date_iso">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ หมวด 3: วันเวลาเดินทาง ════ -->
+                <div class="bg-amber-50/60 border border-amber-100 rounded-2xl p-5 mb-5">
+                    <h4 class="font-bold text-amber-900 mb-4 flex items-center gap-2 text-base">
+                        <span
+                            class="w-7 h-7 rounded-lg bg-amber-500 text-white flex items-center justify-center text-sm font-black">3</span>
+                        วันเวลาเดินทาง
+                    </h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ไปราชการวันที่ <span
+                                    class="text-rose-500">*</span></label>
+                            <input type="text" id="admin_trip_start_date" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer"
+                                placeholder="เลือกวันที่...">
+                            <input type="hidden" id="admin_trip_start_date_iso">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ถึงวันที่ <span
+                                    class="text-rose-500">*</span></label>
+                            <input type="text" id="admin_trip_end_date" required
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer"
+                                placeholder="เลือกวันที่...">
+                            <input type="hidden" id="admin_trip_end_date_iso">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">เดินทางโดยพาหนะ</label>
+                            <input type="text" id="admin_trip_travel_vehicle"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500"
+                                placeholder="เช่น รถยนต์ส่วนตัว ทะเบียน กท 1234">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">ออกจากที่พัก/สำนักงาน</label>
+                            <input type="text" id="admin_trip_depart_from_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer"
+                                placeholder="วันที่...">
+                            <input type="hidden" id="admin_trip_depart_from_date_iso">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">เวลา</label>
+                            <input type="time" id="admin_trip_depart_from_time"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">กลับถึงที่พัก/สำนักงาน</label>
+                            <input type="text" id="admin_trip_return_to_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer"
+                                placeholder="วันที่...">
+                            <input type="hidden" id="admin_trip_return_to_date_iso">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">เวลา</label>
+                            <input type="time" id="admin_trip_return_to_time"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div
+                        class="bg-gradient-to-r from-amber-100 to-yellow-50 border-2 border-amber-300 rounded-xl p-3 flex justify-between items-center">
+                        <span class="font-bold text-amber-900 text-sm">
+                            <i class="fas fa-clock mr-1"></i> รวมเวลาไปราชการทั้งสิ้น
+                        </span>
+                        <div class="text-2xl font-black text-amber-600">
+                            <span id="admin_trip_calc_days">0</span> <span
+                                class="text-sm font-bold text-amber-800">วัน</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ หมวด 4: ขอความอนุเคราะห์ ════ -->
+                <div class="bg-purple-50/60 border border-purple-100 rounded-2xl p-5 mb-5">
+                    <h4 class="font-bold text-purple-900 mb-4 flex items-center gap-2 text-base">
+                        <span
+                            class="w-7 h-7 rounded-lg bg-purple-500 text-white flex items-center justify-center text-sm font-black">4</span>
+                        ขอความอนุเคราะห์จากทางโรงเรียน
+                    </h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <label
+                            class="flex items-center gap-3 cursor-pointer bg-white border-2 border-purple-100 rounded-xl px-4 py-3 hover:border-purple-300 transition">
+                            <input type="checkbox" id="admin_trip_req_official_letter"
+                                class="w-5 h-5 accent-purple-500">
+                            <span class="font-semibold text-slate-700 text-sm"><i
+                                    class="fas fa-file-signature text-purple-500 mr-1"></i> หนังสือไปราชการ</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-3 cursor-pointer bg-white border-2 border-purple-100 rounded-xl px-4 py-3 hover:border-purple-300 transition">
+                            <input type="checkbox" id="admin_trip_req_parent_notice" class="w-5 h-5 accent-purple-500">
+                            <span class="font-semibold text-slate-700 text-sm"><i
+                                    class="fas fa-bullhorn text-purple-500 mr-1"></i> หนังสือแจ้งผู้ปกครอง</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-3 cursor-pointer bg-white border-2 border-purple-100 rounded-xl px-4 py-3 hover:border-purple-300 transition">
+                            <input type="checkbox" id="admin_trip_req_school_car" class="w-5 h-5 accent-purple-500">
+                            <span class="font-semibold text-slate-700 text-sm"><i
+                                    class="fas fa-bus text-purple-500 mr-1"></i> รถยนต์โรงเรียน</span>
+                        </label>
+                        <label
+                            class="flex items-center gap-3 cursor-pointer bg-white border-2 border-purple-100 rounded-xl px-4 py-3 hover:border-purple-300 transition">
+                            <input type="checkbox" id="admin_trip_req_travel_expense"
+                                onchange="toggleAdminExpenseAmount()" class="w-5 h-5 accent-purple-500">
+                            <span class="font-semibold text-slate-700 text-sm"><i
+                                    class="fas fa-money-bill-wave text-purple-500 mr-1"></i> ค่าพาหนะเดินทาง /
+                                ค่าน้ำมันรถ</span>
+                        </label>
+                    </div>
+
+                    <div id="adminExpenseAmountWrap" class="hidden mt-3">
+                        <label class="block text-xs font-bold text-slate-600 mb-1.5">ระบุจำนวนเงิน (บาท)</label>
+                        <input type="number" id="admin_trip_travel_expense_amount" step="0.01" min="0"
+                            class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-purple-500"
+                            placeholder="0.00">
+                    </div>
+
+                    <div class="mt-3">
+                        <label
+                            class="flex items-center gap-3 cursor-pointer bg-white border-2 border-purple-100 rounded-xl px-4 py-3 hover:border-purple-300 transition">
+                            <input type="checkbox" id="admin_trip_req_other" onchange="toggleAdminOtherReq()"
+                                class="w-5 h-5 accent-purple-500">
+                            <span class="font-semibold text-slate-700 text-sm"><i
+                                    class="fas fa-ellipsis text-purple-500 mr-1"></i> อื่นๆ ระบุ</span>
+                        </label>
+                        <div id="adminOtherReqWrap" class="hidden mt-2">
+                            <input type="text" id="admin_trip_req_other_text"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-purple-500"
+                                placeholder="ระบุรายละเอียดอื่นๆ...">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ════ หมวด 5: ติดต่อ & ไฟล์แนบ ════ -->
+                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-5 mb-5">
+                    <h4 class="font-bold text-slate-800 mb-4 flex items-center gap-2 text-base">
+                        <span
+                            class="w-7 h-7 rounded-lg bg-slate-500 text-white flex items-center justify-center text-sm font-black">5</span>
+                        ข้อมูลติดต่อและไฟล์แนบ
+                    </h4>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">วันที่ยื่นใบ</label>
+                            <input type="text" id="admin_trip_submitted_date"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white cursor-pointer">
+                            <input type="hidden" id="admin_trip_submitted_date_iso">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5">เบอร์โทรติดต่อ <span
+                                    class="text-rose-500">*</span></label>
+                            <input type="tel" id="admin_trip_contact_phone" required pattern="[0-9]{9,10}"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-sky-500"
+                                placeholder="0812345678">
+                        </div>
+                        <div class="md:col-span-2">
+                            <label
+                                class="block text-xs font-bold text-slate-600 mb-1.5">ที่อยู่ติดต่อระหว่างเดินทาง</label>
+                            <textarea id="admin_trip_contact_address" rows="2"
+                                class="w-full border-2 border-slate-200 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-sky-500 resize-none"></textarea>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-bold text-slate-600 mb-1.5"><i
+                                    class="fas fa-paperclip mr-1"></i> ไฟล์แนบ (หนังสือเชิญ / กำหนดการ)</label>
+                            <input type="file" id="admin_trip_attachment" accept=".pdf,.jpg,.jpeg,.png"
+                                class="w-full border-2 border-slate-200 rounded-xl p-2.5 text-sm">
+                            <div id="admin_existing_attachment"
+                                class="hidden mt-2 text-sm bg-sky-50 border border-sky-200 rounded-xl p-2 flex items-center gap-2">
+                                <i class="fas fa-paperclip text-sky-500"></i>
+                                <span id="admin_existing_attachment_name" class="font-medium text-sky-700"></span>
+                                <button type="button"
+                                    onclick="document.getElementById('admin_trip_attachment').value=''; document.getElementById('admin_existing_attachment').classList.add('hidden');"
+                                    class="text-xs text-rose-500 hover:text-rose-700 ml-auto">ลบไฟล์นี้</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div
+                    class="sticky bottom-0 -mx-6 -mb-6 px-6 py-4 bg-white border-t border-slate-200 flex justify-end gap-3">
                     <button type="button" onclick="closeAdminTripModal()"
-                        class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold">ยกเลิก</button>
-                    <button type="submit"
-                        class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-lg flex items-center gap-2"><i
-                            class="fas fa-paper-plane"></i> บันทึกใบขอ</button>
+                        class="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold transition">ยกเลิก</button>
+                    <button type="submit" id="admin_btn_submit"
+                        class="px-8 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold shadow-lg flex items-center gap-2">
+                        <i class="fas fa-paper-plane"></i> บันทึกใบขอ
+                    </button>
                 </div>
             </form>
         </div>
@@ -516,7 +848,7 @@
         }
 
         initModuleSidebar({
-            moduleKey: 'government_trip',
+            moduleKey: 'government_trip_admin',
             pageTitle: 'แดชบอร์ดขอไปราชการ',
             activeId: 'trip-btn-dashboard',
             topbarButtons: [
