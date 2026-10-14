@@ -1488,18 +1488,50 @@ function renderInfoBlocks(data) {
 /* ── Birthday Notification ── */
 // ✅ Cache ข้อมูลวันเกิดไว้ใช้แสดง modal
 let _birthdayCache = { today: [], upcoming: [] };
+// =====================================================
+// 🔒 Birthday helpers — timezone-safe (ล้วนเป็น UTC)
+// =====================================================
+const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน',
+    'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+// แยก Y/M/D จาก string โดยไม่ผ่าน Date/Timezone
+function _parseBirthParts(birthDate) {
+    if (!birthDate) return null;
+    const s = String(birthDate).trim().split('T')[0].split(' ')[0];
+    const parts = s.split('-');
+    if (parts.length !== 3) return null;
+    const y = parseInt(parts[0], 10);
+    const m = parseInt(parts[1], 10);
+    const d = parseInt(parts[2], 10);
+    if (!y || !m || !d || m < 1 || m > 12 || d < 1 || d > 31) return null;
+    return { year: y, month: m, day: d };
+}
+
+// ระยะห่างวันจากวันนี้ (local) ถึงวันเกิดปีนี้ — คำนวณล้วนด้วย Date.UTC
+function _calendarDayDiff(birthDate, today) {
+    const bp = _parseBirthParts(birthDate);
+    if (!bp) return null;
+    const diffMs = Date.UTC(today.year(), bp.month - 1, bp.day)
+        - Date.UTC(today.year(), today.month(), today.date());
+    return Math.round(diffMs / 86400000);
+}
+
+// แสดง "D MMMM" แบบไทย โดยไม่พึ่ง dayjs locale
+function _formatThaiBirthDate(birthDate) {
+    const bp = _parseBirthParts(birthDate);
+    if (!bp) return '-';
+    return `${bp.day} ${THAI_MONTHS[bp.month - 1]}`;
+}
 
 function updateBirthdayNotification() {
     const today = dayjs();
-    const currentYear = today.year();
     let birthdayToday = [];
     let upcoming = [];
 
     allPersonnelData.forEach(p => {
-        if (!p.birth_date) return;
-        const bd = dayjs(p.birth_date);
-        const thisYearBD = bd.set('year', currentYear);
-        const diffDays = thisYearBD.diff(today, 'day');
+        const diffDays = _calendarDayDiff(p.birth_date, today);
+        if (diffDays === null) return;
+
         if (diffDays === 0) {
             birthdayToday.push(p);
         } else if (diffDays > 0 && diffDays <= 7) {
@@ -1507,7 +1539,6 @@ function updateBirthdayNotification() {
         }
     });
 
-    // ✅ เก็บลง cache
     _birthdayCache = { today: birthdayToday, upcoming };
 
     const el = document.getElementById('birthday-notification');
@@ -1521,31 +1552,22 @@ function updateBirthdayNotification() {
 
     el.classList.remove('hidden', 'animated');
     el.classList.add('birthday-notification-badge');
-
-    // ✅ ทำให้คลิกได้
     el.style.cursor = 'pointer';
     el.onclick = () => openBirthdayModal();
 
     let msg = '';
     if (birthdayToday.length > 0) {
-        const names = birthdayToday.map(p => `${p.prefix || ''}${p.first_name} ${p.last_name}`).join(', ');
-        // ✅ ถ้ามีหลายคน สั้นลง
         if (birthdayToday.length > 1) {
             msg = `🎂 วันเกิดวันนี้ ${birthdayToday.length} คน`;
         } else {
-            msg = `🎂 วันเกิดวันนี้: ${names}`;
+            const p = birthdayToday[0];
+            msg = `🎂 วันเกิดวันนี้: ${p.prefix || ''}${p.first_name} ${p.last_name}`;
         }
     } else {
-        const sorted = upcoming.sort((a, b) => a.days - b.days);
+        const sorted = [...upcoming].sort((a, b) => a.days - b.days);
         const days = sorted[0].days;
         const count = sorted.length;
-        // ✅ ปรับข้อความ
-        if (count === 1) {
-            const p = sorted[0].person;
-            msg = `🎉 จะมีวันเกิดใน ${days} วัน (1 คน)`;
-        } else {
-            msg = `🎉 จะมีวันเกิดใน ${days} วัน (${count} คน)`;
-        }
+        msg = `🎉 จะมีวันเกิดใน ${days} วัน (${count} คน)`;
     }
     el.textContent = msg;
 
@@ -1632,23 +1654,21 @@ function openBirthdayModal() {
                             </div>
                             <div class="divide-y divide-slate-100 bg-white">
                                 ${grouped[days].map(p => {
-                                    // ✅ หาวันที่เกิดจริง + แปลงเป็นวันที่ไทยแบบเต็ม
-                                    const bd = dayjs(p.birth_date);
-                                    const bdThisYear = bd.set('year', dayjs().year());
-                                    const dateStr = bdThisYear.format('D MMMM');   // เช่น 8 ตุลาคม
-                                    return `
-                                        <div class="flex items-center gap-3 p-2.5">
-                                            <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">
-                                                ${(p.first_name || '?').charAt(0)}
-                                            </div>
-                                            <div class="min-w-0 flex-1">
-                                                <p class="font-semibold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
-                                                <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
-                                            </div>
-                                            <div class="text-xs font-bold text-amber-600 flex-shrink-0">${dateStr}</div>
-                                        </div>
-                                    `;
-                                }).join('')}
+            // 🔒 Parse วันเกิดตรงๆ จาก string — ไม่ผ่าน dayjs/Date → ไม่เพี้ยน
+            const dateStr = _formatThaiBirthDate(p.birth_date);
+            return `
+        <div class="flex items-center gap-3 p-2.5">
+            <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${avColor(p.first_name)};flex-shrink:0;">
+                ${(p.first_name || '?').charAt(0)}
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="font-semibold text-slate-800 text-sm truncate">${p.prefix || ''}${p.first_name} ${p.last_name}</p>
+                <p class="text-[10px] text-slate-400 truncate">${p.position || '-'} | ${p.department || '-'}</p>
+            </div>
+            <div class="text-xs font-bold text-amber-600 flex-shrink-0">${dateStr}</div>
+        </div>
+    `;
+        }).join('')}
                             </div>
                         </div>
                     `).join('')}

@@ -29,13 +29,17 @@ const Confetti = {
     },
     success() {
         if (!this._hasLib()) return;
-        window.confetti({ particleCount: 120, spread: 90, origin: { y: 0.55 },
-            colors: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0'] });
+        window.confetti({
+            particleCount: 120, spread: 90, origin: { y: 0.55 },
+            colors: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0']
+        });
     },
     warn() {
         if (!this._hasLib()) return;
-        window.confetti({ particleCount: 60, spread: 60, origin: { y: 0.6 },
-            colors: ['#f59e0b', '#fbbf24', '#fcd34d'] });
+        window.confetti({
+            particleCount: 60, spread: 60, origin: { y: 0.6 },
+            colors: ['#f59e0b', '#fbbf24', '#fcd34d']
+        });
     }
 };
 
@@ -282,11 +286,11 @@ const NotificationCenter = {
     _open: false,
     _categories: {
         attendance: { label: 'การเช็คชื่อ', icon: 'fa-clipboard-user', color: '#2588e8' },
-        leave:      { label: 'การลา',        icon: 'fa-envelope-open-text', color: '#f43f5e' },
-        calendar:   { label: 'ปฏิทิน',       icon: 'fa-calendar-alt', color: '#8b5cf6' },
-        student:    { label: 'นักเรียน',      icon: 'fa-user-graduate', color: '#a855f7' },
-        system:     { label: 'ระบบ',          icon: 'fa-gear', color: '#64748b' },
-        other:      { label: 'อื่นๆ',          icon: 'fa-circle-info', color: '#94a3b8' }
+        leave: { label: 'การลา', icon: 'fa-envelope-open-text', color: '#f43f5e' },
+        calendar: { label: 'ปฏิทิน', icon: 'fa-calendar-alt', color: '#8b5cf6' },
+        student: { label: 'นักเรียน', icon: 'fa-user-graduate', color: '#a855f7' },
+        system: { label: 'ระบบ', icon: 'fa-gear', color: '#64748b' },
+        other: { label: 'อื่นๆ', icon: 'fa-circle-info', color: '#94a3b8' }
     },
     _items: [],
     _sources: [],
@@ -319,7 +323,7 @@ const NotificationCenter = {
 
     markAllRead() {
         this._items.forEach(i => { i.read = true; });
-        try { localStorage.setItem('wrk_notif_read', JSON.stringify(this._items.map(i => i.id))); } catch (e) {}
+        try { localStorage.setItem('wrk_notif_read', JSON.stringify(this._items.map(i => i.id))); } catch (e) { }
         this._updateBadge();
     },
 
@@ -330,7 +334,7 @@ const NotificationCenter = {
 
     _unreadCount() {
         let readIds = [];
-        try { readIds = JSON.parse(localStorage.getItem('wrk_notif_read') || '[]'); } catch (e) {}
+        try { readIds = JSON.parse(localStorage.getItem('wrk_notif_read') || '[]'); } catch (e) { }
         return this._items.filter(i => !i.read && !readIds.includes(i.id)).length;
     },
 
@@ -555,7 +559,7 @@ const Breadcrumb = {
             const isLast = i === this._items.length - 1;
             const content = isLast ? `<span class="font-bold text-slate-800">${item.label}</span>`
                 : item.href ? `<a href="${item.href}" class="text-slate-500 hover:text-indigo-600 transition-colors font-medium">${item.label}</a>`
-                : `<span class="text-slate-500 font-medium">${item.label}</span>`;
+                    : `<span class="text-slate-500 font-medium">${item.label}</span>`;
             const sep = isLast ? '' : `<i class="fas fa-chevron-right text-[8px] text-slate-300 mx-1.5"></i>`;
             return content + sep;
         }).join('');
@@ -616,8 +620,8 @@ const IconAnim = {
         setTimeout(() => el.classList.remove(cls), duration);
     },
     bounce(el) { this.apply(el, 'bounce'); },
-    shake(el)  { this.apply(el, 'shake'); },
-    pulse(el)  { this.apply(el, 'pulse'); },
+    shake(el) { this.apply(el, 'shake'); },
+    pulse(el) { this.apply(el, 'pulse'); },
     wiggle(el) { this.apply(el, 'wiggle'); }
 };
 
@@ -628,7 +632,7 @@ function formatThaiShort(iso) {
     if (!iso) return '-';
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '-';
-    const M = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+    const M = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     return `${d.getDate()} ${M[d.getMonth()]} ${(d.getFullYear() + 543).toString().slice(-2)}`;
 }
 
@@ -637,7 +641,7 @@ function formatThaiDayMonth(input) {
     const d = (typeof dayjs !== 'undefined') ? dayjs(input) : new Date(input);
     const dateObj = (d.$d instanceof Date) ? d.$d : d;
     if (isNaN(dateObj.getTime())) return '-';
-    const M = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+    const M = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
     return `${dateObj.getDate()} ${M[dateObj.getMonth()]}`;
 }
 
@@ -650,10 +654,10 @@ async function _getCachedHeadInfo(userId, type = 'leave') {
             const { data, ts } = JSON.parse(cached);
             if (Date.now() - ts < 5 * 60 * 1000) return data;
         }
-    } catch (e) {}
+    } catch (e) { }
     const fetcher = type === 'leave' ? window.getDepartmentHeadInfo : window.getTripDeptHeadInfo;
     const data = fetcher ? await fetcher(userId) : null;
-    try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem(key, JSON.stringify({ data, ts: Date.now() })); } catch (e) { }
     return data;
 }
 
@@ -666,7 +670,7 @@ async function _getCachedSystemSettings() {
             const { data, ts } = JSON.parse(cached);
             if (Date.now() - ts < 5 * 60 * 1000) return data;
         }
-    } catch (e) {}
+    } catch (e) { }
 
     // ดึงทั้ง 2 โมดูลในครั้งเดียว
     let result = { leave: null, government_trip: null };
@@ -677,7 +681,7 @@ async function _getCachedSystemSettings() {
         (data || []).forEach(m => { result[m.module_id] = m.settings || {}; });
     } catch (e) { console.warn('system settings cache error:', e); }
 
-    try { sessionStorage.setItem(key, JSON.stringify({ data: result, ts: Date.now() })); } catch (e) {}
+    try { sessionStorage.setItem(key, JSON.stringify({ data: result, ts: Date.now() })); } catch (e) { }
     return result;
 }
 
@@ -777,7 +781,9 @@ async function initExtras() {
                     .not('birth_date', 'is', null);
                 return (data || []).filter(p => {
                     if (!p.birth_date) return false;
-                    const parts = String(p.birth_date).split('-');
+                    // ✅ เปรียบเทียบ MM-DD ตรงๆ — ไม่ผ่าน Timezone
+                    const bdStr = String(p.birth_date).split('T')[0];
+                    const parts = bdStr.split('-');
                     return parts[1] === mm && parts[2] === dd;
                 }).map(p => ({
                     id: `bday-${p.id}-${today.getFullYear()}`,
@@ -1264,7 +1270,7 @@ async function initExtras() {
         const tryPrefetch = () => {
             attempts++;
             if (window.currentProfile?.id || attempts > 20) {
-                NotificationCenter.prefetch().catch(() => {});
+                NotificationCenter.prefetch().catch(() => { });
                 return;
             }
             setTimeout(tryPrefetch, 300);

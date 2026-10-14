@@ -1026,11 +1026,11 @@
             const el = document.getElementById('birthday-notification');
             if (!el) return;
             try {
+                // ✅ ใช้ RPC (ถ้ามี) — แต่ fallback ในเครื่องด้วย logic local time
                 let birthdayData = null;
                 try {
                     const { data, error } = await db.rpc('get_upcoming_birthdays', { p_days: 7 });
                     if (error) throw error;
-                    // ✅ JSONB → array
                     birthdayData = Array.isArray(data) ? data : (data || []);
                 } catch (rpcErr) {
                     console.warn('⚠️ RPC ไม่พร้อม → fallback:', rpcErr.message);
@@ -1038,22 +1038,26 @@
                         .from('core_personnel')
                         .select('id, prefix, first_name, last_name, birth_date, position, department, avatar_url')
                         .not('birth_date', 'is', null);
-                    birthdayData = (data || []).filter(p => {
-                        const bd = dayjs(p.birth_date);
-                        const thisYearBD = bd.set('year', dayjs().year());
-                        const diff = thisYearBD.diff(dayjs(), 'day');
-                        return diff >= 0 && diff <= 7;
-                    });
+                    birthdayData = data || [];
                 }
 
                 const today = dayjs();
+                const todayStart = today.startOf('day');  // ✅ เทียบจากเที่ยงคืน local
+
                 const birthdayToday = [];
                 const upcoming = [];
 
                 (birthdayData || []).forEach(p => {
-                    const bd = dayjs(p.birth_date);
-                    const thisYearBD = bd.set('year', today.year());
-                    const diffDays = thisYearBD.diff(today, 'day');
+                    // ✅ Parse "YYYY-MM-DD" เป็น local date ตรงๆ (ไม่ผ่าน UTC)
+                    const bdStr = String(p.birth_date || '').split('T')[0];
+                    const parts = bdStr.split('-');
+                    if (parts.length !== 3) return;
+
+                    const [, mm, dd] = parts.map(Number);
+                    // ✅ สร้างวันที่ด้วย local time (noon กัน DST boundary)
+                    const thisYearBD = dayjs(new Date(today.year(), mm - 1, dd, 12, 0, 0));
+                    const diffDays = thisYearBD.startOf('day').diff(todayStart, 'day');
+
                     if (diffDays === 0) birthdayToday.push(p);
                     else if (diffDays > 0 && diffDays <= 7) upcoming.push({ days: diffDays, person: p });
                 });
@@ -1156,8 +1160,11 @@
                             </div>
                             <div class="divide-y divide-slate-100 bg-white">
                                 ${grouped[days].map(p => {
-                    const bdThisYear = dayjs(p.birth_date).set('year', dayjs().year());
-                    const dateStr = `${bdThisYear.date()} ${THAI_MONTHS[bdThisYear.month()]}`;
+                    // ✅ Parse local date ตรงๆ
+                    const bdParts = String(p.birth_date || '').split('-');
+                    const bdDay = parseInt(bdParts[2]);
+                    const bdMonth = parseInt(bdParts[1]) - 1;
+                    const dateStr = `${bdDay} ${THAI_MONTHS[bdMonth]}`;
                     return `
                                         <div class="flex items-center gap-3 p-2.5">
                                             <div style="width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:0.85rem;color:#fff;background:${_bdAvatarColor(p.first_name)};flex-shrink:0;">
